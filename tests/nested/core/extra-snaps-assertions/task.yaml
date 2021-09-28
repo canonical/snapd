@@ -3,11 +3,8 @@ summary: create ubuntu-core image and execute the suite in a nested qemu instanc
 systems: [ubuntu-18.04-64]
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "Wait for first boot to be done"
-    while ! tests.nested exec "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done
+    tests.nested exec "retry --wait 1 -n 120 sh -c 'snap changes | MATCH \"Done.*Initialize system state\"'"
 
     echo "We have a model assertion"
     tests.nested exec "snap known model" | MATCH "series: 16"

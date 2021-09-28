@@ -31,6 +31,9 @@ execute: |
   echo "Connecting the two test snaps with content interface"
   snap connect "$SNAP_NAME:content" "$CONTENT_SNAP_NAME:content"
 
+  echo "Connecting snap-refresh-control interface to allow the snap to call snapctl refresh --proceed"
+  snap connect "$SNAP_NAME:snap-refresh-control"
+
   # sanity check
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
   snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
@@ -89,3 +92,7 @@ execute: |
   echo "Ensure our snaps were updated"
   snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
   snap list | MATCH "$SNAP_NAME +2\.0\.0"
+
+  echo "Check than --proceed is not allowed without snap-refresh-control interface"
+  snap disconnect "$SNAP_NAME":snap-refresh-control
+  "$SNAP_NAME".proceed 2>&1 | MATCH "cannot proceed: requires snap-refresh-control interface"

@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type recordingStore struct {
@@ -73,20 +74,19 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 }
 
 type refreshHintsTestSuite struct {
+	testutil.BaseTest
 	state *state.State
 
-	store                         *recordingStore
-	restoreModel                  func()
-	restoreEnforcedValidationSets func()
+	store *recordingStore
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
 
 func (s *refreshHintsTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.state = state.New(nil)
-
 	s.store = &recordingStore{}
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -111,18 +111,17 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
-	s.restoreModel = snapstatetest.MockDeviceModel(DefaultModel())
-	s.restoreEnforcedValidationSets = snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
+	s.AddCleanup(restoreModel)
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
-}
-
-func (s *refreshHintsTestSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	snapstate.CanAutoRefresh = nil
-	snapstate.AutoAliases = nil
-	s.restoreModel()
-	s.restoreEnforcedValidationSets()
+	s.AddCleanup(restoreEnforcedValidationSets)
+	s.AddCleanup(func() {
+		dirs.SetRootDir("/")
+		snapstate.CanAutoRefresh = nil
+		snapstate.AutoAliases = nil
+	})
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
@@ -316,9 +315,10 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			RealName: "other-snap",
 			Revision: snap.R(2),
 		},
-		Prereq:    []string{"foo-snap"},
-		PlugsOnly: true,
-		Channel:   "devel",
+		Prereq:             []string{"foo-snap"},
+		PrereqContentAttrs: map[string][]string{"foo-snap": {"some-content"}},
+		PlugsOnly:          true,
+		Channel:            "devel",
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},

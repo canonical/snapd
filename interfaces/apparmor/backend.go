@@ -403,10 +403,8 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	}
 
 	// Get the files that this snap should have
-	content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
-	}
+	content := b.deriveContent(spec.(*Specification), snapInfo, opts)
+
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapInfo.InstanceName())
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -601,7 +599,7 @@ const (
 	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
 )
 
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	content = make(map[string]osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
 
 	// Add profile for each app.
@@ -619,10 +617,10 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// This applies to, for example, kernel snaps or gadget snaps (unless they have hooks).
 	if len(content) > 0 {
 		snippets := strings.Join(spec.UpdateNS(), "\n")
-		addUpdateNSProfile(snapInfo, opts, snippets, content)
+		addUpdateNSProfile(snapInfo, snippets, content)
 	}
 
-	return content, nil
+	return content
 }
 
 // addUpdateNSProfile adds an apparmor profile for snap-update-ns, tailored to a specific snap.
@@ -630,7 +628,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 // This profile exists so that snap-update-ns doens't need to carry very wide, open permissions
 // that are suitable for poking holes (and writing) in nearly arbitrary places. Instead the profile
 // contains just the permissions needed to poke a hole and write to the layout-specific paths.
-func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets string, content map[string]osutil.FileState) {
+func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string]osutil.FileState) {
 	// Compute the template by injecting special updateNS snippets.
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {

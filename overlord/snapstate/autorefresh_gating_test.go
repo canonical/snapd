@@ -114,7 +114,7 @@ func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []
 }
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *snap.Info {
-	snapInfo := snaptest.MockSnap(c, string(snapYaml), &snap.SideInfo{
+	snapInfo := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(1),
 	})
 
@@ -1664,6 +1664,13 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
+	var snaps map[string]interface{}
+	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	c.Assert(tss[0].Tasks()[0].Get("snaps", &snaps), IsNil)
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps["snap-a"], NotNil)
+	c.Check(snaps["base-snap-b"], NotNil)
+
 	chg := s.state.NewChange("refresh", "...")
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -1745,6 +1752,13 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	tasks := chg.Tasks()
 	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b", "snap-a" as needed`)
 
+	var snaps map[string]interface{}
+	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	chg.Tasks()[0].Get("snaps", &snaps)
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps["snap-a"], NotNil)
+	c.Check(snaps["base-snap-b"], NotNil)
+
 	// all snaps refreshed, all removed from refresh-candidates.
 	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(s.state.Get("refresh-candidates", &candidates), IsNil)
@@ -1794,6 +1808,13 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
 	tasks := chg.Tasks()
+
+	var snaps map[string]interface{}
+	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	chg.Tasks()[0].Get("snaps", &snaps)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(snaps["snap-a"], NotNil)
+
 	// no re-refresh for base-snap-b because it was held.
 	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "snap-a" as needed`)
 }
@@ -2102,12 +2123,14 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2ConflictOtherSnapOp(c *C) {
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fake-auto-refresh",
 		Snap:       "snap-a",
+		ChangeID:   chg.ID(),
 	})
 
 	_, err = snapstate.Update(s.state, "snap-a", nil, 0, snapstate.Flags{})
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fake-auto-refresh",
 		Snap:       "snap-a",
+		ChangeID:   chg.ID(),
 	})
 
 	// only 2 tasks because we don't run settle() so conditional-auto-refresh
@@ -2557,6 +2580,13 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
+	refreshedDate, err := time.Parse(time.RFC3339, "2021-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreRevDate := snapstate.MockRevisionDate(func(sn *snap.Info) time.Time {
+		return refreshedDate
+	})
+	defer restoreRevDate()
+
 	requiredRevision = "1"
 	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
@@ -2571,16 +2601,45 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	c.Check(candidates["some-other-snap"], NotNil)
 	c.Check(candidates["some-snap"], IsNil)
 	c.Assert(s.fakeBackend.ops, HasLen, 3)
-	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:  "snap-c",
+			SnapID:        "snap-c-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-other-snap",
+			SnapID:        "some-other-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}},
+	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
 			Action:         "refresh",
 			InstanceName:   "snap-c",
 			SnapID:         "snap-c-id",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(11),
-	})
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "refresh",
+			InstanceName: "some-other-snap",
+			SnapID:       "some-other-snap-id",
+		},
+		revno: snap.R(11),
+	}})
 
 	s.fakeBackend.ops = nil
 	requiredRevision = "11"
@@ -2602,7 +2661,7 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 			Action:         "refresh",
 			InstanceName:   "snap-c",
 			SnapID:         "snap-c-id",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(11),
 	})
@@ -2612,7 +2671,7 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 			Action:         "refresh",
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 			Revision:       snap.R(11),
 		},
 		revno: snap.R(11),

@@ -198,6 +198,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
+		if out, ok := systemdtest.HandleMockListMountUnitsOutput(cmd, nil); ok {
+			return out, nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(r)
@@ -478,7 +481,7 @@ func (ms *baseMgrsSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files
 func (ms *baseMgrsSuite) mockInstalledSnapWithRevAndFiles(c *C, snapYaml string, rev snap.Revision, files [][]string) *snap.Info {
 	st := ms.o.State()
 
-	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, files)
+	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: rev}, files)
 	si := &snap.SideInfo{
 		RealName: info.SnapName(),
 		SnapID:   fakeSnapID(info.SnapName()),
@@ -707,7 +710,7 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
-	r := servicestate.MockSystemdVersion(248)
+	r := systemd.MockSystemdVersion(248, nil)
 	defer r()
 
 	st := s.o.State()
@@ -4343,7 +4346,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
 
-	c.Check(devicestate.Remodeling(st), Equals, true)
+	c.Check(devicestate.RemodelingChange(st), NotNil)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -4352,7 +4355,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
-	c.Check(devicestate.Remodeling(st), Equals, false)
+	c.Check(devicestate.RemodelingChange(st), IsNil)
 
 	// the new required-snap "foo" is installed
 	var snapst snapstate.SnapState
@@ -6469,7 +6472,7 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	chg, err := devicestate.Remodel(st, newModel)
 	c.Assert(err, IsNil)
 
-	c.Check(devicestate.Remodeling(st), Equals, true)
+	c.Check(devicestate.RemodelingChange(st), NotNil)
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -6477,7 +6480,7 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 
 	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
-	c.Check(devicestate.Remodeling(st), Equals, true)
+	c.Check(devicestate.RemodelingChange(st), NotNil)
 	restarting, kind := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, state.RestartSystemNow)

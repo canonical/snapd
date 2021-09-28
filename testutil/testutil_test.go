@@ -40,7 +40,7 @@ func testInfo(c *check.C, checker check.Checker, name string, paramNames []strin
 	}
 }
 
-func testCheck(c *check.C, checker check.Checker, result bool, error string, params ...interface{}) ([]interface{}, []string) {
+func testCheck(c *check.C, checker check.Checker, result bool, error string, params ...interface{}) {
 	info := checker.Info()
 	if len(params) != len(info.Params) {
 		c.Fatalf("unexpected param count in test; expected %d got %d", len(info.Params), len(params))
@@ -51,5 +51,4 @@ func testCheck(c *check.C, checker check.Checker, result bool, error string, par
 		c.Fatalf("%s.Check(%#v) returned (%#v, %#v) rather than (%#v, %#v)",
 			info.Name, params, resultActual, errorActual, result, error)
 	}
-	return params, names
 }

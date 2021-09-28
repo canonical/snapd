@@ -365,7 +365,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 		return nil
 	}
 
-	currentSnap, err := infoForDeviceSnap(st, deviceCtx, kind, whichName)
+	currentSnap, err := infoForDeviceSnap(st, deviceCtx, whichName)
 	if err == state.ErrNoState {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {

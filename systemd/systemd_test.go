@@ -22,6 +22,7 @@ package systemd_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -79,6 +80,8 @@ var _ = Suite(&SystemdTestSuite{})
 func (s *SystemdTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
 
@@ -143,6 +146,50 @@ func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadClo
 	}
 
 	return ioutil.NopCloser(bytes.NewReader(out)), err
+}
+
+func (s *SystemdTestSuite) TestMockVersion(c *C) {
+	for _, tc := range []struct {
+		version int
+		err     error
+	}{
+		{0, errors.New("some error")},
+		{123, nil},
+	} {
+		restore := MockSystemdVersion(tc.version, tc.err)
+		defer restore()
+
+		version, err := Version()
+		c.Check(version, Equals, tc.version)
+		c.Check(err, Equals, tc.err)
+	}
+}
+
+func (s *SystemdTestSuite) TestEnsureAtLeastFail(c *C) {
+	for _, tc := range []struct {
+		requiredVersion int
+		mockedVersion   int
+		mockedErr       error
+		expectedErr     string
+	}{
+		{123, 0, errors.New("some error"), "some error"},
+		{140, 139, nil, `systemd version 139 is too old \(expected at least 140\)`},
+		{149, 150, nil, ""},
+	} {
+		restore := MockSystemdVersion(tc.mockedVersion, tc.mockedErr)
+		defer restore()
+
+		err := EnsureAtLeast(tc.requiredVersion)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
+}
+
+func (s *SystemdTestSuite) TestBackend(c *C) {
+	c.Check(New(SystemMode, s.rep).Backend(), Equals, RunningSystemdBackend)
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
@@ -815,6 +862,53 @@ WantedBy=multi-user.target
 	})
 }
 
+func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	addMountUnitOptions := &MountUnitOptions{
+		Lifetime: Transient,
+		SnapName: "foo",
+		What:     mockSnapPath,
+		Where:    "/snap/snapname/345",
+		Fstype:   "squashfs",
+		Options:  []string{"remount,ro"},
+		Origin:   "bar",
+	}
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo via bar
+Before=snapd.service
+After=zfs-mount.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/345
+Type=squashfs
+Options=remount,ro
+LazyUnmount=yes
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=bar
+`[1:], mockSnapPath))
+
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
+		{"start", "snap-snapname-345.mount"},
+	})
+}
+
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
@@ -1173,6 +1267,11 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})
 }
 
+func (s *SystemdTestSuite) TestEmulationModeBackend(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+	c.Check(sysd.Backend(), Equals, EmulationModeBackend)
+}
+
 const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
@@ -1354,6 +1453,88 @@ func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
 
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "unmask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsEmpty(c *C) {
+	s.outs = [][]byte{
+		[]byte("\n"),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`Description=Mount unit for some-snap, revision x1
+Where=/somewhere/here
+FragmentPath=/etc/systemd/system/somewhere-here.mount
+HereIsOneLineWithoutAnEqualSign
+`),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, ErrorMatches, "cannot parse systemctl output:.*")
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
+	tmpDir, err := ioutil.TempDir("/tmp", "snapd-systemd-test-list-mounts-*")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpDir)
+
+	var systemctlOutput string
+	createFakeUnit := func(fileName, snapName, where, origin string) error {
+		path := filepath.Join(tmpDir, fileName)
+		if len(systemctlOutput) > 0 {
+			systemctlOutput += "\n\n"
+		}
+		systemctlOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
+Where=%s
+FragmentPath=%s
+`, snapName, where, path)
+		contents := fmt.Sprintf(`[Unit]
+Description=Mount unit for %s, revision x1
+
+[Mount]
+What=/does/not/matter
+Where=%s
+Type=doesntmatter
+Options=do,not,matter,either
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=%s
+`, snapName, where, origin)
+		return ioutil.WriteFile(path, []byte(contents), 0644)
+	}
+
+	// Prepare the unit files
+	err = createFakeUnit("somepath-somedir.mount", "some-snap", "/somepath/somedir", "module1")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-here.mount", "some-other-snap", "/somewhere/here", "module2")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-there.mount", "some-snap", "/somewhere/there", "module3")
+	c.Assert(err, IsNil)
+
+	s.outs = [][]byte{
+		[]byte(systemctlOutput),
+	}
+	sysd := New(SystemMode, nil)
+
+	// First, get all mount units for some-snap, without filter on the origin module
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
+	c.Check(err, IsNil)
+
+	// Now repeat the same, filtering on the origin module
+	s.i = 0 // this resets the systemctl output iterator back to the beginning
+	units, err = sysd.ListMountUnits("some-snap", "module3")
+	c.Check(units, DeepEquals, []string{"/somewhere/there"})
+	c.Check(err, IsNil)
 }
 
 func (s *SystemdTestSuite) TestMountHappy(c *C) {

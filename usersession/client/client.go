@@ -94,6 +94,49 @@ func (resp *response) checkError() {
 	}
 }
 
+func (client *Client) sendRequest(ctx context.Context, socket string, method, urlpath string, query url.Values, headers map[string]string, body []byte) *response {
+	uidStr := filepath.Base(filepath.Dir(socket))
+	uid, err := strconv.Atoi(uidStr)
+	if err != nil {
+		// Ignore directories that do not
+		// appear to be valid XDG runtime dirs
+		// (i.e. /run/user/NNNN).
+		return nil
+	}
+	response := &response{uid: uid}
+
+	u := url.URL{
+		Scheme:   "http",
+		Host:     uidStr,
+		Path:     urlpath,
+		RawQuery: query.Encode(),
+	}
+	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
+	if err != nil {
+		response.err = fmt.Errorf("internal error: %v", err)
+		return response
+	}
+	req = req.WithContext(ctx)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	httpResp, err := client.doer.Do(req)
+	if err != nil {
+		response.err = err
+		return response
+	}
+	defer httpResp.Body.Close()
+	response.statusCode = httpResp.StatusCode
+	response.err = decodeInto(httpResp.Body, &response)
+	response.checkError()
+	return response
+}
+
+// doMany sends the given request to all active user sessions. Please be
+// careful when using this method, because it is not aware of the physical user
+// who triggered the request and blindly forwards it to all logged in users.
+// Some of them might not have the right to see the request (let alone to
+// respond to it).
 func (client *Client) doMany(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body []byte) ([]*response, error) {
 	sockets, err := filepath.Glob(filepath.Join(dirs.XdgRuntimeDirGlob, "snapd-session-agent.socket"))
 	if err != nil {
@@ -108,45 +151,12 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 		wg.Add(1)
 		go func(socket string) {
 			defer wg.Done()
-			uidStr := filepath.Base(filepath.Dir(socket))
-			uid, err := strconv.Atoi(uidStr)
-			if err != nil {
-				// Ignore directories that do not
-				// appear to be valid XDG runtime dirs
-				// (i.e. /run/user/NNNN).
-				return
-			}
-			response := response{uid: uid}
-			defer func() {
+			response := client.sendRequest(ctx, socket, method, urlpath, query, headers, body)
+			if response != nil {
 				mu.Lock()
 				defer mu.Unlock()
-				responses = append(responses, &response)
-			}()
-
-			u := url.URL{
-				Scheme:   "http",
-				Host:     uidStr,
-				Path:     urlpath,
-				RawQuery: query.Encode(),
+				responses = append(responses, response)
 			}
-			req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(body))
-			if err != nil {
-				response.err = fmt.Errorf("internal error: %v", err)
-				return
-			}
-			req = req.WithContext(ctx)
-			for key, value := range headers {
-				req.Header.Set(key, value)
-			}
-			httpResp, err := client.doer.Do(req)
-			if err != nil {
-				response.err = err
-				return
-			}
-			defer httpResp.Body.Close()
-			response.statusCode = httpResp.StatusCode
-			response.err = decodeInto(httpResp.Body, &response)
-			response.checkError()
 		}(socket)
 	}
 	wg.Wait()

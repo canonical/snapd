@@ -36,9 +36,19 @@ environment:
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
 
 prepare: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
+    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
+        # snapd snap uses core build base (16.04) which cannot be booted
+        # properly on a host using unified hierarchy
+        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 
@@ -115,9 +125,19 @@ prepare: |
     fi
 
 execute: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
+    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
+        # snapd snap uses core build base (16.04) which cannot be booted
+        # properly on a host using unified hierarchy
+        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 
