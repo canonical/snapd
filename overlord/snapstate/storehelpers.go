@@ -618,24 +618,27 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			InstanceName: installed.InstanceName,
 		}
 
-		if enforcedSets != nil {
-			requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
-			// note, this errors out the entire refresh
-			if err != nil {
-				return err
+		if !snapst.IgnoreValidation {
+			if enforcedSets != nil {
+				requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
+				// note, this errors out the entire refresh
+				if err != nil {
+					return err
+				}
+				// if the snap is already at the required revision then skip it from
+				// candidates.
+				if !requiredRevision.Unset() && installed.Revision == requiredRevision {
+					return nil
+				}
+				if len(requiredValsets) > 0 {
+					setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
+				}
 			}
-			// if the snap is already at the required revision then skip it from
-			// candidates.
-			if !requiredRevision.Unset() && installed.Revision == requiredRevision {
-				return nil
-			}
-			if !requiredRevision.Unset() {
-				// ignore cohort if revision is specified
-				installed.CohortKey = ""
-			}
-			if len(requiredValsets) > 0 {
-				setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
-			}
+		}
+
+		if !action.Revision.Unset() {
+			// ignore cohort if revision is specified
+			installed.CohortKey = ""
 		}
 
 		stateByInstanceName[installed.InstanceName] = snapst
