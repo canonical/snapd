@@ -194,6 +194,10 @@ func (s *testDBusStream) Close() error {
 	return nil
 }
 
+func (s *testDBusStream) InjectMessage(msg *dbus.Message) {
+	s.sendMsg(msg)
+}
+
 func newTestDBusStream(handler DBusHandlerFunc) *testDBusStream {
 	s := &testDBusStream{handler: handler}
 	s.readable.L = &s.m
@@ -211,23 +215,31 @@ func (a *testAuth) HandleData(data []byte) (resp []byte, status dbus.AuthStatus)
 	return []byte(""), dbus.AuthOk
 }
 
+type InjectMessageFunc func(msg *dbus.Message)
+
+func InjectableConnection(handler DBusHandlerFunc) (*dbus.Conn, InjectMessageFunc, error) {
+	testDBusStream := newTestDBusStream(handler)
+	conn, err := dbus.NewConn(testDBusStream)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err = conn.Auth([]dbus.Auth{&testAuth{}}); err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+	if err = conn.Hello(); err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+	return conn, testDBusStream.InjectMessage, nil
+}
+
 // Connection returns a DBus connection for writing unit tests.
 //
 // The handler function is called for each message sent to the bus. It can
 // return any number of messages to send in response. The counter aids in
 // testing a sequence of messages that is expected.
 func Connection(handler DBusHandlerFunc) (*dbus.Conn, error) {
-	conn, err := dbus.NewConn(newTestDBusStream(handler))
-	if err != nil {
-		return nil, err
-	}
-	if err = conn.Auth([]dbus.Auth{&testAuth{}}); err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-	if err = conn.Hello(); err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-	return conn, nil
+	conn, _, err := InjectableConnection(handler)
+	return conn, err
 }

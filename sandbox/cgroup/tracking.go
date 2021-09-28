@@ -88,6 +88,7 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
 
 	pid := osGetpid()
+	start := time.Now()
 tryAgain:
 	// Create a transient scope by talking to systemd over DBus.
 	if err := doCreateTransientScope(conn, unitName, pid); err != nil {
@@ -129,17 +130,12 @@ tryAgain:
 	// Verify the effective tracking cgroup and check that our scope name is
 	// contained therein.
 	hasTracking := false
-	start := time.Now()
-	for tries := 0; tries < 100; tries++ {
-		path, err := cgroupProcessPathInTrackingCgroup(pid)
-		if err != nil {
-			return err
-		}
-		if strings.HasSuffix(path, unitName) {
-			hasTracking = true
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
+	}
+	if strings.HasSuffix(path, unitName) {
+		hasTracking = true
 	}
 	waitForTracking := time.Since(start)
 	logger.Debugf("waited %v for tracking", waitForTracking)
@@ -211,6 +207,9 @@ var (
 	errDBusUnknownMethod    = &handledDBusError{msg: "unknown dbus object method", dbusError: "org.freedesktop.DBus.Error.UnknownMethod"}
 	errDBusNameHasNoOwner   = &handledDBusError{msg: "dbus name has no owner", dbusError: "org.freedesktop.DBus.Error.NameHasNoOwner"}
 	errDBusSpawnChildExited = &handledDBusError{msg: "dbus spawned child process exited", dbusError: "org.freedesktop.DBus.Error.Spawn.ChildExited"}
+
+	// pick a decent fit-all timeout
+	createScopeJobTimeout = 10 * time.Second
 )
 
 // doCreateTransientScope creates a systemd transient scope with specified properties.
@@ -275,6 +274,19 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	mode := "fail"
 	properties := []property{{"PIDs", []uint{uint(pid)}}}
 	aux := []auxUnit(nil)
+	jobRemoveMatch := []dbus.MatchOption{
+		dbus.WithMatchInterface("org.freedesktop.systemd1.Manager"),
+	}
+	if err := conn.AddMatchSignal(jobRemoveMatch...); err != nil {
+		return fmt.Errorf("cannot subscribe to systemd signals: %v", err)
+	}
+	closeChan := make(chan struct{})
+	defer close(closeChan)
+	signals := make(chan *dbus.Signal, 10)
+	jobResultChan := make(chan string, 1)
+	jobWaitFor := make(chan string, 1)
+	conn.Signal(signals)
+
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
 	call := systemd.Call(
 		"org.freedesktop.systemd1.Manager.StartTransientUnit",
@@ -284,6 +296,54 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 		properties,
 		aux,
 	)
+	go func() {
+		jobResults := make(map[string]string, 10)
+		expectedJob := ""
+		for {
+			select {
+			case job, ok := <-jobWaitFor:
+				if !ok {
+					continue
+				}
+				if result, ok := jobResults[job]; ok {
+					// maybe we already have result for this job
+					jobResultChan <- result
+				} else {
+					expectedJob = job
+				}
+			case sig := <-signals:
+				if sig == nil {
+					// only in tests
+					continue
+				}
+				if sig.Name != "org.freedesktop.systemd1.Manager.JobRemoved" {
+					continue
+				}
+				var id uint32
+				var jobFromSignal dbus.ObjectPath
+				var unit string
+				var result string
+				if err := dbus.Store(sig.Body, &id, &jobFromSignal, &unit, &result); err != nil {
+					continue
+				}
+				job := string(jobFromSignal)
+				if job == expectedJob {
+					// we are already expecting results for this job
+					jobResultChan <- result
+				} else {
+					// or not, just keep result for now, as
+					// a request to track a job may come
+					// later
+					jobResults[job] = result
+				}
+			case <-closeChan:
+				conn.RemoveSignal(signals)
+				conn.RemoveMatchSignal(jobRemoveMatch...)
+				close(jobResultChan)
+				return
+			}
+		}
+	}()
 	var job dbus.ObjectPath
 	if err := call.Store(&job); err != nil {
 		if dbusErr, ok := err.(dbus.Error); ok {
@@ -310,11 +370,22 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 				return fmt.Errorf("cannot create transient scope: DBus error %q: %v", dbusErr.Name, dbusErr.Body)
 			}
 		}
-		if err != nil {
-			return fmt.Errorf("cannot create transient scope: %s", err)
-		}
+		return fmt.Errorf("cannot create transient scope: %s", err)
 	}
-	logger.Debugf("created transient scope as object: %s", job)
+	jobWaitFor <- string(job)
+	logger.Debugf("create transient scope job: %s", job)
+	timeout := time.NewTimer(createScopeJobTimeout)
+	defer timeout.Stop()
+	select {
+	case result := <-jobResultChan:
+		logger.Debugf("job result is %q", result)
+		if result != "done" {
+			return fmt.Errorf("transient scope could not be started, job %v finished with result %v", job, result)
+		}
+	case <-timeout.C:
+		return fmt.Errorf("transient scope not created in %v", createScopeJobTimeout)
+	}
+	logger.Debugf("transient scope %v created", unitName)
 	return nil
 }
 
