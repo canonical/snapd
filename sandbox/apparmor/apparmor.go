@@ -327,19 +327,19 @@ func probeParserFeatures() ([]string, error) {
 	}
 	var featureProbes = []struct {
 		feature string
-		probe string
+		probe   string
 	}{
 		{
 			feature: "unsafe",
-			probe: "change_profile unsafe /**,",
+			probe:   "change_profile unsafe /**,",
 		},
 		{
 			feature: "include-if-exists",
-			probe: "#include if exists \"/foo\"",
+			probe:   "#include if exists \"/foo\"",
 		},
 		{
 			feature: "qipcrtr-socket",
-			probe: "network qipcrtr dgram,",
+			probe:   "network qipcrtr dgram,",
 		},
 	}
 	features := make([]string, 0, 3)
