@@ -312,7 +312,12 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, deviceCtx, "")
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply

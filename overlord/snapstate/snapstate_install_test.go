@@ -4180,3 +4180,38 @@ func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidat
 	}
 	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
 }
+
+func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore: contentStore{
+			fakeStore: s.fakeStore,
+			state:     s.state,
+		},
+		DeviceModel: &asserts.Model{},
+	}
+	snapstatetest.MockDeviceContext(deviceCtx)
+
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "snap-content-plug", nil, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+
+	chg := s.state.NewChange("install", "test: install")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-slot", target: filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap")},
+	})
+}
