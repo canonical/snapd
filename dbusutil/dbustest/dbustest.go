@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"sync"
 
 	"github.com/godbus/dbus"
 )
@@ -64,44 +63,42 @@ type DBusHandlerFunc func(msg *dbus.Message, n int) ([]*dbus.Message, error)
 type testDBusStream struct {
 	handler DBusHandlerFunc
 
-	m        sync.Mutex
-	readable sync.Cond
+	outputBuf bytes.Buffer
 
-	outputBufLock sync.Mutex
+	output       chan []byte
+	closeRequest chan struct{}
 
-	outputBuf, inputBuf bytes.Buffer
-	closed              bool
-	authDone            bool
-	n                   int
+	closed   bool
+	authDone bool
+	n        int
 }
 
-func (s *testDBusStream) decodeRequest() {
+func (s *testDBusStream) decodeRequest(req []byte) {
+	buf := bytes.NewBuffer(req)
 	// s.m is locked
 	if !s.authDone {
 		// Before authentication is done process the text protocol anticipating
 		// the TEST authentication used by NewDBusTestConn call below.
-		msg := s.inputBuf.String()
-		s.inputBuf.Reset()
+		msg := buf.String()
 		switch msg {
 		case "\x00":
 			// initial NUL byte, ignore
 		case "AUTH\r\n":
-			s.outputBuf.WriteString("REJECTED TEST\r\n")
+			s.output <- []byte("REJECTED TEST\r\n")
 		case "AUTH TEST TEST\r\n":
-			s.outputBuf.WriteString("OK test://\r\n")
+			s.output <- []byte("OK test://\r\n")
 		case "CANCEL\r\n":
-			s.outputBuf.WriteString("REJECTED\r\n")
+			s.output <- []byte("REJECTED\r\n")
 		case "BEGIN\r\n":
 			s.authDone = true
 		default:
 			panic(fmt.Errorf("unrecognized authentication message %q", msg))
 		}
-		s.readable.Signal()
 		return
 	}
 
 	// After authentication the buffer must contain marshaled DBus messages.
-	msgIn, err := dbus.DecodeMessage(&s.inputBuf)
+	msgIn, err := dbus.DecodeMessage(buf)
 	if err != nil {
 		panic(fmt.Errorf("cannot decode incoming message: %v", err))
 	}
@@ -151,61 +148,51 @@ func (s *testDBusStream) decodeRequest() {
 
 func (s *testDBusStream) sendMsg(msg *dbus.Message) {
 	// TODO: handle big endian if we ever get big endian machines again.
-	encodeMsg := func() {
-		s.outputBufLock.Lock()
-		defer s.outputBufLock.Unlock()
-
-		if err := msg.EncodeTo(&s.outputBuf, binary.LittleEndian); err != nil {
-			panic(fmt.Errorf("cannot encode outgoing message: %v", err))
-		}
+	var buf bytes.Buffer
+	if err := msg.EncodeTo(&buf, binary.LittleEndian); err != nil {
+		panic(fmt.Errorf("cannot encode outgoing message: %v", err))
 	}
-	encodeMsg()
-	// s.m is locked
-	s.readable.Signal()
+	s.output <- buf.Bytes()
 }
 
 func (s *testDBusStream) Read(p []byte) (n int, err error) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	// When the buffer is empty block until more data arrives. DBus
-	// continuously blocks on reading and premature empty read is treated as an
-	// EOF, terminating the message flow.
-	isOutputReady := func() bool {
-		s.outputBufLock.Lock()
-		defer s.outputBufLock.Unlock()
-		return s.outputBuf.Len() != 0
+	for {
+		// When the buffer is empty block until more data arrives. DBus
+		// continuously blocks on reading and premature empty read is treated as an
+		// EOF, terminating the message flow.
+		if s.closed {
+			return 0, fmt.Errorf("stream is closed")
+		}
+		if s.outputBuf.Len() > 0 {
+			return s.outputBuf.Read(p)
+		}
+		select {
+		case data := <-s.output:
+			// just accumulate the data in the output buffer
+			s.outputBuf.Write(data)
+		case <-s.closeRequest:
+			s.closed = true
+		}
 	}
-	if !isOutputReady() {
-		s.readable.Wait()
-	}
-
-	if s.closed {
-		return 0, fmt.Errorf("stream is closed")
-	}
-	s.outputBufLock.Lock()
-	defer s.outputBufLock.Unlock()
-	return s.outputBuf.Read(p)
 }
 
 func (s *testDBusStream) Write(p []byte) (n int, err error) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
-	if s.closed {
-		return 0, fmt.Errorf("stream is closed")
+	select {
+	case <-s.closeRequest:
+		s.closed = true
+	default:
+		if s.closed {
+			return 0, fmt.Errorf("stream is closed")
+		}
+		s.decodeRequest(p)
+		return len(p), nil
 	}
-
-	n, err = s.inputBuf.Write(p)
-	s.decodeRequest()
-	return n, err
+	// because vet incorrectly flags this as a missing return
+	panic("not reached")
 }
 
 func (s *testDBusStream) Close() error {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.closed = true
-	s.readable.Signal()
+	s.closeRequest <- struct{}{}
 	return nil
 }
 
@@ -214,8 +201,11 @@ func (s *testDBusStream) InjectMessage(msg *dbus.Message) {
 }
 
 func newTestDBusStream(handler DBusHandlerFunc) *testDBusStream {
-	s := &testDBusStream{handler: handler}
-	s.readable.L = &s.m
+	s := &testDBusStream{
+		handler:      handler,
+		output:       make(chan []byte, 1),
+		closeRequest: make(chan struct{}, 1),
+	}
 	return s
 }
 
