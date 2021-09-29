@@ -20,8 +20,6 @@
 package notification
 
 import (
-	"time"
-
 	"github.com/godbus/dbus"
 )
 
@@ -35,7 +33,6 @@ type gtkBackend struct {
 	conn      *dbus.Conn
 	manager   dbus.BusObject
 	desktopID string
-	firstUse  time.Time
 }
 
 // TODO: support actions via session agent.
@@ -51,7 +48,6 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 		conn:      conn,
 		manager:   conn.Object(gtkBusName, gtkObjectPath),
 		desktopID: desktopID,
-		firstUse:  timeNow(),
 	}
 	return b, nil
 }
