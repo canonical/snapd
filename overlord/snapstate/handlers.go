@@ -356,8 +356,13 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 		return nil, nil
 	}
 
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := Update(st, snapName, nil, userID, flags)
+	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
 			// there's already an update for the same snap in this change,
