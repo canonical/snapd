@@ -10,12 +10,14 @@ prepare: |
     if [ -d /home/test/snap ]; then
         mv /home/test/snap /home/test/snap.old
     fi
+    tests.session -u test prepare
 
 restore: |
     rm -rf /home/test/snap
     if [ -d /home/test/snap.old ]; then
         mv /home/test/snap.old /home/test/snap
     fi
+    tests.session -u test restore
 
 execute: |
     # TODO: extend the test to work for root when the policy is fixed for admin_home_t
