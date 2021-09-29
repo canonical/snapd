@@ -224,8 +224,12 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 
 	st.Lock()
-	opts := snapstate.GetSnapDirOptions(st)
+	opts, err := snapstate.GetSnapDirOptions(st)
 	st.Unlock()
+
+	if err != nil {
+		return err
+	}
 
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, opts)
 	if err != nil {
@@ -306,8 +310,12 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts := snapstate.GetSnapDirOptions(st)
+	opts, err := snapstate.GetSnapDirOptions(st)
 	st.Unlock()
+
+	if err != nil {
+		return err
+	}
 
 	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf, opts)
 	if err != nil {

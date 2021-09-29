@@ -1099,8 +1099,11 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts := GetSnapDirOptions(st)
+	opts, err := GetSnapDirOptions(st)
 	st.Unlock()
+	if err != nil {
+		return err
+	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, opts); copyDataErr != nil {
@@ -1149,8 +1152,11 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts := GetSnapDirOptions(st)
+	opts, err := GetSnapDirOptions(st)
 	st.Unlock()
+	if err != nil {
+		return err
+	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, opts); err != nil {
@@ -1198,7 +1204,10 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	opts := GetSnapDirOptions(st)
+	opts, err := GetSnapDirOptions(st)
+	if err != nil {
+		return err
+	}
 
 	m.backend.ClearTrashedData(info, opts)
 
@@ -2341,8 +2350,12 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts := GetSnapDirOptions(st)
+	opts, err := GetSnapDirOptions(st)
 	st.Unlock()
+
+	if err != nil {
+		return err
+	}
 
 	if err = m.backend.RemoveSnapData(info, opts); err != nil {
 		return err
@@ -3253,13 +3266,13 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 
 // GetSnapDirOptions returns *dirs.SnapDirOptions configured according to the
 // enabled experimental features. The state must be locked by the caller.
-func GetSnapDirOptions(state *state.State) *dirs.SnapDirOptions {
+func GetSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
 	tr := config.NewTransaction(state)
 
 	hiddenDir, err := features.Flag(tr, features.HiddenSnapFolder)
 	if err != nil {
-		logger.Noticef("cannot read %q conf, will assume it's unset: %s", features.HiddenSnapFolder, err)
+		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapFolder, err)
 	}
 
-	return &dirs.SnapDirOptions{HiddenSnapDir: hiddenDir}
+	return &dirs.SnapDirOptions{HiddenSnapDir: hiddenDir}, nil
 }

@@ -1025,7 +1025,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
-	opts := getSnapDirOptions()
+	opts, err := getSnapDirOptions()
+	if err != nil {
+		return err
+	}
+
 	if err := createUserDataDirs(info, opts); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -1221,19 +1225,19 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-func getSnapDirOptions() *dirs.SnapDirOptions {
+func getSnapDirOptions() (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
 	_, err := os.Stat(features.HiddenSnapFolder.ControlFile())
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			logger.Noticef("WARNING: cannot get conf %q, assuming it's unset: %s", features.HiddenSnapFolder, err)
+			return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapFolder, err)
 		}
 	} else {
 		opts.HiddenSnapDir = true
 	}
 
-	return &opts
+	return &opts, nil
 }
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
