@@ -71,6 +71,11 @@ func (s *themesSuite) daemon(c *C) *daemon.Daemon {
 	return s.apiBaseSuite.daemonWithStore(c, s)
 }
 
+func (s *themesSuite) expectThemesAccess() {
+	s.expectReadAccess(daemon.ThemesOpenAccess{})
+	s.expectWriteAccess(daemon.ThemesAuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 func (s *themesSuite) TestInstalledThemes(c *C) {
 	d := s.daemon(c)
 	s.mockSnap(c, `name: snap1
@@ -324,6 +329,7 @@ slots:
 }
 
 func (s *themesSuite) TestThemesCmdGet(c *C) {
+	s.expectThemesAccess()
 	s.daemon(c)
 	s.available = map[string]*snap.Info{
 		"gtk-theme-foo": {
@@ -387,6 +393,7 @@ func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
 }
 
 func (s *themesSuite) TestThemesCmdPost(c *C) {
+	s.expectThemesAccess()
 	s.daemonWithIfaceMgr(c)
 
 	s.available = map[string]*snap.Info{

@@ -95,7 +95,8 @@ func (s *diskSuite) SetUpTest(c *C) {
 }
 
 func (s *diskSuite) TestDiskFromNameHappy(c *C) {
-	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
 		return map[string]string{
 			"MAJOR":   "1",
@@ -110,8 +111,26 @@ func (s *diskSuite) TestDiskFromNameHappy(c *C) {
 	c.Assert(d.Dev(), Equals, "1:2")
 }
 
+func (s *diskSuite) TestDiskFromPathHappy(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--path")
+		c.Assert(dev, Equals, "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb")
+		return map[string]string{
+			"MAJOR":   "1",
+			"MINOR":   "2",
+			"DEVTYPE": "disk",
+		}, nil
+	})
+	defer restore()
+
+	d, err := disks.DiskFromDevicePath("/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb")
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "1:2")
+}
+
 func (s *diskSuite) TestDiskFromNameUnhappyPartition(c *C) {
-	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda1")
 		return map[string]string{
 			"MAJOR":   "1",
@@ -126,7 +145,8 @@ func (s *diskSuite) TestDiskFromNameUnhappyPartition(c *C) {
 }
 
 func (s *diskSuite) TestDiskFromNameUnhappyBadUdevOutput(c *C) {
-	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
 		// udev should always return the major/minor but if it doesn't we should
 		// fail
@@ -154,7 +174,8 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyMissingUdevProps(c *C) {
 `)
 	defer restore()
 
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "/dev/vda4")
 		return map[string]string{
 			"prop": "hello",
@@ -171,7 +192,8 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition
 `)
 	defer restore()
 
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "/dev/vda4")
 		return map[string]string{
 			"ID_PART_ENTRY_DISK": "not-a-number",
@@ -188,7 +210,8 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 `)
 	defer restore()
 
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		switch dev {
 		case "/dev/vda4":
 			return map[string]string{
@@ -215,7 +238,8 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 `)
 	defer restore()
 
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		switch dev {
 		case "/dev/mapper/something":
 			return map[string]string{
@@ -242,7 +266,8 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 
 	// mock just the single partition and the disk itself in udev
 	n := 0
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		n++
 		switch n {
 		case 1, 4:
@@ -318,7 +343,7 @@ func (s *diskSuite) TestDiskFromMountPointHappyRealUdevadm(c *C) {
 if [ "$*" = "info --query property --name /dev/vda1" ]; then
 	echo "ID_PART_ENTRY_DISK=42:0"
 else
-	echo "unexpected arguments"
+	echo "unexpected arguments $*"
 	exit 1
 fi
 `)
@@ -343,7 +368,7 @@ if [ "$*" = "info --query property --name /dev/mapper/something" ]; then
 	# not a partition, so no ID_PART_ENTRY_DISK, but we will have DEVTYPE=disk
 	echo "DEVTYPE=disk"
 else
-	echo "unexpected arguments"
+	echo "unexpected arguments $*"
 	exit 1
 fi
 `)
@@ -363,7 +388,8 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 `)
 	defer restore()
 
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		switch dev {
 		case "/dev/mapper/something":
 			return map[string]string{
@@ -409,7 +435,7 @@ func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
 if [ "$*" = "info --query property --name /dev/not-a-disk" ]; then
 	echo "DEVTYPE=not-a-disk"
 else
-	echo "unexpected arguments"
+	echo "unexpected arguments $*"
 	exit 1
 fi
 `)
@@ -429,7 +455,8 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	defer restore()
 
 	n := 0
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		n++
 		switch n {
 		case 1:
@@ -585,7 +612,8 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	defer restore()
 
 	n := 0
-	restore = disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
 		n++
 		switch n {
 		case 1:
