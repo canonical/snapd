@@ -197,6 +197,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
+	restore = main.MockPartSrcPollIterations(0)
+	s.AddCleanup(restore)
+
 	// use a specific time for all the assertions, in the future so that we can
 	// set the timestamp of the model assertion to something newer than now, but
 	// still older than the snap declarations by default
@@ -5931,4 +5934,23 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	// reboot was requested
 	c.Check(rebootCalls, Equals, 1)
 	c.Check(s.logs.String(), testutil.Contains, `try recovery system health check failed: mock failure`)
+}
+
+func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
+	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
+	defer restore()
+
+	restore = main.MockPartSrcPollIterations(1)
+	defer restore()
+
+	n := 0
+	restore = main.MockSystemdMount(func(what, where string, opts *main.SystemdMountOptions) error {
+		n++
+		return nil
+	})
+	defer restore()
+
+	err := main.MountNonDataPartitionMatchingKernelDisk("/some/target", "")
+	c.Check(err, ErrorMatches, "cannot mount source .*/dev/disk/by-partuuid/some-uuid: no such file or directory")
+	c.Check(n, Equals, 0)
 }
