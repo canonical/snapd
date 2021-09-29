@@ -47,6 +47,8 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
+		DevNode:           "/dev/vda",
+		DevPath:           "/sys/devices/foo1",
 	}
 
 	d2 := &disks.MockDiskMapping{
@@ -55,6 +57,8 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d2",
+		DevNode:           "/dev/vdb",
+		DevPath:           "/sys/devices/foo2",
 	}
 
 	m := map[string]*disks.MockDiskMapping{
@@ -68,10 +72,14 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 
 	res, err := disks.DiskFromDeviceName("devName1")
 	c.Assert(err, IsNil)
+	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/foo1")
 	c.Assert(res, DeepEquals, d1)
 
 	res2, err := disks.DiskFromDeviceName("devName2")
 	c.Assert(err, IsNil)
+	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/foo1")
 	c.Assert(res2, DeepEquals, d1)
 
 	_, err = disks.DiskFromDeviceName("devName3")
@@ -79,6 +87,8 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 
 	res3, err := disks.DiskFromDeviceName("other-disk")
 	c.Assert(err, IsNil)
+	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
+	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
 	c.Assert(res3, DeepEquals, d2)
 }
 

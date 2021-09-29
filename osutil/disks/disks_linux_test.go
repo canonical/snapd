@@ -95,6 +95,7 @@ func (s *diskSuite) SetUpTest(c *C) {
 }
 
 func (s *diskSuite) TestDiskFromNameHappy(c *C) {
+	const sdaSysfsPath = "/devices/pci0000:00/0000:00:01.1/0000:01:00.1/ata1/host0/target0:0:0/0:0:0:0/block/sda"
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -103,7 +104,7 @@ func (s *diskSuite) TestDiskFromNameHappy(c *C) {
 			"MINOR":   "2",
 			"DEVTYPE": "disk",
 			"DEVNAME": "/dev/sda",
-			"DEVPATH": "/devices/pci0000:00/0000:00:01.1/0000:01:00.1/ata1/host0/target0:0:0/0:0:0:0/block/sda",
+			"DEVPATH": sdaSysfsPath,
 		}, nil
 	})
 	defer restore()
@@ -111,25 +112,31 @@ func (s *diskSuite) TestDiskFromNameHappy(c *C) {
 	d, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "1:2")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, sdaSysfsPath))
 }
 
 func (s *diskSuite) TestDiskFromPathHappy(c *C) {
+	const vdaSysfsPath = "/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb"
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--path")
-		c.Assert(dev, Equals, "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb")
+		c.Assert(dev, Equals, filepath.Join("/sys", vdaSysfsPath))
 		return map[string]string{
 			"MAJOR":   "1",
 			"MINOR":   "2",
 			"DEVTYPE": "disk",
 			"DEVNAME": "/dev/vdb",
-			"DEVPATH": "/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb",
+			"DEVPATH": vdaSysfsPath,
 		}, nil
 	})
 	defer restore()
 
-	d, err := disks.DiskFromDevicePath("/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb")
+	d, err := disks.DiskFromDevicePath(filepath.Join("/sys", vdaSysfsPath))
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "1:2")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vdb")
+	// note that we don't always prepend exactly /sys, we use dirs.SysfsDir
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, vdaSysfsPath))
 }
 
 func (s *diskSuite) TestDiskFromNameUnhappyPartition(c *C) {
@@ -365,9 +372,10 @@ fi
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:0")
-	// TODO: check the kernel device node equals /dev/vda when that is exposed
-	// too
+
 	c.Assert(d.HasPartitions(), Equals, true)
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, virtioDiskDevPath))
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},

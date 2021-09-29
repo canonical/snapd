@@ -221,6 +221,14 @@ type disk struct {
 	hasPartitions bool
 }
 
+func (d *disk) KernelDeviceNode() string {
+	return d.devname
+}
+
+func (d *disk) KernelDevicePath() string {
+	return d.devpath
+}
+
 // diskFromMountPointImpl returns a Disk for the underlying mount source of the
 // specified mount point. For mount points which have sources that are not
 // partitions, and thus are a part of a disk, the returned Disk refers to the

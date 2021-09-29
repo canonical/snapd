@@ -41,7 +41,11 @@ type MockDiskMapping struct {
 	// labels to the expected partition uuids.
 	PartitionLabelToPartUUID map[string]string
 	DiskHasPartitions        bool
-	DevNum                   string
+
+	// static variables for the disk
+	DevNum  string
+	DevNode string
+	DevPath string
 }
 
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
@@ -100,6 +104,14 @@ func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options)
 // interface.
 func (d *MockDiskMapping) Dev() string {
 	return d.DevNum
+}
+
+func (d *MockDiskMapping) KernelDeviceNode() string {
+	return d.DevNode
+}
+
+func (d *MockDiskMapping) KernelDevicePath() string {
+	return d.DevPath
 }
 
 // Mountpoint is a combination of a mountpoint location and whether that
