@@ -71,10 +71,6 @@ func gtkPriority(priority Priority) string {
 	}
 }
 
-func (srv *gtkBackend) IdleDuration() time.Duration {
-	return timeNow().Sub(srv.firstUse)
-}
-
 type icon struct {
 	Type  string
 	Value dbus.Variant

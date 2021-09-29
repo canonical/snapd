@@ -22,7 +22,6 @@ package notification
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/godbus/dbus"
 
@@ -41,7 +40,6 @@ type fdoBackend struct {
 	obj             dbus.BusObject
 	serverToLocalID map[uint32]ID
 	localToServerID map[ID]uint32
-	lastRemove      time.Time
 	desktopID       string
 }
 
@@ -59,13 +57,6 @@ var newFdoBackend = func(conn *dbus.Conn, desktopID string) NotificationManager 
 		localToServerID: make(map[ID]uint32),
 		desktopID:       desktopID,
 	}
-}
-
-func (srv *fdoBackend) IdleDuration() time.Duration {
-	if len(srv.serverToLocalID) > 0 {
-		return 0
-	}
-	return timeNow().Sub(srv.lastRemove)
 }
 
 // ServerInformation returns the information about the notification server.
@@ -229,7 +220,6 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 		return fmt.Errorf("expected second body element to be uint32, got %T", sig.Body[1])
 	}
 	if localID, ok := srv.serverToLocalID[id]; ok {
-		srv.lastRemove = timeNow()
 		delete(srv.localToServerID, localID)
 		delete(srv.serverToLocalID, id)
 		return observer.NotificationClosed(localID, CloseReason(reason))
