@@ -51,7 +51,7 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 		conn:      conn,
 		manager:   conn.Object(gtkBusName, gtkObjectPath),
 		desktopID: desktopID,
-		firstUse: timeNow(),
+		firstUse:  timeNow(),
 	}
 	return b, nil
 }
@@ -75,6 +75,11 @@ func (srv *gtkBackend) IdleDuration() time.Duration {
 	return timeNow().Sub(srv.firstUse)
 }
 
+type icon struct {
+	Type  string
+	Value dbus.Variant
+}
+
 func (srv *gtkBackend) SendNotification(id ID, msg *Message) error {
 	info := make(map[string]dbus.Variant)
 	if msg.Title != "" {
@@ -84,7 +89,8 @@ func (srv *gtkBackend) SendNotification(id ID, msg *Message) error {
 		info["body"] = dbus.MakeVariant(msg.Body)
 	}
 	if msg.Icon != "" {
-		info["icon"] = dbus.MakeVariant(msg.Icon)
+		icon := icon{Type: "file", Value: dbus.MakeVariant(msg.Icon)}
+		info["icon"] = dbus.MakeVariant(icon)
 	}
 	info["priority"] = dbus.MakeVariant(gtkPriority(msg.Priority))
 	call := srv.manager.Call(gtkInterface+".AddNotification", 0, srv.desktopID, id, info)
