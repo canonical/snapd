@@ -7,8 +7,9 @@ profiles=0
 while [ -n "$1" ]; do
     case "$1" in
         --preprocess)
-            # preprocess is used by snapd to verify apparmor features
-            exit 0
+            # preprocess is used by snapd to verify apparmor features - use
+            # the real apparmor_parser in this case by falling through as
+            # there should be no other arguments passed in this case
             ;;
         --cache-loc=*)
             ;;
@@ -17,7 +18,7 @@ while [ -n "$1" ]; do
         --quiet|--replace|--remove|--skip-read-cache)
             # Ignore
             ;;
-        -O)
+        -O|--config-file|--base|--policy-features)
             # Ignore, discard argument
             shift
             ;;
