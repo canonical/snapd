@@ -240,3 +240,80 @@ char *sc_cgroup_own_path_by_controller(const char *controller) {
 char *sc_cgroup_v2_own_path_full(void) {
     return sc_cgroup_own_path_by_controller(NULL);
 }
+
+bool sc_cgroup_find_for_snap(const char *snap_instance, const char *controller,
+                             sc_cgroup_find_callback callback) {
+    char prefix[PATH_MAX];
+    // tracking groups created by snap run chain have a format:
+    // snap.<name>.<app>.<uuid>.scope, while the groups corresponding to snap
+    // services created by systemd are named like this:
+    // snap.<name>.<svc>.service
+    sc_must_snprintf(prefix, sizeof(prefix), "snap.%s.", snap_instance);
+
+    /* Find the cgroup root for the desired controller */
+    char root_path[PATH_MAX];
+    if (controller != NULL) {
+        sc_must_snprintf(root_path, sizeof(root_path), "%s/%s", cgroup_dir, controller);
+    } else {
+        strcpy(root_path, cgroup_dir);
+    }
+
+    /* The full path of the entries we'll find. We already prefill the root
+     * prefix, which we know will be shared by all entries.
+     */
+    char full_entry_path[PATH_MAX];
+    size_t entry_offset = snprintf(full_entry_path, sizeof(full_entry_path),
+                                   "%s/", root_path);
+    size_t max_entry_size = sizeof(full_entry_path) - entry_offset;
+
+    DIR *root SC_CLEANUP(sc_cleanup_closedir) = opendir(root_path);
+    if (root == NULL) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot open cgroup root dir");
+    }
+
+    bool found_some_entries = false;
+
+    while (true) {
+        errno = 0;
+        struct dirent *ent = readdir(root);
+        if (ent == NULL) {
+            // is this an error?
+            if (errno != 0) {
+                if (errno == ENOENT) {
+                    // the processes may exit and the group entries may go away at
+                    // any time
+                    // the entries may go away at any time
+                    break;
+                }
+                die("cannot read directory entry");
+            }
+            break;
+        }
+        if (ent->d_type != DT_DIR) {
+            continue;
+        }
+        if (sc_streq(ent->d_name, "..") || sc_streq(ent->d_name, ".")) {
+            // we don't want to go up or process the current directory again
+            continue;
+        }
+        if (!sc_startswith(ent->d_name, prefix)) {
+            continue;
+        }
+
+        found_some_entries = true;
+        if (callback != NULL) {
+            strncpy(full_entry_path + entry_offset, ent->d_name, max_entry_size);
+            bool must_continue = callback(full_entry_path);
+            if (!must_continue) {
+                break;
+            }
+        } else {
+            // the caller just wanted to know if such a dir existed
+            break;
+        }
+    }
+    return found_some_entries;
+}

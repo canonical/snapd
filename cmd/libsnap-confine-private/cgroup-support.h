@@ -72,4 +72,19 @@ char *sc_cgroup_v2_own_path_full(void);
  */
 char *sc_cgroup_own_path_by_controller(const char *controller);
 
+/**
+ * sc_cgroup_find_callback is the type of the callback parameter taken by
+ * sc_cgroup_find_for_snap().
+ *
+ * It receives the full path of the entry, and its return value tells whether
+ * the search should continue (true) or be cancelled (false).
+ */
+typedef bool (*sc_cgroup_find_callback)(const char *path);
+
+/**
+ * sc_cgroup_find_for_snap TODO
+ */
+bool sc_cgroup_find_for_snap(const char *snap_instance, const char *controller,
+                             sc_cgroup_find_callback callback);
+
 #endif
