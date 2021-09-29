@@ -37,7 +37,7 @@ var (
 
 	DistroLibExecDir string
 
-	SnapHiddenDataHomeGlob string
+	HiddenSnapDataHomeGlob string
 
 	SnapBlobDir               string
 	SnapDataDir               string
@@ -144,8 +144,8 @@ const (
 	// Directory with snap data inside user's home
 	UserHomeSnapDir = "snap"
 
-	// HiddenSnapDir is an experimental hidden directory for snap data
-	HiddenSnapDir = ".snap/data"
+	// HiddenSnapDataDir is an experimental hidden directory for snap data
+	HiddenSnapDataDir = ".snap/data"
 
 	// LocalInstallBlobTempPrefix is used by local install code:
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
@@ -161,8 +161,8 @@ var (
 )
 
 type SnapDirOptions struct {
-	// HiddenSnapDir is true if snap data is in ~/.snap/data instead of ~/snap
-	HiddenSnapDir bool
+	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead of ~/snap
+	HiddenSnapDataDir bool
 }
 
 func init() {
@@ -327,7 +327,7 @@ func SetRootDir(rootdir string) {
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
-	SnapHiddenDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDir)
+	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")

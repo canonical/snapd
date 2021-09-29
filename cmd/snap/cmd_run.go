@@ -401,7 +401,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		createDirs = append(createDirs, snapUserDir)
 	}
 
-	if opts.HiddenSnapDir {
+	if opts.HiddenSnapDataDir {
 		xdgDataHome := info.XdgDataHome(usr.HomeDir, opts)
 		xdgConfigHome := info.XdgConfigHome(usr.HomeDir, opts)
 		xdgCacheHome := info.XdgCacheHome(usr.HomeDir, opts)
@@ -1228,13 +1228,13 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 func getSnapDirOptions() (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	_, err := os.Stat(features.HiddenSnapFolder.ControlFile())
+	_, err := os.Stat(features.HiddenSnapDataDir.ControlFile())
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapFolder, err)
+			return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataDir, err)
 		}
 	} else {
-		opts.HiddenSnapDir = true
+		opts.HiddenSnapDataDir = true
 	}
 
 	return &opts, nil

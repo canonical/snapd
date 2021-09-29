@@ -3269,10 +3269,10 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 func GetSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
 	tr := config.NewTransaction(state)
 
-	hiddenDir, err := features.Flag(tr, features.HiddenSnapFolder)
+	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataDir)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapFolder, err)
+		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataDir, err)
 	}
 
-	return &dirs.SnapDirOptions{HiddenSnapDir: hiddenDir}, nil
+	return &dirs.SnapDirOptions{HiddenSnapDataDir: hiddenDir}, nil
 }

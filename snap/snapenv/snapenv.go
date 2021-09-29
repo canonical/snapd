@@ -123,7 +123,7 @@ func userEnv(info *snap.Info, home string, opts *dirs.SnapDirOptions) osutil.Env
 		env["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
 	}
 
-	if opts.HiddenSnapDir {
+	if opts.HiddenSnapDataDir {
 		env["XDG_DATA_HOME"] = info.XdgDataHome(home, opts)
 		env["XDG_CONFIG_HOME"] = info.XdgConfigHome(home, opts)
 		env["XDG_CACHE_HOME"] = info.XdgCacheHome(home, opts)

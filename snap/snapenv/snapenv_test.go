@@ -289,7 +289,7 @@ func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 }
 
 func (s *HTestSuite) TestEnvWithHiddenSnap(c *C) {
-	env := userEnv(mockSnapInfo, "/root", &dirs.SnapDirOptions{HiddenSnapDir: true})
+	env := userEnv(mockSnapInfo, "/root", &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 
 	c.Check(env["HOME"], Equals, "/root/.snap/data/foo/17")
 	c.Check(env["SNAP_USER_COMMON"], Equals, "/root/.snap/data/foo/common")
