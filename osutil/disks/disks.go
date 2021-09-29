@@ -112,6 +112,13 @@ type Partition struct {
 	KernelDeviceNode string
 }
 
+// RootMountPointsForPartition returns all mounts from the mount table which are
+// for the root directory of the specified partition. The order in which they
+// are returned is the exact order that they appear in the mount table.
+func RootMountPointsForPartition(p Partition) ([]string, error) {
+	return rootMountPointsForPartition(p)
+}
+
 // PartitionNotFoundError is an error where a partition matching the SearchType
 // was not found. SearchType can be either "partition-label" or
 // "filesystem-label" to indicate searching by the partition label or the

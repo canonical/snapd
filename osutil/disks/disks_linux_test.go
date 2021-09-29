@@ -891,3 +891,74 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(matches, Equals, true)
 }
+
+func (s *diskSuite) TestRootMountPointsForPartition(c *C) {
+	const (
+		validRootMnt1    = "130 30 42:1 / /run/mnt/ubuntu-data rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
+		validRootMnt2    = "130 30 42:1 / /run/mnt/foo-other-place rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
+		validNonRootMnt1 = "130 30 42:1 /subdir /run/mnt/other-ubuntu-data rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
+		validNonRootMnt2 = "130 30 42:1 /subdir2 /run/mnt/other-ubuntu-data-other-other rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
+	)
+
+	tt := []struct {
+		maj, min  int
+		mountinfo string
+		exp       []string
+		comment   string
+	}{
+		{
+			comment:   "single valid root mountpoint",
+			mountinfo: validRootMnt1,
+			exp:       []string{"/run/mnt/ubuntu-data"},
+		},
+		{
+			comment:   "multiple valid root mountpoints",
+			mountinfo: validRootMnt1 + validRootMnt2,
+			exp:       []string{"/run/mnt/ubuntu-data", "/run/mnt/foo-other-place"},
+		},
+		{
+			comment:   "multiple non-root mountpoints, no root mountpoint",
+			mountinfo: validNonRootMnt1 + validNonRootMnt1,
+		},
+		{
+			comment:   "multiple non-root mountpoints, one root mountpoint",
+			mountinfo: validRootMnt1 + validNonRootMnt1 + validNonRootMnt1,
+			exp:       []string{"/run/mnt/ubuntu-data"},
+		},
+		{
+			comment:   "multiple non-root mountpoints, multiple root mountpoint",
+			mountinfo: validRootMnt1 + validRootMnt2 + validNonRootMnt1 + validNonRootMnt1,
+			exp:       []string{"/run/mnt/ubuntu-data", "/run/mnt/foo-other-place"},
+		},
+		{
+			comment: "no matching mounts",
+			maj:     4000, min: 8000,
+			mountinfo: validRootMnt1,
+		},
+	}
+
+	for _, t := range tt {
+		cmt := Commentf(t.comment)
+		restore := osutil.MockMountInfo(t.mountinfo)
+
+		part := disks.Partition{
+			Major: t.maj,
+			Minor: t.min,
+		}
+		if t.maj == 0 && t.min == 0 {
+			part.Major = 42
+			part.Minor = 1
+		}
+
+		res, err := disks.RootMountPointsForPartition(part)
+		c.Check(err, IsNil, cmt)
+
+		if len(t.exp) == 0 {
+			c.Check(res, HasLen, 0, cmt)
+		} else {
+			c.Check(res, DeepEquals, t.exp, cmt)
+		}
+
+		restore()
+	}
+}

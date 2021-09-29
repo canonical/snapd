@@ -40,3 +40,7 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
+
+var rootMountPointsForPartition = func(p Partition) ([]string, error) {
+	return nil, osutil.ErrDarwin
+}
