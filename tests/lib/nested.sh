@@ -68,6 +68,35 @@ nested_wait_for_snap_command() {
     done
 }
 
+nested_check_unit_active() {
+    local nested_unit="${1:-$NESTED_VM}"
+    local retry=${2:-5}
+    local wait=${3:-1}
+
+    while [ $retry -ge 0 ]; do
+        retry=$(( retry - 1 ))
+
+        if ! systemctl is-active "$nested_unit"; then
+            echo "Unit $nested_unit is not active. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
+
+nested_check_boot_errors() {
+    # make sure the service started and it is running
+    if nested_is_core_20_system && ! nested_check_unit_active "$NESTED_VM" 15 1; then
+        if nested_status_vm | grep -qE "cpu_asidx_from_attrs: Assertion.*failed"; then
+            nested_restart
+        fi
+        if ! nested_check_unit_active "$NESTED_VM" 10 1; then
+            echo "VM failing to boot, aborting!"
+            exit 1
+        fi
+    fi
+}
+
 nested_get_boot_id() {
     nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -1035,6 +1064,9 @@ nested_start_core_vm_unit() {
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
 
+    # make sure the service started and it is running
+    nested_check_boot_errors
+
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
 
@@ -1129,6 +1161,12 @@ nested_start() {
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
     nested_prepare_tools
+}
+
+nested_restart() {
+    nested_force_stop_vm
+    nested_force_start_vm
+    wait_for_service "$NESTED_VM" active
 }
 
 nested_create_classic_vm() {

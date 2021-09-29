@@ -100,8 +100,6 @@ prepare: |
 
     # start fake device svc
     systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
-    # stop fake device svc
-    tests.cleanup defer systemctl stop fakedevicesvc
 
     # include the extra snap declaration bits we need to auto-connect the 
     # system-files plugs for the install-device hook
@@ -122,6 +120,9 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    # stop fake device svc
+    systemctl stop fakedevicesvc
 
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
