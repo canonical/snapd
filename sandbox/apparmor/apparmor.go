@@ -325,15 +325,28 @@ func probeParserFeatures() ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
+	var featureProbes = []struct {
+		feature string
+		probe string
+	}{
+		{
+			feature: "unsafe",
+			probe: "change_profile unsafe /**,",
+		},
+		{
+			feature: "include-if-exists",
+			probe: "#include if exists \"/foo\"",
+		},
+		{
+			feature: "qipcrtr-socket",
+			probe: "network qipcrtr dgram,",
+		},
+	}
 	features := make([]string, 0, 3)
-	if tryAppArmorParserFeature(parser, args, "change_profile unsafe /**,") {
-		features = append(features, "unsafe")
-	}
-	if tryAppArmorParserFeature(parser, args, "include if exists \"/foo\"") {
-		features = append(features, "include-if-exists")
-	}
-	if tryAppArmorParserFeature(parser, args, "network qipcrtr dgram,") {
-		features = append(features, "qipcrtr-socket")
+	for _, fp := range featureProbes {
+		if tryAppArmorParserFeature(parser, args, fp.probe) {
+			features = append(features, fp.feature)
+		}
 	}
 	if internal {
 		features = append(features, "snapd-internal")
