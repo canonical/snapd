@@ -40,8 +40,11 @@ func (s *managerSuite) SetUpTest(c *C) {
 }
 
 func (s *managerSuite) TestUseGtkBackendIfAvailable(c *C) {
+	gtkBackend := &notification.GtkBackend{}
 	restoreGtk := notification.MockNewGtkBackend(func(conn *dbus.Conn, desktopID string) (notification.NotificationManager, error) {
-		return &notification.GtkBackend{}, nil
+		c.Check(conn, Equals, s.SessionBus)
+		c.Check(desktopID, Equals, "desktop-id")
+		return gtkBackend, nil
 	})
 	defer restoreGtk()
 
@@ -52,27 +55,27 @@ func (s *managerSuite) TestUseGtkBackendIfAvailable(c *C) {
 	defer restoreFdo()
 
 	mgr := notification.NewNotificationManager(s.SessionBus, "desktop-id")
-	c.Assert(mgr, NotNil)
+	c.Check(mgr, NotNil)
+	c.Check(mgr, Equals, gtkBackend)
 }
 
 func (s *managerSuite) TestFdoFallback(c *C) {
 	restoreGtk := notification.MockNewGtkBackend(func(conn *dbus.Conn, desktopID string) (notification.NotificationManager, error) {
-		c.Check(conn, NotNil)
+		c.Check(conn, Equals, s.SessionBus)
 		c.Check(desktopID, Equals, "desktop-id")
 		return nil, fmt.Errorf("boom")
 	})
 	defer restoreGtk()
 
-	var fdo bool
+	fdoBackend := &notification.FdoBackend{}
 	restoreFdo := notification.MockNewFdoBackend(func(conn *dbus.Conn, desktopID string) notification.NotificationManager {
-		fdo = true
-		c.Check(conn, NotNil)
+		c.Check(conn, Equals, s.SessionBus)
 		c.Check(desktopID, Equals, "desktop-id")
-		return notification.NewFdoBackend(conn, desktopID)
+		return fdoBackend
 	})
 	defer restoreFdo()
 
 	mgr := notification.NewNotificationManager(s.SessionBus, "desktop-id")
-	c.Assert(mgr, NotNil)
-	c.Assert(fdo, Equals, true)
+	c.Check(mgr, NotNil)
+	c.Check(mgr, Equals, fdoBackend)
 }
