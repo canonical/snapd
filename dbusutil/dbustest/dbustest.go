@@ -67,6 +67,8 @@ type testDBusStream struct {
 	m        sync.Mutex
 	readable sync.Cond
 
+	outputBufLock sync.Mutex
+
 	outputBuf, inputBuf bytes.Buffer
 	closed              bool
 	authDone            bool
@@ -149,9 +151,15 @@ func (s *testDBusStream) decodeRequest() {
 
 func (s *testDBusStream) sendMsg(msg *dbus.Message) {
 	// TODO: handle big endian if we ever get big endian machines again.
-	if err := msg.EncodeTo(&s.outputBuf, binary.LittleEndian); err != nil {
-		panic(fmt.Errorf("cannot encode outgoing message: %v", err))
+	encodeMsg := func() {
+		s.outputBufLock.Lock()
+		defer s.outputBufLock.Unlock()
+
+		if err := msg.EncodeTo(&s.outputBuf, binary.LittleEndian); err != nil {
+			panic(fmt.Errorf("cannot encode outgoing message: %v", err))
+		}
 	}
+	encodeMsg()
 	// s.m is locked
 	s.readable.Signal()
 }
@@ -163,13 +171,20 @@ func (s *testDBusStream) Read(p []byte) (n int, err error) {
 	// When the buffer is empty block until more data arrives. DBus
 	// continuously blocks on reading and premature empty read is treated as an
 	// EOF, terminating the message flow.
-	if s.outputBuf.Len() == 0 {
+	isOutputReady := func() bool {
+		s.outputBufLock.Lock()
+		defer s.outputBufLock.Unlock()
+		return s.outputBuf.Len() != 0
+	}
+	if !isOutputReady() {
 		s.readable.Wait()
 	}
 
 	if s.closed {
 		return 0, fmt.Errorf("stream is closed")
 	}
+	s.outputBufLock.Lock()
+	defer s.outputBufLock.Unlock()
 	return s.outputBuf.Read(p)
 }
 
