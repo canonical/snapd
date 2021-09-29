@@ -31,7 +31,7 @@ import (
 // Size returns the size of the given block device, e.g. /dev/sda1 in
 // bytes as reported by the kernels BLKGETSIZE ioctl.
 func Size(partDevice string) (uint64, error) {
-	// This code is not using the ioctl unix.BLKGETSIZE64 because
+	// Use blockdev command instead of calling the ioctl directly since
 	// on 32bit systems it's a pain to get a 64bit value from a ioctl.
 	raw, err := exec.Command("blockdev", "--getsz", partDevice).CombinedOutput()
 	if err != nil {
