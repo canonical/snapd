@@ -73,7 +73,7 @@ nested_check_unit_active() {
     local retry=${2:-5}
     local wait=${3:-1}
 
-    while [ $retry -ge 0 ]; do
+    while [ "$retry" -ge 0 ]; do
         retry=$(( retry - 1 ))
 
         if ! systemctl is-active "$nested_unit"; then
