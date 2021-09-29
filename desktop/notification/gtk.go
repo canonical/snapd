@@ -51,6 +51,7 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 		conn:      conn,
 		manager:   conn.Object(gtkBusName, gtkObjectPath),
 		desktopID: desktopID,
+		firstUse: timeNow(),
 	}
 	return b, nil
 }
@@ -75,10 +76,6 @@ func (srv *gtkBackend) IdleDuration() time.Duration {
 }
 
 func (srv *gtkBackend) SendNotification(id ID, msg *Message) error {
-	if srv.firstUse.IsZero() {
-		srv.firstUse = timeNow()
-	}
-
 	info := make(map[string]dbus.Variant)
 	if msg.Title != "" {
 		info["title"] = dbus.MakeVariant(msg.Title)

@@ -249,9 +249,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	// TODO: support desktop-specific notification APIs if they provide a better
-	// experience. For example, the GNOME notification API.
-	// XXX: should be instantiated once on startup as for fdoBackend it keeps
+	// TODO: should be instantiated once on startup as for fdoBackend it keeps
 	// notification mappings.
 	notifySrv := notification.NewNotificationManager(c.s.bus, "io.snapcraft.SessionAgent")
 
@@ -300,7 +298,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// TODO: silently ignore error returned when the notification server does not exist.
 	// TODO: track returned notification ID and respond to actions, if supported.
-	if err := notifySrv.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
+	if err := notifySrv.SendNotification(notification.ID(fmt.Sprintf("refresh:%s", refreshInfo.InstanceName)), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,

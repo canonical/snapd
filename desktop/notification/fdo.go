@@ -228,14 +228,13 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 	if !ok {
 		return fmt.Errorf("expected second body element to be uint32, got %T", sig.Body[1])
 	}
-	srv.lastRemove = timeNow()
-	localID, ok := srv.serverToLocalID[id]
-	if !ok {
-		return fmt.Errorf("unknown notification with id %q", id)
+	if localID, ok := srv.serverToLocalID[id]; ok {
+		srv.lastRemove = timeNow()
+		delete(srv.localToServerID, localID)
+		delete(srv.serverToLocalID, id)
+		return observer.NotificationClosed(localID, CloseReason(reason))
 	}
-	delete(srv.localToServerID, localID)
-	delete(srv.serverToLocalID, id)
-	return observer.NotificationClosed(localID, CloseReason(reason))
+	return nil
 }
 
 func (srv *fdoBackend) processActionInvoked(sig *dbus.Signal, observer Observer) error {
