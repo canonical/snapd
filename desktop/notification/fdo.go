@@ -219,6 +219,9 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 	if !ok {
 		return fmt.Errorf("expected second body element to be uint32, got %T", sig.Body[1])
 	}
+
+	// we may receive signals for notifications we don't know about, silently
+	// ignore them.
 	if localID, ok := srv.serverToLocalID[id]; ok {
 		delete(srv.localToServerID, localID)
 		delete(srv.serverToLocalID, id)
