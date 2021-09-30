@@ -174,8 +174,6 @@ execute: |
     #!/bin/sh
     if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then
       snap revert snapd
-    else
-      snap remove --purge snapd
     fi
     EOF
     chmod +x snapd-cleanup.sh
