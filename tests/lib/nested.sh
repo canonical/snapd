@@ -85,21 +85,6 @@ nested_check_unit_active() {
 }
 
 nested_check_boot_errors() {
-    local retry=3
-    while [ "$retry" -ge 0 ]; do
-        retry=$(( retry - 1 ))
-        if ! nested_retry_start_with_boot_errors; then
-            nested_restart
-        else
-            return
-        fi
-    done
-
-    echo "VM failing to boot, aborting!"
-    exit 1
-}
-
-nested_retry_start_with_boot_errors() {
     # Check if the service started and it is running without errors
     if nested_is_core_20_system && ! nested_check_unit_active "$NESTED_VM" 15 1; then
         # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
@@ -109,6 +94,21 @@ nested_retry_start_with_boot_errors() {
             return 1
         fi
     fi
+}
+
+nested_retry_start_with_boot_errors() {
+    local retry=3
+    while [ "$retry" -ge 0 ]; do
+        retry=$(( retry - 1 ))
+        if ! nested_check_boot_errors; then
+            nested_restart
+        else
+            return
+        fi
+    done
+
+    echo "VM failing to boot, aborting!"
+    exit 1
 }
 
 nested_get_boot_id() {
@@ -1079,13 +1079,7 @@ nested_start_core_vm_unit() {
     wait_for_service "$NESTED_VM"
 
     # make sure the service started and it is running
-    if ! nested_check_boot_errors; then
-        nested_restart
-        if ! nested_check_boot_errors; then
-            echo "VM failing to boot, aborting!"
-            exit 1
-        fi
-    fi
+    nested_retry_start_with_boot_errors
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
