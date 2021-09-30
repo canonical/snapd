@@ -4180,4 +4180,3 @@ func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidat
 	}
 	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
 }
-
