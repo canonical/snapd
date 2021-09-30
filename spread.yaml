@@ -460,6 +460,7 @@ debug-each: |
                 cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
             fi
         else
+            echo "# snap confinement device filtering maps"
             ls -l /sys/fs/bpf/snap || true
         fi
 
