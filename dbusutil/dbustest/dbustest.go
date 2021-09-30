@@ -34,10 +34,10 @@ const testDBusClientName = ":test"
 // DBusHandlerFunc is the type of handler function for interacting with test DBus.
 //
 // The handler is called for each message that arrives to the bus from the test
-// client. The handler can respond by returning zero or more messages.
-// Typically one message is returned (method response or error). Additional
-// messages can be returned to represent signals emitted during message
-// handling.
+// client. The handler can respond by returning zero or more messages. Typically
+// one message is returned (method response or error). Additional messages can
+// be returned to represent signals emitted during message handling. The counter
+// n aids in testing a sequence of messages that is expected.
 //
 // The handler is not called for internal messages related to DBus itself.
 type DBusHandlerFunc func(msg *dbus.Message, n int) ([]*dbus.Message, error)
@@ -244,8 +244,7 @@ func InjectableConnection(handler DBusHandlerFunc) (*dbus.Conn, InjectMessageFun
 // Connection returns a DBus connection for writing unit tests.
 //
 // The handler function is called for each message sent to the bus. It can
-// return any number of messages to send in response. The counter aids in
-// testing a sequence of messages that is expected.
+// return any number of messages to send in response.
 func Connection(handler DBusHandlerFunc) (*dbus.Conn, error) {
 	conn, _, err := InjectableConnection(handler)
 	return conn, err
