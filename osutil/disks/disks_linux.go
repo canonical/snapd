@@ -132,13 +132,23 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", deviceIdentifier, devType)
 	}
 
-	// TODO: should we try to introspect the device more to find out if it has
-	// partitions? we don't currently need that information for how we use
-	// DiskFromName but it might be useful eventually
+	devname := props["DEVNAME"]
+	if devname == "" {
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"DEVNAME\"", deviceIDType, deviceIdentifier)
+	}
+
+	devpath := props["DEVPATH"]
+	if devpath == "" {
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"DEVPATH\"", deviceIDType, deviceIdentifier)
+	}
+	// create the full path by pre-pending /sys, since udev doesn't include /sys
+	devpath = filepath.Join(dirs.SysfsDir, devpath)
 
 	return &disk{
-		major: major,
-		minor: minor,
+		major:   major,
+		minor:   minor,
+		devname: devname,
+		devpath: devpath,
 	}, nil
 }
 
@@ -193,6 +203,14 @@ type partition struct {
 type disk struct {
 	major int
 	minor int
+
+	// devname is the DEVNAME property for the disk device like /dev/sda
+	devname string
+
+	// devpath is the DEVPATH property for the disk device like
+	// /sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb.
+	devpath string
+
 	// partitions is the set of discovered partitions for the disk, each
 	// partition must have a partition uuid, but may or may not have either a
 	// partition label or a filesystem label
@@ -201,6 +219,14 @@ type disk struct {
 	// whether the disk device has partitions, and thus is of type "disk", or
 	// whether the disk device is a volume that is not a physical disk
 	hasPartitions bool
+}
+
+func (d *disk) KernelDeviceNode() string {
+	return d.devname
+}
+
+func (d *disk) KernelDevicePath() string {
+	return d.devpath
 }
 
 // diskFromMountPointImpl returns a Disk for the underlying mount source of the
@@ -338,6 +364,28 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		d.major = maj
 		d.minor = min
 
+		// now go find the devname and devpath for this major/minor pair since
+		// we will need that later - note that the props variable at this point
+		// is for the partition, not the parent disk itself, hence the
+		// additional lookup
+		realDiskProps, err := udevPropertiesForName(filepath.Join("/dev/block/", majorMinor))
+		if err != nil {
+			return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
+		}
+
+		if realDiskProps["DEVNAME"] == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"DEVNAME\"", partMountPointSource)
+		}
+
+		d.devname = realDiskProps["DEVNAME"]
+
+		if realDiskProps["DEVPATH"] == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"DEVPATH\"", partMountPointSource)
+		}
+		// the DEVPATH is given as relative to /sys, so for simplicity's sake
+		// add /sys to the path we save as we return it later
+		d.devpath = filepath.Join(dirs.SysfsDir, realDiskProps["DEVPATH"])
+
 		// since the mountpoint device has a disk, the mountpoint source itself
 		// must be a partition from a disk, thus the disk has partitions
 		d.hasPartitions = true
@@ -362,36 +410,22 @@ func (d *disk) populatePartitions() error {
 	if d.partitions == nil {
 		d.partitions = []partition{}
 
-		// step 1. find the devpath for the disk, then glob for matching
-		//         devices using the devname in that sysfs directory
+		// step 1. using the devpath for the disk, glob for matching devices
+		//         using the devname in that sysfs directory
 		// step 2. iterate over all those devices and save all the ones that are
 		//         partitions using the partition sysfs file
 		// step 3. for all partition devices found, query udev to get the labels
 		//         of the partition and filesystem as well as the partition uuid
 		//         and save for later
 
-		udevProps, err := udevPropertiesForName(filepath.Join("/dev/block", d.Dev()))
-		if err != nil {
-			return err
-		}
-
-		// get the base device name
-		devName := udevProps["DEVNAME"]
-		if devName == "" {
-			return fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVNAME\"", d.Dev())
-		}
 		// the DEVNAME as returned by udev includes the /dev/mmcblk0 path, we
 		// just want mmcblk0 for example
-		devName = filepath.Base(devName)
+		devName := filepath.Base(d.devname)
 
-		// get the device path in sysfs
-		devPath := udevProps["DEVPATH"]
-		if devPath == "" {
-			return fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVPATH\"", d.Dev())
-		}
-
-		// glob for /sys/${devPath}/${devName}*
-		paths, err := filepath.Glob(filepath.Join(dirs.SysfsDir, devPath, devName+"*"))
+		// glob for d.devpath/${devName}*
+		// note that d.devpath already has /sys in it from when the disk was
+		// created
+		paths, err := filepath.Glob(filepath.Join(d.devpath, devName+"*"))
 		if err != nil {
 			return fmt.Errorf("internal error getting udev properties for device %s: %v", err, d.Dev())
 		}
