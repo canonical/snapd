@@ -286,7 +286,8 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
 
 static bool _sc_is_snap_cgroup(const char *group) {
     /* make a copy as basename may modify its input */
-    char *copy SC_CLEANUP(sc_cleanup_string) = sc_strdup(group);
+    char copy[PATH_MAX] = {0};
+    strncpy(copy, group, sizeof(copy) - 1);
     char *leaf = basename(copy);
     if (!sc_startswith(leaf, "snap.")) {
         return false;
