@@ -642,7 +642,3 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 
 	mb.o.ensureBefore(d)
 }
-
-func (mb mockBackend) RequestRestart(t state.RestartType) {
-	panic("SHOULD NOT BE REACHED")
-}
