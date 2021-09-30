@@ -311,9 +311,8 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 				} else {
 					expectedJob = job
 				}
-			case sig := <-signals:
-				if sig == nil {
-					// only in tests
+			case sig, ok := <-signals:
+				if !ok {
 					continue
 				}
 				if sig.Name != "org.freedesktop.systemd1.Manager.JobRemoved" {
