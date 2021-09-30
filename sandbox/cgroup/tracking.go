@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/godbus/dbus"
@@ -280,8 +281,6 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	if err := conn.AddMatchSignal(jobRemoveMatch...); err != nil {
 		return fmt.Errorf("cannot subscribe to systemd signals: %v", err)
 	}
-	closeChan := make(chan struct{})
-	defer close(closeChan)
 	signals := make(chan *dbus.Signal, 10)
 	jobResultChan := make(chan string, 1)
 	jobWaitFor := make(chan string, 1)
@@ -296,7 +295,15 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 		properties,
 		aux,
 	)
+	var wg sync.WaitGroup
+	closeChan := make(chan struct{})
+	defer func() {
+		close(closeChan)
+		wg.Wait()
+	}()
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		jobResults := make(map[string]string, 10)
 		expectedJob := ""
 		for {
