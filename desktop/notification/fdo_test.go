@@ -263,6 +263,22 @@ func (s *fdoSuite) TestObserveNotificationsProcessingError(c *C) {
 	wg.Wait()
 }
 
+func (s *fdoSuite) TestProcessNotificationClosedUnknownNotificationNoError(c *C) {
+	var called bool
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.ProcessSignal(&dbus.Signal{
+		Name: "org.freedesktop.Notifications.NotificationClosed",
+		Body: []interface{}{uint32(1), uint32(2)},
+	}, &testObserver{
+		notificationClosed: func(id notification.ID, reason notification.CloseReason) error {
+			called = true
+			return fmt.Errorf("this shouldn't get called")
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
 func (s *fdoSuite) TestProcessActionInvokedSignalSuccess(c *C) {
 	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
 	called := false
