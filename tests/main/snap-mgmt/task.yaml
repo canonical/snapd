@@ -75,6 +75,7 @@ prepare: |
     fi
 
 restore: |
+    # TODO: remove this line once snaps are able to remove the user-session services
     # Stop any service which could be still running on the user session
     systemctl --user daemon-reload
     systemctl stop --state=running --type service --user snap.*
