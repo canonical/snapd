@@ -25,6 +25,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+var _ = Disk(&MockDiskMapping{})
+
 // MockDiskMapping is an implementation of Disk for mocking purposes, it is
 // exported so that other packages can easily mock a specific disk layout
 // without needing to mock the mount setup, sysfs, or udev commands just to test
@@ -39,7 +41,11 @@ type MockDiskMapping struct {
 	// labels to the expected partition uuids.
 	PartitionLabelToPartUUID map[string]string
 	DiskHasPartitions        bool
-	DevNum                   string
+
+	// static variables for the disk
+	DevNum  string
+	DevNode string
+	DevPath string
 }
 
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
@@ -98,6 +104,14 @@ func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options)
 // interface.
 func (d *MockDiskMapping) Dev() string {
 	return d.DevNum
+}
+
+func (d *MockDiskMapping) KernelDeviceNode() string {
+	return d.DevNode
+}
+
+func (d *MockDiskMapping) KernelDevicePath() string {
+	return d.DevPath
 }
 
 // Mountpoint is a combination of a mountpoint location and whether that
