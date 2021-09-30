@@ -52,6 +52,11 @@ var (
 		"ID_FS_LABEL_ENC": "",
 		// we will however still have a partition label of "BIOS Boot"
 		"ID_PART_ENTRY_NAME": "BIOS\\x20Boot",
+
+		"DEVNAME": "/dev/vda1",
+		"DEVPATH": "/devices/bios-boot-device",
+		"MAJOR":   "42",
+		"MINOR":   "1",
 	}
 
 	// all the ubuntu- partitions have fs labels
@@ -59,16 +64,28 @@ var (
 		"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
 		"ID_FS_LABEL_ENC":    "ubuntu-seed",
 		"ID_PART_ENTRY_NAME": "ubuntu-seed",
+		"DEVNAME":            "/dev/vda2",
+		"DEVPATH":            "/devices/ubuntu-seed-device",
+		"MAJOR":              "42",
+		"MINOR":              "2",
 	}
 	ubuntuBootUdevPropMap = map[string]string{
 		"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
 		"ID_FS_LABEL_ENC":    "ubuntu-boot",
 		"ID_PART_ENTRY_NAME": "ubuntu-boot",
+		"DEVNAME":            "/dev/vda3",
+		"DEVPATH":            "/devices/ubuntu-boot-device",
+		"MAJOR":              "42",
+		"MINOR":              "3",
 	}
 	ubuntuDataUdevPropMap = map[string]string{
 		"ID_PART_ENTRY_UUID": "ubuntu-data-partuuid",
 		"ID_FS_LABEL_ENC":    "ubuntu-data",
 		"ID_PART_ENTRY_NAME": "ubuntu-data",
+		"DEVNAME":            "/dev/vda4",
+		"DEVPATH":            "/devices/ubuntu-data-device",
+		"MAJOR":              "42",
+		"MINOR":              "4",
 	}
 )
 
@@ -307,6 +324,10 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			return map[string]string{
 				"ID_FS_LABEL_ENC":    "some-label",
 				"ID_PART_ENTRY_UUID": "some-uuid",
+				"DEVPATH":            "/devices/some-device",
+				"DEVNAME":            "/dev/vda4",
+				"MAJOR":              "42",
+				"MINOR":              "4",
 			}, nil
 		case 5:
 			// after we get the disk itself, we query it to get the
@@ -338,6 +359,19 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 	label, err := disk.FindMatchingPartitionUUIDWithFsLabel("some-label")
 	c.Assert(err, IsNil)
 	c.Assert(label, Equals, "some-uuid")
+	parts, err := disk.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{
+		{
+			FilesystemLabel:  "some-label",
+			PartitionUUID:    "some-uuid",
+			PartitionLabel:   "",
+			KernelDevicePath: filepath.Join(dirs.SysfsDir, "/devices/some-device"),
+			KernelDeviceNode: "/dev/vda4",
+			Major:            42,
+			Minor:            4,
+		},
+	})
 
 	matches, err := disk.MountPointIsFromDisk("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
@@ -449,6 +483,9 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "242:1")
 	c.Assert(d.HasPartitions(), Equals, false)
+	parts, err := d.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 0)
 }
 
 func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
@@ -648,6 +685,15 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 `)
 	defer restore()
 
+	ubuntuDataEncUdevPropMap := map[string]string{
+		"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
+		"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
+		"DEVPATH":            "/devices/ubuntu-data-enc-device",
+		"DEVNAME":            "/dev/vda4",
+		"MAJOR":              "42",
+		"MINOR":              "4",
+	}
+
 	n := 0
 	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
@@ -681,10 +727,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			return ubuntuBootUdevPropMap, nil
 		case 7:
 			c.Assert(dev, Equals, "vda4")
-			return map[string]string{
-				"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
-				"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
-			}, nil
+			return ubuntuDataEncUdevPropMap, nil
 		case 8:
 			// next we will find the disk for a different mount point via
 			// MountPointIsFromDisk for ubuntu-boot
@@ -714,10 +757,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			return ubuntuBootUdevPropMap, nil
 		case 15:
 			c.Assert(dev, Equals, "vda4")
-			return map[string]string{
-				"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
-				"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
-			}, nil
+			return ubuntuDataEncUdevPropMap, nil
 		case 16:
 			// then we will find the disk for ubuntu-data mapper volume to
 			// verify it comes from the same disk as the second disk we just
@@ -768,6 +808,44 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ubuntuDataDisk, Not(IsNil))
 	c.Assert(ubuntuDataDisk.Dev(), Equals, "42:0")
+	parts, err := ubuntuDataDisk.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{
+		{
+			FilesystemLabel:  "ubuntu-data-enc",
+			PartitionUUID:    "ubuntu-data-enc-partuuid",
+			Major:            42,
+			Minor:            4,
+			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-data-enc-device", dirs.SysfsDir),
+			KernelDeviceNode: "/dev/vda4",
+		},
+		{
+			FilesystemLabel:  "ubuntu-boot",
+			PartitionLabel:   "ubuntu-boot",
+			PartitionUUID:    "ubuntu-boot-partuuid",
+			Major:            42,
+			Minor:            3,
+			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-boot-device", dirs.SysfsDir),
+			KernelDeviceNode: "/dev/vda3",
+		},
+		{
+			FilesystemLabel:  "ubuntu-seed",
+			PartitionLabel:   "ubuntu-seed",
+			PartitionUUID:    "ubuntu-seed-partuuid",
+			Major:            42,
+			Minor:            2,
+			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-seed-device", dirs.SysfsDir),
+			KernelDeviceNode: "/dev/vda2",
+		},
+		{
+			PartitionLabel:   "BIOS\\x20Boot",
+			PartitionUUID:    "bios-boot-partuuid",
+			Major:            42,
+			Minor:            1,
+			KernelDevicePath: fmt.Sprintf("%s/devices/bios-boot-device", dirs.SysfsDir),
+			KernelDeviceNode: "/dev/vda1",
+		},
+	})
 
 	// we have the ubuntu-seed, ubuntu-boot, and ubuntu-data partition labels
 	for _, label := range []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data-enc"} {
