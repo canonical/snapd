@@ -85,14 +85,28 @@ nested_check_unit_active() {
 }
 
 nested_check_boot_errors() {
-    # make sure the service started and it is running
-    if nested_is_core_20_system && ! nested_check_unit_active "$NESTED_VM" 15 1; then
-        if nested_status_vm | grep -qE "cpu_asidx_from_attrs: Assertion.*failed"; then
+    local retry=3
+    while [ "$retry" -ge 0 ]; do
+        retry=$(( retry - 1 ))
+        if ! nested_retry_start_with_boot_errors; then
             nested_restart
+        else
+            return
         fi
-        if ! nested_check_unit_active "$NESTED_VM" 10 1; then
-            echo "VM failing to boot, aborting!"
-            exit 1
+    done
+
+    echo "VM failing to boot, aborting!"
+    exit 1
+}
+
+nested_retry_start_with_boot_errors() {
+    # Check if the service started and it is running without errors
+    if nested_is_core_20_system && ! nested_check_unit_active "$NESTED_VM" 15 1; then
+        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
+        # It is reproduced Intel machine without unrestricted mode support, the failure can be most likely due to the guest entering an invalid state for Intel VT
+        # The workaround is to restart the vm and check the qemu is not going again into this bad state
+        if nested_status_vm | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
+            return 1
         fi
     fi
 }
@@ -1065,7 +1079,13 @@ nested_start_core_vm_unit() {
     wait_for_service "$NESTED_VM"
 
     # make sure the service started and it is running
-    nested_check_boot_errors
+    if ! nested_check_boot_errors; then
+        nested_restart
+        if ! nested_check_boot_errors; then
+            echo "VM failing to boot, aborting!"
+            exit 1
+        fi
+    fi
 
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
