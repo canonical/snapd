@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/godbus/dbus"
+
 	"github.com/snapcore/snapd/dbusutil"
 )
 

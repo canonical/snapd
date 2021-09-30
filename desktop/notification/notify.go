@@ -28,8 +28,6 @@ import (
 	"time"
 )
 
-var timeNow = time.Now
-
 // Message describes a single notification message.
 //
 // The notification should be related to a specific application, as indicated by
