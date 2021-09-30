@@ -317,7 +317,12 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
-	if _, ok := err.(*ChangeConflictError); ok {
+	if conflErr, ok := err.(*ChangeConflictError); ok {
+		// conflicted with an install in the same change, just skip
+		if conflErr.ChangeID == t.Change().ID() {
+			return nil, nil
+		}
+
 		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 	return ts, err
