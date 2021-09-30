@@ -63,9 +63,6 @@ restore: |
         rm pkg-removed
     fi
 
-    # Stop any service which could be still running on the user session
-    systemctl stop --state=running --type service --user snap.*
-
 debug: |
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
 

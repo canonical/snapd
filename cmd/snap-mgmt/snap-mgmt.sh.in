@@ -50,6 +50,12 @@ purge() {
         fi
     done
 
+    # Stop user units which are loaded
+    user_units=$(systemctl list-units --no-legend --user "snap.*" | cut -f1 -d ' ' || true)
+    for user_unit in $user_units; do
+        systemctl --user stop "$user_unit"
+    done
+
     units=$(systemctl list-unit-files --no-legend --full | grep -vF snap.mount.service || true)
     # *.snap mount points
     mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
@@ -57,6 +63,7 @@ purge() {
     services=$(echo "$units" | grep '^snap\..*\.service' | cut -f1 -d ' ')
     # slices from snaps
     slices=$(echo "$units" | grep '^snap\..*\.slice' | cut -f1 -d ' ')
+
     for unit in $services $mounts $slices; do
         # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
@@ -115,7 +122,6 @@ purge() {
                     systemctl_stop "$(basename "$f")"
                     rm -f "$f"
                 done
-                # user services, sockets, and timers - we make no attempt to stop any of them.
                 # TODO: ask snapd to ask each snapd.session-agent.service to stop snaps
                 # user-session services and stop itself.
                 find /etc/systemd/user -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" -o -name "snap.${snap}.*.service" | while read -r f; do

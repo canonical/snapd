@@ -31,6 +31,7 @@ restore: |
     snap remove test-snapd-location-control-provider
     tests.session -u test restore
 
+    # TODO: remove this line once snaps are able to remove the user-session services
     # Stop any scope which could be still running on the user session
     systemctl stop --state=running --type scope --user snap.*
 
