@@ -175,18 +175,18 @@ execute: |
   # all datasources in which case snapd notices cloud-init as being disabled
   if [ "$GADGET_DATASOURCE" = "explicitly-none" ]; then
     # snapd should disable cloud-init
-    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported to be in disabled state"'
+    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported to be in disabled state"'"
 
     tests.nested exec "cloud-init status" | MATCH "status: disabled"
   else
     # the first message is about snapd noticing that cloud-init is in error, and
     # for how long snapd will wait for cloud-init, this message should show up
     # relatively quickly
-    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported to be in error state, will disable in 3 minutes"'
+    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported to be in error state, will disable in 3 minutes"'"
 
     # we now wait for 3 minutes before snapd gives up waiting and disables 
     # cloud-init
-    tests.nested exec "retry --wait 1 -n 200 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "reported to be in error state after 3 minutes"'
+    tests.nested exec "retry --wait 1 -n 200 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "reported to be in error state after 3 minutes"'"
 
     tests.nested exec "cloud-init status" | MATCH "status: error"
   fi
