@@ -1067,6 +1067,19 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
+
+	for _, t := range []struct {
+		snapDir string
+		opts    *dirs.SnapDirOptions
+	}{
+		{dirs.UserHomeSnapDir, nil},
+		{dirs.UserHomeSnapDir, &dirs.SnapDirOptions{HiddenSnapDataDir: false}},
+		{dirs.HiddenSnapDataDir, &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
+		s.testEstimateSnapshotSize(c, t.snapDir, t.opts)
+	}
+}
+
+func (s *snapshotSuite) testEstimateSnapshotSize(c *check.C, snapDataDir string, opts *dirs.SnapDirOptions) {
 	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
 		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
 	})
@@ -1085,8 +1098,8 @@ func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		"/var/snap/foo/7",
 		"/var/snap/foo/common",
 		"/var/snap/foo/common/a",
-		"/home/user1/snap/foo/7/somedata",
-		"/home/user1/snap/foo/common",
+		filepath.Join("/home/user1", snapDataDir, "foo/7/somedata"),
+		filepath.Join("/home/user1", snapDataDir, "foo/common"),
 	}
 	var data []byte
 	var expected int
@@ -1094,10 +1107,10 @@ func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		data = append(data, 0)
 		expected += len(data)
 		c.Assert(os.MkdirAll(filepath.Join(s.root, d), 0755), check.IsNil)
-		c.Assert(ioutil.WriteFile(filepath.Join(s.root, d, "somfile"), data, 0644), check.IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(s.root, d, "somefile"), data, 0644), check.IsNil)
 	}
 
-	sz, err := backend.EstimateSnapshotSize(info, nil, nil)
+	sz, err := backend.EstimateSnapshotSize(info, nil, opts)
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(expected))
 }
@@ -1165,6 +1178,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(sz, check.Equals, uint64(0))
 }
+
 func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// use mocking done in snapshotSuite.SetUpTest
 	info := &snap.Info{

@@ -478,14 +478,27 @@ func (s *RunSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 }
 
 func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
+	for _, t := range []struct {
+		snapDir string
+		opts    *dirs.SnapDirOptions
+	}{
+		{snapDir: dirs.UserHomeSnapDir},
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
+		{snapDir: dirs.HiddenSnapDataDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+	} {
+		s.testSnapRunCreateDataDirs(c, t.snapDir, t.opts)
+	}
+}
+
+func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *dirs.SnapDirOptions) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
-	err = snaprun.CreateUserDataDirs(info, nil)
+	err = snaprun.CreateUserDataDirs(info, opts)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/common")), check.Equals, true)
 }
 
 func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {

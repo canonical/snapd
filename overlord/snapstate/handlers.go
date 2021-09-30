@@ -3266,7 +3266,9 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 
 // GetSnapDirOptions returns *dirs.SnapDirOptions configured according to the
 // enabled experimental features. The state must be locked by the caller.
-func GetSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
+var GetSnapDirOptions = getSnapDirOptions
+
+func getSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
 	tr := config.NewTransaction(state)
 
 	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataDir)
@@ -3275,4 +3277,12 @@ func GetSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
 	}
 
 	return &dirs.SnapDirOptions{HiddenSnapDataDir: hiddenDir}, nil
+}
+
+func MockGetSnapDirOptions(f func(*state.State) (*dirs.SnapDirOptions, error)) (restore func()) {
+	old := getSnapDirOptions
+	GetSnapDirOptions = f
+	return func() {
+		GetSnapDirOptions = old
+	}
 }

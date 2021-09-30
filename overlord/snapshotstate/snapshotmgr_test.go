@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -278,7 +279,7 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
-	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		c.Check(id, check.Equals, uint64(42))
 		c.Check(si, check.DeepEquals, &snapInfo)
 		c.Check(cfg, check.DeepEquals, map[string]interface{}{"hello": "there"})
@@ -297,6 +298,44 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 	st.Unlock()
 	err := snapshotstate.DoSave(task, &tomb.Tomb{})
 	c.Assert(err, check.IsNil)
+}
+
+func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
+	restore := snapstate.MockGetSnapDirOptions(func(*state.State) (*dirs.SnapDirOptions, error) {
+		return &dirs.SnapDirOptions{HiddenSnapDataDir: true}, nil
+	})
+	defer restore()
+
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(-1),
+		},
+		Version: "1.33",
+	}
+	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
+		c.Check(snapname, check.Equals, "a-snap")
+		return &snapInfo, nil
+	})()
+
+	var checkOpts bool
+	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		c.Check(opts.HiddenSnapDataDir, check.Equals, true)
+		checkOpts = true
+		return nil, nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	task := st.NewTask("save-snapshot", "...")
+	task.Set("snapshot-setup", map[string]interface{}{
+		"snap": "a-snap",
+	})
+	st.Unlock()
+
+	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	c.Assert(err, check.IsNil)
+	c.Check(checkOpts, check.Equals, true)
 }
 
 func (snapshotSuite) TestDoSaveFailsWithNoSnap(c *check.C) {

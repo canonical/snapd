@@ -64,7 +64,20 @@ version: 2.0
 )
 
 func (s *copydataSuite) TestCopyData(c *C) {
-	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
+	for _, t := range []struct {
+		snapDir string
+		opts    *dirs.SnapDirOptions
+	}{
+		{snapDir: dirs.UserHomeSnapDir, opts: nil},
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
+		{snapDir: dirs.HiddenSnapDataDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
+
+		s.testCopyData(c, t.snapDir, t.opts)
+	}
+}
+
+func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOptions) {
+	homedir := filepath.Join(s.tempdir, "home", "user1", snapDir)
 	homeData := filepath.Join(homedir, "hello/10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
@@ -76,7 +89,7 @@ func (s *copydataSuite) TestCopyData(c *C) {
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	// just creates data dirs in this case
-	err = s.be.CopySnapData(v1, nil, progress.Null, nil)
+	err = s.be.CopySnapData(v1, nil, progress.Null, opts)
 	c.Assert(err, IsNil)
 
 	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
@@ -91,7 +104,7 @@ func (s *copydataSuite) TestCopyData(c *C) {
 	c.Assert(err, IsNil)
 
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
-	err = s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err = s.be.CopySnapData(v2, v1, progress.Null, opts)
 	c.Assert(err, IsNil)
 
 	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, "hello/20", "canary.txt")
@@ -176,7 +189,11 @@ func (s *copydataSuite) populatedData(d string) string {
 }
 
 func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revision) (homedir string) {
-	homedir = filepath.Join(s.tempdir, "home", user, "snap")
+	return s.populateHomeDataWithSnapDir(c, user, dirs.UserHomeSnapDir, revision)
+}
+
+func (s copydataSuite) populateHomeDataWithSnapDir(c *C, user string, snapDir string, revision snap.Revision) (homedir string) {
+	homedir = filepath.Join(s.tempdir, "home", user, snapDir)
 	homeData := filepath.Join(homedir, "hello", revision.String())
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
@@ -187,15 +204,28 @@ func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revisio
 }
 
 func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
+	for _, t := range []struct {
+		snapDir string
+		opts    *dirs.SnapDirOptions
+	}{
+		{snapDir: dirs.UserHomeSnapDir},
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
+		{snapDir: dirs.HiddenSnapDataDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+	} {
+		s.testCopyDataUndo(c, t.snapDir, t.opts)
+	}
+}
+
+func (s *copydataSuite) testCopyDataUndo(c *C, snapDir string, opts *dirs.SnapDirOptions) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
-	homedir := s.populateHomeData(c, "user1", snap.R(10))
+	homedir := s.populateHomeDataWithSnapDir(c, "user1", snapDir, snap.R(10))
 
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
 	// copy data
-	err := s.be.CopySnapData(v2, v1, progress.Null, nil)
+	err := s.be.CopySnapData(v2, v1, progress.Null, opts)
 	c.Assert(err, IsNil)
 	v2data := filepath.Join(dirs.SnapDataDir, "hello/20")
 	l, err := filepath.Glob(filepath.Join(v2data, "*"))
@@ -206,7 +236,7 @@ func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 
-	err = s.be.UndoCopySnapData(v2, v1, progress.Null, nil)
+	err = s.be.UndoCopySnapData(v2, v1, progress.Null, opts)
 	c.Assert(err, IsNil)
 
 	// now removed
@@ -264,6 +294,12 @@ func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataDoABA(c *C) {
+	for _, opts := range []*dirs.SnapDirOptions{nil, {}, {HiddenSnapDataDir: true}} {
+		s.testCopyDataDoABA(c, opts)
+	}
+}
+
+func (s *copydataSuite) testCopyDataDoABA(c *C, opts *dirs.SnapDirOptions) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 	c.Check(s.populatedData("10"), Equals, "10\n")
@@ -275,7 +311,7 @@ func (s *copydataSuite) TestCopyDataDoABA(c *C) {
 	c.Check(s.populatedData("20"), Equals, "20\n")
 
 	// and now we pretend to refresh back to v1 (r10)
-	c.Check(s.be.CopySnapData(v1, v2, progress.Null, nil), IsNil)
+	c.Check(s.be.CopySnapData(v1, v2, progress.Null, opts), IsNil)
 
 	// so 10 now has 20's data
 	c.Check(s.populatedData("10"), Equals, "20\n")
@@ -284,7 +320,7 @@ func (s *copydataSuite) TestCopyDataDoABA(c *C) {
 	c.Check(s.populatedData("10.old"), Equals, "10\n")
 
 	// but cleanup cleans it up, huzzah
-	s.be.ClearTrashedData(v1, nil)
+	s.be.ClearTrashedData(v1, opts)
 	c.Check(s.populatedData("10.old"), Equals, "")
 }
 

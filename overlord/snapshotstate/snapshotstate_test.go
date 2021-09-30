@@ -1150,6 +1150,21 @@ func (snapshotSuite) TestRestore(c *check.C) {
 }
 
 func (snapshotSuite) TestRestoreIntegration(c *check.C) {
+	testRestoreIntegration(c, dirs.UserHomeSnapDir, nil)
+}
+
+func (snapshotSuite) TestRestoreIntegrationHiddenSnapDir(c *check.C) {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+
+	restore := snapstate.MockGetSnapDirOptions(func(*state.State) (*dirs.SnapDirOptions, error) {
+		return opts, nil
+	})
+	defer restore()
+
+	testRestoreIntegration(c, dirs.HiddenSnapDataDir, opts)
+}
+
+func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOptions) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -1194,16 +1209,16 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 		snapInfo := snaptest.MockSnap(c, fmt.Sprintf("{name: %s, version: v1}", name), sideInfo)
 
 		for _, home := range []string{homedirA, homedirB} {
-			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
-			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, "common", "common-"+name), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
+			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil)
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, opts)
 		c.Assert(err, check.IsNil)
 	}
 
 	// move the old away
-	c.Assert(os.Rename(filepath.Join(homedirA, "snap"), filepath.Join(homedirA, "snap.old")), check.IsNil)
+	c.Assert(os.Rename(filepath.Join(homedirA, snapDataDir), filepath.Join(homedirA, "snap.old")), check.IsNil)
 	// remove b-user's home
 	c.Assert(os.RemoveAll(homedirB), check.IsNil)
 
@@ -1227,8 +1242,8 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 	}
 
 	// check it was all brought back \o/
-	out, err := exec.Command("diff", "-rN", filepath.Join(homedirA, "snap"), filepath.Join("snap.old")).CombinedOutput()
-	c.Assert(err, check.IsNil)
+	out, err := exec.Command("diff", "-rN", filepath.Join(homedirA, snapDataDir), filepath.Join("snap.old")).CombinedOutput()
+	c.Check(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
 }
 
