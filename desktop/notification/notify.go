@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,10 @@
  *
  */
 
-// Package notification implements bindings to D-Bus notification
+// Package notification implements bindings to FDO D-Bus notification
 // specification, version 1.2, as documented at https://developer.gnome.org/notification-spec/
+// and GTK notification API. Appropriate notification backend is determined at
+// runtime.
 package notification
 
 import (
@@ -44,12 +46,6 @@ import (
 // timeout is -1 a message expires after a server-defined duration which may
 // vary for the type of the notification message sent.
 //
-// A notification may replace an existing notification by setting the ReplacesID
-// to a non-zero value. This only works if the notification server was not
-// re-started and should be used for as long as the sender process is alive, as
-// sending the identifier across session startup boundary has no chance of
-// working correctly.
-//
 // A notification may optionally carry a number of hints that further customize it
 // in a specific way. Refer to various hint constructors for details.
 //
@@ -65,13 +61,24 @@ import (
 type Message struct {
 	AppName       string
 	Icon          string
-	Summary       string
+	Title         string
 	Body          string
 	ExpireTimeout time.Duration // Effective resolution in milliseconds with 31-bit range.
-	ReplacesID    ID
+	Priority      Priority
 	Actions       []Action
-	Hints         []Hint
+
+	// XXX: only useful for fdo, should we drop it or rename to FdoHints?
+	Hints []Hint
 }
+
+type Priority uint32
+
+const (
+	PriorityNormal Priority = iota
+	PriorityLow
+	PriorityHigh
+	PriorityUrgent
+)
 
 // ServerSelectedExpireTimeout requests the server to pick an expiration timeout
 // appropriate for the message type.
@@ -82,7 +89,7 @@ const ServerSelectedExpireTimeout = time.Millisecond * -1
 // Notifications with known identifiers can be closed or updated. The identifier
 // is valid within one desktop session and should not be used unless the calling
 // process initially sent the message.
-type ID uint32
+type ID string
 
 // Action describes a single notification action.
 //
@@ -148,5 +155,6 @@ type Observer interface {
 	NotificationClosed(id ID, reason CloseReason) error
 	// ActionInvoked is caliled when one of the notification message actions is
 	// clicked by the user.
-	ActionInvoked(id ID, actionKey string) error
+	// XXX: revisit, should we return id at all? Remap to ID?
+	ActionInvoked(id uint32, actionKey string) error
 }

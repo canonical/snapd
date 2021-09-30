@@ -34,6 +34,9 @@ var _ = Disk(&MockDiskMapping{})
 // DevNum must be a unique string per unique mocked disk, if only one disk is
 // being mocked it can be left empty.
 type MockDiskMapping struct {
+	// TODO: eliminate these manual mappings and instead switch all the users
+	// over to providing the full list of Partitions instead, but in the
+	// interest of smaller PR's we are doing that in a separate PR.
 	// FilesystemLabelToPartUUID is a mapping of the udev encoded filesystem
 	// labels to the expected partition uuids.
 	FilesystemLabelToPartUUID map[string]string
@@ -41,7 +44,13 @@ type MockDiskMapping struct {
 	// labels to the expected partition uuids.
 	PartitionLabelToPartUUID map[string]string
 	DiskHasPartitions        bool
-	DevNum                   string
+
+	// TODO: add an exported list of Partitions here
+
+	// static variables for the disk
+	DevNum  string
+	DevNode string
+	DevPath string
 }
 
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
@@ -68,6 +77,42 @@ func (d *MockDiskMapping) FindMatchingPartitionUUIDWithPartLabel(label string) (
 		SearchType:  "partition-label",
 		SearchQuery: label,
 	}
+}
+
+func (d *MockDiskMapping) Partitions() ([]Partition, error) {
+	// TODO: this should just return the static list that was in the mapping
+	// when that is a thing
+
+	// dynamically build up a list of partitions with the mappings we were
+	// provided
+	parts := make([]Partition, 0, len(d.PartitionLabelToPartUUID))
+
+	partUUIDToPart := map[string]Partition{}
+
+	// first populate with all the partition labels
+	for partLabel, partuuid := range d.PartitionLabelToPartUUID {
+		part := Partition{
+			PartitionLabel: partLabel,
+			PartitionUUID:  partuuid,
+		}
+
+		partUUIDToPart[partuuid] = part
+	}
+
+	for fsLabel, partuuid := range d.FilesystemLabelToPartUUID {
+		existingPart, ok := partUUIDToPart[partuuid]
+		if !ok {
+			parts = append(parts, Partition{
+				FilesystemLabel: fsLabel,
+				PartitionUUID:   partuuid,
+			})
+			continue
+		}
+		existingPart.FilesystemLabel = fsLabel
+		parts = append(parts, existingPart)
+	}
+
+	return parts, nil
 }
 
 // HasPartitions returns if the mock disk has partitions or not. Part of the
@@ -100,6 +145,14 @@ func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options)
 // interface.
 func (d *MockDiskMapping) Dev() string {
 	return d.DevNum
+}
+
+func (d *MockDiskMapping) KernelDeviceNode() string {
+	return d.DevNode
+}
+
+func (d *MockDiskMapping) KernelDevicePath() string {
+	return d.DevPath
 }
 
 // Mountpoint is a combination of a mountpoint location and whether that
