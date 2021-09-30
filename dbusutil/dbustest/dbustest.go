@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/godbus/dbus"
 )
@@ -68,7 +69,7 @@ type testDBusStream struct {
 	output       chan []byte
 	closeRequest chan struct{}
 
-	closed   bool
+	closed   atomic.Value
 	authDone bool
 	n        int
 }
@@ -160,7 +161,7 @@ func (s *testDBusStream) Read(p []byte) (n int, err error) {
 		// When the buffer is empty block until more data arrives. DBus
 		// continuously blocks on reading and premature empty read is treated as an
 		// EOF, terminating the message flow.
-		if s.closed {
+		if s.closed.Load().(bool) {
 			return 0, fmt.Errorf("stream is closed")
 		}
 		if s.outputBuf.Len() > 0 {
@@ -171,24 +172,24 @@ func (s *testDBusStream) Read(p []byte) (n int, err error) {
 			// just accumulate the data in the output buffer
 			s.outputBuf.Write(data)
 		case <-s.closeRequest:
-			s.closed = true
+			s.closed.Store(true)
 		}
 	}
 }
 
 func (s *testDBusStream) Write(p []byte) (n int, err error) {
-	select {
-	case <-s.closeRequest:
-		s.closed = true
-	default:
-		if s.closed {
-			return 0, fmt.Errorf("stream is closed")
+	for {
+		select {
+		case <-s.closeRequest:
+			s.closed.Store(true)
+		default:
+			if s.closed.Load().(bool) {
+				return 0, fmt.Errorf("stream is closed")
+			}
+			s.decodeRequest(p)
+			return len(p), nil
 		}
-		s.decodeRequest(p)
-		return len(p), nil
 	}
-	// because vet incorrectly flags this as a missing return
-	panic("not reached")
 }
 
 func (s *testDBusStream) Close() error {
@@ -206,6 +207,7 @@ func newTestDBusStream(handler DBusHandlerFunc) *testDBusStream {
 		output:       make(chan []byte, 1),
 		closeRequest: make(chan struct{}, 1),
 	}
+	s.closed.Store(false)
 	return s
 }
 
