@@ -1030,6 +1030,11 @@ func (ss *stateSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	err = st.VerifyReboot("boot-id-1")
 	st.Unlock()
 	c.Check(err, Equals, state.ErrExpectedReboot)
+	fromBootID = ""
+	st.Lock()
+	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), IsNil)
+	st.Unlock()
+	c.Check(fromBootID, Equals, "boot-id-1")
 
 	st.Lock()
 	err = st.VerifyReboot("boot-id-2")

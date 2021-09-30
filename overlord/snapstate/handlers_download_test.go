@@ -43,7 +43,7 @@ type downloadSnapSuite struct {
 var _ = Suite(&downloadSnapSuite{})
 
 func (s *downloadSnapSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.fakeStore = &fakeStore{
 		state:       s.state,

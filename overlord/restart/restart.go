@@ -161,3 +161,12 @@ func MockPending(st *state.State, restarting RestartType) RestartType {
 	rs.restarting = restarting
 	return old
 }
+
+func ReplaceBootID(st *state.State, bootID string) {
+	cached := st.Cached(restartStateKey{})
+	if cached == nil {
+		panic("internal error: cannot mock a restart request before restart.Init")
+	}
+	rs := cached.(*restartState)
+	rs.bootID = bootID
+}

@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -361,7 +362,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 	c.Check(rollbackDir, Equals, passedRollbackDir)
 	// should have been removed right after update
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
@@ -1140,7 +1141,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		}
 		if updated {
 			// update was applied, thus a restart was requested
-			c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
@@ -1471,7 +1472,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	c.Check(log[0], Matches, ".* Updated kernel command line")
 	c.Check(log[1], Matches, ".* Reverted kernel command line change")
 	// update was applied and then undone
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem, state.RestartSystem})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem, restart.RestartSystem})
 	c.Check(restartCount, Equals, 2)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -209,7 +210,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
-	st.RequestRestart(state.RestartSystem)
+	restart.Request(st, restart.RestartSystem)
 
 	return nil
 }
@@ -284,7 +285,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// kernel command line
 
 	// kernel command line was updated, request a reboot to make it effective
-	st.RequestRestart(state.RestartSystem)
+	restart.Request(st, restart.RestartSystem)
 	return nil
 }
 
@@ -321,6 +322,6 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	t.SetStatus(state.UndoneStatus)
 
 	// kernel command line was updated, request a reboot to make it effective
-	st.RequestRestart(state.RestartSystem)
+	restart.Request(st, restart.RestartSystem)
 	return nil
 }
