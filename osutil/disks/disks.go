@@ -62,9 +62,40 @@ type Disk interface {
 	// does not have partitions for example.
 	HasPartitions() bool
 
-	// TODO: add function to get some properties like an associated /dev node
-	//       for a disk for better user error reporting, i.e. /dev/vda3 is much
-	//       more helpful than 252:3
+	// Partitions returns all partitions found on a physical disk device.
+	Partitions() ([]Partition, error)
+
+	// KernelDeviceNode returns the full device node path in /dev/ for the disk
+	// such as /dev/mmcblk0 or /dev/vda.
+	KernelDeviceNode() string
+
+	// KernelDevicePath returns the full device path in /sys/devices for the
+	// disk such as /sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/.
+	KernelDevicePath() string
+}
+
+// Partition represents a partition on a Disk device.
+type Partition struct {
+	// FilesystemLabel is the encoded filesystem label, this should only be
+	// compared with normal Go strings that are encoded with BlkIDEncodeLabel.
+	FilesystemLabel string
+	// FilesystemUUID is the encoded filesystem UUID, this should be compared
+	// with normal Go strings that are encoded with BlkIDEncodeLabel.
+	FilesystemUUID string
+	// PartitionLabel is the encoded partition label, this should only be
+	// compared with normal Go strings that are encoded with BlkIDEncodeLabel.
+	PartitionLabel string
+	// the partition UUID
+	PartitionUUID string
+	// Major is the major number for this partition.
+	Major int
+	// Minor is the minor number for this partition.
+	Minor int
+	// KernelDevicePath is the kernel device path for this device in /sys for
+	// this partition.
+	KernelDevicePath string
+	// KernelDeviceNode is the kernel device node in /dev.
+	KernelDeviceNode string
 }
 
 // PartitionNotFoundError is an error where a partition matching the SearchType

@@ -4102,6 +4102,43 @@ func (s *snapmgrTestSuite) TestHasAllContentAttributes(c *C) {
 	c.Assert(err.Error(), Equals, `expected 'content' attribute of slot 'bad-content-slot' (snap: 'some-snap') to be string but was int`)
 }
 
+func (s *snapmgrTestSuite) TestInstallPrereqIgnoreConflictInSameChange(c *C) {
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	prodInfo := &snap.SideInfo{
+		RealName: "snap-content-slot",
+		SnapID:   "snap-content-slot-id",
+		Revision: snap.R(1),
+	}
+
+	chg := s.state.NewChange("install", "")
+
+	// To make the test deterministic, we inject a conflicting task to simulate
+	// an InstallMany({snap-content-plug, snap-content-slot}) with a failing snap-content-slot
+	conflTask := s.state.NewTask("conflicting-task", "test: conflicting task")
+	conflTask.Set("snap-setup", &snapstate.SnapSetup{SideInfo: prodInfo})
+	chg.AddTask(conflTask)
+
+	installTasks, err := snapstate.Install(context.Background(), s.state, "snap-content-plug", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(installTasks.Tasks(), Not(HasLen), 0)
+	chg.AddAll(installTasks)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// check that the prereq task wasn't retried
+	prereqTask := findStrictlyOnePrereqTask(c, chg)
+	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
+	c.Assert(prereqTask.AtTime().IsZero(), Equals, true)
+}
+
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevisionIgnoreValidationOK(c *C) {
 	// sanity check: fails with validation
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: false})
@@ -4143,3 +4180,4 @@ func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidat
 	}
 	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
 }
+
