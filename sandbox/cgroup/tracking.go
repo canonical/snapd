@@ -277,13 +277,14 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	aux := []auxUnit(nil)
 	jobRemoveMatch := []dbus.MatchOption{
 		dbus.WithMatchInterface("org.freedesktop.systemd1.Manager"),
+		dbus.WithMatchMember("JobRemoved"),
 	}
 	if err := conn.AddMatchSignal(jobRemoveMatch...); err != nil {
 		return fmt.Errorf("cannot subscribe to systemd signals: %v", err)
 	}
 	signals := make(chan *dbus.Signal, 10)
 	jobResultChan := make(chan string, 1)
-	jobWaitFor := make(chan string, 1)
+	jobWaitFor := make(chan dbus.ObjectPath, 1)
 	conn.Signal(signals)
 
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
@@ -304,8 +305,8 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		jobResults := make(map[string]string, 10)
-		expectedJob := ""
+		jobResults := make(map[dbus.ObjectPath]string, 10)
+		expectedJob := dbus.ObjectPath("")
 		for {
 			select {
 			case job, ok := <-jobWaitFor:
@@ -322,6 +323,9 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 				if !ok {
 					continue
 				}
+				// sanity check the signal name, although the
+				// match selectors should ensure we only receive
+				// JobRemoved signals
 				if sig.Name != "org.freedesktop.systemd1.Manager.JobRemoved" {
 					continue
 				}
@@ -332,15 +336,14 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 				if err := dbus.Store(sig.Body, &id, &jobFromSignal, &unit, &result); err != nil {
 					continue
 				}
-				job := string(jobFromSignal)
-				if job == expectedJob {
+				if jobFromSignal == expectedJob {
 					// we are already expecting results for this job
 					jobResultChan <- result
 				} else {
 					// or not, just keep result for now, as
 					// a request to track a job may come
 					// later
-					jobResults[job] = result
+					jobResults[jobFromSignal] = result
 				}
 			case <-closeChan:
 				conn.RemoveSignal(signals)
@@ -378,7 +381,7 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 		}
 		return fmt.Errorf("cannot create transient scope: %s", err)
 	}
-	jobWaitFor <- string(job)
+	jobWaitFor <- job
 	logger.Debugf("create transient scope job: %s", job)
 	timeout := time.NewTimer(createScopeJobTimeout)
 	defer timeout.Stop()

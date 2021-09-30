@@ -487,7 +487,7 @@ func (s *trackingSuite) TestCreateTransientScopeConfirmCheckError(c *C) {
 	})
 }
 
-const systemdSignalMatch = `type='signal',interface='org.freedesktop.systemd1.Manager'`
+const systemdSignalMatch = `type='signal',interface='org.freedesktop.systemd1.Manager',member='JobRemoved'`
 
 func checkSystemdSignalSubscribe(c *C, msg *dbus.Message) *dbus.Message {
 	var rule string
