@@ -170,7 +170,7 @@ execute: |
 
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
-    tests.cleanup defer snapd.tool exec snap-mgmt --purge
+    tests.cleanup defer sh -c sh -c "if [ $(ls -1 /snap/snapd/ 2>/dev/null | wc -l) -gt 2 ]; then snap revert snapd; fi"
 
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
