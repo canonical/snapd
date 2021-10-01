@@ -10,9 +10,6 @@ debug: |
     cat modeenv.after-reboot || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "Verifying tpm working on the nested vm"
     tests.nested exec "dmesg | grep -i tpm" | MATCH "efi: +SMBIOS=.* +TPMFinalLog=.*"
     tests.nested exec "test -e /sys/kernel/security/tpm0/binary_bios_measurements"

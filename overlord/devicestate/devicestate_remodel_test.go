@@ -1423,9 +1423,11 @@ volumes:
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
+						Name:       "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
+							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Size:       10 * quantity.SizeMiB,
@@ -1434,9 +1436,10 @@ volumes:
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
 						}, {
-							Name: "bare-one",
-							Type: "bare",
-							Size: quantity.SizeMiB,
+							VolumeName: "pc",
+							Name:       "bare-one",
+							Type:       "bare",
+							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
@@ -1450,9 +1453,11 @@ volumes:
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
+						Name:       "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
+							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Size:       10 * quantity.SizeMiB,
@@ -1461,9 +1466,10 @@ volumes:
 								{UnresolvedSource: "new-foo-content", Target: "/"},
 							},
 						}, {
-							Name: "bare-one",
-							Type: "bare",
-							Size: quantity.SizeMiB,
+							VolumeName: "pc",
+							Name:       "bare-one",
+							Type:       "bare",
+							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
 							},

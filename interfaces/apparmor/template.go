@@ -267,6 +267,8 @@ var templateCommon = `
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
+  # Allow apps to introspect the level of dbus mediation AppArmor implements.
+  /sys/kernel/security/apparmor/features/dbus/mask r,
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,

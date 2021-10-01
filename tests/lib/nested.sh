@@ -94,6 +94,12 @@ nested_wait_for_reboot() {
 nested_uc20_transition_to_system_mode() {
     local recovery_system="$1"
     local mode="$2"
+
+    if ! nested_is_core_20_system; then
+        echo "Transition can be done just on uc20 system, exiting..."
+        exit 1
+    fi
+
     local current_boot_id
     current_boot_id=$(nested_get_boot_id)
     nested_exec "sudo snap reboot --$mode $recovery_system"
@@ -403,6 +409,7 @@ nested_prepare_env() {
     mkdir -p "$NESTED_RUNTIME_DIR"
     mkdir -p "$NESTED_ASSETS_DIR"
     mkdir -p "$NESTED_LOGS_DIR"
+    mkdir -p "$(nested_get_extra_snaps_path)"
 }
 
 nested_cleanup_env() {
@@ -444,6 +451,10 @@ nested_get_extra_snaps_path() {
 
 nested_get_assets_path() {
     echo "$NESTED_ASSETS_DIR"
+}
+
+nested_get_images_path() {
+    echo "$NESTED_IMAGES_DIR"
 }
 
 nested_get_extra_snaps() {
@@ -1355,11 +1366,11 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
+        curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
         # make sure spread really exists
-        test -x "$NESTED_WORK_DIR/spread"
-        echo "$NESTED_WORK_DIR/spread"
+        test -x "$NESTED_WORK_DIR/spread"        
     fi
+    echo "$NESTED_WORK_DIR/spread"
 }
 
 nested_build_seed_cdrom() {
