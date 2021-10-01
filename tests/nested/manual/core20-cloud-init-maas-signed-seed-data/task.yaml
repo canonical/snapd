@@ -168,6 +168,16 @@ execute: |
 
   echo "Waiting for snapd to react to cloud-init"
 
+  # ugh bash quoting is terrrrrrrrrrible - we can't deeply nest quotes in retry,
+  # tests.nested and MATCH here so we have to copy the command to a script to be
+  # executed instead
+  cat > /tmp/snapd-journal-match-script.sh <<EOF
+  #!/bin/bash -e
+  sudo journalctl --no-pager -u snapd | MATCH "$*"
+  EOF
+  tests.nested copy /tmp/snapd-journal-match-script.sh
+  tests.nested exec "chmod +x /home/user1/snapd-journal-match-script.sh"
+
   # there are two options here, one is where we actually let cloud-init stay 
   # enabled with the variant where the gadget allowed it, in which case 
   # cloud-init will be in error, and we actually have to check for two messages,
@@ -175,18 +185,18 @@ execute: |
   # all datasources in which case snapd notices cloud-init as being disabled
   if [ "$GADGET_DATASOURCE" = "explicitly-none" ]; then
     # snapd should disable cloud-init
-    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported to be in disabled state"'"
+    retry --wait 1 -n 60 sh -c 'tests.nested exec "/home/user1/snapd-journal-match-script.sh cloud-init reported to be in disabled state"'
 
     tests.nested exec "cloud-init status" | MATCH "status: disabled"
   else
     # the first message is about snapd noticing that cloud-init is in error, and
     # for how long snapd will wait for cloud-init, this message should show up
     # relatively quickly
-    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported to be in error state, will disable in 3 minutes"'"
+    retry --wait 1 -n 60 sh -c 'tests.nested exec "/home/user1/snapd-journal-match-script.sh cloud-init reported to be in error state, will disable in 3 minutes"'
 
     # we now wait for 3 minutes before snapd gives up waiting and disables 
     # cloud-init
-    tests.nested exec "retry --wait 1 -n 200 sh -c 'sudo journalctl --no-pager -u snapd | MATCH "reported to be in error state after 3 minutes"'"
+    retry --wait 1 -n 60 sh -c 'tests.nested exec "/home/user1/snapd-journal-match-script.sh cloud-init reported to be in error state after 3 minutes"'
 
     tests.nested exec "cloud-init status" | MATCH "status: error"
   fi
