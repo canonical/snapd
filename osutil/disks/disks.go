@@ -118,10 +118,13 @@ type Partition struct {
 }
 
 // MountPointsForPartitionRoot returns all mounts from the mount table which are
-// for the root directory of the specified partition. The order in which they
-// are returned is the exact order that they appear in the mount table.
-func MountPointsForPartitionRoot(p Partition) ([]string, error) {
-	return mountPointsForPartitionRoot(p)
+// for the root directory of the specified partition and have matching mount
+// options as specified. Options not specified in the map argument can have any
+// value or be set or unset, but any option set in the map must match exactly.
+// The order in which they are returned is the same order that they appear in
+// the mount table.
+func MountPointsForPartitionRoot(p Partition, matchingMountOptions map[string]string) ([]string, error) {
+	return mountPointsForPartitionRoot(p, matchingMountOptions)
 }
 
 // PartitionNotFoundError is an error where a partition matching the SearchType
