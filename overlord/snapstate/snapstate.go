@@ -1831,6 +1831,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			SideInfo:    snapst.CurrentSideInfo(),
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
+			Type:        snap.Type(snapst.SnapType),
 			CohortKey:   opts.CohortKey,
 		}
 
@@ -2198,6 +2199,32 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	// we need this for remodel
 	ts := state.NewTaskSet(prepareSnap, linkSnap)
 	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	return ts, nil
+}
+
+func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+	var snapSetupTaskID string
+	var snapsup SnapSetup
+	allTasks := ts.Tasks()
+	for _, tsk := range allTasks {
+		if tsk.Has("snap-setup") {
+			snapSetupTaskID = tsk.ID()
+			if err := tsk.Get("snap-setup", &snapsup); err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+	if snapSetupTaskID == "" {
+		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
+	}
+
+	linkSnap := st.NewTask("link-snap",
+		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	linkSnap.Set("snap-setup-task", snapSetupTaskID)
+	// wait for the last task in existing set
+	linkSnap.WaitFor(allTasks[len(allTasks)-1])
+	ts.AddTask(linkSnap)
 	return ts, nil
 }
 
