@@ -117,11 +117,11 @@ type Partition struct {
 	// from?
 }
 
-// RootMountPointsForPartition returns all mounts from the mount table which are
+// MountPointsForPartitionRoot returns all mounts from the mount table which are
 // for the root directory of the specified partition. The order in which they
 // are returned is the exact order that they appear in the mount table.
-func RootMountPointsForPartition(p Partition) ([]string, error) {
-	return rootMountPointsForPartition(p)
+func MountPointsForPartitionRoot(p Partition) ([]string, error) {
+	return mountPointsForPartitionRoot(p)
 }
 
 // PartitionNotFoundError is an error where a partition matching the SearchType

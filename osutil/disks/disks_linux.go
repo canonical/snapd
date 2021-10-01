@@ -188,7 +188,7 @@ var diskFromDeviceName = func(deviceName string) (Disk, error) {
 	return diskFromUdevProps(deviceName, "name", props)
 }
 
-func rootMountPointsForPartition(part Partition) ([]string, error) {
+func mountPointsForPartitionRoot(part Partition) ([]string, error) {
 	mounts, err := osutil.LoadMountInfo()
 	if err != nil {
 		return nil, err
@@ -196,10 +196,8 @@ func rootMountPointsForPartition(part Partition) ([]string, error) {
 
 	mountpoints := []string{}
 	for _, mnt := range mounts {
-		if mnt.DevMajor == part.Major && mnt.DevMinor == part.Minor {
-			if mnt.Root == "/" {
-				mountpoints = append(mountpoints, mnt.MountDir)
-			}
+		if mnt.DevMajor == part.Major && mnt.DevMinor == part.Minor && mnt.Root == "/" {
+			mountpoints = append(mountpoints, mnt.MountDir)
 		}
 	}
 

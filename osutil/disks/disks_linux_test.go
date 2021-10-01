@@ -892,7 +892,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	c.Assert(matches, Equals, true)
 }
 
-func (s *diskSuite) TestRootMountPointsForPartition(c *C) {
+func (s *diskSuite) TestMountPointsForPartitionRoot(c *C) {
 	const (
 		validRootMnt1    = "130 30 42:1 / /run/mnt/ubuntu-data rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
 		validRootMnt2    = "130 30 42:1 / /run/mnt/foo-other-place rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
@@ -950,7 +950,7 @@ func (s *diskSuite) TestRootMountPointsForPartition(c *C) {
 			part.Minor = 1
 		}
 
-		res, err := disks.RootMountPointsForPartition(part)
+		res, err := disks.MountPointsForPartitionRoot(part)
 		c.Check(err, IsNil, cmt)
 
 		if len(t.exp) == 0 {
