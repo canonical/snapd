@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 
 #include "cgroup-support.h"
@@ -59,6 +60,7 @@ struct sc_device_cgroup {
             int cgroup_fd;
             int devmap_fd;
             char *tag;
+            struct rlimit old_limit;
         } v2;
     };
 };
@@ -108,7 +110,7 @@ static void _sc_cgroup_v1_deny(sc_device_cgroup *self, int kind, int major, int 
 }
 
 static void _sc_cgroup_v1_attach_pid(sc_device_cgroup *self, pid_t pid) {
-    sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", getpid());
+    sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", pid);
 }
 
 /**
@@ -242,6 +244,46 @@ static void _sc_cleanup_v2_device_key(sc_cgroup_v2_device_key **keyptr) {
     *keyptr = NULL;
 }
 
+static void _sc_cgroup_v2_set_memlock_limit(struct rlimit limit) {
+    /* we may be setting the limit over the current max, which requires root
+     * privileges */
+    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+    if (setrlimit(RLIMIT_MEMLOCK, &limit) < 0) {
+        die("cannot set memlock limit to %llu:%llu", (long long unsigned int)limit.rlim_cur,
+            (long long unsigned int)limit.rlim_max);
+    }
+    (void)sc_set_effective_identity(old);
+}
+
+// _sc_cgroup_v2_adjust_memlock_limit updates the memlock limit which used to be
+// consulted by pre 5.11 kernels when creating BPF maps or loading BPF programs.
+// It has been observed that some systems (eg. Debian using 5.10 kernel) have
+// the default limit set to 64k, which combined with an older way of accounting
+// of memory use by BPF objects, renders snap-confine unable to create the BPF
+// map. The situation is made worse by the fact that there is no right value
+// here, for example older systemd set the limit to 64MB while newer versions
+// set it even higher). Returns the old limit setting.
+static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
+    struct rlimit old_limit = {0};
+
+    if (getrlimit(RLIMIT_MEMLOCK, &old_limit) < 0) {
+        die("cannot obtain the current memlock limit");
+    }
+    /* this should be more than enough for creating the map and loading the
+     * filtering program */
+    const rlim_t min_memlock_limit = 512 * 1024;
+    if (old_limit.rlim_max >= min_memlock_limit) {
+        return old_limit;
+    }
+    debug("adjusting memlock limit to %llu", (long long unsigned int)min_memlock_limit);
+    struct rlimit limit = {
+        .rlim_cur = min_memlock_limit,
+        .rlim_max = min_memlock_limit,
+    };
+    _sc_cgroup_v2_set_memlock_limit(limit);
+    return old_limit;
+}
+
 static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     self->v2.devmap_fd = -1;
     self->v2.cgroup_fd = -1;
@@ -250,6 +292,9 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     if (own_group == NULL) {
         die("cannot obtain own group path");
     }
+
+    /* fix the memlock limit if needed, this affects creating maps */
+    self->v2.old_limit = _sc_cgroup_v2_adjust_memlock_limit();
 
     const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
 
@@ -297,6 +342,9 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         /* create the map as root, also pinning the map creates a file entry
          * under /sys/bpf/snap, make sure it's owned by root too */
         (void)sc_set_effective_identity(sc_root_group_identity());
+        /* kernels used to do account of BPF memory using rlimit memlock pool,
+         * thus on older kernels (seen on 5.10), the map effectively locks 11
+         * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2 (8k) */
         devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
@@ -392,6 +440,9 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
 }
 
 static void _sc_cgroup_v2_close_bpf(sc_device_cgroup *self) {
+    /* restore the old limit */
+    _sc_cgroup_v2_set_memlock_limit(self->v2.old_limit);
+
     sc_cleanup_string(&self->v2.tag);
     /* the map is pinned to a per-snap-application file and referenced by the
      * program */

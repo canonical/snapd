@@ -211,6 +211,30 @@ ptrace (read, trace) peer=cri-containerd.apparmor.d,
 # what docker tries to use
 # see https://bugs.launchpad.net/snapd/+bug/1867216
 unix (bind) type=dgram,
+
+# With cgroup v2, docker uses the systemd driver to run the containers,
+# which requires dockerd to talk to systemd over system bus.
+dbus (send)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member={StartTransientUnit,KillUnit,StopUnit,ResetFailedUnit,SetUnitProperties}
+    peer=(name=org.freedesktop.systemd1,label=unconfined),
+
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member=JobRemoved
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=system
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/systemd1
+    member=Get{,All}
+    peer=(name=org.freedesktop.systemd1,label=unconfined),
+
 `
 
 const dockerSupportConnectedPlugSecComp = `

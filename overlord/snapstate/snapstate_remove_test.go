@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -1730,44 +1729,6 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
 	c.Assert(candidates, HasLen, 1)
 	c.Check(candidates["some-snap"], NotNil)
-}
-
-type validationSetsSuite struct {
-	snapmgrTestSuite
-	storeSigning *assertstest.StoreStack
-	dev1acct     *asserts.Account
-	acct1Key     *asserts.AccountKey
-	dev1Signing  *assertstest.SigningDB
-}
-
-var _ = Suite(&validationSetsSuite{})
-
-func (s *validationSetsSuite) SetUpTest(c *C) {
-	s.snapmgrTestSuite.SetUpTest(c)
-
-	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	c.Assert(s.storeSigning.Add(s.dev1acct), IsNil)
-	dev1PrivKey, _ := assertstest.GenerateKey(752)
-	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
-	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
-	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
-}
-
-func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...interface{}) asserts.Assertion {
-	headers := map[string]interface{}{
-		"authority-id": "foo",
-		"account-id":   "foo",
-		"name":         name,
-		"series":       "16",
-		"sequence":     sequence,
-		"revision":     "5",
-		"timestamp":    "2030-11-06T09:16:26Z",
-		"snaps":        snaps,
-	}
-	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
-	c.Assert(err, IsNil)
-	return vs
 }
 
 func (s *validationSetsSuite) removeSnapReferencedByValidationSet(c *C, presence string) error {

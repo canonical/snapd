@@ -20,10 +20,7 @@ prepare: |
       exit
   fi
 
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
-  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
+  "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
   echo "Repack the snapd snap with a marker file"
   unsquashfs -d snapd-snap snapd-from-deb.snap
 
@@ -39,7 +36,7 @@ prepare: |
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    KEY_NAME=$(tests.nested get snakeoil-key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
     tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
@@ -57,7 +54,7 @@ prepare: |
         exit 1
         ;;
     esac
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
   fi
 
   tests.nested build-image core
@@ -74,9 +71,6 @@ execute: |
       echo "This test needs a build of snapd with testing features enabled"
       exit
   fi
-
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
 
   tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
   SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
