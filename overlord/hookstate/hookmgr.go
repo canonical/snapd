@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -315,11 +315,12 @@ func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *
 	return m.runHook(context, snapst, hooksup, tomb)
 }
 
-func (m *HookManager) runGuard(context *Context) error {
+// runHookGuardForRestarting helps avoiding running a hook if we are
+// restarting by returning state.Retry in such case.
+func (m *HookManager) runHookGuardForRestarting(context *Context) error {
 	context.Lock()
 	defer context.Unlock()
 	if ok, _ := restart.Pending(m.state); ok {
-		// don't start running a hook if we are restarting
 		return &state.Retry{}
 	}
 
@@ -350,7 +351,7 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 
 	if hookExists || mustHijack {
 		// we will run something, not a noop
-		if err := m.runGuard(context); err != nil {
+		if err := m.runHookGuardForRestarting(context); err != nil {
 			return err
 		}
 		defer atomic.AddInt32(&m.runningHooks, -1)
