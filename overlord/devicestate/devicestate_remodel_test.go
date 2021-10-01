@@ -2095,7 +2095,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 	})
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSnaps(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnaps(c *C) {
+	// remodel switches to a new set of kernel, base and gadget snaps, but
+	// those happen to be already installed and tracking the right channels,
+	// this scenario can happen when the system has gone through many
+	// remodels and the new gadget, kernel, base snaps were required by one
+	// of the prior models
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -2172,13 +2177,16 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		Active:          true,
 		TrackingChannel: "20/stable",
 	})
-	// new gadget and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new"} {
+	// new gadget, base and kernel which are already installed
+	for _, alreadyInstalledName := range []string{"pc-new", "pc-kernel-new", "core20-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "20/stable"
-		if alreadyInstalledName == "core20-new" {
+		switch alreadyInstalledName {
+		case "core20-new":
 			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
 			channel = "latest/stable"
+		case "pc-new":
+			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\n"
 		}
 		si := &snap.SideInfo{
 			RealName: alreadyInstalledName,
@@ -2211,8 +2219,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 				"default-channel": "20/stable",
 			},
 			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
+				"name":            "pc-new",
+				"id":              snaptest.AssertedSnapID("pc-new"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
@@ -2223,8 +2231,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
 	tl := chg.Tasks()
-	// 2 snaps (2 tasks for each) + recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 2*2+2+1)
+	// 2 snaps (2 tasks for each) + gadget (3 tasks) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 2*2+3+2+1)
 
 	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
@@ -2241,9 +2249,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	tLinkKernel := tl[1]
 	tPrepareBase := tl[2]
 	tLinkBase := tl[3]
-	tCreateRecovery := tl[4]
-	tFinalizeRecovery := tl[5]
-	tSetModel := tl[6]
+	tPrepareGadget := tl[4]
+	tUpdateAssets := tl[5]
+	tUpdateCmdline := tl[6]
+	tCreateRecovery := tl[7]
+	tFinalizeRecovery := tl[8]
+	tSetModel := tl[9]
 
 	// check the tasks
 	c.Assert(tPrepareKernel.Kind(), Equals, "prepare-snap")
@@ -2254,6 +2265,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(tPrepareBase.Kind(), Equals, "prepare-snap")
 	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core20-new" (222) for remodel`)
 	c.Assert(tPrepareBase.WaitTasks(), HasLen, 1)
+	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
+	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (222) available to the system during remodel`)
+	c.Assert(tPrepareGadget.Kind(), Equals, "prepare-snap")
+	c.Assert(tPrepareGadget.Summary(), Equals, `Prepare snap "pc-new" (222) for remodel`)
+	c.Assert(tPrepareGadget.WaitTasks(), HasLen, 1)
+	c.Assert(tUpdateAssets.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateAssets.Summary(), Equals, `Update assets from gadget "pc-new" (222) for remodel`)
+	c.Assert(tUpdateAssets.WaitTasks(), HasLen, 2)
+	c.Assert(tUpdateCmdline.Kind(), Equals, "update-gadget-cmdline")
+	c.Assert(tUpdateCmdline.Summary(), Equals, `Update kernel command line from gadget "pc-new" (222) for remodel`)
+	c.Assert(tUpdateCmdline.WaitTasks(), HasLen, 1)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
 	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (222) available to the system during remodel`)
 	expectedLabel := now.Format("20060102")
@@ -2267,7 +2289,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(tPrepareKernel.WaitTasks(), HasLen, 0)
 	c.Assert(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel,
-		tPrepareBase,
+		tPrepareGadget,
 		tCreateRecovery,
 		tFinalizeRecovery,
 	})
@@ -2278,21 +2300,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		tPrepareBase,
 		tLinkKernel,
 	})
+	c.Assert(tPrepareGadget.WaitTasks(), DeepEquals, []*state.Task{
+		tPrepareBase,
+	})
+	c.Assert(tUpdateAssets.WaitTasks(), DeepEquals, []*state.Task{
+		tPrepareGadget,
+		tLinkBase,
+	})
 	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
 		// last snap of the download chain (in this case prepare & link
 		// for existing snaps)
-		tPrepareBase,
+		tPrepareGadget,
 	})
 	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
 		// recovery system being created
 		tCreateRecovery,
 		// last snap of the download chain (see above)
-		tPrepareBase,
+		tPrepareGadget,
 	})
 	// setModel waits for everything in the change
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel, tLinkKernel,
 		tPrepareBase, tLinkBase,
+		tPrepareGadget, tUpdateAssets, tUpdateCmdline,
 		tCreateRecovery, tFinalizeRecovery,
 	})
 	// verify recovery system setup data on appropriate tasks
@@ -2302,11 +2332,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []interface{}{tPrepareKernel.ID(), tPrepareBase.ID()},
+		"snap-setup-tasks": []interface{}{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID()},
 	})
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSnapsDifferentChannelThanNew(c *C) {
+	// kernel and base snaps that are used by the new model are already
+	// installed, but track a different channel from what is set in the new
+	// model
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)

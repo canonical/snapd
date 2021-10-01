@@ -2228,6 +2228,53 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	return ts, nil
 }
 
+func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, &snap.NotInstalledError{Snap: name}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckChangeConflict(st, name, nil); err != nil {
+		return nil, err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	if info.Type() != snap.TypeGadget {
+		return nil, fmt.Errorf("cannot link type %v", info.Type())
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo:    snapst.CurrentSideInfo(),
+		Flags:       snapst.Flags.ForSnapSetup(),
+		Type:        info.Type(),
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
+	}
+
+	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
+	prepareSnap.Set("snap-setup", &snapsup)
+
+	gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
+	gadgetUpdate.WaitFor(prepareSnap)
+	gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
+	gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
+	gadgetCmdline.WaitFor(gadgetUpdate)
+	gadgetCmdline.Set("snap-setup-task", prepareSnap.ID())
+
+	// we need this for remodel
+	ts := state.NewTaskSet(prepareSnap, gadgetUpdate, gadgetCmdline)
+	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	return ts, nil
+}
+
 // Enable sets a snap to the active state
 func Enable(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
