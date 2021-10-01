@@ -381,6 +381,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeGadget
 	case "alias-snap-id":
 		name = "snap-id"
+	case "snap-c-id":
+		name = "snap-c"
 	case "outdated-consumer-id":
 		name = "outdated-consumer"
 	case "outdated-producer-id":
@@ -607,6 +609,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			revno:  hit,
 			userID: userID,
 		})
+
 		if err == store.ErrNoUpdateAvailable {
 			refreshErrors[cur.InstanceName] = err
 			continue

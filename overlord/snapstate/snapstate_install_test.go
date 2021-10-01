@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -3706,7 +3707,87 @@ func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 	c.Check(snapSt.Current, Equals, snap.R(42))
 }
 
-func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presence, requiredRev string, installRev snap.Revision, cohort string) error {
+type validationSetsSuite struct {
+	testutil.BaseTest
+	state        *state.State
+	fakeStore    *fakeStore
+	fakeBackend  *fakeSnappyBackend
+	storeSigning *assertstest.StoreStack
+	dev1acct     *asserts.Account
+	acct1Key     *asserts.AccountKey
+	dev1Signing  *assertstest.SigningDB
+}
+
+var _ = Suite(&validationSetsSuite{})
+
+func (s *validationSetsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.state = state.New(nil)
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	s.AddCleanup(r)
+
+	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeStore = &fakeStore{
+		fakeBackend: s.fakeBackend,
+		state:       s.state,
+	}
+
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
+	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	c.Assert(s.storeSigning.Add(s.dev1acct), IsNil)
+	dev1PrivKey, _ := assertstest.GenerateKey(752)
+	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
+	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
+	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
+
+	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
+		task := st.NewTask("save-snapshot", "...")
+		ts = state.NewTaskSet(task)
+		return ts, nil
+	}
+	s.AddCleanup(func() {
+		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
+	})
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	s.AddCleanup(func() {
+		snapstate.AutoAliases = oldAutoAliases
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.ReplaceStore(s.state, s.fakeStore)
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "privacy-key")
+}
+
+func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...interface{}) asserts.Assertion {
+	headers := map[string]interface{}{
+		"authority-id": "foo",
+		"account-id":   "foo",
+		"name":         name,
+		"series":       "16",
+		"sequence":     sequence,
+		"revision":     "5",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps":        snaps,
+	}
+	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	return vs
+}
+
+func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presence, requiredRev string, installRev snap.Revision, cohort string, flags *snapstate.Flags) error {
+	if flags == nil {
+		flags = &snapstate.Flags{}
+	}
+
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
@@ -3741,22 +3822,22 @@ func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presenc
 	if cohort != "" {
 		opts.CohortKey = cohort
 	}
-	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, *flags)
 	return err
 }
 
 func (s *validationSetsSuite) TestInstallSnapInvalidForValidationSetRefused(c *C) {
-	err := s.installSnapReferencedByValidationSet(c, "invalid", "", snap.R(0), "")
+	err := s.installSnapReferencedByValidationSet(c, "invalid", "", snap.R(0), "", nil)
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" due to enforcing rules of validation set 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) TestInstallSnapOptionalForValidationSetOK(c *C) {
-	err := s.installSnapReferencedByValidationSet(c, "optional", "", snap.R(0), "")
+	err := s.installSnapReferencedByValidationSet(c, "optional", "", snap.R(0), "", nil)
 	c.Assert(err, IsNil)
 }
 
 func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSet(c *C) {
-	err := s.installSnapReferencedByValidationSet(c, "required", "", snap.R(0), "")
+	err := s.installSnapReferencedByValidationSet(c, "required", "", snap.R(0), "", nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOp := fakeOp{
@@ -3773,7 +3854,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSet(c *C) {
 }
 
 func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetAtRevision(c *C) {
-	err := s.installSnapReferencedByValidationSet(c, "required", "2", snap.R(2), "")
+	err := s.installSnapReferencedByValidationSet(c, "required", "2", snap.R(2), "", nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOp := fakeOp{
@@ -3790,7 +3871,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetAtRevision(
 }
 
 func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnored(c *C) {
-	err := s.installSnapReferencedByValidationSet(c, "required", "2", snap.R(0), "cohortkey")
+	err := s.installSnapReferencedByValidationSet(c, "required", "2", snap.R(0), "cohortkey", nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOp := fakeOp{
@@ -3807,7 +3888,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnor
 }
 
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevision(c *C) {
-	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(2), "")
+	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(2), "", nil)
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
 }
 
@@ -4019,4 +4100,83 @@ func (s *snapmgrTestSuite) TestHasAllContentAttributes(c *C) {
 
 	_, err = snapstate.HasAllContentAttrs(s.state, "some-snap", []string{"some"})
 	c.Assert(err.Error(), Equals, `expected 'content' attribute of slot 'bad-content-slot' (snap: 'some-snap') to be string but was int`)
+}
+
+func (s *snapmgrTestSuite) TestInstallPrereqIgnoreConflictInSameChange(c *C) {
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	prodInfo := &snap.SideInfo{
+		RealName: "snap-content-slot",
+		SnapID:   "snap-content-slot-id",
+		Revision: snap.R(1),
+	}
+
+	chg := s.state.NewChange("install", "")
+
+	// To make the test deterministic, we inject a conflicting task to simulate
+	// an InstallMany({snap-content-plug, snap-content-slot}) with a failing snap-content-slot
+	conflTask := s.state.NewTask("conflicting-task", "test: conflicting task")
+	conflTask.Set("snap-setup", &snapstate.SnapSetup{SideInfo: prodInfo})
+	chg.AddTask(conflTask)
+
+	installTasks, err := snapstate.Install(context.Background(), s.state, "snap-content-plug", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(installTasks.Tasks(), Not(HasLen), 0)
+	chg.AddAll(installTasks)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// check that the prereq task wasn't retried
+	prereqTask := findStrictlyOnePrereqTask(c, chg)
+	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
+	c.Assert(prereqTask.AtTime().IsZero(), Equals, true)
+}
+
+func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevisionIgnoreValidationOK(c *C) {
+	// sanity check: fails with validation
+	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: false})
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 11 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
+
+	// but doesn't fail with ignore-validation flag
+	err = s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: true})
+	c.Assert(err, IsNil)
+
+	// validation sets are not set on the action
+	expectedOp := fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "install",
+			Revision:     snap.R(11),
+			InstanceName: "some-snap",
+			Flags:        store.SnapActionIgnoreValidation,
+		},
+		revno: snap.R(11),
+	}
+	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
+}
+
+func (s *validationSetsSuite) TestInstallSnapInvalidByValidationSetIgnoreValidationOK(c *C) {
+	// doesn't fail with ignore-validation flag
+	err := s.installSnapReferencedByValidationSet(c, "invalid", "3", snap.R(0), "", &snapstate.Flags{IgnoreValidation: true})
+	c.Assert(err, IsNil)
+
+	// validation sets are not set on the action
+	expectedOp := fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "install",
+			Channel:      "stable",
+			InstanceName: "some-snap",
+			Flags:        store.SnapActionIgnoreValidation,
+		},
+		revno: snap.R(11),
+	}
+	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
 }

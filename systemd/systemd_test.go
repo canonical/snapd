@@ -188,6 +188,10 @@ func (s *SystemdTestSuite) TestEnsureAtLeastFail(c *C) {
 	}
 }
 
+func (s *SystemdTestSuite) TestBackend(c *C) {
+	c.Check(New(SystemMode, s.rep).Backend(), Equals, RunningSystemdBackend)
+}
+
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
 	err := New(SystemMode, s.rep).DaemonReload()
 	c.Assert(err, IsNil)
@@ -1261,6 +1265,11 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	c.Check(err, ErrorMatches, "cannot get enabled status of services: expected 1 results, got 3")
 	c.Check(sts, IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})
+}
+
+func (s *SystemdTestSuite) TestEmulationModeBackend(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+	c.Check(sysd.Backend(), Equals, EmulationModeBackend)
 }
 
 const unitTemplate = `
