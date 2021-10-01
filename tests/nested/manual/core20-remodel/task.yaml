@@ -47,6 +47,7 @@ execute: |
     tests.nested exec "sudo cat /var/lib/snapd/modeenv" > modeenv
     MATCH "current_recovery_systems=.*,${revno2_label}" < modeenv
     MATCH "good_recovery_systems=.*,${revno2_label}" < modeenv
+    tests.nested exec "sudo snap debug boot-vars --root-dir=/run/mnt/ubuntu-seed" | MATCH "snapd_good_recovery_systems=${label_base},${revno2_label}"
 
     # the revision pulls in test-snapd-tools-core20 snap
     echo "Verify new model revision snaps"
@@ -77,6 +78,7 @@ execute: |
     tests.nested exec "sudo cat /var/lib/snapd/modeenv" > modeenv
     MATCH "current_recovery_systems=.*,${revno3_label}" < modeenv
     MATCH "good_recovery_systems=.*,${revno3_label}" < modeenv
+    tests.nested exec "sudo snap debug boot-vars --root-dir=/run/mnt/ubuntu-seed" | MATCH "snapd_good_recovery_systems=${label_base},${revno2_label},${revno3_label}"
 
     # because the system is considered 'seeded' we are able to switch to the
     # recover mode
