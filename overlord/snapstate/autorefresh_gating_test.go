@@ -2580,13 +2580,7 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	refreshedDate, err := time.Parse(time.RFC3339, "2021-01-01T10:00:00Z")
-	c.Assert(err, IsNil)
-	restoreRevDate := snapstate.MockRevisionDate(func(sn *snap.Info) time.Time {
-		return refreshedDate
-	})
-	defer restoreRevDate()
-
+	refreshedDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
 	requiredRevision = "1"
 	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
@@ -2607,19 +2601,19 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 			InstanceName:  "snap-c",
 			SnapID:        "snap-c-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}, {
 			InstanceName:  "some-other-snap",
 			SnapID:        "some-other-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}, {
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}},
 	}, {
