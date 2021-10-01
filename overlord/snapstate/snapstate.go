@@ -2222,7 +2222,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	linkSnap := st.NewTask("link-snap",
 		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
 	linkSnap.Set("snap-setup-task", snapSetupTaskID)
-	// wait for the  last task in existing set
+	// wait for the last task in existing set
 	linkSnap.WaitFor(allTasks[len(allTasks)-1])
 	ts.AddTask(linkSnap)
 	return ts, nil

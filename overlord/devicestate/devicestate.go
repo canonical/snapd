@@ -357,7 +357,7 @@ func notInstalled(st *state.State, name string) (bool, error) {
 	return false, err
 }
 
-func installedSnapChange(st *state.State, modelSnapName, declaredChannel string) (changed bool, err error) {
+func installedSnapChannelChanged(st *state.State, modelSnapName, declaredChannel string) (changed bool, err error) {
 	if declaredChannel == "" {
 		return false, nil
 	}
@@ -413,7 +413,7 @@ func remodelKernelOrBaseTasks(ctx context.Context, st *state.State, ms modelSnap
 			// UC20 models can specify default channel for all snaps
 			// including base and kernel
 			// new model uses the same base or kernel
-			changed, err = installedSnapChange(st, ms.newSnap, newModelSnapChannel)
+			changed, err = installedSnapChannelChanged(st, ms.newSnap, newModelSnapChannel)
 			if err != nil {
 				return nil, err
 			}
@@ -444,10 +444,10 @@ func remodelKernelOrBaseTasks(ctx context.Context, st *state.State, ms modelSnap
 	}
 
 	if ms.new.Grade() != asserts.ModelGradeUnset {
-		// pre UC20 remodels would not update an already installed snap
-
-		// which is already installed, but may be using a different channel
-		changed, err := installedSnapChange(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
+		// in UC20+ models, the model can specify a channel for each
+		// snap, thus making it possible to change already installed
+		// kernel or base snaps
+		changed, err := installedSnapChannelChanged(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
 		if err != nil {
 			return nil, err
 		}
@@ -482,12 +482,12 @@ func remodelGadgetTasks(ctx context.Context, st *state.State, ms modelSnapsForRe
 		return nil, err
 	}
 	if ms.currentSnap == ms.newSnap {
-		// which is already installed, but may be using a different channel
+		// already installed, but may be using a different channel
 		changed := false
 		if ms.new.Grade() != asserts.ModelGradeUnset {
 			// UC20 models can specify default channel for all snaps
 			// including the gadget
-			changed, err = installedSnapChange(st, ms.newSnap, newGadgetChannel)
+			changed, err = installedSnapChannelChanged(st, ms.newSnap, newGadgetChannel)
 			if err != nil {
 				return nil, err
 			}
@@ -594,7 +594,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			// the snap is already installed and has its default
 			// channel declared in the model, but the local install
 			// may be tracking a different channel
-			changed, err := installedSnapChange(st, modelSnap.SnapName(), newModelSnapChannel)
+			changed, err := installedSnapChannelChanged(st, modelSnap.SnapName(), newModelSnapChannel)
 			if err != nil {
 				return nil, err
 			}
