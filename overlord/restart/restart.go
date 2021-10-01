@@ -21,17 +21,6 @@
 package restart
 
 import (
-	/*"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"sort"
-	"strconv"
-	"sync"
-	"sync/atomic"
-	"time"*/
-
-	//"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
