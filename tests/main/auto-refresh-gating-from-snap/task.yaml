@@ -46,10 +46,10 @@ execute: |
   MATCH "pending: none" < pending.log
   NOMATCH "version:" < pending.log
 
-  echo "Check that --proceed fails if nothing is held by the snap initially"
+  echo "Check that --proceed complains if nothing is held by the snap initially"
   "$SNAP_NAME".proceed 2>&1 | MATCH "no snaps are held by snap \"$SNAP_NAME\""
 
-  echo "And it works with the snap that doesn't have gate-auto-refresh hook"
+  echo "And that --proceed can be used with a snap that doesn't have gate-auto-refresh hook"
   "$NOHOOK_SNAP".proceed 2>&1 | MATCH "no snaps are held by snap \"$NOHOOK_SNAP\""
 
   snap set core refresh.schedule="0:00-23:59"
