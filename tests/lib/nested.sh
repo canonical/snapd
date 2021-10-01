@@ -103,12 +103,12 @@ nested_retry_start_with_boot_errors() {
         if ! nested_check_boot_errors; then
             nested_restart
         else
-            return
+            return 0
         fi
     done
 
     echo "VM failing to boot, aborting!"
-    exit 1
+    return 1
 }
 
 nested_get_boot_id() {
