@@ -204,7 +204,7 @@ execute: |
   echo "Ensuring that cloud-init got disabled"
   # either in the case of the gadget saying no datasources or in the case of the
   # MAAS datasource being broken and thus getting eventually disabled by snapd
-  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
+  retry --wait 1 -n 60 "tests.nested exec sh -c 'test -f /etc/cloud/cloud-init.disabled'"
 
   echo "Relevant files were copied"
   if [ "$GADGET_DATASOURCE" = "explicitly-none" ]; then
