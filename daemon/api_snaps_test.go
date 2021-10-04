@@ -485,7 +485,7 @@ func (s *snapsSuite) TestPostSnapsOpSystemRestartImmediate(c *check.C) {
 }
 
 func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) (systemRestartImmediate bool) {
-	defer daemon.MockAssertstateRefreshSnapAssertions(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error { return nil })()
+	defer daemon.MockAssertstateRefreshSnapDeclarations(func(*state.State, int) error { return nil })()
 	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
@@ -1147,7 +1147,7 @@ func (s *snapsSuite) TestPostSnapSystemRestartImmediate(c *check.C) {
 }
 
 func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(opts *snapstate.RevisionOptions)) (summary string, systemRestartImmediate bool) {
-	d := s.daemonWithOverlordMock()
+	d := s.daemonWithOverlordMock(c)
 
 	soon := 0
 	var origEnsureStateSoon func(*state.State)
