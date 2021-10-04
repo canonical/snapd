@@ -6480,7 +6480,8 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	c.Assert(err, IsNil)
 
 	err = bl.SetBootVars(map[string]string{
-		"snap_kernel": "pc-kernel_2.snap",
+		"snap_kernel":                 "pc-kernel_2.snap",
+		"snapd_good_recovery_systems": "1234",
 	})
 	c.Assert(err, IsNil)
 
@@ -6518,11 +6519,14 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
 	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234"})
 
-	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status", "snapd_good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
 		"try_recovery_system":    expectedLabel,
 		"recovery_system_status": "try",
+		// nothing has been added to good recovery systems for the
+		// bootloader
+		"snapd_good_recovery_systems": "1234",
 	})
 
 	// the new required-snap "foo" is not installed yet
@@ -6552,12 +6556,15 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
-	// boot variables are cleared
-	vars, err = bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	// boot variables for probing recovery system are cleared, new system is
+	// added as recovery capable one
+	vars, err = bl.GetBootVars("try_recovery_system", "recovery_system_status",
+		"snapd_good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
-		"try_recovery_system":    "",
-		"recovery_system_status": "",
+		"try_recovery_system":         "",
+		"recovery_system_status":      "",
+		"snapd_good_recovery_systems": "1234," + expectedLabel,
 	})
 
 	for _, name := range []string{"core20", "pc-kernel", "pc", "snapd", "foo", "bar", "baz"} {
