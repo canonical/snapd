@@ -1161,7 +1161,7 @@ func (snapshotSuite) TestRestoreIntegrationHiddenSnapDir(c *check.C) {
 	})
 	defer restore()
 
-	testRestoreIntegration(c, dirs.HiddenSnapDataDir, opts)
+	testRestoreIntegration(c, dirs.HiddenSnapDataHomeDir, opts)
 }
 
 func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOptions) {

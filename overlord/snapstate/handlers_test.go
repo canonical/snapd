@@ -294,7 +294,7 @@ func (s *handlersSuite) TestGetSnapDirOptions(c *C) {
 	tr := config.NewTransaction(s.state)
 
 	// set feature flag
-	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataDir)
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
 	err := tr.Set("core", confKey, "true")
 	c.Assert(err, IsNil)
 

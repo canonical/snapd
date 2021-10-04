@@ -51,8 +51,8 @@ const (
 	UserDaemons
 	// DbusActivation controls whether snaps daemons can be activated via D-Bus
 	DbusActivation
-	// HiddenSnapDataDir controls if the snaps' data dir is ~/.snap/data instead of ~/snap
-	HiddenSnapDataDir
+	// HiddenSnapDataHomeDir controls if the snaps' data dir is ~/.snap/data instead of ~/snap
+	HiddenSnapDataHomeDir
 	// CheckDiskSpaceRemove controls free disk space check on remove whenever automatic snapshot needs to be created.
 	CheckDiskSpaceRemove
 	// CheckDiskSpaceInstall controls free disk space check on snap install.
@@ -94,7 +94,7 @@ var featureNames = map[SnapdFeature]string{
 	UserDaemons:    "user-daemons",
 	DbusActivation: "dbus-activation",
 
-	HiddenSnapDataDir: "hidden-snap-folder",
+	HiddenSnapDataHomeDir: "hidden-snap-folder",
 
 	CheckDiskSpaceInstall: "check-disk-space-install",
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
@@ -121,7 +121,7 @@ var featuresExported = map[SnapdFeature]bool{
 
 	ClassicPreservesXdgRuntimeDir: true,
 	RobustMountNamespaceUpdates:   true,
-	HiddenSnapDataDir:             true,
+	HiddenSnapDataHomeDir:         true,
 }
 
 // String returns the name of a snapd feature.

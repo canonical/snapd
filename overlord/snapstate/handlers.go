@@ -3276,9 +3276,9 @@ var GetSnapDirOptions = getSnapDirOptions
 func getSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
 	tr := config.NewTransaction(state)
 
-	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataDir)
+	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataDir, err)
+		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
 	}
 
 	return &dirs.SnapDirOptions{HiddenSnapDataDir: hiddenDir}, nil

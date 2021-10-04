@@ -484,7 +484,7 @@ func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	}{
 		{snapDir: dirs.UserHomeSnapDir},
 		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
-		{snapDir: dirs.HiddenSnapDataDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
 	} {
 		s.testSnapRunCreateDataDirs(c, t.snapDir, t.opts)
 	}

@@ -1228,10 +1228,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 func getSnapDirOptions() (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	_, err := os.Stat(features.HiddenSnapDataDir.ControlFile())
+	_, err := os.Stat(features.HiddenSnapDataHomeDir.ControlFile())
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataDir, err)
+			return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
 		}
 	} else {
 		opts.HiddenSnapDataDir = true

@@ -204,7 +204,7 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 	}
 
 	if opts.HiddenSnapDataDir {
-		return dirs.HiddenSnapDataDir
+		return dirs.HiddenSnapDataHomeDir
 	}
 
 	return dirs.UserHomeSnapDir
