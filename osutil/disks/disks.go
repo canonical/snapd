@@ -76,7 +76,10 @@ type Disk interface {
 	// does not have partitions for example.
 	HasPartitions() bool
 
-	// Partitions returns all partitions found on a physical disk device.
+	// Partitions returns all partitions found on a physical disk device. Note
+	// that this method, and all others that require discovering partitions on
+	// the disk, caches the partitions once first found and does not re-discover
+	// partitions again later on if the disk is re-partitioned.
 	Partitions() ([]Partition, error)
 
 	// KernelDeviceNode returns the full device node path in /dev/ for the disk
@@ -110,13 +113,18 @@ type Partition struct {
 	KernelDevicePath string
 	// KernelDeviceNode is the kernel device node in /dev.
 	KernelDeviceNode string
+	// TODO: also include a Disk field for finding what Disk this partition came
+	// from?
 }
 
-// RootMountPointsForPartition returns all mounts from the mount table which are
-// for the root directory of the specified partition. The order in which they
-// are returned is the exact order that they appear in the mount table.
-func RootMountPointsForPartition(p Partition) ([]string, error) {
-	return rootMountPointsForPartition(p)
+// MountPointsForPartitionRoot returns all mounts from the mount table which are
+// for the root directory of the specified partition and have matching mount
+// options as specified. Options not specified in the map argument can have any
+// value or be set or unset, but any option set in the map must match exactly.
+// The order in which they are returned is the same order that they appear in
+// the mount table.
+func MountPointsForPartitionRoot(p Partition, matchingMountOptions map[string]string) ([]string, error) {
+	return mountPointsForPartitionRoot(p, matchingMountOptions)
 }
 
 // PartitionNotFoundError is an error where a partition matching the SearchType
