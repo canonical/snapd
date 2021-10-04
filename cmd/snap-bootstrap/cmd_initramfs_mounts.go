@@ -1214,19 +1214,16 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
-// waitPartSrc waits for the given partSrc to appear.
-//
-// No checks beyond file existance are performed. It can be mocked in
-// tests.
-var waitPartSrc = func(partSrc string, wait time.Duration, n int) error {
+// waitFile waits for the given file/device-node/directory to appear.
+var waitFile = func(path string, wait time.Duration, n int) error {
 	for i := 0; i < n; i++ {
-		if osutil.FileExists(partSrc) {
+		if osutil.FileExists(path) {
 			return nil
 		}
 		time.Sleep(wait)
 	}
 
-	return fmt.Errorf("no device %v after waiting for %v", partSrc, time.Duration(n*int(wait)))
+	return fmt.Errorf("no %v after waiting for %v", path, time.Duration(n*int(wait)))
 }
 
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
@@ -1251,7 +1248,7 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 		pollWait := 50 * time.Millisecond
 		pollIterations := 1200
 		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations*int(pollWait)), partSrc)
-		if err := waitPartSrc(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
+		if err := waitFile(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
 			return fmt.Errorf("cannot mount source: %v", err)
 		}
 	}

@@ -197,7 +197,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
-	restore = main.MockWaitPartSrc(func(string, time.Duration, int) error {
+	restore = main.MockWaitFile(func(string, time.Duration, int) error {
 		return nil
 	})
 	s.AddCleanup(restore)
@@ -5942,11 +5942,11 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
 	defer restore()
 
-	var waitPartSrc []string
+	var waitFile []string
 	var pollWait time.Duration
 	var pollIterations int
-	restore = main.MockWaitPartSrc(func(partSrc string, wait time.Duration, n int) error {
-		waitPartSrc = append(waitPartSrc, partSrc)
+	restore = main.MockWaitFile(func(path string, wait time.Duration, n int) error {
+		waitFile = append(waitFile, path)
 		pollWait = wait
 		pollIterations = n
 		return fmt.Errorf("error")
@@ -5963,7 +5963,7 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	err := main.MountNonDataPartitionMatchingKernelDisk("/some/target", "")
 	c.Check(err, ErrorMatches, "cannot mount source: error")
 	c.Check(n, Equals, 0)
-	c.Check(waitPartSrc, DeepEquals, []string{
+	c.Check(waitFile, DeepEquals, []string{
 		filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid"),
 	})
 	c.Check(pollWait, DeepEquals, 50*time.Millisecond)
@@ -5996,24 +5996,24 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionNoPollNoLogMsg(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (s *initramfsMountsSuite) TestWaitPartSrcErr(c *C) {
-	err := main.WaitPartSrc("/dev/does-not-exist", 10*time.Millisecond, 2)
-	c.Check(err, ErrorMatches, "no device /dev/does-not-exist after waiting for 20ms")
+func (s *initramfsMountsSuite) TestWaitFileErr(c *C) {
+	err := main.WaitFile("/dev/does-not-exist", 10*time.Millisecond, 2)
+	c.Check(err, ErrorMatches, "no /dev/does-not-exist after waiting for 20ms")
 }
 
-func (s *initramfsMountsSuite) TestWaitPartSrcHappy(c *C) {
+func (s *initramfsMountsSuite) TestWaitFile(c *C) {
 	existingPartSrc := filepath.Join(c.MkDir(), "does-exist")
 	err := ioutil.WriteFile(existingPartSrc, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = main.WaitPartSrc(existingPartSrc, 5000*time.Second, 1)
+	err = main.WaitFile(existingPartSrc, 5000*time.Second, 1)
 	c.Check(err, IsNil)
 
-	err = main.WaitPartSrc(existingPartSrc, 1*time.Second, 10000)
+	err = main.WaitFile(existingPartSrc, 1*time.Second, 10000)
 	c.Check(err, IsNil)
 }
 
-func (s *initramfsMountsSuite) TestWaitPartSrcWorksWithFilesAppearingLate(c *C) {
+func (s *initramfsMountsSuite) TestWaitFileWorksWithFilesAppearingLate(c *C) {
 	eventuallyExists := filepath.Join(c.MkDir(), "eventually-exists")
 	go func() {
 		time.Sleep(40 * time.Millisecond)
@@ -6021,6 +6021,6 @@ func (s *initramfsMountsSuite) TestWaitPartSrcWorksWithFilesAppearingLate(c *C) 
 		c.Assert(err, IsNil)
 	}()
 
-	err := main.WaitPartSrc(eventuallyExists, 5*time.Millisecond, 1000)
+	err := main.WaitFile(eventuallyExists, 5*time.Millisecond, 1000)
 	c.Check(err, IsNil)
 }

@@ -163,12 +163,12 @@ func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
 	}
 }
 
-func MockWaitPartSrc(f func(string, time.Duration, int) error) (restore func()) {
-	old := waitPartSrc
-	waitPartSrc = f
+func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
+	old := waitFile
+	waitFile = f
 	return func() {
-		waitPartSrc = old
+		waitFile = old
 	}
 }
 
-var WaitPartSrc = waitPartSrc
+var WaitFile = waitFile
