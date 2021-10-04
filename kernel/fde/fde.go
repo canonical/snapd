@@ -103,8 +103,9 @@ type SetupRequest struct {
 	// Only used when called with "initial-setup"
 	KeyName string `json:"key-name,omitempty"`
 
-	// Only used when called with "hw-inline-setup"
+	// Only used when called with "device-setup"
 	Device string `json:"device,omitempty"`
+	Label  string `json:"label,omitempty"`
 }
 
 // A RunSetupHookFunc implements running the fde-setup kernel hook.
@@ -175,6 +176,7 @@ func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
 type DeviceSetupParams struct {
 	Key    []byte
 	Device string
+	Label  string
 }
 
 // DeviceSetup invokes the "device-setup" op running the fde-setup
@@ -185,6 +187,7 @@ func DeviceSetup(runDeviceSetupHook RunDeviceSetupHookFunc, params *DeviceSetupP
 		Op:     "device-setup",
 		Key:    params.Key,
 		Device: params.Device,
+		Label:  params.Label,
 	}
 	hookOutput, err := runDeviceSetupHook(req)
 	if err != nil {

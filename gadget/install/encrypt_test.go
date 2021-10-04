@@ -50,7 +50,8 @@ var _ = Suite(&encryptSuite{})
 var mockDeviceStructure = gadget.OnDiskStructure{
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
-			Name: "Test structure",
+			Name:  "Test structure",
+			Label: "some-label",
 		},
 		StartOffset: 0,
 		Index:       1,
@@ -208,7 +209,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 
 		}
 
-		restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+		restore := install.MockBootRunFDEDeviceSetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 			return nil, tc.mockedRunFDESetupHookErr
 		})
 		defer restore()
@@ -240,7 +241,9 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 }
 
 func (s *encryptSuite) TestAddRecoveryKeyDeviceWithSetupHook(c *C) {
-	restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+	var setupReq *fde.SetupRequest
+	restore := install.MockBootRunFDEDeviceSetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+		setupReq = req
 		return nil, nil
 	})
 	defer restore()
@@ -250,6 +253,8 @@ func (s *encryptSuite) TestAddRecoveryKeyDeviceWithSetupHook(c *C) {
 
 	dev, err := install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
 	c.Assert(err, IsNil)
+	c.Check(setupReq.Device, Equals, "/dev/mapper/some-label")
+	c.Check(setupReq.Label, Equals, "some-label")
 
 	err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)
 	c.Check(err, ErrorMatches, "recovery keys are not supported on devices that use the device-setup hook")

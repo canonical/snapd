@@ -140,7 +140,8 @@ func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.E
 	runHook := boot.RunFDEDeviceSetupHook
 	params := &fde.DeviceSetupParams{
 		Key:    key,
-		Device: name,
+		Device: mapperDevice,
+		Label:  part.Label,
 	}
 	if err := fde.DeviceSetup(runHook, params); err != nil {
 		return nil, err
