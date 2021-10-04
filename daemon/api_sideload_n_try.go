@@ -71,6 +71,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
+	systemRestartImmediate := isTrue(form, "system-restart-immediate")
 
 	// find the file for the "snap" form field
 	var snapBody multipart.File
@@ -192,6 +193,9 @@ out:
 	}
 
 	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{instanceName})
+	if systemRestartImmediate {
+		chg.Set("system-restart-immediate", true)
+	}
 	chg.Set("api-data", map[string]string{"snap-name": instanceName})
 
 	ensureStateSoon(st)
