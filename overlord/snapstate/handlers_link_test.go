@@ -844,6 +844,46 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
+
+	s.fakeBackend.linkSnapMaybeReboot = true
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// we need to init the boot-id
+	err := s.state.VerifyReboot("some-boot-id")
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{
+		RealName: "core18",
+		SnapID:   "core18-id",
+		Revision: snap.R(22),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	chg.Set("system-restart-immediate", true)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.stateBackend.restartRequested, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Assert(t.Log(), HasLen, 1)
+	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()

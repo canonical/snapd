@@ -1436,7 +1436,7 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 
 	if rebootRequired {
 		t.Logf("Requested system restart.")
-		st.RequestRestart(state.RestartSystem)
+		RestartSystem(t)
 		return
 	}
 

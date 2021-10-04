@@ -679,6 +679,27 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	return nil
 }
 
+// RestartSystem requests a system restart.
+// It considers how the Change the task belongs to is configured
+// (system-restart-immediate) to choose whether request an immediate
+// restart or not.
+func RestartSystem(task *state.Task) {
+	chg := task.Change()
+	var immediate bool
+	if chg != nil {
+		// ignore errors intentionally, to follow
+		// RequestRestart itself which does not
+		// return errors. If the state is corrupt
+		// something else will error
+		chg.Get("system-restart-immediate", &immediate)
+	}
+	rst := state.RestartSystem
+	if immediate {
+		rst = state.RestartSystemNow
+	}
+	task.State().RequestRestart(rst)
+}
+
 func contentAttr(attrer interfaces.Attrer) string {
 	var s string
 	err := attrer.Attr("content", &s)
