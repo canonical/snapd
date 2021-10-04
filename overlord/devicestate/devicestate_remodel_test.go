@@ -2803,6 +2803,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentChannelThanDefaultSameAsNew(c *C) {
+	// essential snaps from new model are already installed and track
+	// channels different than declared in the old model, but already the
+	// same as in the new one
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -2977,6 +2980,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAndLocal(c *C) {
+	// remodel when the essential snaps declared in new model are already
+	// installed, but have a local revision
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -3148,6 +3153,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20NoDownloadSimpleChannelSwitch(c *C) {
+	// remodel when a channel declared in new model carries the same
+	// revision as already installed, so there is no full fledged, but a
+	// simple channel switch
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
