@@ -7,6 +7,9 @@ details: |
     to the view inside the mount namespace. If the directory does not exist the
     special fallback /var/lib/snapd/void is used.
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     tests.session -u test prepare

@@ -1,5 +1,8 @@
 summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     # Install a snap with opengl and joystick plugs.
     # This gives us all of the usual snap-confine configuration, along with all
