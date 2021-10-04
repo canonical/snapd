@@ -5973,6 +5973,29 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	c.Check(strings.Count(s.logs.String(), "\n"), Equals, 1)
 }
 
+func (s *initramfsMountsSuite) TestMountNonDataPartitionNoPollNoLogMsg(c *C) {
+	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
+	defer restore()
+
+	n := 0
+	restore = main.MockSystemdMount(func(what, where string, opts *main.SystemdMountOptions) error {
+		n++
+		return nil
+	})
+	defer restore()
+
+	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid")
+	err := os.MkdirAll(filepath.Dir(fakedPartSrc), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedPartSrc, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = main.MountNonDataPartitionMatchingKernelDisk("some-target", "")
+	c.Check(err, IsNil)
+	c.Check(s.logs.String(), Equals, "")
+	c.Check(n, Equals, 1)
+}
+
 func (s *initramfsMountsSuite) TestWaitPartSrcErr(c *C) {
 	err := main.WaitPartSrc("/dev/does-not-exist", 10*time.Millisecond, 2)
 	c.Check(err, ErrorMatches, "no device /dev/does-not-exist after waiting for 20ms")
