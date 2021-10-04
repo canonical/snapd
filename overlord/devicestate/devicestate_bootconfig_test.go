@@ -106,6 +106,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(tsk)
+	chg.Set("system-restart-immediate", true)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -129,7 +130,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 			c.Assert(log, HasLen, 1)
 			c.Check(log[0], Matches, ".* updated boot config assets")
 			// update was applied, thus a restart was requested
-			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
+			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)

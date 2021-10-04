@@ -259,7 +259,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade, gadgetYamlCon
 	return chg, tsk
 }
 
-func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption bool, gadgetYamlCont, gadgetYamlContNext string) {
+func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption, immediate bool, gadgetYamlCont, gadgetYamlContNext string) {
 	var updateCalled bool
 	var passedRollbackDir string
 
@@ -346,8 +346,13 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 	}
 	devicestate.SetBootOkRan(s.mgr, true)
 
+	expectedRst := restart.RestartSystem
 	s.state.Lock()
 	s.state.Set("seeded", true)
+	if immediate {
+		expectedRst = restart.RestartSystemNow
+		chg.Set("system-restart-immediate", true)
+	}
 	s.state.Unlock()
 
 	s.settle(c)
@@ -362,23 +367,32 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 	c.Check(rollbackDir, Equals, passedRollbackDir)
 	// should have been removed right after update
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
-	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{expectedRst})
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	// unset grade
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption, gadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, immediate, gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleWithEncryption(c *C) {
 	encryption := true
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, uc20gadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, immediate, uc20gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleNoEncryption(c *C) {
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, uc20gadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, immediate, uc20gadgetYaml, "")
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleSystemRestartImmediate(c *C) {
+	encryption := false
+	immediate := true
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, immediate, uc20gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
@@ -931,17 +945,19 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridFirstboot(c *C) {
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridShouldWork(c *C) {
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, immediate, hybridGadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreOldIsInvalidNowButShouldWork(c *C) {
 	encryption := false
+	immediate := false
 	// this is not gadget yaml that we should support, by the UC16/18
 	// rules it actually has two system-boot role partitions,
 	hybridGadgetYamlBroken := hybridGadgetYaml + `
         role: system-boot
 `
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYamlBroken, hybridGadgetYaml)
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, immediate, hybridGadgetYamlBroken, hybridGadgetYaml)
 }
 
 func (s *deviceMgrGadgetSuite) makeMinimalKernelAssetsUpdateChange(c *C) (chg *state.Change, tsk *state.Task) {
@@ -1431,6 +1447,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(tsk)
 	chg.AddTask(terr)
+	chg.Set("system-restart-immediate", true)
 	s.state.Unlock()
 
 	restartCount := 0
@@ -1472,7 +1489,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	c.Check(log[0], Matches, ".* Updated kernel command line")
 	c.Check(log[1], Matches, ".* Reverted kernel command line change")
 	// update was applied and then undone
-	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem, restart.RestartSystem})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
 	c.Check(restartCount, Equals, 2)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)
