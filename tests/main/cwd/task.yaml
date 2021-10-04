@@ -44,7 +44,7 @@ execute: |
     # namespace but has permissions preventing the user to enter it (e.g.
     # via a symlink attack in /tmp) is remapped to a special directory.
     # FIXME: su doesn't have /snap/bin in PATH.
-    test "$(cd /root && su -c "snap run test-snapd-sh.sh -c pwd" test)" = "/var/lib/snapd/void"
+    test "$(cd /root && tests.session -u test exec sh -c "snap run test-snapd-sh.sh -c pwd" )" = "/var/lib/snapd/void"
 
     # Since the void directory is used when there are insufficient permissions
     # to enter the regular directory we must be able to go there in the first
