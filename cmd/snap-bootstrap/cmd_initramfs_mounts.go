@@ -1214,7 +1214,10 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
-// can be mocked in tests
+// waitPartSrc waits for the given partSrc to appear.
+//
+// No checks beyond file existance are performed. It can be mocked in
+// tests.
 var waitPartSrc = func(partSrc string, wait time.Duration, n int) error {
 	for i := 0; i < n; i++ {
 		if osutil.FileExists(partSrc) {
@@ -1244,10 +1247,13 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	// The partition uuid is read from the EFI variables. At this point
 	// the kernel may not have initialized the storage HW yet so poll
 	// here.
-	pollWait := 50 * time.Millisecond
-	pollIterations := 1200
-	if err := waitPartSrc(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
-		return fmt.Errorf("cannot mount source: %v", err)
+	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, partSrc)) {
+		pollWait := 50 * time.Millisecond
+		pollIterations := 1200
+		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations*int(pollWait)), partSrc)
+		if err := waitPartSrc(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
+			return fmt.Errorf("cannot mount source: %v", err)
+		}
 	}
 
 	opts := &systemdMountOptions{

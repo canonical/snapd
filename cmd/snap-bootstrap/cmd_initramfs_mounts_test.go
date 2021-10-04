@@ -5968,17 +5968,36 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	})
 	c.Check(pollWait, DeepEquals, 50*time.Millisecond)
 	c.Check(pollIterations, DeepEquals, 1200)
+	c.Check(s.logs.String(), Matches, "(?m).* waiting up to 1m0s for /dev/disk/by-partuuid/some-uuid to appear")
+	// there is only a single log msg
+	c.Check(strings.Count(s.logs.String(), "\n"), Equals, 1)
 }
 
-func (s *initramfsMountsSuite) TestWaitPartSrc(c *C) {
+func (s *initramfsMountsSuite) TestWaitPartSrcErr(c *C) {
 	err := main.WaitPartSrc("/dev/does-not-exist", 10*time.Millisecond, 2)
 	c.Check(err, ErrorMatches, "no device /dev/does-not-exist after waiting for 20ms")
+}
 
+func (s *initramfsMountsSuite) TestWaitPartSrcHappy(c *C) {
 	existingPartSrc := filepath.Join(c.MkDir(), "does-exist")
-	err = ioutil.WriteFile(existingPartSrc, nil, 0644)
+	err := ioutil.WriteFile(existingPartSrc, nil, 0644)
 	c.Assert(err, IsNil)
+
 	err = main.WaitPartSrc(existingPartSrc, 5000*time.Second, 1)
 	c.Check(err, IsNil)
+
 	err = main.WaitPartSrc(existingPartSrc, 1*time.Second, 10000)
+	c.Check(err, IsNil)
+}
+
+func (s *initramfsMountsSuite) TestWaitPartSrcWorksWithFilesAppearingLate(c *C) {
+	eventuallyExists := filepath.Join(c.MkDir(), "eventually-exists")
+	go func() {
+		time.Sleep(40 * time.Millisecond)
+		err := ioutil.WriteFile(eventuallyExists, nil, 0644)
+		c.Assert(err, IsNil)
+	}()
+
+	err := main.WaitPartSrc(eventuallyExists, 5*time.Millisecond, 1000)
 	c.Check(err, IsNil)
 }
