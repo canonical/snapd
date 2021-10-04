@@ -197,7 +197,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
-	restore = main.MockPartSrcPollIterations(0)
+	restore = main.MockWaitPartSrc(func(string, time.Duration, int) error {
+		return nil
+	})
 	s.AddCleanup(restore)
 
 	// use a specific time for all the assertions, in the future so that we can
@@ -5940,7 +5942,15 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
 	defer restore()
 
-	restore = main.MockPartSrcPollIterations(1)
+	var waitPartSrc []string
+	var pollWait time.Duration
+	var pollIterations int
+	restore = main.MockWaitPartSrc(func(partSrc string, wait time.Duration, n int) error {
+		waitPartSrc = append(waitPartSrc, partSrc)
+		pollWait = wait
+		pollIterations = n
+		return fmt.Errorf("error")
+	})
 	defer restore()
 
 	n := 0
@@ -5951,6 +5961,24 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
 	defer restore()
 
 	err := main.MountNonDataPartitionMatchingKernelDisk("/some/target", "")
-	c.Check(err, ErrorMatches, "cannot mount source .*/dev/disk/by-partuuid/some-uuid: no such file or directory")
+	c.Check(err, ErrorMatches, "cannot mount source: error")
 	c.Check(n, Equals, 0)
+	c.Check(waitPartSrc, DeepEquals, []string{
+		filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid"),
+	})
+	c.Check(pollWait, DeepEquals, 50*time.Millisecond)
+	c.Check(pollIterations, DeepEquals, 1200)
+}
+
+func (s *initramfsMountsSuite) TestWaitPartSrc(c *C) {
+	err := main.WaitPartSrc("/dev/does-not-exist", 10*time.Millisecond, 2)
+	c.Check(err, ErrorMatches, "no device /dev/does-not-exist after waiting for 20ms")
+
+	existingPartSrc := filepath.Join(c.MkDir(), "does-exist")
+	err = ioutil.WriteFile(existingPartSrc, nil, 0644)
+	c.Assert(err, IsNil)
+	err = main.WaitPartSrc(existingPartSrc, 5000*time.Second, 1)
+	c.Check(err, IsNil)
+	err = main.WaitPartSrc(existingPartSrc, 1*time.Second, 10000)
+	c.Check(err, IsNil)
 }

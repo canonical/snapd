@@ -1214,24 +1214,16 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
-var (
-	// can be mocked in tests
-	partSrcPollIterations = 120
-	partSrcPollWait       = 500 * time.Millisecond
-)
-
-func waitPartSrc(partSrc string) error {
-	// this is used in tests
-	if partSrcPollIterations == 0 {
-		return nil
-	}
-	for i := 0; i < partSrcPollIterations; i++ {
+// can be mocked in tests
+var waitPartSrc = func(partSrc string, wait time.Duration, n int) error {
+	for i := 0; i < n; i++ {
 		if osutil.FileExists(partSrc) {
 			return nil
 		}
-		time.Sleep(partSrcPollWait)
+		time.Sleep(wait)
 	}
-	return fmt.Errorf("cannot mount source %v: no such file or directory", partSrc)
+
+	return fmt.Errorf("no device %v after waiting for %v", partSrc, time.Duration(n*int(wait)))
 }
 
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
@@ -1252,8 +1244,10 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	// The partition uuid is read from the EFI variables. At this point
 	// the kernel may not have initialized the storage HW yet so poll
 	// here.
-	if err := waitPartSrc(filepath.Join(dirs.GlobalRootDir, partSrc)); err != nil {
-		return err
+	pollWait := 50 * time.Millisecond
+	pollIterations := 1200
+	if err := waitPartSrc(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
+		return fmt.Errorf("cannot mount source: %v", err)
 	}
 
 	opts := &systemdMountOptions{
