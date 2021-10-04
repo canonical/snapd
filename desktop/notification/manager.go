@@ -17,29 +17,23 @@
  *
  */
 
-package main
+package notification
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/godbus/dbus"
 )
 
-func die(err error) {
-	fmt.Fprintln(os.Stderr, err)
-	os.Exit(1)
+type NotificationManager interface {
+	SendNotification(id ID, msg *Message) error
+	CloseNotification(id ID) error
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		die(fmt.Errorf("usage: %s mount-point", os.Args[0]))
+func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {
+	// first try the GTK backend
+	if manager, err := newGtkBackend(conn, desktopID); err == nil {
+		return manager
 	}
 
-	size, err := disks.Size(os.Args[1])
-	if err != nil {
-		die(err)
-	}
-
-	fmt.Printf("%v\n", size)
+	// fallback to the older FDO API
+	return newFdoBackend(conn, desktopID)
 }

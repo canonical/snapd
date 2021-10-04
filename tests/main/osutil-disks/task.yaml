@@ -1,8 +1,7 @@
 summary: test osutil disk.Size()
 
 # ubuntu-core doesn't have go :-)
-# ppc64el disabled because of https://github.com/snapcore/snapd/issues/2503
-systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
+systems: [-ubuntu-core-*]
 
 prepare: |
   go build -o disksize ./disksize.go
@@ -11,7 +10,7 @@ execute: |
   echo "find root device"
   root_dev=$(df |grep '/$'|cut -f1 -d' ')
 
-  echo "calculcate partition size"
+  echo "calculate partition size"
   root_disksize=$(./disksize "$root_dev")
   echo "ensure it's sensible (i.e. > 512mb)"
   test "$root_disksize" -gt $((512*1024*1024))
