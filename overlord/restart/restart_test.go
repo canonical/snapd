@@ -60,7 +60,7 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// unitialized
+	// uninitialized
 	ok, t := restart.Pending(st)
 	c.Check(ok, Equals, false)
 	c.Check(t, Equals, restart.RestartUnset)
