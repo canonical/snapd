@@ -10,7 +10,8 @@ details: |
 # This test is not executed on a core system simply because of the hassle of
 # building the support C program. In the future it might be improved with the
 # use of the classic snap where we just use classic to build the helper.
-systems: [-ubuntu-core-*]
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 
 environment:
     # This is used to abbreviate some of the paths below.

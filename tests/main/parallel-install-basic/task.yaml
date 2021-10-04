@@ -1,5 +1,8 @@
 summary: Checks for parallel installation of a local snap files
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap

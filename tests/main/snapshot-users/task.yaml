@@ -1,5 +1,8 @@
 summary: Check that the basic snapshots functionality works for different users
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     snap install test-snapd-sh
     tests.session -u test prepare
