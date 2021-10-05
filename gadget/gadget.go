@@ -22,6 +22,7 @@ package gadget
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -34,6 +35,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
@@ -204,6 +206,106 @@ func (vc VolumeContent) String() string {
 type VolumeUpdate struct {
 	Edition  edition.Number `yaml:"edition"`
 	Preserve []string       `yaml:"preserve"`
+}
+
+// MappedVolumeDeviceHeuristics is a set of heuristics to use to try and map a
+// volume in the gadget.yaml to a physical device on the system. We don't have
+// a steadfast and predictable way to always find the device again, so we need
+// to do a search, trying to find a device which matches each heuristic in turn,
+// and verify it matches the physical structure layout and if not move on to the
+// next heuristic.
+type MappedVolumeDeviceHeuristics struct {
+	// each member here is presented in descending order of certainty about the
+	// likelihood of being compatible if a candidate physical device matches the
+	// member. I.e. CachedDevicePath is more trusted than CachedKernelPath is
+	// more trusted than DiskID is more trusted than using the MappedStructures
+
+	// CachedDevicePath is the device path in sysfs and in /dev/disk/by-path the
+	// volume was measured and observed at during UC20+ install mode.
+	CachedDevicePath string `json:"cached-device-path"`
+
+	// CachedKernelPath is the device path like /dev/vda the volume was
+	// measured and observed at during UC20+ install mode.
+	CachedKernelPath string `json:"cached-kernel-path"`
+
+	// DiskID is the disk's identifier, it is a UUID for GPT disks or an
+	// unsigned integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	DiskID string `json:"disk-id"`
+
+	// MappedStructures contains heuristic information about each individual
+	// structure in the volume that may be useful in identifying whethere a disk
+	// matches a volume or not.
+	MappedStructures []MappedStructureDeviceHeuristic `json:"mapped-structures"`
+}
+
+// MappedStructureDeviceHeuristic is a set of heuristics to use to try and map
+// a laid out structure in the gadget.yaml with a structure or partition on a
+// physical disk to see if that physical disk matches a specific volume.
+type MappedStructureDeviceHeuristic struct {
+	// CachedDevicePath is the device path in sysfs and in /dev/disk/by-path the
+	// partition was measured and observed at during UC20+ install mode.
+	CachedDevicePath string `json:"cached-device-path"`
+	// CachedKernelPath is the device path like /dev/vda1 the partition was
+	// measured and observed at during UC20+ install mode.
+	CachedKernelPath string `json:"cached-kernel-path"`
+	// PartitionUUID is the partuuid as defined by i.e. /dev/disk/by-partuuid
+	PartitionUUID string `json:"partition-uuid"`
+	// FilesystemLabel is the label of the filesystem for structures that have
+	// filesystems, i.e. /dev/disk/by-label
+	FilesystemLabel string `json:"filesystem-label"`
+	// FilesystemLabel is the label of the partition for GPT disks, i.e.
+	// /dev/disk/by-partlabel
+	PartitionLabel string `json:"partition-label"`
+	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
+	// /dev/disk/by-uuid
+	FilesystemUUID string `json:"filesystem-uuid"`
+	// ID is the partition ID of the partition, i.e. /dev/disk/by-id which is
+	// typically only present for DOS disks.
+	ID string `json:"id"`
+	// Offset is the offset of the structure
+	Offset quantity.Offset `json:"offset"`
+	// Size is the size of the structure
+	Size quantity.Size `json:"size"`
+}
+
+// SaveMappedVolumeDeviceHeuristics saves the mapping of volume names to
+// volume / device heuristics to disk for later loading and verification.
+func SaveMappedVolumeDeviceHeuristics(mapping map[string]MappedVolumeDeviceHeuristics) error {
+	b, err := json.Marshal(mapping)
+	if err != nil {
+		return err
+	}
+
+	// TODO: should this live in dirs?
+	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filename, b, 0644)
+}
+
+// LoadMappedVolumeDeviceHeuristics loads heuristics if there are any. If there
+// is no file with the mapping available, nil is returned.
+func LoadMappedVolumeDeviceHeuristics() (map[string]MappedVolumeDeviceHeuristics, error) {
+	var mapping map[string]MappedVolumeDeviceHeuristics
+
+	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+	if !osutil.FileExists(filename) {
+		return nil, nil
+	}
+
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(b, &mapping); err != nil {
+		return nil, err
+	}
+
+	return mapping, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
