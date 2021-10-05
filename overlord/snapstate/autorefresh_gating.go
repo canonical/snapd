@@ -144,16 +144,20 @@ func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDurati
 
 // HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.
 // HoldTime of zero denotes maximum allowed hold time.
-// Holding may fail for only some snaps in which case HoldError is returned and
-// it contains the details of failed ones.
-func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) error {
+// Holding fails if not all snaps can be held, in that case HoldError is returned
+// and it contains the details of snaps that prevented holding. On success the
+// function returns the remaining hold time.
+func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) (time.Duration, error) {
 	gating, err := refreshGating(st)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	herr := &HoldError{
 		SnapsInError: make(map[string]HoldDurationError),
 	}
+
+	var durationMin time.Duration
+
 	now := timeNow()
 	for _, heldSnap := range affectingSnaps {
 		hold, ok := gating[heldSnap][gatingSnap]
@@ -165,7 +169,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 
 		lastRefreshTime, err := lastRefreshed(st, heldSnap)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		mp := maxPostponement - maxPostponementBuffer
@@ -213,6 +217,10 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 			gating[heldSnap] = make(map[string]*holdState)
 		}
 		gating[heldSnap][gatingSnap] = hold
+
+		if durationMin == 0 || dur < durationMin {
+			durationMin = dur
+		}
 	}
 
 	if len(herr.SnapsInError) > 0 {
@@ -228,9 +236,9 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 	}
 	st.Set("snaps-hold", gating)
 	if len(herr.SnapsInError) > 0 {
-		return herr
+		return 0, herr
 	}
-	return nil
+	return durationMin, nil
 }
 
 // ProceedWithRefresh unblocks all snaps held by gatingSnap for refresh. This
