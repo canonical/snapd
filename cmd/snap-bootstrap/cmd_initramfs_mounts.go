@@ -1223,7 +1223,7 @@ var waitFile = func(path string, wait time.Duration, n int) error {
 		time.Sleep(wait)
 	}
 
-	return fmt.Errorf("no %v after waiting for %v", path, time.Duration(n*int(wait)))
+	return fmt.Errorf("no %v after waiting for %v", path, time.Duration(n)*wait)
 }
 
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
@@ -1247,7 +1247,7 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, partSrc)) {
 		pollWait := 50 * time.Millisecond
 		pollIterations := 1200
-		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations*int(pollWait)), partSrc)
+		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, partSrc)
 		if err := waitFile(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
 			return fmt.Errorf("cannot mount source: %v", err)
 		}
