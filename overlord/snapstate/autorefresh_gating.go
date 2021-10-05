@@ -218,8 +218,8 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		}
 		gating[heldSnap][gatingSnap] = hold
 
-		if durationMin == 0 || dur < durationMin {
-			durationMin = dur
+		if durationMin == 0 || left < durationMin {
+			durationMin = left
 		}
 	}
 
