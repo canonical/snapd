@@ -86,15 +86,6 @@ endmsg() {
 }
 addtrap endmsg
 
-# Append the coverage profile of a package to the project coverage.
-append_coverage() (
-    profile="$1"
-    if [ -f "$profile" ]; then
-        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out || true
-        rm "$profile"
-    fi
-)
-
 missing_interface_spread_test() {
     snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
     core_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-core/meta/snap.yaml"
@@ -307,20 +298,8 @@ if [ "$UNIT" = 1 ]; then
             echo "Skipping test coverage"
         fi
 
-        if command -v dpkg >/dev/null && dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
-            # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
-        else
-            for pkg in $(go list ./... | grep -v '/vendor/' ); do
-                # shellcheck disable=SC2086
-                GOTRACEBACK=1 go test $tags -timeout 5m -i "$pkg"
-                if [ -z "${SKIP_COVERAGE-}" ]; then
-                    # shellcheck disable=SC2086
-                    GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage "$pkg"
-                    append_coverage .coverage/profile.out
-                fi
-            done
-        fi
+        # shellcheck disable=SC2046,SC2086
+        GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
     fi
 
     # python unit test for mountinfo.query and version-compare
