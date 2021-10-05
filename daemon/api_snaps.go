@@ -147,6 +147,9 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
+	if inst.SystemRestartImmediate {
+		chg.Set("system-restart-immediate", true)
+	}
 
 	ensureStateSoon(state)
 
@@ -186,15 +189,16 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode          bool     `json:"devmode"`
-	JailMode         bool     `json:"jailmode"`
-	Classic          bool     `json:"classic"`
-	IgnoreValidation bool     `json:"ignore-validation"`
-	IgnoreRunning    bool     `json:"ignore-running"`
-	Unaliased        bool     `json:"unaliased"`
-	Purge            bool     `json:"purge,omitempty"`
-	Snaps            []string `json:"snaps"`
-	Users            []string `json:"users"`
+	DevMode                bool     `json:"devmode"`
+	JailMode               bool     `json:"jailmode"`
+	Classic                bool     `json:"classic"`
+	IgnoreValidation       bool     `json:"ignore-validation"`
+	IgnoreRunning          bool     `json:"ignore-running"`
+	Unaliased              bool     `json:"unaliased"`
+	Purge                  bool     `json:"purge,omitempty"`
+	SystemRestartImmediate bool     `json:"system-restart-immediate"`
+	Snaps                  []string `json:"snaps"`
+	Users                  []string `json:"users"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -526,6 +530,10 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	} else {
 		chg = newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
 		ensureStateSoon(st)
+	}
+
+	if inst.SystemRestartImmediate {
+		chg.Set("system-restart-immediate", true)
 	}
 
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})

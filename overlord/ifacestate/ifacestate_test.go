@@ -1865,7 +1865,7 @@ func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c
 }
 
 func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
-	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
 	s.state.Lock()
 	defer s.state.Unlock()
 

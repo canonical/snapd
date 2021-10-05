@@ -470,14 +470,21 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsOp(c *check.C) {
-	s.testPostSnapsOp(c, "application/json")
+	systemRestartImmediate := s.testPostSnapsOp(c, "", "application/json")
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
 func (s *snapsSuite) TestPostSnapsOpMoreComplexContentType(c *check.C) {
-	s.testPostSnapsOp(c, "application/json; charset=utf-8")
+	systemRestartImmediate := s.testPostSnapsOp(c, "", "application/json; charset=utf-8")
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
-func (s *snapsSuite) testPostSnapsOp(c *check.C, contentType string) {
+func (s *snapsSuite) TestPostSnapsOpSystemRestartImmediate(c *check.C) {
+	systemRestartImmediate := s.testPostSnapsOp(c, `"system-restart-immediate": true`, "application/json")
+	c.Check(systemRestartImmediate, check.Equals, true)
+}
+
+func (s *snapsSuite) testPostSnapsOp(c *check.C, extraJSON, contentType string) (systemRestartImmediate bool) {
 	defer daemon.MockAssertstateRefreshSnapDeclarations(func(*state.State, int) error { return nil })()
 	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
@@ -487,7 +494,10 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, contentType string) {
 
 	d := s.daemonWithOverlordMockAndStore(c)
 
-	buf := bytes.NewBufferString(`{"action": "refresh"}`)
+	if extraJSON != "" {
+		extraJSON = "," + extraJSON
+	}
+	buf := bytes.NewBufferString(fmt.Sprintf(`{"action": "refresh"%s}`, extraJSON))
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", contentType)
@@ -502,6 +512,11 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, contentType string) {
 	var apiData map[string]interface{}
 	c.Check(chg.Get("api-data", &apiData), check.IsNil)
 	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
+	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	if err != nil && err != state.ErrNoState {
+		c.Error(err)
+	}
+	return systemRestartImmediate
 }
 
 func (s *snapsSuite) TestPostSnapsOpInvalidCharset(c *check.C) {
@@ -1106,14 +1121,32 @@ func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnap(c *check.C) {
-	s.testPostSnap(c, false)
+	checkOpts := func(opts *snapstate.RevisionOptions) {
+		// no channel in -> no channel out
+		c.Check(opts.Channel, check.Equals, "")
+	}
+	summary, systemRestartImmediate := s.testPostSnap(c, "", checkOpts)
+	c.Check(summary, check.Equals, `Install "foo" snap`)
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
 func (s *snapsSuite) TestPostSnapWithChannel(c *check.C) {
-	s.testPostSnap(c, true)
+	checkOpts := func(opts *snapstate.RevisionOptions) {
+		// channel in -> channel out
+		c.Check(opts.Channel, check.Equals, "xyzzy")
+	}
+	summary, systemRestartImmediate := s.testPostSnap(c, `"channel": "xyzzy"`, checkOpts)
+	c.Check(summary, check.Equals, `Install "foo" snap from "xyzzy" channel`)
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
-func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
+func (s *snapsSuite) TestPostSnapSystemRestartImmediate(c *check.C) {
+	checkOpts := func(opts *snapstate.RevisionOptions) {}
+	_, systemRestartImmediate := s.testPostSnap(c, `"system-restart-immediate": true`, checkOpts)
+	c.Check(systemRestartImmediate, check.Equals, true)
+}
+
+func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(opts *snapstate.RevisionOptions)) (summary string, systemRestartImmediate bool) {
 	d := s.daemonWithOverlordMock(c)
 
 	soon := 0
@@ -1126,25 +1159,17 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 
 	checked := false
 	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		if withChannel {
-			// channel in -> channel out
-			c.Check(opts.Channel, check.Equals, "xyzzy")
-		} else {
-			// no channel in -> no channel out
-			c.Check(opts.Channel, check.Equals, "")
-		}
+		checkOpts(opts)
 		checked = true
-
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	})()
 
 	var buf *bytes.Buffer
-	if withChannel {
-		buf = bytes.NewBufferString(`{"action": "install", "channel": "xyzzy"}`)
-	} else {
-		buf = bytes.NewBufferString(`{"action": "install"}`)
+	if extraJSON != "" {
+		extraJSON = "," + extraJSON
 	}
+	buf = bytes.NewBufferString(fmt.Sprintf(`{"action": "install"%s}`, extraJSON))
 	req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
 	c.Assert(err, check.IsNil)
 
@@ -1155,11 +1180,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
-	if withChannel {
-		c.Check(chg.Summary(), check.Equals, `Install "foo" snap from "xyzzy" channel`)
-	} else {
-		c.Check(chg.Summary(), check.Equals, `Install "foo" snap`)
-	}
+
 	var names []string
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
@@ -1168,6 +1189,13 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 	c.Check(checked, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "Doing a fake install")
+
+	summary = chg.Summary()
+	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	if err != nil && err != state.ErrNoState {
+		c.Error(err)
+	}
+	return summary, systemRestartImmediate
 }
 
 func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
