@@ -844,7 +844,7 @@ func (s *baseMgrsSuite) makeStoreSnapRevision(c *C, name, revno, digest string, 
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 	err = s.storeSigning.Add(snapRev)
-	c.Assert(err, IsNil)
+	c.Assert(err, IsNil, Commentf("cannot add snap revision %v", headers))
 	return snapRev
 }
 
@@ -6222,8 +6222,21 @@ var (
 		"baz":       "version: 1.0\nname: baz\nbase: core20",
 	}
 	snapFilesForRemodel = map[string][][]string{
-		"pc":        pcGadgetFiles,
+		"pc": pcGadgetFiles,
+		// use a different fileset, such that the pc snap with this
+		// content will have a different digest than the regular pc snap
+		"pc-rev-33": append(pcGadgetFiles, []string{
+			"this-is-new", "",
+		}),
 		"pc-kernel": pcKernelFiles,
+		// similar reasoning as for the pc snap
+		"pc-kernel-rev-33": append(pcKernelFiles, []string{
+			"this-is-new", "",
+		}),
+		// and again
+		"core20-rev-33": {
+			{"this-is-new", ""},
+		},
 	}
 
 	// headers of a regular UC20 model assertion
@@ -6836,10 +6849,8 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C) {
 
 func (s *mgrsSuite) TestRemodelUC20DifferentKernelChannel(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
-	// add sleep such that the assertion timestamp will be different and
-	// won't conflict with already existing one
-	time.Sleep(time.Second)
-	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["pc-kernel"], "33", snapFilesForRemodel["pc-kernel"])
+	// use a different set of files, such that the snap digest must also be different
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["pc-kernel"], "33", snapFilesForRemodel["pc-kernel-rev-33"])
 	s.serveSnap(snapPath, "33")
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
 		"snaps": []interface{}{
@@ -6967,10 +6978,8 @@ func (s *mgrsSuite) TestRemodelUC20DifferentKernelChannel(c *C) {
 
 func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
-	// add sleep such that the assertion timestamp will be different and
-	// won't conflict with already existing one
-	time.Sleep(time.Second)
-	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["pc"], "33", snapFilesForRemodel["pc"])
+	// use a different set of files, such that the snap digest must also be different
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["pc"], "33", snapFilesForRemodel["pc-rev-33"])
 	s.serveSnap(snapPath, "33")
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
 		"snaps": []interface{}{
@@ -7074,10 +7083,8 @@ func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 
 func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
-	// add sleep such that the assertion timestamp will be different and
-	// won't conflict with already existing one
-	time.Sleep(time.Second)
-	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["core20"], "33", snapFilesForRemodel["core20"])
+	// use a different set of files, such that the snap digest must also be different
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["core20"], "33", snapFilesForRemodel["core20-rev-33"])
 	s.serveSnap(snapPath, "33")
 	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
 		"snaps": []interface{}{
