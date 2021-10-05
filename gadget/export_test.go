@@ -46,6 +46,8 @@ var (
 
 	FilesystemInfo = filesystemInfo
 
+	ListBlockDevices = listBlockDevices
+
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
 

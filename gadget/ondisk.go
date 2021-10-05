@@ -286,29 +286,83 @@ func UpdatePartitionList(dl *OnDiskVolume) error {
 	return nil
 }
 
-// lsblkFilesystemInfo represents the lsblk --fs JSON output format.
-type lsblkFilesystemInfo struct {
+// lsblkInfo represents the lsblk JSON output format.
+type lsblkInfo struct {
 	BlockDevices []lsblkBlockDevice `json:"blockdevices"`
 }
 
+// lsblkBlockDevice represents a block device from the output of lsblk, which
+// could either be a loopback device or a physical disk or a partition, etc.
+// As such, only some fields are set depending on the context that the struct is
+// returned in.
 type lsblkBlockDevice struct {
-	Name       string `json:"name"`
-	FSType     string `json:"fstype"`
-	Label      string `json:"label"`
-	UUID       string `json:"uuid"`
+	// common shared fields
+
+	// Name is the name of the block device as identified by the node in /dev,
+	// such as mmcblk0p1 or loop319 or vda. This is specifically just the name,
+	// not the full path in /dev/.
+	Name string `json:"name"`
+	// Mountpoint is the mount point of the specific block device if it is
+	// mounted, as determined by lsblk. Note that there could be multiple
+	// mountpoints, it is unclear which specific one lsblk chooses to use as
+	// this setting in this situation. For physical disk devices (not partition
+	// devices), this is null/empty.
 	Mountpoint string `json:"mountpoint"`
+
+	// --fs option specific fields
+
+	// FSType is the type of filesystem on this device, i.e. ext4, squashfs,
+	// vfat, etc.
+	FSType string `json:"fstype"`
+	// Label is the filesystem label for a partition/device.
+	Label string `json:"label"`
+	// UUID is the filesystem UUID for a partition/device.
+	UUID string `json:"uuid"`
+
+	// no --fs option specific fields
+
+	// Type is the type of block device, i.e. loop or disk typically.
+	Type string `json:"type"`
 }
 
-func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
+func filesystemInfo(node string) (*lsblkInfo, error) {
 	output, err := exec.Command("lsblk", "--fs", "--json", node).CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
 
-	var info lsblkFilesystemInfo
+	var info lsblkInfo
 	if err := json.Unmarshal(output, &info); err != nil {
 		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
 	}
 
 	return &info, nil
+}
+
+func listBlockDevices(devType string) ([]lsblkBlockDevice, error) {
+	output, err := exec.Command("lsblk", "--json").CombinedOutput()
+	if err != nil {
+		return nil, osutil.OutputErr(output, err)
+	}
+
+	var info lsblkInfo
+	if err := json.Unmarshal(output, &info); err != nil {
+		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
+	}
+
+	if devType == "" {
+		// then no filter set so return all devices as-is
+		return info.BlockDevices, nil
+	}
+
+	// if the devType is not empty, then filter
+	devTypeLowerCase := strings.ToLower(devType)
+	res := []lsblkBlockDevice{}
+	for _, dev := range info.BlockDevices {
+		if strings.ToLower(dev.Type) == devTypeLowerCase {
+			res = append(res, dev)
+		}
+	}
+
+	return res, nil
 }
