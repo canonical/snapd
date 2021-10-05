@@ -200,17 +200,10 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 	}
 
 	for i, p := range ptable.Partitions {
-		info, err := filesystemInfo(p.Node)
+		bd, err := filesystemInfoForPartition(p.Node)
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain filesystem information: %v", err)
 		}
-		switch {
-		case len(info.BlockDevices) == 0:
-			continue
-		case len(info.BlockDevices) > 1:
-			return nil, fmt.Errorf("unexpected number of blockdevices for node %q: %v", p.Node, info.BlockDevices)
-		}
-		bd := info.BlockDevices[0]
 
 		vsType, err := fromSfdiskPartitionType(p.Type, ptable.Label)
 		if err != nil {
@@ -325,18 +318,52 @@ type lsblkBlockDevice struct {
 	Type string `json:"type"`
 }
 
-func filesystemInfo(node string) (*lsblkInfo, error) {
-	output, err := exec.Command("lsblk", "--fs", "--json", node).CombinedOutput()
+// filesystemInfoForPartition returns information about the filesystem of a
+// single partition, identified by the device node path for this partition such
+// as /dev/mmcblk0p1 or /dev/sda1.
+func filesystemInfoForPartition(node string) (blk lsblkBlockDevice, err error) {
+	// verify that the specified node is indeed a partition by first running
+	// lsblk without the --fs
+	output, err := exec.Command("lsblk", "--json", node).CombinedOutput()
 	if err != nil {
-		return nil, osutil.OutputErr(output, err)
+		return blk, osutil.OutputErr(output, err)
 	}
 
 	var info lsblkInfo
 	if err := json.Unmarshal(output, &info); err != nil {
-		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
+		return blk, fmt.Errorf("cannot parse lsblk output: %v", err)
 	}
 
-	return &info, nil
+	if len(info.BlockDevices) != 1 || strings.ToLower(info.BlockDevices[0].Type) != "part" {
+		return blk, fmt.Errorf("device node %s is not a partition", node)
+	}
+
+	// otherwise the device is indeed a partition, get the information for the
+	// filesystem
+
+	// we only expect a single block device
+	output, err = exec.Command("lsblk", "--fs", "--json", node).CombinedOutput()
+	if err != nil {
+		return blk, osutil.OutputErr(output, err)
+	}
+
+	if err := json.Unmarshal(output, &info); err != nil {
+		return blk, fmt.Errorf("cannot parse lsblk output: %v", err)
+	}
+
+	switch len(info.BlockDevices) {
+	case 1:
+		// ok, expected
+		return info.BlockDevices[0], nil
+	case 0:
+		// very unexpected, there was previously only one block device just
+		// above but now we somehow don't have one
+		return blk, fmt.Errorf("block device for device %s unexpectedly disappeared", node)
+	default:
+		// we now have more block devices for this partition, which is also
+		// unexpected
+		return blk, fmt.Errorf("block device for device %s unexpectedly multiplied", node)
+	}
 }
 
 func listBlockDevices(devType string) ([]lsblkBlockDevice, error) {
