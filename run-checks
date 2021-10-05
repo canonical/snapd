@@ -9,6 +9,8 @@ else
     goctest="go test"
 fi
 COVERMODE=${COVERMODE:-atomic}
+COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
+COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.13 by default
@@ -289,11 +291,10 @@ if [ "$UNIT" = 1 ]; then
     else
         coverage=""
         if [ -z "${SKIP_COVERAGE-}" ]; then
-            coverage="-coverprofile=.coverage/coverage.out -covermode=$COVERMODE"
+            coverage="-coverprofile=$COVERAGE_OUT -covermode=$COVERMODE"
             # Prepare the coverage output profile.
-            rm -rf .coverage
-            mkdir .coverage
-            echo "mode: $COVERMODE" > .coverage/coverage.out
+            mkdir -p "$(dirname "$COVERAGE_OUT")"
+            echo "mode: $COVERMODE" > "$COVERAGE_OUT"
         else
             echo "Skipping test coverage"
         fi
