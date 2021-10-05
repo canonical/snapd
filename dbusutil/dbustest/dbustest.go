@@ -76,7 +76,6 @@ type testDBusStream struct {
 
 func (s *testDBusStream) decodeRequest(req []byte) {
 	buf := bytes.NewBuffer(req)
-	// s.m is locked
 	if !s.authDone {
 		// Before authentication is done process the text protocol anticipating
 		// the TEST authentication used by NewDBusTestConn call below.
@@ -224,6 +223,9 @@ func (a *testAuth) HandleData(data []byte) (resp []byte, status dbus.AuthStatus)
 
 type InjectMessageFunc func(msg *dbus.Message)
 
+// InjectableConnection returns a DBus connection for writing unit tests and a
+// function that can be used to inject messages that will be received by the
+// test client.
 func InjectableConnection(handler DBusHandlerFunc) (*dbus.Conn, InjectMessageFunc, error) {
 	testDBusStream := newTestDBusStream(handler)
 	conn, err := dbus.NewConn(testDBusStream)
