@@ -12,11 +12,11 @@ details: |
     The test uses a snap that carries a unikernel built to be run on top of qemu, boot and
     respond to ping. Once the domain is created, the test checks connectivity to the unikernel.
 
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-20.04-64]
 
 prepare: |
-    # Given test user is added to the libvirtd group
-    adduser test libvirtd
+    # Given test user is added to the libvirt group
+    adduser test libvirt
 
     echo "And libvirt is configured to manage /dev/net/tun"
     systemctl stop libvirtd.service || true
@@ -37,8 +37,8 @@ prepare: |
 restore: |
     ip link delete tap100
 
-    # remove test user from the libvirtd group
-    deluser test libvirtd
+    # remove test user from the libvirt group
+    deluser test libvirt
 
 execute: |
     echo "The interface is not connected by default"

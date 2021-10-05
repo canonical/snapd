@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const gpioSummary = `allows access to specifc GPIO pin`
+const gpioSummary = `allows access to specific GPIO pin`
 
 const gpioBaseDeclarationSlots = `
   gpio:

@@ -65,7 +65,7 @@ func init() {
 
 type cmdInitramfsMounts struct{}
 
-func (c *cmdInitramfsMounts) Execute(args []string) error {
+func (c *cmdInitramfsMounts) Execute([]string) error {
 	return generateInitramfsMounts()
 }
 

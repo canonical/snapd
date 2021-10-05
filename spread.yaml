@@ -3,9 +3,11 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    # TODO: some distros started shipping Go 1.16 which defaults to having
-    # modules enabled, drop this when snapd starts supporting Go modules
-    GO111MODULE: "off"
+    # on some distros the default GOPROXY setting is 'direct' (eg. Fedora), the
+    # go import tags of packages such as maze.io/x/crypt (which is one of
+    # secboot dependencies), cannot be obtained when poking the import URL
+    # directly, thus we need to force the golang.org hosted proxy to be used
+    GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -41,7 +43,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.50
+    DELTA_REF: 2.52
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -83,11 +85,13 @@ backends:
                   workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+                  storage: 12G
             - ubuntu-18.04-32:
                   workers: 6
             - ubuntu-18.04-64:
                   workers: 8
             - ubuntu-20.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
@@ -103,14 +107,10 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-                  # XXX: old name, remove once new spread is deployed
-                  secureboot: true
-            - ubuntu-20.10-64:
-                  workers: 8
             - ubuntu-21.04-64:
                   workers: 8
             - ubuntu-21.10-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2110
+                  storage: 12G
                   workers: 8
 
             - debian-9-64:
@@ -137,9 +137,9 @@ backends:
                   storage: preserve-size
                   image: centos-7-64
             # unstable systems below
-            - opensuse-15.1-64:
-                  workers: 6
             - opensuse-15.2-64:
+                  workers: 6
+            - opensuse-15.3-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -155,13 +155,11 @@ backends:
         location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-16.04-64:
-                  workers: 6
             - ubuntu-18.04-64:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   workers: 6
 
     google-nested:
@@ -170,6 +168,7 @@ backends:
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
         halt-timeout: 2h
+        cpu-family: 'Intel Cascade Lake'
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
@@ -183,10 +182,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-20.10-64:
-                  image: ubuntu-2010-64-virt-enabled
+            - ubuntu-21.04-64:
+                  image: ubuntu-2104-64-virt-enabled
                   storage: 20G
-                  workers: 6
+                  workers: 3
 
     qemu-nested:
         memory: 4G
@@ -241,10 +240,10 @@ backends:
             - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.04-64:
+            - ubuntu-21.10-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
@@ -424,8 +423,8 @@ debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
-        #shellcheck source=tests/lib/nested.sh
-        . "$TESTSLIB/nested.sh"
+        #shellcheck source=tests/lib/systems.sh
+        . "$TESTSLIB/systems.sh"
 
         echo '# System information'
         cat /etc/os-release || true
@@ -436,10 +435,10 @@ debug-each: |
         echo '# Go information'
         go version || true
 
-        if nested_is_nested_system; then
+        if tests.nested is-nested; then
             echo '# nested VM status'
-            systemctl status nested-vm || true
-            nested_print_serial_log
+            tests.nested vm status
+            tests.nested get serial-log
             # add another echo in case the serial log is missing a newline
             echo
 
@@ -448,6 +447,20 @@ debug-each: |
 
         echo '# journal messages for snapd'
         "$TESTSTOOLS"/journal-state get-log -u snapd
+
+        echo '# user sessions information'
+        journalctl --user -u snapd.session-agent.service
+        systemctl status --user snapd.session-agent  || true
+
+        if ! is_cgroupv2; then
+            # dump any information on device cgroup of current session
+            cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
+            if [ -n "$cgroup_dev" ]; then
+                echo "# device cgroup $cgroup_dev"
+                cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
+            fi
+        fi
+
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
@@ -507,9 +520,7 @@ repack: |
         trap "rm -rf delta-ref.tar current.delta repacked-current.tar $tmpdir" EXIT
         if [ "$REPACK_KEEP_VENDOR" = "n" ]; then
             tar -C "$tmpdir" -xvf - <&3
-            find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
-                ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
-                -delete
+            rm -rf "$tmpdir"/$DELTA_PREFIX/vendor/*
             tar -C "$tmpdir" -c "$DELTA_PREFIX" --sort=name > repacked-current.tar
         else
             cat <&3 > repacked-current.tar
@@ -643,6 +654,11 @@ prepare: |
     elif [ -d "$DELTA_PREFIX" ]; then
         find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
         rmdir "$DELTA_PREFIX"
+    fi
+
+    # TODO: drop once 21.10 images are fixed
+    if [[ "$SPREAD_SYSTEM" == ubuntu-21.10-* ]] && [[ -e /home/ubuntu/.ssh ]]; then
+        chown -R ubuntu:ubuntu /home/ubuntu/.ssh
     fi
 
     # Take the MATCH and REBOOT functions from spread and allow our shell
@@ -811,14 +827,6 @@ suites:
         backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
-            TRAVIS_BUILD_NUMBER: '$(HOST: echo "$TRAVIS_BUILD_NUMBER")'
-            TRAVIS_BRANCH: '$(HOST: echo "$TRAVIS_BRANCH")'
-            TRAVIS_COMMIT: '$(HOST: echo "$TRAVIS_COMMIT")'
-            TRAVIS_JOB_NUMBER: '$(HOST: echo "$TRAVIS_JOB_NUMBER")'
-            TRAVIS_PULL_REQUEST: '$(HOST: echo "$TRAVIS_PULL_REQUEST")'
-            TRAVIS_JOB_ID: '$(HOST: echo "$TRAVIS_JOB_ID")'
-            TRAVIS_REPO_SLUG: '$(HOST: echo "$TRAVIS_REPO_SLUG")'
-            TRAVIS_TAG: '$(HOST: echo "$TRAVIS_TAG")'
             COVERMODE: '$(HOST: echo "$COVERMODE")'
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
@@ -892,8 +900,9 @@ suites:
             tests.backup prepare
             tests.nested prepare
         restore-each: |
-            tests.nested remove-vm
+            tests.nested vm remove
             tests.nested restore
+            tests.cleanup restore
             tests.backup restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -929,7 +938,8 @@ suites:
             tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
-            tests.nested remove-vm
+            tests.nested vm remove
+            tests.cleanup restore
             tests.backup restore
         restore: |
             tests.nested restore
@@ -967,7 +977,8 @@ suites:
             tests.backup prepare
             tests.nested create-vm core
         restore-each: |
-            tests.nested remove-vm
+            tests.nested vm remove
+            tests.cleanup restore
             tests.backup restore
         restore: |
             tests.nested restore

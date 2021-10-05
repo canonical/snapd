@@ -53,7 +53,19 @@ nested_wait_for_no_ssh() {
 }
 
 nested_wait_for_snap_command() {
-    nested_exec "retry --wait 1 -n 200 sh -c 'command -v snap'"
+    # In this function the remote retry command cannot be used because it could
+    # be executed before the tool is deployed.
+    local retry=200
+    local wait=1
+
+    while ! nested_exec "command -v snap"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_get_boot_id() {
@@ -82,6 +94,12 @@ nested_wait_for_reboot() {
 nested_uc20_transition_to_system_mode() {
     local recovery_system="$1"
     local mode="$2"
+
+    if ! nested_is_core_20_system; then
+        echo "Transition can be done just on uc20 system, exiting..."
+        exit 1
+    fi
+
     local current_boot_id
     current_boot_id=$(nested_get_boot_id)
     nested_exec "sudo snap reboot --$mode $recovery_system"
@@ -228,9 +246,6 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.10-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
-            ;;
         ubuntu-21.04-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
             ;;
@@ -255,9 +270,6 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-20.10-64*)
-            echo "https://cloud-images.ubuntu.com/groovy/current/groovy-server-cloudimg-amd64.img"
             ;;
         ubuntu-21.04-64*)
             echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
@@ -397,6 +409,7 @@ nested_prepare_env() {
     mkdir -p "$NESTED_RUNTIME_DIR"
     mkdir -p "$NESTED_ASSETS_DIR"
     mkdir -p "$NESTED_LOGS_DIR"
+    mkdir -p "$(nested_get_extra_snaps_path)"
 }
 
 nested_cleanup_env() {
@@ -434,6 +447,14 @@ nested_is_generic_image() {
 
 nested_get_extra_snaps_path() {
     echo "${PWD}/extra-snaps"
+}
+
+nested_get_assets_path() {
+    echo "$NESTED_ASSETS_DIR"
+}
+
+nested_get_images_path() {
+    echo "$NESTED_IMAGES_DIR"
 }
 
 nested_get_extra_snaps() {
@@ -535,11 +556,11 @@ nested_create_core_vm() {
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if nested_is_core_16_system; then
-                    repack_snapd_deb_into_core_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
                 elif nested_is_core_18_system; then
-                    repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
                     snap download --channel="$CORE_CHANNEL" --basename=core18 core18
@@ -633,7 +654,7 @@ EOF
 
                     # repack the snapd snap
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
 
                     # sign the snapd snap with fakestore if requested
@@ -786,10 +807,9 @@ users:
 EOF
 }
 
-nested_configure_cloud_init_on_core20_vm() {
+nested_add_file_to_vm() {
     local IMAGE=$1
-    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
-
+    local FILE=$2
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
     kpartx -avs "$IMAGE"
@@ -804,10 +824,17 @@ nested_configure_cloud_init_on_core20_vm() {
     tmp=$(mktemp -d)
     mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
-    cp -f "$NESTED_ASSETS_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
+    cp -f "$FILE" "$tmp/data/etc/cloud/cloud.cfg.d/"
     sync
     umount "$tmp"
     kpartx -d "$IMAGE"
+}
+
+nested_configure_cloud_init_on_core20_vm() {
+    local IMAGE=$1
+    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
+
+    nested_add_file_to_vm "$IMAGE" "$NESTED_ASSETS_DIR/data.cfg"
 }
 
 nested_save_serial_log() {
@@ -1014,14 +1041,16 @@ nested_start_core_vm_unit() {
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until ssh is ready
         nested_wait_for_ssh
-        # Copy tools to be used on tests
-        nested_prepare_tools
         # Wait for the snap command to be available
         nested_wait_for_snap_command
         # Wait for snap seeding to be done
         nested_exec "sudo snap wait system seed.loaded"
-        # Wait for cloud init to be done
-        nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+        # Copy tools to be used on tests
+        nested_prepare_tools
+        # Wait for cloud init to be done if the system is using cloud-init
+        if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
+            nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+        fi
     fi
 }
 
@@ -1229,6 +1258,10 @@ nested_destroy_vm() {
     rm -f "$CURRENT_IMAGE"
 }
 
+nested_status_vm() {
+    systemctl status "$NESTED_VM" || true
+}
+
 nested_exec() {
     sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$@"
 }
@@ -1333,11 +1366,11 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
+        curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
         # make sure spread really exists
-        test -x "$NESTED_WORK_DIR/spread"
-        echo "$NESTED_WORK_DIR/spread"
+        test -x "$NESTED_WORK_DIR/spread"        
     fi
+    echo "$NESTED_WORK_DIR/spread"
 }
 
 nested_build_seed_cdrom() {

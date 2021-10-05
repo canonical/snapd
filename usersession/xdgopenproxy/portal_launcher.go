@@ -20,155 +20,29 @@
 package xdgopenproxy
 
 import (
-	"fmt"
-	"syscall"
-	"time"
-
 	"github.com/godbus/dbus"
-)
+	"golang.org/x/xerrors"
 
-const (
-	desktopPortalBusName      = "org.freedesktop.portal.Desktop"
-	desktopPortalObjectPath   = "/org/freedesktop/portal/desktop"
-	desktopPortalOpenURIIface = "org.freedesktop.portal.OpenURI"
-	desktopPortalRequestIface = "org.freedesktop.portal.Request"
+	"github.com/snapcore/snapd/desktop/portal"
 )
 
 // portalLauncher is a launcher that forwards the requests to xdg-desktop-portal DBus API
-type portalLauncher struct{}
-
-// desktopPortal gets a reference to the xdg-desktop-portal D-Bus service
-func (p *portalLauncher) desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
-	// We call StartServiceByName since old versions of
-	// xdg-desktop-portal do not include the AssumedAppArmorLabel
-	// key in their service activation file.
-	var startResult uint32
-	err := bus.BusObject().Call("org.freedesktop.DBus.StartServiceByName", 0, desktopPortalBusName, uint32(0)).Store(&startResult)
-	if dbusErr, ok := err.(dbus.Error); ok {
-		// If it is not possible to activate the service
-		// (i.e. there is no .service file or the systemd unit
-		// has been masked), assume it is already
-		// running. Subsequent method calls will fail if this
-		// assumption is false.
-		if dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" || dbusErr.Name == "org.freedesktop.systemd1.Masked" {
-			err = nil
-			startResult = 2 // DBUS_START_REPLY_ALREADY_RUNNING
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	switch startResult {
-	case 1: // DBUS_START_REPLY_SUCCESS
-	case 2: // DBUS_START_REPLY_ALREADY_RUNNING
-	default:
-		return nil, fmt.Errorf("unexpected response from StartServiceByName (code %v)", startResult)
-	}
-	return bus.Object(desktopPortalBusName, desktopPortalObjectPath), nil
+type portalLauncher struct {
 }
 
-// portalResponseSuccess is a numeric value indicating a success carrying out
-// the request, returned by the `response` member of
-// org.freedesktop.portal.Request.Response signal
-const portalResponseSuccess = 0
-
-// timeout for asking the user to make a choice, same value as in usersession/userd/launcher.go
-var defaultPortalRequestTimeout = 5 * time.Minute
-
-func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
-	// see https://flatpak.github.io/xdg-desktop-portal/portal-docs.html for
-	// details of the interaction, in short:
-	// 1. caller issues a request to the desktop portal
-	// 2. desktop portal responds with a handle to a dbus object capturing the Request
-	// 3. caller waits for the org.freedesktop.portal.Request.Response
-	// 3a. caller can terminate the request earlier by calling close
-
-	// set up signal handling before we call the portal, so that we do not
-	// miss the signals
-	signals := make(chan *dbus.Signal, 1)
-	bus.Signal(signals)
-	defer func() {
-		bus.RemoveSignal(signals)
-		close(signals)
-	}()
-
-	// TODO: this should use dbus.Conn.AddMatchSignal, but that
-	// does not exist in the external copies of godbus on some
-	// supported platforms.
-	const matchRule = "type='signal',sender='" + desktopPortalBusName + "',interface='" + desktopPortalRequestIface + "',member='Response'"
-	if err := bus.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, matchRule).Store(); err != nil {
-		return err
+func convertError(err error) error {
+	if err != nil && xerrors.Is(err, &portal.ResponseError{}) {
+		err = &responseError{msg: err.Error()}
 	}
-	defer bus.BusObject().Call("org.freedesktop.DBus.RemoveMatch", 0, matchRule)
-
-	requestPath, err := call()
-	if err != nil {
-		return err
-	}
-	request := bus.Object(desktopPortalBusName, requestPath)
-
-	timeout := time.NewTimer(defaultPortalRequestTimeout)
-	defer timeout.Stop()
-	for {
-		select {
-		case <-timeout.C:
-			request.Call(desktopPortalRequestIface+".Close", 0).Store()
-			return &responseError{msg: "timeout waiting for user response"}
-		case signal := <-signals:
-			if signal.Path != requestPath || signal.Name != desktopPortalRequestIface+".Response" {
-				// This isn't the signal we're waiting for
-				continue
-			}
-
-			var response uint32
-			var results map[string]interface{} // don't care
-			if err := dbus.Store(signal.Body, &response, &results); err != nil {
-				return &responseError{msg: fmt.Sprintf("cannot unpack response: %v", err)}
-			}
-			if response == portalResponseSuccess {
-				return nil
-			}
-			return &responseError{msg: fmt.Sprintf("request declined by the user (code %v)", response)}
-		}
-	}
+	return err
 }
 
 func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
-	portal, err := p.desktopPortal(bus)
-	if err != nil {
-		return err
-	}
-
-	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
-	if err != nil {
-		return &responseError{msg: err.Error()}
-	}
-	defer syscall.Close(fd)
-
-	return p.portalCall(bus, func() (dbus.ObjectPath, error) {
-		var (
-			parent  string
-			options map[string]dbus.Variant
-			request dbus.ObjectPath
-		)
-		err := portal.Call(desktopPortalOpenURIIface+".OpenFile", 0, parent, dbus.UnixFD(fd), options).Store(&request)
-		return request, err
-	})
+	err := portal.OpenFile(bus, filename)
+	return convertError(err)
 }
 
 func (p *portalLauncher) OpenURI(bus *dbus.Conn, uri string) error {
-	portal, err := p.desktopPortal(bus)
-	if err != nil {
-		return err
-	}
-
-	return p.portalCall(bus, func() (dbus.ObjectPath, error) {
-		var (
-			parent  string
-			options map[string]dbus.Variant
-			request dbus.ObjectPath
-		)
-		err := portal.Call(desktopPortalOpenURIIface+".OpenURI", 0, parent, uri, options).Store(&request)
-		return request, err
-	})
+	err := portal.OpenURI(bus, uri)
+	return convertError(err)
 }

@@ -53,38 +53,28 @@ var (
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
-	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
-	//            filtering on the resultant cloud config
-	shouldUseUbuntuSeed := model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg)
+	grade := model.Grade()
+
+	// we always set the cloud-init src directory if it exists, it is
+	// automatically ignored by sysconfig in the case it shouldn't be used
+	if osutil.IsDirectory(ubuntuSeedCloudCfg) {
+		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+	}
 
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
 	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		// this is implicitly handled by ConfigureTargetSystem when it
-		// configures cloud-init, so we just need to allow cloud-init for the
-		// gadget config to be used, but we also should check to see if
-		// ubuntu-seed config should be allowed as well
 		opts.AllowCloudInit = true
-		if shouldUseUbuntuSeed {
-			opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-		}
 
 	// next thing is if are in secured grade and didn't have gadget config, we
 	// disable cloud-init always, clouds should have their own config via
 	// gadgets for grade secured
-	case model.Grade() == asserts.ModelSecured:
+	case grade == asserts.ModelSecured:
 		opts.AllowCloudInit = false
 
-	// next if we are grade dangerous, then we also install cloud configuration
-	// from ubuntu-seed if it exists
-	case shouldUseUbuntuSeed:
-		opts.AllowCloudInit = true
-		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-
-	// note that if none of the conditions were true, it means we are on grade
-	// dangerous or signed, and cloud-init is still allowed to run without
-	// additional configuration on first-boot, so that NoCloud CIDATA can be
-	// provided for example
+	// all other cases we allow cloud-init to run, either through config that is
+	// available at runtime via a CI-DATA USB drive, or via config on
+	// ubuntu-seed if that is allowed by the model grade, etc.
 	default:
 		opts.AllowCloudInit = true
 	}
@@ -148,8 +138,9 @@ func writeTimings(st *state.State, rootdir string) error {
 
 	var chgIDs []string
 	for _, chg := range st.Changes() {
-		if chg.Kind() == "seed" {
-			// this is captured via "--ensure=seed" below
+		if chg.Kind() == "seed" || chg.Kind() == "install-system" {
+			// this is captured via "--ensure=seed" and
+			// "--ensure=install-system" below
 			continue
 		}
 		chgIDs = append(chgIDs, chg.ID())
@@ -178,7 +169,14 @@ func writeTimings(st *state.State, rootdir string) error {
 		return fmt.Errorf("cannot collect timings output: %v", err)
 	}
 	fmt.Fprintf(gz, "\n")
-	// then the changes
+	// then the install
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=install-system\n")
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=install-system")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	// then the other changes (if there are any)
 	for _, chgID := range chgIDs {
 		fmt.Fprintf(gz, "---- Output of snap debug timings %s\n", chgID)
 		cmd = exec.Command("snap", "debug", "timings", chgID)
@@ -233,11 +231,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
-	bopts.Encrypt = useEncryption
+	bopts.EncryptionType = encryptionType
+	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
 
 	model := deviceCtx.Model()
 
@@ -459,7 +458,7 @@ var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -468,7 +467,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return false, nil
+		return res, nil
 	}
 
 	// check if the model prefers to be unencrypted
@@ -476,7 +475,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	//       if the install is unencrypted or encrypted
 	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
 		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
-		return false, nil
+		return res, nil
 	}
 
 	// check if encryption is available
@@ -486,22 +485,25 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	)
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			checkEncryptionErr = m.checkFDEFeatures(st)
+			res, checkEncryptionErr = m.checkFDEFeatures()
 		}
 	}
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
 	if !hasFDESetupHook {
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
+		if checkEncryptionErr == nil {
+			res = secboot.EncryptionTypeLUKS
+		}
 	}
 
 	// check if encryption is required
 	if checkEncryptionErr != nil {
 		if secured {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		}
 		if encrypted {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
 		if hasFDESetupHook {
@@ -511,11 +513,10 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		}
 
 		// not required, go without
-		return false, nil
+		return res, nil
 	}
 
-	// encrypt
-	return true, nil
+	return res, nil
 }
 
 // RebootOptions can be attached to restart-system-to-run-mode tasks to control

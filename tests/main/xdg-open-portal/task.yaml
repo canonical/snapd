@@ -9,8 +9,6 @@ systems:
   # TODO:tests.session: port and re-enable
   # - debian-sid-*
   - fedora-*
-  # OpenSUSE 15.1 ships xdg-desktop-portal 0.10, which also seems to
-  # be problematic.  OpenSUSE 15.2 will hopefully be fine.
   - opensuse-tumbleweed-*
   - ubuntu-18.04-*
   - ubuntu-2*

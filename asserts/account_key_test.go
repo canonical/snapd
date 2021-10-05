@@ -831,7 +831,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestUntil(c *C) {
 		untilHeader string
 		until       time.Time
 	}{
-		{"", time.Time{}},                           // zero time default
+		{"", time.Time{}}, // zero time default
 		{aks.until.Format(time.RFC3339), aks.until}, // in the future
 		{aks.since.Format(time.RFC3339), aks.since}, // same as since
 	}

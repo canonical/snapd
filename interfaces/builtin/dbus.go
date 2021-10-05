@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const dbusSummary = `allows owning a specifc name on DBus`
+const dbusSummary = `allows owning a specific name on DBus`
 
 const dbusBaseDeclarationSlots = `
   dbus:

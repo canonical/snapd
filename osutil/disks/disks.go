@@ -31,18 +31,32 @@ type Options struct {
 
 // Disk is a single physical disk device that contains partitions.
 type Disk interface {
-	// FindMatchingPartitionUUIDWithFsLabel finds the partition uuid for a
-	// partition matching the specified filesystem label on the disk. Note that
-	// for non-ascii labels like "Some label", the label will be encoded using
-	// \x<hex> for potentially non-safe characters like in "Some\x20Label".
-	// If the filesystem label was not found on the disk, and no other errors
-	// were encountered, a PartitionNotFoundError will be returned.
+	// FindMatchingPartitionWithFsLabel finds the partition with a matching
+	// filesystem label on the disk. Note that for non-ascii labels like
+	// "Some label", the label will be encoded using \x<hex> for potentially
+	// non-safe characters like in "Some\x20Label". If the filesystem label was
+	// not found on the disk, and no other errors were encountered, a
+	// PartitionNotFoundError will be returned.
+	FindMatchingPartitionWithFsLabel(string) (Partition, error)
+
+	// FindMatchingPartitionWithPartLabel is like
+	// FindMatchingPartitionWithFsLabel, but searches for a partition that
+	// has a matching partition label instead of the filesystem label. The same
+	// encoding scheme is performed on the label as in that function.
+	FindMatchingPartitionWithPartLabel(string) (Partition, error)
+
+	// FindMatchingPartitionUUIDWithFsLabel is like
+	// FindMatchingPartitionWithFsLabel, but returns specifically the
+	// PartitionUUID. This method will be eliminated soon in favor of all
+	// clients using FindMatchingPartitionWithFsLabel instead as it is more
+	// generically useful.
 	FindMatchingPartitionUUIDWithFsLabel(string) (string, error)
 
 	// FindMatchingPartitionUUIDWithPartLabel is like
-	// FindMatchingPartitionUUIDWithFsLabel, but searches for a partition that
-	// has a matching partition label instead of the filesystem label. The same
-	// encoding scheme is performed on the label as in that function.
+	// FindMatchingPartitionWithPartLabel, but returns specifically the
+	// PartitionUUID. This method will be eliminated soon in favor of all
+	// clients using FindMatchingPartitionWithPartLabel instead as it is more
+	// generically useful.
 	FindMatchingPartitionUUIDWithPartLabel(string) (string, error)
 
 	// MountPointIsFromDisk returns whether the specified mountpoint corresponds
@@ -62,9 +76,55 @@ type Disk interface {
 	// does not have partitions for example.
 	HasPartitions() bool
 
-	// TODO: add function to get some properties like an associated /dev node
-	//       for a disk for better user error reporting, i.e. /dev/vda3 is much
-	//       more helpful than 252:3
+	// Partitions returns all partitions found on a physical disk device. Note
+	// that this method, and all others that require discovering partitions on
+	// the disk, caches the partitions once first found and does not re-discover
+	// partitions again later on if the disk is re-partitioned.
+	Partitions() ([]Partition, error)
+
+	// KernelDeviceNode returns the full device node path in /dev/ for the disk
+	// such as /dev/mmcblk0 or /dev/vda.
+	KernelDeviceNode() string
+
+	// KernelDevicePath returns the full device path in /sys/devices for the
+	// disk such as /sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/.
+	KernelDevicePath() string
+}
+
+// Partition represents a partition on a Disk device.
+type Partition struct {
+	// FilesystemLabel is the encoded filesystem label, this should only be
+	// compared with normal Go strings that are encoded with BlkIDEncodeLabel.
+	FilesystemLabel string
+	// FilesystemUUID is the encoded filesystem UUID, this should be compared
+	// with normal Go strings that are encoded with BlkIDEncodeLabel.
+	FilesystemUUID string
+	// PartitionLabel is the encoded partition label, this should only be
+	// compared with normal Go strings that are encoded with BlkIDEncodeLabel.
+	PartitionLabel string
+	// the partition UUID
+	PartitionUUID string
+	// Major is the major number for this partition.
+	Major int
+	// Minor is the minor number for this partition.
+	Minor int
+	// KernelDevicePath is the kernel device path for this device in /sys for
+	// this partition.
+	KernelDevicePath string
+	// KernelDeviceNode is the kernel device node in /dev.
+	KernelDeviceNode string
+	// TODO: also include a Disk field for finding what Disk this partition came
+	// from?
+}
+
+// MountPointsForPartitionRoot returns all mounts from the mount table which are
+// for the root directory of the specified partition and have matching mount
+// options as specified. Options not specified in the map argument can have any
+// value or be set or unset, but any option set in the map must match exactly.
+// The order in which they are returned is the same order that they appear in
+// the mount table.
+func MountPointsForPartitionRoot(p Partition, matchingMountOptions map[string]string) ([]string, error) {
+	return mountPointsForPartitionRoot(p, matchingMountOptions)
 }
 
 // PartitionNotFoundError is an error where a partition matching the SearchType

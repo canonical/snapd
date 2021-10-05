@@ -179,20 +179,28 @@ type dummyReporter struct{}
 
 func (dummyReporter) Notify(string) {}
 
-func postServiceControl(c *Command, r *http.Request) Response {
+func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return BadRequest("cannot parse content type: %v", err)
+		return false, BadRequest("cannot parse content type: %v", err)
 	}
 
 	if mediaType != "application/json" {
-		return BadRequest("unknown content type: %s", contentType)
+		return false, BadRequest("unknown content type: %s", contentType)
 	}
 
 	charset := strings.ToUpper(params["charset"])
 	if charset != "" && charset != "UTF-8" {
-		return BadRequest("unknown charset in content type: %s", contentType)
+		return false, BadRequest("unknown charset in content type: %s", contentType)
+	}
+
+	return true, nil
+}
+
+func postServiceControl(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -212,19 +220,8 @@ func postServiceControl(c *Command, r *http.Request) Response {
 }
 
 func postPendingRefreshNotification(c *Command, r *http.Request) Response {
-	contentType := r.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return BadRequest("cannot parse content type: %v", err)
-	}
-
-	if mediaType != "application/json" {
-		return BadRequest("unknown content type: %s", contentType)
-	}
-
-	charset := strings.ToUpper(params["charset"])
-	if charset != "" && charset != "UTF-8" {
-		return BadRequest("unknown charset in content type: %s", contentType)
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -247,14 +244,14 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot connect to the session bus"),
+				Message: "cannot connect to the session bus",
 			},
 		})
 	}
 
-	// TODO: support desktop-specific notification APIs if they provide a better
-	// experience. For example, the GNOME notification API.
-	notifySrv := notification.New(c.s.bus)
+	// TODO: should be instantiated once on startup as for fdoBackend it keeps
+	// notification mappings.
+	notifySrv := notification.NewNotificationManager(c.s.bus, "io.snapcraft.SessionAgent")
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
@@ -293,7 +290,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	msg := &notification.Message{
 		AppName: refreshInfo.BusyAppName,
-		Summary: summary,
+		Title:   summary,
 		Icon:    icon,
 		Body:    body,
 		Hints:   hints,
@@ -301,7 +298,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// TODO: silently ignore error returned when the notification server does not exist.
 	// TODO: track returned notification ID and respond to actions, if supported.
-	if _, err := notifySrv.SendNotification(msg); err != nil {
+	if err := notifySrv.SendNotification(notification.ID(fmt.Sprintf("refresh:%s", refreshInfo.InstanceName)), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,

@@ -109,6 +109,35 @@ func (s *snapSetSuite) TestSnapSetIntegrationStringWithExclamationMark(c *check.
 	c.Check(s.setConfApiCalls, check.Equals, 1)
 }
 
+func (s *snapSetSuite) TestSnapSetParseStrictJSON(c *check.C) {
+	// mock server
+	s.mockSetConfigServer(c, map[string]interface{}{"a": "b", "c": json.Number("1"), "d": map[string]interface{}{"e": "f"}})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", `key={"a":"b", "c":1, "d": {"e": "f"}}`})
+	c.Assert(err, check.IsNil)
+	c.Check(s.setConfApiCalls, check.Equals, 1)
+}
+
+func (s *snapSetSuite) TestSnapSetFailParsingWithStrictJSON(c *check.C) {
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", `key=notJSON`})
+	c.Assert(err, check.ErrorMatches, "failed to parse JSON:.*")
+}
+
+func (s *snapSetSuite) TestSnapSetFailOnStrictJSONAndString(c *check.C) {
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-t", "-s", "key={}"})
+	c.Assert(err, check.ErrorMatches, "cannot use -t and -s together")
+}
+
+func (s *snapSetSuite) TestSnapSetAsString(c *check.C) {
+	// mock server
+	value := `{"a":"b", "c":1}`
+	s.mockSetConfigServer(c, value)
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "snapname", "-s", fmt.Sprintf("key=%s", value)})
+	c.Assert(err, check.IsNil)
+	c.Check(s.setConfApiCalls, check.Equals, 1)
+}
+
 func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

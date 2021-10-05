@@ -20,9 +20,6 @@ prepare: |
         exit
     fi
   
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
 
@@ -57,9 +54,6 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
 
     echo "Verify that no fde keys are generated"
     tests.nested exec "test ! -d /var/lib/snapd/device/fde"

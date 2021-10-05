@@ -288,10 +288,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	expectedZeroFields := []string{
 		"SuggestedName",
 		"InstanceKey",
-		"Assumes",
 		"OriginalTitle",
 		"OriginalSummary",
 		"OriginalDescription",
+		"OriginalLinks",
 		"Environment",
 		"LicenseAgreement", // XXX go away?
 		"LicenseVersion",   // XXX go away?
@@ -305,6 +305,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
+		"SideInfo.EditedLinks",         // TODO: take this value from the store
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
 		"SystemUsernames",
 	}
@@ -322,9 +323,11 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 				checker(pfx+f.Name+".", v)
 				continue
 			}
+			name := pfx + f.Name
 			if reflect.DeepEqual(v.Interface(), reflect.Zero(f.Type).Interface()) {
-				name := pfx + f.Name
 				c.Check(expectedZeroFields, testutil.Contains, name, Commentf("%s not set", name))
+			} else {
+				c.Check(expectedZeroFields, Not(testutil.Contains), name, Commentf("%s unexpectedly set", name))
 			}
 		}
 	}

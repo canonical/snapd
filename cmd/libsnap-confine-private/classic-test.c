@@ -35,7 +35,7 @@ static void mock_os_release(const char *mocked)
 	const char *old = os_release;
 	if (mocked != NULL) {
 		os_release = "os-release.test";
-		g_file_set_contents(os_release, mocked, -1, NULL);
+		g_assert_true(g_file_set_contents(os_release, mocked, -1, NULL));
 	} else {
 		os_release = "os-release.missing";
 	}

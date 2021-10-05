@@ -29,7 +29,7 @@ parts:
   snapd-deb:
     plugin: nil
     source: .
-    build-snaps: [go/1.10/stable]
+    build-snaps: [go/1.13/stable]
     override-pull: |
       snapcraftctl pull
       # install build dependencies

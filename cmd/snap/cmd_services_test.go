@@ -315,3 +315,90 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
 }
+
+func (s *appOpSuite) TestLogsCommand(c *check.C) {
+	n := 0
+	timestamp := "2021-08-16T17:33:55Z"
+	message := "Thing occurred\n"
+	sid := "service1"
+	pid := "1000"
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/logs")
+			c.Check(r.Method, check.Equals, "GET")
+			w.WriteHeader(200)
+			_, err := w.Write([]byte{0x1E})
+			c.Assert(err, check.IsNil)
+
+			enc := json.NewEncoder(w)
+			err = enc.Encode(map[string]interface{}{
+				"timestamp": timestamp,
+				"message":   message,
+				"sid":       sid,
+				"pid":       pid,
+			})
+			c.Assert(err, check.IsNil)
+
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"logs", "snap"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	utcTime, err := time.Parse(time.RFC3339, timestamp)
+	c.Assert(err, check.IsNil)
+	localTime := utcTime.In(time.Local).Format(time.RFC3339)
+
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf("%s %s[%s]: %s\n", localTime, sid, pid, message))
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *appOpSuite) TestLogsCommandWithAbsTimeFlag(c *check.C) {
+	n := 0
+	timestamp := "2021-08-16T17:33:55Z"
+	message := "Thing occurred"
+	sid := "service1"
+	pid := "1000"
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/logs")
+			c.Check(r.Method, check.Equals, "GET")
+			w.WriteHeader(200)
+			_, err := w.Write([]byte{0x1E})
+			c.Assert(err, check.IsNil)
+
+			enc := json.NewEncoder(w)
+			err = enc.Encode(map[string]interface{}{
+				"timestamp": timestamp,
+				"message":   message,
+				"sid":       sid,
+				"pid":       pid,
+			})
+			c.Assert(err, check.IsNil)
+
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"logs", "snap", "--abs-time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf("%s %s[%s]: %s\n", timestamp, sid, pid, message))
+	c.Check(s.Stderr(), check.Equals, "")
+
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}

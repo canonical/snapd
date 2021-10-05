@@ -32,11 +32,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-const (
-	ubuntuDataLabel = "ubuntu-data"
-	ubuntuSaveLabel = "ubuntu-save"
-)
-
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a
@@ -70,14 +65,12 @@ func roleOrLabelOrName(part gadget.OnDiskStructure) string {
 func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
-	if options.Encrypt {
-		logger.Noticef("        encryption: on")
-	}
+	logger.Noticef("        encryption: %v", options.EncryptionType)
 	if gadgetRoot == "" {
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot, model)
+	lv, _, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
@@ -154,7 +147,8 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 		logger.Noticef("created new partition %v for structure %v (size %v) %s",
 			part.Node, part, part.Size.IECString(), roleFmt)
-		if options.Encrypt && roleNeedsEncryption(part.Role) {
+		encrypt := (options.EncryptionType != secboot.EncryptionTypeNone)
+		if encrypt && roleNeedsEncryption(part.Role) {
 			var keys *EncryptionKeySet
 			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
 				keys, err = makeKeySet()
