@@ -6193,7 +6193,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	refreshedDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6263,7 +6263,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	refreshedDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6332,7 +6332,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	refreshedDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6418,7 +6418,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
 			Epoch:         snap.E("1*"),
-			RefreshedDate: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1),
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
@@ -6595,7 +6595,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	refreshedDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
 	names, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6663,7 +6663,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetIgnoreValidat
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	refreshedDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 	names, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"some-snap"})

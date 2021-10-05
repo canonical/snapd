@@ -2580,7 +2580,7 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	refreshedDate := time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC)
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 	requiredRevision = "1"
 	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
