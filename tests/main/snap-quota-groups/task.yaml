@@ -81,7 +81,7 @@ execute: |
       exit 1
   fi
 
-  snapdSaysMemUsage="$(sudo snap run ttest-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-one | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-one | jq -r '.result.current.memory')"
   kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
   pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
