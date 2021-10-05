@@ -36,8 +36,13 @@ type sfdiskDeviceDump struct {
 }
 
 type sfdiskPartitionTable struct {
-	Label      string            `json:"label"`
-	ID         string            `json:"id"`
+	// Label from sfdisk is really the schema for the disk; DOS or GPT.
+	Label string `json:"label"`
+	// ID is the disk's identifier, it is a UUID for GPT disks or an unsigned
+	// integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	ID string `json:"id"`
+	// Device is the full device node path in /dev as in /dev/sda.
 	Device     string            `json:"device"`
 	Unit       string            `json:"unit"`
 	FirstLBA   uint64            `json:"firstlba"`
@@ -46,6 +51,7 @@ type sfdiskPartitionTable struct {
 }
 
 type sfdiskPartition struct {
+	// Node is the full device node path in /dev as in /dev/sda1.
 	Node  string `json:"node"`
 	Start uint64 `json:"start"`
 	Size  uint64 `json:"size"`
@@ -54,9 +60,16 @@ type sfdiskPartition struct {
 	// says --part-attrs takes a space or comma separated list, the output from
 	// --json/--dump uses a different format.
 	Attrs string `json:"attrs"`
-	Type  string `json:"type"`
-	UUID  string `json:"uuid"`
-	Name  string `json:"name"`
+	// Type is the structure type, which is the same as VolumeStructure's Type,
+	// see that doc-comment for full details, but note that sfdisk may format
+	// the type differently than would normally be used in gadget.yaml so
+	// conversion should be done before using this Type field directly.
+	Type string `json:"type"`
+	// UUID is the partition UUID for the partition.
+	UUID string `json:"uuid"`
+	// Name is the GPT partition label for GPT disks. It is empty for MBR/DOS
+	// disks.
+	Name string `json:"name"`
 }
 
 // TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
@@ -78,9 +91,14 @@ type OnDiskStructure struct {
 // schema, the partition table, and the structure layout it contains.
 type OnDiskVolume struct {
 	Structure []OnDiskStructure
-	ID        string
-	Device    string
-	Schema    string
+	// ID is the disk's identifier, it is a UUID for GPT disks or an unsigned
+	// integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	ID string
+	// Device is the full device node path for the disk, such as /dev/vda.
+	Device string
+	// Schema is the disk schema, GPT or DOS.
+	Schema string
 	// size in bytes
 	Size quantity.Size
 	// sector size in bytes
