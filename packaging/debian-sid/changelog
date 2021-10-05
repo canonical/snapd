@@ -1,6 +1,8 @@
 snapd (2.53-1) unstable; urgency=medium
 
   * New upstream release, LP: #1946127
+    - overlord: fix generated snap-revision assertions in remodel unit
+      tests
     - snap-bootstrap: wait in `mountNonDataPartitionMatchingKernelDisk`
     - interfaces/modem-manager: add access to PCIe modems
     - overlord/devicestate: record recovery capable system on a
@@ -337,7 +339,7 @@ snapd (2.53-1) unstable; urgency=medium
       obvious
     - tests: force snapd-session-agent.socket to be re-generated
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 05 Oct 2021 18:16:47 +0200
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 05 Oct 2021 20:29:14 +0200
 
 snapd (2.52.1-1) unstable; urgency=medium
 

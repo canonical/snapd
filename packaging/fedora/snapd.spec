@@ -980,6 +980,8 @@ fi
 %changelog
 * Tue Oct 05 2021 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.53
+ - overlord: fix generated snap-revision assertions in remodel unit
+   tests
  - snap-bootstrap: wait in `mountNonDataPartitionMatchingKernelDisk`
  - interfaces/modem-manager: add access to PCIe modems
  - overlord/devicestate: record recovery capable system on a
