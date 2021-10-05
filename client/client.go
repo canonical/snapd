@@ -206,14 +206,14 @@ func (e ConnectionError) Unwrap() error {
 	return e.Err
 }
 
-type InternalError struct{ Err error }
+type InternalClientError struct{ Err error }
 
-func (e InternalError) Error() string {
+func (e InternalClientError) Error() string {
 	return fmt.Sprintf("internal error: %s", e.Err.Error())
 }
 
-func (e InternalError) Is(target error) bool {
-	_, ok := target.(InternalError)
+func (e InternalClientError) Is(target error) bool {
+	_, ok := target.(InternalClientError)
 	return ok
 }
 
@@ -284,7 +284,7 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (*http.Response, context.CancelFunc, error) {
 	opts = ensureDoOpts(opts)
 	if opts.Timeout <= 0 {
-		return nil, nil, InternalError{fmt.Errorf("timeout not set in options for rawWithTimeout")}
+		return nil, nil, InternalClientError{fmt.Errorf("timeout not set in options for rawWithTimeout")}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
@@ -372,7 +372,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 		rsp, err = client.raw(ctx, method, path, query, headers, body)
 	} else {
 		if opts.Retry <= 0 {
-			return 0, InternalError{fmt.Errorf("retry setting %s invalid", opts.Retry)}
+			return 0, InternalClientError{fmt.Errorf("retry setting %s invalid", opts.Retry)}
 		}
 		retry := time.NewTicker(opts.Retry)
 		defer retry.Stop()
@@ -415,7 +415,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 
 func notRetryable(err error) bool {
 	return errors.Is(err, AuthorizationError{}) ||
-		errors.Is(err, InternalError{})
+		errors.Is(err, InternalClientError{})
 }
 
 func decodeInto(reader io.Reader, v interface{}) error {

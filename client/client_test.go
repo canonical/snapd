@@ -233,7 +233,7 @@ func (cs *clientSuite) TestClientOnlyRetryAppropriateErrors(c *C) {
 	}
 
 	for _, t := range []struct{ error }{
-		{client.InternalError{Err: fmt.Errorf("boom")}},
+		{client.InternalClientError{Err: fmt.Errorf("boom")}},
 		{client.AuthorizationError{Err: fmt.Errorf("boom")}},
 	} {
 		cs.doCalls = 0
