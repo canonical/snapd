@@ -31,9 +31,11 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1821,4 +1823,437 @@ assets:
 
 	// ensure update for kernel content didn't happen
 	c.Assert(muo.beforeWriteCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceGPTSingleVolume(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": {
+			DevNode: "/dev/foo",
+			DevPath: "/sys/block/foo",
+			DevNum:  "525:1",
+			// assume 34 sectors at end for GPT headers backup
+			DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
+			DiskSizeInBytes:     6000 * 1024 * 1024,
+			SectorSizeBytes:     512,
+			DiskSchema:          "gpt",
+			ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel:   "barething",
+					PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+					FilesystemType:   "",
+					Major:            525,
+					Minor:            2,
+					KernelDeviceNode: "/dev/foo1",
+					KernelDevicePath: "/sys/block/foo/foo1",
+					StructureIndex:   1,
+					StartInBytes:     1024 * 1024,
+					SizeInBytes:      4096,
+				},
+				{
+					PartitionLabel:   "some-filesystem",
+					PartitionUUID:    "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+					FilesystemLabel:  "some-filesystem",
+					FilesystemUUID:   "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
+					FilesystemType:   "ext4",
+					Major:            525,
+					Minor:            3,
+					KernelDeviceNode: "/dev/foo2",
+					KernelDevicePath: "/sys/block/foo/foo2",
+					StructureIndex:   2,
+					StartInBytes:     1024*1024 + 4096,
+					SizeInBytes:      1024 * 1024 * 1024,
+				},
+			},
+		},
+	})
+	defer restore()
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: barething
+        type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
+        size: 4096
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
+		OriginalDevicePath: "/sys/block/foo",
+		OriginalKernelPath: "/dev/foo",
+		DiskID:             "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+		SectorSize:         512,
+		Size:               6000 * 1024 * 1024,
+		Schema:             "gpt",
+		Structure: []gadget.DiskStructureDeviceTraits{
+			{
+				PartitionLabel:     "barething",
+				PartitionUUID:      "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+				OriginalDevicePath: "/sys/block/foo/foo1",
+				OriginalKernelPath: "/dev/foo1",
+				Offset:             0x100000,
+				Size:               0x1000,
+			},
+			{
+				PartitionLabel:     "some-filesystem",
+				PartitionUUID:      "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+				OriginalDevicePath: "/sys/block/foo/foo2",
+				OriginalKernelPath: "/dev/foo2",
+				FilesystemLabel:    "some-filesystem",
+				FilesystemUUID:     "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
+				FilesystemType:     "ext4",
+				Offset:             0x101000,
+				Size:               0x40000000,
+			},
+		},
+	})
+}
+
+func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceGPTExtraOnDiskStructure(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": {
+			DevNode: "/dev/foo",
+			DevPath: "/sys/block/foo",
+			DevNum:  "525:1",
+			// assume 34 sectors at end for GPT headers backup
+			DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
+			DiskSizeInBytes:     6000 * 1024 * 1024,
+			SectorSizeBytes:     512,
+			DiskSchema:          "gpt",
+			ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel:   "barething",
+					PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+					FilesystemType:   "",
+					Major:            525,
+					Minor:            2,
+					KernelDeviceNode: "/dev/foo1",
+					KernelDevicePath: "/sys/block/foo/foo1",
+					StructureIndex:   1,
+					StartInBytes:     1024 * 1024,
+					SizeInBytes:      4096,
+				},
+				{
+					PartitionLabel:   "some-filesystem",
+					PartitionUUID:    "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+					FilesystemLabel:  "some-filesystem",
+					FilesystemUUID:   "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
+					FilesystemType:   "ext4",
+					Major:            525,
+					Minor:            3,
+					KernelDeviceNode: "/dev/foo2",
+					KernelDevicePath: "/sys/block/foo/foo2",
+					StructureIndex:   2,
+					StartInBytes:     1024*1024 + 4096,
+					SizeInBytes:      1024 * 1024 * 1024,
+				},
+			},
+		},
+	})
+	defer restore()
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: barething
+        type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
+        size: 4096
+`
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget`)
+}
+
+func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceGPTExtraLaidOutStructure(c *C) {
+
+	mockDisk := &disks.MockDiskMapping{
+		DevNode: "/dev/foo",
+		DevPath: "/sys/block/foo",
+		DevNum:  "525:1",
+		// assume 34 sectors at end for GPT headers backup
+		DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
+		DiskSizeInBytes:     6000 * 1024 * 1024,
+		SectorSizeBytes:     512,
+		DiskSchema:          "gpt",
+		ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+		Structure: []disks.Partition{
+			{
+				PartitionLabel:   "barething",
+				PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+				FilesystemType:   "",
+				Major:            525,
+				Minor:            2,
+				KernelDeviceNode: "/dev/foo1",
+				KernelDevicePath: "/sys/block/foo/foo1",
+				StructureIndex:   1,
+				StartInBytes:     1024 * 1024,
+				SizeInBytes:      4096,
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: barething
+        type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
+        size: 4096
+      - filesystem: ext4
+        name: ubuntu-data
+        role: system-data
+        size: 1500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	c.Assert(err, IsNil)
+
+	// we can't build the device traits because the two are not compatible, even
+	// though the last structure is system-data which may not exist before
+	// install mode and thus be "compatible" in some contexts, but
+	// DiskVolumeDeviceTraitsForDevice is more strict and requires all
+	// structures to exist and to match
+	_, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure #1 \("ubuntu-data"\) on disk`)
+
+	// if we add a structure to the mock disk which is smaller than the ondisk
+	// layout, we still reject it because the on disk must be at least the size
+	// that the gadget mentions
+	mockDisk.Structure = append(mockDisk.Structure, disks.Partition{
+		PartitionLabel:   "ubuntu-data",
+		PartitionUUID:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		FilesystemType:   "ext4",
+		Major:            525,
+		Minor:            3,
+		KernelDeviceNode: "/dev/foo2",
+		KernelDevicePath: "/sys/block/foo/foo2",
+		StructureIndex:   2,
+		StartInBytes:     1024*1024 + 4096,
+		SizeInBytes:      4096,
+	})
+
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	_, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget size 1572864000 \(1.46 GiB\)`)
+
+	// same size is okay though
+	mockDisk.Structure[1].SizeInBytes = 1500 * 1024 * 1024
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	traits, err := gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	c.Assert(err, IsNil)
+
+	// it has the right size
+	c.Assert(traits.Structure[1].Size, Equals, 1500*quantity.SizeMiB)
+
+	// bigger is okay too
+	mockDisk.Structure[1].SizeInBytes = 3200 * 1024 * 1024
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	traits, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	c.Assert(err, IsNil)
+
+	// and it has the on disk size
+	c.Assert(traits.Structure[1].Size, Equals, 3200*quantity.SizeMiB)
+}
+
+func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceDOSSingleVolume(c *C) {
+	// from a rpi without the kernel assets though for simplicity's sake since
+	// we don't care about the kernel assets for this function at all
+	const yaml = `
+volumes:
+  pi:
+    bootloader: u-boot
+    schema: mbr
+    structure:
+    - content:
+      - source: boot-assets/
+        target: /
+      filesystem: vfat
+      name: ubuntu-seed
+      role: system-seed
+      size: 1200M
+      type: 0C
+    - content:
+      - source: boot.sel
+        target: uboot/ubuntu/boot.sel
+      filesystem: vfat
+      name: ubuntu-boot
+      role: system-boot
+      size: 750M
+      type: 0C
+    - filesystem: ext4
+      name: ubuntu-save
+      role: system-save
+      size: 16M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+    - filesystem: ext4
+      name: ubuntu-data
+      role: system-data
+      size: 1500M
+      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`
+
+	// effectively same mock real disk used as an example in
+	// TestSaveLoadDiskVolumeDeviceTraits
+
+	const oneMeg = 1024 * 1024
+
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": {
+			DevNode:             "/dev/mmcblk0",
+			DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+			DevNum:              "179:0",
+			DiskUsableSectorEnd: 30528 * oneMeg / 512,
+			DiskSizeInBytes:     30528 * oneMeg,
+			SectorSizeBytes:     512,
+			DiskSchema:          "dos",
+			ID:                  "7c301cbd",
+			Structure: []disks.Partition{
+				{
+					PartitionUUID:    "7c301cbd-01",
+					FilesystemLabel:  "ubuntu-seed",
+					FilesystemUUID:   "0E09-0822",
+					FilesystemType:   "vfat",
+					Major:            179,
+					Minor:            1,
+					KernelDeviceNode: "/dev/mmcblk0p1",
+					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+					StructureIndex:   1,
+					StartInBytes:     oneMeg,
+					SizeInBytes:      1200 * oneMeg,
+				},
+				{
+					PartitionUUID:    "7c301cbd-02",
+					FilesystemLabel:  "ubuntu-boot",
+					FilesystemUUID:   "23F9-881F",
+					FilesystemType:   "vfat",
+					Major:            179,
+					Minor:            2,
+					KernelDeviceNode: "/dev/mmcblk0p2",
+					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+					StructureIndex:   2,
+					StartInBytes:     (1 + 1200) * oneMeg,
+					SizeInBytes:      750 * oneMeg,
+				},
+				{
+					PartitionUUID:    "7c301cbd-03",
+					FilesystemLabel:  "ubuntu-save",
+					FilesystemUUID:   "1cdd5826-e9de-4d27-83f7-20249e710590",
+					FilesystemType:   "ext4",
+					Major:            179,
+					Minor:            3,
+					KernelDeviceNode: "/dev/mmcblk0p3",
+					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+					StructureIndex:   3,
+					StartInBytes:     (1 + 1200 + 750) * oneMeg,
+					SizeInBytes:      16 * oneMeg,
+				},
+				{
+					PartitionUUID:    "7c301cbd-04",
+					FilesystemLabel:  "ubuntu-data",
+					FilesystemUUID:   "d7f39661-1da0-48de-8967-ce41343d4345",
+					FilesystemType:   "ext4",
+					Major:            179,
+					Minor:            4,
+					KernelDeviceNode: "/dev/mmcblk0p4",
+					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+					StructureIndex:   4,
+					StartInBytes:     (1 + 1200 + 750 + 16) * oneMeg,
+					SizeInBytes:      (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
+				},
+			},
+		},
+	})
+	defer restore()
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/mmcblk0")
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
+		OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+		OriginalKernelPath: "/dev/mmcblk0",
+		DiskID:             "7c301cbd",
+		Size:               30528 * oneMeg, // ~ 32 GB SD card
+		SectorSize:         512,
+		Schema:             "dos",
+		Structure: []gadget.DiskStructureDeviceTraits{
+			{
+				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+				OriginalKernelPath: "/dev/mmcblk0p1",
+				PartitionUUID:      "7c301cbd-01",
+				FilesystemLabel:    "ubuntu-seed",
+				FilesystemUUID:     "0E09-0822",
+				FilesystemType:     "vfat",
+				Offset:             oneMeg,
+				Size:               (1200) * oneMeg,
+			},
+			{
+				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+				OriginalKernelPath: "/dev/mmcblk0p2",
+				PartitionUUID:      "7c301cbd-02",
+				FilesystemLabel:    "ubuntu-boot",
+				FilesystemUUID:     "23F9-881F",
+				FilesystemType:     "vfat",
+				Offset:             (1 + 1200) * oneMeg,
+				Size:               (750) * oneMeg,
+			},
+			{
+				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+				OriginalKernelPath: "/dev/mmcblk0p3",
+				PartitionUUID:      "7c301cbd-03",
+				FilesystemLabel:    "ubuntu-save",
+				FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
+				FilesystemType:     "ext4",
+				Offset:             (1 + 1200 + 750) * oneMeg,
+				Size:               16 * oneMeg,
+			},
+			{
+				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+				OriginalKernelPath: "/dev/mmcblk0p4",
+				PartitionUUID:      "7c301cbd-04",
+				FilesystemLabel:    "ubuntu-data",
+				FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
+				FilesystemType:     "ext4",
+				Offset:             (1 + 1200 + 750 + 16) * oneMeg,
+				// total size - offset of last structure
+				Size: (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
+			},
+		},
+	})
 }

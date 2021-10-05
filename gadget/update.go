@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 )
 
 var (
@@ -324,6 +325,99 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	}
 
 	return nil
+}
+
+// DiskVolumeDeviceTraitsForDevice takes a gadget volume and an expected
+// disk device path and builds up the traits for that device. It validates that
+// the specified volume can be laid out exactly to the disk device, returning an
+// error if the two are not compatible.
+func DiskVolumeDeviceTraitsForDevice(laidOutVolume *LaidOutVolume, dev string) (res DiskVolumeDeviceTraits, err error) {
+	vol := laidOutVolume.Volume
+
+	// get the disk layout for this device
+	diskLayout, err := OnDiskVolumeFromDevice(dev)
+	if err != nil {
+		return res, fmt.Errorf("cannot read %v partitions for candidate volume %s: %v", dev, vol.Name, err)
+	}
+
+	// ensure that the on disk and the laid out version are actually compatbile
+	opts := &EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+	}
+	if err := EnsureLayoutCompatibility(laidOutVolume, diskLayout, opts); err != nil {
+		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
+	}
+
+	// also get a Disk{} interface for this device
+	disk, err := disks.DiskFromDeviceName(dev)
+	if err != nil {
+		return res, fmt.Errorf("cannot get disk for device %s: %v", dev, err)
+	}
+
+	mappedStructures := make([]DiskStructureDeviceTraits, 0, len(diskLayout.Structure))
+
+	diskPartitions, err := disk.Partitions()
+	if err != nil {
+		return res, fmt.Errorf("cannot get partitions for disk device %s: %v", dev, err)
+	}
+
+	// make an easy map of device nodes to partitions for lookup
+	diskPartitionsByDeviceNode := map[string]disks.Partition{}
+	for _, p := range diskPartitions {
+		diskPartitionsByDeviceNode[p.KernelDeviceNode] = p
+	}
+
+	for _, structure := range diskLayout.Structure {
+		part, ok := diskPartitionsByDeviceNode[structure.Node]
+		if !ok {
+			// Somehow this structure in the laid out disk does not exist in
+			// the same physical disk we built for it using udev and
+			// disks.DiskFromDeviceName.
+			// This is unexpected as even `type: bare` i.e. raw structures will
+			// show up in the partition table and thus have a device node
+			// associated with it - this is also true of the "BIOS Boot"
+			// structure for example too, so it's unclear how this case could be
+			// triggered in practice.
+			return res, fmt.Errorf("internal error: inconsistent disk structures from LaidOutDisk and disks.Disk, diskLayout: %#v disks.Partitions: %#v, partition for device node %s missing from udev-derived disk partitions", diskLayout, diskPartitions, structure.Node)
+		}
+		ms := DiskStructureDeviceTraits{
+			Size:               quantity.Size(part.SizeInBytes),
+			Offset:             quantity.Offset(part.StartInBytes),
+			PartitionUUID:      part.PartitionUUID,
+			OriginalKernelPath: part.KernelDeviceNode,
+			OriginalDevicePath: part.KernelDevicePath,
+			PartitionType:      part.PartitionType,
+			PartitionLabel:     part.PartitionLabel,  // this will be empty on dos disks
+			FilesystemLabel:    part.FilesystemLabel, // blkid encoded
+			FilesystemUUID:     part.FilesystemUUID,  // blkid encoded
+			FilesystemType:     part.FilesystemType,
+		}
+
+		mappedStructures = append(mappedStructures, ms)
+
+		// delete this partition from the map
+		delete(diskPartitionsByDeviceNode, structure.Node)
+	}
+
+	// check that we don't have any extra partitions on the disk that are not
+	// accounted for in the layout
+	if len(mappedStructures) != len(diskPartitions) {
+		leftovers := []string{}
+		for _, part := range diskPartitionsByDeviceNode {
+			leftovers = append(leftovers, part.KernelDeviceNode)
+		}
+		return res, fmt.Errorf("unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
+	}
+
+	return DiskVolumeDeviceTraits{
+		OriginalDevicePath: disk.KernelDevicePath(),
+		OriginalKernelPath: dev,
+		DiskID:             diskLayout.ID,
+		Structure:          mappedStructures,
+		Size:               diskLayout.Size,
+		SectorSize:         diskLayout.SectorSize,
+		Schema:             disk.Schema(),
+	}, nil
 }
 
 // Update applies the gadget update given the gadget information and data from
