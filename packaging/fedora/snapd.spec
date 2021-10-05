@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.52
+Version:        2.52.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -971,6 +971,28 @@ fi
 
 
 %changelog
+* Tue Oct 05 2021 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.52.1
+ - snap-bootstrap: wait in `mountNonDataPartitionMatchingKernelDisk`
+   for the disk (if not present already)
+ - many: support an API flag system-restart-immediate to make snap
+   ops proceed immediately with system restarts
+ - cmd/libsnap-confine-private: g_spawn_check_exit_status is
+   deprecated since glib 2.69
+ - interfaces/seccomp: add clone3 to default template
+ - interfaces/apparmor/template.go: allow inspection of dbus
+   mediation level
+ - interfaces/dsp: add a usb rule to the ambarella flavor
+ - cmd/snap-confine: update s-c apparmor profile to allow versioned
+   ld.so
+ - o/ifacestate: don't lose connections if snaps are broken
+ - interfaces/builtin/opengl.go: add libOpenGL.so* too
+ - interfaces/hardware-observe: add some dmi properties
+ - build-aux: stage libgcc1 library into snapd snap
+ - interfaces/block-devices: support to access the state of block
+   devices
+ - packaging: ship the `snapd.apparmor.service` unit in debian
+
 * Fri Sep 03 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.52
  - interface/builtin: add qualcomm-ipc-router interface for
