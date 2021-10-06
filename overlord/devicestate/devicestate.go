@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
@@ -235,6 +236,7 @@ func delayedCrossMgrInit() {
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
+	snapstate.IsNTPSynchronized = timeutil.IsNTPSynchronized
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
 }

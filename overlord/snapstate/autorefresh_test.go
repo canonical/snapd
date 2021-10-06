@@ -130,6 +130,7 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	}
 	s.AddCleanup(func() { snapstate.AutoAliases = nil })
 	snapstate.IsOnMeteredConnection = func() (bool, error) { return false, nil }
+	snapstate.IsNTPSynchronized = func() (bool, error) { return true, nil }
 
 	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
