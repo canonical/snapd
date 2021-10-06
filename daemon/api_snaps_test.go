@@ -1150,8 +1150,7 @@ func (s *snapsSuite) TestPostSnapWithChannel(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapSystemRestartImmediate(c *check.C) {
-	checkOpts := func(opts *snapstate.RevisionOptions) {}
-	_, systemRestartImmediate := s.testPostSnap(c, `"system-restart-immediate": true`, checkOpts)
+	_, systemRestartImmediate := s.testPostSnap(c, `"system-restart-immediate": true`, nil)
 	c.Check(systemRestartImmediate, check.Equals, true)
 }
 
@@ -1168,7 +1167,9 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 
 	checked := false
 	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
-		checkOpts(opts)
+		if checkOpts != nil {
+			checkOpts(opts)
+		}
 		checked = true
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil

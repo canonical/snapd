@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1494,7 +1495,7 @@ volumes:
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(gadgetUpdateCalled, Equals, true)
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
@@ -3981,7 +3982,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			defer st.Unlock()
 			// not strictly needed, but underlines there's a reboot
 			// happening
-			st.RequestRestart(state.RestartSystemNow)
+			restart.Request(st, restart.RestartSystemNow)
 		}
 		if fakeRebootCallsReady {
 			return nil
@@ -4016,7 +4017,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	c.Check(chg.IsReady(), Equals, false)
 	c.Assert(chg.Err(), IsNil)
 	// injected by fake restart
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// 3 calls: promote tried system, old & new model, just the new model
 	c.Check(resealKeyCalls, Equals, 3)
 	// even if errors occur during reseal, set-model is done

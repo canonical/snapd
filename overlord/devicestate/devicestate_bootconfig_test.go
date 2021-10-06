@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -129,7 +130,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 			c.Assert(log, HasLen, 1)
 			c.Check(log[0], Matches, ".* updated boot config assets")
 			// update was applied, thus a restart was requested
-			c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
