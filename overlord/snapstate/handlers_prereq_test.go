@@ -48,7 +48,7 @@ type prereqSuite struct {
 var _ = Suite(&prereqSuite{})
 
 func (s *prereqSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.fakeStore = &fakeStore{
 		state:       s.state,

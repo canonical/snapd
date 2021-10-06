@@ -188,16 +188,48 @@ var diskFromDeviceName = func(deviceName string) (Disk, error) {
 	return diskFromUdevProps(deviceName, "name", props)
 }
 
+func mountPointsForPartitionRoot(part Partition, mountOptsMatching map[string]string) ([]string, error) {
+	mounts, err := osutil.LoadMountInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	mountpoints := []string{}
+mountLoop:
+	for _, mnt := range mounts {
+		if mnt.DevMajor == part.Major && mnt.DevMinor == part.Minor && mnt.Root == "/" {
+			// check if mount opts match
+			for key, val := range mountOptsMatching {
+				candVal, ok := mnt.MountOptions[key]
+				if !ok || candVal != val {
+					// either the option is missing from this mount or it has a
+					// different value
+					continue mountLoop
+				}
+			}
+			mountpoints = append(mountpoints, mnt.MountDir)
+		}
+	}
+
+	return mountpoints, nil
+}
+
+func (d *disk) Partitions() ([]Partition, error) {
+	if !d.hasPartitions {
+		// for i.e. device mapper disks which don't have partitions
+		return nil, nil
+	}
+	if err := d.populatePartitions(); err != nil {
+		return nil, err
+	}
+
+	return d.partitions, nil
+}
+
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
 func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	// call the unexported version that may be mocked by tests
 	return diskFromMountPoint(mountpoint, opts)
-}
-
-type partition struct {
-	fsLabel   string
-	partLabel string
-	partUUID  string
 }
 
 type disk struct {
@@ -214,7 +246,7 @@ type disk struct {
 	// partitions is the set of discovered partitions for the disk, each
 	// partition must have a partition uuid, but may or may not have either a
 	// partition label or a filesystem label
-	partitions []partition
+	partitions []Partition
 
 	// whether the disk device has partitions, and thus is of type "disk", or
 	// whether the disk device is a volume that is not a physical disk
@@ -354,7 +386,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	}
 
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
-	// partition originated from
+	// partition originated from if this mount point is indeed for a partition
 	if majorMinor, ok := props["ID_PART_ENTRY_DISK"]; ok {
 		maj, min, err := parseDeviceMajorMinor(majorMinor)
 		if err != nil {
@@ -408,7 +440,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 
 func (d *disk) populatePartitions() error {
 	if d.partitions == nil {
-		d.partitions = []partition{}
+		d.partitions = []Partition{}
 
 		// step 1. using the devpath for the disk, glob for matching devices
 		//         using the devname in that sysfs directory
@@ -434,7 +466,7 @@ func (d *disk) populatePartitions() error {
 		sort.Strings(paths)
 
 		for _, path := range paths {
-			part := partition{}
+			part := Partition{}
 
 			// check if this device is a partition - note that the mere
 			// existence of this file is sufficient to indicate that it is a
@@ -455,22 +487,46 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
+			// the devpath should always be available
+			devpath, ok := udevProps["DEVPATH"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVPATH\"", partDev, d.Dev())
+			}
+			part.KernelDevicePath = filepath.Join(dirs.SysfsDir, devpath)
+
+			devname, ok := udevProps["DEVNAME"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVNAME\"", partDev, d.Dev())
+			}
+			part.KernelDeviceNode = devname
+
 			// we should always have the partition uuid, and we may not have
 			// either the partition label or the filesystem label, on GPT disks
 			// the partition label is optional, and may or may not have a
 			// filesystem on the partition, on MBR we will never have a
 			// partition label, and we also may or may not have a filesystem on
 			// the partition
-			part.partUUID = udevProps["ID_PART_ENTRY_UUID"]
-			if part.partUUID == "" {
+			part.PartitionUUID = udevProps["ID_PART_ENTRY_UUID"]
+			if part.PartitionUUID == "" {
 				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
+			}
+
+			// we should also always have the device major/minor for this device
+			part.Major, err = strconv.Atoi(udevProps["MAJOR"])
+			if err != nil {
+				return fmt.Errorf("cannot parse device major number format: %v", err)
+			}
+
+			part.Minor, err = strconv.Atoi(udevProps["MINOR"])
+			if err != nil {
+				return fmt.Errorf("cannot parse device major number format: %v", err)
 			}
 
 			// on MBR disks we may not have a partition label, so this may be
 			// the empty string. Note that this value is encoded similarly to
 			// libblkid and should be compared with normal Go strings that are
 			// encoded using BlkIDEncodeLabel.
-			part.partLabel = udevProps["ID_PART_ENTRY_NAME"]
+			part.PartitionLabel = udevProps["ID_PART_ENTRY_NAME"]
 
 			// a partition doesn't need to have a filesystem, and such may not
 			// have a filesystem label; the bios-boot partition in the amd64 pc
@@ -479,7 +535,10 @@ func (d *disk) populatePartitions() error {
 			// Note that this value is also encoded similarly to
 			// ID_PART_ENTRY_NAME and thus should only be compared with normal
 			// Go strings that are encoded with BlkIDEncodeLabel.
-			part.fsLabel = udevProps["ID_FS_LABEL_ENC"]
+			part.FilesystemLabel = udevProps["ID_FS_LABEL_ENC"]
+
+			// similar to above, this may be empty, but if non-empty is encoded
+			part.FilesystemUUID = udevProps["ID_FS_UUID_ENC"]
 
 			// prepend the partition to the front, this has the effect that if
 			// two partitions have the same label (either filesystem or
@@ -493,7 +552,7 @@ func (d *disk) populatePartitions() error {
 			// non-unique filesystem labels or non-unique partition labels (or
 			// even non-unique partition uuids)? then we would just error if we
 			// encounter a duplicated value for a partition
-			d.partitions = append([]partition{part}, d.partitions...)
+			d.partitions = append([]Partition{part}, d.partitions...)
 		}
 	}
 
@@ -507,44 +566,62 @@ func (d *disk) populatePartitions() error {
 	return nil
 }
 
-func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+func (d *disk) FindMatchingPartitionWithPartLabel(label string) (Partition, error) {
 	// always encode the label
 	encodedLabel := BlkIDEncodeLabel(label)
 
 	if err := d.populatePartitions(); err != nil {
-		return "", err
+		return Partition{}, err
 	}
 
 	for _, p := range d.partitions {
-		if p.partLabel == encodedLabel {
-			return p.partUUID, nil
+		if p.PartitionLabel == encodedLabel {
+			return p, nil
 		}
 	}
 
-	return "", PartitionNotFoundError{
+	return Partition{}, PartitionNotFoundError{
 		SearchType:  "partition-label",
 		SearchQuery: label,
 	}
 }
 
-func (d *disk) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
+func (d *disk) FindMatchingPartitionWithFsLabel(label string) (Partition, error) {
 	// always encode the label
 	encodedLabel := BlkIDEncodeLabel(label)
 
 	if err := d.populatePartitions(); err != nil {
-		return "", err
+		return Partition{}, err
 	}
 
 	for _, p := range d.partitions {
-		if p.fsLabel == encodedLabel {
-			return p.partUUID, nil
+		if p.FilesystemLabel == encodedLabel {
+			return p, nil
 		}
 	}
 
-	return "", PartitionNotFoundError{
+	return Partition{}, PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: label,
 	}
+}
+
+// compatibility methods
+// TODO: eliminate these and use the more generic functions in callers
+func (d *disk) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
+	p, err := d.FindMatchingPartitionWithFsLabel(label)
+	if err != nil {
+		return "", err
+	}
+	return p.PartitionUUID, nil
+}
+
+func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+	p, err := d.FindMatchingPartitionWithPartLabel(label)
+	if err != nil {
+		return "", err
+	}
+	return p.PartitionUUID, nil
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
