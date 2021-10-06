@@ -388,7 +388,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 			if err == nil {
 				defer cancel()
 			}
-			if err == nil || notRetryable(err) || method != "GET" {
+			if err == nil || shouldNotRetryError(err) || method != "GET" {
 				break
 			}
 			select {
@@ -413,7 +413,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	return rsp.StatusCode, nil
 }
 
-func notRetryable(err error) bool {
+func shouldNotRetryError(err error) bool {
 	return errors.Is(err, AuthorizationError{}) ||
 		errors.Is(err, InternalClientError{})
 }
