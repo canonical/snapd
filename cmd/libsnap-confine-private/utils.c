@@ -86,7 +86,7 @@ static int parse_bool(const char *text, bool *value, bool default_value)
  * printed to stderr. If the environment variable is unset, set value to the
  * default_value as if the environment variable was set to default_value.
  **/
-static bool getenv_bool(const char *name, bool default_value)
+bool getenv_bool(const char *name, bool default_value)
 {
 	const char *str_value = getenv(name);
 	bool value = default_value;

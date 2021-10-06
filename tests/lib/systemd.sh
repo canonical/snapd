@@ -1,21 +1,11 @@
 #!/bin/bash
 
-# Use like systemd_create_and_start_unit(fakestore, "$(which fakestore) -start -dir $top_dir -addr localhost:11028 $@")
-systemd_create_and_start_unit() {
-    printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n' "${SPREAD_JOB:-unknown}" "$2" > "/run/systemd/system/$1.service"
-    if [ -n "${3:-}" ]; then
-        echo "Environment=$3" >> "/run/systemd/system/$1.service"
-    fi
-    systemctl daemon-reload
-    systemctl start "$1"
-}
-
 # Create and start a persistent systemd unit that survives reboots. Use as:
-#   systemd_create_and_start_persistent_unit "name" "my-service --args"
+#   systemd_create_and_start_unit "name" "my-service --args"
 # The third arg supports "overrides" which allow to customize the service
 # as needed, e.g.:
-#   systemd_create_and_start_persistent_unit "name" "start" "[Unit]\nAfter=foo"
-systemd_create_and_start_persistent_unit() {
+#   systemd_create_and_start_unit "name" "start" "[Unit]\nAfter=foo"
+systemd_create_and_start_unit() {
     printf '[Unit]\nDescription=Support for test %s\n[Service]\nType=simple\nExecStart=%s\n[Install]\nWantedBy=multi-user.target\n' "${SPREAD_JOB:-unknown}" "$2" > "/etc/systemd/system/$1.service"
     if [ -n "${3:-}" ]; then
         mkdir -p "/etc/systemd/system/$1.service.d"
@@ -28,19 +18,11 @@ systemd_create_and_start_persistent_unit() {
     wait_for_service "$1"
 }
 
-system_stop_and_remove_persistent_unit() {
+systemd_stop_and_remove_unit() {
     systemctl stop "$1" || true
     systemctl disable "$1" || true
     rm -f "/etc/systemd/system/$1.service"
     rm -rf "/etc/systemd/system/$1.service.d"
-}
-
-# Use like systemd_stop_and_destroy_unit(fakestore)
-systemd_stop_and_destroy_unit() {
-    if systemctl is-active "$1"; then
-        systemctl stop "$1"
-    fi
-    rm -f "/run/systemd/system/$1.service"
     systemctl daemon-reload
 }
 

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -110,8 +111,8 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
 				},
 			},
 		},
@@ -237,12 +238,13 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 
 		// copy existing mock
 		m := mockOnDiskStructureSystemSeed
-		m.LaidOutContent = []gadget.LaidOutContent{
+		m.ResolvedContent = []gadget.ResolvedContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
 				},
+				ResolvedSource: filepath.Join(s.gadgetRoot, "grubx64.efi"),
 			},
 		}
 		obs := &mockWriteObserver{
@@ -288,7 +290,7 @@ func (s *contentTestSuite) TestWriteRawContent(c *C) {
 				Image: "pc-core.img",
 			},
 			StartOffset: 2,
-			Size:        gadget.Size(len("pc-core.img content")),
+			Size:        quantity.Size(len("pc-core.img content")),
 		},
 	}
 

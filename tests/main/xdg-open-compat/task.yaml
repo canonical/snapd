@@ -15,20 +15,6 @@ environment:
     DISPLAY: :0
     XDG_OPEN_OUTPUT: /tmp/xdg-open-output
 
-restore: |
-    tests.session -u test restore
-
-    rm -f /usr/bin/xdg-open
-    rm -f "$XDG_OPEN_OUTPUT"
-    dpkg -r snapd-xdg-open
-    rm -f /usr/share/applications/defaults.list
-    rm -f /usr/share/applications/xdg-open.desktop
-
-    # restore original xdg-open
-    if [ -e /usr/bin/xdg-open.orig ]; then
-        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
-    fi
-
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
 
@@ -81,6 +67,20 @@ prepare: |
     EOF
 
     chmod +x /usr/bin/xdg-open
+
+restore: |
+    tests.session -u test restore
+
+    rm -f /usr/bin/xdg-open
+    rm -f "$XDG_OPEN_OUTPUT"
+    dpkg -r snapd-xdg-open
+    rm -f /usr/share/applications/defaults.list
+    rm -f /usr/share/applications/xdg-open.desktop
+
+    # restore original xdg-open
+    if [ -e /usr/bin/xdg-open.orig ]; then
+        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
+    fi
 
 execute: |
     xdg_open_url() {

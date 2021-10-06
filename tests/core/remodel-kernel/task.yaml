@@ -1,19 +1,15 @@
 summary: |
     Test a remodel that switches to a new kernel
 
-environment:
-    OLD_KERNEL: pc-kernel
-    NEW_KERNEL: test-snapd-pc-kernel
-
 # FIXME: add core18 test as well
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-16-64]
 
+environment:
+    OLD_KERNEL: pc-kernel
+    NEW_KERNEL: test-snapd-pc-kernel
+
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
@@ -23,25 +19,21 @@ prepare: |
     readlink /snap/pc-kernel/current > original-revision.txt
 
     systemctl stop snapd.service snapd.socket
-    clean_snapd_lib
 
-    # Generic setup for test account
+    clean_snapd_lib
     prepare_core_model
-    prepare_test_account developer1
-    prepare_test_model developer1-pc
-    prepare_testrootorg_store
+    prepare_test_account valid-for-testing
+    prepare_test_model valid-for-testing-pc
 
     # kick first boot again
     systemctl start snapd.service snapd.socket
 
     # wait for first boot to be done
     wait_for_first_boot_change
+    # and for the serial to be available
+    wait_for_device_initialized_change
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
@@ -60,12 +52,10 @@ restore: |
     done
 
     systemctl stop snapd.service snapd.socket
-    clean_snapd_lib
 
-    # Generic restore for test account
-    restore_test_account developer1
-    restore_test_model developer1-pc
-    restore_testrootorg_store
+    clean_snapd_lib
+    restore_test_account valid-for-testing
+    restore_test_model valid-for-testing-pc
     restore_core_model
 
     # kick first boot again
@@ -86,12 +76,6 @@ restore: |
     fi
 
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    #shellcheck source=tests/lib/boot.sh
-    . "$TESTSLIB"/boot.sh
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
@@ -118,7 +102,7 @@ execute: |
         snap debug model|MATCH "model: my-model"
 
         echo "Now we remodel"
-        MODEL="$(get_test_model developer1-pc-new-kernel)"
+        MODEL="$(get_test_model valid-for-testing-pc-new-kernel-revno-2)"
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
         echo "Double check that we boot into the right kernel"
@@ -134,7 +118,7 @@ execute: |
         snap list "$NEW_KERNEL"
 
         echo "And are using it"
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         grub-editenv list | MATCH "snap_kernel=$NEW_KERNEL"
 
         echo "and we got the new model assertion"
@@ -149,14 +133,14 @@ execute: |
         snap remove --purge "$OLD_KERNEL"
 
         echo "And we can remodel again and remove the new kernel"
-        MODEL="$(get_test_model developer1-pc-revno3)"
+        MODEL="$(get_test_model valid-for-testing-pc-revno-3)"
         snap remodel "${TESTSLIB}/assertions/${MODEL}"
         REBOOT
     fi
 
     # reboot from new model to undo the new model again (to not pollute tests)
     if [ "$SPREAD_REBOOT" = 2 ]; then
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         grub-editenv list | MATCH "snap_kernel=$OLD_KERNEL"
 
         wait_change_done "Refresh model assertion from revision 2 to 3"

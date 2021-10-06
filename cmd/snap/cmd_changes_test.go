@@ -231,3 +231,22 @@ Doing +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary \(50.00%\)
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
+
+func (s *SnapSuite) TestNoChanges(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes")
+			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"changes"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "no changes found\n")
+}

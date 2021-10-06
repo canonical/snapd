@@ -5,7 +5,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic
 
     echo "Build failing hooks package"
-    snap pack "$TESTSLIB"/snaps/failing-config-hooks
+    snap pack failing-config-hooks
 
     echo "Build package with hook to run snapctl set"
     "$TESTSTOOLS"/snaps-state install-local snapctl-hooks

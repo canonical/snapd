@@ -131,6 +131,13 @@ func MockInfo(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	defer restoreSanitize()
 	snapInfo, err := snap.InfoFromSnapYaml([]byte(yamlText))
 	c.Assert(err, check.IsNil)
+	if snapInfo.InstanceName() == "core" && snapInfo.Type() != snap.TypeOS {
+		panic("core snap must use type: os")
+	}
+	if snapInfo.InstanceName() == "snapd" && snapInfo.Type() != snap.TypeSnapd {
+		panic("snapd snap must use type: snapd")
+	}
+
 	snapInfo.SideInfo = *sideInfo
 	err = snap.Validate(snapInfo)
 	c.Assert(err, check.IsNil)
@@ -229,6 +236,26 @@ func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]str
 	c.Assert(err, check.IsNil)
 	return filepath.Join(snapSource, snapFilePath), snapInfo
 
+}
+
+// MakeSnapFileWithDir makes a squashfs snap file and a directory under
+// /snaps/<snap>/<rev> with the given contents. It's a combined effect of
+// MakeTestSnapInfoWithFiles and MockSnapWithFiles.
+func MakeSnapFileAndDir(c *check.C, snapYamlContent string, files [][]string, si *snap.SideInfo) *snap.Info {
+	info := MockSnapWithFiles(c, snapYamlContent, si, files)
+
+	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	defer restoreSanitize()
+
+	err := osutil.ChDir(info.MountDir(), func() error {
+		snapName, err := pack.Snap(info.MountDir(), &pack.Options{
+			SnapName: info.MountFile(),
+		})
+		c.Check(snapName, check.Equals, info.MountFile())
+		return err
+	})
+	c.Assert(err, check.IsNil)
+	return info
 }
 
 // MustParseChannel parses a string representing a store channel and

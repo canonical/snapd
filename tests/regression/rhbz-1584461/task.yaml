@@ -1,6 +1,6 @@
 summary: Verify directories from the base snap are not mounted over symlinks in /etc
 
-description: |
+details: |
   The host's /etc is made available inside the snap's mount namespace. During
   setup, snap-confine attempts to preserve some entries from the base snap to
   present a uniform environment for the snaps. When the entries in host
@@ -15,8 +15,6 @@ restore: |
         rm /etc/ssl
         mv /etc/ssl-backup /etc/ssl
     fi
-
-    rm -f ./in-snap ./on-host
 
 execute: |
     # the following mount entries are visible on a broken system:
@@ -35,7 +33,7 @@ execute: |
     snap install test-snapd-sh
     test-snapd-sh.sh -c 'echo hello'
 
-    mount | not MATCH /etc/ssl-backup
+    mount | NOMATCH /etc/ssl-backup
 
     test-snapd-sh.sh -c 'find /etc/ssl/ -ls' | sort > in-snap
     # same thing is visible in and out

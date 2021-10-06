@@ -4,7 +4,11 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	. "gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 func TestConnect(t *testing.T) {
 	conn := new(UEventConn)
@@ -14,9 +18,8 @@ func TestConnect(t *testing.T) {
 	defer conn.Close()
 
 	conn2 := new(UEventConn)
-	if err := conn2.Connect(UdevEvent); err == nil {
-		// see issue: https://github.com/pilebones/go-udev/issues/3 by @stolowski
-		t.Fatal("can't subscribing a second time to netlink socket with PID", conn2.Addr.Pid)
+	if err := conn2.Connect(UdevEvent); err != nil {
+		t.Fatal("unable to subscribe to netlink uevent a second time, err:", err)
 	}
 	defer conn2.Close()
 }

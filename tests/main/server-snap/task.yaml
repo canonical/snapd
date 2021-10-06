@@ -3,6 +3,8 @@ summary: Check snap web servers
 # arch: there is no ip6-localhost
 systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
+warn-timeout: 3m
+
 environment:
     SNAP_NAME/pythonServer: test-snapd-python-webserver
     IP_VERSION/pythonServer: 4
@@ -14,8 +16,6 @@ environment:
     PORT/goServer: 8081
     TEXT/goServer: Hello World
     LOCALHOST/goServer: ip6-localhost
-
-warn-timeout: 3m
 
 prepare: |
     snap install "$SNAP_NAME"

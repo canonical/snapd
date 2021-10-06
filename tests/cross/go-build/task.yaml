@@ -21,15 +21,8 @@ environment:
     X_GCC/ppc64el: gcc-powerpc64le-linux-gnu
     X_CC/ppc64el: powerpc64le-linux-gnu-gcc
 
-restore: |
-    rm -rf /tmp/cross-build
-    dpkg -l | awk "/^ii.*$X_DEBARCH/{print \$2}" | xargs apt --yes --quiet -o Dpkg::Progress-Fancy=false autoremove --purge
-    dpkg --remove-architecture "$X_DEBARCH"
-    mv /etc/apt/sources.list.orig /etc/apt/sources.list
-    apt --quiet -o Dpkg::Progress-Fancy=false update
-
 prepare: |
-    source /etc/os-release
+    . /etc/os-release
     mkdir -p /tmp/cross-build/src/github.com/snapcore
     cp -ar "$PROJECT_PATH" /tmp/cross-build/src/github.com/snapcore
     chown -R test:12345 /tmp/cross-build
@@ -55,9 +48,17 @@ prepare: |
     apt --quiet -o Dpkg::Progress-Fancy=false update
     apt --yes --quiet -o Dpkg::Progress-Fancy=false install "$X_GCC" libseccomp2:"$X_DEBARCH" libseccomp-dev:"$X_DEBARCH"
 
+restore: |
+    rm -rf /tmp/cross-build
+    dpkg -l | awk "/^ii.*$X_DEBARCH/{print \$2}" | xargs apt --yes --quiet -o Dpkg::Progress-Fancy=false autoremove --purge
+    dpkg --remove-architecture "$X_DEBARCH"
+    mv /etc/apt/sources.list.orig /etc/apt/sources.list
+    apt --quiet -o Dpkg::Progress-Fancy=false update
+
 execute: |
     cd /tmp/cross-build/src/github.com/snapcore/snapd
     # grab only packages whose name is 'main'
+    #su -c "GOPATH=/tmp/cross-build go mod vendor" test
     for cmd in $( GOPATH=/tmp/cross-build go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/...); do
-      su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$X_GOARCH CC=$X_CC go build -v -o /dev/null $cmd" test
+      su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$X_GOARCH CC=$X_CC go build -mod vendor -v -o /dev/null $cmd" test
     done

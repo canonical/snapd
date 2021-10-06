@@ -13,5 +13,5 @@ execute: |
     echo "The snap was installed and can be used"
     test-snapd-unknown-interfaces -c true
     echo "The bogus plugs and slots are not added"
-    snap interfaces | not MATCH bogus-plug
-    snap interfaces | not MATCH bogus-slot
+    snap interfaces | NOMATCH bogus-plug
+    snap interfaces | NOMATCH bogus-slot

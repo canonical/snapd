@@ -805,7 +805,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapBuild)
-	c.Assert(err, ErrorMatches, `snap-build assertion timestamp outside of signing key validity \(key valid since.*\)`)
+	c.Assert(err, ErrorMatches, `snap-build assertion timestamp "2013-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
 type snapRevSuite struct {
@@ -942,7 +942,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapRev)
-	c.Assert(err, ErrorMatches, `snap-revision assertion timestamp outside of signing key validity \(key valid since.*\)`)
+	c.Assert(err, ErrorMatches, `snap-revision assertion timestamp "2013-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
 func (srs *snapRevSuite) TestSnapRevisionCheckUntrustedAuthority(c *C) {

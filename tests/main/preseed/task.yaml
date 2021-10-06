@@ -1,5 +1,6 @@
 summary: Check that preseeding of current ubuntu cloud image works.
-description: |
+
+details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works, up to the point where the image is ready to be booted.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
@@ -8,18 +9,13 @@ systems: [ubuntu-2*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
+  LXD_BASE_SNAP: core20
 
 prepare: |
   # the get_image_url_for_nested_vm is a convenient helper that returns
   # a cloud image url matching current $SPREAD_SYSTEM.
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB/snaps.sh"
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
 
-  wget "$(nested_get_image_url_for_vm)" -O cloudimg.img
+  wget --quiet "$(tests.nested download image-url)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
   #shellcheck source=tests/lib/preseed.sh
@@ -27,7 +23,7 @@ prepare: |
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
   # add snapd from this branch into the seed
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
   mv snapd-from-deb.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 
@@ -48,7 +44,7 @@ execute: |
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
   # sanity, core snap mounted by snap-preseed got unmounted
-  mount | not MATCH "snap-preseed"
+  mount | NOMATCH "snap-preseed"
 
   snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 > tasks.log
 
@@ -67,15 +63,15 @@ execute: |
   MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"snapd\"" < tasks.log
   MATCH "Done .+ setup-aliases +Setup snap \"snapd\" aliases" < tasks.log
 
-  MATCH "Done .+ prerequisites +Ensure prerequisites for \"core18\" are available" < tasks.log
-  MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/core18_[0-9]+.snap" < tasks.log
-  MATCH "Done .+ mount-snap +Mount snap \"core18\" \([0-9]+\)" < tasks.log
-  MATCH "Done .+ copy-snap-data +Copy snap \"core18\" data" < tasks.log
-  MATCH "Done .+ setup-profiles +Setup snap \"core18\" \([0-9]+\) security profiles" < tasks.log
-  MATCH "Done .+ link-snap +Make snap \"core18\" \([0-9]+\) available to the system" < tasks.log
-  MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"core18\"" < tasks.log
-  MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"core18\"" < tasks.log
-  MATCH "Done .+ setup-aliases +Setup snap \"core18\" aliases" < tasks.log
+  MATCH "Done .+ prerequisites +Ensure prerequisites for \"${LXD_BASE_SNAP}\" are available" < tasks.log
+  MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/${LXD_BASE_SNAP}_[0-9]+.snap" < tasks.log
+  MATCH "Done .+ mount-snap +Mount snap \"${LXD_BASE_SNAP}\" \([0-9]+\)" < tasks.log
+  MATCH "Done .+ copy-snap-data +Copy snap \"${LXD_BASE_SNAP}\" data" < tasks.log
+  MATCH "Done .+ setup-profiles +Setup snap \"${LXD_BASE_SNAP}\" \([0-9]+\) security profiles" < tasks.log
+  MATCH "Done .+ link-snap +Make snap \"${LXD_BASE_SNAP}\" \([0-9]+\) available to the system" < tasks.log
+  MATCH "Done .+ auto-connect +Automatically connect eligible plugs and slots of snap \"${LXD_BASE_SNAP}\"" < tasks.log
+  MATCH "Done .+ set-auto-aliases +Set automatic aliases for snap \"${LXD_BASE_SNAP}\"" < tasks.log
+  MATCH "Done .+ setup-aliases +Setup snap \"${LXD_BASE_SNAP}\" aliases" < tasks.log
 
   MATCH "Done .+ prerequisites +Ensure prerequisites for \"lxd\" are available" < tasks.log
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/lxd_[0-9]+.snap\" \([0-9]+\)" < tasks.log
@@ -96,7 +92,7 @@ execute: |
   [ "$(grep -c ' Done ' tasks.log)" = "32" ]
 
   # everything below is pending execution on first boot
-  MATCH "Do .+ run-hook +Run install hook of \"core18\" snap if present" < tasks.log
+  MATCH "Do .+ run-hook +Run install hook of \"${LXD_BASE_SNAP}\" snap if present" < tasks.log
   MATCH "Do .+ start-snap-services +Start snap \"lxd\" \([0-9]+\) services" < tasks.log
   MATCH "Do .+ run-hook +Run configure hook of \"lxd\" snap if present" < tasks.log
   MATCH "Do .+ run-hook +Run health check of \"lxd\" snap" < tasks.log
@@ -104,8 +100,8 @@ execute: |
   MATCH "Do .+ run-hook +Run install hook of \"snapd\" snap if present" < tasks.log
   MATCH "Do .+ start-snap-services +Start snap \"snapd\" \(unset\) services" < tasks.log
   MATCH "Do .+ run-hook +Run configure hook of \"core\" snap if present" < tasks.log
-  MATCH "Do .+ start-snap-services  +Start snap \"core18\" \([0-9]+\) services" < tasks.log
-  MATCH "Do .+ run-hook +Run health check of \"core18\" snap" < tasks.log
+  MATCH "Do .+ start-snap-services  +Start snap \"${LXD_BASE_SNAP}\" \([0-9]+\) services" < tasks.log
+  MATCH "Do .+ run-hook +Run health check of \"${LXD_BASE_SNAP}\" snap" < tasks.log
   MATCH "Do .+ run-hook +Run install hook of \"lxd\" snap if present" < tasks.log
 
   echo "Checking that apparmor and seccomp profiles have been created on the target image"
@@ -126,8 +122,8 @@ execute: |
   test -f "$SYSTEMD_UNITS"/system/snap-lxd-*.mount
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-lxd-*.mount
   test -f "$SYSTEMD_UNITS"/system/snap-snapd-*.mount
-  test -f "$SYSTEMD_UNITS"/system/snap-core18-*.mount
-  test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-core18-*.mount
+  test -f "$SYSTEMD_UNITS"/system/snap-"${LXD_BASE_SNAP}"-*.mount
+  test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-"${LXD_BASE_SNAP}"-*.mount
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-snapd-*.mount
 
   for unit in snap.lxd.daemon.service snap.lxd.daemon.unix.socket snap.lxd.activate.service; do

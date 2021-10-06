@@ -1,30 +1,14 @@
 summary: Ensure that we can create swapfiles
 
-prepare: |
-  cp /etc/default/swapfile swapfile.bk
-
-restore: |
-  if [ -f swapfile.bk ]; then 
-    cp swapfile.bk /etc/default/swapfile
-
-    # enabling the service now again will set swap to 0 because SIZE=0 means 
-    # don't create a swap file
-    systemctl enable --now swapfile.service || true
-  fi
-
 execute: |
-  echo "Set swapfile to 200"
-  # don't use sed -i because /etc/default is not writable and this will fail
-  sed -e "s/SIZE=0/SIZE=200/" /etc/default/swapfile > /tmp/swapfile
-  cat /tmp/swapfile > /etc/default/swapfile
+  echo "Set swap size to 200M"
+  snap set system swap.size=200M
 
-  echo "Turn on the swap service" 
-  systemctl enable --now swapfile.service
+  echo "Check that the swap file was setup"
+  retry -n 60 --wait 1 bash -c "cat /proc/swaps | MATCH '\s+file\s+204796'"
 
-  # source the file so that we can grep for the location of the swap file as
-  # configured
-  # shellcheck disable=SC1091
-  . /etc/default/swapfile
+  echo "Unset the swap size"
+  snap unset system swap.size
 
-  echo "Check that the swap file exists"
-  retry -n 60 --wait 1 bash -c "cat /proc/swaps | MATCH '$FILE\s+file\s+204796'"
+  echo "Check that there is no more swap now"
+  retry -n 60 --wait 1 bash -c "cat /proc/swaps | NOMATCH '\s+file\s+204796'"

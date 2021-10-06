@@ -1,6 +1,6 @@
 summary: Ensure that cloud-init integration works
 
-description: |
+details: |
     snapd picks up basic cloud information from the host and makes it available
     to the snaps. Run the test on a live backend which sets instance data
     properly.
@@ -17,11 +17,8 @@ execute: |
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
         echo "cloud-init instance data is required to execute the test"
 
-        if [[ "$SPREAD_SYSTEM" == ubuntu-* &&
-              "$SPREAD_SYSTEM" != ubuntu-14.04-* &&
-              "$SPREAD_SYSTEM" != ubuntu-core-20-* ]]; then
-            # we expect the test to run on all Ubuntu images,
-            # excluding 14.04/core20
+        if os.query is-ubuntu && not os.query is-trusty; then
+            # we expect the test to run on all Ubuntu images excluding 14.04
             echo "the test expected to run on $SPREAD_SYSTEM"
             exit 1
         fi
@@ -76,12 +73,11 @@ execute: |
     snap_cloud_region=$(snap get core cloud.region)
     test "$cloud_region" = "$snap_cloud_region"
 
-    # if we are on UC16 / UC18, then also check that we wrote out a restricting
-    # cloud-init file
-    # TODO:UC20: adapt for UC20 when cloud-init is supported on UC20
-    if [[ "$SPREAD_SYSTEM" == ubuntu-core-1* ]]; then
+    if os.query is-core; then
         # TODO: is there a race here with snapd restricting cloud-init and us
         # checking that it was restricted?
         echo "Test that cloud-init restrict file was written"
         test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg
+        echo "Test that cloud-init restrict file does NOT have manual_cache_clean set"
+        NOMATCH "manual_cache_clean: true" < /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg
     fi

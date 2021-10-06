@@ -16,9 +16,6 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local mount-observe-consumer
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "The interface is not connected by default"
     snap interfaces -i mount-observe | MATCH -- '- +mount-observe-consumer:mount-observe'
 
@@ -26,6 +23,7 @@ execute: |
     snap connect mount-observe-consumer:mount-observe
 
     echo "Then the mount info is reachable"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     expected="$SNAP_MOUNT_DIR/mount-observe-consumer"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 

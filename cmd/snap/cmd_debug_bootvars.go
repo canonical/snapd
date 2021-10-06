@@ -29,29 +29,56 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-type cmdBootvars struct {
+type cmdBootvarsGet struct {
 	UC20    bool   `long:"uc20"`
 	RootDir string `long:"root-dir"`
 }
 
+type cmdBootvarsSet struct {
+	RootDir    string `long:"root-dir"`
+	Recovery   bool   `long:"recovery"`
+	Positional struct {
+		VarEqValue []string `positional-arg-name:"<var-eq-value>" required:"1"`
+	} `positional-args:"yes" required:"yes"`
+}
+
 func init() {
-	cmd := addDebugCommand("boot-vars",
+	cmdGet := addDebugCommand("boot-vars",
 		"(internal) obtain the snapd boot variables",
 		"(internal) obtain the snapd boot variables",
 		func() flags.Commander {
-			return &cmdBootvars{}
+			return &cmdBootvarsGet{}
 		}, map[string]string{
 			"uc20":     i18n.G("Whether to use uc20 boot vars or not"),
 			"root-dir": i18n.G("Root directory to look for boot variables in"),
 		}, nil)
+
+	cmdSet := addDebugCommand("set-boot-vars",
+		"(internal) set snapd boot variables",
+		"(internal) set snapd boot variables",
+		func() flags.Commander {
+			return &cmdBootvarsSet{}
+		}, map[string]string{
+			"root-dir": i18n.G("Root directory to look for boot variables in (implies UC20)"),
+			"recovery": i18n.G("Manipulate the recovery bootloader (implies UC20)"),
+		}, nil)
+
 	if release.OnClassic {
-		cmd.hidden = true
+		cmdGet.hidden = true
+		cmdSet.hidden = true
 	}
 }
 
-func (x *cmdBootvars) Execute(args []string) error {
+func (x *cmdBootvarsGet) Execute(args []string) error {
 	if release.OnClassic {
 		return errors.New(`the "boot-vars" command is not available on classic systems`)
 	}
-	return boot.DumpBootVars(Stdout, x.RootDir, x.UC20)
+	return boot.DebugDumpBootVars(Stdout, x.RootDir, x.UC20)
+}
+
+func (x *cmdBootvarsSet) Execute(args []string) error {
+	if release.OnClassic {
+		return errors.New(`the "boot-vars" command is not available on classic systems`)
+	}
+	return boot.DebugSetBootVars(x.RootDir, x.Recovery, x.Positional.VarEqValue)
 }

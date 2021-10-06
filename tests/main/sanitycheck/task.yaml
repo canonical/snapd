@@ -16,12 +16,7 @@ execute: |
     . "$TESTSLIB/systemd.sh"
     wait_for_service snapd
 
-    for _ in $(seq 120); do
-        if journalctl -u snapd | grep "system does not fully support snapd: cannot mount squashfs image"; then
-            break
-        fi
-        sleep 1
-    done
+    retry -n 120 --wait 1 sh -c 'journalctl -u snapd | MATCH "system does not fully support snapd: cannot mount squashfs image"'
 
     echo "Ensure sanity check error is reported in the journal"
     journalctl -u snapd | MATCH "system does not fully support snapd: cannot mount squashfs image"

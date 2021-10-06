@@ -48,10 +48,7 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	}
 
 	devMgr := deviceMgr(st)
-	return &modelDeviceContext{groundDeviceContext{
-		model:      modelAs,
-		systemMode: devMgr.SystemMode(),
-	}}, nil
+	return newModelDeviceContext(devMgr, modelAs), nil
 }
 
 type groundDeviceContext struct {
@@ -108,9 +105,21 @@ type modelDeviceContext struct {
 	groundDeviceContext
 }
 
+func newModelDeviceContext(devMgr *DeviceManager, modelAs *asserts.Model) *modelDeviceContext {
+	return &modelDeviceContext{groundDeviceContext{
+		model:      modelAs,
+		systemMode: devMgr.SystemMode(SysAny),
+	}}
+}
+
 func (dc *modelDeviceContext) Store() snapstate.StoreService {
 	return nil
 }
 
 // sanity
 var _ snapstate.DeviceContext = &modelDeviceContext{}
+
+// SystemModeInfoFromState returns details about the system mode the device is in.
+func SystemModeInfoFromState(st *state.State) (*SystemModeInfo, error) {
+	return deviceMgr(st).SystemModeInfo()
+}

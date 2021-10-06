@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package snap
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -248,17 +249,17 @@ func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path strin
 func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string) error {
 	lastIndex := strings.LastIndex(address, ":")
 	if lastIndex >= 0 {
-		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
+		if err := validateSocketAddrNetHost(fieldName, address[:lastIndex]); err != nil {
 			return err
 		}
-		return validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:])
+		return validateSocketAddrNetPort(fieldName, address[lastIndex+1:])
 	}
 
 	// Address only contains a port
-	return validateSocketAddrNetPort(socket, fieldName, address)
+	return validateSocketAddrNetPort(fieldName, address)
 }
 
-func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
+func validateSocketAddrNetHost(fieldName string, address string) error {
 	validAddresses := []string{"127.0.0.1", "[::1]", "[::]"}
 	for _, valid := range validAddresses {
 		if address == valid {
@@ -269,7 +270,7 @@ func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address str
 	return fmt.Errorf("invalid %q address %q, must be one of: %s", fieldName, address, strings.Join(validAddresses, ", "))
 }
 
-func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
+func validateSocketAddrNetPort(fieldName string, port string) error {
 	var val uint64
 	var err error
 	retErr := fmt.Errorf("invalid %q port number %q", fieldName, port)
@@ -375,6 +376,11 @@ func Validate(info *Info) error {
 
 	// Ensure system usernames are valid
 	if err := ValidateSystemUsernames(info); err != nil {
+		return err
+	}
+
+	// Ensure links are valid
+	if err := ValidateLinks(info.Links()); err != nil {
 		return err
 	}
 
@@ -783,11 +789,21 @@ func ValidateApp(app *AppInfo) error {
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
 	}
+	// validate install-mode
+	switch app.InstallMode {
+	case "", "enable", "disable":
+		// valid
+	default:
+		return fmt.Errorf(`"install-mode" field contains invalid value %q`, app.InstallMode)
+	}
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
 	if app.RefreshMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	}
+	if app.InstallMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"install-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return validateAppTimer(app)
@@ -1108,4 +1124,40 @@ func ValidateBasesAndProviders(snapInfos []*Info) []error {
 		}
 	}
 	return errs
+}
+
+var isValidLinksKey = regexp.MustCompile("^[a-zA-Z](?:-?[a-zA-Z0-9])*$").MatchString
+var validLinkSchemes = []string{"http", "https"}
+
+// ValidateLinks checks that links entries have valid keys and values that can be parsed as URLs or are email addresses possibly prefixed with mailto:.
+func ValidateLinks(links map[string][]string) error {
+	for linksKey, linksValues := range links {
+		if linksKey == "" {
+			return fmt.Errorf("links key cannot be empty")
+		}
+		if !isValidLinksKey(linksKey) {
+			return fmt.Errorf("links key is invalid: %s", linksKey)
+		}
+		if len(linksValues) == 0 {
+			return fmt.Errorf("%q links cannot be specified and empty", linksKey)
+		}
+		for _, link := range linksValues {
+			if link == "" {
+				return fmt.Errorf("empty %q link", linksKey)
+			}
+			u, err := url.Parse(link)
+			if err != nil {
+				return fmt.Errorf("invalid %q link %q", linksKey, link)
+			}
+			if u.Scheme == "" || u.Scheme == "mailto" {
+				// minimal check
+				if !strings.Contains(link, "@") {
+					return fmt.Errorf("invalid %q email address %q", linksKey, link)
+				}
+			} else if !strutil.ListContains(validLinkSchemes, u.Scheme) {
+				return fmt.Errorf("%q link must have one of http|https schemes or it must be an email address: %q", linksKey, link)
+			}
+		}
+	}
+	return nil
 }

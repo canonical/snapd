@@ -9,15 +9,12 @@ prepare: |
     rm -f /var/lib/snapd/state.json
 
 execute: |
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
     echo "Check that snapd initializes the system"
     systemctl start snapd.service snapd.socket
-    for _ in $(seq 120); do
-        if snap changes | grep -q -E "Done.*Initialize system state"; then
-            break
-        fi
-        sleep 1
-    done
-    snap changes | MATCH "Done.*Initialize system state"
+    wait_for_first_boot_change
 
     echo "And then goes into socket activation mode"
     for _ in $(seq 120); do

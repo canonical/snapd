@@ -48,8 +48,7 @@ func (cmd cmdVersion) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	printVersions(cmd.client)
-	return nil
+	return printVersions(cmd.client)
 }
 
 func printVersions(cli *client.Client) error {

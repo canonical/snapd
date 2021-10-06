@@ -19,7 +19,7 @@ set -e
 #   that dh-golang creates and that only contains a subset of the
 #   files of the toplevel buildir. 
 PKG_BUILDDIR=$(dirname "$0")
-GO_GENERATE_BUILDDIR="$(pwd)"
+GO_GENERATE_BUILDDIR="${GO_GENERATE_BUILDDIR:-$(pwd)}"
 
 # run from "go generate" adjust path
 if [ "$GOPACKAGE" = "snapdtool" ]; then
@@ -86,7 +86,8 @@ fi
 # it in a packaging recipe. We take the debian version from the changelog
 # and append the git revno and commit hash. A simpler approach would be
 # to git tag all pre/rc releases.
-if [ -z "$version_from_user" ] && [ "$version_from_git" != "" ] && [ "$version_from_git" != "$version_from_changelog" ]; then
+if [ -z "$version_from_user" ] && [ "$version_from_git" != "" ] && \
+       [ -n "$version_from_changelog" ] && [ "$version_from_git" != "$version_from_changelog" ]; then
     # if the changelog version has "git" in it and we also have a git version
     # directly, that is a bad changelog version, so fail, otherwise the below
     # code will produce a duplicated git info

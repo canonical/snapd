@@ -53,6 +53,17 @@ const logObserveConnectedPlugAppArmor = `
 /{,usr/}sbin/sysctl ixr,
 @{PROC}/sys/kernel/printk_ratelimit rw,
 
+# Allow controlling apparmor logging levels, the possible values written to this
+# are as follows:
+# normal       - return to normal auditing behavior
+# quiet_denied - don't log denial messages
+# quiet        - turn off all auditing
+# noquiet      - turn of quieting of denial messages by the quiet flag (what deny rules set unless preceded by the audit keyword)
+# all          - audit everything even stuff that is being allowed, it is very noisy
+# Note that we cannot restrict what is written to the file, we can only allow
+# all writes to the file.
+/sys/module/apparmor/parameters/audit rw,
+
 # Allow resolving kernel seccomp denials
 /usr/bin/scmp_sys_resolver ixr,
 

@@ -26,9 +26,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/overlord/state"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type changeSuite struct{}

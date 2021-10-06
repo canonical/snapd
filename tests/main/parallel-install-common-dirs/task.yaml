@@ -6,14 +6,15 @@ backends: [-autopkgtest]
 prepare: |
     snap set system experimental.parallel-instances=true
 
-execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
+restore: |
+    snap set system experimental.parallel-instances=null
 
+execute: |
     echo "Install a snap with instance key set"
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
 
     # foo instance directories are present
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     test -d "$SNAP_MOUNT_DIR/test-snapd-sh_foo"
     test -d "/var/snap/test-snapd-sh_foo"
 
@@ -78,5 +79,3 @@ execute: |
     not test -d "$SNAP_MOUNT_DIR/test-snapd-sh"
     not test -d "/var/snap/test-snapd-sh"
 
-restore: |
-    snap set system experimental.parallel-instances=null

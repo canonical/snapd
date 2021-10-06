@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"bytes"
@@ -35,11 +35,15 @@ type pprofDebugSuite struct {
 }
 
 func (s *pprofDebugSuite) TestGetPprofCmdline(c *check.C) {
+	s.daemon(c)
+
 	req, err := http.NewRequest("GET", "/v2/debug/pprof/cmdline", nil)
 	c.Assert(err, check.IsNil)
+	// as root
+	s.asRootAuth(req)
 
 	rr := httptest.NewRecorder()
-	getPprof(debugPprofCmd, req, nil).ServeHTTP(rr, req)
+	s.serveHTTP(c, rr, req)
 
 	rsp := rr.Result()
 	c.Assert(rsp, check.NotNil)

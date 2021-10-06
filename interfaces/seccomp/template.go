@@ -103,10 +103,15 @@ clock_gettime64
 clock_nanosleep
 clock_nanosleep_time64
 clone
+clone3
 close
 
 # needed by ls -l
 connect
+
+# the file descriptors used here will already be mediated by apparmor,
+# the 6th argument is flags, which currently is always 0
+copy_file_range - - - - - 0
 
 chroot
 
@@ -476,6 +481,7 @@ socket AF_NFC
 socket AF_VSOCK
 socket AF_MPLS
 socket AF_IB
+socket AF_QIPCRTR
 
 # For usrsctp, AppArmor doesn't support 'network conn,' since AF_CONN is
 # userspace and encapsulated in other domains that are mediated. As such, do

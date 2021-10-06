@@ -23,7 +23,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 )
+
+// InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
+// needs data from stdin
+func InternalSnapctlCmdNeedsStdin(name string) bool {
+	switch name {
+	case "fde-setup-result":
+		return true
+	default:
+		return false
+	}
+}
 
 // SnapCtlOptions holds the various options with which snapctl is invoked.
 type SnapCtlOptions struct {
@@ -35,14 +48,43 @@ type SnapCtlOptions struct {
 	Args []string `json:"args"`
 }
 
+// SnapCtlPostData is the data posted to the daemon /v2/snapctl endpoint
+// TODO: this can be removed again once we no longer need to pass stdin data
+//       but instead use a real stdin stream
+type SnapCtlPostData struct {
+	SnapCtlOptions
+
+	Stdin []byte `json:"stdin,omitempty"`
+}
+
 type snapctlOutput struct {
 	Stdout string `json:"stdout"`
 	Stderr string `json:"stderr"`
 }
 
+// protect against too much data via stdin
+var stdinReadLimit = int64(4 * 1000 * 1000)
+
 // RunSnapctl requests a snapctl run for the given options.
-func (client *Client) RunSnapctl(options *SnapCtlOptions) (stdout, stderr []byte, err error) {
-	b, err := json.Marshal(options)
+func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdout, stderr []byte, err error) {
+	// TODO: instead of reading all of stdin here we need to forward it to
+	//       the daemon eventually
+	var stdinData []byte
+	if stdin != nil {
+		limitedStdin := &io.LimitedReader{R: stdin, N: stdinReadLimit + 1}
+		stdinData, err = ioutil.ReadAll(limitedStdin)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
+		}
+		if limitedStdin.N <= 0 {
+			return nil, nil, fmt.Errorf("cannot read more than %v bytes of data from stdin", stdinReadLimit)
+		}
+	}
+
+	b, err := json.Marshal(SnapCtlPostData{
+		SnapCtlOptions: *options,
+		Stdin:          stdinData,
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)
 	}

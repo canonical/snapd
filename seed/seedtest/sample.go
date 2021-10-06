@@ -108,6 +108,12 @@ version: 1.0
 type: kernel
 version: 1.0
 `,
+	"test-devmode=20": `name: test-devmode
+type: app
+base: core20
+version: 1.0
+confinement: devmode
+`,
 }
 
 func MergeSampleSnapYaml(snapYaml ...map[string]string) map[string]string {

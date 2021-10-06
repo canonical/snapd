@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 )
 
 type backlightSuite struct {
@@ -44,11 +43,8 @@ func (s *backlightSuite) SetUpTest(c *C) {
 }
 
 func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	s.systemctlArgs = nil
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": true,
@@ -61,11 +57,8 @@ func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 }
 
 func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	s.systemctlArgs = nil
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": false,
@@ -82,7 +75,7 @@ func (s *backlightSuite) TestFilesystemOnlyApply(c *C) {
 		"system.disable-backlight-service": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "systemd-backlight@.service"},

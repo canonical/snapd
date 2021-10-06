@@ -1,6 +1,7 @@
 #include "config.h"
 #include "classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/string-utils.h"
 
 #include <stdbool.h>
@@ -55,4 +56,36 @@ sc_distro sc_classify_distro(void)
 	} else {
 		return SC_DISTRO_CLASSIC;
 	}
+}
+
+bool sc_is_debian_like(void)
+{
+	FILE *f SC_CLEANUP(sc_cleanup_file) = fopen(os_release, "r");
+	if (f == NULL) {
+		return false;
+	}
+	const char *const id_keys_to_try[] = {
+		"ID",		/* actual debian only sets ID */
+		"ID_LIKE",	/* distros based on debian */
+	};
+	size_t id_keys_to_try_len =
+	    sizeof id_keys_to_try / sizeof *id_keys_to_try;
+	for (size_t i = 0; i < id_keys_to_try_len; i++) {
+		if (fseek(f, 0L, SEEK_SET) == -1) {
+			return false;
+		}
+		char *id_val SC_CLEANUP(sc_cleanup_string) = NULL;
+		struct sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
+		int rc =
+		    sc_infofile_get_key(f, id_keys_to_try[i], &id_val, &err);
+		if (rc != 0) {
+			/* only if sc_infofile_get_key failed */
+			return false;
+		}
+		if (sc_streq(id_val, "\"debian\"")
+		    || sc_streq(id_val, "debian")) {
+			return true;
+		}
+	}
+	return false;
 }

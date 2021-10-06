@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -44,7 +45,8 @@ func (s *cgroupSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.rootDir = c.MkDir()
-	s.AddCleanup(cgroup.MockFsRootPath(s.rootDir))
+	dirs.SetRootDir(s.rootDir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func (s *cgroupSuite) TestIsUnified(c *C) {
@@ -246,10 +248,10 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 `
 
 	d := c.MkDir()
-	restore := cgroup.MockFsRootPath(d)
-	defer restore()
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(d)
 
-	restore = cgroup.MockVersion(cgroup.V2, nil)
+	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
 	f := filepath.Join(d, "proc", "1234", "cgroup")
@@ -281,10 +283,10 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroupV2SpecialCase(c *C) {
 1:name=systemd:/user.slice/user-0.slice/session-1.scope
 `
 	d := c.MkDir()
-	restore := cgroup.MockFsRootPath(d)
-	defer restore()
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(d)
 
-	restore = cgroup.MockVersion(cgroup.V1, nil)
+	restore := cgroup.MockVersion(cgroup.V1, nil)
 	defer restore()
 
 	f := filepath.Join(d, "proc", "1234", "cgroup")

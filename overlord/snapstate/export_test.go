@@ -31,6 +31,10 @@ import (
 
 type ManagerBackend managerBackend
 
+type MinimalInstallInfo = minimalInstallInfo
+type InstallSnapInfo = installSnapInfo
+type ByType = byType
+
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
@@ -94,11 +98,13 @@ var (
 
 	CurrentSnaps = currentSnaps
 
-	DefaultContentPlugProviders = defaultContentPlugProviders
+	DefaultProviderContentAttrs = defaultProviderContentAttrs
 
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
+
+	AffectedByRefresh = affectedByRefresh
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -142,6 +148,9 @@ var (
 	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
+
+// install
+var HasAllContentAttrs = hasAllContentAttrs
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
 	ar.nextRefresh = when
@@ -258,11 +267,19 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	}
 }
 
-func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (uint64, error)) func() {
+func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error)) func() {
 	old := installSize
 	installSize = f
 	return func() {
 		installSize = old
+	}
+}
+
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info) error) func() {
+	old := generateSnapdWrappers
+	generateSnapdWrappers = f
+	return func() {
+		generateSnapdWrappers = old
 	}
 }
 
@@ -275,6 +292,8 @@ var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
 )
+
+type RefreshCandidate = refreshCandidate
 
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
@@ -289,4 +308,61 @@ func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh fun
 	old := genericRefreshCheck
 	genericRefreshCheck = fn
 	return func() { genericRefreshCheck = old }
+}
+
+func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
+	return m.ensureRefreshHoldAtLeast(d)
+}
+
+func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision, typ snap.Type) error) (restore func()) {
+	old := SecurityProfilesRemoveLate
+	SecurityProfilesRemoveLate = fn
+	return func() {
+		SecurityProfilesRemoveLate = old
+	}
+}
+
+type HoldState = holdState
+
+var (
+	HoldDurationLeft           = holdDurationLeft
+	LastRefreshed              = lastRefreshed
+	HeldSnaps                  = heldSnaps
+	PruneRefreshCandidates     = pruneRefreshCandidates
+	ResetGatingForRefreshed    = resetGatingForRefreshed
+	PruneGating                = pruneGating
+	PruneSnapsHold             = pruneSnapsHold
+	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
+	AutoRefreshPhase1          = autoRefreshPhase1
+)
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
+	}
+}
+
+func MockHoldState(firstHeld string, holdUntil string) *HoldState {
+	first, err := time.Parse(time.RFC3339, firstHeld)
+	if err != nil {
+		panic(err)
+	}
+	until, err := time.Parse(time.RFC3339, holdUntil)
+	if err != nil {
+		panic(err)
+	}
+	return &holdState{
+		FirstHeld: first,
+		HoldUntil: until,
+	}
+}
+
+func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, error)) (restore func()) {
+	old := snapsToRefresh
+	snapsToRefresh = f
+	return func() {
+		snapsToRefresh = old
+	}
 }

@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -177,7 +180,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_wayland_app1"`)
 KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_wayland_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_wayland_app1", RUN+="%v/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 

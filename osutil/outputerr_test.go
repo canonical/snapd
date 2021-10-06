@@ -17,12 +17,14 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"fmt"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type outputErrSuite struct{}
@@ -32,14 +34,14 @@ var _ = Suite(&outputErrSuite{})
 func (ts *outputErrSuite) TestOutputErrOutputWithoutNewlines(c *C) {
 	output := "test output"
 	err := fmt.Errorf("test error")
-	formattedErr := OutputErr([]byte(output), err)
+	formattedErr := osutil.OutputErr([]byte(output), err)
 	c.Check(formattedErr, ErrorMatches, output)
 }
 
 func (ts *outputErrSuite) TestOutputErrOutputWithNewlines(c *C) {
 	output := "output line1\noutput line2"
 	err := fmt.Errorf("test error")
-	formattedErr := OutputErr([]byte(output), err)
+	formattedErr := osutil.OutputErr([]byte(output), err)
 	c.Check(formattedErr.Error(), Equals, `
 -----
 output line1
@@ -49,6 +51,6 @@ output line2
 
 func (ts *outputErrSuite) TestOutputErrNoOutput(c *C) {
 	err := fmt.Errorf("test error")
-	formattedErr := OutputErr([]byte{}, err)
+	formattedErr := osutil.OutputErr([]byte{}, err)
 	c.Check(formattedErr, Equals, err)
 }

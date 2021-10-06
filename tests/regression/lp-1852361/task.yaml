@@ -1,10 +1,18 @@
 summary: regression test for https://bugs.launchpad.net/snapd/+bug/1852361
+
 environment:
     SNAP_CONFINE_DEBUG: yes
+
 prepare: |
     snap set core experimental.robust-mount-namespace-updates=true
     snap pack test-snapd-layout
     snap install --dangerous test-snapd-layout_1_all.snap
+
+restore: |
+    snap remove --purge test-snapd-layout
+    snap unset core experimental.robust-mount-namespace-updates
+
+
 execute: |
     invariant() {
         test "$(test-snapd-layout.sh -c 'cat /etc/vtpath.ini')" = content
@@ -19,7 +27,3 @@ execute: |
     invariant
     snap install --dangerous test-snapd-layout_1_all.snap
     invariant
-restore: |
-    snap remove --purge test-snapd-layout
-    rm -f test-snapd-layout_1_all.snap
-    snap unset core experimental.robust-mount-namespace-updates

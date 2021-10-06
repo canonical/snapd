@@ -21,14 +21,8 @@ wait_listen_port(){
 
 make_network_service() {
     SERVICE_NAME="$1"
-    SERVICE_FILE="$2"
-    PORT="$3"
+    PORT="$2"
 
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
-    printf '#!/bin/sh -e\nwhile true; do printf '\''HTTP/1.1 200 OK\\n\\nok\\n'\'' |  nc -l -p %s -w 1; done' "$PORT" > "$SERVICE_FILE"
-    chmod a+x "$SERVICE_FILE"
-    systemd_create_and_start_unit "$SERVICE_NAME" "$(readlink -f "$SERVICE_FILE")"
+    systemd-run --unit "$SERVICE_NAME" sh -c "while true; do printf 'HTTP/1.1 200 OK\\n\\nok\\n' |  nc -l -p $PORT -w 1; done"
     wait_listen_port "$PORT"
 }

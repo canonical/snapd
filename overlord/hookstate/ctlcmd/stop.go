@@ -52,5 +52,5 @@ func (c *stopCommand) Execute(args []string) error {
 			Disable: c.Disable,
 		},
 	}
-	return runServiceCommand(c.context(), &inst, c.Positional.ServiceNames)
+	return runServiceCommand(c.context(), &inst)
 }

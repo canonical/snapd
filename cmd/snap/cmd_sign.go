@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -81,7 +80,10 @@ func (x *cmdSign) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot read assertion input: %v"), err)
 	}
 
-	keypairMgr := asserts.NewGPGKeypairManager()
+	keypairMgr, err := getKeypairManager()
+	if err != nil {
+		return err
+	}
 	privKey, err := keypairMgr.GetByName(string(x.KeyName))
 	if err != nil {
 		// TRANSLATORS: %q is the key name, %v the error message

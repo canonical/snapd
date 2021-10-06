@@ -52,5 +52,5 @@ func (c *startCommand) Execute(args []string) error {
 			Enable: c.Enable,
 		},
 	}
-	return runServiceCommand(c.context(), &inst, c.Positional.ServiceNames)
+	return runServiceCommand(c.context(), &inst)
 }

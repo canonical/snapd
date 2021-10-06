@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
@@ -39,6 +40,10 @@ type emulation struct {
 }
 
 var errNotImplemented = errors.New("not implemented in emulation mode")
+
+func (s *emulation) Backend() Backend {
+	return EmulationModeBackend
+}
 
 func (s *emulation) DaemonReload() error {
 	return errNotImplemented
@@ -90,6 +95,18 @@ func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
 	return nil, errNotImplemented
 }
 
+func (s *emulation) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	return time.Time{}, errNotImplemented
+}
+
+func (s *emulation) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	return 0, errNotImplemented
+}
+
+func (s *emulation) CurrentTasksCount(unit string) (uint64, error) {
+	return 0, errNotImplemented
+}
+
 func (s *emulation) IsEnabled(service string) (bool, error) {
 	return false, errNotImplemented
 }
@@ -112,7 +129,15 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// This means that when preseeding in a lxd container, the snap will be
 	// mounted with fuse, but mount unit will use squashfs.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, fstype, mountUnitOptions)
+	mountUnitName, err := writeMountUnitFile(&MountUnitOptions{
+		Lifetime: Persistent,
+		SnapName: snapName,
+		Revision: revision,
+		What:     what,
+		Where:    where,
+		Fstype:   fstype,
+		Options:  mountUnitOptions,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -135,6 +160,10 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 		return "", fmt.Errorf("cannot enable mount unit %s: %v", mountUnitName, err)
 	}
 	return mountUnitName, nil
+}
+
+func (s *emulation) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+	return "", errNotImplemented
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
@@ -167,6 +196,10 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
+func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
+	return nil, errNotImplemented
+}
+
 func (s *emulation) Mask(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "mask", service)
 	return err
@@ -175,4 +208,12 @@ func (s *emulation) Mask(service string) error {
 func (s *emulation) Unmask(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "unmask", service)
 	return err
+}
+
+func (s *emulation) Mount(what, where string, options ...string) error {
+	return errNotImplemented
+}
+
+func (s *emulation) Umount(whatOrWhere string) error {
+	return errNotImplemented
 }

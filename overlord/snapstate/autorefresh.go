@@ -43,7 +43,10 @@ import (
 const defaultRefreshSchedule = "00:00~24:00/4"
 
 // cannot keep without refreshing for more than maxPostponement
-const maxPostponement = 60 * 24 * time.Hour
+const maxPostponement = 95 * 24 * time.Hour
+
+// buffer for maxPostponement when holding snaps with auto-refresh gating
+const maxPostponementBuffer = 5 * 24 * time.Hour
 
 // cannot inhibit refreshes for more than maxInhibition
 const maxInhibition = 14 * 24 * time.Hour
@@ -57,6 +60,44 @@ var (
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
 var refreshRetryDelay = 20 * time.Minute
+
+// refreshCandidate carries information about a single snap to update as part
+// of auto-refresh.
+type refreshCandidate struct {
+	SnapSetup
+	Version string `json:"version,omitempty"`
+}
+
+func (rc *refreshCandidate) Type() snap.Type {
+	return rc.SnapSetup.Type
+}
+
+func (rc *refreshCandidate) SnapBase() string {
+	return rc.SnapSetup.Base
+}
+
+func (rc *refreshCandidate) DownloadSize() int64 {
+	return rc.DownloadInfo.Size
+}
+
+func (rc *refreshCandidate) InstanceName() string {
+	return rc.SnapSetup.InstanceName()
+}
+
+func (rc *refreshCandidate) Prereq(st *state.State) []string {
+	return rc.SnapSetup.Prereq
+}
+
+func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
+	var snapst SnapState
+	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
+		return nil, nil, err
+	}
+	return &rc.SnapSetup, &snapst, nil
+}
+
+// soundness check
+var _ readyUpdateInfo = (*refreshCandidate)(nil)
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -128,6 +169,31 @@ func (m *autoRefresh) EffectiveRefreshHold() (time.Time, error) {
 	}
 
 	return holdTime, nil
+}
+
+func (m *autoRefresh) ensureRefreshHoldAtLeast(duration time.Duration) error {
+	now := time.Now()
+
+	// get the effective refresh hold and check if it is sooner than the
+	// specified duration in the future
+	effective, err := m.EffectiveRefreshHold()
+	if err != nil {
+		return err
+	}
+
+	if effective.IsZero() || effective.Sub(now) < duration {
+		// the effective refresh hold is sooner than the desired delay, so
+		// move it out to the specified duration
+		holdTime := now.Add(duration)
+		tr := config.NewTransaction(m.state)
+		err := tr.Set("core", "refresh.hold", &holdTime)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		tr.Commit()
+	}
+
+	return nil
 }
 
 // clearRefreshHold clears refresh.hold configuration.
@@ -256,7 +322,7 @@ func (m *autoRefresh) Ensure() error {
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh.Format(time.RFC3339))
 	}
 
-	held, holdTime, err := m.isRefreshHeld(refreshSchedule)
+	held, holdTime, err := m.isRefreshHeld()
 	if err != nil {
 		return err
 	}
@@ -298,7 +364,7 @@ func (m *autoRefresh) Ensure() error {
 				return nil
 			}
 
-			err = m.launchAutoRefresh(refreshSchedule)
+			err = m.launchAutoRefresh()
 			if _, ok := err.(*httputil.PersistentNetworkError); !ok {
 				m.nextRefresh = time.Time{}
 			} // else - refresh will be retried after refreshRetryDelay
@@ -310,7 +376,7 @@ func (m *autoRefresh) Ensure() error {
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,
 // as indicated by m.EffectiveRefreshHold().
-func (m *autoRefresh) isRefreshHeld(refreshSchedule []*timeutil.Schedule) (bool, time.Time, error) {
+func (m *autoRefresh) isRefreshHeld() (bool, time.Time, error) {
 	now := time.Now()
 	// should we hold back refreshes?
 	holdTime, err := m.EffectiveRefreshHold()
@@ -405,8 +471,25 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	return refreshScheduleDefault()
 }
 
+func autoRefreshSummary(updated []string) string {
+	var msg string
+	switch len(updated) {
+	case 0:
+		return ""
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
+	case 2, 3:
+		quoted := strutil.Quoted(updated)
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
+	default:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
+	}
+	return msg
+}
+
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) error {
+func (m *autoRefresh) launchAutoRefresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 	defer func() {
@@ -426,7 +509,7 @@ func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) er
 
 	// re-check if the refresh is held because it could have been re-held and
 	// pushed back, in which case we need to abort the auto-refresh and wait
-	held, _, holdErr := m.isRefreshHeld(refreshSchedule)
+	held, _, holdErr := m.isRefreshHeld()
 	if holdErr != nil {
 		return holdErr
 	}
@@ -448,19 +531,10 @@ func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) er
 		return err
 	}
 
-	var msg string
-	switch len(updated) {
-	case 0:
+	msg := autoRefreshSummary(updated)
+	if msg == "" {
 		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2, 3:
-		quoted := strutil.Quoted(updated)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
-	default:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
@@ -595,4 +669,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 	// Send the notification asynchronously to avoid holding the state lock.
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 	return checkerErr
+}
+
+// for testing outside of snapstate
+func MockRefreshCandidate(snapSetup *SnapSetup, version string) interface{} {
+	return &refreshCandidate{
+		SnapSetup: *snapSetup,
+		Version:   version,
+	}
 }

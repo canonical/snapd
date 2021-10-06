@@ -25,6 +25,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -35,7 +36,7 @@ var (
 	NewSnapshotSetID           = newSnapshotSetID
 	AllActiveSnapNames         = allActiveSnapNames
 	SnapSummariesInSnapshotSet = snapSummariesInSnapshotSet
-	CheckSnapshotTaskConflict  = checkSnapshotTaskConflict
+	CheckSnapshotConflict      = checkSnapshotConflict
 	Filename                   = filename
 	DoSave                     = doSave
 	DoRestore                  = doRestore
@@ -46,6 +47,8 @@ var (
 	SaveExpiration             = saveExpiration
 	ExpiredSnapshotSets        = expiredSnapshotSets
 	RemoveSnapshotState        = removeSnapshotState
+
+	SetSnapshotOpInProgress = setSnapshotOpInProgress
 
 	DefaultAutomaticSnapshotExpiration = defaultAutomaticSnapshotExpiration
 )
@@ -111,6 +114,14 @@ func MockBackendOpen(f func(string, uint64) (*backend.Reader, error)) (restore f
 	}
 }
 
+func MockBackendList(f func(ctx context.Context, setID uint64, snapNames []string) ([]client.SnapshotSet, error)) (restore func()) {
+	old := backendList
+	backendList = f
+	return func() {
+		backendList = old
+	}
+}
+
 func MockBackendRestore(f func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf) (*backend.RestoreState, error)) (restore func()) {
 	old := backendRestore
 	backendRestore = f
@@ -143,11 +154,19 @@ func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
 	}
 }
 
-func MockBackendImport(f func(context.Context, uint64, io.Reader) ([]string, error)) (restore func()) {
+func MockBackendImport(f func(context.Context, uint64, io.Reader, *backend.ImportFlags) ([]string, error)) (restore func()) {
 	old := backendImport
 	backendImport = f
 	return func() {
 		backendImport = old
+	}
+}
+
+func MockBackenCleanupAbandondedImports(f func() (int, error)) (restore func()) {
+	old := backendCleanupAbandondedImports
+	backendCleanupAbandondedImports = f
+	return func() {
+		backendCleanupAbandondedImports = old
 	}
 }
 
@@ -156,6 +175,14 @@ func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string) (uint64, error
 	backendEstimateSnapshotSize = f
 	return func() {
 		backendEstimateSnapshotSize = old
+	}
+}
+
+func MockBackendNewSnapshotExport(f func(ctx context.Context, setID uint64) (se *SnapshotExport, err error)) (restore func()) {
+	old := backendNewSnapshotExport
+	backendNewSnapshotExport = f
+	return func() {
+		backendNewSnapshotExport = old
 	}
 }
 
@@ -176,6 +203,6 @@ func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) erro
 }
 
 // For testing only
-func (mgr *SnapshotManager) SetLastForgetExpiredSnapshotTime(t time.Time) {
+func SetLastForgetExpiredSnapshotTime(mgr *SnapshotManager, t time.Time) {
 	mgr.lastForgetExpiredSnapshotTime = t
 }

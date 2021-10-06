@@ -8,6 +8,9 @@ systems:
     # PackageKit is buggy https://bugzilla.redhat.com/show_bug.cgi?id=1807864
     - -centos-8-*
 
+restore: |
+    snap remove --purge test-snapd-packagekit
+
 execute: |
     echo "Installing test-snapd-packagekit"
     snap install --edge test-snapd-packagekit
@@ -26,6 +29,3 @@ execute: |
     echo "With the plug connected it is possible to communicate with packagekit"
     test-snapd-packagekit.pkcon backend-details | MATCH "Name:"
     test-snapd-packagekit.pkcon resolve snapd | MATCH "Installed[[:space:]]+snapd"
-
-restore: |
-    snap remove --purge test-snapd-packagekit

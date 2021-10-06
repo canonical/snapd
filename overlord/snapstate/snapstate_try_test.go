@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/snap"
 )
 
 func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
@@ -124,42 +123,4 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlagLeavesClassic(c *C) {
 	restore := maybeMockClassicSupport(c)
 	defer restore()
 	s.testTrySetsTryMode(snapstate.Flags{Classic: true}, c, "confinement: classic\n")
-}
-
-func (s *snapmgrTestSuite) testTryUndoRemovesTryFlag(flags snapstate.Flags, c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// simulate existing state for foo
-	var snapst snapstate.SnapState
-	snapst.Sequence = []*snap.SideInfo{
-		{
-			RealName: "foo",
-			Revision: snap.R(23),
-		},
-	}
-	snapst.Flags = flags
-	snapst.Current = snap.R(23)
-	snapstate.Set(s.state, "foo", &snapst)
-	c.Check(snapst.TryMode, Equals, false)
-
-	chg := s.state.NewChange("try", "try snap")
-	ts, err := snapstate.TryPath(s.state, "foo", c.MkDir(), flags)
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	last := ts.Tasks()[len(ts.Tasks())-1]
-	terr := s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(last)
-	chg.AddTask(terr)
-
-	s.state.Unlock()
-	defer s.se.Stop()
-	s.settle(c)
-	s.state.Lock()
-
-	// verify snap is not in try mode, the state got undone
-	err = snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
-	c.Check(snapst.Flags, DeepEquals, flags)
 }

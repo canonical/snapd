@@ -53,3 +53,11 @@ func UnmarshalSnapshotAction(body io.Reader) (act snapshotAction, err error) {
 }
 
 type DownloadAction = downloadAction
+
+func MockStdinReadLimit(new int64) (restore func()) {
+	oldStdinReadLimit := stdinReadLimit
+	stdinReadLimit = new
+	return func() {
+		stdinReadLimit = oldStdinReadLimit
+	}
+}

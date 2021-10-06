@@ -166,3 +166,22 @@ func (vss *validationSetSuite) TestSnapRevisionOptional(c *C) {
 	// 0 means unset
 	c.Check(snaps[0].Revision, Equals, 0)
 }
+
+func (vss *validationSetSuite) TestIsValidValidationSetName(c *C) {
+	names := []struct {
+		name  string
+		valid bool
+	}{
+		{"", false},
+		{"abA", false},
+		{"-a", false},
+		{"1", true},
+		{"a", true},
+		{"ab", true},
+		{"foo1-bar0", true},
+	}
+
+	for i, name := range names {
+		c.Assert(asserts.IsValidValidationSetName(name.name), Equals, name.valid, Commentf("%d: %s", i, name.name))
+	}
+}

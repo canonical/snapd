@@ -7,7 +7,7 @@ show_help() {
     echo "usage: journal-state start-new-log"
     echo "       journal-state check-log-started"
     echo "       journal-state get-last-cursor"
-    echo "       journal-state match-log [expression]"
+    echo "       journal-state match-log <EXPRESSION> [--attempts|-n PARAM] [--wait PARAM] [--unit|-u PARAM] [-b]"
     echo "       journal-state get-log"
     echo "       journal-state get-log-from-cursor"
 }
@@ -40,22 +40,56 @@ check_log_started(){
 }
 
 match_log(){
-    expression=$1
-    shift
-    for _ in $(seq 10); do
+    local wait=1
+    local attempts=10
+    local params=""
+    local expression
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --wait)
+                wait=$2
+                shift 2
+                ;;
+            -n|--attempts)
+                attempts=$2
+                shift 2
+                ;;
+            -u|--unit)
+                params="$params -u $2"
+                shift 2
+                ;;
+            -b)
+                params="$params -b"
+                shift
+                ;;
+            *)
+                expression=$1
+                shift
+                ;;
+        esac
+    done
+
+    for _ in $(seq "$attempts"); do
         # forcibly silence this particular bit because it produces GOBS of 
         # output and we really don't need to see all the output when we are 
         # checking the output for an expression, as if it is missing we want to 
         # check the journal once at the end of this loop, likely in the debug 
         # section
         set +x
-        log=$(get_log "$@")
+        local log
+        if [ -z "$params" ]; then
+            log="$(get_log)"
+        else
+            #shellcheck disable=SC2086
+            log="$(get_log $params)"
+        fi
         if echo "$log" | grep -q -E "$expression"; then
             return 0
         fi
         set -x
         echo "Match for \"$expression\" failed, retrying"
-        sleep 1
+        sleep "$wait"
     done
     return 1
 }
@@ -84,31 +118,35 @@ _sync_log(){
     journalctl --sync || true
 }
 
-if [ $# -eq 0 ]; then
-    show_help
-    exit 0
-fi
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
 
-subcommand=$1
-action=
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        *)
-            action=$(echo "$subcommand" | tr '-' '_')
-            shift
-            break
-            ;;
-    esac
-done
+    subcommand=$1
+    action=
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                action=$(echo "$subcommand" | tr '-' '_')
+                shift
+                break
+                ;;
+        esac
+    done
 
-if [ -z "$(declare -f "$action")" ]; then
-    echo "journal-state: no such command $subcommand" >&2
-    show_help
-    exit 1
-fi
+    if [ -z "$(declare -f "$action")" ]; then
+        echo "journal-state: no such command $subcommand" >&2
+        show_help
+        exit 1
+    fi
 
-"$action" "$@"
+    "$action" "$@"
+}
+
+main "$@"

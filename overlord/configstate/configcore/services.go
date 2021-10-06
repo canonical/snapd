@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -37,6 +38,7 @@ var services = []struct{ configName, systemdName string }{
 	{"ssh", "ssh.service"},
 	{"rsyslog", "rsyslog.service"},
 	{"console-conf", "console-conf@*"},
+	{"systemd-resolved", "systemd-resolved.service"},
 }
 
 func init() {
@@ -109,6 +111,7 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 		// XXX: instead of this hack we should look at the config
 		//      defaults and compare with the setting and exit if
 		//      they are the same but that requires some more changes.
+		// TODO: leverage sysconfig.Device instead
 		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
 		if mode == boot.ModeInstall {
 			return nil
@@ -144,7 +147,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
 	} else {
-		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
+		sysd = systemd.New(systemd.SystemMode, &sysdLogger{})
 	}
 
 	// some services are special
@@ -153,6 +156,21 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableSSHService(sysd, serviceName, disabled, opts)
 	case "console-conf@*":
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
+	}
+
+	if opts == nil {
+		// ignore the service if not installed
+		status, err := sysd.Status(serviceName)
+		if err != nil {
+			return err
+		}
+		if len(status) != 1 {
+			return fmt.Errorf("internal error: expected status of service %s, got %v", serviceName, status)
+		}
+		if !status[0].Installed {
+			// ignore
+			return nil
+		}
 	}
 
 	if disabled {
@@ -184,7 +202,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceDisableConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	for _, service := range services {
 		optionName := fmt.Sprintf("service.%s.disable", service.configName)
 		outputStr, err := coreCfg(tr, optionName)

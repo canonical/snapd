@@ -11,6 +11,9 @@ apps:
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
+  allegro-vcu:
+    command: bin/run
+    plugs: [ allegro-vcu ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
@@ -92,6 +95,9 @@ apps:
   desktop:
     command: bin/run
     plugs: [ desktop ]
+  desktop-launch:
+    command: bin/run
+    plugs: [ desktop-launch ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
@@ -101,12 +107,18 @@ apps:
   display-control:
     command: bin/run
     plugs: [ display-control ]
+  dm-crypt:
+    command: bin/run
+    plugs: [ dm-crypt ]
   docker:
     command: bin/run
     plugs: [ docker ]
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  fpga:
+    command: bin/run
+    plugs: [ fpga ]
   system-files:
     command: bin/run
     plugs: [ system-files ]
@@ -182,6 +194,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  ion-memory-control:
+    command: bin/run
+    plugs: [ ion-memory-control ]
   jack1:
     command: bin/run
     plugs: [ jack1 ]
@@ -236,9 +251,15 @@ apps:
   maliit:
     command: bin/run
     plugs: [ maliit ]
+  media-control:
+    command: bin/run
+    plugs: [ media-control ]
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  microstack-support:
+    command: bin/run
+    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]
@@ -332,6 +353,12 @@ apps:
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]
+  qualcomm-ipc-router:
+    command: bin/run
+    plugs: [ qualcomm-ipc-router ]
+  raw-input:
+    command: bin/run
+    plugs: [ raw-input ]
   raw-usb:
     command: bin/run
     plugs: [ raw-usb ]
@@ -353,12 +380,21 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  snap-refresh-control:
+    command: bin/run
+    plugs: [ snap-refresh-control ]
+  snap-themes-control:
+    command: bin/run
+    plugs: [ snap-themes-control ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
   can-bus:
     command: bin/run
     plugs: [ can-bus ]
+  sd-control:
+    command: bin/run
+    plugs: [ sd-control ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
@@ -380,6 +416,9 @@ apps:
   dummy:
     command: bin/run
     plugs: [ dummy ]
+  tee:
+    command: bin/run
+    plugs: [ tee ]
   thumbnailer-service:
     command: bin/run
     plugs: [ thumbnailer-service ]
@@ -464,3 +503,6 @@ plugs:
     write: [$HOME/dir1]
   dummy:
     interface: dummy
+  sd-control:
+    interface: sd-control
+    flavor: dual-sd

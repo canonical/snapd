@@ -10,7 +10,7 @@ prepare: |
 
     echo "And avahi-daemon is configured"
     sed -i 's/^#enable-dbus=yes/enable-dbus=yes/' /etc/avahi/avahi-daemon.conf
-    if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         initctl reload-configuration
         restart avahi-daemon
     else

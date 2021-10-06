@@ -23,14 +23,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // A Logger is a fairly minimal logging tool.
@@ -163,15 +160,17 @@ func SimpleSetup() error {
 	return err
 }
 
-var procCmdline = "/proc/cmdline"
+// used to force testing of the kernel command line parsing
+var procCmdlineUseDefaultMockInTests = true
 
 // TODO: consider generalizing this to snapdenv and having it used by
 // other places that consider SNAPD_DEBUG
 func debugEnabledOnKernelCmdline() bool {
-	buf, err := ioutil.ReadFile(procCmdline)
-	if err != nil {
+	// if this is called during tests, always ignore it so we don't have to mock
+	// the /proc/cmdline for every test that ends up using a logger
+	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
 		return false
 	}
-	l, _ := strutil.KernelCommandLineSplit(strings.TrimSpace(string(buf)))
-	return strutil.ListContains(l, "snapd.debug=1")
+	m, _ := osutil.KernelCommandLineKeyValues("snapd.debug")
+	return m["snapd.debug"] == "1"
 }

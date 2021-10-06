@@ -119,3 +119,9 @@ func MockInitramfsReboot(f func() error) (restore func()) {
 		initramfsReboot = old
 	}
 }
+
+// InitramfsReboot requests the system to reboot. Can be called while in
+// initramfs.
+func InitramfsReboot() error {
+	return initramfsReboot()
+}

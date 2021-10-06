@@ -29,11 +29,9 @@ prepare: |
 
 restore: |
     tests.session -u test restore
-    snap remove test-snapd-curl
 
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
-        rm agent-was-enabled
     fi
 
 execute: |

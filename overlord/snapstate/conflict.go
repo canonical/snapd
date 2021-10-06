@@ -37,6 +37,8 @@ type ChangeConflictError struct {
 	ChangeKind string
 	// a Message is optional, otherwise one is composed from the other information
 	Message string
+	// ChangeID can optionally be set to the ID of the change with which the operation conflicts
+	ChangeID string
 }
 
 func (e *ChangeConflictError) Error() string {
@@ -57,7 +59,7 @@ var (
 	affectedSnapsByKind = make(map[string]AffectedSnapsFunc)
 )
 
-// AddAffectedSnapsByAttrs registers an AffectedSnapsFunc for returning the affected snaps for tasks sporting the given identifying attribute, to use in conflicts detection.
+// AddAffectedSnapsByAttr registers an AffectedSnapsFunc for returning the affected snaps for tasks sporting the given identifying attribute, to use in conflicts detection.
 func AddAffectedSnapsByAttr(attr string, f AffectedSnapsFunc) {
 	affectedSnapsByAttr[attr] = f
 }
@@ -90,6 +92,65 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 	return nil, nil
 }
 
+func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, ignoreChangeID string) error {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		switch chg.Kind() {
+		case "transition-ubuntu-core":
+			return &ChangeConflictError{
+				Message:    "ubuntu-core to core transition in progress, no other changes allowed until this is done",
+				ChangeKind: "transition-ubuntu-core",
+				ChangeID:   chg.ID(),
+			}
+		case "transition-to-snapd-snap":
+			return &ChangeConflictError{
+				Message:    "transition to snapd snap in progress, no other changes allowed until this is done",
+				ChangeKind: "transition-to-snapd-snap",
+				ChangeID:   chg.ID(),
+			}
+		case "remodel":
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "remodeling in progress, no other changes allowed until this is done",
+				ChangeKind: "remodel",
+				ChangeID:   chg.ID(),
+			}
+		case "create-recovery-system":
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "creating recovery system in progress, no other changes allowed until this is done",
+				ChangeKind: "create-recovery-system",
+				ChangeID:   chg.ID(),
+			}
+		default:
+			if newExclusiveChangeKind != "" {
+				// we want to run a new exclusive change, but other
+				// changes are in progress already
+				msg := fmt.Sprintf("other changes in progress (conflicting change %q), change %q not allowed until they are done", chg.Kind(),
+					newExclusiveChangeKind)
+				return &ChangeConflictError{
+					Message:    msg,
+					ChangeKind: chg.Kind(),
+					ChangeID:   chg.ID(),
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// CheckChangeConflictRunExclusively checks for conflicts with a new change which
+// must be run when no other changes are running.
+func CheckChangeConflictRunExclusively(st *state.State, newChangeKind string) error {
+	return checkChangeConflictExclusiveKinds(st, newChangeKind, "")
+}
+
 // CheckChangeConflictMany ensures that for the given instanceNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
@@ -102,22 +163,9 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		snapMap[k] = true
 	}
 
-	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
-			continue
-		}
-		if chg.Kind() == "transition-ubuntu-core" {
-			return &ChangeConflictError{Message: "ubuntu-core to core transition in progress, no other changes allowed until this is done", ChangeKind: "transition-ubuntu-core"}
-		}
-		if chg.Kind() == "transition-to-snapd-snap" {
-			return &ChangeConflictError{Message: "transition to snapd snap in progress, no other changes allowed until this is done", ChangeKind: "transition-to-snapd-snap"}
-		}
-		if chg.Kind() == "remodel" {
-			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
-				continue
-			}
-			return &ChangeConflictError{Message: "remodeling in progress, no other changes allowed until this is done", ChangeKind: "remodel"}
-		}
+	// check whether there are other changes that need to run exclusively
+	if err := checkChangeConflictExclusiveKinds(st, "", ignoreChangeID); err != nil {
+		return err
 	}
 
 	for _, task := range st.Tasks() {
@@ -144,7 +192,11 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 
 		for _, snap := range snaps {
 			if snapMap[snap] {
-				return &ChangeConflictError{Snap: snap, ChangeKind: chg.Kind()}
+				return &ChangeConflictError{
+					Snap:       snap,
+					ChangeKind: chg.Kind(),
+					ChangeID:   chg.ID(),
+				}
 			}
 		}
 	}

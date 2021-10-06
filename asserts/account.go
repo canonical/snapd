@@ -38,6 +38,10 @@ type Account struct {
 	timestamp  time.Time
 }
 
+func IsValidAccountID(accountID string) bool {
+	return validAccountID.MatchString(accountID)
+}
+
 // AccountID returns the account-id of the account.
 func (acc *Account) AccountID() string {
 	return acc.HeaderString("account-id")

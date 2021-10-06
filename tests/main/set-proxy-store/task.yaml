@@ -1,6 +1,7 @@
 summary: Check that the setting proxy.store config works
 
-systems: [-ubuntu-core-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -ubuntu-14.04*]
 
 environment:
     SNAP_NAME: test-snapd-tools

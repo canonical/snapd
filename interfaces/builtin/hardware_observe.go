@@ -43,7 +43,7 @@ capability sys_rawio,
 # used by lspci
 capability sys_admin,
 /etc/modprobe.d/{,*} r,
-/lib/modprobe.d/{,*} r,
+/{,usr/}lib/modprobe.d/{,*} r,
 
 # files in /sys pertaining to hardware (eg, 'lspci -A linux-sysfs')
 /sys/{block,bus,class,devices,firmware}/{,**} r,
@@ -134,6 +134,10 @@ network netlink raw,
 # determine if it is running in a chroot. Like above, this is best granted via
 # system-observe.
 #ptrace (read) peer=unconfined,
+
+# some devices use this information to set serial, etc. for Ubuntu Core devices
+/sys/devices/virtual/dmi/id/product_name r,
+/sys/devices/virtual/dmi/id/sys_vendor r,
 `
 
 const hardwareObserveConnectedPlugSecComp = `

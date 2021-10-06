@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,12 +21,15 @@ package configcore_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
@@ -122,6 +125,7 @@ type configcoreSuite struct {
 
 	state *state.State
 
+	systemctlOutput   func(args ...string) []byte
 	systemctlArgs     [][]string
 	systemdSysctlArgs [][]string
 }
@@ -134,10 +138,13 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
+	s.systemctlOutput = func(args ...string) []byte {
+		return []byte("ActiveState=inactive")
+	}
+
 	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
-		output := []byte("ActiveState=inactive")
-		return output, nil
+		return s.systemctlOutput(args...), nil
 	}))
 	s.systemctlArgs = nil
 	s.AddCleanup(systemd.MockSystemdSysctl(func(args ...string) error {
@@ -150,9 +157,18 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 
 	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.AddCleanup(restore)
+
+	// mock an empty cmdline since we check the cmdline to check whether we are
+	// in install mode or uc20 run mode, etc. and we don't want to use the
+	// host's proc/cmdline
+	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
+	err := ioutil.WriteFile(mockCmdline, nil, 0644)
+	c.Assert(err, IsNil)
+	restore = osutil.MockProcCmdline(mockCmdline)
+	s.AddCleanup(restore)
 }
 
-// runCfgSuite tests configcore.Run()
+// runCfgSuite tests configcore.Run
 type runCfgSuite struct {
 	configcoreSuite
 }
@@ -167,9 +183,34 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 		},
 	}
 
-	err := configcore.Run(conf)
+	err := configcore.Run(coreDev, conf)
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }
+
+type mockDev struct {
+	mode    string
+	classic bool
+	kernel  string
+	uc20    bool
+}
+
+func (d mockDev) RunMode() bool    { return d.mode == "" || d.mode == "run" }
+func (d mockDev) Classic() bool    { return d.classic }
+func (d mockDev) HasModeenv() bool { return d.uc20 }
+func (d mockDev) Kernel() string {
+	if d.Classic() {
+		return ""
+	}
+	if d.kernel == "" {
+		return "pc-kernel"
+	}
+	return d.kernel
+}
+
+var (
+	coreDev    = mockDev{classic: false}
+	classicDev = mockDev{classic: true}
+)
 
 // applyCfgSuite tests configcore.Apply()
 type applyCfgSuite struct {
@@ -188,13 +229,12 @@ func (s *applyCfgSuite) TearDownTest(c *C) {
 }
 
 func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
-	err := configcore.FilesystemOnlyApply("", nil, nil)
+	err := configcore.FilesystemOnlyApply(coreDev, "", nil)
 	c.Check(err, ErrorMatches, `internal error: root directory for configcore.FilesystemOnlyApply\(\) not set`)
 }
 
 func (s *applyCfgSuite) TestSmoke(c *C) {
-	conf := &mockConf{}
-	c.Assert(configcore.FilesystemOnlyApply(s.tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, s.tmpDir, map[string]interface{}{}), IsNil)
 }
 
 func (s *applyCfgSuite) TestPlainCoreConfigGetErrorIfNotCore(c *C) {

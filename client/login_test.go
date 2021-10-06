@@ -20,7 +20,6 @@
 package client_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -125,7 +124,7 @@ func (cs *clientSuite) TestClientLogout(c *check.C) {
 	err = cs.cli.Logout()
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/logout"))
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/logout")
 
 	c.Check(osutil.FileExists(outfile), check.Equals, false)
 }

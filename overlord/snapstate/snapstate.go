@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -73,6 +75,94 @@ const (
 var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
+// TestingLeaveOutKernelUpdateGadgetAssets can be used to simulate an upgrade
+// from a broken snapd that does not generate a "update-gadget-assets" task.
+// See LP:#1940553
+var TestingLeaveOutKernelUpdateGadgetAssets bool = false
+
+type minimalInstallInfo interface {
+	InstanceName() string
+	Type() snap.Type
+	SnapBase() string
+	DownloadSize() int64
+	Prereq(st *state.State) []string
+}
+
+type updateParamsFunc func(*snap.Info) (*RevisionOptions, Flags, *SnapState)
+
+type readyUpdateInfo interface {
+	minimalInstallInfo
+
+	SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error)
+}
+
+// ByType supports sorting by snap type. The most important types come first.
+type byType []minimalInstallInfo
+
+func (r byType) Len() int      { return len(r) }
+func (r byType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r byType) Less(i, j int) bool {
+	return r[i].Type().SortsBefore(r[j].Type())
+}
+
+type installSnapInfo struct {
+	*snap.Info
+}
+
+func (ins installSnapInfo) DownloadSize() int64 {
+	return ins.DownloadInfo.Size
+}
+
+// SnapBase returns the base snap of the snap.
+func (ins installSnapInfo) SnapBase() string {
+	return ins.Base
+}
+
+func (ins installSnapInfo) Prereq(st *state.State) []string {
+	return getKeys(defaultProviderContentAttrs(st, ins.Info))
+}
+
+func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
+	update := ins.Info
+
+	revnoOpts, flags, snapst := params(update)
+	flags.IsAutoRefresh = globalFlags.IsAutoRefresh
+
+	flags, err := earlyChecks(st, snapst, update, flags)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	snapUserID, err := userIDForSnap(st, snapst, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	providerContentAttrs := defaultProviderContentAttrs(st, update)
+	snapsup := SnapSetup{
+		Base:               update.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		Channel:            revnoOpts.Channel,
+		CohortKey:          revnoOpts.CohortKey,
+		UserID:             snapUserID,
+		Flags:              flags.ForSnapSetup(),
+		DownloadInfo:       &update.DownloadInfo,
+		SideInfo:           &update.SideInfo,
+		Type:               update.Type(),
+		PlugsOnly:          len(update.Slots) == 0,
+		InstanceKey:        update.InstanceKey,
+		auxStoreInfo: auxStoreInfo{
+			Website: update.Website,
+			Media:   update.Media,
+		},
+	}
+	return &snapsup, snapst, nil
+}
+
+// soundness check
+var _ readyUpdateInfo = installSnapInfo{}
 
 // InsufficientSpaceError represents an error where there is not enough disk
 // space to perform an operation.
@@ -131,6 +221,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if err != nil && !config.IsNoOption(err) {
 		return nil, err
 	}
+	experimentalGateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
 
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
@@ -179,6 +273,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
 			if err := softCheckNothingRunningForRefresh(st, snapst, info); err != nil {
+				return nil, err
+			}
+		}
+
+		if experimentalGateAutoRefreshHook {
+			// If this snap was held, then remove it from snaps-hold.
+			if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
 				return nil, err
 			}
 		}
@@ -231,6 +332,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(mount)
 		prev = mount
+	} else {
+		if snapsup.Flags.RemoveSnapPath {
+			// If the revision is local, we will not need the
+			// temporary snap.  This can happen when
+			// e.g. side-loading a local revision again.  The
+			// SnapPath is only needed in the "mount-snap" handler
+			// and that is skipped for local revisions.
+			if err := os.Remove(snapsup.SnapPath); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
@@ -257,11 +369,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
-		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from gadget %q%s"), snapsup.InstanceName(), revisionStr))
+		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
+	}
+	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+		// kernel command line from gadget is for core systems only
+		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(gadgetCmdline)
+		prev = gadgetCmdline
 	}
 
 	// copy-data (needs stopped services by unlink)
@@ -294,6 +412,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	addTask(setupAliases)
 	prev = setupAliases
+
+	if !release.OnClassic && snapsup.Type == snap.TypeSnapd {
+		// only run for core devices and the snapd snap, run late enough
+		// so that the task is executed by the new snapd
+		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(bootConfigUpdate)
+		prev = bootConfigUpdate
+	}
 
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.InstanceName())
@@ -338,7 +464,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -372,7 +498,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			if inUse(snapsup.InstanceName(), si.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -457,19 +583,46 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
-// WaitRestart will return a Retry error if there is a pending restart
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
+	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
+var generateSnapdWrappers = backend.GenerateSnapdWrappers
+
+// FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
-// restarts)
-func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
-	if ok, _ := task.State().Restarting(); ok {
+// restarts).
+// For snapd snap updates this will also rerun wrappers generation to fully
+// catch up with any change.
+func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
 	}
 
-	if snapsup.Type == snap.TypeSnapd && os.Getenv("SNAPD_REVERT_TO_REV") != "" {
-		return fmt.Errorf("there was a snapd rollback across the restart")
+	if snapsup.Type == snap.TypeSnapd {
+		if os.Getenv("SNAPD_REVERT_TO_REV") != "" {
+			return fmt.Errorf("there was a snapd rollback across the restart")
+		}
+
+		// if we have restarted and snapd was refreshed, then we need to generate
+		// snapd wrappers again with current snapd, as the logic of generating
+		// wrappers may have changed between previous and new snapd code.
+		if !release.OnClassic {
+			snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName())
+			if err != nil {
+				return fmt.Errorf("cannot get current snapd snap info: %v", err)
+			}
+			// TODO: if future changes to wrappers need one more snapd restart,
+			// then it should be handled here as well.
+			if err := generateSnapdWrappers(snapdInfo); err != nil {
+				return err
+			}
+		}
 	}
+
+	// consider kernel and base
 
 	deviceCtx, err := DeviceCtx(task.State(), task, nil)
 	if err != nil {
@@ -530,6 +683,27 @@ func WaitRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	return nil
 }
 
+// RestartSystem requests a system restart.
+// It considers how the Change the task belongs to is configured
+// (system-restart-immediate) to choose whether request an immediate
+// restart or not.
+func RestartSystem(task *state.Task) {
+	chg := task.Change()
+	var immediate bool
+	if chg != nil {
+		// ignore errors intentionally, to follow
+		// RequestRestart itself which does not
+		// return errors. If the state is corrupt
+		// something else will error
+		chg.Get("system-restart-immediate", &immediate)
+	}
+	rst := restart.RestartSystem
+	if immediate {
+		rst = restart.RestartSystemNow
+	}
+	restart.Request(task.State(), rst)
+}
+
 func contentAttr(attrer interfaces.Attrer) string {
 	var s string
 	err := attrer.Attr("content", &s)
@@ -539,6 +713,7 @@ func contentAttr(attrer interfaces.Attrer) string {
 	return s
 }
 
+// returns a map populated with content tags for which there is a content snap in the system
 func contentIfaceAvailable(st *state.State) map[string]bool {
 	repo := ifacerepo.Get(st)
 	contentSlots := repo.AllSlots("content")
@@ -553,24 +728,35 @@ func contentIfaceAvailable(st *state.State) map[string]bool {
 	return avail
 }
 
-// defaultContentPlugProviders takes a snap.Info and returns what
-// default providers there are.
-func defaultContentPlugProviders(st *state.State, info *snap.Info) []string {
+// defaultProviderContentAttrs takes a snap.Info and returns a map of
+// default providers to the value of content attributes they should
+// provide. Content attributes already provided by a snap in the system are omitted.
+func defaultProviderContentAttrs(st *state.State, info *snap.Info) map[string][]string {
 	needed := snap.NeededDefaultProviders(info)
 	if len(needed) == 0 {
 		return nil
 	}
 	avail := contentIfaceAvailable(st)
-	out := []string{}
-	for snapInstance, contentTags := range needed {
-		for _, contentTag := range contentTags {
-			if !avail[contentTag] {
-				out = append(out, snapInstance)
-				break
+
+	out := make(map[string][]string)
+	for snapInstance, contentValues := range needed {
+		for _, content := range contentValues {
+			if !avail[content] {
+				out[snapInstance] = append(out[snapInstance], content)
 			}
 		}
 	}
 	return out
+}
+
+func getKeys(kv map[string][]string) []string {
+	keys := make([]string, 0, len(kv))
+
+	for key := range kv {
+		keys = append(keys, key)
+	}
+
+	return keys
 }
 
 // validateFeatureFlags validates the given snap only uses experimental
@@ -634,7 +820,16 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
+func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) (Flags, error) {
+	// if snap is allowed to be devmode via the dangerous model and it's
+	// confinement is indeed devmode, promote the flags.DevMode to true
+	if flags.ApplySnapDevMode && info.NeedsDevMode() {
+		// TODO: what about jail-mode? will we also allow putting devmode
+		// snaps (i.e. snaps with snap.yaml with confinement: devmode) into
+		// strict confinement via the model assertion?
+		flags.DevMode = true
+	}
+
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
@@ -717,7 +912,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -726,16 +921,18 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
+	providerContentAttrs := defaultProviderContentAttrs(st, info)
 	snapsup := &SnapSetup{
-		Base:        info.Base,
-		Prereq:      defaultContentPlugProviders(st, info),
-		SideInfo:    si,
-		SnapPath:    path,
-		Channel:     channel,
-		Flags:       flags.ForSnapSetup(),
-		Type:        info.Type(),
-		PlugsOnly:   len(info.Slots) == 0,
-		InstanceKey: info.InstanceKey,
+		Base:               info.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		SideInfo:           si,
+		SnapPath:           path,
+		Channel:            channel,
+		Flags:              flags.ForSnapSetup(),
+		Type:               info.Type(),
+		PlugsOnly:          len(info.Slots) == 0,
+		InstanceKey:        info.InstanceKey,
 	}
 
 	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
@@ -794,7 +991,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	sar, err := installInfo(ctx, st, name, opts, userID, deviceCtx)
+	sar, err := installInfo(ctx, st, name, opts, userID, flags, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -804,7 +1001,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
 	if err != nil {
 		return nil, err
 	}
@@ -817,7 +1014,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	if checkDiskSpaceInstall {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, []*snap.Info{info}, userID)
+		totalSize, err := installSize(st, []minimalInstallInfo{installSnapInfo{info}}, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -835,17 +1032,19 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		}
 	}
 
+	providerContentAttrs := defaultProviderContentAttrs(st, info)
 	snapsup := &SnapSetup{
-		Channel:      opts.Channel,
-		Base:         info.Base,
-		Prereq:       defaultContentPlugProviders(st, info),
-		UserID:       userID,
-		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &info.DownloadInfo,
-		SideInfo:     &info.SideInfo,
-		Type:         info.Type(),
-		PlugsOnly:    len(info.Slots) == 0,
-		InstanceKey:  info.InstanceKey,
+		Channel:            opts.Channel,
+		Base:               info.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		UserID:             userID,
+		Flags:              flags.ForSnapSetup(),
+		DownloadInfo:       &info.DownloadInfo,
+		SideInfo:           &info.SideInfo,
+		Type:               info.Type(),
+		PlugsOnly:          len(info.Slots) == 0,
+		InstanceKey:        info.InstanceKey,
 		auxStoreInfo: auxStoreInfo{
 			Media:   info.Media,
 			Website: info.Website,
@@ -905,9 +1104,9 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	if checkDiskSpaceInstall {
 		// check if there is enough disk space for requested snaps and their
 		// prerequisites.
-		snapInfos := make([]*snap.Info, len(installs))
+		snapInfos := make([]minimalInstallInfo, len(installs))
 		for i, sar := range installs {
-			snapInfos[i] = sar.Info
+			snapInfos[i] = installSnapInfo{sar.Info}
 		}
 		totalSize, err := installSize(st, snapInfos, userID)
 		if err != nil {
@@ -934,7 +1133,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		flags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+		flags, err := ensureInstallPreconditions(st, info, flags, &snapst)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -944,17 +1143,19 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			channel = sar.RedirectChannel
 		}
 
+		providerContentAttrs := defaultProviderContentAttrs(st, info)
 		snapsup := &SnapSetup{
-			Channel:      channel,
-			Base:         info.Base,
-			Prereq:       defaultContentPlugProviders(st, info),
-			UserID:       userID,
-			Flags:        flags.ForSnapSetup(),
-			DownloadInfo: &info.DownloadInfo,
-			SideInfo:     &info.SideInfo,
-			Type:         info.Type(),
-			PlugsOnly:    len(info.Slots) == 0,
-			InstanceKey:  info.InstanceKey,
+			Channel:            channel,
+			Base:               info.Base,
+			Prereq:             getKeys(providerContentAttrs),
+			PrereqContentAttrs: providerContentAttrs,
+			UserID:             userID,
+			Flags:              flags.ForSnapSetup(),
+			DownloadInfo:       &info.DownloadInfo,
+			SideInfo:           &info.SideInfo,
+			Type:               info.Type(),
+			PlugsOnly:          len(info.Slots) == 0,
+			InstanceKey:        info.InstanceKey,
 		}
 
 		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))
@@ -1047,6 +1248,11 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 
 	}
 
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = installSnapInfo{up}
+	}
+
 	tr := config.NewTransaction(st)
 	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
 	if err != nil && !config.IsNoOption(err) {
@@ -1055,7 +1261,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	if checkDiskSpaceRefresh {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, updates, userID)
+		totalSize, err := installSize(st, toUpdate, userID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1077,7 +1283,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		}
 	}
 
-	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, fromChange)
+	updated, tasksets, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1085,7 +1291,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	return updated, tasksets, nil
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []*snap.Info, params func(*snap.Info) (*RevisionOptions, Flags, *SnapState), userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
@@ -1131,7 +1337,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	}
 
 	// first snapd, core, bases, then rest
-	sort.Stable(snap.ByType(updates))
+	sort.Stable(byType(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
 		preTs := prereqs[prereqName]
@@ -1139,51 +1345,18 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			ts.WaitAll(preTs)
 		}
 	}
+	var kernelTs, gadgetTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	for _, update := range updates {
-		revnoOpts, flags, snapst := params(update)
-		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
-
-		flags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
+		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
 		if err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
 			}
 			return nil, nil, err
-		}
-
-		if err := earlyEpochCheck(update, snapst); err != nil {
-			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
-				continue
-			}
-			return nil, nil, err
-		}
-
-		snapUserID, err := userIDForSnap(st, snapst, userID)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		snapsup := &SnapSetup{
-			Base:         update.Base,
-			Prereq:       defaultContentPlugProviders(st, update),
-			Channel:      revnoOpts.Channel,
-			CohortKey:    revnoOpts.CohortKey,
-			UserID:       snapUserID,
-			Flags:        flags.ForSnapSetup(),
-			DownloadInfo: &update.DownloadInfo,
-			SideInfo:     &update.SideInfo,
-			Type:         update.Type(),
-			PlugsOnly:    len(update.Slots) == 0,
-			InstanceKey:  update.InstanceKey,
-			auxStoreInfo: auxStoreInfo{
-				Website: update.Website,
-				Media:   update.Media,
-			},
 		}
 
 		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
@@ -1211,13 +1384,29 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			// snaps
 			waitPrereq(ts, defaultCoreSnapName)
 			waitPrereq(ts, "snapd")
-			if update.Base != "" {
-				waitPrereq(ts, update.Base)
+			if update.SnapBase() != "" {
+				waitPrereq(ts, update.SnapBase())
 			}
+		}
+		// keep track of kernel/gadget udpates
+		switch update.Type() {
+		case snap.TypeKernel:
+			kernelTs = ts
+		case snap.TypeGadget:
+			gadgetTs = ts
 		}
 
 		scheduleUpdate(update.InstanceName(), ts)
 		tasksets = append(tasksets, ts)
+	}
+	// Kernel must wait for gadget because the gadget may define
+	// new "$kernel:refs". Sorting the other way is impossible
+	// because a kernel with new kernel-assets would never refresh
+	// because the matching gadget could never get installed
+	// because the gadget always waits for the kernel and if the
+	// kernel aborts the wait tasks (the gadget) is put on "Hold".
+	if kernelTs != nil && gadgetTs != nil {
+		kernelTs.WaitAll(gadgetTs)
 	}
 
 	if len(newAutoAliases) != 0 {
@@ -1241,7 +1430,8 @@ func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool,
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
-		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Consider re-refresh of %s", strutil.Quoted(updated)))
+		sort.Strings(updated)
+		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Handling re-refresh of %s as needed", strutil.Quoted(updated)))
 		rerefresh.Set("rerefresh-setup", reRefreshSetup{
 			UserID: userID,
 			Flags:  globalFlags,
@@ -1286,7 +1476,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 	return applyTs, nil
 }
 
-func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
+func autoAliasesUpdate(st *state.State, names []string, updates []minimalInstallInfo) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
 	changed, dropped, err := autoAliasesDelta(st, nil)
 	if err != nil {
 		if len(names) != 0 {
@@ -1606,6 +1796,11 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, infoErr
 	}
 
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = installSnapInfo{up}
+	}
+
 	tr := config.NewTransaction(st)
 	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
 	if err != nil && !config.IsNoOption(err) {
@@ -1614,7 +1809,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if checkDiskSpaceRefresh {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, updates, userID)
+		totalSize, err := installSize(st, toUpdate, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -1640,7 +1835,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return opts, flags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, updates, params, userID, &flags, deviceCtx, fromChange)
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -1658,6 +1853,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			SideInfo:    snapst.CurrentSideInfo(),
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
+			Type:        snap.Type(snapst.SnapType),
 			CohortKey:   opts.CohortKey,
 		}
 
@@ -1736,7 +1932,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, opts.Revision, userID, deviceCtx)
+		return updateToRevisionInfo(st, snapst, opts.Revision, userID, flags, deviceCtx)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted
@@ -1754,12 +1950,229 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
+		// TODO: do something else if features.GateAutoRefreshHook is active
+		// since some snaps may be held and not refreshed.
 		if err := AutoRefreshAssertions(st, userID); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+	tr := config.NewTransaction(st)
+	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, nil, err
+	}
+	if !gateAutoRefreshHook {
+		// old-style refresh (gate-auto-refresh-hook feature disabled)
+		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+	}
+
+	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
+	return autoRefreshPhase1(ctx, st, "")
+}
+
+// autoRefreshPhase1 creates gate-auto-refresh hooks and conditional-auto-refresh
+// task that initiates actual refresh. forGatingSnap is optional and limits auto-refresh
+// to the snaps affecting the given snap only; it defaults to all snaps if nil.
+// The state needs to be locked by the caller.
+func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap string) ([]string, []*state.TaskSet, error) {
+	user, err := userFromUserID(st, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
+	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
+	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
+	if err != nil {
+		// XXX: should we reset "refresh-candidates" to nil in state for some types
+		// of errors?
+		return nil, nil, err
+	}
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	hints, err := refreshHintsFromCandidates(st, candidates, ignoreValidationByInstanceName, deviceCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+	st.Set("refresh-candidates", hints)
+
+	// prune affecting snaps that are not in refresh candidates from hold state.
+	if err := pruneGating(st, hints); err != nil {
+		return nil, nil, err
+	}
+
+	updates := make([]string, 0, len(hints))
+
+	// check conflicts
+	fromChange := ""
+	for _, up := range candidates {
+		if _, ok := hints[up.InstanceName()]; !ok {
+			// filtered out by refreshHintsFromCandidates
+			continue
+		}
+
+		snapst := snapstateByInstance[up.InstanceName()]
+		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
+			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
+		} else {
+			updates = append(updates, up.InstanceName())
+		}
+	}
+
+	if forGatingSnap != "" {
+		var gatingSnapHasUpdate bool
+		for _, up := range updates {
+			if up == forGatingSnap {
+				gatingSnapHasUpdate = true
+				break
+			}
+		}
+		if !gatingSnapHasUpdate {
+			return nil, nil, nil
+		}
+	}
+
+	if len(updates) == 0 {
+		return nil, nil, nil
+	}
+
+	// all snaps in updates are now considered to be operated on and should
+	// provoke conflicts until updated or until we know (after running
+	// gate-auto-refresh hooks) that some are not going to be updated
+	// and can stop conflicting.
+
+	affectedSnaps, err := affectedByRefresh(st, updates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// only used if forGatingSnap != ""
+	var snapsAffectingGatingSnap map[string]bool
+
+	// if specific gating snap was given, drop other affected snaps unless
+	// they are affected by same updates as forGatingSnap.
+	if forGatingSnap != "" {
+		snapsAffectingGatingSnap = affectedSnaps[forGatingSnap].AffectingSnaps
+
+		// check if there is an intersection between affecting snaps of this
+		// forGatingSnap and other gating snaps. If so, we need to run
+		// their gate-auto-refresh hooks as well.
+		for gatingSnap, affectedInfo := range affectedSnaps {
+			if gatingSnap == forGatingSnap {
+				continue
+			}
+			var found bool
+			for affectingSnap := range affectedInfo.AffectingSnaps {
+				if snapsAffectingGatingSnap[affectingSnap] {
+					found = true
+					break
+				}
+			}
+			if !found {
+				delete(affectedSnaps, gatingSnap)
+			}
+		}
+	}
+
+	var hooks *state.TaskSet
+	if len(affectedSnaps) > 0 {
+		affected := make([]string, 0, len(affectedSnaps))
+		for snapName := range affectedSnaps {
+			affected = append(affected, snapName)
+		}
+		sort.Strings(affected)
+		hooks = createGateAutoRefreshHooks(st, affected)
+	}
+
+	// gate-auto-refresh hooks, followed by conditional-auto-refresh task waiting
+	// for all hooks.
+	ar := st.NewTask("conditional-auto-refresh", "Run auto-refresh for ready snaps")
+	tss := []*state.TaskSet{state.NewTaskSet(ar)}
+	if hooks != nil {
+		ar.WaitAll(hooks)
+		tss = append(tss, hooks)
+	}
+
+	// return all names as potentially getting updated even though some may be
+	// held.
+	names := make([]string, 0, len(updates))
+	toUpdate := make(map[string]*refreshCandidate, len(updates))
+	for _, up := range updates {
+		// if specific gating snap was requested, filter out updates.
+		if forGatingSnap != "" && forGatingSnap != up {
+			if !snapsAffectingGatingSnap[up] {
+				continue
+			}
+		}
+		names = append(names, up)
+		toUpdate[up] = hints[up]
+	}
+
+	// store the list of snaps to update on the conditional-auto-refresh task
+	// (this may be a subset of refresh-candidates due to conflicts).
+	ar.Set("snaps", toUpdate)
+
+	// return all names as potentially getting updated even though some may be
+	// held.
+	sort.Strings(names)
+	return names, tss, nil
+}
+
+// autoRefreshPhase2 creates tasks for refreshing snaps from updates.
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) ([]*state.TaskSet, error) {
+	flags := &Flags{IsAutoRefresh: true}
+	userID := 0
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = up
+	}
+
+	tr := config.NewTransaction(st)
+	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if checkDiskSpaceRefresh {
+		// check if there is enough disk space for requested snaps and their
+		// prerequisites.
+		totalSize, err := installSize(st, toUpdate, 0)
+		if err != nil {
+			return nil, err
+		}
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			snaps := make([]string, len(updates))
+			for i, up := range updates {
+				snaps[i] = up.InstanceName()
+			}
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      snaps,
+					ChangeKind: "refresh",
+				}
+			}
+			return nil, err
+		}
+	}
+
+	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+
+	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
+	return tasksets, nil
 }
 
 // LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel
@@ -1808,6 +2221,32 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	// we need this for remodel
 	ts := state.NewTaskSet(prepareSnap, linkSnap)
 	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	return ts, nil
+}
+
+func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+	var snapSetupTaskID string
+	var snapsup SnapSetup
+	allTasks := ts.Tasks()
+	for _, tsk := range allTasks {
+		if tsk.Has("snap-setup") {
+			snapSetupTaskID = tsk.ID()
+			if err := tsk.Get("snap-setup", &snapsup); err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+	if snapSetupTaskID == "" {
+		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
+	}
+
+	linkSnap := st.NewTask("link-snap",
+		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	linkSnap.Set("snap-setup-task", snapSetupTaskID)
+	// wait for the last task in existing set
+	linkSnap.WaitFor(allTasks[len(allTasks)-1])
+	ts.AddTask(linkSnap)
 	return ts, nil
 }
 
@@ -1939,7 +2378,44 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		rev = si.Revision
 	}
 
-	return PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
+	if err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx); err != nil {
+		return err
+	}
+
+	// check if this snap is required by any validation set in enforcing mode
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return err
+	}
+	if enforcedSets == nil {
+		return nil
+	}
+	requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(si)
+	if err != nil {
+		if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+			return err
+		}
+		// else - presence is invalid, nothing to do (not really possible since
+		// it shouldn't be allowed to get installed in the first place).
+		return nil
+	}
+	if len(requiredValsets) == 0 {
+		// not required by any validation set (or is optional)
+		return nil
+	}
+	// removeAll is set if we're removing the snap completely
+	if removeAll {
+		if requiredRevision.Unset() {
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), strings.Join(requiredValsets, ","))
+		}
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, strings.Join(requiredValsets, ","))
+	}
+
+	// rev is set at this point (otherwise we would hit removeAll case)
+	if requiredRevision.N == rev.N {
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, strings.Join(requiredValsets, ","))
+	} // else - it's ok to remove a revision different than the required
+	return nil
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -2128,22 +2604,22 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		for i := len(seq) - 1; i >= 0; i-- {
 			if i != currentIndex {
 				si := seq[i]
-				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
+				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision, snapsup.Type))
 			}
 		}
 		// add tasks for removing the current revision last,
 		// this is then also when common data will be removed
 		if currentIndex >= 0 {
-			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision))
+			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision, snapsup.Type))
 		}
 	} else {
-		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
+		addNext(removeInactiveRevision(st, name, info.SnapID, revision, snapsup.Type))
 	}
 
 	return removeTs, snapshotSize, nil
 }
 
-func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
+func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision, typ snap.Type) *state.TaskSet {
 	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -2152,6 +2628,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 			Revision: revision,
 		},
 		InstanceKey: instanceKey,
+		Type:        typ,
 	}
 
 	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
@@ -2167,6 +2644,10 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	if err := validateSnapNames(names); err != nil {
+		return nil, nil, err
+	}
+
 	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
 
@@ -2205,6 +2686,22 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	}
 
 	return removed, tasksets, nil
+}
+
+func validateSnapNames(names []string) error {
+	var invalidNames []string
+
+	for _, name := range names {
+		if err := snap.ValidateInstanceName(name); err != nil {
+			invalidNames = append(invalidNames, name)
+		}
+	}
+
+	if len(invalidNames) > 0 {
+		return fmt.Errorf("cannot remove invalid snap names: %v", strings.Join(invalidNames, ", "))
+	}
+
+	return nil
 }
 
 // Revert returns a set of tasks for reverting to the previous version of the snap.
@@ -2301,7 +2798,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, nil)
+		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, Flags{}, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -2443,6 +2940,27 @@ func All(st *state.State) (map[string]*SnapState, error) {
 	return curStates, nil
 }
 
+// InstalledSnaps returns the list of all installed snaps suitable for
+// ValidationSets checks.
+func InstalledSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
+	var snaps []*snapasserts.InstalledSnap
+	all, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+	for _, snapState := range all {
+		cur, err := snapState.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		snaps = append(snaps,
+			snapasserts.NewInstalledSnap(snapState.InstanceName(),
+				snapState.CurrentSideInfo().SnapID,
+				cur.Revision))
+	}
+	return snaps, nil
+}
+
 // NumSnaps returns the number of installed snaps.
 func NumSnaps(st *state.State) (int, error) {
 	var snaps map[string]*json.RawMessage
@@ -2549,7 +3067,7 @@ func infosForType(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	return res, nil
 }
 
-func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, whichName func(*asserts.Model) string) (*snap.Info, error) {
+func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, whichName func(*asserts.Model) string) (*snap.Info, error) {
 	if deviceCtx == nil {
 		return nil, fmt.Errorf("internal error: unset deviceCtx")
 	}
@@ -2568,12 +3086,12 @@ func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, w
 
 // GadgetInfo finds the gadget snap's info for the given device context.
 func GadgetInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
-	return infoForDeviceSnap(st, deviceCtx, "gadget", (*asserts.Model).Gadget)
+	return infoForDeviceSnap(st, deviceCtx, (*asserts.Model).Gadget)
 }
 
 // KernelInfo finds the kernel snap's info for the given device context.
 func KernelInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
-	return infoForDeviceSnap(st, deviceCtx, "kernel", (*asserts.Model).Kernel)
+	return infoForDeviceSnap(st, deviceCtx, (*asserts.Model).Kernel)
 }
 
 // BootBaseInfo finds the boot base snap's info for the given device context.
@@ -2585,7 +3103,7 @@ func BootBaseInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) 
 		}
 		return base
 	}
-	return infoForDeviceSnap(st, deviceCtx, "boot base", baseName)
+	return infoForDeviceSnap(st, deviceCtx, baseName)
 }
 
 // TODO: reintroduce a KernelInfo(state.State, DeviceContext) if needed
@@ -2697,4 +3215,14 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	old := osutilCheckFreeSpace
 	osutilCheckFreeSpace = mock
 	return func() { osutilCheckFreeSpace = old }
+}
+
+func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.ValidationSets, error)) func() {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := EnforcedValidationSets
+	EnforcedValidationSets = f
+	return func() {
+		EnforcedValidationSets = old
+	}
 }

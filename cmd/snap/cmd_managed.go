@@ -22,9 +22,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/i18n"
-
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 var shortIsManagedHelp = i18n.G("Print whether the system is managed")

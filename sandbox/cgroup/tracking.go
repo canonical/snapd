@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
 )
@@ -38,9 +38,6 @@ type TrackingOptions struct {
 // Scope names must be unique, a randomly generated UUID is appended to the
 // security tag, further suffixed with the string ".scope".
 func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) error {
-	if !features.RefreshAppAwareness.IsEnabled() {
-		return nil
-	}
 	if opts == nil {
 		// Retain original semantics when not explicitly configured otherwise.
 		opts = &TrackingOptions{AllowSessionBus: true}
@@ -131,11 +128,22 @@ tryAgain:
 	//
 	// Verify the effective tracking cgroup and check that our scope name is
 	// contained therein.
-	path, err := cgroupProcessPathInTrackingCgroup(pid)
-	if err != nil {
-		return err
+	hasTracking := false
+	start := time.Now()
+	for tries := 0; tries < 100; tries++ {
+		path, err := cgroupProcessPathInTrackingCgroup(pid)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(path, unitName) {
+			hasTracking = true
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
-	if !strings.HasSuffix(path, unitName) {
+	waitForTracking := time.Since(start)
+	logger.Debugf("waited %v for tracking", waitForTracking)
+	if !hasTracking {
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return ErrCannotTrackProcess
 	}

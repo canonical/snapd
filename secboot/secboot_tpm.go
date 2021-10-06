@@ -24,11 +24,12 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io/ioutil"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
+	sb_efi "github.com/snapcore/secboot/efi"
+	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
@@ -36,41 +37,42 @@ import (
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 const (
-	// Handles are in the block reserved for owner objects (0x01800000 - 0x01bfffff)
-	pinHandle = 0x01880000
+	keyringPrefix = "ubuntu-fde"
 )
 
 var (
-	sbConnectToDefaultTPM            = sb.ConnectToDefaultTPM
-	sbMeasureSnapSystemEpochToTPM    = sb.MeasureSnapSystemEpochToTPM
-	sbMeasureSnapModelToTPM          = sb.MeasureSnapModelToTPM
-	sbLockAccessToSealedKeys         = sb.LockAccessToSealedKeys
-	sbActivateVolumeWithTPMSealedKey = sb.ActivateVolumeWithTPMSealedKey
-	sbActivateVolumeWithRecoveryKey  = sb.ActivateVolumeWithRecoveryKey
-	sbAddEFISecureBootPolicyProfile  = sb.AddEFISecureBootPolicyProfile
-	sbAddEFIBootManagerProfile       = sb.AddEFIBootManagerProfile
-	sbAddSystemdEFIStubProfile       = sb.AddSystemdEFIStubProfile
-	sbAddSnapModelProfile            = sb.AddSnapModelProfile
-	sbProvisionTPM                   = sb.ProvisionTPM
-	sbSealKeyToTPM                   = sb.SealKeyToTPM
-	sbUpdateKeyPCRProtectionPolicy   = sb.UpdateKeyPCRProtectionPolicy
+	sbConnectToDefaultTPM                  = sb_tpm2.ConnectToDefaultTPM
+	sbMeasureSnapSystemEpochToTPM          = sb_tpm2.MeasureSnapSystemEpochToTPM
+	sbMeasureSnapModelToTPM                = sb_tpm2.MeasureSnapModelToTPM
+	sbBlockPCRProtectionPolicies           = sb_tpm2.BlockPCRProtectionPolicies
+	sbActivateVolumeWithTPMSealedKey       = sb_tpm2.ActivateVolumeWithSealedKey
+	sbefiAddSecureBootPolicyProfile        = sb_efi.AddSecureBootPolicyProfile
+	sbefiAddBootManagerProfile             = sb_efi.AddBootManagerProfile
+	sbefiAddSystemdStubProfile             = sb_efi.AddSystemdStubProfile
+	sbAddSnapModelProfile                  = sb_tpm2.AddSnapModelProfile
+	sbSealKeyToTPMMultiple                 = sb_tpm2.SealKeyToTPMMultiple
+	sbUpdateKeyPCRProtectionPolicyMultiple = sb_tpm2.UpdateKeyPCRProtectionPolicyMultiple
+	sbReadSealedKeyObject                  = sb_tpm2.ReadSealedKeyObject
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
 	isTPMEnabled = isTPMEnabledImpl
+	provisionTPM = provisionTPMImpl
+
+	// dummy to check whether the interfaces match
+	_ (sb.SnapModel) = ModelForSealing(nil)
 )
 
-func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
+func isTPMEnabledImpl(tpm *sb_tpm2.Connection) bool {
 	return tpm.IsEnabled()
 }
 
-func CheckKeySealingSupported() error {
+func CheckTPMKeySealingSupported() error {
 	logger.Noticef("checking if secure boot is enabled...")
 	if err := checkSecureBootEnabled(); err != nil {
 		logger.Noticef("secure boot not enabled: %v", err)
@@ -116,27 +118,19 @@ func checkSecureBootEnabled() error {
 	return nil
 }
 
-const tpmPCR = 12
+// initramfsPCR is the TPM PCR that we reserve for the EFI image and use
+// for measurement from the initramfs.
+const initramfsPCR = 12
 
-func secureConnectToTPM(ekcfile string) (*sb.TPMConnection, error) {
-	ekCertReader, err := os.Open(ekcfile)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
-	}
-	defer ekCertReader.Close()
-
-	return sb.SecureConnectToDefaultTPM(ekCertReader, nil)
-}
-
-func insecureConnectToTPM() (*sb.TPMConnection, error) {
+func insecureConnectToTPM() (*sb_tpm2.Connection, error) {
 	return sbConnectToDefaultTPM()
 }
 
-func measureWhenPossible(whatHow func(tpm *sb.TPMConnection) error) error {
+func measureWhenPossible(whatHow func(tpm *sb_tpm2.Connection) error) error {
 	// the model is ready, we're good to try measuring it now
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
-		if xerrors.Is(err, sb.ErrNoTPM2Device) {
+		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
 			return nil
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
@@ -153,8 +147,8 @@ func measureWhenPossible(whatHow func(tpm *sb.TPMConnection) error) error {
 // MeasureSnapSystemEpochWhenPossible measures the snap system epoch only if the
 // TPM device is available. If there's no TPM device success is returned.
 func MeasureSnapSystemEpochWhenPossible() error {
-	measure := func(tpm *sb.TPMConnection) error {
-		return sbMeasureSnapSystemEpochToTPM(tpm, tpmPCR)
+	measure := func(tpm *sb_tpm2.Connection) error {
+		return sbMeasureSnapSystemEpochToTPM(tpm, initramfsPCR)
 	}
 
 	if err := measureWhenPossible(measure); err != nil {
@@ -167,12 +161,12 @@ func MeasureSnapSystemEpochWhenPossible() error {
 // MeasureSnapModelWhenPossible measures the snap model only if the TPM device is
 // available. If there's no TPM device success is returned.
 func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) error {
-	measure := func(tpm *sb.TPMConnection) error {
+	measure := func(tpm *sb_tpm2.Connection) error {
 		model, err := findModel()
 		if err != nil {
 			return err
 		}
-		return sbMeasureSnapModelToTPM(tpm, tpmPCR, model)
+		return sbMeasureSnapModelToTPM(tpm, initramfsPCR, model)
 	}
 
 	if err := measureWhenPossible(measure); err != nil {
@@ -182,21 +176,43 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 	return nil
 }
 
-// UnlockVolumeIfEncrypted verifies whether an encrypted volume with the specified
-// name exists and unlocks it. With lockKeysOnFinish set, access to the sealed
-// keys will be locked when this function completes. The path to the device node
-// is returned as well as whether the device node is an decrypted device node (
-// in the encrypted case). If no encrypted volume was found, then the returned
-// device node is an unencrypted normal volume.
-func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error) {
+func lockTPMSealedKeys() error {
+	tpm, tpmErr := sbConnectToDefaultTPM()
+	if tpmErr != nil {
+		if xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
+			logger.Noticef("cannot open TPM connection: %v", tpmErr)
+			return nil
+		}
+		return fmt.Errorf("cannot lock TPM: %v", tpmErr)
+	}
+	defer tpm.Close()
+
+	// Lock access to the sealed keys. This should be called whenever there
+	// is a TPM device detected, regardless of whether secure boot is enabled
+	// or there is an encrypted volume to unlock. Note that snap-bootstrap can
+	// be called several times during initialization, and if there are multiple
+	// volumes to unlock we should lock access to the sealed keys only after
+	// the last encrypted volume is unlocked, in which case lockKeysOnFinish
+	// should be set to true.
+	//
+	// We should only touch the PCR that we've currently reserved for the kernel
+	// EFI image. Touching others will break the ability to perform any kind of
+	// attestation using the TPM because it will make the log inconsistent.
+	return sbBlockPCRProtectionPolicies(tpm, []int{initramfsPCR})
+}
+
+func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	// TODO:UC20: use sb.SecureConnectToDefaultTPM() if we decide there's benefit in doing that or
 	//            we have a hard requirement for a valid EK cert chain for every boot (ie, panic
 	//            if there isn't one). But we can't do that as long as we need to download
 	//            intermediate certs from the manufacturer.
+
+	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
+	// Obtain a TPM connection.
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
-		if !xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
-			return "", false, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
+		if !xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
+			return res, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
 	} else {
@@ -207,111 +223,141 @@ func UnlockVolumeIfEncrypted(disk disks.Disk, name string, encryptionKeyDir stri
 	// and endorsement hierarchies, but the device will remain visible to the operating system.
 	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
 
-	var lockErr error
-	var mapperName string
-	err, foundEncDev := func() (error, bool) {
-		defer func() {
-			if lockKeysOnFinish && tpmDeviceAvailable {
-				// Lock access to the sealed keys. This should be called whenever there
-				// is a TPM device detected, regardless of whether secure boot is enabled
-				// or there is an encrypted volume to unlock. Note that snap-bootstrap can
-				// be called several times during initialization, and if there are multiple
-				// volumes to unlock we should lock access to the sealed keys only after
-				// the last encrypted volume is unlocked, in which case lockKeysOnFinish
-				// should be set to true.
-				lockErr = sbLockAccessToSealedKeys(tpm)
-			}
-		}()
-
-		// find the encrypted device using the disk we were provided - note that
-		// we do not specify IsDecryptedDevice in opts because here we are
-		// looking for the encrypted device to unlock, later on in the boot
-		// process we will look for the decrypted device to ensure it matches
-		// what we expected
-		partUUID, err := disk.FindMatchingPartitionUUID(name + "-enc")
-		var errNotFound disks.FilesystemLabelNotFoundError
-		if xerrors.As(err, &errNotFound) {
-			// didn't find the encrypted label, so return nil to try the
-			// decrypted label again
-			return nil, false
+	// if we don't have a tpm, and we allow using a recovery key, do that
+	// directly
+	if !tpmDeviceAvailable && opts.AllowRecoveryKey {
+		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
+			return res, err
 		}
-		if err != nil {
-			return err, false
-		}
-		encdev := filepath.Join("/dev/disk/by-partuuid", partUUID)
-
-		mapperName = name + "-" + randutilRandomKernelUUID()
-		if !tpmDeviceAvailable {
-			return unlockEncryptedPartitionWithRecoveryKey(mapperName, encdev), true
-		}
-
-		sealedKeyPath := filepath.Join(encryptionKeyDir, name+".sealed-key")
-		return unlockEncryptedPartitionWithSealedKey(tpm, mapperName, encdev, sealedKeyPath, "", lockKeysOnFinish), true
-	}()
-	if err != nil {
-		return "", false, err
-	}
-	if lockErr != nil {
-		return "", false, fmt.Errorf("cannot lock access to sealed keys: %v", lockErr)
+		res.FsDevice = targetDevice
+		res.UnlockMethod = UnlockedWithRecoveryKey
+		return res, nil
 	}
 
-	if foundEncDev {
-		// return the encrypted device if the device we are maybe unlocking is
-		// an encrypted device
-		return filepath.Join("/dev/mapper", mapperName), true, nil
+	// otherwise we have a tpm and we should use the sealed key first, but
+	// this method will fallback to using the recovery key if enabled
+	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
+	res.UnlockMethod = method
+	if err == nil {
+		res.FsDevice = targetDevice
 	}
-
-	// otherwise find the device from the disk
-	partUUID, err := disk.FindMatchingPartitionUUID(name)
-	if err != nil {
-		return "", false, err
-	}
-	return filepath.Join("/dev/disk/by-partuuid", partUUID), false, nil
+	return res, err
 }
 
-// unlockEncryptedPartitionWithRecoveryKey prompts for the recovery key and use
-// it to open an encrypted device.
-func unlockEncryptedPartitionWithRecoveryKey(name, device string) error {
-	options := sb.ActivateWithRecoveryKeyOptions{
-		Tries: 3,
+func isActivatedWithRecoveryKey(err error) bool {
+	if err == nil {
+		return false
 	}
-
-	if err := sbActivateVolumeWithRecoveryKey(name, device, nil, &options); err != nil {
-		return fmt.Errorf("cannot unlock encrypted device %q: %v", device, err)
+	// with non-nil err, we should check for err being ActivateWithSealedKeyError
+	// and RecoveryKeyUsageErr inside that being nil - this indicates that the
+	// recovery key was used to unlock it
+	activateErr, ok := err.(*sb_tpm2.ActivateWithSealedKeyError)
+	if !ok {
+		return false
 	}
+	return activateErr.RecoveryKeyUsageErr == nil
+}
 
-	return nil
+func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
+	options := sb.ActivateVolumeOptions{
+		PassphraseTries: 1,
+		// disable recovery key by default
+		RecoveryKeyTries: 0,
+		KeyringPrefix:    keyringPrefix,
+	}
+	if allowRecoveryKey {
+		// enable recovery key only when explicitly allowed
+		options.RecoveryKeyTries = 3
+	}
+	return &options
 }
 
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, lock bool) error {
-	options := sb.ActivateWithTPMSealedKeyOptions{
-		PINTries:            1,
-		RecoveryKeyTries:    3,
-		LockSealedKeyAccess: lock,
+func unlockEncryptedPartitionWithSealedKey(tpm *sb_tpm2.Connection, name, device, keyfile string, allowRecovery bool) (UnlockMethod, error) {
+	options := activateVolOpts(allowRecovery)
+	// XXX: pinfile is currently not used
+	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, options)
+
+	if activated {
+		// non nil error may indicate the volume was unlocked using the
+		// recovery key
+		if err == nil {
+			logger.Noticef("successfully activated encrypted device %q with TPM", device)
+			return UnlockedWithSealedKey, nil
+		} else if isActivatedWithRecoveryKey(err) {
+			logger.Noticef("successfully activated encrypted device %q using a fallback activation method", device)
+			return UnlockedWithRecoveryKey, nil
+		}
+		// no other error is possible when activation succeeded
+		return UnlockStatusUnknown, fmt.Errorf("internal error: volume activated with unexpected error: %v", err)
+	}
+	// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
+	return NotUnlocked, fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
+}
+
+// SealKeys provisions the TPM and seals the encryption keys according to the
+// specified parameters. If the TPM is already provisioned, or a sealed key already
+// exists, SealKeys will fail and return an error.
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
+	numModels := len(params.ModelParams)
+	if numModels < 1 {
+		return fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
-	// XXX: pinfile is currently not used
-	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
-	if !activated {
-		// ActivateVolumeWithTPMSealedKey should always return an error if activated == false
-		return fmt.Errorf("cannot activate encrypted device %q: %v", device, err)
-	}
+	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
-		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", device)
-	} else {
-		logger.Noticef("successfully activated encrypted device %q with TPM", device)
+		return fmt.Errorf("cannot connect to TPM: %v", err)
+	}
+	defer tpm.Close()
+	if !isTPMEnabled(tpm) {
+		return fmt.Errorf("TPM device is not enabled")
+	}
+
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
+	if err != nil {
+		return err
+	}
+
+	if params.TPMProvision {
+		// Provision the TPM as late as possible
+		if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
+			return err
+		}
+	}
+
+	// Seal the provided keys to the TPM
+	creationParams := sb_tpm2.KeyCreationParams{
+		PCRProfile:             pcrProfile,
+		PCRPolicyCounterHandle: tpm2.Handle(params.PCRPolicyCounterHandle),
+		AuthKey:                params.TPMPolicyAuthKey,
+	}
+
+	sbKeys := make([]*sb_tpm2.SealKeyRequest, 0, len(keys))
+	for i := range keys {
+		sbKeys = append(sbKeys, &sb_tpm2.SealKeyRequest{
+			Key:  keys[i].Key,
+			Path: keys[i].KeyFile,
+		})
+	}
+
+	authKey, err := sbSealKeyToTPMMultiple(tpm, sbKeys, &creationParams)
+	if err != nil {
+		return err
+	}
+	if params.TPMPolicyAuthKeyFile != "" {
+		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, authKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot write the policy auth key file: %v", err)
+		}
 	}
 
 	return nil
 }
 
-// SealKey provisions the TPM and seals a partition encryption key according to the
-// specified parameters. If the TPM is already provisioned, or a sealed key already
-// exists, SealKey will fail and return an error.
-func SealKey(key EncryptionKey, params *SealKeyParams) error {
+// ResealKeys updates the PCR protection policy for the sealed encryption keys
+// according to the specified parameters.
+func ResealKeys(params *ResealKeysParams) error {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
 		return fmt.Errorf("at least one set of model-specific parameters is required")
@@ -331,50 +377,30 @@ func SealKey(key EncryptionKey, params *SealKeyParams) error {
 		return err
 	}
 
-	// Provision the TPM as late as possible
-	if err := tpmProvision(tpm, params.TPMLockoutAuthFile); err != nil {
-		return err
+	authKey, err := ioutil.ReadFile(params.TPMPolicyAuthKeyFile)
+	if err != nil {
+		return fmt.Errorf("cannot read the policy auth key file: %v", err)
 	}
 
-	// Seal key to the TPM
-	creationParams := sb.KeyCreationParams{
-		PCRProfile: pcrProfile,
-		PINHandle:  pinHandle,
+	numSealedKeyObjects := len(params.KeyFiles)
+	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
+	for _, keyfile := range params.KeyFiles {
+		sealedKeyObject, err := sbReadSealedKeyObject(keyfile)
+		if err != nil {
+			return err
+		}
+		sealedKeyObjects = append(sealedKeyObjects, sealedKeyObject)
 	}
-	return sbSealKeyToTPM(tpm, key[:], params.KeyFile, params.TPMPolicyUpdateDataFile, &creationParams)
+
+	return sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile)
 }
 
-// ResealKey updates the PCR protection policy for the sealed encryption key according to
-// the specified parameters.
-func ResealKey(params *ResealKeyParams) error {
-	numModels := len(params.ModelParams)
-	if numModels < 1 {
-		return fmt.Errorf("at least one set of model-specific parameters is required")
-	}
-
-	tpm, err := sbConnectToDefaultTPM()
-	if err != nil {
-		return fmt.Errorf("cannot connect to TPM: %v", err)
-	}
-	defer tpm.Close()
-	if !isTPMEnabled(tpm) {
-		return fmt.Errorf("TPM device is not enabled")
-	}
-
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams)
-	if err != nil {
-		return err
-	}
-
-	return sbUpdateKeyPCRProtectionPolicy(tpm, params.KeyFile, params.TPMPolicyUpdateDataFile, pcrProfile)
-}
-
-func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
-	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
+	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
 	for _, mp := range modelParams {
-		modelProfile := sb.NewPCRProtectionProfile()
+		modelProfile := sb_tpm2.NewPCRProtectionProfile()
 
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
@@ -382,7 +408,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 		}
 
 		// Add EFI secure boot policy profile
-		policyParams := sb.EFISecureBootPolicyProfileParams{
+		policyParams := sb_efi.SecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
 			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
@@ -391,36 +417,36 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 			//            ensure that the PCR profile is updated before/after sbkeysync executes.
 		}
 
-		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
+		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
 
 		// Add EFI boot manager profile
-		bootManagerParams := sb.EFIBootManagerProfileParams{
+		bootManagerParams := sb_efi.BootManagerProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
 		}
-		if err := sbAddEFIBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
+		if err := sbefiAddBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
 		}
 
 		// Add systemd EFI stub profile
 		if len(mp.KernelCmdlines) != 0 {
-			systemdStubParams := sb.SystemdEFIStubProfileParams{
+			systemdStubParams := sb_efi.SystemdStubProfileParams{
 				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
-				PCRIndex:       tpmPCR,
+				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
-			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
+			if err := sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams); err != nil {
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
 
 		// Add snap model profile
 		if mp.Model != nil {
-			snapModelParams := sb.SnapModelProfileParams{
+			snapModelParams := sb_tpm2.SnapModelProfileParams{
 				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
-				PCRIndex:     tpmPCR,
+				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
 			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
@@ -431,9 +457,9 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	var pcrProfile *sb.PCRProtectionProfile
+	var pcrProfile *sb_tpm2.PCRProtectionProfile
 	if numModels > 1 {
-		pcrProfile = sb.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
+		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 	} else {
 		pcrProfile = modelPCRProfiles[0]
 	}
@@ -443,7 +469,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 	return pcrProfile, nil
 }
 
-func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
+func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string) error {
 	// Create and save the lockout authorization file
 	lockoutAuth := make([]byte, 16)
 	// crypto rand is protected against short reads
@@ -458,15 +484,19 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
 	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
-	if err := sbProvisionTPM(tpm, sb.ProvisionModeFull, lockoutAuth); err != nil {
+	if err := provisionTPM(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 	return nil
 }
 
+func provisionTPMImpl(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte) error {
+	return tpm.EnsureProvisioned(mode, lockoutAuth)
+}
+
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, err error) {
+func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent, err error) {
 	// this will build load event trees for the current
 	// device configuration, e.g. something like:
 	//
@@ -478,7 +508,7 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, 
 
 	for _, chain := range chains {
 		// root of load events has source Firmware
-		loadseq, err := chain.loadEvent(sb.Firmware)
+		loadseq, err := chain.loadEvent(sb_efi.Firmware)
 		if err != nil {
 			return nil, err
 		}
@@ -488,11 +518,11 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, 
 }
 
 // loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent(source sb.EFIImageLoadEventSource) (*sb.EFIImageLoadEvent, error) {
-	var next []*sb.EFIImageLoadEvent
+func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.ImageLoadEvent, error) {
+	var next []*sb_efi.ImageLoadEvent
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent(sb.Shim)
+		ev, err := nextChain.loadEvent(sb_efi.Shim)
 		if err != nil {
 			return nil, err
 		}
@@ -502,28 +532,27 @@ func (lc *LoadChain) loadEvent(source sb.EFIImageLoadEventSource) (*sb.EFIImageL
 	if err != nil {
 		return nil, err
 	}
-	return &sb.EFIImageLoadEvent{
+	return &sb_efi.ImageLoadEvent{
 		Source: source,
 		Image:  image,
 		Next:   next,
 	}, nil
 }
 
-func efiImageFromBootFile(b *bootloader.BootFile) (sb.EFIImage, error) {
+func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	if b.Snap == "" {
 		if !osutil.FileExists(b.Path) {
 			return nil, fmt.Errorf("file %s does not exist", b.Path)
 		}
-		return sb.FileEFIImage(b.Path), nil
+		return sb_efi.FileImage(b.Path), nil
 	}
 
 	snapf, err := snapfile.Open(b.Snap)
 	if err != nil {
 		return nil, err
 	}
-	return sb.SnapFileEFIImage{
+	return sb_efi.SnapFileImage{
 		Container: snapf,
-		Path:      b.Snap,
 		FileName:  b.Path,
 	}, nil
 }

@@ -22,24 +22,39 @@ package servicestate
 import (
 	"fmt"
 
+	tomb "gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 // ServiceAction encapsulates a single service-related action (such as starting,
 // stopping or restarting) run against services of a given snap. The action is
 // run for services listed in services attribute, or for all services of the
 // snap if services list is empty.
-// The names of services are app names (as defined in snap yaml).
+// The names of services and explicit-services are app names (as defined in snap
+// yaml).
 type ServiceAction struct {
 	SnapName       string   `json:"snap-name"`
 	Action         string   `json:"action"`
 	ActionModifier string   `json:"action-modifier,omitempty"`
 	Services       []string `json:"services,omitempty"`
+	// ExplicitServices is used when there are explicit services that should be
+	// restarted. This is used for the `snap restart snap-name.svc1` case,
+	// where we create a task with specific services to work on - in this case
+	// ExplicitServices ends up being the list of services that were explicitly
+	// mentioned by the user to be restarted, regardless of their state. This is
+	// needed because in the case that one does `snap restart snap-name`,
+	// Services gets populated with all services in the snap, which we now
+	// interpret to mean that only inactive services of that set are to be
+	// restarted, but there could be additional explicit services that need to
+	// be restarted at the same time in the case that someone does something
+	// like `snap restart snap-name snap-name.svc1`, we will restart all the
+	// inactive and not disabled services in snap-name, and also svc1 regardless
+	// of the state svc1 is in.
+	ExplicitServices []string `json:"explicit-services,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
@@ -87,32 +102,86 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	meter := snapstate.NewTaskProgressAdapterLocked(t)
+	meter := snapstate.NewTaskProgressAdapterUnlocked(t)
 
-	switch sc.Action {
-	case "stop":
-		flags := &wrappers.StopServicesFlags{
-			Disable: sc.ActionModifier == "disable",
-		}
-		if err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings); err != nil {
-			return err
-		}
-	case "start":
-		startupOrdered, err := snap.SortServices(services)
+	var startupOrdered []*snap.AppInfo
+	if sc.Action != "stop" {
+		startupOrdered, err = snap.SortServices(services)
 		if err != nil {
 			return err
 		}
-		flags := &wrappers.StartServicesFlags{
-			Enable: sc.ActionModifier == "enable",
+	}
+
+	// ExplicitServices are snap app names; obtain names of systemd units
+	// expected by wrappers.
+	var explicitServicesSystemdUnits []string
+	for _, name := range sc.ExplicitServices {
+		if app := info.Apps[name]; app != nil {
+			explicitServicesSystemdUnits = append(explicitServicesSystemdUnits, app.ServiceName())
 		}
-		if err := wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings); err != nil {
+	}
+
+	// Note - state must be unlocked when calling wrappers below.
+	switch sc.Action {
+	case "stop":
+		disable := sc.ActionModifier == "disable"
+		flags := &wrappers.StopServicesFlags{
+			Disable: disable,
+		}
+		st.Unlock()
+		err := wrappers.StopServices(services, flags, snap.StopReasonOther, meter, perfTimings)
+		st.Lock()
+		if err != nil {
 			return err
 		}
+		if disable {
+			// re-read snapst after reacquiring the lock as it could have changed.
+			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+				return err
+			}
+			changed, err := updateSnapstateServices(&snapst, nil, services)
+			if err != nil {
+				return err
+			}
+			if changed {
+				snapstate.Set(st, sc.SnapName, &snapst)
+			}
+		}
+	case "start":
+		enable := sc.ActionModifier == "enable"
+		flags := &wrappers.StartServicesFlags{
+			Enable: enable,
+		}
+		st.Unlock()
+		err = wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings)
+		st.Lock()
+		if err != nil {
+			return err
+		}
+		if enable {
+			// re-read snapst after reacquiring the lock as it could have changed.
+			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+				return err
+			}
+			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil)
+			if err != nil {
+				return err
+			}
+			if changed {
+				snapstate.Set(st, sc.SnapName, &snapst)
+			}
+		}
 	case "restart":
-		return wrappers.RestartServices(services, nil, meter, perfTimings)
+		st.Unlock()
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, nil, meter, perfTimings)
+		st.Lock()
+		return err
 	case "reload-or-restart":
 		flags := &wrappers.RestartServicesFlags{Reload: true}
-		return wrappers.RestartServices(services, flags, meter, perfTimings)
+		st.Unlock()
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, flags, meter, perfTimings)
+		st.Lock()
+		return err
 	default:
 		return fmt.Errorf("unhandled service action: %q", sc.Action)
 	}

@@ -238,6 +238,22 @@ var removeStaleConnections = func(st *state.State) error {
 	return nil
 }
 
+func isBroken(st *state.State, snapName string) (bool, error) {
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, snapName, &snapst)
+	if err == state.ErrNoState {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	snapInfo, _ := snapst.CurrentInfo()
+	if snapInfo != nil && snapInfo.Broken != "" {
+		return true, nil
+	}
+	return false, nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
@@ -251,6 +267,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 
 	connStateChanged := false
 	affected := make(map[string]bool)
+ConnsLoop:
 	for connId, connState := range conns {
 		// Skip entries that just mark a connection as undesired. Those don't
 		// carry attributes that can go stale. In the same spirit, skip
@@ -280,6 +297,18 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			// as long as it wasn't disconnected manually; note that undesired flag is taken care of at
 			// the beginning of the loop.
 			if connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
+				// only do anything about this connection if snap isn't in a broken state, otherwise
+				// leave the connection untouched.
+				for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
+					broken, err := isBroken(m.state, snapName)
+					if err != nil {
+						return nil, err
+					}
+					if broken {
+						logger.Noticef("Snap %q is broken, ignored by reloadConnections", snapName)
+						continue ConnsLoop
+					}
+				}
 				delete(conns, connId)
 				connStateChanged = true
 			}
@@ -291,10 +320,12 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 		staticPlugAttrs := connState.StaticPlugAttrs
 		staticSlotAttrs := connState.StaticSlotAttrs
 
-		// XXX: Refresh the copy of the static connection attributes for "content" interface as long
-		// as its "content" attribute
+		// XXX: Refresh the copy of the static connection attributes for "content"
+		// and "system-files" interfaces.
 		// This is a partial and temporary solution to https://bugs.launchpad.net/snapd/+bug/1825883
-		if plugInfo.Interface == "content" {
+		// and https://bugs.launchpad.net/snapd/+bug/1942266.
+		switch plugInfo.Interface {
+		case "content":
 			var plugContent, slotContent string
 			plugInfo.Attr("content", &plugContent)
 			slotInfo.Attr("content", &slotContent)
@@ -306,6 +337,10 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			} else {
 				logger.Noticef("cannot refresh static attributes of the connection %q", connId)
 			}
+		case "system-files":
+			staticPlugAttrs = utils.NormalizeInterfaceAttributes(plugInfo.Attrs).(map[string]interface{})
+			staticSlotAttrs = utils.NormalizeInterfaceAttributes(slotInfo.Attrs).(map[string]interface{})
+			updateStaticAttrs = true
 		}
 
 		// Note: reloaded connections are not checked against policy again, and also we don't call BeforeConnect* methods on them.
@@ -1243,4 +1278,17 @@ func findConnsForHotplugKey(conns map[string]*connState, ifaceName string, hotpl
 	}
 	sort.Strings(connsForDevice)
 	return connsForDevice
+}
+
+func (m *InterfaceManager) discardSecurityProfilesLate(name string, rev snap.Revision, typ snap.Type) error {
+	for _, backend := range m.repo.Backends() {
+		lateDiscardBackend, ok := backend.(interfaces.SecurityBackendDiscardingLate)
+		if !ok {
+			continue
+		}
+		if err := lateDiscardBackend.RemoveLate(name, rev, typ); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,8 +20,11 @@
 package main_test
 
 import (
-	. "gopkg.in/check.v1"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+
+	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/image"
@@ -137,5 +140,36 @@ func (s *SnapPrepareImageSuite) TestPrepareImageExtraSnaps(c *C) {
 		PrepareDir:   "prepare-dir",
 		Snaps:        []string{"foo", "bar", "local.snap", "local2.snap", "store-snap"},
 		SnapChannels: map[string]string{"bar": "t/edge"},
+	})
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImageCustomize(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := snap.MockImagePrepare(prep)
+	defer r()
+
+	tmpdir := c.MkDir()
+	customizeFile := filepath.Join(tmpdir, "custo.json")
+	err := ioutil.WriteFile(customizeFile, []byte(`{
+  "console-conf": "disabled",
+  "cloud-init-user-data": "cloud-init-user-data"
+}`), 0644)
+	c.Assert(err, IsNil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--customize", customizeFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:  "model",
+		PrepareDir: "prepare-dir",
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+		},
 	})
 }

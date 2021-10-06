@@ -27,7 +27,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
 

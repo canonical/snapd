@@ -1,9 +1,12 @@
 summary: tests for tests.session
+
 # Session-tool depends on busctl and doesn't work on 14.04
 systems: [-ubuntu-14.04-*]
+
 environment:
     USER/root: root
     USER/test: test
+
 prepare: |
     truncate --size=0 defer.sh
     chmod +x defer.sh
@@ -33,25 +36,7 @@ prepare: |
 
     # Prepare for using sessions as the given user
     tests.session prepare -u "$USER"
-execute: |
-    # Check that stdin is forwarded correctly.
-    echo "it-works" | tests.session -u "$USER" exec cat | MATCH "it-works"
 
-    for n in $(seq 300); do
-        echo "ITERATION $(date) $n"
-        tests.session -u "$USER" exec id -u 2>/tmp/tests.session.log | MATCH "$(id -u "$USER")"
-        tests.session -u "$USER" exec env   2>/tmp/tests.session.log | MATCH "XDG_RUNTIME_DIR=/run/user/$(id -u "$USER")"
-        # We get a logind session
-        tests.session -u "$USER" exec loginctl list-sessions | grep "$USER"
-        # Exit code is forwarded
-        tests.session -u "$USER" exec true
-        not tests.session -u "$USER" exec false
-        # The -p option can be used to know the PID of the started program.
-        # This is different from the pid of tests.session as there's a session
-        # manager overlooking the termination of PAM stack (internally we use runuser).
-        tests.session -u "$USER" -p /tmp/outer.pid exec "$(command -v any-python)" -c 'from __future__ import print_function; import os; print(os.getpid())' >/tmp/inner.pid
-        test "$(cat /tmp/outer.pid)" = "$(cat /tmp/inner.pid)"
-    done
 restore: |
     # Restore after using sessions as the given user
     tests.session restore -u "$USER"
@@ -83,3 +68,23 @@ debug: |
     diff -u before.debug.txt after.debug.txt
     echo "Active timers"
     systemctl list-timers
+
+execute: |
+    # Check that stdin is forwarded correctly.
+    echo "it-works" | tests.session -u "$USER" exec cat | MATCH "it-works"
+
+    for n in $(seq 300); do
+        echo "ITERATION $(date) $n"
+        tests.session -u "$USER" exec id -u 2>/tmp/tests.session.log | MATCH "$(id -u "$USER")"
+        tests.session -u "$USER" exec env   2>/tmp/tests.session.log | MATCH "XDG_RUNTIME_DIR=/run/user/$(id -u "$USER")"
+        # We get a logind session
+        tests.session -u "$USER" exec loginctl list-sessions | grep "$USER"
+        # Exit code is forwarded
+        tests.session -u "$USER" exec true
+        not tests.session -u "$USER" exec false
+        # The -p option can be used to know the PID of the started program.
+        # This is different from the pid of tests.session as there's a session
+        # manager overlooking the termination of PAM stack (internally we use runuser).
+        tests.session -u "$USER" -p /tmp/outer.pid exec python3 -c 'import os; print(os.getpid())' >/tmp/inner.pid
+        test "$(cat /tmp/outer.pid)" = "$(cat /tmp/inner.pid)"
+    done

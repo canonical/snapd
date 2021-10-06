@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -115,18 +118,6 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "/run/mir_socket rw,")
 }
 
-const mirMockSlotSnapInfoYaml = `name: mir-server
-version: 1.0
-slots:
- mir-server:
-  interface: mir
-apps:
- mir:
-  command: foo
-  slots:
-   - mir-server
-`
-
 func (s *MirInterfaceSuite) TestSecComp(c *C) {
 	seccompSpec := &seccomp.Specification{}
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
@@ -158,7 +149,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_mir-server_mir"`)
 KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="ts[0-9]*", TAG+="snap_mir-server_mir"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_mir-server_mir", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_mir-server_mir $devpath $major:$minor"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_mir-server_mir", RUN+="%v/snap-device-helper $env{ACTION} snap_mir-server_mir $devpath $major:$minor"`, dirs.DistroLibExecDir))
 	c.Assert(udevSpec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 

@@ -20,80 +20,94 @@
 
 #include <glib.h>
 
-static void test_verify_security_tag(void)
+static void test_sc_security_tag_validate(void)
 {
 	// First, test the names we know are good
-	g_assert_true(verify_security_tag("snap.name.app", "name"));
-	g_assert_true(verify_security_tag
+	g_assert_true(sc_security_tag_validate("snap.name.app", "name"));
+	g_assert_true(sc_security_tag_validate
 		      ("snap.network-manager.NetworkManager",
 		       "network-manager"));
-	g_assert_true(verify_security_tag("snap.f00.bar-baz1", "f00"));
-	g_assert_true(verify_security_tag("snap.foo.hook.bar", "foo"));
-	g_assert_true(verify_security_tag("snap.foo.hook.bar-baz", "foo"));
-	g_assert_true(verify_security_tag
+	g_assert_true(sc_security_tag_validate("snap.f00.bar-baz1", "f00"));
+	g_assert_true(sc_security_tag_validate("snap.foo.hook.bar", "foo"));
+	g_assert_true(sc_security_tag_validate("snap.foo.hook.bar-baz", "foo"));
+	g_assert_true(sc_security_tag_validate
 		      ("snap.foo_instance.bar-baz", "foo_instance"));
-	g_assert_true(verify_security_tag
+	g_assert_true(sc_security_tag_validate
 		      ("snap.foo_instance.hook.bar-baz", "foo_instance"));
-	g_assert_true(verify_security_tag
+	g_assert_true(sc_security_tag_validate
 		      ("snap.foo_bar.hook.bar-baz", "foo_bar"));
 
 	// Now, test the names we know are bad
-	g_assert_false(verify_security_tag
+	g_assert_false(sc_security_tag_validate
 		       ("pkg-foo.bar.0binary-bar+baz", "bar"));
-	g_assert_false(verify_security_tag("pkg-foo_bar_1.1", ""));
-	g_assert_false(verify_security_tag("appname/..", ""));
-	g_assert_false(verify_security_tag("snap", ""));
-	g_assert_false(verify_security_tag("snap.", ""));
-	g_assert_false(verify_security_tag("snap.name", "name"));
-	g_assert_false(verify_security_tag("snap.name.", "name"));
-	g_assert_false(verify_security_tag("snap.name.app.", "name"));
-	g_assert_false(verify_security_tag("snap.name.hook.", "name"));
-	g_assert_false(verify_security_tag("snap!name.app", "!name"));
-	g_assert_false(verify_security_tag("snap.-name.app", "-name"));
-	g_assert_false(verify_security_tag("snap.name!app", "name!"));
-	g_assert_false(verify_security_tag("snap.name.-app", "name"));
-	g_assert_false(verify_security_tag("snap.name.app!hook.foo", "name"));
-	g_assert_false(verify_security_tag("snap.name.app.hook!foo", "name"));
-	g_assert_false(verify_security_tag("snap.name.app.hook.-foo", "name"));
-	g_assert_false(verify_security_tag("snap.name.app.hook.f00", "name"));
-	g_assert_false(verify_security_tag("sna.pname.app", "pname"));
-	g_assert_false(verify_security_tag("snap.n@me.app", "n@me"));
-	g_assert_false(verify_security_tag("SNAP.name.app", "name"));
-	g_assert_false(verify_security_tag("snap.Name.app", "Name"));
+	g_assert_false(sc_security_tag_validate("pkg-foo_bar_1.1", ""));
+	g_assert_false(sc_security_tag_validate("appname/..", ""));
+	g_assert_false(sc_security_tag_validate("snap", ""));
+	g_assert_false(sc_security_tag_validate("snap.", ""));
+	g_assert_false(sc_security_tag_validate("snap.name", "name"));
+	g_assert_false(sc_security_tag_validate("snap.name.", "name"));
+	g_assert_false(sc_security_tag_validate("snap.name.app.", "name"));
+	g_assert_false(sc_security_tag_validate("snap.name.hook.", "name"));
+	g_assert_false(sc_security_tag_validate("snap!name.app", "!name"));
+	g_assert_false(sc_security_tag_validate("snap.-name.app", "-name"));
+	g_assert_false(sc_security_tag_validate("snap.name!app", "name!"));
+	g_assert_false(sc_security_tag_validate("snap.name.-app", "name"));
+	g_assert_false(sc_security_tag_validate("snap.name.app!hook.foo", "name"));
+	g_assert_false(sc_security_tag_validate("snap.name.app.hook!foo", "name"));
+	g_assert_false(sc_security_tag_validate("snap.name.app.hook.-foo", "name"));
+	g_assert_false(sc_security_tag_validate("snap.name.app.hook.f00", "name"));
+	g_assert_false(sc_security_tag_validate("sna.pname.app", "pname"));
+	g_assert_false(sc_security_tag_validate("snap.n@me.app", "n@me"));
+	g_assert_false(sc_security_tag_validate("SNAP.name.app", "name"));
+	g_assert_false(sc_security_tag_validate("snap.Name.app", "Name"));
 	// This used to be false but it's now allowed.
-	g_assert_true(verify_security_tag("snap.0name.app", "0name"));
-	g_assert_false(verify_security_tag("snap.-name.app", "-name"));
-	g_assert_false(verify_security_tag("snap.name.@app", "name"));
-	g_assert_false(verify_security_tag(".name.app", "name"));
-	g_assert_false(verify_security_tag("snap..name.app", ".name"));
-	g_assert_false(verify_security_tag("snap.name..app", "name."));
-	g_assert_false(verify_security_tag("snap.name.app..", "name"));
+	g_assert_true(sc_security_tag_validate("snap.0name.app", "0name"));
+	g_assert_false(sc_security_tag_validate("snap.-name.app", "-name"));
+	g_assert_false(sc_security_tag_validate("snap.name.@app", "name"));
+	g_assert_false(sc_security_tag_validate(".name.app", "name"));
+	g_assert_false(sc_security_tag_validate("snap..name.app", ".name"));
+	g_assert_false(sc_security_tag_validate("snap.name..app", "name."));
+	g_assert_false(sc_security_tag_validate("snap.name.app..", "name"));
 	// These contain invalid instance key
-	g_assert_false(verify_security_tag("snap.foo_.bar-baz", "foo"));
-	g_assert_false(verify_security_tag
+	g_assert_false(sc_security_tag_validate("snap.foo_.bar-baz", "foo"));
+	g_assert_false(sc_security_tag_validate
 		       ("snap.foo_toolonginstance.bar-baz", "foo"));
-	g_assert_false(verify_security_tag
+	g_assert_false(sc_security_tag_validate
 		       ("snap.foo_inst@nace.bar-baz", "foo"));
-	g_assert_false(verify_security_tag
+	g_assert_false(sc_security_tag_validate
 		       ("snap.foo_in-stan-ce.bar-baz", "foo"));
-	g_assert_false(verify_security_tag("snap.foo_in stan.bar-baz", "foo"));
+	g_assert_false(sc_security_tag_validate("snap.foo_in stan.bar-baz", "foo"));
 
 	// Test names that are both good, but snap name doesn't match security tag
-	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fo"));
-	g_assert_false(verify_security_tag("snap.foo.hook.bar", "fooo"));
-	g_assert_false(verify_security_tag("snap.foo.hook.bar", "snap"));
-	g_assert_false(verify_security_tag("snap.foo.hook.bar", "bar"));
-	g_assert_false(verify_security_tag("snap.foo_instance.bar", "foo_bar"));
+	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "fo"));
+	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "fooo"));
+	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "snap"));
+	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "bar"));
+	g_assert_false(sc_security_tag_validate("snap.foo_instance.bar", "foo_bar"));
 
 	// Regression test 12to8
-	g_assert_true(verify_security_tag("snap.12to8.128to8", "12to8"));
-	g_assert_true(verify_security_tag("snap.123test.123test", "123test"));
-	g_assert_true(verify_security_tag
+	g_assert_true(sc_security_tag_validate("snap.12to8.128to8", "12to8"));
+	g_assert_true(sc_security_tag_validate("snap.123test.123test", "123test"));
+	g_assert_true(sc_security_tag_validate
 		      ("snap.123test.hook.configure", "123test"));
 
 	// regression test snap.eon-edg-shb-pulseaudio.hook.connect-plug-i2c
-	g_assert_true(verify_security_tag
+	g_assert_true(sc_security_tag_validate
 		      ("snap.foo.hook.connect-plug-i2c", "foo"));
+
+	// Security tag that's too long. The extra +2 is for the string
+	// terminator and to allow us to make the tag too long to validate.
+	char long_tag[SNAP_SECURITY_TAG_MAX_LEN + 2];
+	memset(long_tag, 'b', sizeof long_tag);
+	memcpy(long_tag, "snap.foo.b", sizeof "snap.foo.b" - 1);
+	long_tag[sizeof long_tag - 1] = '\0';
+	g_assert_true(strlen(long_tag) == SNAP_SECURITY_TAG_MAX_LEN + 1);
+	g_assert_false(sc_security_tag_validate(long_tag, "foo"));
+
+	// If we make it one byte shorter it will be valid.
+	long_tag[sizeof long_tag - 2] = '\0';
+	g_assert_true(sc_security_tag_validate(long_tag, "foo"));
+
 }
 
 static void test_sc_is_hook_security_tag(void)
@@ -550,7 +564,7 @@ static void test_sc_snap_split_instance_name_basic(void)
 
 static void __attribute__((constructor)) init(void)
 {
-	g_test_add_func("/snap/verify_security_tag", test_verify_security_tag);
+	g_test_add_func("/snap/sc_security_tag_validate", test_sc_security_tag_validate);
 	g_test_add_func("/snap/sc_is_hook_security_tag",
 			test_sc_is_hook_security_tag);
 

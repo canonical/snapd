@@ -20,6 +20,17 @@ execute: |
 
     echo "Disabling DNS queries"
     iptables -I OUTPUT -p udp --dport 53 -j REJECT --reject-with icmp-port-unreachable
+    # centos 7 doesn't support caching dns, so no flushing required
+    if [ "$SPREAD_SYSTEM" != "centos-7-64" ]; then
+        if systemctl is-active systemd-resolved; then
+            if command -v resolvectl ; then
+                resolvectl flush-caches
+            else
+                # before systemd 239, the tool was named systemd-resolve
+                systemd-resolve --flush-caches
+            fi
+        fi
+    fi
 
     systemctl start snapd.{socket,service}
 

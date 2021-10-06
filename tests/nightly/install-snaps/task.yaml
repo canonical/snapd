@@ -74,8 +74,7 @@ prepare: |
     systemctl restart snapd.socket
 
     if [ ! -d '/snap' ]; then
-        #shellcheck source=tests/lib/dirs.sh
-        . "$TESTSLIB/dirs.sh"
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"        
         ln -s "$SNAP_MOUNT_DIR" /snap
     fi
 
@@ -93,9 +92,6 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     CHANNELS="stable candidate beta edge"
     for CHANNEL in $CHANNELS; do
         # shellcheck disable=SC2153
@@ -108,7 +104,7 @@ execute: |
         fi
 
         if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*classic"; then
-            if is_classic_confinement_supported; then
+            if "$TESTSTOOLS"/snaps-state is-confinement-supported classic; then
                 snap install "$SNAP" "--$CHANNEL" --classic
             else
                 echo "The snap $SNAP requires classic confinement which is not supported yet"

@@ -58,13 +58,18 @@ var (
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 	AddHotplugSlot               = addHotplugSlot
 
-	BatchConnectTasks = batchConnectTasks
+	BatchConnectTasks                = batchConnectTasks
+	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding
 )
 
 type ConnectOpts = connectOpts
 
 func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
+}
+
+func NewDisconnectOptsWithAutoSet() disconnectOpts {
+	return disconnectOpts{AutoDisconnect: true}
 }
 
 func NewDisconnectOptsWithByHotplugSet() disconnectOpts {

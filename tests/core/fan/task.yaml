@@ -1,7 +1,7 @@
 summary: Test ubuntu-fan
 
-# Ubuntu fan not available on ubuntu-core-18
-# TODO:UC20: enable for UC20???
+# Ubuntu fan not available on ubuntu-core-18 and later, it is not shipped in the
+# base snap
 systems: [ubuntu-core-16-*]
 
 prepare: |

@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -122,10 +123,9 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				}
 				// the "`" is special
 				if s[0] == '`' {
-					// replace inner " with \"
-					s = strings.Replace(s, "\"", "\\\"", -1)
-					// replace \n with \\n
-					s = strings.Replace(s, "\n", "\\n", -1)
+					// keep escaped ", replace inner " with \", replace \n with \\n
+					rep := strings.NewReplacer(`\"`, `\"`, `"`, `\"`, "\n", "\\n")
+					s = rep.Replace(s)
 				}
 				// strip leading and trailing " (or `)
 				s = s[1 : len(s)-1]
@@ -170,8 +170,26 @@ func processFiles(args []string) error {
 	return nil
 }
 
+func readContent(fname string) (content []byte, err error) {
+	// If no search directories have been specified or we have an
+	// absolute path, just try to read the contents directly.
+	if len(opts.Directories) == 0 || filepath.IsAbs(fname) {
+		return ioutil.ReadFile(fname)
+	}
+
+	// Otherwise, search for the file in each of the configured
+	// directories.
+	for _, dir := range opts.Directories {
+		content, err = ioutil.ReadFile(filepath.Join(dir, fname))
+		if !os.IsNotExist(err) {
+			break
+		}
+	}
+	return content, err
+}
+
 func processSingleGoSource(fset *token.FileSet, fname string) error {
-	fnameContent, err := ioutil.ReadFile(fname)
+	fnameContent, err := readContent(fname)
 	if err != nil {
 		return err
 	}
@@ -276,6 +294,8 @@ msgstr  "Project-Id-Version: %s\n"
 // FIXME: this must be setable via go-flags
 var opts struct {
 	FilesFrom string `short:"f" long:"files-from" description:"get list of input files from FILE"`
+
+	Directories []string `short:"D" long:"directory" description:"add DIRECTORY to list for input files search"`
 
 	Output string `short:"o" long:"output" description:"output to specified file"`
 

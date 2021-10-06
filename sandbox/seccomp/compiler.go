@@ -72,8 +72,11 @@ func NewCompiler(lookupTool func(name string) (string, error)) (*Compiler, error
 // libseccomp library.
 func (c *Compiler) VersionInfo() (VersionInfo, error) {
 	cmd := exec.Command(c.snapSeccomp, "version-info")
-	output, err := cmd.CombinedOutput()
+	output, err := cmd.Output()
 	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && len(exitErr.Stderr) > 0 {
+			output = exitErr.Stderr
+		}
 		return "", osutil.OutputErr(output, err)
 	}
 	raw := bytes.TrimSpace(output)

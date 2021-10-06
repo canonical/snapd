@@ -51,12 +51,11 @@ import (
 type fakeOp struct {
 	op string
 
-	name    string
-	channel string
-	path    string
-	revno   snap.Revision
-	sinfo   snap.SideInfo
-	stype   snap.Type
+	name  string
+	path  string
+	revno snap.Revision
+	sinfo snap.SideInfo
+	stype snap.Type
 
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
@@ -70,6 +69,7 @@ type fakeOp struct {
 
 	otherInstances         bool
 	unlinkFirstInstallUndo bool
+	skipKernelExtraction   bool
 
 	services         []string
 	disabledServices []string
@@ -77,6 +77,8 @@ type fakeOp struct {
 	vitalityRank int
 
 	inhibitHint runinhibit.Hint
+
+	requireSnapdTooling bool
 }
 
 type fakeOps []fakeOp
@@ -159,8 +161,10 @@ type fakeStore struct {
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
-	state               *state.State
-	seenPrivacyKeys     map[string]bool
+	// snap -> error map for simulating download errors
+	downloadError   map[string]error
+	state           *state.State
+	seenPrivacyKeys map[string]bool
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -180,7 +184,7 @@ func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *aut
 	sspec := snapSpec{
 		Name: spec.Name,
 	}
-	info, err := f.snap(sspec, user)
+	info, err := f.snap(sspec)
 
 	userID := 0
 	if user != nil {
@@ -198,7 +202,7 @@ type snapSpec struct {
 	Cohort   string
 }
 
-func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		switch {
 		case spec.Cohort != "":
@@ -325,6 +329,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+
 	switch cand.snapID {
 	case "":
 		panic("store refresh APIs expect snap-ids")
@@ -336,6 +341,8 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "services-snap"
 	case "some-snap-id":
 		name = "some-snap"
+	case "some-other-snap-id":
+		name = "some-other-snap"
 	case "some-epoch-snap-id":
 		name = "some-epoch-snap"
 		epoch = snap.E("42")
@@ -373,6 +380,12 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeGadget
 	case "alias-snap-id":
 		name = "snap-id"
+	case "snap-c-id":
+		name = "snap-c"
+	case "outdated-consumer-id":
+		name = "outdated-consumer"
+	case "outdated-producer-id":
+		name = "outdated-producer"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -410,6 +423,28 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 	}
+
+	if name == "outdated-consumer" {
+		info.Plugs = map[string]*snap.PlugInfo{
+			"content-plug": {
+				Snap:      info,
+				Interface: "content",
+				Attrs: map[string]interface{}{
+					"content":          "some-content",
+					"default-provider": "outdated-producer",
+				},
+			},
+		}
+	} else if name == "outdated-producer" {
+		info.Slots = map[string]*snap.SlotInfo{
+			"content-slot": {
+				Snap:      info,
+				Interface: "content",
+				Attrs:     map[string]interface{}{"content": "some-content"},
+			},
+		}
+	}
+
 	switch cand.channel {
 	case "channel-for-layout/stable":
 		info.Layout = map[string]*snap.Layout{
@@ -513,7 +548,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Revision: a.Revision,
 				Cohort:   a.CohortKey,
 			}
-			info, err := f.snap(spec, user)
+			info, err := f.snap(spec)
 			if err != nil {
 				installErrors[a.InstanceName] = err
 				continue
@@ -573,6 +608,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			revno:  hit,
 			userID: userID,
 		})
+
 		if err == store.ErrNoUpdateAvailable {
 			refreshErrors[cur.InstanceName] = err
 			continue
@@ -635,6 +671,10 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
 
+	if e, ok := f.downloadError[name]; ok {
+		return e
+	}
+
 	return nil
 }
 
@@ -679,6 +719,19 @@ type fakeSnappyBackend struct {
 	servicesCurrentlyDisabled []string
 
 	lockDir string
+
+	// TODO cleanup triggers above
+	maybeInjectErr func(*fakeOp) error
+}
+
+func (f *fakeSnappyBackend) maybeErrForLastOp() error {
+	if f.maybeInjectErr == nil {
+		return nil
+	}
+	if len(f.ops) == 0 {
+		return nil
+	}
+	return f.maybeInjectErr(&f.ops[len(f.ops)-1])
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -730,7 +783,23 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return info, f.emptyContainer, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
+// XXX: this is now something that is overridden by tests that need a
+//      different service setup so it should be configurable and part
+//      of the fakeSnappyBackend?
+var servicesSnapYaml = `name: services-snap
+apps:
+  svc1:
+    daemon: simple
+    before: [svc3]
+  svc2:
+    daemon: simple
+    after: [svc1]
+  svc3:
+    daemon: simple
+    before: [svc2]
+`
+
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, opts *backend.SetupSnapOptions, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
@@ -741,6 +810,8 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
+
+		skipKernelExtraction: opts != nil && opts.SkipKernelExtraction,
 	})
 	snapType := snap.TypeApp
 	switch si.RealName {
@@ -798,18 +869,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		var err error
 		// fix services after/before so that there is only one solution
 		// to dependency ordering
-		info, err = snap.InfoFromSnapYaml([]byte(`name: services-snap
-apps:
-  svc1:
-    daemon: simple
-    before: [svc3]
-  svc2:
-    daemon: simple
-    after: [svc1]
-  svc3:
-    daemon: simple
-    before: [svc2]
-`))
+		info, err = snap.InfoFromSnapYaml([]byte(servicesSnapYaml))
 		if err != nil {
 			panic(err)
 		}
@@ -871,7 +931,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 		path: newInfo.MountDir(),
 		old:  old,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error) {
@@ -880,16 +940,18 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		<-f.linkSnapWaitCh
 	}
 
+	vitalityRank := 0
+	if linkCtx.ServiceOptions != nil {
+		vitalityRank = linkCtx.ServiceOptions.VitalityRank
+	}
+
 	op := fakeOp{
 		op:   "link-snap",
 		path: info.MountDir(),
-	}
 
-	// only add the services to the op if there's something to add
-	if len(linkCtx.PrevDisabledServices) != 0 {
-		op.disabledServices = linkCtx.PrevDisabledServices
+		vitalityRank:        vitalityRank,
+		requireSnapdTooling: linkCtx.RequireMountedSnapdSnap,
 	}
-	op.vitalityRank = linkCtx.VitalityRank
 
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
@@ -917,17 +979,22 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
 	}
-	f.appendOp(&fakeOp{
+	op := fakeOp{
 		op:       "start-snap-services",
 		path:     svcSnapMountDir(svcs),
 		services: services,
-	})
-	return nil
+	}
+	// only add the services to the op if there's something to add
+	if len(disabledSvcs) != 0 {
+		op.disabledServices = disabledSvcs
+	}
+	f.appendOp(&op)
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
@@ -935,7 +1002,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 		op:   fmt.Sprintf("stop-snap-services:%s", reason),
 		path: svcSnapMountDir(svcs),
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
@@ -950,7 +1017,7 @@ func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.
 		disabledServices: f.servicesCurrentlyDisabled,
 	})
 
-	return m, nil
+	return m, f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
@@ -982,7 +1049,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, insta
 	if s.InstanceName() == "borken-undo-setup" {
 		return errors.New(`cannot undo setup of "borken-undo-setup" snap`)
 	}
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter) error {
@@ -996,7 +1063,7 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 		path: newInfo.MountDir(),
 		old:  old,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error {
@@ -1007,7 +1074,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, meter progress.Meter) error {
@@ -1017,7 +1084,7 @@ func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, ins
 		path:  s.MountDir(),
 		stype: typ,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
@@ -1025,7 +1092,7 @@ func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 		op:   "remove-snap-data",
 		path: info.MountDir(),
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
@@ -1033,7 +1100,7 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
@@ -1043,7 +1110,15 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 		path:           snap.BaseDataDir(info.SnapName()),
 		otherInstances: otherInstances,
 	})
-	return nil
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-mount-units",
+		name: s.InstanceName(),
+	})
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
@@ -1053,7 +1128,7 @@ func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool)
 		path:           snap.BaseDir(s.SnapName()),
 		otherInstances: otherInstances,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
@@ -1061,7 +1136,7 @@ func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
 		op:   "discard-namespace",
 		name: snapName,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
@@ -1069,7 +1144,7 @@ func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string) error {
 		op:   "remove-inhibit-lock",
 		name: snapName,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
@@ -1124,7 +1199,7 @@ func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backen
 		aliases:   add,
 		rmAliases: remove,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
@@ -1132,7 +1207,7 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 		op:   "remove-snap-aliases",
 		name: snapName,
 	})
-	return nil
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {

@@ -73,7 +73,9 @@ func (iface *serialPortInterface) String() string {
 //  - ttyOX (UART serial ports on ARM)
 //  - ttymxcX (serial ports on i.mx6UL)
 //  - ttySCX (NXP SC16IS7xx serial devices)
-var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(mxc|USB|ACM|AMA|XRUSB|S|O|SC)[0-9]+$")
+//  - ttyMSMX (Qualcomm msm7x serial devices)
+//  - ttyHSX (Qualcomm GENI based QTI serial cores)
+var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty(mxc|USB|ACM|AMA|XRUSB|S|O|SC|MSM|HS)[0-9]+$")
 
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid

@@ -25,21 +25,44 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 )
 
 var (
 	Parser = parser
 
 	DoSystemdMount = doSystemdMountImpl
+
+	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
 )
 
 type SystemdMountOptions = systemdMountOptions
+
+type RecoverDegradedState = recoverDegradedState
+
+type PartitionState = partitionState
+
+func (r *RecoverDegradedState) Degraded(isEncrypted bool) bool {
+	m := recoverModeStateMachine{
+		isEncryptedDev: isEncrypted,
+		degradedState:  r,
+	}
+	return m.degraded()
+}
 
 func MockTimeNow(f func() time.Time) (restore func()) {
 	old := timeNow
 	timeNow = f
 	return func() {
 		timeNow = old
+	}
+}
+
+func MockOsutilSetTime(f func(t time.Time) error) (restore func()) {
+	old := osutilSetTime
+	osutilSetTime = f
+	return func() {
+		osutilSetTime = old
 	}
 }
 
@@ -77,11 +100,19 @@ func MockDefaultMarkerFile(p string) (restore func()) {
 	}
 }
 
-func MockSecbootUnlockVolumeIfEncrypted(f func(disk disks.Disk, name string, encryptionKeyDir string, lockKeysOnFinish bool) (string, bool, error)) (restore func()) {
-	old := secbootUnlockVolumeIfEncrypted
-	secbootUnlockVolumeIfEncrypted = f
+func MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(f func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)) (restore func()) {
+	old := secbootUnlockVolumeUsingSealedKeyIfEncrypted
+	secbootUnlockVolumeUsingSealedKeyIfEncrypted = f
 	return func() {
-		secbootUnlockVolumeIfEncrypted = old
+		secbootUnlockVolumeUsingSealedKeyIfEncrypted = old
+	}
+}
+
+func MockSecbootUnlockEncryptedVolumeUsingKey(f func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error)) (restore func()) {
+	old := secbootUnlockEncryptedVolumeUsingKey
+	secbootUnlockEncryptedVolumeUsingKey = f
+	return func() {
+		secbootUnlockEncryptedVolumeUsingKey = old
 	}
 }
 
@@ -101,6 +132,14 @@ func MockSecbootMeasureSnapModelWhenPossible(f func(findModel func() (*asserts.M
 	}
 }
 
+func MockSecbootLockSealedKeys(f func() error) (restore func()) {
+	old := secbootLockSealedKeys
+	secbootLockSealedKeys = f
+	return func() {
+		secbootLockSealedKeys = old
+	}
+}
+
 func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 	old := bootFindPartitionUUIDForBootedKernelDisk
 	bootFindPartitionUUIDForBootedKernelDisk = func() (string, error) {
@@ -115,3 +154,21 @@ func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 		bootFindPartitionUUIDForBootedKernelDisk = old
 	}
 }
+
+func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
+	old := tryRecoverySystemHealthCheck
+	tryRecoverySystemHealthCheck = mock
+	return func() {
+		tryRecoverySystemHealthCheck = old
+	}
+}
+
+func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
+	old := waitFile
+	waitFile = f
+	return func() {
+		waitFile = old
+	}
+}
+
+var WaitFile = waitFile

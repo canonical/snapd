@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -72,6 +73,11 @@ const fwupdPermanentSlotAppArmor = `
 
   # Allow write access for efi firmware updater
   /boot/efi/{,**/} r,
+  # allow access to fwupd* and fw/ under boot/ for core systems
+  /boot/efi/EFI/boot/fwupd*.efi* rw,
+  /boot/efi/EFI/boot/fw/** rw,
+  # allow access to fwupd* and fw/ under ubuntu/ for classic systems
+  # but it should be deprecated once old uefi-fw-tools is no longer used
   /boot/efi/EFI/ubuntu/fwupd*.efi* rw,
   /boot/efi/EFI/ubuntu/fw/** rw,
 
@@ -105,6 +111,15 @@ const fwupdPermanentSlotAppArmor = `
   dbus (bind)
       bus=system
       name="org.freedesktop.fwupd",
+`
+
+const fwupdPermanentSlotAppArmorClassic = `
+# Description: Allow operating as the fwupd service. This gives privileged
+# access to the Classic system.
+
+  # allow access to fwupd* and fw/ under any distro for classic systems
+  /boot/efi/EFI/*/fwupd*.efi* rw,
+  /boot/efi/EFI/*/fw/** rw,
 `
 
 const fwupdConnectedPlugAppArmor = `
@@ -256,10 +271,13 @@ func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 }
 
 func (iface *fwupdInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	// Only apply slot snippet when running as application snap on
-	// classic, slot side can be system or application
+	// Only apply slot snippet when running as application snap
 	if !implicitSystemPermanentSlot(slot) {
 		spec.AddSnippet(fwupdPermanentSlotAppArmor)
+		// An application snap on classic also should have these rules
+		if release.OnClassic {
+			spec.AddSnippet(fwupdPermanentSlotAppArmorClassic)
+		}
 
 		// Allow mounting boot partition to snap-update-ns
 		emit := spec.AddUpdateNSf

@@ -44,7 +44,3 @@ execute: |
   fi
 
   inspect_connection | MATCH "false"
-
-restore: |
-  snap remove --purge simplesnap
-  rm -f simplesnap_*_all.snap

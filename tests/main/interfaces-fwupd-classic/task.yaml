@@ -5,13 +5,8 @@ systems:
     - -ubuntu-core-*
     # Fwupd is not available in the Ubuntu 14.04 archive.
     - -ubuntu-14.04-*
-    # Fwupd errors out with "FuMain: failed to get USB context: failed
-    # to init libusb: Other error [-99]"
-    - -ubuntu-16.04-32
     # Amazon Linux does not appear to have a functional fwupd
     - -amazon-linux-2-*
-
-prepare: |
 
 execute: |
     echo "Install the test-snapd-fwupd" interface
@@ -19,6 +14,7 @@ execute: |
 
     echo "The fwupd plug is disconnected by default"
     snap connections test-snapd-fwupd | MATCH "fwupd +test-snapd-fwupd:fwupd +- +-"
+
     echo "The plug can be connected"
     snap connect test-snapd-fwupd:fwupd
     snap connections test-snapd-fwupd | MATCH "fwupd +test-snapd-fwupd:fwupd +:fwupd +manual"
@@ -30,5 +26,6 @@ execute: |
        # AssumeAppArmorLabel=unconfined
        systemctl start fwupd.service
     fi
+
     echo "With the plug connected, we can talk to fwupd"
     test-snapd-fwupd.get-version | MATCH 'variant +string "[0-9.]+(-[0-9a-g-]+)?"'

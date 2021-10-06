@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -37,8 +40,6 @@ type IioInterfaceSuite struct {
 
 	// OS Snap
 	testSlot1Info       *snap.SlotInfo
-	testSlot2Info       *snap.SlotInfo
-	testSlotCleaned     *interfaces.ConnectedSlot
 	testSlotCleanedInfo *snap.SlotInfo
 
 	// Gadget Snap
@@ -202,7 +203,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# iio
 KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSingleSnippet(c *C) {

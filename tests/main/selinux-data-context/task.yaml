@@ -1,6 +1,6 @@
 summary: Check that SELinux file context transitions work
 
-description: |
+details: |
     Verify that automatic file context transitions work and cover typical use cases
 
 # Only distros that support SELinux
@@ -9,9 +9,6 @@ systems: [fedora-*, centos-*]
 prepare: |
     rm -rf /root/snap
     rm -rf /home/test/snap
-
-restore: |
-    rm -rf ./*-labels
 
 execute: |
     # verify that we're actually running on a SELinux system

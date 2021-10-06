@@ -48,8 +48,8 @@ We're friendly! We have a community forum at
 [https://forum.snapcraft.io](https://forum.snapcraft.io) where we discuss
 feature plans, development news, issues, updates and troubleshooting. You can
 chat in realtime with the snapd team and our wider community on the
-[#snappy](https://webchat.freenode.net/?channels=snappy) IRC channel on
-[freenode](https://freenode.net/).
+[#snappy](https://web.libera.chat?channel=#snappy) IRC channel on
+[libera chat](https://libera.chat/).
 
 For news and updates, follow us on [Twitter](https://twitter.com/snapcraftio)
 and on [Facebook](https://www.facebook.com/snapcraftio).
@@ -58,12 +58,11 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 | Service | Status |
 |-----|:---|
-| [Travis](https://travis-ci.org/) |  ![Build Status][travis-image]  |
+| [Github Actions](https://github.com/actions/) |  ![Build Status][actions-image]  |
 | [GoReport](https://goreportcard.com/) |  [![Go Report Card][goreportcard-image]][goreportcard-url] |
 | [Codecov](https://codecov.io/) |  [![codecov][codecov-image]][codecov-url] |
 
-[travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
-[travis-url]: https://travis-ci.org/snapcore/snapd
+[actions-image]: https://github.com/snapcore/snapd/actions
 
 [goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
 [goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd

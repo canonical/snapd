@@ -55,7 +55,7 @@ const accountControlConnectedPlugAppArmor = `
 /etc/pam.d/{,*} r,
 
 # Needed by chpasswd
-/lib/@{multiarch}/security/* ixr,
+/{,usr/}lib/@{multiarch}/security/* ixr,
 
 # Useradd needs netlink
 network netlink raw,

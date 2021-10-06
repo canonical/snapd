@@ -1,8 +1,10 @@
 summary: ensure apparmor_parser is not using gobs of memory
+
 details: |
   Ensure that apparmor_parser is not using excessive amounts of memory when
   compiling snap-update-ns profile of an application that looks like
   gnome-system-monitor snap.
+
 prepare: |
   # Pack, install and connect the three participants.
   snap pack test-snapd-app
@@ -16,6 +18,7 @@ prepare: |
   snap connect test-snapd-app:gnome-3-28-1804 test-snapd-gnome-3-28-1804
   snap connect test-snapd-app:icon-themes test-snapd-gtk-common-themes:icon-themes
   snap connect test-snapd-app:sound-themes test-snapd-gtk-common-themes:sound-themes
+
 execute: |
   if snap debug sandbox-features --required apparmor:kernel:mount; then
     # Re-compile the apparmor profile for snap-update-ns for the
@@ -31,13 +34,3 @@ execute: |
     # average of 10 runs. The threshold in this test is set to about 50MB.
     test "$(cat memory-kb.txt)" -lt 50000
   fi
-restore: |
-  snap remove --purge test-snapd-app
-  snap remove --purge test-snapd-gnome-3-28-1804
-  snap remove --purge test-snapd-gtk-common-themes
-
-  rm -f test-snapd-app_1_all.snap
-  rm -f test-snapd-gnome-3-28-1804_1_all.snap
-  rm -f test-snapd-gtk-common-themes_1_all.snap
-
-  rm -f memory-kb.txt

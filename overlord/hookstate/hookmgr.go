@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package hookstate
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -69,7 +71,9 @@ type Handler interface {
 	Done() error
 
 	// Error is called if the hook encounters an error while running.
-	Error(err error) error
+	// The returned bool flag indicates if the original hook error should be
+	// ignored by hook manager.
+	Error(hookErr error) (ignoreHookErr bool, err error)
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
@@ -260,7 +264,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
+	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
 
 // undoRunHook runs the undo-hook that was requested.
@@ -279,10 +283,53 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract undo hook setup from task: %s", err)
 	}
 
-	return m.runHook(task, tomb, snapst, hooksup)
+	return m.runHookForTask(task, tomb, snapst, hooksup)
 }
 
-func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
+func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]interface{}) (*Context, error) {
+	var snapst snapstate.SnapState
+	m.state.Lock()
+	err := snapstate.Get(m.state, hooksup.Snap, &snapst)
+	m.state.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)
+	}
+
+	context, err := newEphemeralHookContextWithData(m.state, hooksup, contextData)
+	if err != nil {
+		return nil, err
+	}
+
+	tomb, _ := tomb.WithContext(ctx)
+	if err := m.runHook(context, &snapst, hooksup, tomb); err != nil {
+		return nil, err
+	}
+	return context, nil
+}
+
+func (m *HookManager) runHookForTask(task *state.Task, tomb *tomb.Tomb, snapst *snapstate.SnapState, hooksup *HookSetup) error {
+	context, err := NewContext(task, m.state, hooksup, nil, "")
+	if err != nil {
+		return err
+	}
+	return m.runHook(context, snapst, hooksup, tomb)
+}
+
+// runHookGuardForRestarting helps avoiding running a hook if we are
+// restarting by returning state.Retry in such case.
+func (m *HookManager) runHookGuardForRestarting(context *Context) error {
+	context.Lock()
+	defer context.Unlock()
+	if ok, _ := restart.Pending(m.state); ok {
+		return &state.Retry{}
+	}
+
+	// keep count of running hooks
+	atomic.AddInt32(&m.runningHooks, 1)
+	return nil
+}
+
+func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hooksup *HookSetup, tomb *tomb.Tomb) error {
 	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
 	if !mustHijack {
@@ -304,22 +351,13 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 
 	if hookExists || mustHijack {
 		// we will run something, not a noop
-		if ok, _ := task.State().Restarting(); ok {
-			// don't start running a hook if we are restarting
-			return &state.Retry{}
+		if err := m.runHookGuardForRestarting(context); err != nil {
+			return err
 		}
-
-		// keep count of running hooks
-		atomic.AddInt32(&m.runningHooks, 1)
 		defer atomic.AddInt32(&m.runningHooks, -1)
 	} else if !hooksup.Always {
 		// a noop with no 'always' flag: bail
 		return nil
-	}
-
-	context, err := NewContext(task, task.State(), hooksup, nil, "")
-	if err != nil {
-		return err
 	}
 
 	// Obtain a handler for this hook. The repository returns a list since it's
@@ -352,11 +390,12 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 		m.contextsMutex.Unlock()
 	}()
 
-	if err = context.Handler().Before(); err != nil {
+	if err := context.Handler().Before(); err != nil {
 		return err
 	}
 
 	// some hooks get hijacked, e.g. the core configuration
+	var err error
 	var output []byte
 	if f := m.hijacked(hooksup.Hook, hooksup.Snap); f != nil {
 		err = f(context)
@@ -369,12 +408,16 @@ func (m *HookManager) runHook(task *state.Task, tomb *tomb.Tomb, snapst *snapsta
 		}
 		err = osutil.OutputErr(output, err)
 		if hooksup.IgnoreError {
-			task.State().Lock()
-			task.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
-			task.State().Unlock()
+			context.Lock()
+			context.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
+			context.Unlock()
 		} else {
-			if handlerErr := context.Handler().Error(err); handlerErr != nil {
+			ignoreOriginalErr, handlerErr := context.Handler().Error(err)
+			if handlerErr != nil {
 				return handlerErr
+			}
+			if ignoreOriginalErr {
+				return nil
 			}
 
 			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)

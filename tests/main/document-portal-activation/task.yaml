@@ -1,5 +1,6 @@
 summary: Check that the document portal is activated when needed
-description: |
+
+details: |
     In order for xdg-document-portal to securely share files with a
     confined applications, it must be started prior to setting up the
     user mount namespace.  This is due to the daemon providing a FUSE
@@ -37,29 +38,20 @@ prepare: |
 
 restore: |
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    rm -f doc-portal.log
-    rm -f report-error.txt
     tests.session -u test restore
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    if is_cgroupv2; then
-        check_stderr() {
-            test -n "$1"
-            test "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement" = "$(cat "$1")"
-        }
-    else
-        check_stderr() {
-            test -n "$1"
-            if [ -s "$1" ]; then
-                echo "stderr contains some messages"
-                cat "$1"
-                exit 1
-            fi
-        }
-    fi
+    check_stderr() {
+        test -n "$1"
+        if [ -s "$1" ]; then
+            echo "stderr contains some messages"
+            cat "$1"
+            exit 1
+        fi
+    }
 
     echo "No output on stderr when running with a session bus, when xdg-document-portal is not present."
     tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
@@ -77,7 +69,7 @@ execute: |
 
     echo "No attempt is made to activate the document portal due to the previous failure"
     tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current
-    not MATCH "GetMountPoint called" < doc-portal.log
+    NOMATCH "GetMountPoint called" < doc-portal.log
 
     echo "Remove the .portals-unavailable file to force a recheck"
     rm /run/user/12345/.portals-unavailable

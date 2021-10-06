@@ -3,7 +3,7 @@ summary: Check that basic install works
 #
 # This test only makes sense on x86_64 as it can execute i386 code in addition
 # to native x86_64 code).
-systems: [-debian-8, -ubuntu-16.04-32]
+systems: [-debian-8]
 prepare: |
     snap install --edge test-seccomp-compat
 execute: |

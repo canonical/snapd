@@ -1,21 +1,18 @@
 summary: create ubuntu-core image and execute the suite in a nested qemu instance
 
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-18.04-64]
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "Wait for first boot to be done"
-    while ! nested_exec "snap changes" | MATCH "Done.*Initialize system state"; do sleep 1; done
+    tests.nested exec "retry --wait 1 -n 120 sh -c 'snap changes | MATCH \"Done.*Initialize system state\"'"
 
     echo "We have a model assertion"
-    nested_exec "snap known model" | MATCH "series: 16"
+    tests.nested exec "snap known model" | MATCH "series: 16"
 
-    EXPRESSION="^core .* +latest/$NESTED_CORE_CHANNEL +canonical\\* +core"
+    EXPRESSION="^core18 .* +latest/$NESTED_CORE_CHANNEL +canonical\\* +base"
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-        EXPRESSION="^core .* +x1 .* core"
+        EXPRESSION="^core18 .* +x1 .* base"
     fi
 
     echo "Make sure core has an actual revision"
-    nested_exec "snap list --unicode=never" | MATCH "$EXPRESSION"
+    tests.nested exec "snap list --unicode=never" | MATCH "$EXPRESSION"

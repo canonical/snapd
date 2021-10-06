@@ -55,7 +55,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -65,6 +64,10 @@ var (
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
+
+	// make sure that apparmor profile fulfills the late discarding backend
+	// interface
+	_ interfaces.SecurityBackendDiscardingLate = (*Backend)(nil)
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -160,18 +163,27 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// not.  If we do then we prefer the file ending with the name .real as
 	// that is the more recent name we use.
 	var profilePath string
+	// TODO: fix for distros using /usr/libexec/snapd
 	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
-		profilePath = filepath.Join(apparmor_sandbox.ConfDir, profileFname)
-		if _, err := os.Stat(profilePath); err != nil {
+		maybeProfilePath := filepath.Join(apparmor_sandbox.ConfDir, profileFname)
+		if _, err := os.Stat(maybeProfilePath); err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
 			return err
 		}
+		profilePath = maybeProfilePath
 		break
 	}
 	if profilePath == "" {
-		return fmt.Errorf("cannot find system apparmor profile for snap-confine")
+		// XXX: is profile mandatory on some distros?
+
+		// There is no AppArmor profile for snap-confine, quite likely
+		// AppArmor support is enabled in the kernel and relevant
+		// userspace tools exist, but snap-confine was built without it,
+		// nothing we need to update then.
+		logger.Noticef("snap-confine apparmor profile is absent, nothing to update")
+		return nil
 	}
 
 	aaFlags := skipReadCache
@@ -193,6 +205,9 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 // snapConfineFromSnapProfile returns the apparmor profile for
 // snap-confine in the given core/snapd snap.
 func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[string]osutil.FileState, err error) {
+	// TODO: fix this for distros using /usr/libexec/snapd when those start
+	// to use reexec
+
 	// Find the vanilla apparmor profile for snap-confine as present in the given core snap.
 
 	// We must test the ".real" suffix first, this is a workaround for
@@ -220,8 +235,23 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	//   /snap/core/111/usr/lib/snapd/snap-confine
 	// becomes
 	//   snap-confine.core.111
-	patchedProfileName := fmt.Sprintf("snap-confine.%s.%s", info.InstanceName(), info.Revision)
+	patchedProfileName := snapConfineProfileName(info.InstanceName(), info.Revision)
+	// remove other generated profiles, which is only relevant for the
+	// 'core' snap on classic system where we reexec, on core systems the
+	// profile is already a part of the rootfs snap
 	patchedProfileGlob := fmt.Sprintf("snap-confine.%s.*", info.InstanceName())
+
+	if info.Type() == snap.TypeSnapd {
+		// with the snapd snap, things are a little different, the
+		// profile is discarded only late for the revisions that are
+		// being removed, also on core devices the rootfs snap and the
+		// snapd snap are updated separately, so the profile needs to be
+		// around for as long as the given revision of the snapd snap is
+		// active, so we use the exact match such that we only replace
+		// our own profile, which can happen if system was rebooted
+		// before task calling the backend was finished
+		patchedProfileGlob = patchedProfileName
+	}
 
 	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
 	content = map[string]osutil.FileState{
@@ -232,6 +262,10 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	}
 
 	return dirs.SnapAppArmorDir, patchedProfileGlob, content, nil
+}
+
+func snapConfineProfileName(snapName string, rev snap.Revision) string {
+	return fmt.Sprintf("snap-confine.%s.%s", snapName, rev)
 }
 
 // setupSnapConfineReexec will setup apparmor profiles inside the host's
@@ -381,10 +415,8 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	}
 
 	// Get the files that this snap should have
-	content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
-	}
+	content := b.deriveContent(spec.(*Specification), snapInfo, opts)
+
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapInfo.InstanceName())
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -542,9 +574,29 @@ func (b *Backend) Remove(snapName string) error {
 	globs := profileGlobs(snapName)
 	cache := apparmor_sandbox.CacheDir
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
+	// always try to unload affected profiles
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
+	}
+	return errUnload
+}
+
+func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
+	logger.Debugf("remove late for snap %v (%s) type %v", snapName, rev, typ)
+	if typ != snap.TypeSnapd {
+		// late remove is relevant only for snap confine profiles
+		return nil
+	}
+
+	globs := []string{snapConfineProfileName(snapName, rev)}
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, globs, nil)
+	// XXX: unloadProfiles() does not unload profiles from the kernel, but
+	// only removes profiles from the cache
+	// always try to unload the affected profile
+	errUnload := unloadProfiles(removed, apparmor_sandbox.CacheDir)
+	if errEnsure != nil {
+		return fmt.Errorf("cannot remove security profiles for snap %q (%s): %s", snapName, rev, errEnsure)
 	}
 	return errUnload
 }
@@ -559,7 +611,7 @@ const (
 	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
 )
 
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	content = make(map[string]osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
 
 	// Add profile for each app.
@@ -577,10 +629,10 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// This applies to, for example, kernel snaps or gadget snaps (unless they have hooks).
 	if len(content) > 0 {
 		snippets := strings.Join(spec.UpdateNS(), "\n")
-		addUpdateNSProfile(snapInfo, opts, snippets, content)
+		addUpdateNSProfile(snapInfo, snippets, content)
 	}
 
-	return content, nil
+	return content
 }
 
 // addUpdateNSProfile adds an apparmor profile for snap-update-ns, tailored to a specific snap.
@@ -588,7 +640,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 // This profile exists so that snap-update-ns doens't need to carry very wide, open permissions
 // that are suitable for poking holes (and writing) in nearly arbitrary places. Instead the profile
 // contains just the permissions needed to poke a hole and write to the layout-specific paths.
-func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets string, content map[string]osutil.FileState) {
+func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string]osutil.FileState) {
 	// Compute the template by injecting special updateNS snippets.
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
@@ -611,23 +663,6 @@ func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 }
 
-func downgradeConfinement() bool {
-	kver := osutil.KernelVersion()
-	switch {
-	case release.DistroLike("opensuse-tumbleweed"):
-		if cmp, _ := strutil.VersionCompare(kver, "4.16"); cmp >= 0 {
-			// As a special exception, for openSUSE Tumbleweed which ships Linux
-			// 4.16, do not downgrade the confinement template.
-			return false
-		}
-	case release.DistroLike("arch", "archlinux"):
-		// The default kernel has AppArmor enabled since 4.18.8, the
-		// hardened one since 4.17.4
-		return false
-	}
-	return true
-}
-
 func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
@@ -646,22 +681,6 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 	if opts.Classic && !opts.JailMode {
 		policy = classicTemplate
 		ignoreSnippets = true
-	}
-	// When partial AppArmor is detected, use the classic template for now. We could
-	// use devmode, but that could generate confusing log entries for users running
-	// snaps on systems with partial AppArmor support.
-	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
-		// By default, downgrade confinement to the classic template when
-		// partial AppArmor support is detected. We don't want to use strict
-		// in general yet because older versions of the kernel did not
-		// provide backwards compatible interpretation of confinement
-		// so the meaning of the template would change across kernel
-		// versions and we have not validated that the current template
-		// is operational on older kernels.
-		if downgradeConfinement() {
-			policy = classicTemplate
-			ignoreSnippets = true
-		}
 	}
 	// If a snap is in devmode (or is using classic confinement) then make the
 	// profile non-enforcing where violations are logged but not denied.
@@ -774,10 +793,6 @@ func (b *Backend) SandboxFeatures() []string {
 	policy := "default"
 	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Partial {
 		level = "partial"
-
-		if downgradeConfinement() {
-			policy = "downgraded"
-		}
 	}
 	tags = append(tags, fmt.Sprintf("support-level:%s", level))
 	tags = append(tags, fmt.Sprintf("policy:%s", policy))

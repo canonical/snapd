@@ -20,13 +20,13 @@
 package testutil_test
 
 import (
-	"github.com/snapcore/snapd/testutil"
-
 	"fmt"
 	"os"
 	"syscall"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type lowLevelSuite struct {

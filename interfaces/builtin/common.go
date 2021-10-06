@@ -49,6 +49,8 @@ type commonInterface struct {
 	implicitOnCore    bool
 	implicitOnClassic bool
 
+	affectsPlugOnRefresh bool
+
 	baseDeclarationPlugs string
 	baseDeclarationSlots string
 
@@ -69,6 +71,8 @@ type commonInterface struct {
 	suppressPtraceTrace  bool
 	suppressHomeIx       bool
 	controlsDeviceCgroup bool
+
+	serviceSnippets []string
 }
 
 // Name returns the interface name.
@@ -85,7 +89,13 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 		ImplicitOnClassic:    iface.implicitOnClassic,
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
+		// affects the plug snap because of mount backend
+		AffectsPlugOnRefresh: iface.affectsPlugOnRefresh,
 	}
+}
+
+func (iface *commonInterface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+	return iface.serviceSnippets
 }
 
 func (iface *commonInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

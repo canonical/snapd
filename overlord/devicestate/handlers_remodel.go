@@ -24,7 +24,9 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -115,8 +117,38 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	// and finish (this will set the new model)
-	return remodCtx.Finish()
+	var recoverySetup *recoverySystemSetup
+	if new.Grade() != asserts.ModelGradeUnset {
+		var triedSystems []string
+		if err := st.Get("tried-systems", &triedSystems); err != nil {
+			return fmt.Errorf("cannot obtain tried recovery systems: %v", err)
+		}
+		recoverySetup, err = taskRecoverySystemSetup(t)
+		if err != nil {
+			return err
+		}
+		// should promoting or any of the later steps fails, the cleanup
+		// will be done in finalize-recovery-system undo
+		if err := boot.PromoteTriedRecoverySystem(remodCtx, recoverySetup.Label, triedSystems); err != nil {
+			return err
+		}
+		remodCtx.setRecoverySystemLabel(recoverySetup.Label)
+	}
+
+	logEverywhere := func(format string, args ...interface{}) {
+		t.Logf(format, args)
+		logger.Noticef(format, args)
+	}
+
+	// and finish (this will set the new model), note that changes done in
+	// here are not recoverable even if an error occurs
+	if err := remodCtx.Finish(); err != nil {
+		logEverywhere("cannot complete remodel: %v", err)
+	}
+
+	t.SetStatus(state.DoneStatus)
+
+	return nil
 }
 
 func (m *DeviceManager) cleanupRemodel(t *state.Task, _ *tomb.Tomb) error {

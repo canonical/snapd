@@ -20,9 +20,9 @@
 package hotplug
 
 import (
-	"github.com/snapcore/snapd/testutil"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type udevadmSuite struct {

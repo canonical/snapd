@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,7 +41,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func newMemAssertionsDB() (db asserts.RODatabase, commitTo func(*asserts.Batch) error, err error) {
+func newMemAssertionsDB(commitObserve func(verified asserts.Assertion)) (db *asserts.Database, commitTo func(*asserts.Batch) error, err error) {
 	memDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   trusted,
@@ -51,7 +51,7 @@ func newMemAssertionsDB() (db asserts.RODatabase, commitTo func(*asserts.Batch) 
 	}
 
 	commitTo = func(b *asserts.Batch) error {
-		return b.CommitTo(memDB, nil)
+		return b.CommitToAndObserve(memDB, commitObserve, nil)
 	}
 
 	return memDB, commitTo, nil

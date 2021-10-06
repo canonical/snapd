@@ -727,3 +727,45 @@ func (s *helpersSuite) TestAddHotplugSlotValidationErrors(c *C) {
 	// sanitization failure
 	c.Assert(ifacestate.AddHotplugSlot(s.st, repo, stateSlots, iface, slot), ErrorMatches, `cannot sanitize hotplug slot \"slot\" for interface test: fail`)
 }
+
+func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// security profiles do not need regeneration when crating the manager
+	restore := ifacestate.MockProfilesNeedRegeneration(func() bool { return false })
+	defer restore()
+
+	backend := &ifacetest.TestSecurityBackendDiscardingLate{
+		RemoveLateCallback: func(snapName string, rev snap.Revision, typ snap.Type) error {
+			if snapName == "this-fails" {
+				return fmt.Errorf("remove late fails")
+			}
+			return nil
+		},
+	}
+	restore = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	// mock overlord
+	ovld := overlord.Mock()
+	st := ovld.State()
+	// manager
+	mgr, err := ifacestate.Manager(st, nil, ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	// installs the ifacemgr helper
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	// call via the snapstate hook
+	err = snapstate.SecurityProfilesRemoveLate("snapd", snap.R(1234), snap.TypeSnapd)
+	c.Assert(err, IsNil)
+	err = snapstate.SecurityProfilesRemoveLate("this-fails", snap.R(12), snap.TypeApp)
+	c.Assert(err, ErrorMatches, "remove late fails")
+	c.Check(backend.RemoveLateCalledFor, DeepEquals, [][]string{
+		{"snapd", "1234", "snapd"},
+		{"this-fails", "12", "app"},
+	})
+}

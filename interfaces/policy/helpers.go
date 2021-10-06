@@ -234,7 +234,7 @@ func checkSlotConnectionAltConstraints(connc *ConnectCandidate, altConstraints [
 	return nil, firstErr
 }
 
-func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
+func checkSnapTypeSlotInstallationConstraints1(slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
 	if err := checkSnapType(slot.Snap, constraints.SlotSnapTypes); err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func checkSnapTypeSlotInstallationConstraints1(ic *InstallCandidateMinimalCheck,
 	return nil
 }
 
-func checkMinimalSlotInstallationAltConstraints(ic *InstallCandidateMinimalCheck, slot *snap.SlotInfo, altConstraints []*asserts.SlotInstallationConstraints) (bool, error) {
+func checkMinimalSlotInstallationAltConstraints(slot *snap.SlotInfo, altConstraints []*asserts.SlotInstallationConstraints) (bool, error) {
 	var firstErr error
 	var hasSnapTypeConstraints bool
 	// OR of constraints
@@ -253,7 +253,7 @@ func checkMinimalSlotInstallationAltConstraints(ic *InstallCandidateMinimalCheck
 			continue
 		}
 		hasSnapTypeConstraints = true
-		err := checkSnapTypeSlotInstallationConstraints1(ic, slot, constraints)
+		err := checkSnapTypeSlotInstallationConstraints1(slot, constraints)
 		if err == nil {
 			return true, nil
 		}

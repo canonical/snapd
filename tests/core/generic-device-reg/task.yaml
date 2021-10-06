@@ -32,6 +32,9 @@ restore: |
         exit
     fi
 
+     #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
     systemctl stop snapd.service snapd.socket
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -40,24 +43,30 @@ restore: |
     rm -f /var/lib/snapd/seed/assertions/test-models.account-key
     rm -f /var/lib/snapd/seed/assertions/pc-18-amd64-accept-generic.model
     cp model.bak /var/lib/snapd/seed/assertions/model
+
     # kick first boot again
     systemctl start snapd.service snapd.socket
+
     # wait for first boot to be done
-    retry --maxmins 2 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+    wait_for_first_boot_change
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
     echo "Wait for first boot to be done"
-    retry --maxmins 2 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize system state"'
+    wait_for_first_boot_change
 
     echo "We have a model assertion"
     snap model --verbose|MATCH "model:\s* pc-18-amd64-accept-generic"
 
     echo "Wait for device initialisation to be done"
-    retry --maxmins 2 --wait 5 sh -c 'snap changes | grep -q "Done.*Initialize device"'
+    wait_for_device_initialized_change
 
     echo "Check we have a serial with authority-id: generic"
     snap model --serial --assertion|MATCH "authority-id: generic"

@@ -19,7 +19,6 @@ prepare: |
 
 restore: |
     setenforce "$(cat enforcing.mode)"
-    rm -f stamp enforcing.mode
 
 execute: |
     # global prepare calls systemctl daemon-reexec to make systemd run with

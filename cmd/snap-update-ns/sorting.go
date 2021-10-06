@@ -38,11 +38,17 @@ func (c byOriginAndMagicDir) Less(i, j int) bool {
 
 	iOrigin := iMe.XSnapdOrigin()
 	jOrigin := jMe.XSnapdOrigin()
-	if iOrigin == "overname" && iOrigin != jOrigin {
-		// should ith element be created by 'overname' mapping, it is
-		// always sorted before jth element, if that one comes from
-		// layouts or content interface
-		return true
+	if iOrigin != jOrigin {
+		// overname entries should always be sorted first, before
+		// entries from layouts or content interface
+		if iOrigin == "overname" {
+			// overname ith element should be sorted before
+			return true
+		}
+		if jOrigin == "overname" {
+			// non-overname ith element should be sorted after
+			return false
+		}
 	}
 
 	iDir := c[i].Dir

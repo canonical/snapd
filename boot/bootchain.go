@@ -47,8 +47,16 @@ type bootChain struct {
 	KernelRevision string   `json:"kernel-revision"`
 	KernelCmdlines []string `json:"kernel-cmdlines"`
 
-	model          *asserts.Model
 	kernelBootFile bootloader.BootFile
+}
+
+func (b *bootChain) modelForSealing() *modelForSealing {
+	return &modelForSealing{
+		brandID:        b.BrandID,
+		model:          b.Model,
+		grade:          b.Grade,
+		modelSignKeyID: b.ModelSignKeyID,
+	}
 }
 
 // TODO:UC20 add a doc comment when this is stabilized

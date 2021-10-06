@@ -7,9 +7,6 @@ execute: |
     echo "Install the regular snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     if "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo 2>run.err; then
         echo "install-local-as was expected to fail"
         exit 1
@@ -18,6 +15,7 @@ execute: |
 
     snap set system experimental.parallel-instances=true
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     for instance in foo longname; do
         echo "Install snap instance named test-snapd-sh_$instance"
         expected="^test-snapd-sh_$instance 1.0 installed\$"

@@ -33,14 +33,12 @@ import (
 
 type handlersSuite struct {
 	baseHandlerSuite
-
-	stateBackend *witnessRestartReqStateBackend
 }
 
 var _ = Suite(&handlersSuite{})
 
 func (s *handlersSuite) SetUpTest(c *C) {
-	s.setup(c, s.stateBackend)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
@@ -215,7 +213,7 @@ func (s *handlersSuite) TestComputeMissingDisabledServices(c *C) {
 	} {
 		info := &snap.Info{Apps: tt.apps}
 
-		missing, found, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
+		found, missing, err := snapstate.MissingDisabledServices(tt.stDisabledSvcsList, info)
 		c.Assert(missing, DeepEquals, tt.missing, Commentf(tt.comment))
 		c.Assert(found, DeepEquals, tt.found, Commentf(tt.comment))
 		c.Assert(err, Equals, tt.err, Commentf(tt.comment))

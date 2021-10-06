@@ -25,7 +25,14 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+)
+
+// sanity - uboot implements the required interfaces
+var (
+	_ Bootloader                             = (*uboot)(nil)
+	_ ExtractedRecoveryKernelImageBootloader = (*uboot)(nil)
 )
 
 type uboot struct {
@@ -73,10 +80,6 @@ func (u *uboot) Name() string {
 	return "uboot"
 }
 
-func (u *uboot) setRootDir(rootdir string) {
-	u.rootdir = rootdir
-}
-
 func (u *uboot) dir() string {
 	if u.rootdir == "" {
 		panic("internal error: unset rootdir")
@@ -84,7 +87,7 @@ func (u *uboot) dir() string {
 	return filepath.Join(u.rootdir, u.basedir)
 }
 
-func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, error) {
+func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, u.Name()+".conf")
 	// if the gadget file is empty, then we don't install anything
 	// this is because there are some gadgets, namely the 20 pi gadget right
@@ -95,7 +98,7 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, erro
 	//            actual format?
 	st, err := os.Stat(gadgetFile)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if st.Size() == 0 {
 		// we have an empty uboot.conf, and hence a uboot bootloader in the
@@ -105,20 +108,20 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, erro
 
 		err := os.MkdirAll(filepath.Dir(u.envFile()), 0755)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		// TODO:UC20: what's a reasonable size for this file?
 		env, err := ubootenv.Create(u.envFile(), 4096)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		if err := env.Save(); err != nil {
-			return false, nil
+			return nil
 		}
 
-		return true, nil
+		return nil
 	}
 
 	// InstallBootConfig gets called on a uboot that does not come from newUboot
@@ -128,15 +131,15 @@ func (u *uboot) InstallBootConfig(gadgetDir string, blOpts *Options) (bool, erro
 	if blOpts != nil && blOpts.Role == RoleRecovery {
 		// not supported yet, this is traditional uboot.env from gadget
 		// TODO:UC20: support this use-case
-		return false, fmt.Errorf("non-empty uboot.env not supported on UC20 yet")
+		return fmt.Errorf("non-empty uboot.env not supported on UC20 yet")
 	}
 
-	systemFile := u.ConfigFile()
+	systemFile := u.envFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }
 
-func (u *uboot) ConfigFile() string {
-	return u.envFile()
+func (u *uboot) Present() (bool, error) {
+	return osutil.FileExists(u.envFile()), nil
 }
 
 func (u *uboot) envFile() string {

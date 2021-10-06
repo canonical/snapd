@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -42,7 +43,7 @@ type downloadSnapSuite struct {
 var _ = Suite(&downloadSnapSuite{})
 
 func (s *downloadSnapSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.fakeStore = &fakeStore{
 		state:       s.state,
@@ -54,6 +55,11 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {

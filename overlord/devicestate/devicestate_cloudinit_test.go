@@ -1137,3 +1137,29 @@ fi`, cloudInitScriptStateFile))
 	// we now have a message about restricting
 	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label`)
 }
+func (s *cloudInitSuite) TestCloudInitHappyNotFound(c *C) {
+	// pretend that cloud-init was not found on PATH
+	statusCalls := 0
+	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		statusCalls++
+		return sysconfig.CloudInitNotFound, nil
+	})
+	defer r()
+
+	restrictCalls := 0
+	r = devicestate.MockRestrictCloudInit(func(state sysconfig.CloudInitState, opts *sysconfig.CloudInitRestrictOptions) (sysconfig.CloudInitRestrictionResult, error) {
+		restrictCalls++
+		// there was no cloud-init binary, so we explicitly disabled it
+		// if it reappears in future
+		return sysconfig.CloudInitRestrictionResult{
+			Action: "disable",
+		}, nil
+	})
+	defer r()
+
+	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	c.Assert(err, IsNil)
+	c.Assert(statusCalls, Equals, 1)
+	c.Assert(restrictCalls, Equals, 1)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init not found, disabled permanently`)
+}

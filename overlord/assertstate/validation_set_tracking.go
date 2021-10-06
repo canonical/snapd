@@ -23,7 +23,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 // ValidationSetMode reflects the mode of respective validation set, which is
@@ -46,6 +49,12 @@ type ValidationSetTracking struct {
 
 	// Current is the current sequence point.
 	Current int `json:"current,omitempty"`
+
+	// LocalOnly indicates that the assertion was only available locally at the
+	// time it was applied for monitor mode. This tells bulk refresh logic not
+	// to error out on such assertion if it's not in the store.
+	// This flag makes sense only in monitor mode and if pinned.
+	LocalOnly bool `json:"local-only,omitempty"`
 }
 
 // ValidationSetKey formats the given account id and name into a validation set key.
@@ -87,7 +96,6 @@ func DeleteValidationSet(st *state.State, accountID, name string) {
 	}
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-sets", vsmap)
-	return
 }
 
 // GetValidationSet retrieves the ValidationSetTracking for the given account and name.
@@ -124,4 +132,43 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 		return nil, err
 	}
 	return vsmap, nil
+}
+
+// EnforcedValidationSets returns ValidationSets object with all currently tracked
+// validation sets that are in enforcing mode.
+func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error) {
+	valsets, err := ValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
+	db := DB(st)
+	sets := snapasserts.NewValidationSets()
+
+	for _, vs := range valsets {
+		if vs.Mode != Enforce {
+			continue
+		}
+
+		sequence := vs.Current
+		if vs.PinnedAt > 0 {
+			sequence = vs.PinnedAt
+		}
+		headers := map[string]string{
+			"series":     release.Series,
+			"account-id": vs.AccountID,
+			"name":       vs.Name,
+			"sequence":   fmt.Sprintf("%d", sequence),
+		}
+
+		as, err := db.Find(asserts.ValidationSetType, headers)
+		if err != nil {
+			return nil, err
+		}
+
+		vsetAssert := as.(*asserts.ValidationSet)
+		sets.Add(vsetAssert)
+	}
+
+	return sets, err
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package systemd
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -33,11 +34,11 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/template"
 	"time"
 
-	_ "github.com/snapcore/squashfuse"
-
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -63,6 +64,12 @@ var (
 	daemonReloadLock extMutex
 
 	osutilIsMounted = osutil.IsMounted
+
+	// allow mocking the systemd version
+	Version = getVersion
+
+	// allow replacing the systemd implementation with a mock one
+	newSystemd = newSystemdReal
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -92,15 +99,38 @@ func (m *extMutex) Taken(errMsg string) {
 	}
 }
 
+// MockNewSystemd can be used to replace the constructor of the
+// Systemd types with a function that returns a mock object.
+func MockNewSystemd(f func(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
+	oldNewSystemd := newSystemd
+	newSystemd = f
+	return func() {
+		newSystemd = oldNewSystemd
+	}
+}
+
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
+	// TODO: including stderr here breaks many things when systemd is in debug
+	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
+		exitCode, runErr := osutil.ExitCode(err)
+		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr, msg: bs}
 	}
 
 	return bs, nil
+}
+
+func MockSystemdVersion(version int, injectedError error) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock systemd version outside of tests")
+	old := Version
+	Version = func() (int, error) {
+		return version, injectedError
+	}
+	return func() {
+		Version = old
+	}
 }
 
 // MockSystemctl is called from the commands to actually call out to
@@ -131,8 +161,8 @@ func Available() error {
 	return err
 }
 
-// Version returns systemd version.
-func Version() (int, error) {
+// getVersion returns systemd version.
+func getVersion() (int, error) {
 	out, err := systemctlCmd("--version")
 	if err != nil {
 		return 0, err
@@ -168,6 +198,36 @@ func Version() (int, error) {
 	return ver, nil
 }
 
+type systemdTooOldError struct {
+	expected int
+	got      int
+}
+
+func (e *systemdTooOldError) Error() string {
+	return fmt.Sprintf("systemd version %d is too old (expected at least %d)", e.got, e.expected)
+}
+
+// IsSystemdTooOld returns true if the error is a result of a failed
+// check whether systemd version is at least what was asked for.
+func IsSystemdTooOld(err error) bool {
+	_, ok := err.(*systemdTooOldError)
+	return ok
+}
+
+// EnsureAtLeast checks whether the installed version of systemd is greater or
+// equal than the given one. An error is returned if the required version is
+// not matched, and also if systemd is not installed or not working
+func EnsureAtLeast(requiredVersion int) error {
+	version, err := Version()
+	if err != nil {
+		return err
+	}
+	if version < requiredVersion {
+		return &systemdTooOldError{got: version, expected: requiredVersion}
+	}
+	return nil
+}
+
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
@@ -200,8 +260,34 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 	}
 }
 
+type MountUnitOptions struct {
+	// Whether the unit is transient or persistent across reboots
+	Lifetime UnitLifetime
+	SnapName string
+	Revision string
+	What     string
+	Where    string
+	Fstype   string
+	Options  []string
+	Origin   string
+}
+
+// Backend identifies the implementation backend in use by a Systemd instance.
+type Backend int
+
+const (
+	// RunningSystemdBackend identifies the implementation backend
+	// talking to the running system systemd daemon.
+	RunningSystemdBackend Backend = iota
+	// EmulationModeBackend identifies the implementation backend
+	// emulating a subset of systemd against a filesystem.
+	EmulationModeBackend
+)
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
+	// Backend returns the underlying implementation backend.
+	Backend() Backend
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
 	// DaemonRexec reexecutes systemd's system manager, should be
@@ -230,6 +316,17 @@ type Systemd interface {
 	// returned in the same order as unit names passed in
 	// argument.
 	Status(units ...string) ([]*UnitStatus, error)
+	// InactiveEnterTimestamp returns the time that the given unit entered the
+	// inactive state as defined by the systemd docs. Specifically, this time is
+	// the most recent time in which the unit transitioned from deactivating
+	// ("Stopping") to dead ("Stopped"). It may be the zero time if this has
+	// never happened during the current boot, since this property is only
+	// tracked during the current boot. It specifically does not return a time
+	// that is monotonic, so the time returned here may be subject to bugs if
+	// there was a discontinuous time jump on the system before or during the
+	// unit's transition to inactive.
+	// TODO: incorporate this result into Status instead?
+	InactiveEnterTimestamp(unit string) (time.Time, error)
 	// IsEnabled checks whether the given service is enabled.
 	IsEnabled(service string) (bool, error)
 	// IsActive checks whether the given service is Active
@@ -238,16 +335,48 @@ type Systemd interface {
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	// AddMountUnitFileWithOptions adds/enables/starts a mount unit with options.
+	AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
+	// ListMountUnits gets the list of targets of the mount units created by
+	// the `origin` module for the given snap
+	ListMountUnits(snapName, origin string) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
 	Unmask(service string) error
+	// Mount requests a mount of what under where with options.
+	Mount(what, where string, options ...string) error
+	// Umount requests a mount from what or at where to be unmounted.
+	Umount(whatOrWhere string) error
+	// CurrentMemoryUsage returns the current memory usage for the specified
+	// unit.
+	CurrentMemoryUsage(unit string) (quantity.Size, error)
+	// CurrentTasksCount returns the number of tasks (processes, threads, kernel
+	// threads if enabled, etc) part of the unit, which can be a service or a
+	// slice.
+	CurrentTasksCount(unit string) (uint64, error)
 }
 
-// A Log is a single entry in the systemd journal
-type Log map[string]string
+// A Log is a single entry in the systemd journal.
+// In almost all cases, the strings map to a single string value, but as per the
+// manpage for journalctl, under the json format,
+//
+//    Journal entries permit non-unique fields within the same log entry. JSON
+//    does not allow non-unique fields within objects. Due to this, if a
+//    non-unique field is encountered a JSON array is used as field value,
+//    listing all field values as elements.
+//
+// and this snippet as well,
+//
+//    Fields containing non-printable or non-UTF8 bytes are
+//    encoded as arrays containing the raw bytes individually
+//    formatted as unsigned numbers.
+//
+// as such, we sometimes get array values which need to be handled differently,
+// so we manually try to decode the json for each message into different types.
+type Log map[string]*json.RawMessage
 
 const (
 	// the default target for systemd units that we generate
@@ -266,19 +395,30 @@ const (
 	UserServicesTarget = "default.target"
 )
 
-type reporter interface {
+type Reporter interface {
 	Notify(string)
+}
+
+func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd {
+	switch be {
+	case RunningSystemdBackend:
+		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+	case EmulationModeBackend:
+		return &emulation{rootDir: rootDir}
+	default:
+		panic(fmt.Sprintf("unsupported systemd backend %v", be))
+	}
 }
 
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
-func New(mode InstanceMode, rep reporter) Systemd {
-	return &systemd{mode: mode, reporter: rep}
+func New(mode InstanceMode, rep Reporter) Systemd {
+	return newSystemd(RunningSystemdBackend, "", mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
-func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
+	return newSystemd(RunningSystemdBackend, rootDir, mode, rep)
 }
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
@@ -288,9 +428,7 @@ func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
 		rootDir = dirs.GlobalRootDir
 	}
-	return &emulation{
-		rootDir: rootDir,
-	}
+	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -313,7 +451,7 @@ const (
 
 type systemd struct {
 	rootDir  string
-	reporter reporter
+	reporter Reporter
 	mode     InstanceMode
 }
 
@@ -328,6 +466,10 @@ func (s *systemd) systemctl(args ...string) ([]byte, error) {
 		panic("unknown InstanceMode")
 	}
 	return systemctlCmd(args...)
+}
+
+func (s *systemd) Backend() Backend {
+	return RunningSystemdBackend
 }
 
 func (s *systemd) DaemonReload() error {
@@ -425,6 +567,8 @@ type UnitStatus struct {
 	UnitName string
 	Enabled  bool
 	Active   bool
+	// Installed is false if the queried unit doesn't exist.
+	Installed bool
 }
 
 var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
@@ -489,7 +633,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		k := string(bs[1])
 		v := string(bs[2])
 
-		if v == "" {
+		if v == "" && k != "UnitFileState" && k != "Type" {
 			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
 		}
 
@@ -504,6 +648,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		case "UnitFileState":
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
+			cur.Installed = v != ""
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
@@ -520,9 +665,125 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	return sts, nil
 }
 
+func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error) {
+	// As there is one instance per user, the active state does
+	// not make sense.  We can determine the global "enabled"
+	// state of the services though.
+	cmd := append([]string{"is-enabled"}, unitNames...)
+	if s.rootDir != "" {
+		cmd = append([]string{"--root", s.rootDir}, cmd...)
+	}
+	bs, err := s.systemctl(cmd...)
+	if err != nil {
+		// is-enabled returns non-zero if no units are
+		// enabled.  We still need to examine the output to
+		// track the other units.
+		sysdErr := err.(systemctlError)
+		bs = sysdErr.Msg()
+	}
+
+	results := bytes.Split(bytes.Trim(bs, "\n"), []byte("\n"))
+	if len(results) != len(unitNames) {
+		return nil, fmt.Errorf("cannot get enabled status of services: expected %d results, got %d", len(unitNames), len(results))
+	}
+
+	sts := make([]*UnitStatus, len(unitNames))
+	for i, line := range results {
+		sts[i] = &UnitStatus{
+			UnitName: unitNames[i],
+			Enabled:  bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
+		}
+	}
+	return sts, nil
+}
+
+func (s *systemd) getPropertyStringValue(unit, key string) (string, error) {
+	// XXX: ignore stderr of systemctl command to avoid further infractions
+	//      around LP #1885597
+	out, err := s.systemctl("show", "--property", key, unit)
+	if err != nil {
+		return "", osutil.OutputErr(out, err)
+	}
+	cleanVal := strings.TrimSpace(string(out))
+
+	// strip the <property>= from the output
+	splitVal := strings.SplitN(cleanVal, "=", 2)
+	if len(splitVal) != 2 {
+		return "", fmt.Errorf("invalid property format from systemd for %s (got %s)", key, cleanVal)
+	}
+
+	return strings.TrimSpace(splitVal[1]), nil
+}
+
+var errNotSet = errors.New("property value is not available")
+
+func (s *systemd) getPropertyUintValue(unit, key string) (uint64, error) {
+	valStr, err := s.getPropertyStringValue(unit, key)
+	if err != nil {
+		return 0, err
+	}
+
+	// if the unit is inactive or doesn't exist, the value can be reported as
+	// "[not set]"
+	if valStr == "[not set]" {
+		return 0, errNotSet
+	}
+
+	intVal, err := strconv.ParseUint(valStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid property value from systemd for %s: cannot parse %q as an integer", key, valStr)
+	}
+
+	return intVal, nil
+}
+
+func (s *systemd) CurrentTasksCount(unit string) (uint64, error) {
+	tasksCount, err := s.getPropertyUintValue(unit, "TasksCurrent")
+	if err != nil && err != errNotSet {
+		return 0, err
+	}
+
+	if err == errNotSet {
+		return 0, fmt.Errorf("tasks count unavailable")
+	}
+
+	return tasksCount, nil
+}
+
+func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	memBytes, err := s.getPropertyUintValue(unit, "MemoryCurrent")
+	if err != nil && err != errNotSet {
+		return 0, err
+	}
+
+	if err == errNotSet {
+		return 0, fmt.Errorf("memory usage unavailable")
+	}
+
+	return quantity.Size(memBytes), nil
+}
+
+func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	timeStr, err := s.getPropertyStringValue(unit, "InactiveEnterTimestamp")
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if timeStr == "" {
+		return time.Time{}, nil
+	}
+
+	// finally parse the time string
+	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", timeStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", timeStr)
+	}
+	return inactiveEnterTime, nil
+}
+
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
-		panic("cannot call status with GlobalUserMode")
+		return s.getGlobalUserStatus(unitNames...)
 	}
 	unitToStatus := make(map[string]*UnitStatus, len(unitNames))
 
@@ -601,14 +862,15 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	// "systemctl is-active <name>" returns exit code 3 for inactive
-	// services, the stderr output may be `inactive\n` for services that are
-	// inactive (or not found), or `failed\n` for services that are in a
-	// failed state; nevertheless make sure to check any non-0 exit code
-	sysdErr, ok := err.(*Error)
+	// "systemctl is-active <name>" returns exit code 3 for inactive services,
+	// the stderr output may be `unknown\n` for services that were not found,
+	// `inactive\n` for services that are inactive (or not found for some
+	// systemd versions), or `failed\n` for services that are in a failed state;
+	// nevertheless make sure to check any non-0 exit code
+	sysdErr, ok := err.(systemctlError)
 	if ok {
-		switch strings.TrimSpace(string(sysdErr.msg)) {
-		case "inactive", "failed":
+		switch strings.TrimSpace(string(sysdErr.Msg())) {
+		case "inactive", "failed", "unknown":
 			return false, nil
 		}
 	}
@@ -697,6 +959,7 @@ type Error struct {
 	cmd      []string
 	msg      []byte
 	exitCode int
+	runErr   error
 }
 
 func (e *Error) Msg() []byte {
@@ -708,7 +971,14 @@ func (e *Error) ExitCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%v failed with exit status %d: %s", e.cmd, e.exitCode, e.msg)
+	var msg string
+	if len(e.msg) > 0 {
+		msg = fmt.Sprintf(": %s", e.msg)
+	}
+	if e.runErr != nil {
+		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.runErr, msg)
+	}
+	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
 // Timeout is returned if the systemd action failed to reach the
@@ -728,12 +998,85 @@ func IsTimeout(err error) bool {
 	return isTimeout
 }
 
+func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {
+	valObject, ok := l[key]
+	if !ok {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so we may miss a message here
+		return "", fmt.Errorf("key %q missing from message", key)
+	}
+	if valObject == nil {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so in this case the message may be truncated
+		return "", fmt.Errorf("message key %q truncated", key)
+	}
+
+	// first try normal string
+	s := ""
+	err := json.Unmarshal(*valObject, &s)
+	if err == nil {
+		return s, nil
+	}
+
+	// next up, try a list of bytes that is utf-8 next, this is the case if
+	// journald thinks the output is not valid utf-8 or is not printable ascii
+	b := []byte{}
+	err = json.Unmarshal(*valObject, &b)
+	if err == nil {
+		// we have an array of bytes here, and there is a chance that it is
+		// not valid utf-8, but since this feature is used in snapd to present
+		// user-facing messages, we simply let Go do its best to turn the bytes
+		// into a string, with the chance that some byte sequences that are
+		// invalid end up getting replaced with Go's hex encoding of the byte
+		// sequence.
+		// Programs that are concerned with reading the exact sequence of
+		// characters or binary data, etc. should probably talk to journald
+		// directly instead of going through snapd using this API.
+		return string(b), nil
+	}
+
+	// next, try slice of slices of bytes
+	bb := [][]byte{}
+	err = json.Unmarshal(*valObject, &bb)
+	if err == nil {
+		// turn the slice of slices of bytes into a slice of strings to call the
+		// handler on it, see above about how invalid utf8 bytes are handled
+		l := make([]string, 0, len(bb))
+		for _, r := range bb {
+			l = append(l, string(r))
+		}
+		return sliceHandler(l)
+	}
+
+	// finally try list of strings
+	stringSlice := []string{}
+	err = json.Unmarshal(*valObject, &stringSlice)
+	if err == nil {
+		// if the slice is of length 1, just promote it to a plain scalar string
+		if len(stringSlice) == 1 {
+			return stringSlice[0], nil
+		}
+		// otherwise let the caller handle it
+		return sliceHandler(stringSlice)
+	}
+
+	// some examples of input data that would get here would be a raw scalar
+	// number, or a JSON map object, etc.
+	return "", fmt.Errorf("unsupported JSON encoding format")
+}
+
 // Time returns the time the Log was received by the journal.
 func (l Log) Time() (time.Time, error) {
-	sus, ok := l["__REALTIME_TIMESTAMP"]
-	if !ok {
-		return time.Time{}, errors.New("no timestamp")
+	// since the __REALTIME_TIMESTAMP is underscored and thus "trusted" by
+	// systemd, we assume that it will always be a valid string and not try to
+	// handle any possible array cases
+	sus, err := l.parseLogRawMessageString("__REALTIME_TIMESTAMP", func([]string) (string, error) {
+		return "", errors.New("no timestamp")
+	})
+	if err != nil {
+		return time.Time{}, err
 	}
+
 	// according to systemd.journal-fields(7) it's microseconds as a decimal string
 	us, err := strconv.ParseInt(sus, 10, 64)
 	if err != nil {
@@ -745,33 +1088,62 @@ func (l Log) Time() (time.Time, error) {
 
 // Message of the Log, if any; otherwise, "-".
 func (l Log) Message() string {
-	if msg, ok := l["MESSAGE"]; ok {
-		return msg
+	// for MESSAGE, if there are multiple strings, just concatenate them with a
+	// newline to keep as much data from journald as possible
+	msg, err := l.parseLogRawMessageString("MESSAGE", func(stringSlice []string) (string, error) {
+		return strings.Join(stringSlice, "\n"), nil
+	})
+	if err != nil {
+		if _, ok := l["MESSAGE"]; !ok {
+			// if the MESSAGE key is just missing, then return "-"
+			return "-"
+		}
+		return fmt.Sprintf("- (error decoding original message: %v)", err)
 	}
-
-	return "-"
+	return msg
 }
 
 // SID is the syslog identifier of the Log, if any; otherwise, "-".
 func (l Log) SID() string {
-	if sid, ok := l["SYSLOG_IDENTIFIER"]; ok {
-		return sid
+	// if there are multiple SYSLOG_IDENTIFIER values, just act like there was
+	// not one, making an arbitrary choice here is probably not helpful
+	sid, err := l.parseLogRawMessageString("SYSLOG_IDENTIFIER", func([]string) (string, error) {
+		return "", fmt.Errorf("multiple identifiers not supported")
+	})
+	if err != nil || sid == "" {
+		return "-"
 	}
-
-	return "-"
+	return sid
 }
 
 // PID is the pid of the client pid, if any; otherwise, "-".
 func (l Log) PID() string {
-	if pid, ok := l["_PID"]; ok {
+	// look for _PID first as that is underscored and thus "trusted" from
+	// systemd, also don't support multiple arrays if we find then
+	multiplePIDsErr := fmt.Errorf("multiple pids not supported")
+	pid, err := l.parseLogRawMessageString("_PID", func([]string) (string, error) {
+		return "", multiplePIDsErr
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
-	if pid, ok := l["SYSLOG_PID"]; ok {
+
+	pid, err = l.parseLogRawMessageString("SYSLOG_PID", func([]string) (string, error) {
+		return "", multiplePIDsErr
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
 
 	return "-"
 }
+
+type UnitLifetime int
+
+const (
+	Persistent UnitLifetime = iota
+	Transient
+)
 
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir string) string {
@@ -779,31 +1151,82 @@ func MountUnitPath(baseDir string) string {
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
+// MountUnitPathWithLifetime returns the path of a {,auto}mount unit
+// created in the systemd directory suitable for the given unit lifetime
+func MountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir string) string {
+	escapedPath := EscapeUnitNamePath(mountPointDir)
+	var servicesPath string
+	switch lifetime {
+	case Persistent:
+		servicesPath = dirs.SnapServicesDir
+	case Transient:
+		servicesPath = dirs.SnapRuntimeServicesDir
+	default:
+		panic(fmt.Sprintf("unknown systemd unit lifetime %q", lifetime))
+	}
+	return filepath.Join(servicesPath, escapedPath+".mount")
+}
+
+// ExistingMountUnitPath finds the location of an existing mount unit
+func ExistingMountUnitPath(mountPointDir string) string {
+	lifetimes := []UnitLifetime{Persistent, Transient}
+	for _, lifetime := range lifetimes {
+		unit := MountUnitPathWithLifetime(lifetime, mountPointDir)
+		if osutil.FileExists(unit) {
+			return unit
+		}
+	}
+	return ""
+}
+
 var squashfsFsType = squashfs.FsType
 
-var mountUnitTemplate = `[Unit]
-Description=Mount unit for %s, revision %s
+// XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
+// with order of mounting most likely related to zfs-linux and/or systemd).
+const mountUnitTemplate = `[Unit]
+Description=Mount unit for {{.SnapName}}
+{{- with .Revision}}, revision {{.}}{{end}}
+{{- with .Origin}} via {{.}}{{end}}
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
-What=%s
-Where=%s
-Type=%s
-Options=%s
+What={{.What}}
+Where={{.Where}}
+Type={{.Fstype}}
+Options={{join .Options ","}}
 LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
+{{- with .Origin}}
+X-SnapdOrigin={{.}}
+{{- end}}
 `
 
-func writeMountUnitFile(snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
-	content := fmt.Sprintf(mountUnitTemplate, snapName, revision, what, where, fstype, strings.Join(options, ","))
-	mu := MountUnitPath(where)
-	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
-	if err != nil {
-		return "", err
+var templateFuncs = template.FuncMap{"join": strings.Join}
+var parsedMountUnitTemplate = template.Must(template.New("unit").Funcs(templateFuncs).Parse(mountUnitTemplate))
+
+const (
+	snappyOriginModule = "X-SnapdOrigin"
+)
+
+func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
+	if u == nil {
+		return "", errors.New("writeMountUnitFile() expects valid mount options")
 	}
-	return mountUnitName, nil
+
+	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
+	outf, err := osutil.NewAtomicFile(mu, 0644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return "", fmt.Errorf("cannot open mount unit file: %v", err)
+	}
+	defer outf.Cancel()
+
+	if err := parsedMountUnitTemplate.Execute(outf, &u); err != nil {
+		return "", fmt.Errorf("cannot generate mount unit: %v", err)
+	}
+	return filepath.Base(mu), outf.Commit()
 }
 
 func fsMountOptions(fstype string) []string {
@@ -833,15 +1256,27 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
-
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, hostFsType, options)
+	return s.AddMountUnitFileWithOptions(&MountUnitOptions{
+		Lifetime: Persistent,
+		SnapName: snapName,
+		Revision: revision,
+		What:     what,
+		Where:    where,
+		Fstype:   hostFsType,
+		Options:  options,
+	})
+}
+
+func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	mountUnitName, err := writeMountUnitFile(unitOptions)
 	if err != nil {
 		return "", err
 	}
@@ -866,8 +1301,8 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
-	if !osutil.FileExists(unit) {
+	unit := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
+	if unit == "" {
 		return nil
 	}
 
@@ -903,10 +1338,124 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
+func workaroundSystemdQuoting(fragmentPath, where string) string {
+	// We know that the directory components of the fragment path do not need
+	// quoting and are therefore reliable. As for the file name, we workaround
+	// the wrong quoting of older systemd version by re-encoding the "Where"
+	// ourselves.
+	dir := filepath.Dir(fragmentPath)
+	baseName := EscapeUnitNamePath(where)
+	unitType := filepath.Ext(fragmentPath)
+	return filepath.Join(dir, baseName+unitType)
+}
+
+func extractOriginModule(systemdUnitPath string) (string, error) {
+	f, err := os.Open(systemdUnitPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	var originModule string
+	s := bufio.NewScanner(f)
+	prefix := snappyOriginModule + "="
+	for s.Scan() {
+		line := s.Text()
+		if strings.HasPrefix(line, prefix) {
+			originModule = line[len(prefix):]
+			break
+		}
+	}
+	return originModule, nil
+}
+
+func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
+	out, err := s.systemctl("show", "--property=Description,Where,FragmentPath", "*.mount")
+	if err != nil {
+		return nil, err
+	}
+
+	var mountPoints []string
+	if bytes.TrimSpace(out) == nil {
+		return mountPoints, nil
+	}
+	// Results are separated by a blank line, so we can split them like this:
+	units := bytes.Split(out, []byte("\n\n"))
+	for _, unitOutput := range units {
+		var where, description, fragmentPath string
+		lines := bytes.Split(bytes.Trim(unitOutput, "\n"), []byte("\n"))
+		for _, line := range lines {
+			splitVal := strings.SplitN(string(line), "=", 2)
+			if len(splitVal) != 2 {
+				return nil, fmt.Errorf("cannot parse systemctl output: %q", line)
+			}
+			switch splitVal[0] {
+			case "Description":
+				description = splitVal[1]
+			case "Where":
+				where = splitVal[1]
+			case "FragmentPath":
+				fragmentPath = splitVal[1]
+			default:
+				return nil, fmt.Errorf("unexpected property %q", splitVal[0])
+			}
+		}
+
+		ourDescription := fmt.Sprintf("Mount unit for %s", snapName)
+		if !strings.HasPrefix(description, ourDescription) {
+			continue
+		}
+
+		// Under Ubuntu 16.04, systemd improperly quotes the FragmentPath, so
+		// we must do some extra work here to get the correct path. This code
+		// can be removed once we stop supporting old distros
+		fragmentPath = workaroundSystemdQuoting(fragmentPath, where)
+
+		// only return units programmatically created by some snapd backend:
+		// the mount unit used to mount the snap's squashfs is generally
+		// uninteresting
+		originModule, err := extractOriginModule(fragmentPath)
+		if err != nil || originModule == "" {
+			continue
+		}
+
+		// If an `origin` was given, we must return only units created by it
+		if origin != "" && originModule != origin {
+			continue
+		}
+
+		if where == "" {
+			return nil, fmt.Errorf(`missing "Where" in mount unit %q`, fragmentPath)
+		}
+
+		mountPoints = append(mountPoints, where)
+	}
+	return mountPoints, nil
+}
+
 func (s *systemd) ReloadOrRestart(serviceName string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
 	_, err := s.systemctl("reload-or-restart", serviceName)
 	return err
+}
+
+func (s *systemd) Mount(what, where string, options ...string) error {
+	args := make([]string, 0, 2+len(options))
+	if len(options) > 0 {
+		args = append(args, options...)
+	}
+	args = append(args, what, where)
+	if output, err := exec.Command("systemd-mount", args...).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+func (s *systemd) Umount(whatOrWhere string) error {
+	if output, err := exec.Command("systemd-mount", "--umount", whatOrWhere).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
 }

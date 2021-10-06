@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -53,6 +53,7 @@ type snapYaml struct {
 	Hooks           map[string]hookYaml    `yaml:"hooks,omitempty"`
 	Layout          map[string]layoutYaml  `yaml:"layout,omitempty"`
 	SystemUsernames map[string]interface{} `yaml:"system-usernames,omitempty"`
+	Links           map[string][]string    `yaml:"links,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -84,6 +85,7 @@ type appYaml struct {
 	Completer       string          `yaml:"completer,omitempty"`
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
+	InstallMode     string          `yaml:"install-mode,omitempty"`
 
 	RestartCond  RestartCondition `yaml:"restart-condition,omitempty"`
 	RestartDelay timeout.Timeout  `yaml:"restart-delay,omitempty"`
@@ -231,6 +233,10 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 		return nil, err
 	}
 
+	if err := setLinksFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+
 	// FIXME: validation of the fields
 	return snap, nil
 }
@@ -285,6 +291,7 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Slots:               make(map[string]*SlotInfo),
 		Environment:         y.Environment,
 		SystemUsernames:     make(map[string]*SystemUsernameInfo),
+		OriginalLinks:       make(map[string][]string),
 	}
 
 	sort.Strings(snap.Assumes)
@@ -364,6 +371,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			Completer:       yApp.Completer,
 			StopMode:        yApp.StopMode,
 			RefreshMode:     yApp.RefreshMode,
+			InstallMode:     yApp.InstallMode,
 			Before:          yApp.Before,
 			After:           yApp.After,
 			Autostart:       yApp.Autostart,
@@ -545,6 +553,19 @@ func setSystemUsernamesFromSnapYaml(y snapYaml, snap *Info) error {
 		}
 	}
 
+	return nil
+}
+
+func setLinksFromSnapYaml(y snapYaml, snap *Info) error {
+	for linksKey, links := range y.Links {
+		if linksKey == "" {
+			return fmt.Errorf("links key cannot be empty")
+		}
+		if !isValidLinksKey(linksKey) {
+			return fmt.Errorf("links key is invalid: %s", linksKey)
+		}
+		snap.OriginalLinks[linksKey] = links
+	}
 	return nil
 }
 

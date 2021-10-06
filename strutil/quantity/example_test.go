@@ -22,10 +22,15 @@ package quantity_test
 import (
 	"fmt"
 	"math"
+	"testing"
 	"time"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/strutil/quantity"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 func ExampleFormatAmount_short() {
 	fmt.Printf("%q\n", quantity.FormatAmount(12345, -1))

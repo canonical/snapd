@@ -30,7 +30,6 @@ var (
 	NsProfile                       = nsProfile
 	ProfileGlobs                    = profileGlobs
 	SnapConfineFromSnapProfile      = snapConfineFromSnapProfile
-	DowngradeConfinement            = downgradeConfinement
 	LoadProfiles                    = loadProfiles
 	UnloadProfiles                  = unloadProfiles
 	MaybeSetNumberOfJobs            = maybeSetNumberOfJobs

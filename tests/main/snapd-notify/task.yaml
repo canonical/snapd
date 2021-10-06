@@ -19,7 +19,7 @@ execute: |
             watchdog="$(systemctl show -p WatchdogTimestampMonotonic snapd.service | cut -f2 -d=)"
             # service became active after it was started
             test "$activeenter" -gt "$mainstart"
-            if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+            if not os.query is-trusty; then
                 # service pinged systemd after start
                 test "$watchdog" -gt "$mainstart"
                 # and became active after having pinged the daemon

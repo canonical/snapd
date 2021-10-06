@@ -22,8 +22,6 @@ package main_test
 import (
 	"os"
 	"runtime"
-	// "fmt"
-	// "net/http"
 
 	"gopkg.in/check.v1"
 

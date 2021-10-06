@@ -72,12 +72,12 @@ var changePerform func(*Change, *Assumptions) ([]*Change, error)
 //
 // The returned path is the location where a mimic should be constructed.
 func mimicRequired(err error) (needsMimic bool, path string) {
-	switch err.(type) {
+	switch err := err.(type) {
 	case *ReadOnlyFsError:
-		rofsErr := err.(*ReadOnlyFsError)
+		rofsErr := err
 		return true, rofsErr.Path
 	case *TrespassingError:
-		tErr := err.(*TrespassingError)
+		tErr := err
 		return true, tErr.ViolatedPath
 	}
 	return false, ""
@@ -95,10 +95,10 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 
 	// In case we need to create something, some constants.
 	const (
-		mode = 0755
-		uid  = 0
-		gid  = 0
+		uid = 0
+		gid = 0
 	)
+	mode := as.ModeForPath(path)
 
 	// If the element doesn't exist we can attempt to create it.  We will
 	// create the parent directory and then the final element relative to it.
