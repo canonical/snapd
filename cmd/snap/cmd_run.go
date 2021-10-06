@@ -204,6 +204,10 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
 }
 
+func (x *cmdRun) Usage() string {
+	return "[run-OPTIONS] <NAME-OF-SNAP>.<NAME-OF-APP> [<SNAP-APP-ARG>...]"
+}
+
 func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(i18n.G("need the application to run as argument"))

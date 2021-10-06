@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -343,7 +344,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
-	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	return nil
 }
@@ -421,7 +422,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *C) {
@@ -490,13 +491,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(waitTasks[0].ID(), Equals, installDevice.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
 }
 
-func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst state.RestartType) {
+func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst restart.RestartType) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -532,15 +533,15 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	c.Check(installSystem.Err(), IsNil)
 
 	// we did end up requesting the right shutdown
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{rst})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{rst})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootHalt(c *C) {
-	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--halt", state.RestartSystemHaltNow)
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--halt", restart.RestartSystemHaltNow)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootPoweroff(c *C) {
-	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--poweroff", state.RestartSystemPoweroffNow)
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--poweroff", restart.RestartSystemPoweroffNow)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhappy(c *C) {

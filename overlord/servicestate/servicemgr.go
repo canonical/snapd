@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -179,7 +180,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		// we need to immediately reboot in the hopes that this restores
 		// services to a functioning state
 
-		m.state.RequestRestart(state.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow)
 		return fmt.Errorf("error trying to restart killed services, immediately rebooting: %v", err)
 	}
 

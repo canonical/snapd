@@ -6002,7 +6002,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqWithConflictingTask(c *C) {
 	c.Assert(prereqTask.AtTime().IsZero(), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestUpdatePrereqNoRetryWithIfFails(c *C) {
+func (s *snapmgrTestSuite) TestUpdateNoRetryIfPrereqTaskFails(c *C) {
 	s.state.Lock()
 
 	snapstate.Set(s.state, "outdated-producer", &snapstate.SnapState{
@@ -6756,6 +6756,110 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequ
 		revno: snap.R(11),
 	}
 	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
+}
+
+func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "outdated-producer", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "outdated-producer",
+			SnapID:   "outdated-producer-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+	snapstate.Set(s.state, "outdated-consumer", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "outdated-consumer",
+			SnapID:   "outdated-consumer-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		CtxStore: contentStore{
+			fakeStore: s.fakeStore,
+			state:     s.state,
+		},
+		DeviceModel: &asserts.Model{},
+	}
+	snapstatetest.MockDeviceContext(deviceCtx)
+
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{NoReRefresh: true}, deviceCtx, "")
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), Not(HasLen), 0)
+
+	chg := s.state.NewChange("update", "test: update")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "outdated-consumer", target: filepath.Join(dirs.SnapBlobDir, "outdated-consumer_11.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "outdated-producer", target: filepath.Join(dirs.SnapBlobDir, "outdated-producer_11.snap")},
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdatePrerequisiteBackwardsCompat(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "outdated-producer", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "outdated-producer",
+			SnapID:   "outdated-producer-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+	snapstate.Set(s.state, "outdated-consumer", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "outdated-consumer",
+			SnapID:   "outdated-consumer-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+
+	tasks, err := snapstate.Update(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(tasks, Not(HasLen), 0)
+	chg := s.state.NewChange("update", "test: update snap")
+	chg.AddAll(tasks)
+
+	prereqTask := findStrictlyOnePrereqTask(c, chg)
+
+	var snapsup snapstate.SnapSetup
+	err = prereqTask.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	// mimic a task serialized by an "old" snapd without PrereqContentAttrs
+	// The new code shouldn't update the prereq since it doesn't have the content attrs
+	snapsup.PrereqContentAttrs = nil
+	prereqTask.Set("snap-setup", &snapsup)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	s.settle(c)
+
+	// the producer wasn't updated since there were no content attributes
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "outdated-consumer", target: filepath.Join(dirs.SnapBlobDir, "outdated-consumer_11.snap")},
+	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithHiddenSnapDataDir(c *C) {
