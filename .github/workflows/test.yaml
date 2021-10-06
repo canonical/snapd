@@ -317,12 +317,21 @@ jobs:
       uses: actions/download-artifact@v2
       with:
         name: component-code-coverage
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        # A code checkout is needed for Codecov's upload tool
+        path: ./src/github.com/snapcore/snapd
     - name: Merge coverage results
       run: |
-        find
         go get github.com/makholm/covertool
         go install github.com/makholm/covertool
         covertool merge -o all.cov coverage*.cov snap*.cov
+    - name: Archive merged code coverage data
+      uses: actions/upload-artifact@v2
+      with:
+        name: merged-code-coverage
+        path: all.cov
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
       # uploading to codecov occasionally fails, so continue running the test
