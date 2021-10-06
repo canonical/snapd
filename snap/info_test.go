@@ -1861,8 +1861,4 @@ func (s *infoSuite) TestHelpersWithHiddenSnapFolder(c *C) {
 	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1), opts), Equals, "/home/bob/.snap/data/name_instance/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance", opts), Equals, "/home/bob/.snap/data/name_instance/common")
 	c.Check(snap.UserSnapDir("/home/bob", "name_instance", opts), Equals, "/home/bob/.snap/data/name_instance")
-
-	c.Check(snap.XdgDataHome("/home/bob", "name_instance", "123", opts), Equals, "/home/bob/.snap/data/name_instance/123/data")
-	c.Check(snap.XdgCacheHome("/home/bob", "name_instance", "123", opts), Equals, "/home/bob/.snap/data/name_instance/123/cache")
-	c.Check(snap.XdgConfigHome("/home/bob", "name_instance", "123", opts), Equals, "/home/bob/.snap/data/name_instance/123/config")
 }
