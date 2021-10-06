@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
@@ -570,18 +571,18 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	// request by default a restart as the last action after a
 	// successful install or what install-device requested via
 	// snapctl reboot
-	rst := state.RestartSystemNow
+	rst := restart.RestartSystemNow
 	what := "restart"
 	switch rebootOpts.Op {
 	case RebootHaltOp:
 		what = "halt"
-		rst = state.RestartSystemHaltNow
+		rst = restart.RestartSystemHaltNow
 	case RebootPoweroffOp:
 		what = "poweroff"
-		rst = state.RestartSystemPoweroffNow
+		rst = restart.RestartSystemPoweroffNow
 	}
 	logger.Noticef("request immediate system %s", what)
-	st.RequestRestart(rst)
+	restart.Request(st, rst)
 
 	return nil
 }
