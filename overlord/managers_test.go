@@ -4291,6 +4291,15 @@ func validateRecoverySystemTasks(c *C, tasks []*state.Task, label string) int {
 	return i
 }
 
+func validateGadgetSwitchTasks(c *C, tasks []*state.Task, label, rev string) int {
+	var i int
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget %q (%s) for remodel`, label, rev))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update kernel command line from gadget %q (%s) for remodel`, label, rev))
+	i++
+	return i
+}
+
 // byReadyTime sorts a list of tasks by their "ready" time
 type byReadyTime []*state.Task
 
@@ -5676,14 +5685,18 @@ volumes:
 }
 
 type mockUpdater struct {
-	onUpdate error
+	updateCalls int
+	onUpdate    error
 }
 
 func (m *mockUpdater) Backup() error { return nil }
 
 func (m *mockUpdater) Rollback() error { return nil }
 
-func (m *mockUpdater) Update() error { return m.onUpdate }
+func (m *mockUpdater) Update() error {
+	m.updateCalls++
+	return m.onUpdate
+}
 
 func (s *mgrsSuite) TestRemodelSwitchToDifferentGadget(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
@@ -6182,6 +6195,13 @@ type: gadget
 base: core20
 `
 
+const oldPcGadgetSnapYaml = `
+version: 1.0
+name: pc
+type: gadget
+base: core20
+`
+
 const pcKernelSnapYaml = `
 version: 1.0
 name: pc-kernel
@@ -6200,6 +6220,32 @@ name: snapd
 type: snapd
 `
 
+const oldPcGadgetYamlForRemodel = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        filesystem: vfat
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        role: system-seed
+        size: 100M
+        content:
+          - source: grubx64.efi
+            target: grubx64.efi
+      - name: ubuntu-boot
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        role: system-boot
+        filesystem: ext4
+        size: 100M
+      - name: ubuntu-data
+        role: system-data
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: ext4
+        size: 500M
+`
+
 const grubBootConfig = "# Snapd-Boot-Config-Edition: 1\n"
 
 var (
@@ -6211,10 +6257,17 @@ var (
 		{"bootx64.efi", "content"},
 		{"grubx64.efi", "content"},
 	}
+	oldPcGadgetFiles = append(pcGadgetFiles, [][]string{
+		{"meta/gadget.yaml", oldPcGadgetYamlForRemodel},
+		// SHA3-384: 7e5c973da86f7398deffd45b9225175da1dd6ae8fcffa1a20219b32bab9f4846da10e823736cd818ceada74d35337c98
+		{"grubx64.efi", "old-gadget-content"},
+		{"cmdline.extra", "foo bar baz"},
+	}...)
 	pcKernelFiles = [][]string{
 		{"kernel.efi", "kernel-efi"},
 	}
 	snapYamlsForRemodel = map[string]string{
+		"old-pc":    oldPcGadgetSnapYaml,
 		"pc":        pcGadgetSnapYaml,
 		"pc-kernel": pcKernelSnapYaml,
 		"core20":    core20SnapYaml,
@@ -6222,6 +6275,7 @@ var (
 		"baz":       "version: 1.0\nname: baz\nbase: core20",
 	}
 	snapFilesForRemodel = map[string][][]string{
+		"old-pc":    oldPcGadgetFiles,
 		"pc":        pcGadgetFiles,
 		"pc-kernel": pcKernelFiles,
 	}
@@ -7192,6 +7246,164 @@ func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes in sequential order (no configure hooks for bases though)
 	validateRefreshTasks(c, tasks[i:], "core20", "33", noConfigure)
+}
+
+func (s *mgrsSuite) TestRemodelUC20BackToPreviousGadget(c *C) {
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "old-pc",
+				"id":              fakeSnapID("old-pc"),
+				"type":            "gadget",
+				"default-channel": "20/edge",
+			},
+		},
+		"revision": "1",
+	})
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	c.Assert(err, IsNil)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "old-pc",
+		"snap-id":      fakeSnapID("old-pc"),
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a11), IsNil)
+	c.Assert(s.storeSigning.Add(a11), IsNil)
+
+	s.makeInstalledSnapInStateForRemodel(c, "old-pc", snap.R(1), "20/edge")
+
+	now := time.Now()
+	expectedLabel := now.Format("20060102")
+
+	updater := &mockUpdater{}
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		// use a mock updater pretends an update was applied
+		return updater, nil
+	})
+	defer restore()
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	// gadget update has not been applied yet
+	c.Check(updater.updateCalls, Equals, 0)
+
+	// first comes a reboot to the new recovery system
+	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
+	c.Check(devicestate.RemodelingChange(st), NotNil)
+	restarting, kind := st.Restarting()
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, state.RestartSystemNow)
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
+	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "try",
+	})
+	// simulate successful reboot to recovery and back
+	state.MockRestarting(st, state.RestartUnset)
+	// this would be done by snap-bootstrap in initramfs
+	err = bl.SetBootVars(map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	// reset, so that after-reboot handling of tried system is executed
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	// update has been called for all 3 structures because of the remodel
+	// policy (there is no content bump, so there would be no updates
+	// otherwise)
+	c.Check(updater.updateCalls, Equals, 3)
+	// a reboot was requested, as mock updated were applied
+	restarting, kind = st.Restarting()
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, state.RestartSystem)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz",
+	})
+
+	// pretend we have the right command line
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"),
+		[]byte("snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz"), 0444),
+		IsNil)
+
+	// run post boot code again
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// verify command lines again
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz",
+	})
+
+	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "old-pc", &snapst)
+	c.Assert(err, IsNil)
+	// and the gadget tracking channel is the same as in the model
+	c.Check(snapst.TrackingChannel, Equals, "20/edge")
+
+	// ensure sorting is correct
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	var i int
+
+	// prepare first
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "old-pc" (1) for remodel`))
+	i++
+	// then recovery system
+	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
+	// then gadget switch with update of assets and kernel command line
+	i += validateGadgetSwitchTasks(c, tasks[i:], "old-pc", "1")
+	// finally new model assertion
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	i++
+	c.Check(i, Equals, len(tasks))
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
