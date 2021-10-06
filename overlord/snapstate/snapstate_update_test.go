@@ -6563,15 +6563,13 @@ func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
+
 	// revision 5 is required and requesting revision 11 would fail
 	// without --ignore-validation.
 	revOpts := &snapstate.RevisionOptions{Revision: snap.R(11)}
 	_, err := snapstate.Update(s.state, "some-snap", revOpts, 0, snapstate.Flags{IgnoreValidation: true})
 	c.Assert(err, IsNil)
-
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOps := fakeOps{{
@@ -6580,7 +6578,7 @@ func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 			InstanceName:     "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(1),
-			Epoch:            snap.E("0"),
+			Epoch:            snap.E("1*"),
 			RefreshedDate:    refreshedDate,
 			IgnoreValidation: true,
 		}},
