@@ -6528,7 +6528,9 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 	c.Assert(err, ErrorMatches, `cannot update snap "some-snap" to revision 11 without --ignore-validation, revision 5 is required by validation sets: 16/foo/bar/2`)
 }
 
-func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongRevisionIgnoreValidation(c *C) {
+// test that updating to a revision that is different than the revision required
+// by a validation set is possible if --ignore-validation flag is passed.
+func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
@@ -6554,6 +6556,10 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
+	// revision 1 is already installed; it doesn't match the required revision 5
+	// but that's not relevant for the test (we could have installed it with
+	// --ignore-validation before, and that's reflected by IgnoreValidation flag
+	// in the snapstate).
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -6566,7 +6572,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWrongR
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	// revision 5 is required ane requesting revision 11 would fail
+	// revision 5 is required and requesting revision 11 would fail
 	// without --ignore-validation.
 	revOpts := &snapstate.RevisionOptions{Revision: snap.R(11)}
 	_, err := snapstate.Update(s.state, "some-snap", revOpts, 0, snapstate.Flags{IgnoreValidation: true})
