@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -594,7 +595,7 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
-	if ok, _ := task.State().Restarting(); ok {
+	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
@@ -696,11 +697,11 @@ func RestartSystem(task *state.Task) {
 		// something else will error
 		chg.Get("system-restart-immediate", &immediate)
 	}
-	rst := state.RestartSystem
+	rst := restart.RestartSystem
 	if immediate {
-		rst = state.RestartSystemNow
+		rst = restart.RestartSystemNow
 	}
-	task.State().RequestRestart(rst)
+	restart.Request(task.State(), rst)
 }
 
 func contentAttr(attrer interfaces.Attrer) string {

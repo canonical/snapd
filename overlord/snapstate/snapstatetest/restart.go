@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,23 +17,28 @@
  *
  */
 
-package overlord
+package snapstatetest
 
 import (
-	"time"
-
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
-type overlordStateBackend struct {
-	path         string
-	ensureBefore func(d time.Duration)
+// MockRestartHandler mocks a restart.Handler based on a function
+// to witness the restart requests.
+type MockRestartHandler func(restart.RestartType)
+
+func (h MockRestartHandler) HandleRestart(t restart.RestartType) {
+	if h == nil {
+		return
+	}
+	h(t)
 }
 
-func (osb *overlordStateBackend) Checkpoint(data []byte) error {
-	return osutil.AtomicWriteFile(osb.path, data, 0600, 0)
+func (h MockRestartHandler) RebootAsExpected(*state.State) error {
+	return nil
 }
 
-func (osb *overlordStateBackend) EnsureBefore(d time.Duration) {
-	osb.ensureBefore(d)
+func (h MockRestartHandler) RebootDidNotHappen(*state.State) error {
+	panic("internal error: mocking should not invoke RebootDidNotHappen")
 }
