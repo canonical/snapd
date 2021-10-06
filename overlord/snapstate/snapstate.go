@@ -1932,7 +1932,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, opts.Revision, userID, deviceCtx)
+		return updateToRevisionInfo(st, snapst, opts.Revision, userID, flags, deviceCtx)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted
