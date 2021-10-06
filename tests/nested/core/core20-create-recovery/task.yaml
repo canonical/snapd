@@ -3,7 +3,7 @@ summary: verify creating recovery system on UC20
 systems: [ubuntu-20.04-64]
 
 prepare: |
-    tests.nested exec sudo snap install test-snapd-curl --edge
+    tests.nested exec sudo snap install test-snapd-curl --edge --devmode
 
 execute: |
     echo "Create a recovery system with a typical recovery system label"
