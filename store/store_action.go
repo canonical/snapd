@@ -98,7 +98,7 @@ type SnapAction struct {
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
 	// ValidationSets is an optional array of validation sets primary keys
-	// (relevant only for install action).
+	// (relevant for install and refresh actions).
 	ValidationSets [][]string
 }
 

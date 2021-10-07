@@ -25,9 +25,8 @@ import (
 )
 
 var (
-	EnsureLayoutCompatibility = ensureLayoutCompatibility
-	DeviceFromRole            = deviceFromRole
-	NewEncryptedDeviceLUKS    = newEncryptedDeviceLUKS
+	DeviceFromRole         = deviceFromRole
+	NewEncryptedDeviceLUKS = newEncryptedDeviceLUKS
 )
 
 func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, node string) error) (restore func()) {

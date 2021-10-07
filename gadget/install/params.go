@@ -26,8 +26,8 @@ import (
 type Options struct {
 	// Also mount the filesystems after creation
 	Mount bool
-	// Encrypt the data partition
-	Encrypt bool
+	// Encrypt the data/save partitions
+	EncryptionType secboot.EncryptionType
 }
 
 // EncryptionKeySet is a set of encryption keys.
