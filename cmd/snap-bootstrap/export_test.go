@@ -32,6 +32,8 @@ var (
 	Parser = parser
 
 	DoSystemdMount = doSystemdMountImpl
+
+	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
 )
 
 type SystemdMountOptions = systemdMountOptions
@@ -160,3 +162,13 @@ func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
 		tryRecoverySystemHealthCheck = old
 	}
 }
+
+func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
+	old := waitFile
+	waitFile = f
+	return func() {
+		waitFile = old
+	}
+}
+
+var WaitFile = waitFile

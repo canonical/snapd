@@ -42,7 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -439,8 +439,8 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		d := s.daemon(c)
 		st := d.Overlord().State()
 		st.Lock()
-		// devicemgr needs boot id to request a reboot
-		st.VerifyReboot("boot-id-0")
+		// make things look like a reboot
+		restart.ReplaceBootID(st, "boot-id-1")
 		// device model
 		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 		assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
@@ -505,7 +505,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
-				c.Check(d.RequestedRestart(), check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
+				c.Check(d.RequestedRestart(), check.Equals, restart.RestartSystemNow, check.Commentf(tc.comment))
 				// slow reboot schedule
 				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
 					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},

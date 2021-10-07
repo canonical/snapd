@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -594,7 +595,7 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
-	if ok, _ := task.State().Restarting(); ok {
+	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
@@ -680,6 +681,27 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	}
 
 	return nil
+}
+
+// RestartSystem requests a system restart.
+// It considers how the Change the task belongs to is configured
+// (system-restart-immediate) to choose whether request an immediate
+// restart or not.
+func RestartSystem(task *state.Task) {
+	chg := task.Change()
+	var immediate bool
+	if chg != nil {
+		// ignore errors intentionally, to follow
+		// RequestRestart itself which does not
+		// return errors. If the state is corrupt
+		// something else will error
+		chg.Get("system-restart-immediate", &immediate)
+	}
+	rst := restart.RestartSystem
+	if immediate {
+		rst = restart.RestartSystemNow
+	}
+	restart.Request(task.State(), rst)
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -1831,6 +1853,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			SideInfo:    snapst.CurrentSideInfo(),
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
+			Type:        snap.Type(snapst.SnapType),
 			CohortKey:   opts.CohortKey,
 		}
 
@@ -1909,7 +1932,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, opts.Revision, userID, deviceCtx)
+		return updateToRevisionInfo(st, snapst, opts.Revision, userID, flags, deviceCtx)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted
@@ -2198,6 +2221,32 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	// we need this for remodel
 	ts := state.NewTaskSet(prepareSnap, linkSnap)
 	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	return ts, nil
+}
+
+func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+	var snapSetupTaskID string
+	var snapsup SnapSetup
+	allTasks := ts.Tasks()
+	for _, tsk := range allTasks {
+		if tsk.Has("snap-setup") {
+			snapSetupTaskID = tsk.ID()
+			if err := tsk.Get("snap-setup", &snapsup); err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+	if snapSetupTaskID == "" {
+		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
+	}
+
+	linkSnap := st.NewTask("link-snap",
+		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	linkSnap.Set("snap-setup-task", snapSetupTaskID)
+	// wait for the last task in existing set
+	linkSnap.WaitFor(allTasks[len(allTasks)-1])
+	ts.AddTask(linkSnap)
 	return ts, nil
 }
 
