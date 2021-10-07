@@ -237,12 +237,13 @@ type DiskVolumeDeviceTraits struct {
 	// Structure contains trait information about each individual structure in
 	// the volume that may be useful in identifying whether a disk matches a
 	// volume or not.
-	Structure []DiskStructureDeviceTraits `json:"structures"`
+	Structure []DiskStructureDeviceTraits `json:"structure"`
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
 // set of traits for a specific structure on a disk rather than the full disk
-// itself.
+// itself. Structures can be full partitions or just raw slices on a disk like
+// the "BIOS Boot" structure on default amd64 grub Ubuntu Core systems.
 type DiskStructureDeviceTraits struct {
 	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path the
 	// partition was measured and observed at during UC20+ install mode.
