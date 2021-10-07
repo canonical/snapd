@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -46,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/timeutil"
 )
 
 var (
@@ -143,6 +143,12 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, err
 	}
 
+	devMgr := deviceMgr(st)
+	maxWait := 10 * 60 * time.Second
+	if !devMgr.waitForNTPSynchronized(maxWait) {
+		return false, nil
+	}
+
 	return true, nil
 }
 
@@ -236,7 +242,6 @@ func delayedCrossMgrInit() {
 	snapstate.CanAutoRefresh = canAutoRefresh
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
-	snapstate.IsNTPSynchronized = timeutil.IsNTPSynchronized
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
 }

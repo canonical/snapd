@@ -56,7 +56,6 @@ var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
 	CanManageRefreshes    func(st *state.State) bool
 	IsOnMeteredConnection func() (bool, error)
-	IsNTPSynchronized     func() (bool, error)
 )
 
 // refreshRetryDelay specified the minimum time to retry failed refreshes
@@ -105,9 +104,6 @@ var _ readyUpdateInfo = (*refreshCandidate)(nil)
 type autoRefresh struct {
 	state *state.State
 
-	startTime       time.Time
-	ntpSynchronized bool
-
 	lastRefreshSchedule string
 	nextRefresh         time.Time
 	lastRefreshAttempt  time.Time
@@ -116,8 +112,7 @@ type autoRefresh struct {
 
 func newAutoRefresh(st *state.State) *autoRefresh {
 	return &autoRefresh{
-		state:     st,
-		startTime: time.Now(),
+		state: st,
 	}
 }
 
@@ -267,16 +262,6 @@ func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (c
 	return false, nil
 }
 
-func (m *autoRefresh) waitForNTPSynchronized(maxWait time.Duration) bool {
-	if m.ntpSynchronized || m.startTime.Add(maxWait).Before(time.Now()) {
-		return true
-	}
-
-	// ignore any errors that occurred while checking for ntp
-	m.ntpSynchronized, _ = IsNTPSynchronized()
-	return m.ntpSynchronized
-}
-
 // Ensure ensures that we refresh all installed snaps periodically
 func (m *autoRefresh) Ensure() error {
 	m.state.Lock()
@@ -288,11 +273,6 @@ func (m *autoRefresh) Ensure() error {
 	}
 	if ok, err := CanAutoRefresh(m.state); err != nil || !ok {
 		return err
-	}
-	// wait for timesync
-	maxWait := 10 * 60 * time.Second
-	if !m.waitForNTPSynchronized(maxWait) {
-		return nil
 	}
 
 	// get lastRefresh and schedule

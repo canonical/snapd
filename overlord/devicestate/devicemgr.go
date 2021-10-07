@@ -57,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -110,7 +111,8 @@ type DeviceManager struct {
 	registered                   bool
 	reg                          chan struct{}
 
-	preseed bool
+	preseed         bool
+	ntpSynchronized bool
 }
 
 // Manager returns a new device manager.
@@ -1684,6 +1686,18 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
+
+func (m *DeviceManager) waitForNTPSynchronized(maxWait time.Duration) bool {
+	if m.ntpSynchronized || time.Now().After(startTime.Add(maxWait)) {
+		return true
+	}
+
+	// ignore any errors that occurred while checking for ntp
+	m.ntpSynchronized, _ = timeutilIsNTPSynchronized()
+	return m.ntpSynchronized
 }
 
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
