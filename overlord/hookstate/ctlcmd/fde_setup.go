@@ -75,9 +75,9 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 	if err := context.Get("fde-setup-request", &fdeSetup); err != nil {
 		return fmt.Errorf("cannot get fde-setup-op from context: %v", err)
 	}
-	// Op is either "initial-setup" or "features"
+	// Op is either "initial-setup", "device-setup" or "features"
 	switch fdeSetup.Op {
-	case "features", "initial-setup":
+	case "features", "initial-setup", "device-setup":
 		// fine
 	default:
 		return fmt.Errorf("unknown fde-setup-request op %q", fdeSetup.Op)
