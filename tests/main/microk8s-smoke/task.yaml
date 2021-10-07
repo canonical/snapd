@@ -23,7 +23,7 @@ execute: |
     microk8s kubectl get services | MATCH kubernetes
     
     microk8s kubectl create deployment nginx --image=nginx
-    retry -n 20 microk8s kubectl get pods | MATCH Running
+    retry -n 20 sh -c "microk8s kubectl get pods | MATCH Running"
     # XXX: test if ngix can be connected
 
     
