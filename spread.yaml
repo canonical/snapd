@@ -228,6 +228,8 @@ backends:
                   image: ubuntu-20.04-64
                   username: ubuntu
                   password: ubuntu
+                  bios: uefi
+                  # TODO: remove one everyone switch to official spread
                   flags: [virtio]
             - ubuntu-18.04-64:
                   username: ubuntu
