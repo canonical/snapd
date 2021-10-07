@@ -208,13 +208,14 @@ type VolumeUpdate struct {
 	Preserve []string       `yaml:"preserve"`
 }
 
-// MappedVolumeDeviceHeuristics is a set of heuristics to use to try and map a
-// volume in the gadget.yaml to a physical device on the system. We don't have
-// a steadfast and predictable way to always find the device again, so we need
-// to do a search, trying to find a device which matches each heuristic in turn,
-// and verify it matches the physical structure layout and if not move on to the
-// next heuristic.
-type MappedVolumeDeviceHeuristics struct {
+// DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
+// a previous point in time on the same device, and is used primarily to try and
+// map a volume in the gadget.yaml to a physical device on the system after the
+// initial installation is done. We don't have a steadfast and predictable way
+// to always find the device again, so we need to do a search, trying to find a
+// device which matches each trait in turn, and verify it matches the  physical
+// structure layout and if not move on to using the next trait.
+type DiskVolumeDeviceTraits struct {
 	// each member here is presented in descending order of certainty about the
 	// likelihood of being compatible if a candidate physical device matches the
 	// member. I.e. CachedDevicePath is more trusted than CachedKernelPath is
@@ -233,16 +234,16 @@ type MappedVolumeDeviceHeuristics struct {
 	// "0x1212e868".
 	DiskID string `json:"disk-id"`
 
-	// MappedStructures contains heuristic information about each individual
-	// structure in the volume that may be useful in identifying whethere a disk
-	// matches a volume or not.
-	MappedStructures []MappedStructureDeviceHeuristic `json:"mapped-structures"`
+	// Structure contains trait information about each individual structure in
+	// the volume that may be useful in identifying whethere a disk matches a
+	// volume or not.
+	Structure []DiskStructureDeviceTraits `json:"mapped-structures"`
 }
 
-// MappedStructureDeviceHeuristic is a set of heuristics to use to try and map
-// a laid out structure in the gadget.yaml with a structure or partition on a
-// physical disk to see if that physical disk matches a specific volume.
-type MappedStructureDeviceHeuristic struct {
+// DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
+// set of traits for a specific structure on a disk rather than the full disk
+// itself.
+type DiskStructureDeviceTraits struct {
 	// CachedDevicePath is the device path in sysfs and in /dev/disk/by-path the
 	// partition was measured and observed at during UC20+ install mode.
 	CachedDevicePath string `json:"cached-device-path"`
@@ -254,7 +255,7 @@ type MappedStructureDeviceHeuristic struct {
 	// FilesystemLabel is the label of the filesystem for structures that have
 	// filesystems, i.e. /dev/disk/by-label
 	FilesystemLabel string `json:"filesystem-label"`
-	// FilesystemLabel is the label of the partition for GPT disks, i.e.
+	// PartitionLabel is the label of the partition for GPT disks, i.e.
 	// /dev/disk/by-partlabel
 	PartitionLabel string `json:"partition-label"`
 	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
@@ -269,9 +270,9 @@ type MappedStructureDeviceHeuristic struct {
 	Size quantity.Size `json:"size"`
 }
 
-// SaveMappedVolumeDeviceHeuristics saves the mapping of volume names to
-// volume / device heuristics to disk for later loading and verification.
-func SaveMappedVolumeDeviceHeuristics(mapping map[string]MappedVolumeDeviceHeuristics) error {
+// DiskVolumeDeviceTraits saves the mapping of volume names to volume / device
+// traits to a file on disk for later loading and verification.
+func SaveDiskVolumeDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) error {
 	b, err := json.Marshal(mapping)
 	if err != nil {
 		return err
@@ -283,13 +284,13 @@ func SaveMappedVolumeDeviceHeuristics(mapping map[string]MappedVolumeDeviceHeuri
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, b, 0644)
+	return osutil.AtomicWriteFile(filename, b, 0644, 0)
 }
 
 // LoadMappedVolumeDeviceHeuristics loads heuristics if there are any. If there
 // is no file with the mapping available, nil is returned.
-func LoadMappedVolumeDeviceHeuristics() (map[string]MappedVolumeDeviceHeuristics, error) {
-	var mapping map[string]MappedVolumeDeviceHeuristics
+func LoadDiskVolumeDeviceTraits() (map[string]DiskVolumeDeviceTraits, error) {
+	var mapping map[string]DiskVolumeDeviceTraits
 
 	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
 	if !osutil.FileExists(filename) {

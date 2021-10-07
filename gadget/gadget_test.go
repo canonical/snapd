@@ -2932,16 +2932,16 @@ func (s *gadgetYamlTestSuite) TestIDCompatibility(c *C) {
 	c.Logf("-----")
 }
 
-func (s *gadgetYamlTestSuite) TestSaveLoadMappedVolumeDeviceHeuristics(c *C) {
+func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 
 	// example output from a real installed VM
 	// TODO: get example output from a raspi / DOS device too
-	m := map[string]gadget.MappedVolumeDeviceHeuristics{
+	m := map[string]gadget.DiskVolumeDeviceTraits{
 		"foo": {
 			CachedDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb",
 			CachedKernelPath: "/dev/vdb",
 			DiskID:           "484B4BA1-3EDF-4270-A1A8-378FCBB0E1DE",
-			MappedStructures: []gadget.MappedStructureDeviceHeuristic{
+			Structure: []gadget.DiskStructureDeviceTraits{
 				// first structure is a bare structure with no filesystem
 				{
 					CachedDevicePath: "/dev/vdb1",
@@ -2972,7 +2972,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadMappedVolumeDeviceHeuristics(c *C) {
 			CachedDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
 			CachedKernelPath: "/dev/vda",
 			DiskID:           "46E2573B-7891-4316-B83C-DE0817A7CFB5",
-			MappedStructures: []gadget.MappedStructureDeviceHeuristic{
+			Structure: []gadget.DiskStructureDeviceTraits{
 				{
 					CachedDevicePath: "/dev/vda1",
 					CachedKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda1",
@@ -3034,14 +3034,14 @@ func (s *gadgetYamlTestSuite) TestSaveLoadMappedVolumeDeviceHeuristics(c *C) {
 
 	// when there is no mapping file, it is not an error, the map returned is
 	// just nil/has no items in it
-	mAbsent, err := gadget.LoadMappedVolumeDeviceHeuristics()
+	mAbsent, err := gadget.LoadDiskVolumeDeviceTraits()
 	c.Assert(err, IsNil)
 	c.Assert(mAbsent, HasLen, 0)
 
-	err = gadget.SaveMappedVolumeDeviceHeuristics(m)
+	err = gadget.SaveDiskVolumeDeviceTraits(m)
 	c.Assert(err, IsNil)
 
-	m2, err := gadget.LoadMappedVolumeDeviceHeuristics()
+	m2, err := gadget.LoadDiskVolumeDeviceTraits()
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, m2)
