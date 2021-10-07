@@ -563,7 +563,6 @@ func (s *fdeSuite) TestDeviceUnlockErr(c *C) {
 	defer restore()
 	mockSystemdRun := testutil.MockCommand(c, "fde-device-unlock", `
 echo  "output-only-used-for-errors" 1>&2
-sleep 0.2
 exit 1
 `)
 	defer mockSystemdRun.Restore()
