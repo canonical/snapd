@@ -7327,9 +7327,9 @@ func (s *mgrsSuite) TestRemodelUC20BackToPreviousGadget(c *C) {
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
 	c.Check(devicestate.RemodelingChange(st), NotNil)
-	restarting, kind := st.Restarting()
+	restarting, kind := restart.Pending(st)
 	c.Check(restarting, Equals, true)
-	c.Assert(kind, Equals, state.RestartSystemNow)
+	c.Assert(kind, Equals, restart.RestartSystemNow)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
@@ -7341,7 +7341,7 @@ func (s *mgrsSuite) TestRemodelUC20BackToPreviousGadget(c *C) {
 		"recovery_system_status": "try",
 	})
 	// simulate successful reboot to recovery and back
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	// this would be done by snap-bootstrap in initramfs
 	err = bl.SetBootVars(map[string]string{
 		"try_recovery_system":    expectedLabel,
@@ -7364,9 +7364,9 @@ func (s *mgrsSuite) TestRemodelUC20BackToPreviousGadget(c *C) {
 	// otherwise)
 	c.Check(updater.updateCalls, Equals, 3)
 	// a reboot was requested, as mock updated were applied
-	restarting, kind = st.Restarting()
+	restarting, kind = restart.Pending(st)
 	c.Check(restarting, Equals, true)
-	c.Assert(kind, Equals, state.RestartSystem)
+	c.Assert(kind, Equals, restart.RestartSystem)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
