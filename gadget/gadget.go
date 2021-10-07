@@ -218,16 +218,16 @@ type VolumeUpdate struct {
 type DiskVolumeDeviceTraits struct {
 	// each member here is presented in descending order of certainty about the
 	// likelihood of being compatible if a candidate physical device matches the
-	// member. I.e. CachedDevicePath is more trusted than CachedKernelPath is
+	// member. I.e. OriginalDevicePath is more trusted than OriginalKernelPath is
 	// more trusted than DiskID is more trusted than using the MappedStructures
 
-	// CachedDevicePath is the device path in sysfs and in /dev/disk/by-path the
-	// volume was measured and observed at during UC20+ install mode.
-	CachedDevicePath string `json:"cached-device-path"`
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path
+	// the volume was measured and observed at during UC20+ install mode.
+	OriginalDevicePath string `json:"device-path"`
 
-	// CachedKernelPath is the device path like /dev/vda the volume was
+	// OriginalKernelPath is the device path like /dev/vda the volume was
 	// measured and observed at during UC20+ install mode.
-	CachedKernelPath string `json:"cached-kernel-path"`
+	OriginalKernelPath string `json:"kernel-path"`
 
 	// DiskID is the disk's identifier, it is a UUID for GPT disks or an
 	// unsigned integer for DOS disks encoded as a string in hexadecimal as in
@@ -235,21 +235,21 @@ type DiskVolumeDeviceTraits struct {
 	DiskID string `json:"disk-id"`
 
 	// Structure contains trait information about each individual structure in
-	// the volume that may be useful in identifying whethere a disk matches a
+	// the volume that may be useful in identifying whether a disk matches a
 	// volume or not.
-	Structure []DiskStructureDeviceTraits `json:"mapped-structures"`
+	Structure []DiskStructureDeviceTraits `json:"structures"`
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
 // set of traits for a specific structure on a disk rather than the full disk
 // itself.
 type DiskStructureDeviceTraits struct {
-	// CachedDevicePath is the device path in sysfs and in /dev/disk/by-path the
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path the
 	// partition was measured and observed at during UC20+ install mode.
-	CachedDevicePath string `json:"cached-device-path"`
-	// CachedKernelPath is the device path like /dev/vda1 the partition was
+	OriginalDevicePath string `json:"device-path"`
+	// OriginalKernelPath is the device path like /dev/vda1 the partition was
 	// measured and observed at during UC20+ install mode.
-	CachedKernelPath string `json:"cached-kernel-path"`
+	OriginalKernelPath string `json:"kernel-path"`
 	// PartitionUUID is the partuuid as defined by i.e. /dev/disk/by-partuuid
 	PartitionUUID string `json:"partition-uuid"`
 	// FilesystemLabel is the label of the filesystem for structures that have
@@ -270,9 +270,9 @@ type DiskStructureDeviceTraits struct {
 	Size quantity.Size `json:"size"`
 }
 
-// DiskVolumeDeviceTraits saves the mapping of volume names to volume / device
+// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume / device
 // traits to a file on disk for later loading and verification.
-func SaveDiskVolumeDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) error {
+func SaveDiskVolumesDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) error {
 	b, err := json.Marshal(mapping)
 	if err != nil {
 		return err
@@ -287,9 +287,10 @@ func SaveDiskVolumeDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) error
 	return osutil.AtomicWriteFile(filename, b, 0644, 0)
 }
 
-// LoadMappedVolumeDeviceHeuristics loads heuristics if there are any. If there
-// is no file with the mapping available, nil is returned.
-func LoadDiskVolumeDeviceTraits() (map[string]DiskVolumeDeviceTraits, error) {
+// LoadDiskVolumesDeviceTraits loads the mapping of volumes to disk traits if
+// there is any. If there is no file with the mapping available, nil is
+// returned.
+func LoadDiskVolumesDeviceTraits() (map[string]DiskVolumeDeviceTraits, error) {
 	var mapping map[string]DiskVolumeDeviceTraits
 
 	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
