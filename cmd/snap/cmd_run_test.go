@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -484,7 +485,8 @@ func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	}{
 		{snapDir: dirs.UserHomeSnapDir},
 		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
-		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{UseHiddenSnapDataDir: true}},
+		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: true}},
 	} {
 		s.testSnapRunCreateDataDirs(c, t.snapDir, t.opts)
 		c.Assert(os.RemoveAll(s.fakeHome), check.IsNil)
@@ -1850,4 +1852,28 @@ func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
 	fi, err := os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir))
 	c.Assert(err, check.IsNil)
 	c.Assert(fi.Mode()&os.ModePerm, check.Equals, os.FileMode(0700))
+}
+
+func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
+	root := c.MkDir()
+	dirs.SnapSeqDir = root
+	dirs.FeaturesDir = root
+
+	// write sequence file
+	seqFile := filepath.Join(dirs.SnapSeqDir, "somesnap.json")
+	str := struct {
+		Migrated bool `json:"migrated-hidden-dir"`
+	}{
+		Migrated: true,
+	}
+	data, err := json.Marshal(&str)
+	c.Assert(err, check.IsNil)
+	c.Assert(ioutil.WriteFile(seqFile, data, 0660), check.IsNil)
+
+	// write control file for hidden dir feature
+	c.Assert(ioutil.WriteFile(features.HiddenSnapDataHomeDir.ControlFile(), []byte{}, 0660), check.IsNil)
+
+	opts, err := snaprun.GetSnapDirOptions("somesnap")
+	c.Assert(err, check.IsNil)
+	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: true})
 }

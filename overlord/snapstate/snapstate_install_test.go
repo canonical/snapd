@@ -4214,6 +4214,37 @@ func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallMigrateData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	original := snapstate.GetSnapDirOptions
+	restore := snapstate.MockGetSnapDirOptions(func(st *state.State, setup *snapstate.SnapSetup, name string) (*dirs.SnapDirOptions, error) {
+		opts, err := original(st, setup, name)
+		if err != nil {
+			return nil, err
+		}
+
+		// mock the feature flag but use the rest of GetSnapDirOptions
+		opts.UseHiddenSnapDataDir = true
+		return opts, nil
+	})
+	defer restore()
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), Not(HasLen), 0)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	// didn't hide data, started already "migrated"
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
+	assertMigrationState(c, s.state, "some-snap", true)
+}
+
 func (s *snapmgrTestSuite) TestInstallDeduplicatesSnapNames(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

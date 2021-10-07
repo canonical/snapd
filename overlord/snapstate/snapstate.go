@@ -933,18 +933,24 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
+	opts, err := GetSnapDirOptions(st, nil, instanceName)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	providerContentAttrs := defaultProviderContentAttrs(st, info)
 	snapsup := &SnapSetup{
-		Base:               info.Base,
-		Prereq:             getKeys(providerContentAttrs),
-		PrereqContentAttrs: providerContentAttrs,
-		SideInfo:           si,
-		SnapPath:           path,
-		Channel:            channel,
-		Flags:              flags.ForSnapSetup(),
-		Type:               info.Type(),
-		PlugsOnly:          len(info.Slots) == 0,
-		InstanceKey:        info.InstanceKey,
+		Base:                info.Base,
+		Prereq:              getKeys(providerContentAttrs),
+		PrereqContentAttrs:  providerContentAttrs,
+		SideInfo:            si,
+		SnapPath:            path,
+		Channel:             channel,
+		Flags:               flags.ForSnapSetup(),
+		Type:                info.Type(),
+		PlugsOnly:           len(info.Slots) == 0,
+		InstanceKey:         info.InstanceKey,
+		MigratedToHiddenDir: opts.UseHiddenSnapDataDir,
 	}
 
 	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
@@ -1044,6 +1050,11 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		}
 	}
 
+	snapDirOpts, err := GetSnapDirOptions(st, nil, info.InstanceName())
+	if err != nil {
+		return nil, err
+	}
+
 	providerContentAttrs := defaultProviderContentAttrs(st, info)
 	snapsup := &SnapSetup{
 		Channel:            opts.Channel,
@@ -1061,7 +1072,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 			Media:   info.Media,
 			Website: info.Website,
 		},
-		CohortKey: opts.CohortKey,
+		CohortKey:           opts.CohortKey,
+		MigratedToHiddenDir: snapDirOpts.UseHiddenSnapDataDir,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1157,19 +1169,25 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			channel = sar.RedirectChannel
 		}
 
+		opts, err := GetSnapDirOptions(st, nil, info.InstanceName())
+		if err != nil {
+			return nil, nil, err
+		}
+
 		providerContentAttrs := defaultProviderContentAttrs(st, info)
 		snapsup := &SnapSetup{
-			Channel:            channel,
-			Base:               info.Base,
-			Prereq:             getKeys(providerContentAttrs),
-			PrereqContentAttrs: providerContentAttrs,
-			UserID:             userID,
-			Flags:              flags.ForSnapSetup(),
-			DownloadInfo:       &info.DownloadInfo,
-			SideInfo:           &info.SideInfo,
-			Type:               info.Type(),
-			PlugsOnly:          len(info.Slots) == 0,
-			InstanceKey:        info.InstanceKey,
+			Channel:             channel,
+			Base:                info.Base,
+			Prereq:              getKeys(providerContentAttrs),
+			PrereqContentAttrs:  providerContentAttrs,
+			UserID:              userID,
+			Flags:               flags.ForSnapSetup(),
+			DownloadInfo:        &info.DownloadInfo,
+			SideInfo:            &info.SideInfo,
+			Type:                info.Type(),
+			PlugsOnly:           len(info.Slots) == 0,
+			InstanceKey:         info.InstanceKey,
+			MigratedToHiddenDir: opts.UseHiddenSnapDataDir,
 		}
 
 		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))

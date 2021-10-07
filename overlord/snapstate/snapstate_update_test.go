@@ -21,8 +21,10 @@ package snapstate_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -6922,8 +6924,9 @@ func (s *snapmgrTestSuite) TestUpdateDeduplicatesSnapNames(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithHiddenSnapDataDir(c *C) {
-	restore := snapstate.MockGetSnapDirOptions(func(*state.State) (*dirs.SnapDirOptions, error) {
-		return &dirs.SnapDirOptions{HiddenSnapDataDir: true}, nil
+	opts := &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: true}
+	restore := snapstate.MockGetSnapDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error) {
+		return opts, nil
 	})
 	defer restore()
 
@@ -6950,7 +6953,117 @@ func (s *snapmgrTestSuite) TestUpdateWithHiddenSnapDataDir(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
-	c.Assert(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	c.Assert(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, opts)
+	// shouldn't do migration since 'Migrated' flag was already set
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigration(c *C) {
+	// hidden snap dir is turned on but migration hasn't been done
+	restoreOpts := snapstate.MockGetSnapDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error) {
+		return &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: false}, nil
+	})
+	defer restoreOpts()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// check backend hid data
+	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
+
+	// check state and seq file were updated
+	assertMigrationState(c, s.state, "some-snap", true)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateFails(c *C) {
+	// hidden snap dir is turned on but migration hasn't been done
+	restoreOpts := snapstate.MockGetSnapDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error) {
+		return &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: false}, nil
+	})
+	defer restoreOpts()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	// fail at the end
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+	c.Assert(chg.Err(), Not(IsNil))
+
+	// check migration is undone
+	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// check migration is off in state and seq file
+	assertMigrationState(c, s.state, "some-snap", false)
+}
+
+func assertMigrationState(c *C, st *state.State, snap string, expected bool) {
+	// check snap state has expected migration value
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(st, snap, &snapst), IsNil)
+	c.Assert(snapst.MigratedToHiddenDir, Equals, expected)
+
+	// read sequence file
+	seqFilePath := filepath.Join(dirs.SnapSeqDir, snap+".json")
+	file, err := os.Open(seqFilePath)
+	if errors.Is(err, os.ErrNotExist) {
+		if expected {
+			c.Fatalf("expected migration flag set in seq file but got: %v", err)
+		}
+
+		// not expecting migration, so it's ok for seq file to not exist
+		return
+	}
+	c.Assert(err, IsNil)
+
+	data, err := ioutil.ReadAll(file)
+	c.Assert(err, IsNil)
+
+	// check sequence file has expected migration value
+	type seqData struct {
+		MigratedToHiddenDir bool `json:"migrated-hidden-dir"`
+	}
+	var d seqData
+	c.Assert(json.Unmarshal(data, &d), IsNil)
+	c.Assert(d.MigratedToHiddenDir, Equals, expected)
 }
 
 func (s *snapmgrTestSuite) TestUndoInstallAfterDeletingRevisions(c *C) {

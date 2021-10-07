@@ -285,7 +285,7 @@ func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
 	c.Check(logs[0], testutil.Contains, "ERROR something failed")
 }
 
-func (s *handlersSuite) TestGetSnapDirOptions(c *C) {
+func (s *handlersSuite) TestGetSnapDirOptionsFromSnapState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -295,11 +295,53 @@ func (s *handlersSuite) TestGetSnapDirOptions(c *C) {
 	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
 	err := tr.Set("core", confKey, "true")
 	c.Assert(err, IsNil)
+	tr.Commit()
 
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		MigratedToHiddenDir: true,
+		Sequence:            []*snap.SideInfo{{RealName: "some-snap"}},
+	})
+
+	// check options reflect flag
+	opts, err := snapstate.GetSnapDirOptions(s.state, nil, "some-snap")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: true})
+}
+
+func (s *handlersSuite) TestGetSnapDirOptionsFromSnapSetup(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	// set feature flag
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapsup := &snapstate.SnapSetup{MigratedToHiddenDir: true}
+
+	// check options reflect flag
+	opts, err := snapstate.GetSnapDirOptions(s.state, snapsup, "some-snap")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: true})
+}
+
+func (s *handlersSuite) TestGetSnapDirOptionsNoState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	// set feature flag
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
 	tr.Commit()
 
 	// check options reflect flag
-	opts, err := snapstate.GetSnapDirOptions(s.state)
+	opts, err := snapstate.GetSnapDirOptions(s.state, nil, "some-snap")
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{UseHiddenSnapDataDir: true, MigratedToHiddenDir: false})
 }

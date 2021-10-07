@@ -162,8 +162,11 @@ var (
 )
 
 type SnapDirOptions struct {
-	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead of ~/snap
-	HiddenSnapDataDir bool
+	// UseHiddenSnapDataDir determines if we should use ~/.snap/data as the snap data dir instead of ~/snap. Can be true
+	// while ActiveSnapDataDir still holds ~/snap, in which case the migration is yet to be performed
+	UseHiddenSnapDataDir bool
+	// MigratedToHiddenDir states if data has been migrated from ~/snap to ~/.snap/data
+	MigratedToHiddenDir bool
 }
 
 func init() {

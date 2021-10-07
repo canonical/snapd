@@ -1,0 +1,67 @@
+summary: Ensure snap data is migrated on refresh
+
+# 14.04 doesn't support systemd-run
+systems: [-ubuntu-14.04-*]
+
+environment:
+  BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  snap install test-snapd-sh
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  setup_fake_store "$BLOB_DIR"
+
+  init_fake_refreshes "$BLOB_DIR" test-snapd-sh
+  retry -n 5 test -e "$BLOB_DIR"/test-snapd-sh*fake1*.snap
+
+restore: |
+  snap remove test-snapd-sh
+  snap set system experimental.hidden-snap-folder!
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$BLOB_DIR"
+  rm -rf "$BLOB_DIR" "$HOME"/snap/test-snapd-sh "$HOME"/.snap/data/test-snapd-sh
+
+execute: |
+  echo "Create snap user dirs"
+  test-snapd-sh.sh -c 'true'
+
+  echo "Set hidden snap folder feature flag"
+  snap set system experimental.hidden-snap-folder=true
+
+  echo "Check user dirs weren't migrated"
+  test -d "$HOME"/snap/test-snapd-sh
+  test ! -d "$HOME"/.snap/data/test-sh
+
+  echo "Check env vars are still the same"
+  test-snapd-sh.sh -c "touch \$SNAP_USER_DATA/rev.txt"
+  test-snapd-sh.sh -c "touch \$SNAP_USER_COMMON/common.txt"
+
+  test -f "$HOME"/snap/test-snapd-sh/current/rev.txt
+  test -f "$HOME"/snap/test-snapd-sh/common/common.txt
+
+  echo "Refresh snap"
+  snap refresh test-snapd-sh | MATCH ".* refreshed"
+
+  echo "Check that snap data was migrated"
+  test ! -d "$HOME"/snap/test-snapd-sh
+  test -d "$HOME"/.snap/data/test-snapd-sh
+  test -f "$HOME"/.snap/data/test-snapd-sh/current/rev.txt
+  test -f "$HOME"/.snap/data/test-snapd-sh/common/common.txt
+
+  echo "Delete snap and its data"
+  snap remove --purge test-snapd-sh
+  rm -rf "$HOME"/.snap/data/test-snapd-sh
+  rm -rf "$HOME"/snap/test-snapd-sh
+
+  echo "Install snap with flag already set"
+  snap install test-snapd-sh
+
+  echo "Check data is migrated"
+  test-snapd-sh.sh -c "touch \$SNAP_USER_DATA/rev.txt"
+  test-snapd-sh.sh -c "touch \$SNAP_USER_COMMON/common.txt"
+  test -f "$HOME"/.snap/data/test-snapd-sh/current/rev.txt
+  test -f "$HOME"/.snap/data/test-snapd-sh/common/common.txt

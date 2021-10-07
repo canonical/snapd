@@ -21,6 +21,8 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1023,7 +1025,12 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
-	opts := getSnapDirOptions()
+	snapName, _ := snap.SplitSnapApp(snapApp)
+	opts, err := getSnapDirOptions(snapName)
+	if err != nil {
+		return fmt.Errorf("cannot get snap dir options: %w", err)
+	}
+
 	if err := createUserDataDirs(info, opts); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -1219,10 +1226,27 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-func getSnapDirOptions() *dirs.SnapDirOptions {
-	return &dirs.SnapDirOptions{
-		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
+func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+	opts := &dirs.SnapDirOptions{
+		UseHiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
 	}
+
+	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return opts, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	var seq struct {
+		MigratedToHiddenDir bool `json:"migrated-hidden-dir"`
+	}
+	if err := json.Unmarshal(data, &seq); err != nil {
+		return nil, err
+	}
+
+	opts.MigratedToHiddenDir = seq.MigratedToHiddenDir
+	return opts, nil
 }
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
