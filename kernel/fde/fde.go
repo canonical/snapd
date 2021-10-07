@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -189,6 +190,8 @@ func DeviceSetup(runDeviceSetupHook RunDeviceSetupHookFunc, params *DeviceSetupP
 		Device: params.Device,
 		Label:  params.Label,
 	}
+	logger.Debugf("running device-setup hook on %q with label %q", req.Device, req.Label)
+
 	hookOutput, err := runDeviceSetupHook(req)
 	if err != nil {
 		return fmt.Errorf("device setup failed with: %v", osutil.OutputErr(hookOutput, err))

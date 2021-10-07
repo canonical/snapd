@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -31,6 +32,7 @@ type DeviceUnlockRequest struct {
 
 	Key    []byte `json:"key,omitempty"`
 	Device string `json:"device,omitempty"`
+	Label  string `json:"label,omitempty"`
 }
 
 // runFDEDeviceUnlockCommand returns the output of
@@ -53,6 +55,7 @@ func runFDEDeviceUnlockCommand(req *DeviceUnlockRequest) (output []byte, err err
 type DeviceUnlockParams struct {
 	Key    []byte
 	Device string
+	Label  string
 }
 
 // DeviceUnlock invokes the "fde-device-unlock" helper with the
@@ -62,7 +65,10 @@ func DeviceUnlock(params *DeviceUnlockParams) (err error) {
 		Op:     "device-unlock",
 		Key:    params.Key,
 		Device: params.Device,
+		Label:  params.Label,
 	}
+	logger.Debugf("running fde-device-unlock on %q with label %q", req.Device, req.Label)
+
 	output, err := runFDEDeviceUnlockCommand(req)
 	if err != nil {
 		return fmt.Errorf(`cannot run fde-device-unlock "device-unlock": %v`, osutil.OutputErr(output, err))

@@ -35,6 +35,7 @@ type fdeSetupJSON struct {
 	Key []byte `json:"key,omitempty"`
 
 	Device string `json:"device,omitempty"`
+	Label  string `json:"label,omitempty"`
 }
 
 type fdeSetupResultJSON struct {
@@ -111,6 +112,9 @@ func runFdeSetup() error {
 		// XXX: write something to the device start fdeSetupJSON
 		if js.Device == "" {
 			panic("empty device passed to device-setup")
+		}
+		if js.Label != "ubuntu-data" && js.Label != "ubuntu-save" {
+			panic(fmt.Sprintf("unexpected label passed %q", js.Label))
 		}
 		fdeSetupResult = []byte("{}")
 	default:
@@ -210,6 +214,7 @@ type fdeDeviceUnlockJSON struct {
 
 	Key    []byte `json:"key"`
 	Device string `json:"device"`
+	Label  string `json:"label"`
 }
 
 func runFdeDeviceUnlock() error {
@@ -238,6 +243,10 @@ func runFdeDeviceUnlock() error {
 		if _, err := f.Write(b); err != nil {
 			return err
 		}
+		if js.Label != "ubuntu-data" && js.Label != "ubuntu-save" {
+			panic(fmt.Sprintf("unexpected label passed %q", js.Label))
+		}
+
 	case "features":
 		fmt.Fprintf(osStdout, `{"features":[]}`)
 	default:
