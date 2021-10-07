@@ -14,6 +14,16 @@ restore: |
     systemctl daemon-reload
     systemctl restart snapd.socket
 
+    snap remove --purge microk8s
+
+    # TODO: remove handling of snap_daemon user once microk8s is updated not
+    # to use it
+    for user in snap_microk8s snap_daemon
+    do
+        userdel -f "$user" || userdel -f --extrausers "$user" || true
+        groupdel "$user" || groupdel --extrausers "$user" || true
+    done
+
 execute: |
     snap install --channel="$CHANNEL" microk8s
     microk8s status --wait-ready
