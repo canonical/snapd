@@ -52,8 +52,8 @@ type encryptedDeviceLUKS struct {
 // sanity
 var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
-// newEncryptedDevice creates an encrypted device in the existing partition using the
-// specified key.
+// newEncryptedDeviceLUKS creates an encrypted device in the existing
+// partition using the specified key with the LUKS backend.
 func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
 	dev := &encryptedDeviceLUKS{
 		parent: part,
