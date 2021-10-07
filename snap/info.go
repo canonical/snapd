@@ -234,6 +234,11 @@ func UserXdgRuntimeDir(euid sys.UserID, name string) string {
 	return filepath.Join(dirs.XdgRuntimeDirBase, fmt.Sprintf("%d/snap.%s", euid, name))
 }
 
+// SnapDir returns the user-specific snap directory.
+func SnapDir(home string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts))
+}
+
 // SideInfo holds snap metadata that is crucial for the tracking of
 // snaps and for the working of the system offline and which is not
 // included in snap.yaml or for which the store is the canonical
@@ -526,7 +531,7 @@ func (s *Info) CommonDataDir() string {
 	return CommonDataDir(s.InstanceName())
 }
 
-func dataHomeGlob(opts *dirs.SnapDirOptions) string {
+func DataHomeGlob(opts *dirs.SnapDirOptions) string {
 	if opts == nil {
 		opts = &dirs.SnapDirOptions{}
 	}
@@ -540,13 +545,13 @@ func dataHomeGlob(opts *dirs.SnapDirOptions) string {
 
 // DataHomeDir returns the per user data directory of the snap.
 func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(dataHomeGlob(opts), s.InstanceName(), s.Revision.String())
+	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), s.Revision.String())
 }
 
 // CommonDataHomeDir returns the per user data directory common across revisions
 // of the snap.
 func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(dataHomeGlob(opts), s.InstanceName(), "common")
+	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), "common")
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a

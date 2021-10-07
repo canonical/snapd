@@ -415,13 +415,13 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		return err
 	}
 
-	return maybeRestoreSecurityContext(usr)
+	return maybeRestoreSecurityContext(usr, opts)
 }
 
 // maybeRestoreSecurityContext attempts to restore security context of ~/snap on
 // systems where it's applicable
-func maybeRestoreSecurityContext(usr *user.User) error {
-	snapUserHome := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+func maybeRestoreSecurityContext(usr *user.User, opts *dirs.SnapDirOptions) error {
+	snapUserHome := snap.SnapDir(usr.HomeDir, opts)
 	enabled, err := selinuxIsEnabled()
 	if err != nil {
 		return fmt.Errorf("cannot determine SELinux status: %v", err)

@@ -284,7 +284,7 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirO
 		}
 	}
 
-	users, err := usersForUsernames(usernames)
+	users, err := usersForUsernames(usernames, opts)
 	if err != nil {
 		return 0, err
 	}
@@ -334,7 +334,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		return nil, err
 	}
 
-	users, err := usersForUsernames(usernames)
+	users, err := usersForUsernames(usernames, opts)
 	if err != nil {
 		return nil, err
 	}

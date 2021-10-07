@@ -1080,7 +1080,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 }
 
 func (s *snapshotSuite) testEstimateSnapshotSize(c *check.C, snapDataDir string, opts *dirs.SnapDirOptions) {
-	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+	restore := backend.MockUsersForUsernames(func(usernames []string, _ *dirs.SnapDirOptions) ([]*user.User, error) {
 		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
 	})
 	defer restore()
@@ -1116,7 +1116,7 @@ func (s *snapshotSuite) testEstimateSnapshotSize(c *check.C, snapDataDir string,
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
-	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+	restore := backend.MockUsersForUsernames(func(usernames []string, _ *dirs.SnapDirOptions) ([]*user.User, error) {
 		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
 	})
 	defer restore()
@@ -1145,7 +1145,7 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeEmpty(c *check.C) {
 
 func (s *snapshotSuite) TestEstimateSnapshotPassesUsernames(c *check.C) {
 	var gotUsernames []string
-	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+	restore := backend.MockUsersForUsernames(func(usernames []string, _ *dirs.SnapDirOptions) ([]*user.User, error) {
 		gotUsernames = usernames
 		return nil, nil
 	})
@@ -1164,7 +1164,7 @@ func (s *snapshotSuite) TestEstimateSnapshotPassesUsernames(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
-	restore := backend.MockUsersForUsernames(func(usernames []string) ([]*user.User, error) {
+	restore := backend.MockUsersForUsernames(func(usernames []string, _ *dirs.SnapDirOptions) ([]*user.User, error) {
 		return []*user.User{{HomeDir: filepath.Join(s.root, "home/user1")}}, nil
 	})
 	defer restore()
