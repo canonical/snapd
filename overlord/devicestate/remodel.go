@@ -286,6 +286,9 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 	}); err != nil {
 		return fmt.Errorf("cannot record a new seeded system: %v", err)
 	}
+	if err := boot.MarkRecoveryCapableSystem(rc.recoverySystemLabel); err != nil {
+		return fmt.Errorf("cannot mark system %q as recovery capable", rc.recoverySystemLabel)
+	}
 	return nil
 }
 

@@ -892,46 +892,88 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	c.Assert(matches, Equals, true)
 }
 
-func (s *diskSuite) TestRootMountPointsForPartition(c *C) {
+func (s *diskSuite) TestMountPointsForPartitionRoot(c *C) {
 	const (
-		validRootMnt1    = "130 30 42:1 / /run/mnt/ubuntu-data rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
-		validRootMnt2    = "130 30 42:1 / /run/mnt/foo-other-place rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
-		validNonRootMnt1 = "130 30 42:1 /subdir /run/mnt/other-ubuntu-data rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
-		validNonRootMnt2 = "130 30 42:1 /subdir2 /run/mnt/other-ubuntu-data-other-other rw,relatime shared:54 - ext4 /dev/vda3 rw\n"
+		validRootMnt1         = "130 30 42:1 / /run/mnt/ubuntu-seed rw,relatime,key=val shared:54 - ext4 /dev/vda3 rw\n"
+		validRootMnt2         = "130 30 42:1 / /run/mnt/foo-other-place rw,relatime,key=val shared:54 - ext4 /dev/vda3 rw\n"
+		validRootMnt3ReadOnly = "130 30 42:1 / /var/lib/snapd/seed ro,relatime,key=val shared:54 - ext4 /dev/vda3 rw\n"
+		validNonRootMnt1      = "130 30 42:1 /subdir /run/mnt/other-ubuntu-seed rw,relatime,key=val shared:54 - ext4 /dev/vda3 rw\n"
+		validNonRootMnt2      = "130 30 42:1 /subdir2 /run/mnt/other-ubuntu-seed-other-other rw,relatime,key=val shared:54 - ext4 /dev/vda3 rw\n"
 	)
 
 	tt := []struct {
 		maj, min  int
 		mountinfo string
+		mountOpts map[string]string
 		exp       []string
 		comment   string
 	}{
 		{
-			comment:   "single valid root mountpoint",
+			comment:   "single valid root mountpoint, no opt filter",
 			mountinfo: validRootMnt1,
-			exp:       []string{"/run/mnt/ubuntu-data"},
+			exp:       []string{"/run/mnt/ubuntu-seed"},
 		},
 		{
-			comment:   "multiple valid root mountpoints",
-			mountinfo: validRootMnt1 + validRootMnt2,
-			exp:       []string{"/run/mnt/ubuntu-data", "/run/mnt/foo-other-place"},
+			comment:   "single valid root mountpoint, single opt valueless filter",
+			mountinfo: validRootMnt1,
+			// the rw option has no value
+			mountOpts: map[string]string{"rw": ""},
+			exp:       []string{"/run/mnt/ubuntu-seed"},
 		},
 		{
-			comment:   "multiple non-root mountpoints, no root mountpoint",
+			comment:   "single valid root mountpoint, multiple opts filter",
+			mountinfo: validRootMnt1,
+			// the rw and relatime options have no value
+			mountOpts: map[string]string{
+				"rw":       "",
+				"relatime": "",
+				"key":      "val",
+			},
+			exp: []string{"/run/mnt/ubuntu-seed"},
+		},
+		{
+			comment:   "multiple valid root mountpoints, no opt filter",
+			mountinfo: validRootMnt1 + validRootMnt2 + validRootMnt3ReadOnly,
+			exp:       []string{"/run/mnt/ubuntu-seed", "/run/mnt/foo-other-place", "/var/lib/snapd/seed"},
+		},
+		{
+			comment:   "multiple non-root mountpoints, no root mountpoint, no opt filter",
 			mountinfo: validNonRootMnt1 + validNonRootMnt1,
 		},
 		{
-			comment:   "multiple non-root mountpoints, one root mountpoint",
+			comment:   "multiple non-root mountpoints, one root mountpoint, no opt filter",
 			mountinfo: validRootMnt1 + validNonRootMnt1 + validNonRootMnt1,
-			exp:       []string{"/run/mnt/ubuntu-data"},
+			exp:       []string{"/run/mnt/ubuntu-seed"},
 		},
 		{
-			comment:   "multiple non-root mountpoints, multiple root mountpoint",
-			mountinfo: validRootMnt1 + validRootMnt2 + validNonRootMnt1 + validNonRootMnt1,
-			exp:       []string{"/run/mnt/ubuntu-data", "/run/mnt/foo-other-place"},
+			comment:   "multiple non-root mountpoints, multiple root mountpoint, no opt filter",
+			mountinfo: validRootMnt1 + validRootMnt2 + validRootMnt3ReadOnly + validNonRootMnt1 + validNonRootMnt1,
+			exp:       []string{"/run/mnt/ubuntu-seed", "/run/mnt/foo-other-place", "/var/lib/snapd/seed"},
 		},
 		{
-			comment: "no matching mounts",
+			comment:   "single valid root mountpoint, removed via opt filter",
+			mountinfo: validRootMnt1,
+			mountOpts: map[string]string{
+				"relatime": "",    // does match
+				"key":      "val", // does match
+				"ro":       "",    // doesn't match
+			},
+		},
+		{
+			comment:   "single valid root mountpoint, removed via key-value opt filter",
+			mountinfo: validRootMnt1,
+			mountOpts: map[string]string{
+				"key": "foo", // doesn't match
+			},
+		},
+		{
+			comment:   "multiple valid root mountpoints, only single one filtered via opts",
+			mountinfo: validRootMnt1 + validRootMnt3ReadOnly,
+			mountOpts: map[string]string{"rw": ""},
+			exp:       []string{"/run/mnt/ubuntu-seed"},
+		},
+		{
+			comment: "no matching mounts, no opt filter",
 			maj:     4000, min: 8000,
 			mountinfo: validRootMnt1,
 		},
@@ -950,7 +992,7 @@ func (s *diskSuite) TestRootMountPointsForPartition(c *C) {
 			part.Minor = 1
 		}
 
-		res, err := disks.RootMountPointsForPartition(part)
+		res, err := disks.MountPointsForPartitionRoot(part, t.mountOpts)
 		c.Check(err, IsNil, cmt)
 
 		if len(t.exp) == 0 {
