@@ -44,7 +44,15 @@ execute: |
     # namespace but has permissions preventing the user to enter it (e.g.
     # via a symlink attack in /tmp) is remapped to a special directory.
     # FIXME: su doesn't have /snap/bin in PATH.
-    test "$(cd /root && runuser -u test -- sh -c "snap run test-snapd-sh.sh -c pwd" )" = "/var/lib/snapd/void"
+    case "$SPREAD_SYSTEM" in
+    fedora-34-*|opensuse-tumbleweed-*)
+        # nothiing, we have to go through tests.session which always starts in
+        # the $HOME directory
+        ;;
+    *)
+        test "$(cd /root && runuser -u test -- sh -c "snap run test-snapd-sh.sh -c pwd" )" = "/var/lib/snapd/void"
+        ;;
+    esac
 
     # Since the void directory is used when there are insufficient permissions
     # to enter the regular directory we must be able to go there in the first
