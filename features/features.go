@@ -176,6 +176,9 @@ func (f SnapdFeature) IsEnabled() bool {
 	if !f.IsExported() {
 		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
 	}
+
+	// TODO: this returns false on errors != ErrNotExist.
+	// Consider using os.Stat and handling other errors
 	return osutil.FileExists(f.ControlFile())
 }
 

@@ -172,10 +172,6 @@ func getUserSnapDir() (string, error) {
 		return "", err
 	}
 
-	opts, err := getSnapDirOptions()
-	if err != nil {
-		return "", err
-	}
-
+	opts := getSnapDirOptions()
 	return snap.SnapDir(usr.HomeDir, opts), nil
 }
