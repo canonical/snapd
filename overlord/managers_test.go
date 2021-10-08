@@ -9041,6 +9041,129 @@ volumes:
 	c.Assert(chg.Err(), IsNil)
 }
 
+func (ms *gadgetUpdatesSuite) TestOldGadgetOldKernelRefreshToKernelRefWithGadgetAssetsCyclicDependency(c *C) {
+	kernelYaml := `
+assets:
+  pidtbs:
+    update: true
+    content:
+    - dtbs/broadcom/
+    - dtbs/overlays/`
+
+	structureName := "ubuntu-seed"
+	oldGadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /`, structureName)
+	// the gadget specifically bumps the edition to trigger a cirular dependency
+	newGadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            update:
+              edition: 1
+            content:
+              - source: boot-assets/
+                target: /
+              - source: $kernel:pidtbs/dtbs/broadcom/
+                target: /
+              - source: $kernel:pidtbs/dtbs/overlays/
+                target: /overlays`, structureName)
+	ms.makeMockedDev(c, structureName)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an installed old style pi gadget
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", oldGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
+		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+	// we have old style boot asssets in the bootloader dir
+	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
+		{"start.elf", "start.elf rev1"},
+		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
+		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+
+	// we have an installed old-style kernel snap
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
+
+	// add new kernel snap with kernel-refs to fake store
+	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2-from-kernel"},
+		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2-from-kernel"},
+		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2-from-kernel"},
+	})
+
+	// add new gadget snap with kernel-refs to fake store
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", newGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		// notice: no dtbs anymore in the gadget
+	})
+
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi"})
+
+	addTaskSetsToChange := func(chg *state.Change, tss []*state.TaskSet) {
+		for _, ts := range tasksets {
+			// skip the taskset of UpdateMany that does the
+			// check-rerefresh, see tsWithoutReRefresh for details
+			if ts.Tasks()[0].Kind() == "check-rerefresh" {
+				continue
+			}
+			chg.AddAll(ts)
+		}
+	}
+	chg := st.NewChange("upgrade-snaps", "...")
+	addTaskSetsToChange(chg, tasksets)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(cannot resolve content for structure #0 \("ubuntu-seed"\) at index 1: cannot find "pidtbs" in kernel info .*\)`)
+
+	// let's try updating the kernel;
+	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi-kernel"})
+
+	chg = st.NewChange("upgrade-snaps", "...")
+	addTaskSetsToChange(chg, tasksets)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(gadget does not consume any of the kernel assets needing synced update "pidtbs"\)`)
+}
+
 func snapTaskStatusForChange(chg *state.Change) map[string]state.Status {
 	taskStates := make(map[string]state.Status)
 	for _, t := range chg.Tasks() {
