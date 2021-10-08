@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -33,6 +34,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func Test(t *testing.T) {
+	TestingT(t)
+}
 
 type backendSuite struct {
 	ifacetest.BackendSuite
