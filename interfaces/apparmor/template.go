@@ -276,6 +276,8 @@ var templateCommon = `
   @{PROC}/sys/kernel/random/boot_id r,
   @{PROC}/sys/kernel/random/entropy_avail r,
   @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/random/poolsize r,
+  @{PROC}/sys/kernel/random/write_wakeup_threshold r,
   @{PROC}/sys/kernel/cap_last_cap r,
   # Allow access to the uuidd daemon (this daemon is a thin wrapper around
   # time and getrandom()/{,u}random and, when available, runs under an
