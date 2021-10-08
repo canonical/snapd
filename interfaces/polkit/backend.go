@@ -42,7 +42,7 @@ func polkitPolicyName(snapName, nameSuffix string) string {
 	return snap.ScopedSecurityTag(snapName, "interface", nameSuffix) + ".policy"
 }
 
-// Backend is responsible for maintaining DBus policy files.
+// Backend is responsible for maintaining polkitd policy files.
 type Backend struct{}
 
 // Initialize does nothing.
@@ -80,7 +80,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	return nil
 }
 
-// Remove removes dbus configuration files of a given snap.
+// Remove removes polkit policy files of a given snap.
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
@@ -114,7 +114,7 @@ func (b *Backend) NewSpecification() interfaces.Specification {
 	return &Specification{}
 }
 
-// SandboxFeatures returns list of features supported by snapd for dbus communication.
+// SandboxFeatures returns list of features supported by snapd for polkit policy.
 func (b *Backend) SandboxFeatures() []string {
 	return nil
 }
