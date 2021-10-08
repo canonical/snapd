@@ -273,14 +273,13 @@ type DiskStructureDeviceTraits struct {
 
 // SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume / device
 // traits to a file on disk for later loading and verification.
-func SaveDiskVolumesDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) error {
+func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDeviceTraits) error {
 	b, err := json.Marshal(mapping)
 	if err != nil {
 		return err
 	}
 
-	// TODO: should this live in dirs?
-	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+	filename := filepath.Join(dir, "disk-mapping.json")
 
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
