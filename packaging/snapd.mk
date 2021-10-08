@@ -188,7 +188,7 @@ endif
 # output that unit tests do not mock.
 .PHONY: check
 check:
-	LC_ALL=C.UTF-8 go test $(import_path)/...
+	LC_ALL=C.UTF-8 go test -mod=vendor $(import_path)/...
 
 .PHONY: clean
 clean:
