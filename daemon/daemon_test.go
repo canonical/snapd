@@ -44,10 +44,12 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -232,44 +234,47 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	c.Check(rst.Maintenance, check.IsNil)
 
 	tests := []struct {
-		rst  state.RestartType
+		rst  restart.RestartType
 		kind client.ErrorKind
 		msg  string
 		op   string
 	}{
 		{
-			rst:  state.RestartSystem,
+			rst:  restart.RestartSystem,
 			kind: client.ErrorKindSystemRestart,
 			msg:  "system is restarting",
 			op:   "reboot",
 		}, {
-			rst:  state.RestartSystemNow,
+			rst:  restart.RestartSystemNow,
 			kind: client.ErrorKindSystemRestart,
 			msg:  "system is restarting",
 			op:   "reboot",
 		}, {
-			rst:  state.RestartDaemon,
+			rst:  restart.RestartDaemon,
 			kind: client.ErrorKindDaemonRestart,
 			msg:  "daemon is restarting",
 		}, {
-			rst:  state.RestartSystemHaltNow,
+			rst:  restart.RestartSystemHaltNow,
 			kind: client.ErrorKindSystemRestart,
 			msg:  "system is halting",
 			op:   "halt",
 		}, {
-			rst:  state.RestartSystemPoweroffNow,
+			rst:  restart.RestartSystemPoweroffNow,
 			kind: client.ErrorKindSystemRestart,
 			msg:  "system is powering off",
 			op:   "poweroff",
 		}, {
-			rst:  state.RestartSocket,
+			rst:  restart.RestartSocket,
 			kind: client.ErrorKindDaemonRestart,
 			msg:  "daemon is stopping to wait for socket activation",
 		},
 	}
 
 	for _, t := range tests {
-		state.MockRestarting(d.overlord.State(), t.rst)
+		st := d.overlord.State()
+		st.Lock()
+		restart.MockPending(st, t.rst)
+		st.Unlock()
 		rec = httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
 		c.Check(rec.Code, check.Equals, 200)
@@ -591,14 +596,15 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	// and pretend we have snaps
 	st := d.overlord.State()
 	st.Lock()
+	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
-		},
-		Current: snap.R(1),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
 	})
 	st.Unlock()
+	snaptest.MockSnap(c, `name: core
+version: 1`, si)
 	// 1 snap => extended timeout 30s + 5s
 	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
 
@@ -691,12 +697,15 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	<-snapdDone
 	<-snapDone
 
-	d.overlord.State().RequestRestart(state.RestartDaemon)
+	st := d.overlord.State()
+	st.Lock()
+	restart.Request(st, restart.RestartDaemon)
+	st.Unlock()
 
 	select {
 	case <-d.Dying():
 	case <-time.After(2 * time.Second):
-		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+		c.Fatal("restart.Request -> daemon -> Kill chain didn't work")
 	}
 
 	d.Stop(nil)
@@ -725,14 +734,15 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	// and pretend we have snaps
 	st := d.overlord.State()
 	st.Lock()
+	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
-		},
-		Current: snap.R(1),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
 	})
 	st.Unlock()
+	snaptest.MockSnap(c, `name: core
+version: 1`, si)
 
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -894,7 +904,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), restart func(*state.State, state.RestartType), restartKind state.RestartType, wait time.Duration) {
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType), restartKind restart.RestartType, wait time.Duration) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -924,10 +934,10 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	expectedAction := rebootReboot
 	expectedOp := "reboot"
-	if restartKind == state.RestartSystemHaltNow {
+	if restartKind == restart.RestartSystemHaltNow {
 		expectedAction = rebootHalt
 		expectedOp = "halt"
-	} else if restartKind == state.RestartSystemPoweroffNow {
+	} else if restartKind == restart.RestartSystemPoweroffNow {
 		expectedAction = rebootPoweroff
 		expectedOp = "poweroff"
 	}
@@ -967,19 +977,19 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	<-snapDone
 
 	st.Lock()
-	restart(st, restartKind)
+	doRestart(st, restartKind)
 	st.Unlock()
 
 	defer func() {
 		d.mu.Lock()
-		d.requestedRestart = state.RestartUnset
+		d.requestedRestart = restart.RestartUnset
 		d.mu.Unlock()
 	}()
 
 	select {
 	case <-d.Dying():
 	case <-time.After(2 * time.Second):
-		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+		c.Fatal("restart.Request -> daemon -> Kill chain didn't work")
 	}
 
 	d.mu.Lock()
@@ -1033,19 +1043,19 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 }
 
 func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystem, 1*time.Minute)
+	s.testRestartSystemWiring(c, nil, restart.Request, restart.RestartSystem, 1*time.Minute)
 }
 
 func (s *daemonSuite) TestRestartSystemImmediateWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemNow, 0)
+	s.testRestartSystemWiring(c, nil, restart.Request, restart.RestartSystemNow, 0)
 }
 
 func (s *daemonSuite) TestRestartSystemHaltImmediateWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemHaltNow, 0)
+	s.testRestartSystemWiring(c, nil, restart.Request, restart.RestartSystemHaltNow, 0)
 }
 
 func (s *daemonSuite) TestRestartSystemPoweroffImmediateWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemPoweroffNow, 0)
+	s.testRestartSystemWiring(c, nil, restart.Request, restart.RestartSystemPoweroffNow, 0)
 }
 
 type rstManager struct {
@@ -1055,7 +1065,7 @@ type rstManager struct {
 func (m *rstManager) Ensure() error {
 	m.st.Lock()
 	defer m.st.Unlock()
-	m.st.RequestRestart(state.RestartSystemNow)
+	restart.Request(m.st, restart.RestartSystemNow)
 	return nil
 }
 
@@ -1069,14 +1079,14 @@ func (m *witnessManager) Ensure() error {
 }
 
 func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
-	// Test that calling RequestRestart from inside the first
+	// Test that calling restart.Request from inside the first
 	// Ensure loop works.
 	wm := &witnessManager{}
 
 	prep := func(d *Daemon) {
 		st := d.overlord.State()
 		hm := d.overlord.HookManager()
-		o := overlord.MockWithStateAndRestartHandler(st, d.HandleRestart)
+		o := overlord.MockWithState(st)
 		d.overlord = o
 		o.AddManager(hm)
 		rm := &rstManager{st: st}
@@ -1084,9 +1094,9 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 		o.AddManager(wm)
 	}
 
-	nop := func(*state.State, state.RestartType) {}
+	nop := func(*state.State, restart.RestartType) {}
 
-	s.testRestartSystemWiring(c, prep, nop, state.RestartSystemNow, 0)
+	s.testRestartSystemWiring(c, prep, nop, restart.RestartSystemNow, 0)
 
 	c.Check(wm.ensureCalled, check.Equals, 1)
 }
@@ -1165,7 +1175,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	st.RequestRestart(state.RestartSystem)
+	restart.Request(st, restart.RestartSystem)
 	st.Unlock()
 
 	ch := make(chan os.Signal, 2)
@@ -1198,7 +1208,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	st.RequestRestart(state.RestartSystem)
+	restart.Request(st, restart.RestartSystem)
 	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)

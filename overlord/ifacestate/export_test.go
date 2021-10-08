@@ -68,6 +68,10 @@ func NewConnectOptsWithAutoSet() connectOpts {
 	return connectOpts{AutoConnect: true, ByGadget: false}
 }
 
+func NewDisconnectOptsWithAutoSet() disconnectOpts {
+	return disconnectOpts{AutoDisconnect: true}
+}
+
 func NewDisconnectOptsWithByHotplugSet() disconnectOpts {
 	return disconnectOpts{ByHotplug: true}
 }

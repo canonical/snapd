@@ -40,7 +40,7 @@ type mountSnapSuite struct {
 var _ = Suite(&mountSnapSuite{})
 
 func (s *mountSnapSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
+	s.baseHandlerSuite.SetUpTest(c)
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 

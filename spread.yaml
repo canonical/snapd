@@ -59,6 +59,7 @@ environment:
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
+    EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
@@ -91,6 +92,7 @@ backends:
             - ubuntu-18.04-64:
                   workers: 8
             - ubuntu-20.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
@@ -109,13 +111,6 @@ backends:
             - ubuntu-21.04-64:
                   workers: 8
             - ubuntu-21.10-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2110
-                  storage: 12G
-                  workers: 8
-            # TODO: drop once the 21.10 cloud images have switched to cgroup v2
-            # by default
-            - ubuntu-21.10-64-cgroupv2:
-                  image: ubuntu-2110-64
                   storage: 12G
                   workers: 8
 
@@ -174,6 +169,7 @@ backends:
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
         halt-timeout: 2h
+        cpu-family: 'Intel Cascade Lake'
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
@@ -232,6 +228,8 @@ backends:
                   image: ubuntu-20.04-64
                   username: ubuntu
                   password: ubuntu
+                  bios: uefi
+                  # TODO: remove one everyone switch to official spread
                   flags: [virtio]
             - ubuntu-18.04-64:
                   username: ubuntu
@@ -428,6 +426,8 @@ debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
+        #shellcheck source=tests/lib/systems.sh
+        . "$TESTSLIB/systems.sh"
 
         echo '# System information'
         cat /etc/os-release || true
@@ -454,6 +454,15 @@ debug-each: |
         echo '# user sessions information'
         journalctl --user -u snapd.session-agent.service
         systemctl status --user snapd.session-agent  || true
+
+        if ! is_cgroupv2; then
+            # dump any information on device cgroup of current session
+            cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
+            if [ -n "$cgroup_dev" ]; then
+                echo "# device cgroup $cgroup_dev"
+                cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
+            fi
+        fi
 
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)

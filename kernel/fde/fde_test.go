@@ -74,6 +74,8 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 	// correct fde-reveal-key, no logging
 	err = os.Chmod(mockBin+"fde-reveal-key", 0755)
 	c.Assert(err, IsNil)
+
+	c.Check(fde.HasRevealKey(), Equals, true)
 }
 
 func (s *fdeSuite) TestInitialSetupV2(c *C) {
@@ -524,4 +526,75 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	})
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestDeviceSetupHappy(c *C) {
+	mockKey := []byte{1, 2, 3, 4}
+	mockDevice := "/dev/sda2"
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req, DeepEquals, &fde.SetupRequest{
+			Op:     "device-setup",
+			Key:    mockKey,
+			Device: mockDevice,
+		})
+		// empty reply: no error
+		mockJSON := `{}`
+		return []byte(mockJSON), nil
+	}
+
+	params := &fde.DeviceSetupParams{
+		Key:    mockKey,
+		Device: mockDevice,
+	}
+	err := fde.DeviceSetup(runSetupHook, params)
+	c.Assert(err, IsNil)
+}
+
+func (s *fdeSuite) TestDeviceSetupError(c *C) {
+	mockKey := []byte{1, 2, 3, 4}
+	mockDevice := "/dev/sda2"
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req, DeepEquals, &fde.SetupRequest{
+			Op:     "device-setup",
+			Key:    mockKey,
+			Device: mockDevice,
+		})
+		// empty reply: no error
+		mockJSON := `something failed badly`
+		return []byte(mockJSON), fmt.Errorf("exit status 1")
+	}
+
+	params := &fde.DeviceSetupParams{
+		Key:    mockKey,
+		Device: mockDevice,
+	}
+	err := fde.DeviceSetup(runSetupHook, params)
+	c.Check(err, ErrorMatches, "device setup failed with: something failed badly")
+}
+
+func (s *fdeSuite) TestHasDeviceUnlock(c *C) {
+	oldPath := os.Getenv("PATH")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	mockRoot := c.MkDir()
+	os.Setenv("PATH", mockRoot+"/bin")
+	mockBin := mockRoot + "/bin/"
+	err := os.Mkdir(mockBin, 0755)
+	c.Assert(err, IsNil)
+
+	// no fde-device-unlock binary
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// fde-device-unlock without +x
+	err = ioutil.WriteFile(mockBin+"fde-device-unlock", nil, 0644)
+	c.Assert(err, IsNil)
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// correct fde-device-unlock, no logging
+	err = os.Chmod(mockBin+"fde-device-unlock", 0755)
+	c.Assert(err, IsNil)
+
+	c.Check(fde.HasDeviceUnlock(), Equals, true)
 }

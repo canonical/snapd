@@ -84,8 +84,12 @@ type SnapSetup struct {
 	//
 	// Prereq is a list of snap-names that need to get installed
 	// together with this snap. Typically used when installing
-	// content-snaps with default-providers.
+	// content-snaps with default-providers. Should be set along
+	// with PrereqContentAttrs (and match its keys) for forward-compatibility.
 	Prereq []string `json:"prereq,omitempty"`
+
+	// PrereqContentAttrs maps default providers snap names to the content they provide.
+	PrereqContentAttrs map[string][]string `json:"prereq-content-attrs,omitempty"`
 
 	Flags
 
