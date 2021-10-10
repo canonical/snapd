@@ -755,6 +755,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"tee":                   true,
 		"uinput":                true,
 		"unity8":                true,
+		"xilinx-dma":            true,
 	}
 
 	for _, iface := range all {
@@ -1002,6 +1003,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"uinput":                true,
 		"unity8":                true,
 		"wayland":               true,
+		"xilinx-dma":            true,
 	}
 
 	for _, iface := range all {
