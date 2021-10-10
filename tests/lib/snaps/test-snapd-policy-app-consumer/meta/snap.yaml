@@ -488,6 +488,9 @@ apps:
   x11:
     command: bin/run
     plugs: [ x11 ]
+  xilinx-dma:
+    command: bin/run
+    plugs: [ xilinx-dma ]
 
 plugs:
   browser-sandbox:
