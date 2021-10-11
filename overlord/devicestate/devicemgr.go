@@ -1690,7 +1690,7 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 
 var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
 
-func (m *DeviceManager) waitForNTPSynchronized(maxWait time.Duration) bool {
+func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
 	if m.ntpSynchronized || time.Now().After(startTime.Add(maxWait)) {
 		return true
 	}

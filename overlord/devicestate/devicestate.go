@@ -118,6 +118,14 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return false, nil
 	}
 
+	// Try to ensure we have an accurate time before doing any
+	// refreshy stuff. Note that this call will not block.
+	devMgr := deviceMgr(st)
+	maxWait := 10 * 60 * time.Second
+	if !devMgr.ntpSyncedOrWaitedLongerThan(maxWait) {
+		return false, nil
+	}
+
 	// Either we have a serial or we try anyway if we attempted
 	// for a while to get a serial, this would allow us to at
 	// least upgrade core if that can help.
@@ -141,12 +149,6 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	}
 	if err != nil {
 		return false, err
-	}
-
-	devMgr := deviceMgr(st)
-	maxWait := 10 * 60 * time.Second
-	if !devMgr.waitForNTPSynchronized(maxWait) {
-		return false, nil
 	}
 
 	return true, nil
