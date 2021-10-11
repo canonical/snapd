@@ -144,10 +144,6 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 	// create the full path by pre-pending /sys, since udev doesn't include /sys
 	devpath = filepath.Join(dirs.SysfsDir, devpath)
 
-	// TODO: this doesn't seem to work for /dev/mapper/loop1p1 devices like we
-	// get in the spread test for uc20-create-partitions* tests, needs more
-	// investigation
-
 	// check if the device has partitions by attempting to actually search for
 	// them in /sys with the DEVPATH and DEVNAME
 
