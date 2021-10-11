@@ -8976,7 +8976,7 @@ volumes:
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
 		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
 	})
-	// we have old style boot asssets in the bootloader dir
+	// we have old style boot assets in the bootloader dir
 	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
 		{"start.elf", "start.elf rev1"},
 		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
@@ -9123,7 +9123,7 @@ volumes:
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
 		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
 	})
-	// we have old style boot asssets in the bootloader dir
+	// we have old style boot assets in the bootloader dir
 	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
 		{"start.elf", "start.elf rev0"},
 		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev0"},
@@ -9422,7 +9422,7 @@ volumes:
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
 		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
 	})
-	// we have old style boot asssets in the bootloader dir
+	// we have old style boot assets in the bootloader dir
 	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
 		{"start.elf", "start.elf rev1"},
 		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
@@ -9557,7 +9557,7 @@ volumes:
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
 		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
 	})
-	// we have old style boot asssets in the bootloader dir
+	// we have old style boot assets in the bootloader dir
 	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
 		{"start.elf", "start.elf rev1"},
 		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
