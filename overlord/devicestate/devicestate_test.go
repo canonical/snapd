@@ -1779,3 +1779,60 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
 	_, err := mgr.StartOfOperationTime()
 	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
 }
+
+func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// CanAutoRefresh is ready
+	s.state.Set("seeded", true)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+
+	// now check that the ntp-sync information is honored
+	n := 0
+	ntpSynced := false
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
+		return ntpSynced, nil
+	})
+	defer restore()
+
+	// not ntp-synced
+	ok, err := devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, false)
+	c.Check(n, Equals, 1)
+
+	// now ntp-synced
+	ntpSynced = true
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return false, nil
+	})
+	defer restore()
+
+	// ntp is not synced yet and the wait time is not over
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1000*time.Second)
+	c.Check(syncedOrWaited, Equals, false)
+
+	// here the wait time is over
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1)
+	c.Check(syncedOrWaited, Equals, true)
+
+}
