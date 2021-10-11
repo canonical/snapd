@@ -106,6 +106,10 @@ override_dh_fixperms:
 override_dh_installdeb:
 	dh_apparmor --profile-name=usr.lib.snapd.snap-confine -psnapd
 	dh_installdeb
+	# Switch back to stock seccomp bindings
+	# Do this here too, in case this tree is used with snapcraft without cleaning first
+	rm -f cmd/snap-seccomp/old_seccomp.go
+	sed -i 's|"github.com/mvo5/libseccomp-golang"|"github.com/seccomp/libseccomp-golang"|' cmd/snap-seccomp/*.go
 
 override_dh_clean:
 	dh_clean
