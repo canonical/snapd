@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -82,14 +83,73 @@ echo '{
   }
 }'`
 
-const mockLsblkScriptBiosSeed = `
-[ "$3" == "/dev/node1" ] && echo '{
-    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node2" ] && echo '{
-    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
-}'
-exit 0`
+var mockLsblkScriptBiosSeedArgs = map[string]string{
+	"--json /dev/node1": `'{
+	"blockdevices": [
+		{"name":"node1", "maj:min":"8:1", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+	]
+}'`,
+	"--fs --json /dev/node1": `'{
+	"blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
+}'`,
+	"--json /dev/node2": `'{
+	"blockdevices": [
+		{"name":"node2", "maj:min":"8:2", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+	]
+}'`,
+	"--fs --json /dev/node2": `'{
+		"blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
+}'`,
+}
+
+var mockLsblkForMBRArgs = map[string]string{
+	"--json /dev/node1": `'{
+"blockdevices": [
+	{"name":"node1", "maj:min":"8:1", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+]
+}'`,
+	"--fs --json /dev/node1": `'{
+		"blockdevices": [ {"name": "node1", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
+}'`,
+
+	"--json /dev/node2": `'{
+"blockdevices": [
+	{"name":"node2", "maj:min":"8:2", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+]
+}'`,
+	"--fs --json /dev/node2": `'{
+		"blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-boot", "uuid": "A644-B808", "mountpoint": null} ]
+}'`,
+
+	"--json /dev/node3": `'{
+	"blockdevices": [
+		{"name":"node3", "maj:min":"8:1", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+	]
+}'`,
+	"--fs --json /dev/node3": `'{
+		"blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-save", "mountpoint": null} ]
+}'`,
+
+	"--json /dev/node4": `'{
+	"blockdevices": [
+		{"name":"node4", "maj:min":"8:1", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+	]
+}'`,
+	"--fs --json /dev/node4": `'{
+		"blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "mountpoint": null} ]
+}'`,
+}
+
+var mockLsblkScriptBiosArgs = map[string]string{
+	"--json /dev/node1": `'{
+	"blockdevices": [
+		{"name":"node1", "maj:min":"8:1", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+	]
+}'`,
+	"--fs --json /dev/node1": `'{
+	"blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
+}'`,
+}
 
 func makeMockGadget(gadgetRoot, gadgetContent string) error {
 	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
@@ -152,7 +212,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", gadgettest.MockLsblkCommand(mockLsblkScriptBiosSeedArgs))
 	defer cmdLsblk.Restore()
 
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
@@ -172,7 +232,9 @@ exit 1
 		{"sfdisk", "--json", "/dev/node"},
 	})
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--json", "/dev/node2"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
 	})
 	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
@@ -222,7 +284,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", gadgettest.MockLsblkCommand(mockLsblkScriptBiosSeedArgs))
 	defer cmdLsblk.Restore()
 
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
@@ -242,7 +304,9 @@ exit 1
 		{"sfdisk", "--json", "/dev/node"},
 	})
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--json", "/dev/node2"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
 	})
 	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
@@ -304,25 +368,11 @@ echo '{
       ]
    }
 }'`
-	const mockLsblkForMBR = `
-[ "$3" == "/dev/node1" ] && echo '{
-    "blockdevices": [ {"name": "node1", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node2" ] && echo '{
-    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-boot", "uuid": "A644-B808", "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node3" ] && echo '{
-    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-save", "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node4" ] && echo '{
-    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "mountpoint": null} ]
-}'
-exit 0`
 
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskWithMBR)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkForMBR)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", gadgettest.MockLsblkCommand(mockLsblkForMBRArgs))
 	defer cmdLsblk.Restore()
 
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
@@ -346,9 +396,13 @@ exit 1
 		{"sfdisk", "--json", "/dev/node"},
 	})
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--json", "/dev/node2"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
+		{"lsblk", "--json", "/dev/node3"},
 		{"lsblk", "--fs", "--json", "/dev/node3"},
+		{"lsblk", "--json", "/dev/node4"},
 		{"lsblk", "--fs", "--json", "/dev/node4"},
 	})
 	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
@@ -435,25 +489,11 @@ echo '{
 	 ]
    }
 }'`
-	const mockLsblkForMBR = `
-[ "$3" == "/dev/node1" ] && echo '{
-    "blockdevices": [ {"name": "node1", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node2" ] && echo '{
-    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-boot", "uuid": "A644-B808", "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node3" ] && echo '{
-    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-save", "mountpoint": null} ]
-}'
-[ "$3" == "/dev/node4" ] && echo '{
-    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "mountpoint": null} ]
-}'
-exit 0`
 
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskWithMBR)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkForMBR)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", gadgettest.MockLsblkCommand(mockLsblkForMBRArgs))
 	defer cmdLsblk.Restore()
 
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
@@ -477,9 +517,13 @@ exit 1
 		{"sfdisk", "--json", "/dev/node"},
 	})
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--json", "/dev/node2"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
+		{"lsblk", "--json", "/dev/node3"},
 		{"lsblk", "--fs", "--json", "/dev/node3"},
+		{"lsblk", "--json", "/dev/node4"},
 		{"lsblk", "--fs", "--json", "/dev/node4"},
 	})
 	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
@@ -652,7 +696,7 @@ exit 1
 	})
 
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
-		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--json", "/dev/node1"},
 	})
 }
 
@@ -698,12 +742,6 @@ echo '{
   }
 }'`
 
-	const mockLsblkScriptBios = `
-[ "$3" == "/dev/node1" ] && echo '{
-    "blockdevices": [ {"name": "node1", "fstype": null, "label": null, "uuid": null, "mountpoint": null} ]
-}'
-exit 0`
-
 	// sector size is same for all calls
 	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
 if [ "$1" == --getss ]; then
@@ -720,7 +758,7 @@ exit 1
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBios)
+	cmdLsblk := testutil.MockCommand(c, "lsblk", gadgettest.MockLsblkCommand(mockLsblkScriptBiosArgs))
 	defer cmdLsblk.Restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -731,6 +769,7 @@ exit 1
 	})
 
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node1"},
 	})
 
@@ -741,7 +780,7 @@ exit 1
 	cmdSfdisk = testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
 	defer cmdSfdisk.Restore()
 
-	cmdLsblk = testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
+	cmdLsblk = testutil.MockCommand(c, "lsblk", gadgettest.MockLsblkCommand(mockLsblkScriptBiosSeedArgs))
 	defer cmdLsblk.Restore()
 
 	// update the partition list
@@ -758,7 +797,9 @@ exit 1
 	})
 
 	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--json", "/dev/node2"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
 	})
 
@@ -769,20 +810,39 @@ exit 1
 }
 
 func (s *ondiskTestSuite) TestFilesystemInfo(c *C) {
-	cmd := testutil.MockCommand(c, "lsblk", `echo '{
-   "blockdevices": [
-      {"name": "loop8p2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "C1F4-CE43", "mountpoint": null}
-   ]
-}'`)
+	// we call lsblk twice, first time to verify that the block device specified
+	// is a partition and then to actually get the filesystem info
+	cmd := testutil.MockCommand(c, "lsblk", `
+case "$*" in 
+	"--json /dev/node")
+		# the partition check call
+		echo '{
+			"blockdevices": [
+			{"name":"node", "maj:min":"8:1", "rm":false, "size":"931.5G", "ro":false, "type":"part", "mountpoint":null}
+			]
+		}'
+		;;
+	 "--fs --json /dev/node")
+		# the filesystem call
+		echo '{
+			"blockdevices": [
+			{"name": "loop8p2", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "C1F4-CE43", "mountpoint": null}
+			]
+		}'
+		;;
+	*)
+		echo "unexpected args $*"
+		exit 1
+		;;
+esac`)
 	defer cmd.Restore()
 
-	info, err := gadget.FilesystemInfo("/dev/node")
+	bd, err := gadget.FilesystemInfoForPartition("/dev/node")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--json", "/dev/node"},
 		{"lsblk", "--fs", "--json", "/dev/node"},
 	})
 	c.Assert(err, IsNil)
-	c.Assert(len(info.BlockDevices), Equals, 1)
-	bd := info.BlockDevices[0]
 	c.Assert(bd.Name, Equals, "loop8p2")
 	c.Assert(bd.FSType, Equals, "vfat")
 	c.Assert(bd.Label, Equals, "ubuntu-seed")
@@ -793,16 +853,61 @@ func (s *ondiskTestSuite) TestFilesystemInfoJsonError(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", `echo 'This is not a json'`)
 	defer cmd.Restore()
 
-	info, err := gadget.FilesystemInfo("/dev/node")
+	_, err := gadget.FilesystemInfoForPartition("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot parse lsblk output: invalid .*")
-	c.Assert(info, IsNil)
 }
 
 func (s *ondiskTestSuite) TestFilesystemInfoError(c *C) {
 	cmd := testutil.MockCommand(c, "lsblk", "echo 'lsblk: not found'; exit 127")
 	defer cmd.Restore()
 
-	info, err := gadget.FilesystemInfo("/dev/node")
+	_, err := gadget.FilesystemInfoForPartition("/dev/node")
 	c.Assert(err, ErrorMatches, "lsblk: not found")
-	c.Assert(info, IsNil)
+}
+
+func (s *ondiskTestSuite) TestListBlockDevicesError(c *C) {
+	cmd := testutil.MockCommand(c, "lsblk", "echo FOO NOT JSON")
+	defer cmd.Restore()
+
+	_, err := gadget.ListBlockDevices("")
+	c.Assert(err, ErrorMatches, "cannot parse lsblk output: invalid .*")
+}
+
+func (s *ondiskTestSuite) TestListBlockDevices(c *C) {
+	cmd := testutil.MockCommand(c, "lsblk", `echo '
+	{
+		"blockdevices": [
+		   {"name": "loop0", "maj:min": "7:0", "rm": "0", "size": "48.9M", "ro": "1", "type": "loop", "mountpoint": "/writable/system-data/snap/core18/2199"},
+		   {"name": "mmcblk0", "maj:min": "179:0", "rm": "0", "size": "59.6G", "ro": "0", "type": "disk", "mountpoint": null,
+		   "children": [
+			  {"name": "mmcblk0p1", "maj:min": "179:1", "rm": "0", "size": "256M", "ro": "0", "type": "part", "mountpoint": "/boot/uboot"},
+			  {"name": "mmcblk0p2", "maj:min": "179:2", "rm": "0", "size": "59.4G", "ro": "0", "type": "part", "mountpoint": "/writable"}
+		   ]
+		}
+	 ]
+  }	   
+'
+`)
+	defer cmd.Restore()
+
+	allDev, err := gadget.ListBlockDevices("")
+	c.Assert(err, IsNil)
+	c.Assert(allDev, HasLen, 2)
+	c.Assert(allDev[0].Type, Equals, "loop")
+	c.Assert(allDev[0].Name, Equals, "loop0")
+
+	c.Assert(allDev[1].Type, Equals, "disk")
+	c.Assert(allDev[1].Name, Equals, "mmcblk0")
+
+	diskDevs, err := gadget.ListBlockDevices("disk")
+	c.Assert(err, IsNil)
+	c.Assert(diskDevs, HasLen, 1)
+	c.Assert(diskDevs[0].Type, Equals, "disk")
+	c.Assert(diskDevs[0].Name, Equals, "mmcblk0")
+
+	loopDevs, err := gadget.ListBlockDevices("loop")
+	c.Assert(err, IsNil)
+	c.Assert(loopDevs, HasLen, 1)
+	c.Assert(loopDevs[0].Type, Equals, "loop")
+	c.Assert(loopDevs[0].Name, Equals, "loop0")
 }
