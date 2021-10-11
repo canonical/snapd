@@ -54,7 +54,7 @@ func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
 	filler := strings.Repeat("x", 60)
 	invalidHostnames := []string{
 		"-no-start-with-dash", "no-upper-A", "no-ä", "no/slash",
-		"ALL-CAPS-IS-NEVER-OKAY", "no-SHOUTING-allowed",
+		"ALL-CAPS-IS-NEVER-OKAY", "no-SHOUTING-allowed", "foo..bar",
 		strings.Repeat("x", 64),
 		strings.Join([]string{filler, filler, filler, filler, filler}, "."),
 	}
@@ -81,6 +81,7 @@ func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 
 	filler := strings.Repeat("x", 63)
 	validHostnames := []string{
+		"a",
 		"foo",
 		strings.Repeat("x", 63),
 		"foo-bar",
