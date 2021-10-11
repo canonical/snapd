@@ -55,7 +55,7 @@ func IsNTPSynchronized() (bool, error) {
 		if isNoServiceOrUnknownPropertyDbusErr(err) {
 			return true, nil
 		}
-		return false, err
+		return false, fmt.Errorf("cannot check for ntp sync: %v", err)
 	}
 	v, ok := dbusV.Value().(bool)
 	if !ok {
