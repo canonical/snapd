@@ -9192,10 +9192,26 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(gadget does not consume any of the kernel assets needing synced update "pidtbs"\)`)
 
-	// but we can actually perform the full upgrade set if we first refresh to
-	// an intermediate gadget revision which does not declare an update, but
-	// does now reference the kernel assets
-	ms.mockSnapUpgradeWithFilesWithRev(c, gadgetSnapYaml, "3", [][]string{
+	// but we can actually perform the full upgrade set if we first refresh
+	// to an intermediate gadget revision which does not declare an update,
+	// but does now reference the kernel assets, to force going through this
+	// revision, declare it uses a transitional epoch 1* (which can read
+	// epoch 0, the default)
+	gadgetSnapYamlIntermediate := `
+name: pi
+version: 1.0
+type: gadget
+epoch: 1*
+`
+	// while the final gadget will have an epoch 1
+	gadgetSnapYamlFinal := `
+name: pi
+version: 1.0
+type: gadget
+epoch: 1
+`
+	// make both revisions available in the fake store
+	ms.mockSnapUpgradeWithFilesWithRev(c, gadgetSnapYamlIntermediate, "3", [][]string{
 		{"meta/gadget.yaml", intermediaryGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 		// the intermediary gadget snap has these files but it doesn't really
@@ -9203,6 +9219,10 @@ volumes:
 		// attempted using these files
 		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
 		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+	ms.mockSnapUpgradeWithFilesWithRev(c, gadgetSnapYamlFinal, "4", [][]string{
+		{"meta/gadget.yaml", finalDesiredGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
 	})
 
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, 0, &snapstate.Flags{})
@@ -9270,16 +9290,15 @@ volumes:
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
+	var ss snapstate.SnapState
+	c.Assert(snapstate.Get(st, "pi", &ss), IsNil)
+	// the transitional revision
+	c.Assert(ss.Current, Equals, snap.R(3))
+
 	// also check that the gadget asset updates for the second refresh of
 	// the gadget snap get applied since that is important for some use
 	// cases and is probably why folks got into the circular dependency in
 	// the first place, for this we add another revision of the gadget snap
-	ms.mockSnapUpgradeWithFilesWithRev(c, gadgetSnapYaml, "4", [][]string{
-		{"meta/gadget.yaml", finalDesiredGadgetYaml},
-		{"boot-assets/start.elf", "start.elf rev1"},
-		// notice: no dtbs anymore in the gadget
-		{"mock-content", "mock-content-to-make-digest-different"},
-	})
 
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -9305,6 +9324,10 @@ volumes:
 	//  but an assets that comes directly from the gadget was updated
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"),
 		testutil.FileContains, "start.elf rev1")
+
+	c.Assert(snapstate.Get(st, "pi", &ss), IsNil)
+	// the final revision
+	c.Assert(ss.Current, Equals, snap.R(4))
 }
 
 func snapTaskStatusForChange(chg *state.Change) map[string]state.Status {
