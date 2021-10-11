@@ -1994,12 +1994,14 @@ func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, be rebootEnv, which []snap.Ty
 	c.Assert(restarting, Equals, true, Commentf("mockSuccessfulReboot called when there was no pending restart"))
 	c.Assert(restartType, Equals, restart.RestartSystem, Commentf("mockSuccessfulReboot called but restartType is not SystemRestart but %v", restartType))
 	restart.MockPending(st, restart.RestartUnset)
-	err := be.SetTryingDuringReboot(which)
-	c.Assert(err, IsNil)
+	if len(which) > 0 {
+		err := be.SetTryingDuringReboot(which)
+		c.Assert(err, IsNil)
+	}
 	s.o.DeviceManager().ResetToPostBootState()
 	st.Unlock()
 	defer st.Lock()
-	err = s.o.DeviceManager().Ensure()
+	err := s.o.DeviceManager().Ensure()
 	c.Assert(err, IsNil)
 }
 
@@ -9177,6 +9179,9 @@ volumes:
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(cannot resolve content for structure #0 \("ubuntu-seed"\) at index 1: cannot find "pidtbs" in kernel info .*\)`)
 
+	restarting, _ := restart.Pending(st)
+	c.Assert(restarting, Equals, false, Commentf("unexpected restart"))
+
 	// let's try updating the kernel;
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -9191,6 +9196,16 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(gadget does not consume any of the kernel assets needing synced update "pidtbs"\)`)
+
+	// undo unlink-current-snap triggers a reboot
+	ms.mockSuccessfulReboot(c, ms.bloader, nil)
+	// let the change run until it is done
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	// we already now it is considered as failed
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 
 	// but we can actually perform the full upgrade set if we first refresh
 	// to an intermediate gadget revision which does not declare an update,
@@ -9250,8 +9265,9 @@ epoch: 1
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"),
 		testutil.FileContains, "start.elf rev0")
 
-	// pretend we restarted for the gadget refresh (????)
-	ms.mockSuccessfulReboot(c, ms.bloader, nil)
+	// thus there is no reboot either
+	restarting, _ = restart.Pending(st)
+	c.Assert(restarting, Equals, false, Commentf("unexpected restart"))
 
 	// and now we can perform a refresh of the kernel
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, 0, &snapstate.Flags{})
@@ -9281,8 +9297,8 @@ epoch: 1
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"),
 		testutil.FileContains, "start.elf rev0")
 
-	// pretend we restarted for the gadget refresh (????)
-	ms.mockSuccessfulReboot(c, ms.bloader, nil)
+	// pretend we restarted, both a kernel and boot assets update
+	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
 	st.Unlock()
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
@@ -9324,6 +9340,16 @@ epoch: 1
 	//  but an assets that comes directly from the gadget was updated
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"),
 		testutil.FileContains, "start.elf rev1")
+
+	// pretend we restarted for the gadget refresh
+	ms.mockSuccessfulReboot(c, ms.bloader, nil)
+	// and let the change run until it is done
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	c.Assert(snapstate.Get(st, "pi", &ss), IsNil)
 	// the final revision
