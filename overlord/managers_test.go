@@ -9041,6 +9041,11 @@ volumes:
 	c.Assert(chg.Err(), IsNil)
 }
 
+func (ms *gadgetUpdatesSuite) mockSnapUpgradeWithFilesWithRev(c *C, snapYaml string, rev string, files [][]string) {
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, snapYaml, rev, files)
+	ms.serveSnap(snapPath, rev)
+}
+
 func (ms *gadgetUpdatesSuite) TestOldGadgetOldKernelRefreshToKernelRefWithGadgetAssetsCyclicDependency(c *C) {
 	kernelYaml := `
 assets:
@@ -9065,7 +9070,7 @@ volumes:
               - source: boot-assets/
                 target: /`, structureName)
 	// the gadget specifically bumps the edition to trigger a cirular dependency
-	newGadgetYaml := fmt.Sprintf(`
+	finalDesiredGadgetYaml := fmt.Sprintf(`
 volumes:
     volume-id:
         schema: mbr
@@ -9086,6 +9091,24 @@ volumes:
                 target: /overlays`, structureName)
 	ms.makeMockedDev(c, structureName)
 
+	intermediaryGadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /
+              - source: $kernel:pidtbs/dtbs/broadcom/
+                target: /
+              - source: $kernel:pidtbs/dtbs/overlays/
+                target: /overlays`, structureName)
+
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -9100,9 +9123,9 @@ volumes:
 	})
 	// we have old style boot asssets in the bootloader dir
 	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
-		{"start.elf", "start.elf rev1"},
-		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
-		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+		{"start.elf", "start.elf rev0"},
+		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev0"},
+		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev0"},
 	})
 
 	// we have an installed old-style kernel snap
@@ -9110,7 +9133,7 @@ volumes:
 	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
 
 	// add new kernel snap with kernel-refs to fake store
-	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
+	ms.mockSnapUpgradeWithFilesWithRev(c, kernelSnapYaml, "2", [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2-from-kernel"},
 		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2-from-kernel"},
@@ -9118,11 +9141,17 @@ volumes:
 	})
 
 	// add new gadget snap with kernel-refs to fake store
-	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
-		{"meta/gadget.yaml", newGadgetYaml},
+	ms.mockSnapUpgradeWithFilesWithRev(c, gadgetSnapYaml, "2", [][]string{
+		{"meta/gadget.yaml", finalDesiredGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 		// notice: no dtbs anymore in the gadget
 	})
+
+	// we can neither update the gadget nor the kernel because of circular
+	// dependency, as the new gadget refers to assets from the kernel, but
+	// those are not present in the old (installed) kernel, and the new
+	// kernel provides assets that are not consumed by the old (installed)
+	// gadget
 
 	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -9162,6 +9191,120 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*\(gadget does not consume any of the kernel assets needing synced update "pidtbs"\)`)
+
+	// but we can actually perform the full upgrade set if we first refresh to
+	// an intermediate gadget revision which does not declare an update, but
+	// does now reference the kernel assets
+	ms.mockSnapUpgradeWithFilesWithRev(c, gadgetSnapYaml, "3", [][]string{
+		{"meta/gadget.yaml", intermediaryGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		// the intermediary gadget snap has these files but it doesn't really
+		// mattter since update does not set an edition, so no update is
+		// attempted using these files
+		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
+		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+
+	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi"})
+
+	chg = st.NewChange("upgrade-snaps", "...")
+	addTaskSetsToChange(chg, tasksets)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// file content is still unchanged because there is no edition bump
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"),
+		testutil.FileContains, "bcm2710-rpi-2-b.dtb rev0")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"),
+		testutil.FileContains, "bcm2710-rpi-3-b.dtb rev0")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"),
+		testutil.FileAbsent)
+	//  gadget content is not updated because there is no edition update
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"),
+		testutil.FileContains, "start.elf rev0")
+
+	// pretend we restarted for the gadget refresh (????)
+	ms.mockSuccessfulReboot(c, ms.bloader, nil)
+
+	// and now we can perform a refresh of the kernel
+	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi-kernel"}, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi-kernel"})
+
+	chg = st.NewChange("upgrade-snaps", "...")
+	addTaskSetsToChange(chg, tasksets)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// At this point the gadget and kernel are updated and the kernel
+	// required a restart. Check that *before* this restart the DTB
+	// files from the kernel are in place.
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"),
+		testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"),
+		testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"),
+		testutil.FileContains, "uart0.dtbo rev2-from-kernel")
+	//  gadget content is not updated because there is no edition update
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"),
+		testutil.FileContains, "start.elf rev0")
+
+	// pretend we restarted for the gadget refresh (????)
+	ms.mockSuccessfulReboot(c, ms.bloader, nil)
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// also check that the gadget asset updates for the second refresh of
+	// the gadget snap get applied since that is important for some use
+	// cases and is probably why folks got into the circular dependency in
+	// the first place, for this we add another revision of the gadget snap
+	ms.mockSnapUpgradeWithFilesWithRev(c, gadgetSnapYaml, "4", [][]string{
+		{"meta/gadget.yaml", finalDesiredGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		// notice: no dtbs anymore in the gadget
+		{"mock-content", "mock-content-to-make-digest-different"},
+	})
+
+	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, []string{"pi"}, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi"})
+
+	chg = st.NewChange("upgrade-snaps", "...")
+	addTaskSetsToChange(chg, tasksets)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Err(), IsNil)
+
+	// gadget assets that come from the kernel are unchanged
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"),
+		testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"),
+		testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"),
+		testutil.FileContains, "uart0.dtbo rev2-from-kernel")
+	//  but an assets that comes directly from the gadget was updated
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"),
+		testutil.FileContains, "start.elf rev1")
 }
 
 func snapTaskStatusForChange(chg *state.Change) map[string]state.Status {
