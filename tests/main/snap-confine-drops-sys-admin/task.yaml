@@ -5,7 +5,7 @@ summary: ensure that snap-confine drops CAP_SYS_ADMIN for non-root
 # use of the classic snap where we just use classic to build the helper.
 # Arch, CentOS, AMZN2, openSUSE do not have a static version of libcap.
 # Ubuntu 14.04 does not have a proper session setup.
-systems: [-ubuntu-core-*, -arch-linux-*, -centos-*, -amazon-linux-*, -opensuse-*, -ubuntu-14.04]
+systems: [-ubuntu-core-*, -arch-linux-*, -centos-*, -amazon-linux-*, -opensuse-*, -ubuntu-14.04-*]
 
 environment:
     # This is used to abbreviate some of the paths below.
@@ -23,6 +23,11 @@ prepare: |
     # binary statically, such that it can execute regardless of an older glibc
     # in the base snap.
     gcc -Wall -Wextra -Werror ./has-sys-admin.c -o "$P/has-sys-admin" -lcap -static
+
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
 
 execute: |
     echo "The test executables files have the expected mode and ownership"
