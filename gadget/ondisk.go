@@ -216,6 +216,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 			Label:      bd.Label,
 			Type:       vsType,
 			Filesystem: bd.FSType,
+			ID:         strings.ToUpper(p.UUID),
 		}
 
 		ds[i] = OnDiskStructure{
@@ -353,7 +354,8 @@ func filesystemInfoForPartition(node string) (blk lsblkBlockDevice, err error) {
 
 	switch len(info.BlockDevices) {
 	case 1:
-		// ok, expected
+		// ok, expected, make the UUID capitalized for consistency
+		toUpperUUID(&info.BlockDevices[0])
 		return info.BlockDevices[0], nil
 	case 0:
 		// very unexpected, there was previously only one block device just
@@ -364,6 +366,10 @@ func filesystemInfoForPartition(node string) (blk lsblkBlockDevice, err error) {
 		// unexpected
 		return blk, fmt.Errorf("block device for device %s unexpectedly multiplied", node)
 	}
+}
+
+func toUpperUUID(bd *lsblkBlockDevice) {
+	bd.UUID = strings.ToUpper(bd.UUID)
 }
 
 func listBlockDevices(devType string) ([]lsblkBlockDevice, error) {
@@ -377,8 +383,12 @@ func listBlockDevices(devType string) ([]lsblkBlockDevice, error) {
 		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
 	}
 
+	for i := range info.BlockDevices {
+		toUpperUUID(&info.BlockDevices[i])
+	}
+
 	if devType == "" {
-		// then no filter set so return all devices as-is
+		// then no filter set so return all blockdevices
 		return info.BlockDevices, nil
 	}
 
