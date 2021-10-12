@@ -1,17 +1,28 @@
 # Hacking on snapd
 
-Hacking on snapd is fun and straightforward. The code is extensively
-unit tested and we use the [spread](https://github.com/snapcore/spread)
-integration test framework for the integration/system level tests.
+Hacking on `snapd` is fun and straightforward. The code is extensively unit
+tested and we use the [spread](https://github.com/snapcore/spread) integration test framework for the
+integration/system level tests.
 
 ## Development
 
-### Supported Go versions
+### Supported Go version
 
-From snapd 2.52, snapd supports Go 1.13 and onwards. From snapd 2.38
-to 2.52, snapd requires Go 1.9+. Versions before 2.38 support Go 1.6+.
+Go 1.13 or later is required to build `snapd`.
 
-### Setting up a GOPATH
+### Setting up your build environment
+
+If your Go environment (e.g. `GOPATH`) is already configured, you should skip
+this step. The go environment setup can be added to your shell login
+script (e.g. ~/.bashrc for bash) for automatic setup (after a terminal restart).
+
+```
+export GOPATH=${HOME}/work
+mkdir -p $GOPATH
+export PATH="$PATH:$GOPATH/bin"
+```
+
+### Further environment variable details
 
 When working with the source of Go programs, you should define a path within
 your home directory (or other workspace) which will be your `GOPATH`. `GOPATH`
@@ -42,58 +53,113 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 your `$GOPATH` is more complex than a single entry you'll need to adjust the
 above).
 
-Note that if you are using go 1.16 or newer you need to disable the
-go modules feature. Use:
-
-    export GO111MODULE=off
-
-for this.
-
 
 ### Getting the snapd sources
 
-The easiest way to get the source for `snapd` is to use the `go get` command.
+The easiest way to get the source for `snapd` is to clone the Github repository in
+a directory where you have read-write permissions, such as your home directory.
 
-    go get -d -v github.com/snapcore/snapd/...
+    cd ~/
+    git clone https://github.com/snapcore/snapd.git
+    cd snapd
 
-This command will checkout the source of `snapd` and inspect it for any unmet
-Go package dependencies, downloading those as well. `go get` will also build
-and install `snapd` and its dependencies. To also build and install `snapd`
-itself into `$GOPATH/bin`, omit the `-d` flag. More details on the `go get`
-flags are available using
+This will allow you to build and test `snapd`. If you wish to contribute to the
+`snapd` project, you can fork the `snapd` repository (under your Github account),
+and submit patches through a Pull Request.
 
-    go help get
+This process is outlined in the Github documentation [here](https://docs.github.com/en/github/collaborating-with-pull-requests)
 
-At this point you will have the git local repository of the `snapd` source at
-`$GOPATH/src/github.com/snapcore/snapd`. The source for any
-dependent packages will also be available inside `$GOPATH`.
+### Build host dependencies
 
-### Dependencies handling
+Build dependencies can automatically be resolved using `build-deb`on Ubuntu.
 
-Go dependencies are handled via `go mod`.
+    cd ~/snapd
+    sudo apt-get build-dep .
 
-Other dependencies are handled via distribution packages and you should ensure
-that dependencies for your distribution are installed. For example, on Ubuntu,
-run:
+Package build dependancies for other distributions can be found under the
+`packages\`directory.
 
-    sudo apt-get build-dep ./
+Go module dependancies are automatically resolved at build time.
 
-### Building
+### Building (natively)
 
-To build, once the sources are available and `GOPATH` is set, you can just run
+To build the `snap` commandline client:
 
-    go build -o /tmp/snap github.com/snapcore/snapd/cmd/snap
+```
+cd ~/snapd
+mkdir -p /tmp/build
+go build -o /tmp/build/snapd ./cmd/snapd
+```
 
-to get the `snap` binary in /tmp (or without -o to get it in the current
-working directory). Alternatively:
+To build the `snapd` REST API daemon:
 
-    go install github.com/snapcore/snapd/cmd/snap/...
+```
+cd ~/snapd
+mkdir -p /tmp/build
+go build -o /tmp/build/snapd ./cmd/snapd
+```
 
-to have it available in `$GOPATH/bin`
+To build the all`snapd` components:
 
-Similarly, to build the `snapd` REST API daemon, you can run
+```
+cd ~/snapd
+mkdir -p /tmp/build
+go build -o /tmp/build ./...
+```
 
-    go build -o /tmp/snapd github.com/snapcore/snapd/cmd/snapd
+### Cross-compiling (example: ARM target)
+
+Install a suitable cross-compiler for the target architecture.
+
+```
+sudo apt-get install gcc-arm-linux-gnueabihf
+```
+
+`Snapd` depends on libseccomp. The following instructions can be used to
+cross-compile the library:
+
+```
+cd ~/
+git clone https://github.com/seccomp/libseccomp
+cd libseccomp
+./autogen.sh
+./configure --host=arm-linux-gnueabihf --prefix=${HOME}/libseccomp/build
+make && make install
+```
+
+Setup the Go environment for cross-compiling.
+
+```
+export CC=arm-linux-gnueabihf-gcc
+export CGO_ENABLED=1
+export CGO_LDFLAGS="-L${HOME}/libseccomp/build/lib"
+export GOOS=linux
+export GOARCH=arm
+```
+
+To build the `snap` commandline client:
+
+```
+cd ~/snapd
+mkdir -p /tmp/build
+go build -o /tmp/build/snapd ./cmd/snapd
+```
+
+To build the `snapd` REST API daemon:
+
+```
+cd ~/snapd
+mkdir -p /tmp/build
+go build -o /tmp/build/snapd ./cmd/snapd
+```
+
+To build all`snapd` components:
+
+```
+cd ~/snapd
+mkdir -p /tmp/build
+go build -o /tmp/build ./...
+```
 
 ### Contributing
 
