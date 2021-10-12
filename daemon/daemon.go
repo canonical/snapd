@@ -280,7 +280,7 @@ func (d *Daemon) addRoutes() {
 }
 
 var (
-	shutdownTimeout = 25 * time.Second
+	shutdownTimeout = 10 * time.Second
 )
 
 type connTracker struct {
