@@ -1671,7 +1671,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m["snap_core"], Equals, "core_3.snap")
 
-	c.Check(s.stderr.String(), Equals, `WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward`)
+	c.Check(s.stderr.String(), Equals, `WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward`+"\n")
 
 	// current snap info sent
 	c.Check(s.curSnaps, HasLen, 1)

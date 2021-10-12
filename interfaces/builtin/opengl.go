@@ -72,7 +72,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{OpenGL,GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
 # Allow access to all cards since a) this is common on hybrid systems, b) ARM
 # devices commonly have two devices (such as on the Raspberry Pi 4, one for KMS

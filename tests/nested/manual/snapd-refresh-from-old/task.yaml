@@ -17,11 +17,7 @@ environment:
   CORE18_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/core18_20191126_1279.snap
 
 prepare: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
-  mkdir extra-snaps
-  wget -P extra-snaps "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
+  wget -P "$(tests.nested get extra-snaps-path)" "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
 
   # create core image with old snapd & core18
   tests.nested build-image core
@@ -31,14 +27,11 @@ prepare: |
   "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
 
 execute: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   tests.nested exec "sudo snap wait system seed.loaded"
   tests.nested exec "snap list" | MATCH "snapd.*5760"
   tests.nested exec "snap list" | MATCH "core18.*1279"
 
-  INITIAL_BOOT_ID=$(nested_get_boot_id)
+  INITIAL_BOOT_ID=$(tests.nested boot-id)
 
   if [ "$SPREAD_VARIANT" = "edge_first" ]; then
     # refresh to latest snapd from store, this will drop from ssh.
