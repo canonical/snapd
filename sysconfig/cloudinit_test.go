@@ -51,6 +51,10 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+
+	oldTmpdir := os.Getenv("TMPDIR")
+	os.Setenv("TMPDIR", s.tmpdir)
+	s.AddCleanup(func() { os.Unsetenv(oldTmpdir) })
 }
 
 func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C, cfgs ...string) (string, []string) {

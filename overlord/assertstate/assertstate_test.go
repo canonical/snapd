@@ -991,7 +991,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
-	err = assertstate.RefreshSnapAssertions(s.state, 0)
+	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: true})
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -1012,6 +1012,23 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 
 	c.Assert(err, IsNil)
 	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
+
+	// changed validation set assertion again
+	vsetAs3 := s.validationSetAssert(c, "bar", "4", "5", "required", "1")
+	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
+
+	// but pretend it's not a refresh of all snaps
+	err = assertstate.RefreshSnapAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsRefreshOfAllSnaps: false})
+	c.Assert(err, IsNil)
+
+	// so the assertion is not updated
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "4",
+	})
+	c.Check(asserts.IsNotFound(err), Equals, true)
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {

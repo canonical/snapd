@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,6 +44,8 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -196,7 +199,7 @@ func defaultPrereqSnapsChannel() string {
 	return channel
 }
 
-func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
+func findLinkSnapTask(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -208,16 +211,16 @@ func linkSnapInFlight(st *state.State, snapName string) (bool, error) {
 			if tc.Kind() == "link-snap" {
 				snapsup, err := TaskSnapSetup(tc)
 				if err != nil {
-					return false, err
+					return nil, err
 				}
 				if snapsup.InstanceName() == snapName {
-					return true, nil
+					return tc, nil
 				}
 			}
 		}
 	}
 
-	return false, nil
+	return nil, nil
 }
 
 func isInstalled(st *state.State, snapName string) (bool, error) {
@@ -264,14 +267,26 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		base = snapsup.Base
 	}
 
-	if err := m.installPrereqs(t, base, snapsup.Prereq, snapsup.UserID, perfTimings); err != nil {
+	// if a previous version of snapd persisted Prereq only, fill the contentAttrs.
+	// There will be not content attrs, so it will not update an outdated default provider
+	if len(snapsup.PrereqContentAttrs) == 0 && len(snapsup.Prereq) != 0 {
+		snapsup.PrereqContentAttrs = make(map[string][]string, len(snapsup.Prereq))
+
+		for _, prereq := range snapsup.Prereq {
+			snapsup.PrereqContentAttrs[prereq] = nil
+		}
+	}
+
+	if err := m.installPrereqs(t, base, snapsup.PrereqContentAttrs, snapsup.UserID, perfTimings, snapsup.Flags); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string, requireTypeBase bool, channel string, onInFlight error, userID int) (*state.TaskSet, error) {
+func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []string, requireTypeBase bool, channel string, onInFlight error, userID int, flags Flags) (*state.TaskSet, error) {
+	st := t.State()
+
 	// The core snap provides everything we need for core16.
 	coreInstalled, err := isInstalled(st, "core")
 	if err != nil {
@@ -287,43 +302,159 @@ func (m *SnapManager) installOneBaseOrRequired(st *state.State, snapName string,
 		return nil, err
 	}
 	if isInstalled {
-		return nil, nil
+		return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
 	}
+
 	// in progress?
-	inFlight, err := linkSnapInFlight(st, snapName)
-	if err != nil {
+	if linkTask, err := findLinkSnapTask(st, snapName); err != nil {
 		return nil, err
-	}
-	if inFlight {
+	} else if linkTask != nil {
 		return nil, onInFlight
 	}
 
 	// not installed, nor queued for install -> install it
-	ts, err := Install(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase})
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, deviceCtx, "")
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
 	// retrying the operation.
-	if _, ok := err.(*ChangeConflictError); ok {
+	if conflErr, ok := err.(*ChangeConflictError); ok {
+		// conflicted with an install in the same change, just skip
+		if conflErr.ChangeID == t.Change().ID() {
+			return nil, nil
+		}
+
 		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 	return ts, err
 }
 
-func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string, userID int, tm timings.Measurer) error {
+// updates a prerequisite, if it's not providing a content interface that a plug expects it to
+func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []string, userID int, flags Flags) (*state.TaskSet, error) {
+	if len(contentAttrs) == 0 {
+		return nil, nil
+	}
+
+	st := t.State()
+
+	// check if the default provider has all expected content tags
+	if ok, err := hasAllContentAttrs(st, snapName, contentAttrs); err != nil {
+		return nil, err
+	} else if ok {
+		return nil, nil
+	}
+
+	// this is an optimization since the Update would also detect a conflict
+	// but only after accessing the store
+	if ok, err := shouldSkipToAvoidConflict(t, snapName); err != nil {
+		return nil, err
+	} else if ok {
+		return nil, nil
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// default provider is missing some content tags (likely outdated) so update it
+	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
+	if err != nil {
+		if conflErr, ok := err.(*ChangeConflictError); ok {
+			// there's already an update for the same snap in this change,
+			// just skip this one
+			if conflErr.ChangeID == t.Change().ID() {
+				return nil, nil
+			}
+
+			return nil, &state.Retry{After: prerequisitesRetryTimeout}
+		}
+
+		// don't propagate error to avoid failing the main install since the
+		// content provider is (for now) a soft dependency
+		t.Logf("failed to update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
+		return nil, nil
+	}
+
+	return ts, nil
+}
+
+// Checks for conflicting tasks. Returns true if the operation should be skipped. The error
+// can be a state.Retry if the operation should be retried later.
+func shouldSkipToAvoidConflict(task *state.Task, snapName string) (bool, error) {
+	otherTask, err := findLinkSnapTask(task.State(), snapName)
+	if err != nil {
+		return false, err
+	}
+
+	if otherTask == nil {
+		return false, nil
+	}
+
+	// it's in the same change, so the snap is already going to be installed
+	if otherTask.Change().ID() == task.Change().ID() {
+		return true, nil
+	}
+
+	// it's not in the same change, so retry to avoid conflicting changes to the snap
+	return true, &state.Retry{
+		After:  prerequisitesRetryTimeout,
+		Reason: fmt.Sprintf("conflicting changes on snap %q by task %q", snapName, otherTask.Kind()),
+	}
+}
+
+// Checks if the snap has slots with "content" attributes matching the
+// ones that the snap being installed requires
+func hasAllContentAttrs(st *state.State, snapName string, requiredContentAttrs []string) (bool, error) {
+	providedContentAttrs := make(map[string]bool)
+	repo := ifacerepo.Get(st)
+
+	for _, slot := range repo.Slots(snapName) {
+		if slot.Interface != "content" {
+			continue
+		}
+
+		val, ok := slot.Lookup("content")
+		if !ok {
+			continue
+		}
+
+		contentAttr, ok := val.(string)
+		if !ok {
+			return false, fmt.Errorf("expected 'content' attribute of slot '%s' (snap: '%s') to be string but was %s", slot.Name, snapName, reflect.TypeOf(val))
+		}
+
+		providedContentAttrs[contentAttr] = true
+	}
+
+	for _, contentAttr := range requiredContentAttrs {
+		if _, ok := providedContentAttrs[contentAttr]; !ok {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[string][]string, userID int, tm timings.Measurer, flags Flags) error {
 	st := t.State()
 
 	// We try to install all wanted snaps. If one snap cannot be installed
 	// because of change conflicts or similar we retry. Only if all snaps
 	// can be installed together we add the tasks to the change.
 	var tss []*state.TaskSet
-	for _, prereqName := range prereq {
+	for prereqName, contentAttrs := range prereq {
 		var onInFlightErr error = nil
 		var err error
 		var ts *state.TaskSet
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
 			noTypeBaseCheck := false
-			ts, err = m.installOneBaseOrRequired(st, prereqName, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID)
+			ts, err = m.installOneBaseOrRequired(t, prereqName, contentAttrs, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID, flags)
 		})
 		if err != nil {
 			return prereqError("prerequisite", prereqName, err)
@@ -343,7 +474,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	if base != "none" {
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
 			requireTypeBase := true
-			tsBase, err = m.installOneBaseOrRequired(st, base, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID)
+			tsBase, err = m.installOneBaseOrRequired(t, base, nil, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID, Flags{})
 		})
 		if err != nil {
 			return prereqError("snap base", base, err)
@@ -364,7 +495,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq []string
 	if base != "core" && !snapdSnapInstalled && !coreSnapInstalled {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
 			noTypeBaseCheck := false
-			tsSnapd, err = m.installOneBaseOrRequired(st, "snapd", noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID)
+			tsSnapd, err = m.installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{})
 		})
 		if err != nil {
 			return prereqError("system snap", "snapd", err)
@@ -1436,7 +1567,7 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 
 	if rebootRequired {
 		t.Logf("Requested system restart.")
-		st.RequestRestart(state.RestartSystem)
+		RestartSystem(t)
 		return
 	}
 
@@ -1455,7 +1586,7 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 	}
 
 	t.Logf(restartReason)
-	st.RequestRestart(state.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon)
 }
 
 func daemonRestartReason(st *state.State, typ snap.Type) string {
@@ -1741,7 +1872,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// core snap -> next core snap
 	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
-		st.RequestRestart(state.RestartDaemon)
+		restart.Request(st, restart.RestartDaemon)
 	}
 	return nil
 }

@@ -17,14 +17,23 @@
  *
  */
 
-package polkit_test
+package notification
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+	"github.com/godbus/dbus"
 )
 
-func Test(t *testing.T) {
-	TestingT(t)
+type NotificationManager interface {
+	SendNotification(id ID, msg *Message) error
+	CloseNotification(id ID) error
+}
+
+func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {
+	// first try the GTK backend
+	if manager, err := newGtkBackend(conn, desktopID); err == nil {
+		return manager
+	}
+
+	// fallback to the older FDO API
+	return newFdoBackend(conn, desktopID)
 }
