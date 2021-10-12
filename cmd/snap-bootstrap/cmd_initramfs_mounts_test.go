@@ -197,6 +197,11 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
+	restore = main.MockWaitFile(func(string, time.Duration, int) error {
+		return nil
+	})
+	s.AddCleanup(restore)
+
 	// use a specific time for all the assertions, in the future so that we can
 	// set the timestamp of the model assertion to something newer than now, but
 	// still older than the snap declarations by default
@@ -5931,4 +5936,91 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	// reboot was requested
 	c.Check(rebootCalls, Equals, 1)
 	c.Check(s.logs.String(), testutil.Contains, `try recovery system health check failed: mock failure`)
+}
+
+func (s *initramfsMountsSuite) TestMountNonDataPartitionPolls(c *C) {
+	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
+	defer restore()
+
+	var waitFile []string
+	var pollWait time.Duration
+	var pollIterations int
+	restore = main.MockWaitFile(func(path string, wait time.Duration, n int) error {
+		waitFile = append(waitFile, path)
+		pollWait = wait
+		pollIterations = n
+		return fmt.Errorf("error")
+	})
+	defer restore()
+
+	n := 0
+	restore = main.MockSystemdMount(func(what, where string, opts *main.SystemdMountOptions) error {
+		n++
+		return nil
+	})
+	defer restore()
+
+	err := main.MountNonDataPartitionMatchingKernelDisk("/some/target", "")
+	c.Check(err, ErrorMatches, "cannot mount source: error")
+	c.Check(n, Equals, 0)
+	c.Check(waitFile, DeepEquals, []string{
+		filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid"),
+	})
+	c.Check(pollWait, DeepEquals, 50*time.Millisecond)
+	c.Check(pollIterations, DeepEquals, 1200)
+	c.Check(s.logs.String(), Matches, "(?m).* waiting up to 1m0s for /dev/disk/by-partuuid/some-uuid to appear")
+	// there is only a single log msg
+	c.Check(strings.Count(s.logs.String(), "\n"), Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestMountNonDataPartitionNoPollNoLogMsg(c *C) {
+	restore := main.MockPartitionUUIDForBootedKernelDisk("some-uuid")
+	defer restore()
+
+	n := 0
+	restore = main.MockSystemdMount(func(what, where string, opts *main.SystemdMountOptions) error {
+		n++
+		return nil
+	})
+	defer restore()
+
+	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid")
+	err := os.MkdirAll(filepath.Dir(fakedPartSrc), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedPartSrc, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = main.MountNonDataPartitionMatchingKernelDisk("some-target", "")
+	c.Check(err, IsNil)
+	c.Check(s.logs.String(), Equals, "")
+	c.Check(n, Equals, 1)
+}
+
+func (s *initramfsMountsSuite) TestWaitFileErr(c *C) {
+	err := main.WaitFile("/dev/does-not-exist", 10*time.Millisecond, 2)
+	c.Check(err, ErrorMatches, "no /dev/does-not-exist after waiting for 20ms")
+}
+
+func (s *initramfsMountsSuite) TestWaitFile(c *C) {
+	existingPartSrc := filepath.Join(c.MkDir(), "does-exist")
+	err := ioutil.WriteFile(existingPartSrc, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = main.WaitFile(existingPartSrc, 5000*time.Second, 1)
+	c.Check(err, IsNil)
+
+	err = main.WaitFile(existingPartSrc, 1*time.Second, 10000)
+	c.Check(err, IsNil)
+}
+
+func (s *initramfsMountsSuite) TestWaitFileWorksWithFilesAppearingLate(c *C) {
+	eventuallyExists := filepath.Join(c.MkDir(), "eventually-exists")
+	go func() {
+		time.Sleep(40 * time.Millisecond)
+		err := ioutil.WriteFile(eventuallyExists, nil, 0644)
+		c.Assert(err, IsNil)
+	}()
+
+	err := main.WaitFile(eventuallyExists, 5*time.Millisecond, 1000)
+	c.Check(err, IsNil)
 }

@@ -1008,6 +1008,11 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
 	c.Assert(err, IsNil)
 	s.oldSeededTs = sys.SeedTime
+
+	err = s.bootloader.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "0000",
+	})
+	c.Assert(err, IsNil)
 }
 
 var uc20ModelDefaults = map[string]interface{}{
@@ -1149,6 +1154,11 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 		"seed-time": "",
 	})
 	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
+	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Assert(env, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "0000,1234",
+	})
 }
 
 func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
@@ -1248,6 +1258,11 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 		"seed-time": "",
 	})
 	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
+	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Assert(env, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "0000,1234",
+	})
 }
 
 func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
@@ -1318,4 +1333,9 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 		"timestamp": s.oldModel.Timestamp().Format(time.RFC3339Nano),
 		"seed-time": s.oldSeededTs.Format(time.RFC3339Nano),
 	}})
+	env, err := s.bootloader.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Assert(env, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "0000",
+	})
 }
