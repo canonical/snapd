@@ -4,6 +4,9 @@ environment:
     CHANNEL/edge: latest/edge/strict
 
 prepare: |
+    # The default timeout for the configure hook is 5min - however in the
+    # testsuite this is lowered. We need to undo this for the microk8s spread
+    # test because it really take a bit to get configured.
     cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
     sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i /etc/systemd/system/snapd.service.d/local.conf
     systemctl daemon-reload
