@@ -150,3 +150,27 @@ def request_name(request, service_name):
     request.addfinalizer(teardown)
 
     bus.request_name(service_name, dbus.bus.NAME_FLAG_REPLACE_EXISTING)
+
+
+@pytest.fixture(scope="function")
+def fdo_notifications(request, dbus_session_bus):
+    """Mocks the f.d.o. Notifications service"""
+    bus = dbus_session_bus
+    bus_name = interface_name = 'org.freedesktop.Notifications'
+    object_path = '/org/freedesktop/Notifications'
+    mock = dbusmock.DBusTestCase.spawn_server(bus_name,
+                                              object_path,
+                                              interface_name,
+                                              system_bus=False)
+    mock_iface = dbus.Interface(bus.get_object(bus_name, object_path),
+                                dbusmock.MOCK_IFACE)
+    mock_iface.AddMethod(interface_name,
+                         'Notify', 'susssasa{sv}i', 'u',
+                         'ret = 1')
+
+    def teardown():
+        mock.terminate()
+        mock.wait()
+    request.addfinalizer(teardown)
+
+    return mock_iface

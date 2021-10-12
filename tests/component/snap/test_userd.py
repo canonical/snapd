@@ -112,6 +112,58 @@ class TestUserdSessionAgent:
         assert service.returncode == 1
         server.close()
 
+    @pytest.mark.parametrize('request_body, expected_values', [
+        # expected_values is a tuple
+        # (app_name, summary, icon, body, urgency)
+        pytest.param(
+            '{"instance-name": "test-snap"}',
+            ('', '', 'Snap "test-snap" is refreshing now!', '', 2)),
+        pytest.param(
+            # no idea how Go unmarshals time.Duration
+            '{"time-remaining": 68000111000111, "instance-name": "snap1"}',
+            ('', '',
+             'Pending update of "snap1" snap',
+             'Close the app to avoid disruptions (18 hours left)',
+             1)
+        ),
+        pytest.param(
+            '{"time-remaining": 98000111000111, "instance-name": "snap1"}',
+            ('', '',
+             'Pending update of "snap1" snap',
+             'Close the app to avoid disruptions (1 day left)',
+             0)
+        ),
+        pytest.param(
+            '{"busy-app-name": "app2", "instance-name": "snap2" }',
+            ('app2', '', 'Snap "snap2" is refreshing now!', '', 2)),
+    ])
+    def test_send_notification(self, snap_userd, fdo_notifications,
+                               request_body, expected_values, dbus_monitor):
+        socket_path = snap_userd[1]
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.connect(socket_path)
+        request_data = ('POST /v1/notifications/pending-refresh HTTP/1.1\n' +
+                        'Host: localhost\n' +
+                        'Content-Length: {}\n'.format(len(request_body)) +
+                        'Content-Type: application/json\n\n' +
+                        request_body)
+        s.send(request_data.encode('utf8'))
+        reply = s.recv(10000)
+        assert b'HTTP/1.1 200 OK' in reply
+
+        calls = fdo_notifications.GetMethodCalls('Notify')
+        assert len(calls) == 1
+        params = calls[0][1]
+        assert params[0] == expected_values[0]  # app_name
+        assert params[1] == 0                   # replaces_id
+        assert params[2] == expected_values[1]  # icon
+        assert params[3] == expected_values[2]  # summary
+        assert params[4] == expected_values[3]  # body
+        assert len(params[5]) == 0              # actions
+        assert params[6].get('desktop-entry') == 'io.snapcraft.SessionAgent'
+        assert params[6].get('urgency') == expected_values[4]
+        assert params[7] == 0                   # expire timeout
+
 
 class TestUserd:
     @pytest.mark.parametrize('request_data, expected_error', [
@@ -128,7 +180,6 @@ class TestUserd:
     def test_invalid_requests(self, snap_userd, request_data,
                               expected_error):
         socket_path = snap_userd[1]
-        print("Path: {}".format(socket_path))
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.connect(socket_path)
         s.send(request_data)
