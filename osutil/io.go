@@ -255,6 +255,11 @@ func AtomicRename(oldName, newName string) error {
 	// snapdUnsafeIO controls the ability to ignore expensive disk
 	// synchronization. It is only used inside tests.
 	if !snapdUnsafeIO {
+		// if called with a path with trailing '/', filepath.Dir
+		// returns the dir itself instead of the parent
+		oldName = filepath.Clean(oldName)
+		newName = filepath.Clean(newName)
+
 		oldDirPath := filepath.Dir(oldName)
 		newDirPath := filepath.Dir(newName)
 
