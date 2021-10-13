@@ -96,6 +96,20 @@ EOF
     systemctl start snapd.service
 }
 
+# setup_experimental_features enables experimental snapd features passed
+# via optional EXPERIMENTAL_FEATURES environment variable. The features must be
+# separated by commas and "experimental." prefixes should be omitted.
+setup_experimental_features() {
+    if [ -n "$EXPERIMENTAL_FEATURES" ]; then
+        echo "$EXPERIMENTAL_FEATURES" | while IFS="," read -r FEATURE; do
+            echo "Enabling feature experimental.$FEATURE"
+            snap set system "experimental.$FEATURE"=true
+        done
+    else
+        echo "There are no experimental snapd features to enable"
+    fi
+}
+
 update_core_snap_for_classic_reexec() {
     # it is possible to disable this to test that snapd (the deb) works
     # fine with whatever is in the core snap
@@ -306,6 +320,7 @@ prepare_classic() {
             exit 1
         fi
 
+        setup_experimental_features
         systemctl stop snapd.{service,socket}
         save_snapd_state
         systemctl start snapd.socket
@@ -1162,6 +1177,7 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
+        setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state
         systemctl start snapd.socket

@@ -55,12 +55,23 @@ type MockDiskMapping struct {
 
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
 // for the specified filesystem label if it exists. Part of the Disk interface.
-func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
+func (d *MockDiskMapping) FindMatchingPartitionWithFsLabel(label string) (Partition, error) {
+	// TODO: this should just iterate over the static list when that is a thing
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 	if partuuid, ok := d.FilesystemLabelToPartUUID[label]; ok {
-		return partuuid, nil
+		part := Partition{
+			PartitionUUID:   partuuid,
+			FilesystemLabel: label,
+		}
+		// add the partition label too if we have one for this partition uuid
+		for partlabel, partuuid2 := range d.PartitionLabelToPartUUID {
+			if partuuid2 == partuuid {
+				part.PartitionLabel = partlabel
+			}
+		}
+		return part, nil
 	}
-	return "", PartitionNotFoundError{
+	return Partition{}, PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: label,
 	}
@@ -68,15 +79,42 @@ func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (st
 
 // FindMatchingPartitionUUIDWithPartLabel returns a matching PartitionUUID
 // for the specified filesystem label if it exists. Part of the Disk interface.
-func (d *MockDiskMapping) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+func (d *MockDiskMapping) FindMatchingPartitionWithPartLabel(label string) (Partition, error) {
+	// TODO: this should just iterate over the static list when that is a thing
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 	if partuuid, ok := d.PartitionLabelToPartUUID[label]; ok {
-		return partuuid, nil
+		part := Partition{
+			PartitionUUID:  partuuid,
+			PartitionLabel: label,
+		}
+		// add the filesystem label too if we have one for this partition uuid
+		for fsLabel, partuuid2 := range d.FilesystemLabelToPartUUID {
+			if partuuid2 == partuuid {
+				part.FilesystemLabel = fsLabel
+			}
+		}
+		return part, nil
 	}
-	return "", PartitionNotFoundError{
+	return Partition{}, PartitionNotFoundError{
 		SearchType:  "partition-label",
 		SearchQuery: label,
 	}
+}
+
+func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
+	p, err := d.FindMatchingPartitionWithFsLabel(label)
+	if err != nil {
+		return "", err
+	}
+	return p.PartitionUUID, nil
+}
+
+func (d *MockDiskMapping) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+	p, err := d.FindMatchingPartitionWithPartLabel(label)
+	if err != nil {
+		return "", err
+	}
+	return p.PartitionUUID, nil
 }
 
 func (d *MockDiskMapping) Partitions() ([]Partition, error) {

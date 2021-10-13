@@ -401,7 +401,7 @@ type AtomicRenameTestSuite struct{}
 
 var _ = Suite(&AtomicRenameTestSuite{})
 
-func (ts *AtomicRenameTestSuite) TestAtomicRename(c *C) {
+func (ts *AtomicRenameTestSuite) TestAtomicRenameFile(c *C) {
 	d := c.MkDir()
 
 	err := ioutil.WriteFile(filepath.Join(d, "foo"), []byte("foobar"), 0644)
@@ -469,4 +469,40 @@ func (s *SafeIoAtomicTestSuite) SetUpSuite(c *C) {
 
 func (s *SafeIoAtomicTestSuite) TearDownSuite(c *C) {
 	s.restoreUnsafeIO()
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicRenameDir(c *C) {
+	// create a source directory
+	srcParentDir := c.MkDir()
+	src := filepath.Join(srcParentDir, "foo")
+
+	err := os.MkdirAll(src, 0755)
+	c.Assert(err, IsNil)
+
+	// put a file in the source directory
+	srcFile := filepath.Join(src, "file")
+	contents := []byte("contents")
+	err = osutil.AtomicWriteFile(srcFile, contents, 0644, 0)
+	c.Assert(err, IsNil)
+
+	// the parent dir of the destination
+	dstParentDir := c.MkDir()
+	dst := filepath.Join(dstParentDir, "bar")
+
+	// ensure it works even with trailing '/'
+	err = osutil.AtomicRename(src+"/", dst+"/")
+	c.Assert(err, IsNil)
+
+	d, err := ioutil.ReadDir(dst)
+	c.Assert(err, IsNil)
+	c.Assert(len(d), Equals, 1)
+	c.Assert(d[0].Name(), Equals, "file")
+
+	data, err := ioutil.ReadFile(filepath.Join(dst, "file"))
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, contents)
+
+	exists, _, err := osutil.DirExists(src)
+	c.Assert(err, IsNil)
+	c.Assert(exists, Equals, false)
 }
