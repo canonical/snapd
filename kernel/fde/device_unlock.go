@@ -32,7 +32,8 @@ type DeviceUnlockRequest struct {
 
 	Key    []byte `json:"key,omitempty"`
 	Device string `json:"device,omitempty"`
-	Label  string `json:"label,omitempty"`
+	// Name of the partition
+	PartitionName string `json:"partition-name,omitempty"`
 }
 
 // runFDEDeviceUnlockCommand returns the output of
@@ -55,19 +56,20 @@ func runFDEDeviceUnlockCommand(req *DeviceUnlockRequest) (output []byte, err err
 type DeviceUnlockParams struct {
 	Key    []byte
 	Device string
-	Label  string
+	// Name of the partition
+	PartitionName string
 }
 
 // DeviceUnlock invokes the "fde-device-unlock" helper with the
 // "device-unlock" operation.
 func DeviceUnlock(params *DeviceUnlockParams) (err error) {
 	req := &DeviceUnlockRequest{
-		Op:     "device-unlock",
-		Key:    params.Key,
-		Device: params.Device,
-		Label:  params.Label,
+		Op:            "device-unlock",
+		Key:           params.Key,
+		Device:        params.Device,
+		PartitionName: params.PartitionName,
 	}
-	logger.Debugf("running fde-device-unlock on %q with label %q", req.Device, req.Label)
+	logger.Debugf("running fde-device-unlock on %q with name %q", req.Device, req.PartitionName)
 
 	output, err := runFDEDeviceUnlockCommand(req)
 	if err != nil {

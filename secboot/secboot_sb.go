@@ -180,11 +180,14 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 
 func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (string, string, error) {
 	// 1. mount name under the right mapper with 1mb offset
-	partUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel(name)
+
+	// XXX: we're assuming that partition name is well know at this point
+	part, err := disk.FindMatchingPartitionWithPartLabel(name)
 	if err != nil {
 		return "", "", err
 	}
-	partDevice := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	// TODO: use part.KernelDeviceNode
+	partDevice := filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID)
 	partSize, err := disks.Size(partDevice)
 	if err != nil {
 		return "", "", err
@@ -194,10 +197,9 @@ func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (strin
 	//      What is the best name?
 	mapperName := name + "-device-unlock"
 
-	// XXX: import from fde as a constant
-	offset := uint64(1 * 1024 * 1024)
+	offset := fde.DeviceSetupHookPartitionOffset
 	mapperSize := partSize - offset
-	mapperDevice, err := disks.CreateLinearMapperDevice(partDevice, mapperName, partUUID, offset, mapperSize)
+	mapperDevice, err := disks.CreateLinearMapperDevice(partDevice, mapperName, part.PartitionUUID, offset, mapperSize)
 	if err != nil {
 		return "", "", err
 	}
@@ -233,9 +235,9 @@ func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string,
 
 	// 3. call fde-device-unlock to unlock device
 	params := &fde.DeviceUnlockParams{
-		Key:    unlockKey,
-		Device: partDevice,
-		Label:  name,
+		Key:           unlockKey,
+		Device:        partDevice,
+		PartitionName: name,
 	}
 	if err := fde.DeviceUnlock(params); err != nil {
 		return res, err
@@ -259,7 +261,10 @@ func unlockEncryptedVolumeUsingKeyViaDeviceUnlockHook(disk disks.Disk, name stri
 	params := &fde.DeviceUnlockParams{
 		Key:    key,
 		Device: partDevice,
-		Label:  name,
+		// the device corresponds to a partition with this name and
+		// carries similarly named filesystem inside, this relation is
+		// checked at install time
+		PartitionName: name,
 	}
 	if err := fde.DeviceUnlock(params); err != nil {
 		return res, err

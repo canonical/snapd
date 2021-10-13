@@ -254,7 +254,7 @@ func (s *encryptSuite) TestAddRecoveryKeyDeviceWithSetupHook(c *C) {
 	dev, err := install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
 	c.Assert(err, IsNil)
 	c.Check(setupReq.Device, Equals, "/dev/mapper/some-label")
-	c.Check(setupReq.Label, Equals, "some-label")
+	c.Check(setupReq.PartitionName, Equals, "some-label")
 
 	err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)
 	c.Check(err, ErrorMatches, "recovery keys are not supported on devices that use the device-setup hook")

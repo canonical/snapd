@@ -107,7 +107,9 @@ type SetupRequest struct {
 	// The part of the device kernel path for a "setup-device" call.
 	// Only used when called with "device-setup"
 	Device string `json:"device,omitempty"`
-	Label  string `json:"label,omitempty"`
+
+	// Name of the partition
+	PartitionName string `json:"partition-name,omitempty"`
 }
 
 // A RunSetupHookFunc implements running the fde-setup kernel hook.
@@ -173,9 +175,9 @@ func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
 // DeviceSetupParams contains the inputs for the fde-setup hook.
 // The encryption key and the device (partition) are passed in.
 type DeviceSetupParams struct {
-	Key    []byte
-	Device string
-	Label  string
+	Key           []byte
+	Device        string
+	PartitionName string
 }
 
 // DeviceSetup invokes the "device-setup" op running the fde-setup
@@ -183,12 +185,12 @@ type DeviceSetupParams struct {
 // inline crypto hardware.
 func DeviceSetup(runSetupHook RunSetupHookFunc, params *DeviceSetupParams) error {
 	req := &SetupRequest{
-		Op:     "device-setup",
-		Key:    params.Key,
-		Device: params.Device,
-		Label:  params.Label,
+		Op:            "device-setup",
+		Key:           params.Key,
+		Device:        params.Device,
+		PartitionName: params.PartitionName,
 	}
-	logger.Debugf("running device-setup hook on %q with label %q", req.Device, req.Label)
+	logger.Debugf("running device-setup hook on %q with name %q", req.Device, req.PartitionName)
 
 	hookOutput, err := runSetupHook(req)
 	if err != nil {

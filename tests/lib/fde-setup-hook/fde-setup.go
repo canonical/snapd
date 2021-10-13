@@ -34,8 +34,8 @@ type fdeSetupJSON struct {
 
 	Key []byte `json:"key,omitempty"`
 
-	Device string `json:"device,omitempty"`
-	Label  string `json:"label,omitempty"`
+	Device        string `json:"device,omitempty"`
+	PartitionName string `json:"partition-name,omitempty"`
 }
 
 type fdeSetupResultJSON struct {
@@ -113,8 +113,8 @@ func runFdeSetup() error {
 		if js.Device == "" {
 			panic("empty device passed to device-setup")
 		}
-		if js.Label != "ubuntu-data" && js.Label != "ubuntu-save" {
-			panic(fmt.Sprintf("unexpected label passed %q", js.Label))
+		if js.PartitionName != "ubuntu-data" && js.PartitionName != "ubuntu-save" {
+			panic(fmt.Sprintf("unexpected name %q", js.PartitionName))
 		}
 		fdeSetupResult = []byte("{}")
 	default:
@@ -210,9 +210,9 @@ func runFdeRevealKey() error {
 type fdeDeviceUnlockJSON struct {
 	Op string `json:"op"`
 
-	Key    []byte `json:"key"`
-	Device string `json:"device"`
-	Label  string `json:"label"`
+	Key           []byte `json:"key"`
+	Device        string `json:"device"`
+	PartitionName string `json:"partition-name"`
 }
 
 func runFdeDeviceUnlock() error {
@@ -241,8 +241,8 @@ func runFdeDeviceUnlock() error {
 		if _, err := f.Write(b); err != nil {
 			return err
 		}
-		if js.Label != "ubuntu-data" && js.Label != "ubuntu-save" {
-			panic(fmt.Sprintf("unexpected label passed %q", js.Label))
+		if js.PartitionName != "ubuntu-data" && js.PartitionName != "ubuntu-save" {
+			panic(fmt.Sprintf("unexpected name %q", js.PartitionName))
 		}
 
 	case "features":
