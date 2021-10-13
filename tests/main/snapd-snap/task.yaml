@@ -133,6 +133,13 @@ execute: |
 
     # shellcheck disable=SC2164
     pushd "$PROJECT_PATH"
+
+    echo "Ensure we use the ubuntu-16.04 packaging if this host is 14.04"
+    if os.query is-trusty; then
+      rm debian
+      ln -s "packaging/ubuntu-16.04" debian
+    fi
+
     echo "Build the snap"
     snap run snapcraft snap --output=snapd_spread-test.snap
     popd
