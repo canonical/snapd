@@ -72,8 +72,9 @@ func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
 
 		// these are "unsafe" chars, so they get encoded
 		{"ubuntu data", `ubuntu\x20data`},
-		{"ubuntu\ttab", `ubuntu\x9tab`},
-		{"ubuntu\nnewline", `ubuntu\xanewline`},
+		{"ubuntu\ttab", `ubuntu\x09tab`},
+		{"ubuntu\t9tab", `ubuntu\x099tab`},
+		{"ubuntu\nnewline", `ubuntu\x0anewline`},
 		{"foo bar", `foo\x20bar`},
 		{"foo/bar", `foo\x2fbar`},
 		{"foo/../bar", `foo\x2f..\x2fbar`},
@@ -81,6 +82,13 @@ func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
 		{"pinkié pie", `pinkié\x20pie`},
 		{"(EFI Boot)", `\x28EFI\x20Boot\x29`},
 		{"[System Boot]", `\x5bSystem\x20Boot\x5d`},
+		// 0x7e is just a 1-rune long character that is not in the allowed set
+		// to demonstrate that these two input strings are encoded/decoded
+		// properly with the constant double width
+		{"ubuntu\x7etab", `ubuntu\x7etab`},
+		{"ubuntu\x07" + "etab", `ubuntu\x07etab`},
+		// works when the only character is an escaped one too
+		{"\t", `\x09`},
 	}
 	for _, t := range tt {
 		c.Logf("tc: %v %q", t.in, t.out)
