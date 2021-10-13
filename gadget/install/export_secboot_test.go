@@ -27,7 +27,6 @@ import (
 )
 
 var (
-	EnsureLayoutCompatibility       = ensureLayoutCompatibility
 	DeviceFromRole                  = deviceFromRole
 	NewEncryptedDeviceLUKS          = newEncryptedDeviceLUKS
 	NewEncryptedDeviceWithSetupHook = newEncryptedDeviceWithSetupHook
