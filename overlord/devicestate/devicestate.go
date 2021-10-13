@@ -475,10 +475,27 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 					// the update is not a simple
 					// switch-snap-channel
 					return ts, nil
-				} else if ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "base" {
-					// in other cases make sure that the
-					// kernel or base is linked and available
-					return snapstate.AddLinkNewBaseOrKernel(st, ts)
+				} else {
+					if ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "base" {
+						// in other cases make sure that
+						// the kernel or base is linked
+						// and available, and that
+						// kernel updates boot assets if
+						// needed
+						ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
+						if err != nil {
+							return nil, err
+						}
+					} else if ms.newModelSnap.SnapType == "gadget" {
+						// gadget snaps may need gadget
+						// related tasks such as assets
+						// update or command line update
+						ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
+						if err != nil {
+							return nil, err
+						}
+					}
+					return ts, nil
 				}
 			}
 		}
