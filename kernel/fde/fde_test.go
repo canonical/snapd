@@ -528,34 +528,6 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
-func (s *fdeSuite) TestDeviceUnlock(c *C) {
-	checkSystemdRunOrSkip(c)
-
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
-	fdeDeviceUnlockStdin := filepath.Join(c.MkDir(), "stdin")
-	mockSystemdRun := testutil.MockCommand(c, "fde-device-unlock", fmt.Sprintf(`
-cat - > %s
-printf "output-only-used-for-errors"
-`, fdeDeviceUnlockStdin))
-	defer mockSystemdRun.Restore()
-
-	mockKey := []byte("some-key")
-	p := fde.DeviceUnlockParams{
-		Key:    mockKey,
-		Device: "/dev/my-device",
-	}
-	err := fde.DeviceUnlock(&p)
-	c.Assert(err, IsNil)
-	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
-		{"fde-device-unlock"},
-	})
-	c.Check(fdeDeviceUnlockStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/my-device"}`, base64.StdEncoding.EncodeToString(mockKey)))
-
-	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-device-unlock")), Equals, false)
-}
-
 func (s *fdeSuite) TestDeviceUnlockErr(c *C) {
 	checkSystemdRunOrSkip(c)
 
@@ -653,4 +625,29 @@ func (s *fdeSuite) TestDeviceSetupError(c *C) {
 	}
 	err := fde.DeviceSetup(runSetupHook, params)
 	c.Check(err, ErrorMatches, "device setup failed with: something failed badly")
+}
+
+func (s *fdeSuite) TestHasDeviceUnlock(c *C) {
+	oldPath := os.Getenv("PATH")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	mockRoot := c.MkDir()
+	os.Setenv("PATH", mockRoot+"/bin")
+	mockBin := mockRoot + "/bin/"
+	err := os.Mkdir(mockBin, 0755)
+	c.Assert(err, IsNil)
+
+	// no fde-device-unlock binary
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// fde-device-unlock without +x
+	err = ioutil.WriteFile(mockBin+"fde-device-unlock", nil, 0644)
+	c.Assert(err, IsNil)
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// correct fde-device-unlock, no logging
+	err = os.Chmod(mockBin+"fde-device-unlock", 0755)
+	c.Assert(err, IsNil)
+
+	c.Check(fde.HasDeviceUnlock(), Equals, true)
 }

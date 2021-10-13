@@ -89,7 +89,7 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 }
 
 // TODO: unexport this because how the hook is driven is an implemenation
-//       deail. It creates quite a bit of churn unfortunately, see
+//       detail. It creates quite a bit of churn unfortunately, see
 //       https://github.com/snapcore/snapd/compare/master...mvo5:ice/refactor-fde?expand=1
 //
 // SetupRequest carries the operation and parameters for the fde-setup hooks
@@ -104,6 +104,7 @@ type SetupRequest struct {
 	// Only used when called with "initial-setup"
 	KeyName string `json:"key-name,omitempty"`
 
+	// The part of the device kernel path for a "setup-device" call.
 	// Only used when called with "device-setup"
 	Device string `json:"device,omitempty"`
 	Label  string `json:"label,omitempty"`
@@ -181,7 +182,7 @@ type DeviceSetupParams struct {
 }
 
 // DeviceSetup invokes the "device-setup" op running the fde-setup
-// hook via runSetupHook. This is can be used to e.g. initializes
+// hook via runSetupHook. This can be used to e.g. initialize
 // inline crypto hardware.
 func DeviceSetup(runDeviceSetupHook RunDeviceSetupHookFunc, params *DeviceSetupParams) error {
 	req := &SetupRequest{
