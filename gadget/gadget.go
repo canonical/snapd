@@ -35,7 +35,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
@@ -271,8 +270,8 @@ type DiskStructureDeviceTraits struct {
 	Size quantity.Size `json:"size"`
 }
 
-// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume / device
-// traits to a file on disk for later loading and verification.
+// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume /
+// device traits to a file on disk for later loading and verification.
 func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDeviceTraits) error {
 	b, err := json.Marshal(mapping)
 	if err != nil {
@@ -290,10 +289,10 @@ func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDevice
 // LoadDiskVolumesDeviceTraits loads the mapping of volumes to disk traits if
 // there is any. If there is no file with the mapping available, nil is
 // returned.
-func LoadDiskVolumesDeviceTraits() (map[string]DiskVolumeDeviceTraits, error) {
+func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits, error) {
 	var mapping map[string]DiskVolumeDeviceTraits
 
-	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+	filename := filepath.Join(dir, "disk-mapping.json")
 	if !osutil.FileExists(filename) {
 		return nil, nil
 	}

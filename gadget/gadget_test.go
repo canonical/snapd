@@ -3034,7 +3034,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 
 	// when there is no mapping file, it is not an error, the map returned is
 	// just nil/has no items in it
-	mAbsent, err := gadget.LoadDiskVolumesDeviceTraits()
+	mAbsent, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
 	c.Assert(err, IsNil)
 	c.Assert(mAbsent, HasLen, 0)
 
@@ -3049,7 +3049,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(err, IsNil)
 
 	// now that it was saved to dirs.SnapDeviceDir, we can load it correctly
-	m2, err := gadget.LoadDiskVolumesDeviceTraits()
+	m2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, m2)
