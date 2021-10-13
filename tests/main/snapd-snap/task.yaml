@@ -25,9 +25,6 @@ systems:
     # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
     # a separate error occurs on centos 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
     - -centos-*
-    # i386 is not supported by lxd
-    - -ubuntu-18.04-32
-
 
 # Start early as it takes a long time.
 priority: 100
@@ -83,7 +80,11 @@ prepare: |
         modprobe fuse
 
         echo "Install lxd"
-        snap install lxd --channel="$LXD_SNAP_CHANNEL"
+        if os.query is-pc-i386; then
+            snap install lxd --channel="3.0/$LXD_SNAP_CHANNEL"
+        else
+            snap install lxd --channel="$LXD_SNAP_CHANNEL"
+        fi
         tests.cleanup defer snap remove --purge lxd
 
         echo "Setup the lxd snap"
