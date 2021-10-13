@@ -64,10 +64,32 @@ a directory where you have read-write permissions, such as your home directory.
     cd snapd
 
 This will allow you to build and test `snapd`. If you wish to contribute to the
-`snapd` project, you can fork the `snapd` repository (under your Github account),
-and submit patches through a Pull Request.
+`snapd` project, please see the Contributing section.
+
+### Contributing
+
+Contributions are always welcome!
+
+Please make sure that you sign the Canonical contributor agreement [here](
+http://www.ubuntu.com/legal/contributors).
+
+Complete requirements can be found in CONTRIBUTING.md.
+
+Before you contribute to the`snapd` project, please fork the `snapd` repository
+(under your Github account), and submit patches through a Pull Request.
+
+```
+cd ~/
+git clone https://github.com/<user>/snapd.git
+cd snapd
+```
 
 This process is outlined in the Github documentation [here](https://docs.github.com/en/github/collaborating-with-pull-requests)
+
+We value good tests, so when you fix a bug or add a new feature we highly
+encourage you to add tests.
+
+For more information on testing, please see the Testing section.
 
 ### Build host dependencies
 
@@ -76,10 +98,10 @@ Build dependencies can automatically be resolved using `build-deb`on Ubuntu.
     cd ~/snapd
     sudo apt-get build-dep .
 
-Package build dependancies for other distributions can be found under the
+Package build dependencies for other distributions can be found under the
 `packages\`directory.
 
-Go module dependancies are automatically resolved at build time.
+Go module dependencies are automatically resolved at build time.
 
 ### Building (natively)
 
@@ -99,7 +121,7 @@ mkdir -p /tmp/build
 go build -o /tmp/build/snapd ./cmd/snapd
 ```
 
-To build the all`snapd` components:
+To build the all`snapd` Go components:
 
 ```
 cd ~/snapd
@@ -115,7 +137,7 @@ Install a suitable cross-compiler for the target architecture.
 sudo apt-get install gcc-arm-linux-gnueabihf
 ```
 
-`Snapd` depends on libseccomp. The following instructions can be used to
+`Snapd` depends on libseccomp v2.3 or later. The following instructions can be used to
 cross-compile the library:
 
 ```
@@ -153,28 +175,13 @@ mkdir -p /tmp/build
 go build -o /tmp/build/snapd ./cmd/snapd
 ```
 
-To build all`snapd` components:
+To build all`snapd` Go components:
 
 ```
 cd ~/snapd
 mkdir -p /tmp/build
 go build -o /tmp/build ./...
 ```
-
-### Contributing
-
-Contributions are always welcome! Please make sure that you sign the
-Canonical contributor license agreement at
-http://www.ubuntu.com/legal/contributors
-
-Snapd can be found on GitHub, so in order to fork the source and contribute,
-go to https://github.com/snapcore/snapd. Check out [GitHub's help
-pages](https://help.github.com/) to find out how to set up your local branch,
-commit changes and create pull requests.
-
-We value good tests, so when you fix a bug or add a new feature we highly
-encourage you to create a test in `$source_test.go`. See also the section
-about Testing.
 
 ### Testing
 
