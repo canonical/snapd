@@ -51,10 +51,12 @@ func (s *hostnameSuite) SetUpTest(c *C) {
 }
 
 func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
+	filler := strings.Repeat("x", 60)
 	invalidHostnames := []string{
 		"-no-start-with-dash", "no-upper-A", "no-ä", "no/slash",
-		"ALL-CAPS-IS-NEVER-OKAY", "no-SHOUTING-allowed",
+		"ALL-CAPS-IS-NEVER-OKAY", "no-SHOUTING-allowed", "foo..bar",
 		strings.Repeat("x", 64),
+		strings.Join([]string{filler, filler, filler, filler, filler}, "."),
 	}
 
 	for _, name := range invalidHostnames {
@@ -77,14 +79,20 @@ func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 	mockedHostname := testutil.MockCommand(c, "hostname", "echo bar")
 	defer mockedHostname.Restore()
 
+	filler := strings.Repeat("x", 63)
 	validHostnames := []string{
+		"a",
 		"foo",
 		strings.Repeat("x", 63),
 		"foo-bar",
 		"foo-------bar",
 		"foo99",
 		"99foo",
+		"localhost.localdomain",
+		"foo.-bar.com",
 		"can-end-with-a-dash-",
+		// 3*63 + 61 + 3 dots = 253
+		strings.Join([]string{filler, filler, filler, strings.Repeat("x", 61)}, "."),
 	}
 
 	for _, hostname := range validHostnames {
