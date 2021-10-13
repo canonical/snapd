@@ -81,7 +81,7 @@ prepare: |
 
         echo "Install lxd"
         if os.query is-pc-i386; then
-            snap install lxd --channel="3.0/$LXD_SNAP_CHANNEL"
+            snap install lxd --channel="3.0/stable"
         else
             snap install lxd --channel="$LXD_SNAP_CHANNEL"
         fi
