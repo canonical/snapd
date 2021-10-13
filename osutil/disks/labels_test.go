@@ -33,7 +33,7 @@ type diskLabelSuite struct{}
 
 var _ = Suite(&diskLabelSuite{})
 
-func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
+func (ts *diskLabelSuite) TestBlkIDEncodeDecodeLabelHappy(c *C) {
 	// Test output obtained with the following program:
 	//
 	// #include <string.h>
@@ -93,5 +93,44 @@ func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
 	for _, t := range tt {
 		c.Logf("tc: %v %q", t.in, t.out)
 		c.Assert(disks.BlkIDEncodeLabel(t.in), Equals, t.out)
+
+		// make sure the other way around works too
+		expin, err := disks.BlkIDDecodeLabel(t.out)
+		c.Assert(err, IsNil)
+
+		c.Assert(expin, Equals, t.in)
+	}
+}
+
+func (ts *diskLabelSuite) TestBlkIDDecodeLabelUnhappy(c *C) {
+	tt := []struct {
+		in     string
+		experr string
+	}{
+		{
+			`\x7z`,
+			"string is malformed, unexpected 'z' character not part of a valid escape sequence",
+		},
+		{
+			`\z`,
+			`string is malformed, unexpected '\\' character not part of a valid escape sequence`,
+		},
+		{
+			`\`,
+			`string is malformed, unfinished escape sequence`,
+		},
+		{
+			`\x`,
+			`string is malformed, unfinished escape sequence`,
+		},
+		{
+			`\x0`,
+			`string is malformed, unfinished escape sequence`,
+		},
+	}
+
+	for _, t := range tt {
+		_, err := disks.BlkIDDecodeLabel(t.in)
+		c.Assert(err, ErrorMatches, t.experr)
 	}
 }
