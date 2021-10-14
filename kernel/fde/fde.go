@@ -113,9 +113,6 @@ type SetupRequest struct {
 // A RunSetupHookFunc implements running the fde-setup kernel hook.
 type RunSetupHookFunc func(req *SetupRequest) ([]byte, error)
 
-// A RunDeviceSetupHookFunc implements running the fde-setup "device-setup"
-type RunDeviceSetupHookFunc func(req *SetupRequest) ([]byte, error)
-
 // InitialSetupParams contains the inputs for the fde-setup hook
 type InitialSetupParams struct {
 	Key     []byte
@@ -184,7 +181,7 @@ type DeviceSetupParams struct {
 // DeviceSetup invokes the "device-setup" op running the fde-setup
 // hook via runSetupHook. This can be used to e.g. initialize
 // inline crypto hardware.
-func DeviceSetup(runDeviceSetupHook RunDeviceSetupHookFunc, params *DeviceSetupParams) error {
+func DeviceSetup(runDeviceSetupHook RunSetupHookFunc, params *DeviceSetupParams) error {
 	req := &SetupRequest{
 		Op:     "device-setup",
 		Key:    params.Key,

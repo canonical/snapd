@@ -177,15 +177,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
 	boot.RunFDESetupHook = m.runFDESetupHook
-	// The fde-setup "device-setup" is called during install in which
-	// the state is unlocked
-	// XXX: instead of passing a "fde.SetupRequest" pass just []byte?
-	//      see https://github.com/snapcore/snapd/compare/master...mvo5:ice/refactor-fde?expand=1
-	boot.RunFDEDeviceSetupHook = func(req *fde.SetupRequest) ([]byte, error) {
-		s.Lock()
-		defer s.Unlock()
-		return m.runFDESetupHook(req)
-	}
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
@@ -1718,6 +1709,14 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 
 	// state must be locked
 	st := m.state
+
+	// The fde-setup "device-setup" is called during install in
+	// which the state is unlocked so we need to lock it here
+	// XXX: this is very inelegant
+	if req.Op == "device-setup" {
+		st.Lock()
+		defer st.Unlock()
+	}
 
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {

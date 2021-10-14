@@ -48,10 +48,10 @@ func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.Re
 	}
 }
 
-func MockBootRunFDEDeviceSetupHook(f func(req *fde.SetupRequest) ([]byte, error)) (restore func()) {
-	old := boot.RunFDEDeviceSetupHook
-	boot.RunFDEDeviceSetupHook = f
+func MockBootRunFDESetupHook(f func(req *fde.SetupRequest) ([]byte, error)) (restore func()) {
+	old := boot.RunFDESetupHook
+	boot.RunFDESetupHook = f
 	return func() {
-		boot.RunFDEDeviceSetupHook = old
+		boot.RunFDESetupHook = old
 	}
 }

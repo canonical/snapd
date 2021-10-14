@@ -63,9 +63,6 @@ var (
 	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
-	RunFDEDeviceSetupHook fde.RunDeviceSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
-		return nil, fmt.Errorf("internal error: RunFDEDeviceSetupHook not set yet")
-	}
 )
 
 type sealingMethod string

@@ -137,7 +137,7 @@ func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.E
 	//       something like "boot.RunFDE*Device*SetupHook" or we run
 	//       the entire install with the state locked (which may not
 	//       be as terrible as it sounds as this is a rare situation).
-	runHook := boot.RunFDEDeviceSetupHook
+	runHook := boot.RunFDESetupHook
 	params := &fde.DeviceSetupParams{
 		Key:    key,
 		Device: mapperDevice,

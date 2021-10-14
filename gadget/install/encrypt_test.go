@@ -209,7 +209,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 
 		}
 
-		restore := install.MockBootRunFDEDeviceSetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+		restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 			return nil, tc.mockedRunFDESetupHookErr
 		})
 		defer restore()
@@ -242,7 +242,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 
 func (s *encryptSuite) TestAddRecoveryKeyDeviceWithSetupHook(c *C) {
 	var setupReq *fde.SetupRequest
-	restore := install.MockBootRunFDEDeviceSetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+	restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		setupReq = req
 		return nil, nil
 	})
