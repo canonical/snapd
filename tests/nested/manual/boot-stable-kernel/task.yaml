@@ -1,0 +1,27 @@
+summary: Check snapd built from current branch boots with the stable kernel
+
+systems: [ubuntu-20.04-*]
+
+environment:
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_USE_CLOUD_INIT: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_ENABLE_TPM: true
+
+    NESTED_KERNEL_CHANNEL: stable
+    NESTED_GADGET_CHANNEL: stable
+    NESTED_BASE_CHANNEL: stable
+    NESTED_SNAPD_CHANNEL: edge
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+debug: |
+    tests.nested exec "snap changes" || true
+
+execute: |
+    # Check the version for the pc-kernel is the defined for the test
+    kernel_installed_version=$(tests.nested exec "snap info pc-kernel | grep installed: | awk '{ print $2 }'")
+    kernel_expected_version=$(tests.nested exec "snap info pc-kernel | grep 20/$NESTED_KERNEL_CHANNEL | awk '{ print $2 }'")
+    test "$kernel_installed_version" = "$kernel_expected_version"
