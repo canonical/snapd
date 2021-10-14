@@ -4,9 +4,15 @@ environment:
     CHANNEL/edge: latest/edge/strict
 
 prepare: |
+    # ensure curl is available (needed for Ubuntu Core)
+    if ! command -v curl; then
+        snap install --devmode --edge test-snapd-curl
+        snap alias test-snapd-curl.curl curl
+    fi
+
     # The default timeout for the configure hook is 5min - however in the
-    # testsuite this is lowered. We need to undo this for the microk8s spread
-    # test because it really take a bit to get configured.
+    # testsuite this is lowered to 30 seconds. We need to undo this for the
+    # microk8s spread test because it really take a bit to get configured.
     cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
     sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i /etc/systemd/system/snapd.service.d/local.conf
     systemctl daemon-reload
@@ -16,6 +22,8 @@ restore: |
     mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
     systemctl daemon-reload
     systemctl restart snapd.socket
+
+    snap remove --purge test-snapd-curl
 
     snap remove --purge microk8s
 
@@ -34,7 +42,16 @@ execute: |
     #microk8s enable dashboard dns registry istio
     microk8s kubectl get nodes | MATCH Ready
     microk8s kubectl get services | MATCH kubernetes
-    
-    microk8s kubectl create deployment nginx --image=nginx
+
+    echo "Deploy and expose an nginx service"
+    microk8s kubectl run nginx --image=nginx
     retry -n 40 sh -c "microk8s kubectl get pods | MATCH Running"
-    # XXX: test if ngix can be connected
+
+    microk8s kubectl expose pod/nginx --name nginx-np --type NodePort --target-port 80 --port 80
+    # while the above command exposes the service on port 80, that's internal
+    # to the pod; in order to have the pod visible outside, we also need to
+    # patch the configuration and hardcode a fixed port number.
+    microk8s kubectl patch svc nginx-np --patch '{"spec":{"ports":[{"port":80,"nodePort":31313}]}}'
+
+    echo "Test if nginx can be connected"
+    retry -n 5 sh -c "curl --max-time 3 'http://localhost:31313/' | MATCH 'Welcome to nginx'"
