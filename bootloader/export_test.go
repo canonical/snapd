@@ -168,7 +168,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		}
 
 		// mock the disk
-		r := disks.MockDeviceNameDisksToPartitionMapping(m)
+		r := disks.MockDeviceNameToDiskMapping(m)
 		cleanups = append(cleanups, r)
 
 		// now mock the kernel command line
