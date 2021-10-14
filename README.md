@@ -72,3 +72,4 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 [codecov-url]: https://codecov.io/gh/snapcore/snapd
 [codecov-image]: https://codecov.io/gh/snapcore/snapd/branch/master/graph/badge.svg
+
