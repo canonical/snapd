@@ -13,6 +13,8 @@ environment:
     NESTED_BASE_CHANNEL: stable
     NESTED_SNAPD_CHANNEL: edge
 
+    NESTED_IMAGE_ID: boot-stable-kernel
+
 prepare: |
     tests.nested build-image core
     tests.nested create-vm core
