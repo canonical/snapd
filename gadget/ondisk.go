@@ -371,35 +371,3 @@ func filesystemInfoForPartition(node string) (blk lsblkBlockDevice, err error) {
 func toUpperUUID(bd *lsblkBlockDevice) {
 	bd.UUID = strings.ToUpper(bd.UUID)
 }
-
-func listBlockDevices(devType string) ([]lsblkBlockDevice, error) {
-	output, err := exec.Command("lsblk", "--json").CombinedOutput()
-	if err != nil {
-		return nil, osutil.OutputErr(output, err)
-	}
-
-	var info lsblkInfo
-	if err := json.Unmarshal(output, &info); err != nil {
-		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
-	}
-
-	for i := range info.BlockDevices {
-		toUpperUUID(&info.BlockDevices[i])
-	}
-
-	if devType == "" {
-		// then no filter set so return all blockdevices
-		return info.BlockDevices, nil
-	}
-
-	// if the devType is not empty, then filter
-	devTypeLowerCase := strings.ToLower(devType)
-	res := []lsblkBlockDevice{}
-	for _, dev := range info.BlockDevices {
-		if strings.ToLower(dev.Type) == devTypeLowerCase {
-			res = append(res, dev)
-		}
-	}
-
-	return res, nil
-}
