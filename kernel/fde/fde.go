@@ -181,7 +181,7 @@ type DeviceSetupParams struct {
 // DeviceSetup invokes the "device-setup" op running the fde-setup
 // hook via runSetupHook. This can be used to e.g. initialize
 // inline crypto hardware.
-func DeviceSetup(runDeviceSetupHook RunSetupHookFunc, params *DeviceSetupParams) error {
+func DeviceSetup(runSetupHook RunSetupHookFunc, params *DeviceSetupParams) error {
 	req := &SetupRequest{
 		Op:     "device-setup",
 		Key:    params.Key,
@@ -190,7 +190,7 @@ func DeviceSetup(runDeviceSetupHook RunSetupHookFunc, params *DeviceSetupParams)
 	}
 	logger.Debugf("running device-setup hook on %q with label %q", req.Device, req.Label)
 
-	hookOutput, err := runDeviceSetupHook(req)
+	hookOutput, err := runSetupHook(req)
 	if err != nil {
 		return fmt.Errorf("device setup failed with: %v", osutil.OutputErr(hookOutput, err))
 	}
