@@ -7,8 +7,8 @@ details: |
 systems: [ubuntu-20.04-*]
 
 environment:
-    NESTED_CORE_CHANNEL: beta
-    NESTED_CORE_REFRESH_CHANNEL: edge
+    NESTED_CHANNEL: beta
+    NESTED_REFRESH_CHANNEL: edge
     NESTED_BUILD_SNAPD_FROM_CURRENT: false
     NESTED_USE_CLOUD_INIT: true
     # TODO:UC20: temporarily disable secure boot and encryption support. The
@@ -30,8 +30,8 @@ environment:
     TRACK/base: latest
 
 prepare: |
-    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
-    TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
+    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CHANNEL)"
+    TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_REFRESH_CHANNEL)"
 
     if [ "$FROM_REV" = "$TO_REV" ]; then
         echo "Initial and target revisions are the same, skipping..."
@@ -50,14 +50,14 @@ execute: |
         exit
     fi
 
-    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
-    TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
+    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CHANNEL)"
+    TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_REFRESH_CHANNEL)"
 
-    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
+    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CHANNEL}.*"
     
     echo "Refresh the snap $SNAP"
     INITIAL_BOOT_ID=$(tests.nested boot-id)
-    REFRESH_ID=$(tests.nested exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
+    REFRESH_ID=$(tests.nested exec "sudo snap refresh --no-wait --channel $NESTED_REFRESH_CHANNEL $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -76,7 +76,7 @@ execute: |
     SECOND_BOOT_ID=$(tests.nested boot-id)
 
     echo "Check the new version of the snaps is correct after the system reboot"
-    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_REFRESH_CHANNEL}.*"
 
     echo "Check the change is completed"
     case "$SNAP" in
@@ -106,7 +106,7 @@ execute: |
     tests.nested wait-for reboot "$SECOND_BOOT_ID"
 
     echo "Check the version of the snaps after the revert is correct"
-    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_REFRESH_CHANNEL}.*"
 
     echo "Check the change is completed"
     case "$SNAP" in

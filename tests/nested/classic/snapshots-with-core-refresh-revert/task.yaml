@@ -14,7 +14,7 @@ prepare: |
 
 execute: |
     echo "Make sure the core in the nested vm is the correct one"
-    tests.nested exec "sudo snap refresh core --${NESTED_CORE_CHANNEL}"
+    tests.nested exec "sudo snap refresh core --${NESTED_CHANNEL}"
 
     echo "Use the snaps, so they create the dirs:"
     tests.nested exec "sudo test-snapd-sh.sh -c 'true'"
@@ -32,7 +32,7 @@ execute: |
     tests.nested exec "sudo rm /root/snap/test-snapd-rsync/{current,common}/canary.txt"
 
     echo "When the core is refreshed the snap snapshot can be restored"
-    tests.nested exec "sudo snap refresh core --${NESTED_CORE_REFRESH_CHANNEL}"
+    tests.nested exec "sudo snap refresh core --${NESTED_REFRESH_CHANNEL}"
     tests.nested exec "sudo snap restore $SET_ID test-snapd-rsync"
     test "$( tests.nested exec "sudo cat /root/snap/test-snapd-rsync/current/canary.txt" )" = "hello versioned test-snapd-rsync"
     test "$( tests.nested exec "sudo cat /root/snap/test-snapd-rsync/common/canary.txt" )" = "hello common test-snapd-rsync"

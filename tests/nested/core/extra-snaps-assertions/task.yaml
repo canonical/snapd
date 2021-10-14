@@ -9,7 +9,7 @@ execute: |
     echo "We have a model assertion"
     tests.nested exec "snap known model" | MATCH "series: 16"
 
-    EXPRESSION="^core18 .* +latest/$NESTED_CORE_CHANNEL +canonical\\* +base"
+    EXPRESSION="^core18 .* +latest/$NESTED_CHANNEL +canonical\\* +base"
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         EXPRESSION="^core18 .* +x1 .* base"
     fi

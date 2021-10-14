@@ -63,10 +63,6 @@ environment:
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
-    # Channel used to create the nested vm
-    NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
-    # Use cloud init to make initial system configuration instead of user assertion
-    NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion
     NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
     # Build and use snapd from current branch
@@ -75,6 +71,18 @@ environment:
     NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
     # Configure nested images to be reused on the following tests
     NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
+    # Channel used to create the nested vm
+    NESTED_CHANNEL: '$(HOST: echo "${NESTED_CHANNEL:-edge}")'
+    # Channel used to refresh once the vm is already created
+    NESTED_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_REFRESH_CHANNEL:-edge}")'
+    # Channel used for the kernel snap
+    NESTED_KERNEL_CHANNEL: '$(HOST: echo "${NESTED_KERNEL_CHANNEL:-edge}")'
+    # Channel used for the base snap
+    NESTED_BASE_CHANNEL: '$(HOST: echo "${NESTED_BASE_CHANNEL:-edge}")'
+    # Channel used for the gadget snap
+    NESTED_GADGET_CHANNEL: '$(HOST: echo "${NESTED_GADGET_CHANNEL:-edge}")'
+    # Channel used for the snapd snap
+    NESTED_SNAPD_CHANNEL: '$(HOST: echo "${NESTED_SNAPD_CHANNEL:-edge}")'
 
 backends:
     google:

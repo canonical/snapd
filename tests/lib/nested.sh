@@ -422,7 +422,7 @@ nested_cleanup_env() {
 
 nested_get_image_name() {
     local TYPE="$1"
-    local SOURCE="${NESTED_CORE_CHANNEL}"
+    local SOURCE="${NESTED_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION="16"
 
@@ -563,7 +563,7 @@ nested_create_core_vm() {
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
-                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
+                    snap download --channel="$NESTED_BASE_CHANNEL" --basename=core18 core18
                     repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
 
@@ -574,7 +574,7 @@ nested_create_core_vm() {
                     fi
 
                 elif nested_is_core_20_system; then
-                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                    snap download --basename=pc-kernel --channel="20/$NESTED_KERNEL_CHANNEL" pc-kernel
 
                     # set the unix bump time if the NESTED_* var is set, 
                     # otherwise leave it empty
@@ -611,7 +611,7 @@ nested_create_core_vm() {
                         SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
                         SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-                        snap download --basename=pc --channel="20/edge" pc
+                        snap download --basename=pc --channel="20/$NESTED_GADGET_CHANNEL" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                         case "${NESTED_UBUNTU_SAVE:-}" in
@@ -653,7 +653,7 @@ EOF
                     fi
 
                     # repack the snapd snap
-                    snap download --channel="latest/edge" snapd
+                    snap download --channel="latest/$NESTED_SNAPD_CHANNEL" snapd
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
 
@@ -662,8 +662,8 @@ EOF
                         make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
                     fi
 
-                    # which channel?
-                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
+                    # repack the core20 snap
+                    snap download --channel="$NESTED_BASE_CHANNEL" --basename=core20 core20
                     repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
 
@@ -690,8 +690,8 @@ EOF
             export SNAPPY_FORCE_SAS_URL
             UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
             export UBUNTU_IMAGE_SNAP_CMD
-            if [ -n "$NESTED_CORE_CHANNEL" ]; then
-                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CORE_CHANNEL"
+            if [ -n "$NESTED_CHANNEL" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CHANNEL"
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi

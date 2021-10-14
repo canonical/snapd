@@ -30,9 +30,9 @@ execute: |
     #shellcheck source=tests/lib/hotplug.sh
     . "$TESTSLIB/hotplug.sh"
 
-    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" != "true" ] && [ "$NESTED_CORE_REFRESH_CHANNEL" != "$NESTED_CORE_CHANNEL" ]; then
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" != "true" ] && [ "$NESTED_REFRESH_CHANNEL" != "$NESTED_CHANNEL" ]; then
         echo "Refresh core snap to desired channel"
-        nested_refresh_to_new_core "$NESTED_CORE_REFRESH_CHANNEL"
+        nested_refresh_to_new_core "$NESTED_REFRESH_CHANNEL"
     fi
 
     if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then

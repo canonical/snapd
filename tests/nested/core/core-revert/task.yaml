@@ -25,14 +25,14 @@ debug: |
     fi
 
 execute: |
-    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]; then
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CHANNEL" = "$NESTED_REFRESH_CHANNEL" ]; then
         echo "This test need to start from beta/candidate/stable channel"
         exit 0
     fi
 
-    echo "Refresh the core snap to $NESTED_CORE_REFRESH_CHANNEL channel"
-    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
-    tests.nested exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
+    echo "Refresh the core snap to $NESTED_REFRESH_CHANNEL channel"
+    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CHANNEL}"
+    tests.nested exec "sudo snap refresh --${NESTED_REFRESH_CHANNEL} core" || true
 
     if ! tests.nested wait-for ssh; then
         echo "ssh not stablished, exiting..."
@@ -40,8 +40,8 @@ execute: |
     fi
 
     echo "Wait until the refresh is completed"
-    tests.nested exec "retry --wait 1 -n 180 --env NESTED_CORE_REFRESH_CHANNEL=$NESTED_CORE_REFRESH_CHANNEL sh -c 'snap changes | MATCH "Done.*Refresh \"core\" snap from \""${NESTED_CORE_REFRESH_CHANNEL}"\" channel"'"
-    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    tests.nested exec "retry --wait 1 -n 180 --env NESTED_REFRESH_CHANNEL=$NESTED_REFRESH_CHANNEL sh -c 'snap changes | MATCH "Done.*Refresh \"core\" snap from \""${NESTED_REFRESH_CHANNEL}"\" channel"'"
+    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_REFRESH_CHANNEL}"
 
     echo "Sanity check, no refresh should be done here but the command shouldn't fail"
     tests.nested exec "sudo snap refresh"
@@ -58,7 +58,7 @@ execute: |
     tests.nested exec "retry --wait 1 -n 180 sh -c 'snap changes" | MATCH "Done.*Revert \"core\" snap'"
 
     echo "Check the revert was done properly"
-    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_REFRESH_CHANNEL}"
     tests.nested exec "ifconfig" | MATCH eth0
 
 
