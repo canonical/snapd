@@ -251,6 +251,24 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPoint(mountpoint, opts)
 }
 
+// DiskFromPartitionDeviceNode finds a matching Disk that the specified
+// partition node resides on.
+func DiskFromPartitionDeviceNode(node string) (Disk, error) {
+	// TODO: support options such as IsDecryptedDevice
+	return diskFromPartitionDeviceNode(node)
+}
+
+var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
+	// get the udev properties for this device node
+	props, err := udevPropertiesForName(node)
+	if err != nil {
+		return nil, err
+	}
+
+	errId := fmt.Sprintf("partition device node %s", node)
+	return diskFromPartUdevPropsAndOpts(errId, props, nil)
+}
+
 type disk struct {
 	major int
 	minor int
@@ -379,51 +397,14 @@ func (d *disk) Schema() string {
 	return d.schema
 }
 
-// diskFromMountPointImpl returns a Disk for the underlying mount source of the
-// specified mount point. For mount points which have sources that are not
-// partitions, and thus are a part of a disk, the returned Disk refers to the
-// volume/disk of the mount point itself.
-func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
-	// first get the mount entry for the mountpoint
-	mounts, err := osutil.LoadMountInfo()
-	if err != nil {
-		return nil, err
-	}
-	var d *disk
-	var partMountPointSource string
-	// loop over the mount entries in reverse order to prevent shadowing of a
-	// particular mount on top of another one
-	for i := len(mounts) - 1; i >= 0; i-- {
-		if mounts[i].MountDir == mountpoint {
-			d = &disk{
-				major: mounts[i].DevMajor,
-				minor: mounts[i].DevMinor,
-			}
-			partMountPointSource = mounts[i].MountSource
-			break
-		}
-	}
-	if d == nil {
-		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
-	}
-
-	// now we have the partition for this mountpoint, we need to tie that back
-	// to a disk with a major minor, so query udev with the mount source path
-	// of the mountpoint for properties
-	props, err := udevPropertiesForName(partMountPointSource)
-	if err != nil && props == nil {
-		// only fail here if props is nil, if it's available we validate it
-		// below
-		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
-	}
-
+func diskFromPartUdevPropsAndOpts(partIDString string, props map[string]string, opts *Options) (*disk, error) {
 	if opts != nil && opts.IsDecryptedDevice {
 		// verify that the mount point is indeed a mapper device, it should:
 		// 1. have DEVTYPE == disk from udev
 		// 2. have dm files in the sysfs entry for the maj:min of the device
 		if props["DEVTYPE"] != "disk" {
 			// not a decrypted device
-			return nil, fmt.Errorf("mountpoint source %s is not a decrypted device: devtype is not disk (is %s)", partMountPointSource, props["DEVTYPE"])
+			return nil, fmt.Errorf("%s is not a decrypted device: devtype is not disk (is %s)", partIDString, props["DEVTYPE"])
 		}
 
 		// TODO:UC20: currently, we effectively parse the DM_UUID env variable
@@ -447,17 +428,26 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		//            or not, given that these variables have been observed to
 		//            be missing from the initrd previously, and are not
 		//            available at all during userspace on UC20 for some reason
-		errFmt := "mountpoint source %s is not a decrypted device: could not read device mapper metadata: %v"
+		errFmt := "%s is not a decrypted device: could not read device mapper metadata: %v"
 
-		dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", d.Dev(), "dm")
+		if props["MAJOR"] == "" {
+			return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"MAJOR\"", partIDString)
+		}
+		if props["MINOR"] == "" {
+			return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"MAJOR\"", partIDString)
+		}
+
+		majmin := props["MAJOR"] + ":" + props["MINOR"]
+
+		dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
 		dmUUID, err := ioutil.ReadFile(filepath.Join(dmDir, "uuid"))
 		if err != nil {
-			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
+			return nil, fmt.Errorf(errFmt, partIDString, err)
 		}
 
 		dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
 		if err != nil {
-			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
+			return nil, fmt.Errorf(errFmt, partIDString, err)
 		}
 
 		// trim the suffix of the dm name from the dm uuid to safely match the
@@ -474,7 +464,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		if len(matches) != 2 {
 			// the format of the uuid is different - different luks version
 			// maybe?
-			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", d.Dev(), dmUUIDSafe)
+			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", majmin, dmUUIDSafe)
 		}
 
 		// the uuid is the first and only submatch, but it is not in the same
@@ -505,69 +495,108 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
 	// partition originated from if this mount point is indeed for a partition
-	if majorMinor, ok := props["ID_PART_ENTRY_DISK"]; ok {
-		maj, min, err := parseDeviceMajorMinor(majorMinor)
-		if err != nil {
-			// bad udev output?
-			return nil, fmt.Errorf("cannot find disk for partition %s, bad udev output: %v", partMountPointSource, err)
-		}
-		d.major = maj
-		d.minor = min
-
-		// now go find the devname and devpath for this major/minor pair since
-		// we will need that later - note that the props variable at this point
-		// is for the partition, not the parent disk itself, hence the
-		// additional lookup
-		realDiskProps, err := udevPropertiesForName(filepath.Join("/dev/block/", majorMinor))
-		if err != nil {
-			return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
-		}
-
-		if realDiskProps["DEVNAME"] == "" {
-			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"DEVNAME\"", partMountPointSource)
-		}
-
-		d.devname = realDiskProps["DEVNAME"]
-
-		if realDiskProps["DEVPATH"] == "" {
-			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"DEVPATH\"", partMountPointSource)
-		}
-		// the DEVPATH is given as relative to /sys, so for simplicity's sake
-		// add /sys to the path we save as we return it later
-		d.devpath = filepath.Join(dirs.SysfsDir, realDiskProps["DEVPATH"])
-
-		// get the partition table ID and the schema
-		partTableID := realDiskProps["ID_PART_TABLE_UUID"]
-		if partTableID == "" {
-			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_UUID\"", partMountPointSource)
-		}
-
-		schema := realDiskProps["ID_PART_TABLE_TYPE"]
-		if schema == "" {
-			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"", partMountPointSource)
-		}
-
-		d.schema = schema
-		d.diskID = partTableID
-
-		// since the mountpoint device has a disk, the mountpoint source itself
-		// must be a partition from a disk, thus the disk has partitions
-		d.hasPartitions = true
-		return d, nil
+	if props["ID_PART_ENTRY_DISK"] == "" {
+		// TODO: there may be valid use cases for ID_PART_ENTRY_DISK being
+		// missing, like where a mountpoint is for a decrypted mapper device,
+		// and the physical backing device is a full disk and not a partition,
+		// but we don't have such use cases right now so just error, this can
+		// be revisited later on
+		return nil, fmt.Errorf("cannot find disk from %s, incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"", partIDString)
 	}
 
-	// if we don't have ID_PART_ENTRY_DISK, the partition is probably a mapped
-	// volume or other non-physical disk, so confirm that DEVTYPE == disk and
-	// return the maj/min for it
-	if devType, ok := props["DEVTYPE"]; ok {
-		if devType == "disk" {
-			return d, nil
-		}
-		// unclear what other DEVTYPE's we should support for this function
-		return nil, fmt.Errorf("unsupported DEVTYPE %q for mount point source %s", devType, partMountPointSource)
+	majorMinor := props["ID_PART_ENTRY_DISK"]
+	maj, min, err := parseDeviceMajorMinor(majorMinor)
+	if err != nil {
+		// bad udev output?
+		return nil, fmt.Errorf("cannot find disk from %s, bad udev output: %v", partIDString, err)
 	}
 
-	return nil, fmt.Errorf("cannot find disk for partition %s, incomplete udev output", partMountPointSource)
+	d := &disk{
+		major: maj,
+		minor: min,
+	}
+
+	// now go find the devname and devpath for this major/minor pair since
+	// we will need that later - note that the props variable at this point
+	// is for the partition, not the parent disk itself, hence the
+	// additional lookup
+	realDiskProps, err := udevPropertiesForName(filepath.Join("/dev/block/", majorMinor))
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk from %s: %v", partIDString, err)
+	}
+
+	if devtype := realDiskProps["DEVTYPE"]; devtype != "disk" {
+		return nil, fmt.Errorf("cannot find disk from %s, unsupported DEVTYPE %q", partIDString, devtype)
+	}
+
+	if realDiskProps["DEVNAME"] == "" {
+		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"DEVNAME\"", partIDString)
+	}
+
+	d.devname = realDiskProps["DEVNAME"]
+
+	if realDiskProps["DEVPATH"] == "" {
+		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"DEVPATH\"", partIDString)
+	}
+
+	// the DEVPATH is given as relative to /sys, so for simplicity's sake
+	// add /sys to the path we save as we return it later
+	d.devpath = filepath.Join(dirs.SysfsDir, realDiskProps["DEVPATH"])
+
+	partTableID := realDiskProps["ID_PART_TABLE_UUID"]
+	if partTableID == "" {
+		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"ID_PART_TABLE_UUID\"", partIDString)
+	}
+
+	schema := realDiskProps["ID_PART_TABLE_TYPE"]
+	if schema == "" {
+		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"", partIDString)
+	}
+
+	d.schema = schema
+	d.diskID = partTableID
+
+	// since the mountpoint device has a disk, the mountpoint source itself
+	// must be a partition from a disk, thus the disk has partitions
+	d.hasPartitions = true
+	return d, nil
+}
+
+// diskFromMountPointImpl returns a Disk for the underlying mount source of the
+// specified mount point. For mount points which have sources that are not
+// partitions, and thus are a part of a disk, the returned Disk refers to the
+// volume/disk of the mount point itself.
+func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
+	// first get the mount entry for the mountpoint
+	mounts, err := osutil.LoadMountInfo()
+	if err != nil {
+		return nil, err
+	}
+	var partMountPointSource string
+	// loop over the mount entries in reverse order to prevent shadowing of a
+	// particular mount on top of another one
+	for i := len(mounts) - 1; i >= 0; i-- {
+		if mounts[i].MountDir == mountpoint {
+			partMountPointSource = mounts[i].MountSource
+			break
+		}
+	}
+	if partMountPointSource == "" {
+		return nil, fmt.Errorf("cannot find mountpoint %q", mountpoint)
+	}
+
+	// now we have the partition for this mountpoint, we need to tie that back
+	// to a disk with a major minor, so query udev with the mount source path
+	// of the mountpoint for properties
+	props, err := udevPropertiesForName(partMountPointSource)
+	if err != nil && props == nil {
+		// only fail here if props is nil, if it's available we validate it
+		// below
+		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
+	}
+
+	errIdString := fmt.Sprintf("mountpoint source %s of %s", partMountPointSource, mountpoint)
+	return diskFromPartUdevPropsAndOpts(errIdString, props, opts)
 }
 
 func (d *disk) populatePartitions() error {
