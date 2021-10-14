@@ -632,6 +632,73 @@ func (d *disk) populatePartitions() error {
 			}
 			part.KernelDeviceNode = devname
 
+			// we should always have the partition type
+			partType, ok := udevProps["ID_PART_ENTRY_TYPE"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_TYPE\"", partDev, d.Dev())
+			}
+
+			// on dos disks, the type is formatted like "0xc", when we prefer to
+			// always use "0x0C" so fix the formatting
+			if d.schema == "DOS" {
+				partType = strings.TrimPrefix(partType, "0x")
+				v, err := strconv.ParseUint(partType, 16, 8)
+				if err != nil {
+					return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot convert MBR partition type %q: %v", partDev, d.Dev(), partType, err)
+				}
+				partType = fmt.Sprintf("%02X", v)
+			} else {
+				// on GPT disks, just capitalize the partition type since it's a
+				// UUID
+				partType = strings.ToUpper(partType)
+			}
+
+			part.PartitionType = partType
+
+			size, ok := udevProps["ID_PART_ENTRY_SIZE"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_SIZE\"", partDev, d.Dev())
+			}
+
+			v, err := strconv.ParseUint(size, 10, 64)
+			if err != nil {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot parse partition size %q: %v", partDev, d.Dev(), size, err)
+			}
+
+			// udev always reports the size in 512 byte blocks, regardless of
+			// sector size, so multiply the size in 512 byte blocks by 512 to
+			// get the size in bytes
+			part.SizeInBytes = v * 512
+
+			// the partition may not have a filesystem, in which case this might
+			// be the empty string
+			part.FilesystemType = udevProps["ID_FS_TYPE"]
+
+			partIndex, ok := udevProps["ID_PART_ENTRY_NUMBER"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_NUMBER\"", partDev, d.Dev())
+			}
+
+			v, err = strconv.ParseUint(partIndex, 10, 64)
+			if err != nil {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot parse partition index %q: %v", partDev, d.Dev(), size, err)
+			}
+			part.StructureIndex = v
+
+			partOffset, ok := udevProps["ID_PART_ENTRY_OFFSET"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_OFFSET\"", partDev, d.Dev())
+			}
+
+			v, err = strconv.ParseUint(partOffset, 10, 64)
+			if err != nil {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot parse partition offset %q: %v", partDev, d.Dev(), size, err)
+			}
+			// udev always reports the size in 512 byte blocks, regardless of
+			// sector size, so multiply the size in 512 byte blocks by 512 to
+			// get the size in bytes
+			part.StartInBytes = v * 512
+
 			// we should always have the partition uuid, and we may not have
 			// either the partition label or the filesystem label, on GPT disks
 			// the partition label is optional, and may or may not have a

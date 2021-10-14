@@ -48,6 +48,7 @@ var (
 
 	biosBootUdevPropMap = map[string]string{
 		"ID_PART_ENTRY_UUID": "bios-boot-partuuid",
+		"ID_PART_ENTRY_TYPE": "21686148-6449-6e6f-744e-656564454649",
 		// the udev prop for bios-boot has no fs label, which is typical of the
 		// real bios-boot partition on a amd64 pc gadget system, and so we should
 		// safely just ignore and skip this partition in the fs label
@@ -56,39 +57,56 @@ var (
 		// we will however still have a partition label of "BIOS Boot"
 		"ID_PART_ENTRY_NAME": "BIOS\\x20Boot",
 
-		"DEVNAME": "/dev/vda1",
-		"DEVPATH": "/devices/bios-boot-device",
-		"MAJOR":   "42",
-		"MINOR":   "1",
+		"DEVNAME":              "/dev/vda1",
+		"DEVPATH":              "/devices/bios-boot-device",
+		"MAJOR":                "42",
+		"MINOR":                "1",
+		"ID_PART_ENTRY_OFFSET": "2048",
+		"ID_PART_ENTRY_SIZE":   "2048",
+		"ID_PART_ENTRY_NUMBER": "1",
 	}
 
 	// all the ubuntu- partitions have fs labels
 	ubuntuSeedUdevPropMap = map[string]string{
-		"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
-		"ID_FS_LABEL_ENC":    "ubuntu-seed",
-		"ID_PART_ENTRY_NAME": "ubuntu-seed",
-		"DEVNAME":            "/dev/vda2",
-		"DEVPATH":            "/devices/ubuntu-seed-device",
-		"MAJOR":              "42",
-		"MINOR":              "2",
+		"ID_PART_ENTRY_UUID":   "ubuntu-seed-partuuid",
+		"ID_FS_LABEL_ENC":      "ubuntu-seed",
+		"ID_PART_ENTRY_NAME":   "ubuntu-seed",
+		"ID_PART_ENTRY_TYPE":   "c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+		"DEVNAME":              "/dev/vda2",
+		"DEVPATH":              "/devices/ubuntu-seed-device",
+		"MAJOR":                "42",
+		"MINOR":                "2",
+		"ID_PART_ENTRY_OFFSET": "4096",
+		"ID_PART_ENTRY_SIZE":   "2457600",
+		"ID_PART_ENTRY_NUMBER": "2",
 	}
 	ubuntuBootUdevPropMap = map[string]string{
-		"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
-		"ID_FS_LABEL_ENC":    "ubuntu-boot",
-		"ID_PART_ENTRY_NAME": "ubuntu-boot",
-		"DEVNAME":            "/dev/vda3",
-		"DEVPATH":            "/devices/ubuntu-boot-device",
-		"MAJOR":              "42",
-		"MINOR":              "3",
+		"ID_PART_ENTRY_UUID":   "ubuntu-boot-partuuid",
+		"ID_FS_LABEL_ENC":      "ubuntu-boot",
+		"ID_PART_ENTRY_NAME":   "ubuntu-boot",
+		"ID_PART_ENTRY_TYPE":   "0fc63daf-8483-4772-8e79-3d69d8477de4",
+		"DEVNAME":              "/dev/vda3",
+		"DEVPATH":              "/devices/ubuntu-boot-device",
+		"MAJOR":                "42",
+		"MINOR":                "3",
+		"ID_PART_ENTRY_OFFSET": "2461696",
+		"ID_PART_ENTRY_SIZE":   "1536000",
+		"ID_PART_ENTRY_NUMBER": "3",
 	}
 	ubuntuDataUdevPropMap = map[string]string{
 		"ID_PART_ENTRY_UUID": "ubuntu-data-partuuid",
 		"ID_FS_LABEL_ENC":    "ubuntu-data",
 		"ID_PART_ENTRY_NAME": "ubuntu-data",
+		"ID_PART_ENTRY_TYPE": "0fc63daf-8483-4772-8e79-3d69d8477de4",
 		"DEVNAME":            "/dev/vda4",
 		"DEVPATH":            "/devices/ubuntu-data-device",
 		"MAJOR":              "42",
 		"MINOR":              "4",
+		// meh this doesn't line up because I used output from a real uc20 dev
+		// with ubuntu-save too, but none of the tests here assume ubuntu-save
+		"ID_PART_ENTRY_OFFSET": "3997696",
+		"ID_PART_ENTRY_SIZE":   "8552415",
+		"ID_PART_ENTRY_NUMBER": "3",
 	}
 )
 
@@ -396,12 +414,16 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			// this is essentially the same as /dev/block/42:1 in actuality, but
 			// we search for it differently
 			return map[string]string{
-				"ID_FS_LABEL_ENC":    "some-label",
-				"ID_PART_ENTRY_UUID": "some-uuid",
-				"DEVPATH":            "/devices/some-device",
-				"DEVNAME":            "/dev/vda4",
-				"MAJOR":              "42",
-				"MINOR":              "4",
+				"ID_FS_LABEL_ENC":      "some-label",
+				"ID_PART_ENTRY_UUID":   "some-uuid",
+				"ID_PART_ENTRY_TYPE":   "some-gpt-uuid-type",
+				"ID_PART_ENTRY_SIZE":   "3000",
+				"ID_PART_ENTRY_OFFSET": "2500",
+				"ID_PART_ENTRY_NUMBER": "4",
+				"DEVPATH":              "/devices/some-device",
+				"DEVNAME":              "/dev/vda4",
+				"MAJOR":                "42",
+				"MINOR":                "4",
 			}, nil
 		default:
 			c.Errorf("unexpected udev device properties requested: %s", dev)
@@ -436,6 +458,10 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			KernelDeviceNode: "/dev/vda4",
 			Major:            42,
 			Minor:            4,
+			PartitionType:    "SOME-GPT-UUID-TYPE",
+			SizeInBytes:      3000 * 512,
+			StructureIndex:   4,
+			StartInBytes:     2500 * 512,
 		},
 	})
 
@@ -760,6 +786,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 `)
 	defer restore()
 
+	// the order is reversed so that Find... functions working on the list of
+	// partitions can easily implement the same logic that udev uses when
+	// choosing which partition to use as /dev/disk/by-label when there exist
+	// multiple disks with that label, which is "last seen"
 	partsOnDisk := map[string]disks.Partition{
 		"ubuntu-data-enc": {
 			FilesystemLabel:  "ubuntu-data-enc",
@@ -768,6 +798,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            4,
 			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-data-enc-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda4",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			SizeInBytes:      8552415 * 512,
+			StructureIndex:   4,
+			StartInBytes:     3997696 * 512,
 		},
 		"ubuntu-boot": {
 			FilesystemLabel:  "ubuntu-boot",
@@ -777,6 +811,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            3,
 			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-boot-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda3",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			SizeInBytes:      1536000 * 512,
+			StructureIndex:   3,
+			StartInBytes:     2461696 * 512,
 		},
 		"ubuntu-seed": {
 			FilesystemLabel:  "ubuntu-seed",
@@ -786,6 +824,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            2,
 			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-seed-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda2",
+			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			SizeInBytes:      2457600 * 512,
+			StructureIndex:   2,
+			StartInBytes:     4096 * 512,
 		},
 		"bios-boot": {
 			PartitionLabel:   "BIOS\\x20Boot",
@@ -794,16 +836,24 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            1,
 			KernelDevicePath: fmt.Sprintf("%s/devices/bios-boot-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda1",
+			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+			SizeInBytes:      2048 * 512,
+			StructureIndex:   1,
+			StartInBytes:     2048 * 512,
 		},
 	}
 
 	ubuntuDataEncUdevPropMap := map[string]string{
-		"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
-		"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
-		"DEVPATH":            "/devices/ubuntu-data-enc-device",
-		"DEVNAME":            "/dev/vda4",
-		"MAJOR":              "42",
-		"MINOR":              "4",
+		"ID_FS_LABEL_ENC":      "ubuntu-data-enc",
+		"ID_PART_ENTRY_UUID":   "ubuntu-data-enc-partuuid",
+		"DEVPATH":              "/devices/ubuntu-data-enc-device",
+		"ID_PART_ENTRY_TYPE":   "0fc63daf-8483-4772-8e79-3d69d8477de4",
+		"DEVNAME":              "/dev/vda4",
+		"MAJOR":                "42",
+		"MINOR":                "4",
+		"ID_PART_ENTRY_OFFSET": "3997696",
+		"ID_PART_ENTRY_SIZE":   "8552415",
+		"ID_PART_ENTRY_NUMBER": "4",
 	}
 
 	n := 0

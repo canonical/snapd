@@ -147,6 +147,18 @@ type Partition struct {
 	KernelDevicePath string
 	// KernelDeviceNode is the kernel device node in /dev.
 	KernelDeviceNode string
+	// PartitionType is the type of structure, for example 0x0C.
+	PartitionType string
+	// FilesystemType is the type of filesystem i.e. ext4 or vfat, etc.
+	FilesystemType string
+	// SizeInBytes is the overall size of the partition/structure in bytes.
+	SizeInBytes uint64
+	// StructureIndex is the index of the structure on the disk, where the first
+	// partition/structure has index of 1.
+	StructureIndex uint64
+	// StartInBytes is the beginning of the partition/structure in bytes.
+	StartInBytes uint64
+
 	// TODO: also include a Disk field for finding what Disk this partition came
 	// from?
 }
