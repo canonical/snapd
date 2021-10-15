@@ -120,6 +120,13 @@ var _ = encryptedDevice(&encryptedDeviceWithSetupHook{})
 // newEncryptedDeviceWithSetupHook creates an encrypted device in the
 // existing partition using the specified key using the fde-setup hook
 func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
+	// for roles requiring encryption, the filesystem label is always set to
+	// either the implicit value or a value that has been validated
+	if part.Name != name || part.Label != name {
+		return nil, fmt.Errorf("cannot use partition name %q for an encrypted structure with %v role and filesystem with label %q",
+			name, part.Role, part.Label)
+	}
+
 	// 1. create linear mapper device with 1Mb of reserved space
 	uuid := ""
 	offset := fde.DeviceSetupHookPartitionOffset

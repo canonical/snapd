@@ -181,7 +181,8 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (string, string, error) {
 	// 1. mount name under the right mapper with 1mb offset
 
-	// XXX: we're assuming that partition name is well know at this point
+	// XXX: we're assuming that partition name is well known at this point
+	// and the assumption has been verified at install time
 	part, err := disk.FindMatchingPartitionWithPartLabel(name)
 	if err != nil {
 		return "", "", err

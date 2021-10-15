@@ -50,6 +50,7 @@ var _ = Suite(&encryptSuite{})
 var mockDeviceStructure = gadget.OnDiskStructure{
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			Role:  gadget.SystemData,
 			Name:  "Test structure",
 			Label: "some-label",
 		},
@@ -180,7 +181,22 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 	}
 }
 
+var mockDeviceStructureForDeviceSetupHook = gadget.OnDiskStructure{
+	LaidOutStructure: gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Role:  gadget.SystemData,
+			Name:  "ubuntu-data",
+			Label: "ubuntu-data",
+		},
+		StartOffset: 0,
+		Index:       1,
+	},
+	Size: 3 * quantity.SizeMiB,
+	Node: "/dev/node1",
+}
+
 func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
+
 	for _, tc := range []struct {
 		mockedOpenErr            string
 		mockedRunFDESetupHookErr error
@@ -200,7 +216,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 		{
 			mockedOpenErr:            "open error",
 			mockedRunFDESetupHookErr: nil,
-			expectedErr:              `cannot create mapper "some-label" on /dev/node1: open error`,
+			expectedErr:              `cannot create mapper "ubuntu-data" on /dev/node1: open error`,
 		},
 	} {
 		script := ""
@@ -217,14 +233,15 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 		mockDmsetup := testutil.MockCommand(c, "dmsetup", script)
 		s.AddCleanup(mockDmsetup.Restore)
 
-		dev, err := install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
+		dev, err := install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructureForDeviceSetupHook,
+			s.mockedEncryptionKey, "ubuntu-data")
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 			continue
 		}
-		c.Check(dev.Node(), Equals, "/dev/mapper/some-label")
+		c.Check(dev.Node(), Equals, "/dev/mapper/ubuntu-data")
 
 		err = dev.Close()
 		c.Assert(err, IsNil)
@@ -234,10 +251,50 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 			// size of the mock device is 3Mb: 2Mb
 			// (4096*512) length if left and the offset is
 			// 1Mb (2048*512) at the start
-			{"dmsetup", "create", "some-label", "--table", "0 4096 linear /dev/node1 2048"},
-			{"dmsetup", "remove", "some-label"},
+			{"dmsetup", "create", "ubuntu-data", "--table", "0 4096 linear /dev/node1 2048"},
+			{"dmsetup", "remove", "ubuntu-data"},
 		})
 	}
+}
+
+func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHookPartitionNameCheck(c *C) {
+	mockDeviceStructureBadName := gadget.OnDiskStructure{
+		LaidOutStructure: gadget.LaidOutStructure{
+			VolumeStructure: &gadget.VolumeStructure{
+				Role:  gadget.SystemData,
+				Name:  "ubuntu-data",
+				Label: "ubuntu-data",
+			},
+			StartOffset: 0,
+			Index:       1,
+		},
+		Size: 3 * quantity.SizeMiB,
+		Node: "/dev/node1",
+	}
+	restore := install.MockBootRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
+		c.Error("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	mockDmsetup := testutil.MockCommand(c, "dmsetup", `echo "unexpected call" >&2; exit 1`)
+	s.AddCleanup(mockDmsetup.Restore)
+
+	// pass a name that does not match partition name
+	dev, err := install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructureBadName,
+		s.mockedEncryptionKey, "some-name")
+	c.Assert(err, ErrorMatches, `cannot use partition name "some-name" for an encrypted structure with system-data role and filesystem with label "ubuntu-data"`)
+	c.Check(dev, IsNil)
+	c.Check(mockDmsetup.Calls(), HasLen, 0)
+	// make structure name different than the label, which is set to either
+	// the implicit value or has already been validated and matches what is
+	// expected for the particular role
+	mockDeviceStructureBadName.Name = "bad-name"
+	dev, err = install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructureBadName,
+		s.mockedEncryptionKey, "bad-name")
+	c.Assert(err, ErrorMatches, `cannot use partition name "bad-name" for an encrypted structure with system-data role and filesystem with label "ubuntu-data"`)
+	c.Check(dev, IsNil)
+	c.Check(mockDmsetup.Calls(), HasLen, 0)
 }
 
 func (s *encryptSuite) TestAddRecoveryKeyDeviceWithSetupHook(c *C) {
@@ -251,10 +308,11 @@ func (s *encryptSuite) TestAddRecoveryKeyDeviceWithSetupHook(c *C) {
 	mockDmsetup := testutil.MockCommand(c, "dmsetup", "")
 	s.AddCleanup(mockDmsetup.Restore)
 
-	dev, err := install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
+	dev, err := install.NewEncryptedDeviceWithSetupHook(&mockDeviceStructureForDeviceSetupHook,
+		s.mockedEncryptionKey, "ubuntu-data")
 	c.Assert(err, IsNil)
-	c.Check(setupReq.Device, Equals, "/dev/mapper/some-label")
-	c.Check(setupReq.PartitionName, Equals, "some-label")
+	c.Check(setupReq.Device, Equals, "/dev/mapper/ubuntu-data")
+	c.Check(setupReq.PartitionName, Equals, "ubuntu-data")
 
 	err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)
 	c.Check(err, ErrorMatches, "recovery keys are not supported on devices that use the device-setup hook")
