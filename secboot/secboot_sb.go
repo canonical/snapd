@@ -196,7 +196,7 @@ func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (strin
 	// XXX: This is the location of both locked and unlocked
 	//      paths because inline-encryption is transparent. So
 	//      What is the best name?
-	mapperName := name + "-device-unlock"
+	mapperName := fde.EncryptedDeviceMapperName(name)
 
 	offset := fde.DeviceSetupHookPartitionOffset
 	mapperSize := partSize - offset
