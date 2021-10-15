@@ -50,7 +50,7 @@ prepare: |
 
   # use a specific version of the kernel snap and thus initramfs that we know
   # doesn't support v2 secboot keys
-  wget "$INITIAL_KERNEL_REV_URL"
+  wget --quiet "$INITIAL_KERNEL_REV_URL"
 
   # unpack it and repack it so it doesn't match any store assertions and thus
   # won't be automatically refreshed behind our backs when we boot the VM
