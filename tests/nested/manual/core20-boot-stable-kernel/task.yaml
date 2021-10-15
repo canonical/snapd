@@ -14,6 +14,9 @@ environment:
     NESTED_SNAPD_CHANNEL: edge
 
     NESTED_IMAGE_ID: boot-stable-kernel
+    NESTED_REPACK_KERNEL_SNAP: false
+    NESTED_REPACK_GADGET_SNAP: false
+    NESTED_REPACK_BASE_SNAP: false
 
 prepare: |
     tests.nested build-image core

@@ -83,6 +83,11 @@ environment:
     NESTED_GADGET_CHANNEL: '$(HOST: echo "${NESTED_GADGET_CHANNEL:-edge}")'
     # Channel used for the snapd snap
     NESTED_SNAPD_CHANNEL: '$(HOST: echo "${NESTED_SNAPD_CHANNEL:-edge}")'
+    # Indicates if the snap has to be repacked in case NESTED_BUILD_SNAPD_FROM_CURRENT is true
+    NESTED_REPACK_KERNEL_SNAP: '$(HOST: echo "${NESTED_REPACK_KERNEL_SNAP:-true}")'
+    NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
+    NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
+
 
 backends:
     google:

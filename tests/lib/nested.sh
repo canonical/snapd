@@ -564,8 +564,12 @@ nested_create_core_vm() {
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
                     snap download --channel="$NESTED_BASE_CHANNEL" --basename=core18 core18
-                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+                    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+                        repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+                    else
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/core18.snap"
+                    fi
 
                     repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
 
@@ -575,26 +579,29 @@ nested_create_core_vm() {
 
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/$NESTED_KERNEL_CHANNEL" pc-kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        # set the unix bump time if the NESTED_* var is set,
+                        # otherwise leave it empty
+                        local epochBumpTime
+                        epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                        if [ -n "$epochBumpTime" ]; then
+                            epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                        fi
+                        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                        rm -f "$PWD/pc-kernel.snap"
 
-                    # set the unix bump time if the NESTED_* var is set, 
-                    # otherwise leave it empty
-                    local epochBumpTime
-                    epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-                    if [ -n "$epochBumpTime" ]; then
-                        epochBumpTime="--epoch-bump-time=$epochBumpTime"
-                    fi
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                    rm -f "$PWD/pc-kernel.snap"
+                        # Prepare the pc kernel snap
+                        KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
 
-                    # Prepare the pc kernel snap
-                    KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
+                        chmod 0600 "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
-                    chmod 0600 "$KERNEL_SNAP"
-                    EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
-
-                    # sign the pc-kernel snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        # sign the pc-kernel snap with fakestore if requested
+                        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        fi
+                    else
+                        EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
                     fi
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -605,43 +612,47 @@ nested_create_core_vm() {
                     fi
                     # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
                     if [ -z "$GADGET_SNAP" ]; then
-                        # Get the snakeoil key and cert
-                        local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
-                        KEY_NAME=$(nested_get_snakeoil_key)
-                        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-                        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
                         snap download --basename=pc --channel="20/$NESTED_GADGET_CHANNEL" pc
-                        unsquashfs -d pc-gadget pc.snap
-                        nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        case "${NESTED_UBUNTU_SAVE:-}" in
-                            add)
-                                # ensure that ubuntu-save is present
-                                nested_ensure_ubuntu_save pc-gadget --add
-                                touch ubuntu-save-added
-                                ;;
-                            remove)
-                                # ensure that ubuntu-save is removed
-                                nested_ensure_ubuntu_save pc-gadget --remove
-                                touch ubuntu-save-removed
-                                ;;
-                        esac
+                        if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
+                            # Get the snakeoil key and cert
+                            local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
+                            KEY_NAME=$(nested_get_snakeoil_key)
+                            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+                            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-                        # also make logging persistent for easier debugging of
-                        # test failures, otherwise we have no way to see what
-                        # happened during a failed nested VM boot where we
-                        # weren't able to login to a device
-                        cat >> pc-gadget/meta/gadget.yaml << EOF
+                            unsquashfs -d pc-gadget pc.snap
+                            nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                            case "${NESTED_UBUNTU_SAVE:-}" in
+                                add)
+                                    # ensure that ubuntu-save is present
+                                    nested_ensure_ubuntu_save pc-gadget --add
+                                    touch ubuntu-save-added
+                                    ;;
+                                remove)
+                                    # ensure that ubuntu-save is removed
+                                    nested_ensure_ubuntu_save pc-gadget --remove
+                                    touch ubuntu-save-removed
+                                    ;;
+                            esac
+
+                            # also make logging persistent for easier debugging of
+                            # test failures, otherwise we have no way to see what
+                            # happened during a failed nested VM boot where we
+                            # weren't able to login to a device
+                            cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
   system:
     journal:
       persistent: true
 EOF
-                        snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+                            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
-                        GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
-                        rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
+                            GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+                            rm -f "$PWD/pc.snap" "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+                            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $GADGET_SNAP"
+                        else
+                            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/pc.snap"
+                        fi
                     fi
                     # sign the pc gadget snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -664,8 +675,12 @@ EOF
 
                     # repack the core20 snap
                     snap download --channel="$NESTED_BASE_CHANNEL" --basename=core20 core20
-                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+                    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+                        repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+                    else
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/core20.snap"
+                    fi
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
