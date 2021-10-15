@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type recordingStore struct {
@@ -72,19 +74,19 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 }
 
 type refreshHintsTestSuite struct {
+	testutil.BaseTest
 	state *state.State
 
-	store        *recordingStore
-	restoreModel func()
+	store *recordingStore
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
 
 func (s *refreshHintsTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.state = state.New(nil)
-
 	s.store = &recordingStore{}
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -109,14 +111,17 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
-	s.restoreModel = snapstatetest.MockDeviceModel(DefaultModel())
-}
-
-func (s *refreshHintsTestSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	snapstate.CanAutoRefresh = nil
-	snapstate.AutoAliases = nil
-	s.restoreModel()
+	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
+	s.AddCleanup(restoreModel)
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restoreEnforcedValidationSets)
+	s.AddCleanup(func() {
+		dirs.SetRootDir("/")
+		snapstate.CanAutoRefresh = nil
+		snapstate.AutoAliases = nil
+	})
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {

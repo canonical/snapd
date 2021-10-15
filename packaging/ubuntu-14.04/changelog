@@ -1,3 +1,28 @@
+snapd (2.52.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1942646
+    - snap-bootstrap: wait in `mountNonDataPartitionMatchingKernelDisk`
+      for the disk (if not present already)
+    - many: support an API flag system-restart-immediate to make snap
+      ops proceed immediately with system restarts
+    - cmd/libsnap-confine-private: g_spawn_check_exit_status is
+      deprecated since glib 2.69
+    - interfaces/seccomp: add clone3 to default template
+    - interfaces/apparmor/template.go: allow inspection of dbus
+      mediation level
+    - interfaces/dsp: add a usb rule to the ambarella flavor
+    - cmd/snap-confine: update s-c apparmor profile to allow versioned
+      ld.so
+    - o/ifacestate: don't lose connections if snaps are broken
+    - interfaces/builtin/opengl.go: add libOpenGL.so* too
+    - interfaces/hardware-observe: add some dmi properties
+    - build-aux: stage libgcc1 library into snapd snap
+    - interfaces/block-devices: support to access the state of block
+      devices
+    - packaging: ship the `snapd.apparmor.service` unit in debian
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 05 Oct 2021 13:29:25 +0200
+
 snapd (2.52~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1942646

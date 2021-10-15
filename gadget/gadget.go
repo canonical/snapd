@@ -22,6 +22,7 @@ package gadget
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -34,6 +35,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
@@ -204,6 +206,109 @@ func (vc VolumeContent) String() string {
 type VolumeUpdate struct {
 	Edition  edition.Number `yaml:"edition"`
 	Preserve []string       `yaml:"preserve"`
+}
+
+// DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
+// a previous point in time on the same device, and is used primarily to try and
+// map a volume in the gadget.yaml to a physical device on the system after the
+// initial installation is done. We don't have a steadfast and predictable way
+// to always find the device again, so we need to do a search, trying to find a
+// device which matches each trait in turn, and verify it matches the  physical
+// structure layout and if not move on to using the next trait.
+type DiskVolumeDeviceTraits struct {
+	// each member here is presented in descending order of certainty about the
+	// likelihood of being compatible if a candidate physical device matches the
+	// member. I.e. OriginalDevicePath is more trusted than OriginalKernelPath is
+	// more trusted than DiskID is more trusted than using the MappedStructures
+
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path
+	// the volume was measured and observed at during UC20+ install mode.
+	OriginalDevicePath string `json:"device-path"`
+
+	// OriginalKernelPath is the device path like /dev/vda the volume was
+	// measured and observed at during UC20+ install mode.
+	OriginalKernelPath string `json:"kernel-path"`
+
+	// DiskID is the disk's identifier, it is a UUID for GPT disks or an
+	// unsigned integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	DiskID string `json:"disk-id"`
+
+	// Structure contains trait information about each individual structure in
+	// the volume that may be useful in identifying whether a disk matches a
+	// volume or not.
+	Structure []DiskStructureDeviceTraits `json:"structure"`
+}
+
+// DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
+// set of traits for a specific structure on a disk rather than the full disk
+// itself. Structures can be full partitions or just raw slices on a disk like
+// the "BIOS Boot" structure on default amd64 grub Ubuntu Core systems.
+type DiskStructureDeviceTraits struct {
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path the
+	// partition was measured and observed at during UC20+ install mode.
+	OriginalDevicePath string `json:"device-path"`
+	// OriginalKernelPath is the device path like /dev/vda1 the partition was
+	// measured and observed at during UC20+ install mode.
+	OriginalKernelPath string `json:"kernel-path"`
+	// PartitionUUID is the partuuid as defined by i.e. /dev/disk/by-partuuid
+	PartitionUUID string `json:"partition-uuid"`
+	// FilesystemLabel is the label of the filesystem for structures that have
+	// filesystems, i.e. /dev/disk/by-label
+	FilesystemLabel string `json:"filesystem-label"`
+	// PartitionLabel is the label of the partition for GPT disks, i.e.
+	// /dev/disk/by-partlabel
+	PartitionLabel string `json:"partition-label"`
+	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
+	// /dev/disk/by-uuid
+	FilesystemUUID string `json:"filesystem-uuid"`
+	// ID is the partition ID of the partition, i.e. /dev/disk/by-id which is
+	// typically only present for DOS disks.
+	ID string `json:"id"`
+	// Offset is the offset of the structure
+	Offset quantity.Offset `json:"offset"`
+	// Size is the size of the structure
+	Size quantity.Size `json:"size"`
+}
+
+// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume / device
+// traits to a file on disk for later loading and verification.
+func SaveDiskVolumesDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) error {
+	b, err := json.Marshal(mapping)
+	if err != nil {
+		return err
+	}
+
+	// TODO: should this live in dirs?
+	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(filename, b, 0644, 0)
+}
+
+// LoadDiskVolumesDeviceTraits loads the mapping of volumes to disk traits if
+// there is any. If there is no file with the mapping available, nil is
+// returned.
+func LoadDiskVolumesDeviceTraits() (map[string]DiskVolumeDeviceTraits, error) {
+	var mapping map[string]DiskVolumeDeviceTraits
+
+	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+	if !osutil.FileExists(filename) {
+		return nil, nil
+	}
+
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(b, &mapping); err != nil {
+		return nil, err
+	}
+
+	return mapping, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget

@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -60,7 +61,7 @@ func (d *Daemon) Overlord() *overlord.Overlord {
 	return d.overlord
 }
 
-func (d *Daemon) RequestedRestart() state.RestartType {
+func (d *Daemon) RequestedRestart() restart.RestartType {
 	return d.requestedRestart
 }
 

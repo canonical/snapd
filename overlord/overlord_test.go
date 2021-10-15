@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -1133,38 +1134,46 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
-	o.State().RequestRestart(state.RestartDaemon)
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	restart.Request(st, restart.RestartDaemon)
 }
 
-type testRestartBehavior struct {
-	restartRequested  state.RestartType
+type testRestartHandler struct {
+	restartRequested  restart.RestartType
 	rebootState       string
 	rebootVerifiedErr error
 }
 
-func (rb *testRestartBehavior) HandleRestart(t state.RestartType) {
+func (rb *testRestartHandler) HandleRestart(t restart.RestartType) {
 	rb.restartRequested = t
 }
 
-func (rb *testRestartBehavior) RebootAsExpected(_ *state.State) error {
+func (rb *testRestartHandler) RebootAsExpected(_ *state.State) error {
 	rb.rebootState = "as-expected"
 	return rb.rebootVerifiedErr
 }
 
-func (rb *testRestartBehavior) RebootDidNotHappen(_ *state.State) error {
+func (rb *testRestartHandler) RebootDidNotHappen(_ *state.State) error {
 	rb.rebootState = "did-not-happen"
 	return rb.rebootVerifiedErr
 }
 
 func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	o, err := overlord.New(rb)
 	c.Assert(err, IsNil)
 
-	o.State().RequestRestart(state.RestartDaemon)
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
 
-	c.Check(rb.restartRequested, Equals, state.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon)
+
+	c.Check(rb.restartRequested, Equals, restart.RestartDaemon)
 }
 
 func (ovs *overlordSuite) TestVerifyRebootNoPendingReboot(c *C) {
@@ -1172,7 +1181,7 @@ func (ovs *overlordSuite) TestVerifyRebootNoPendingReboot(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
@@ -1185,7 +1194,7 @@ func (ovs *overlordSuite) TestVerifyRebootOK(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
@@ -1199,7 +1208,7 @@ func (ovs *overlordSuite) TestVerifyRebootOKButError(c *C) {
 	c.Assert(err, IsNil)
 
 	e := errors.New("boom")
-	rb := &testRestartBehavior{rebootVerifiedErr: e}
+	rb := &testRestartHandler{rebootVerifiedErr: e}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, Equals, e)
@@ -1215,7 +1224,7 @@ func (ovs *overlordSuite) TestVerifyRebootDidNotHappen(c *C) {
 	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
@@ -1232,7 +1241,7 @@ func (ovs *overlordSuite) TestVerifyRebootDidNotHappenError(c *C) {
 	c.Assert(err, IsNil)
 
 	e := errors.New("boom")
-	rb := &testRestartBehavior{rebootVerifiedErr: e}
+	rb := &testRestartHandler{rebootVerifiedErr: e}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, Equals, e)

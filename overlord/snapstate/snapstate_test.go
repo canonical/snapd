@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -119,6 +120,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", nil)
+	s.state.Unlock()
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -3226,7 +3230,7 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	task := st.NewTask("auto-connect", "...")
 
 	// not restarting
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
 	snapsup := &snapstate.SnapSetup{SideInfo: si}
@@ -3234,7 +3238,7 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	c.Check(err, IsNil)
 
 	// restarting ... we always wait
-	state.MockRestarting(st, state.RestartDaemon)
+	restart.MockPending(st, restart.RestartDaemon)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
@@ -3293,7 +3297,7 @@ type: snapd
 		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
 
 		// restarting
-		state.MockRestarting(st, state.RestartUnset)
+		restart.MockPending(st, restart.RestartUnset)
 		c.Assert(snapstate.FinishRestart(task, snapsup), IsNil)
 		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
 
