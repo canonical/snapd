@@ -129,8 +129,8 @@ socket AF_NETLINK - NETLINK_AUDIT
 `
 
 var timeControlConnectedPlugUDev = []string{
-  `SUBSYSTEM=="rtc"`,
-  `KERNEL=="pps[0-9]*"`,
+	`SUBSYSTEM=="rtc"`,
+	`KERNEL=="pps[0-9]*"`,
 }
 
 func init() {
