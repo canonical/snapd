@@ -26,7 +26,7 @@ environment:
   NESTED_CORE_CHANNEL: stable
 
   START_SNAPD_VERSION/startwithnew: new
-  START_SNAPD_VERSION/startwithstable: old
+  START_SNAPD_VERSION/startwithold: old
 
   NESTED_IMAGE_ID: uc20-breakages-testing-$START_SNAPD_VERSION
 
@@ -43,9 +43,19 @@ prepare: |
   "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
   mv snapd-from-deb.snap snapd-from-branch.snap  
 
-  # only install it on the image in the "new" variant
+  # on both variants we use a local, non-asserted version of the snapd snap
+  # for the startwithnew variant, we use the snapd from this branch, for the
+  # startwithold variant, we use the snapd from stable but unpack it to 
+  # prevent auto-refreshes from happening which may affect the test setup
   if [ "$START_SNAPD_VERSION" = "new" ]; then
-    mv snapd-from-branch.snap "$(tests.nested get extra-snaps-path)" 
+    mv snapd-from-branch.snap "$(tests.nested get extra-snaps-path)"
+  else
+    # TODO: download a specific version of snapd from a GCE bucket instead
+    snap download snapd --stable --basename=snapd-stable-store
+    unsquashfs -d snapd snapd-stable-store.snap
+    touch ./snapd/in-case-mksquashfs-becomes-deterministic-someday
+    sudo snap pack snapd --filename=snapd-stable.snap
+    mv snapd-stable.snap "$(tests.nested get extra-snaps-path)"
   fi
 
   # use a specific version of the kernel snap and thus initramfs that we know
@@ -55,6 +65,7 @@ prepare: |
   # unpack it and repack it so it doesn't match any store assertions and thus
   # won't be automatically refreshed behind our backs when we boot the VM
   unsquashfs -d pc-kernel-snap pc-kernel_838.snap
+  touch ./pc-kernel-snap/in-case-mksquashfs-becomes-deterministic-someday
   snap pack pc-kernel-snap --filename=pc-kernel.snap
   mv pc-kernel.snap "$(tests.nested get extra-snaps-path)" 
 
