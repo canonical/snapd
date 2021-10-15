@@ -921,15 +921,22 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetUnsupportedAction(c *chec
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
+	as := s.mockAssert(c, "bar", "3")
 	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 0)
 		c.Check(userID, check.Equals, 0)
-		as := s.mockAssert(c, "bar", "3")
 		return as.(*asserts.ValidationSet), nil
 	})
 	defer restore()
+
+	restoreEnforcedValSets := daemon.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		set := snapasserts.NewValidationSets()
+		c.Assert(set.Add(as.(*asserts.ValidationSet)), check.IsNil)
+		return set, nil
+	})
+	defer restoreEnforcedValSets()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -964,18 +971,32 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
 		Name:      "bar",
 		Current:   3,
 	})
+
+	// verify validation set stack in snapstate
+	var snapst snapstate.SnapState
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, check.DeepEquals, [][]string{{fmt.Sprintf("16/%s/bar/3", s.dev1acct.AccountID())}})
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeSpecificSequence(c *check.C) {
+	as := s.mockAssert(c, "bar", "5")
 	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 5)
 		c.Check(userID, check.Equals, 0)
-		as := s.mockAssert(c, "bar", "5")
 		return as.(*asserts.ValidationSet), nil
 	})
 	defer restore()
+
+	restoreEnforcedValSets := daemon.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		set := snapasserts.NewValidationSets()
+		c.Assert(set.Add(as.(*asserts.ValidationSet)), check.IsNil)
+		return set, nil
+	})
+	defer restoreEnforcedValSets()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -1011,18 +1032,32 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeSpecificSequen
 		Current:   5,
 		PinnedAt:  5,
 	})
+
+	// verify validation set stack in snapstate
+	var snapst snapstate.SnapState
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, check.DeepEquals, [][]string{{fmt.Sprintf("16/%s/bar/5", s.dev1acct.AccountID())}})
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeUpdateFromMonitorMode(c *check.C) {
+	as := s.mockAssert(c, "bar", "3")
 	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 0)
 		c.Check(userID, check.Equals, 0)
-		as := s.mockAssert(c, "bar", "3")
 		return as.(*asserts.ValidationSet), nil
 	})
 	defer restore()
+
+	restoreEnforcedValSets := daemon.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		set := snapasserts.NewValidationSets()
+		c.Assert(set.Add(as.(*asserts.ValidationSet)), check.IsNil)
+		return set, nil
+	})
+	defer restoreEnforcedValSets()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -1068,6 +1103,13 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeUpdateFromMoni
 		Name:      "bar",
 		Current:   3,
 	})
+
+	// verify validation set stack in snapstate
+	var snapst snapstate.SnapState
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, check.DeepEquals, [][]string{{fmt.Sprintf("16/%s/bar/3", s.dev1acct.AccountID())}})
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeError(c *check.C) {

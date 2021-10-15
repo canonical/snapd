@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -192,6 +193,14 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 	snapstateRemoveMany = mock
 	return func() {
 		snapstateRemoveMany = oldSnapstateRemoveMany
+	}
+}
+
+func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.ValidationSets, error)) func() {
+	old := enforcedValidationSets
+	enforcedValidationSets = f
+	return func() {
+		enforcedValidationSets = old
 	}
 }
 

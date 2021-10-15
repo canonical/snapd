@@ -246,6 +246,11 @@ type SideInfo struct {
 	EditedDescription string              `yaml:"description,omitempty" json:"description,omitempty"`
 	Private           bool                `yaml:"private,omitempty" json:"private,omitempty"`
 	Paid              bool                `yaml:"paid,omitempty" json:"paid,omitempty"`
+
+	// all enforced validation sets that require this revision at a given time; this is a stack,
+	// validation set keys get added to it on 'snap validate --enforce ...' or
+	// when updated.
+	ValidationSets    [][]string          `yaml:"validation-sets,omitempty" json:"validation-sets,omitempty"`
 }
 
 // Info provides information about snaps.

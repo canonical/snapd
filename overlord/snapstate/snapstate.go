@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -3209,6 +3210,55 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 	}
 
 	return gadgetInfo.Connections, nil
+}
+
+// UpdateValidationSetsStack appends to the si SideInfo all the validation sets
+// that require the given snap.
+func UpdateValidationSetsStack(st *state.State, vsets *snapasserts.ValidationSets, snapst *SnapState, si *snap.SideInfo) error {
+	if vsets == nil {
+		return nil
+	}
+
+	var snapID string
+	current := snapst.CurrentSideInfo()
+	if current != nil {
+		snapID = current.SnapID
+	}
+	keys, _, err := vsets.CheckPresenceRequired(naming.NewSnapRef(snapst.InstanceName(), snapID))
+	_, perr := err.(*snapasserts.PresenceConstraintError)
+	if perr && snapst.IgnoreValidation {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+
+	// XXX:should we remember only those that require a specific snap revision (i.e. CheckPresenceRequired() returns a rev != unset)
+
+	// do not append to validation sets stack if all the validation set keys are
+	// identical to the last entry
+	if len(si.ValidationSets) > 0 {
+		last := len(si.ValidationSets) - 1
+		if len(si.ValidationSets[last]) == len(keys) {
+			matchesLastKeys := true
+			for i := range keys {
+				if si.ValidationSets[last][i] != keys[i] {
+					matchesLastKeys = false
+					break
+				}
+			}
+			if matchesLastKeys {
+				return nil
+			}
+		}
+	}
+
+	// note, keys are sorted by CheckPresenceRequired
+	si.ValidationSets = append(si.ValidationSets, keys)
+	return nil
 }
 
 func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {

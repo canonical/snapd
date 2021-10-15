@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -72,6 +73,10 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		s.restartRequested = nil
 	})
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {

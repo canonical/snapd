@@ -6836,3 +6836,114 @@ version: 1`), &snap.SideInfo{Revision: snap.R("13")})
 	c.Check(snaps[0].ID(), Equals, "foo-id")
 	c.Check(snaps[0].Revision, Equals, snap.R("23"))
 }
+
+func (s *validationSetsSuite) TestUpdateValidationSetsStack(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	vs := snapasserts.NewValidationSets()
+	someSnap := map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "required",
+		"revision": "1",
+	}
+	vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+	c.Assert(vs.Add(vsa1.(*asserts.ValidationSet)), IsNil)
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	}
+	snapstate.Set(st, "some-snap", snapst)
+
+	c.Assert(snapstate.UpdateValidationSetsStack(st, vs, snapst, si), IsNil)
+
+	var snapst2 snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst2), IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, DeepEquals, [][]string{{"16/foo/bar/1"}})
+
+	// add one more validation set requiring this snap
+	vsa2 := s.mockValidationSetAssert(c, "baz", "3", someSnap)
+	c.Assert(vs.Add(vsa2.(*asserts.ValidationSet)), IsNil)
+
+	c.Assert(snapstate.UpdateValidationSetsStack(st, vs, snapst, si), IsNil)
+
+	var snapst3 snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst3), IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, DeepEquals, [][]string{{"16/foo/bar/1"}, {"16/foo/bar/1", "16/foo/baz/3"}})
+
+	// updating stack again with same validation sets doesn't create duplicated entry
+	c.Assert(snapstate.UpdateValidationSetsStack(st, vs, snapst, si), IsNil)
+
+	var snapst4 snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst4), IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, DeepEquals, [][]string{{"16/foo/bar/1"}, {"16/foo/bar/1", "16/foo/baz/3"}})
+}
+
+func (s *validationSetsSuite) TestUpdateValidationSetsStackPresenceError(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	vs := snapasserts.NewValidationSets()
+	someSnap := map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "invalid",
+	}
+	vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+	c.Assert(vs.Add(vsa1.(*asserts.ValidationSet)), IsNil)
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	}
+	snapstate.Set(st, "some-snap", snapst)
+
+	c.Assert(snapstate.UpdateValidationSetsStack(st, vs, snapst, si), DeepEquals, &snapasserts.PresenceConstraintError{SnapName: "some-snap", Presence: "invalid"})
+
+	// validation-sets stack wasn't updated
+	var snapst2 snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst2), IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, HasLen, 0)
+}
+
+func (s *validationSetsSuite) TestUpdateValidationSetsStackIgnoreValidation(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	vs := snapasserts.NewValidationSets()
+	someSnap := map[string]interface{}{
+		"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+		"name":     "some-snap",
+		"presence": "invalid",
+	}
+	vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+	c.Assert(vs.Add(vsa1.(*asserts.ValidationSet)), IsNil)
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+		Flags:    snapstate.Flags{IgnoreValidation: true},
+	}
+	snapstate.Set(st, "some-snap", snapst)
+
+	c.Assert(snapstate.UpdateValidationSetsStack(st, vs, snapst, si), IsNil)
+
+	// validation-sets stack wasn't updated
+	var snapst2 snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst2), IsNil)
+	c.Check(snapst.CurrentSideInfo().ValidationSets, HasLen, 0)
+}

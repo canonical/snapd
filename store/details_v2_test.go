@@ -305,7 +305,8 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
-		"SideInfo.EditedLinks",         // TODO: take this value from the store
+		"SideInfo.EditedLinks", // TODO: take this value from the store
+		"SideInfo.ValidationSets",
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
 		"SystemUsernames",
 	}

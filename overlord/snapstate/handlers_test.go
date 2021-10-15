@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -40,6 +41,10 @@ var _ = Suite(&handlersSuite{})
 func (s *handlersSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 

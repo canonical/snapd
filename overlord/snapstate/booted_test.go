@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -111,6 +112,10 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.AddCleanup(func() {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 	})
+
+	bs.AddCleanup(snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	}))
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {

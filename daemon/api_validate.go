@@ -263,6 +263,7 @@ func applyValidationSet(c *Command, r *http.Request, user *auth.UserState) Respo
 
 var validationSetAssertionForMonitor = assertstate.ValidationSetAssertionForMonitor
 var validationSetAssertionForEnforce = assertstate.ValidationSetAssertionForEnforce
+var enforcedValidationSets = assertstate.EnforcedValidationSets
 
 // updateValidationSet handles snap validate --monitor and --enforce accountId/name[=sequence].
 func updateValidationSet(st *state.State, accountID, name string, reqMode string, sequence int, user *auth.UserState) Response {
@@ -425,5 +426,30 @@ func enforceValidationSet(st *state.State, accountID, name string, sequence, use
 		Current:  vs.Sequence(),
 	}
 	assertstate.UpdateValidationSet(st, &tr)
+
+	allVsets, err := enforcedValidationSets(st)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	if allVsets == nil {
+		// this is unexpected since we just created on above
+		return InternalError("no validation sets in enforcing mode")
+	}
+	for _, constrainedSnap := range vs.Snaps() {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, constrainedSnap.Name, &snapst); err != nil {
+			// at this point all snaps got checked and exist
+			return InternalError("cannot get constrained snap state for snap %s: %v", constrainedSnap.Name, err)
+		}
+		si := snapst.CurrentSideInfo()
+		if si == nil {
+			return InternalError("cannot get current side info for snap %s", constrainedSnap.Name)
+		}
+		if err := snapstate.UpdateValidationSetsStack(st, allVsets, &snapst, si); err != nil {
+			return InternalError("cannot update validation set stack of snap %s: %v", constrainedSnap.Name, err)
+		}
+		snapstate.Set(st, snapst.InstanceName(), &snapst)
+	}
+
 	return SyncResponse(nil)
 }

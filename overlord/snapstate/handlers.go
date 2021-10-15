@@ -1331,6 +1331,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	cand := snapsup.SideInfo
 	m.backend.Candidate(cand)
 
+	// update the stack of validation sets requiring this revision (this updates
+	// cand SideInfo).
+	vsets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return err
+	}
+	if err := UpdateValidationSetsStack(st, vsets, snapst, cand); err != nil {
+		return err
+	}
+
 	oldCandidateIndex := snapst.LastIndex(cand.Revision)
 
 	if oldCandidateIndex < 0 {
