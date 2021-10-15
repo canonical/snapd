@@ -10,6 +10,7 @@ environment:
   SNAPD_2_49_2_X86: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11588.snap
   SNAPD_2_49_2_ARM64: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11584.snap
   SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
+  BASE_CHANNEL: stable
 
 prepare: |
   snap install test-snapd-curl --edge --devmode # devmode so it can save to any dir
