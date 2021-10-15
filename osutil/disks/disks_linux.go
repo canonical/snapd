@@ -33,6 +33,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -344,16 +345,9 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		}
 		dmName = bytes.TrimSpace(dmName)
 
-		// XXX: make the detection a helper/constant of kernel/fde
-		if strings.HasSuffix(string(dmName), "-device-unlock") {
-			// the uuid of the mapper device is the same
-			// as the partlabel
-			byUUIDPath := filepath.Join("/dev/disk/by-partuuid", string(dmUUID))
-			props, err = udevPropertiesForName(byUUIDPath)
-			if err != nil {
-				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
-			}
-		} else {
+		if strings.HasPrefix(string(dmUUID), "CRYPT-LUKS") {
+			// this is a LUKS encrypted device
+
 			// trim the suffix of the dm name from the dm uuid to safely match the
 			// regex - the dm uuid contains the dm name, and the dm name is user
 			// controlled, so we want to remove that and just use the luks pattern
@@ -395,6 +389,18 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 			if err != nil {
 				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
 			}
+		} else if fde.IsEncryptedDeviceMapperName(string(dmName)) {
+			// this is a device encrypted using FDE hooks
+
+			// the uuid of the mapper device is the same
+			// as the partlabel
+			byUUIDPath := filepath.Join("/dev/disk/by-partuuid", string(dmUUID))
+			props, err = udevPropertiesForName(byUUIDPath)
+			if err != nil {
+				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+			}
+		} else {
+			return nil, fmt.Errorf("device %v is not encrypted, but expected one that is", d.devname)
 		}
 	}
 
