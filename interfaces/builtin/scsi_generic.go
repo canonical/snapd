@@ -36,19 +36,18 @@ const scsiGenericConnectedPlugAppArmor = `
 `
 
 var scsiGenericConnectedPlugUDev = []string{
-	 // ref: https://www.kernel.org/doc/Documentation/scsi/scsi-generic.txt
+	// ref: https://www.kernel.org/doc/Documentation/scsi/scsi-generic.txt
 	`KERNEL=="sg[0-9]*"`,
 }
 
-
 func init() {
 	registerIface(&commonInterface{
-		name:                 "scsi-generic",
-		summary:              scsiGenericSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: scsiGenericBaseDeclarationSlots,
-		connectedPlugAppArmor:scsiGenericConnectedPlugAppArmor,
-		connectedPlugUDev:    scsiGenericConnectedPlugUDev,
+		name:                  "scsi-generic",
+		summary:               scsiGenericSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  scsiGenericBaseDeclarationSlots,
+		connectedPlugAppArmor: scsiGenericConnectedPlugAppArmor,
+		connectedPlugUDev:     scsiGenericConnectedPlugUDev,
 	})
 }
