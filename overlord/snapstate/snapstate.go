@@ -2175,7 +2175,8 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 	return tasksets, nil
 }
 
-// LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel
+// LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
+// additionally update-gadget-assets for the kernel snap, tasks for a remodel.
 func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -2243,6 +2244,8 @@ func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
 	return nil, nil, nil
 }
 
+// AddLinkNewBaseOrKernel creates the same tasks as LinkNewBaseOrKernel but adds
+// them to the provided task set.
 func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
 	allTasks := ts.Tasks()
 	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
@@ -2269,6 +2272,9 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	return ts, nil
 }
 
+// LinkNewBaseOrKernel creates a new task set with
+// prepare/update-gadget-assets/update-gadget-cmdline tasks for the gadget snap,
+// for remodel.
 func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -2316,6 +2322,8 @@ func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 	return ts, nil
 }
 
+// AddGadgetAssetsTasks creates the same tasks as SwitchToNewGadget but adds
+// them to the provided task set.
 func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
 	allTasks := ts.Tasks()
 	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
