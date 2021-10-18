@@ -144,6 +144,8 @@ execute: |
     # shellcheck disable=SC2164
     pushd "$PROJECT_PATH"
     echo "Build the snap"
+    # Force use 16.04 packaging to build the snap
+    ln -sf packaging/ubuntu-16.04 debian
     snap run snapcraft snap --output=snapd_spread-test.snap
     popd
 
