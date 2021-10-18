@@ -1059,7 +1059,18 @@ nested_start_core_vm_unit() {
         # Wait for the snap command to be available
         nested_wait_for_snap_command
         # Wait for snap seeding to be done
-        nested_exec "sudo snap wait system seed.loaded"
+        # retry this wait command up to 3 times since we sometimes see races 
+        # where the snap command appears, then immediately disappears and then 
+        # re-appears immediately after and so the next command fails
+        attempts=0
+        until nested_exec "sudo snap wait system seed.loaded"; do
+            attempts=$(( attempts + 1))
+            if [ "$attempts" = 3 ]; then
+                echo "failed to wait for snap wait command to return successfully"
+                return 1
+            fi
+            sleep 1
+        done
         # Copy tools to be used on tests
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init

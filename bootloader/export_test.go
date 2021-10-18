@@ -123,17 +123,41 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		lkBootDisk := &disks.MockDiskMapping{
 			// mock the partition labels, since these structures won't have
 			// filesystems, but they will have partition labels
-			PartitionLabelToPartUUID: map[string]string{
-				"snapbootsel":        "snapbootsel-partuuid",
-				"snapbootselbak":     "snapbootselbak-partuuid",
-				"snaprecoverysel":    "snaprecoverysel-partuuid",
-				"snaprecoveryselbak": "snaprecoveryselbak-partuuid",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel: "snapbootsel",
+					PartitionUUID:  "snapbootsel-partuuid",
+				},
+				{
+					PartitionLabel: "snapbootselbak",
+					PartitionUUID:  "snapbootselbak-partuuid",
+				},
+				{
+					PartitionLabel: "snaprecoverysel",
+					PartitionUUID:  "snaprecoverysel-partuuid",
+				},
+				{
+					PartitionLabel: "snaprecoveryselbak",
+					PartitionUUID:  "snaprecoveryselbak-partuuid",
+				},
 				// for run mode kernel snaps
-				"boot_a": "boot-a-partuuid",
-				"boot_b": "boot-b-partuuid",
+				{
+					PartitionLabel: "boot_a",
+					PartitionUUID:  "boot-a-partuuid",
+				},
+				{
+					PartitionLabel: "boot_b",
+					PartitionUUID:  "boot-b-partuuid",
+				},
 				// for recovery system kernel snaps
-				"boot_ra": "boot-ra-partuuid",
-				"boot_rb": "boot-rb-partuuid",
+				{
+					PartitionLabel: "boot_ra",
+					PartitionUUID:  "boot-ra-partuuid",
+				},
+				{
+					PartitionLabel: "boot_rb",
+					PartitionUUID:  "boot-rb-partuuid",
+				},
 			},
 			DiskHasPartitions: true,
 			DevNum:            "lk-boot-disk-dev-num",
@@ -144,7 +168,7 @@ func MockLkFiles(c *C, rootdir string, opts *Options) (restore func()) {
 		}
 
 		// mock the disk
-		r := disks.MockDeviceNameDisksToPartitionMapping(m)
+		r := disks.MockDeviceNameToDiskMapping(m)
 		cleanups = append(cleanups, r)
 
 		// now mock the kernel command line
