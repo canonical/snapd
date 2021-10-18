@@ -272,7 +272,7 @@ type DiskStructureDeviceTraits struct {
 }
 
 // SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume /
-// device traits to a file inside the provided directory on disk for 
+// device traits to a file inside the provided directory on disk for
 // later loading and verification.
 func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDeviceTraits) error {
 	b, err := json.Marshal(mapping)
