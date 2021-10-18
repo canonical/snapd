@@ -2201,7 +2201,7 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 		// good
 	default:
 		// bad
-		return nil, fmt.Errorf("cannot link type %v", info.Type())
+		return nil, fmt.Errorf("internal error: cannot link type %v", info.Type())
 	}
 
 	snapsup := &SnapSetup{

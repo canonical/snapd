@@ -6836,3 +6836,263 @@ version: 1`), &snap.SideInfo{Revision: snap.R("13")})
 	c.Check(snaps[0].ID(), Equals, "foo-id")
 	c.Check(snaps[0].Revision, Equals, snap.R("23"))
 }
+
+func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
+	si := &snap.SideInfo{
+		RealName: "some-base", Revision: snap.R(1),
+	}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "base",
+	})
+
+	si = &snap.SideInfo{
+		RealName: "some-kernel", Revision: snap.R(2),
+	}
+	snaptest.MockSnapCurrent(c, "name: some-kernel\nversion: 1.0\ntype: kernel\n", si)
+	snapstate.Set(s.state, "some-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "kernel",
+	})
+	si = &snap.SideInfo{
+		RealName: "some-gadget", Revision: snap.R(3),
+	}
+	snaptest.MockSnapCurrent(c, "name: some-gadget\nversion: 1.0\ntype: gadget\n", si)
+	snapstate.Set(s.state, "some-gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "gadget",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel")
+	c.Assert(err, IsNil)
+	tasks := ts.Tasks()
+	c.Assert(tasks, HasLen, 3)
+	tPrepare := tasks[0]
+	tLink := tasks[1]
+	tUpdateGadgetAssets := tasks[2]
+	c.Assert(tPrepare.Kind(), Equals, "prepare-snap")
+	c.Assert(tPrepare.Summary(), Equals, `Prepare snap "some-kernel" (2) for remodel`)
+	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
+	c.Assert(tLink.Kind(), Equals, "link-snap")
+	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
+	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
+	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
+	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{tLink})
+
+	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base")
+	c.Assert(err, IsNil)
+	tasks = ts.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	tPrepare = tasks[0]
+	tLink = tasks[1]
+	c.Assert(tPrepare.Kind(), Equals, "prepare-snap")
+	c.Assert(tPrepare.Summary(), Equals, `Prepare snap "some-base" (1) for remodel`)
+	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
+	c.Assert(tLink.Kind(), Equals, "link-snap")
+	c.Assert(tLink.Summary(), Equals, `Make snap "some-base" (1) available to the system during remodel`)
+}
+
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
+	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `internal error: cannot link type app`)
+	c.Assert(ts, IsNil)
+
+	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-gadget")
+	c.Assert(err, ErrorMatches, `internal error: cannot link type gadget`)
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// try a kernel snap first
+	si := &snap.SideInfo{RealName: "some-kernel", Revision: snap.R(2)}
+	tPrepare := s.state.NewTask("prepare-snap", "dummy task")
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     "kernel",
+	}
+	tPrepare.Set("snap-setup", snapsup)
+	tDummy := s.state.NewTask("dummy-task", "dummy task")
+	ts := state.NewTaskSet(tPrepare, tDummy)
+
+	tsNew, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	c.Assert(err, IsNil)
+	c.Assert(tsNew, NotNil)
+	tasks := tsNew.Tasks()
+	// since this is the kernel, we have our task + dummy task + link-snap + update-gadget-assets
+	c.Assert(tasks, HasLen, 4)
+	tLink := tasks[2]
+	tUpdateGadgetAssets := tasks[3]
+	c.Assert(tLink.Kind(), Equals, "link-snap")
+	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
+	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{
+		// waits for last task in the set
+		tDummy,
+	})
+	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
+	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{
+		tLink,
+	})
+	for _, tsk := range []*state.Task{tLink, tUpdateGadgetAssets} {
+		var ssID string
+		c.Assert(tsk.Get("snap-setup-task", &ssID), IsNil)
+		c.Assert(ssID, Equals, tPrepare.ID())
+	}
+
+	// try with base snap
+	si = &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
+	tPrepare = s.state.NewTask("prepare-snap", "dummy task")
+	tPrepare.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     "base",
+	})
+	ts = state.NewTaskSet(tPrepare)
+	tsNew, err = snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	c.Assert(err, IsNil)
+	c.Assert(tsNew, NotNil)
+	tasks = tsNew.Tasks()
+	// since this is the base, we have our task + link-snap only
+	c.Assert(tasks, HasLen, 2)
+	tLink = tasks[1]
+	c.Assert(tLink.Kind(), Equals, "link-snap")
+	c.Assert(tLink.Summary(), Equals, `Make snap "some-base" (1) available to the system during remodel`)
+	var ssID string
+	c.Assert(tLink.Get("snap-setup-task", &ssID), IsNil)
+	c.Assert(ssID, Equals, tPrepare.ID())
+
+	// but bails when there is no task with snap setup
+	ts = state.NewTaskSet()
+	tsNew, err = snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
+	c.Assert(tsNew, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-gadget")
+	c.Assert(err, IsNil)
+	tasks := ts.Tasks()
+	c.Assert(tasks, HasLen, 3)
+	tPrepare := tasks[0]
+	tUpdateGadgetAssets := tasks[1]
+	tUpdateGadgetCmdline := tasks[2]
+	c.Assert(tPrepare.Kind(), Equals, "prepare-snap")
+	c.Assert(tPrepare.Summary(), Equals, `Prepare snap "some-gadget" (3) for remodel`)
+	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
+	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from gadget "some-gadget" (3) for remodel`)
+	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
+	c.Assert(tUpdateGadgetCmdline.Kind(), Equals, "update-gadget-cmdline")
+	c.Assert(tUpdateGadgetCmdline.Summary(), Equals, `Update kernel command line from gadget "some-gadget" (3) for remodel`)
+	c.Assert(tUpdateGadgetCmdline.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
+}
+
+func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
+	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+	ts, err := snapstate.SwitchToNewGadget(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `internal error: cannot link type app`)
+	c.Assert(ts, IsNil)
+	ts, err = snapstate.SwitchToNewGadget(s.state, "some-kernel")
+	c.Assert(err, ErrorMatches, `internal error: cannot link type kernel`)
+	c.Assert(ts, IsNil)
+	ts, err = snapstate.SwitchToNewGadget(s.state, "some-base")
+	c.Assert(err, ErrorMatches, `internal error: cannot link type base`)
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// try a kernel snap first
+	si := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(3)}
+	tPrepare := s.state.NewTask("prepare-snap", "dummy task")
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     "gadget",
+	}
+	tPrepare.Set("snap-setup", snapsup)
+	tDummy := s.state.NewTask("dummy-task", "dummy task")
+	ts := state.NewTaskSet(tPrepare, tDummy)
+
+	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
+	c.Assert(err, IsNil)
+	c.Assert(tsNew, NotNil)
+	tasks := tsNew.Tasks()
+	// since this is the gadget, we have our task + dummy task + update assets + update cmdline
+	c.Assert(tasks, HasLen, 4)
+	tUpdateGadgetAssets := tasks[2]
+	tUpdateGadgetCmdline := tasks[3]
+	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from gadget "some-gadget" (3) for remodel`)
+	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{
+		// waits for the last task in the set
+		tDummy,
+	})
+	c.Assert(tUpdateGadgetCmdline.Kind(), Equals, "update-gadget-cmdline")
+	c.Assert(tUpdateGadgetCmdline.Summary(), Equals, `Update kernel command line from gadget "some-gadget" (3) for remodel`)
+	c.Assert(tUpdateGadgetCmdline.WaitTasks(), DeepEquals, []*state.Task{
+		tUpdateGadgetAssets,
+	})
+	for _, tsk := range []*state.Task{tUpdateGadgetAssets, tUpdateGadgetCmdline} {
+		var ssID string
+		c.Assert(tsk.Get("snap-setup-task", &ssID), IsNil)
+		c.Assert(ssID, Equals, tPrepare.ID())
+	}
+
+	// but bails when there is no task with snap setup
+	ts = state.NewTaskSet()
+	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts)
+	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
+	c.Assert(tsNew, IsNil)
+
+}
