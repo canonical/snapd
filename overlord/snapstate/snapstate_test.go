@@ -98,9 +98,6 @@ func (s *snapmgrTestSuite) settle(c *C) {
 }
 
 func (s *snapmgrTestSuite) logTasks(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
 	for _, chg := range s.state.Changes() {
 		c.Logf("\nChange %q (%s):", chg.Summary(), chg.Status())
 
