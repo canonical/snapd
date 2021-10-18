@@ -2295,6 +2295,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		tCreateRecovery,
 		tFinalizeRecovery,
 	})
+	c.Assert(tUpdateAssetsKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tLinkKernel,
+	})
 	c.Assert(tPrepareBase.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel,
 	})
@@ -2308,6 +2311,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tUpdateAssets.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareGadget,
 		tLinkBase,
+	})
+	c.Assert(tUpdateCmdline.WaitTasks(), DeepEquals, []*state.Task{
+		tUpdateAssets,
 	})
 	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
 		// last snap of the download chain (in this case prepare & link
