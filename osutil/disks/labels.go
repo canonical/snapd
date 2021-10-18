@@ -65,7 +65,7 @@ func BlkIDDecodeLabel(in string) (string, error) {
 	const errFmtStr = "string is malformed, unexpected character '%c' not part of a valid escape sequence"
 
 	out := strings.Builder{}
-	escapedHexDigits := []rune{}
+	escapedHexDigits := [2]rune{}
 	st := stNormal
 	for _, r := range in {
 		switch st {
@@ -99,7 +99,7 @@ func BlkIDDecodeLabel(in string) (string, error) {
 			// rune value - for now we will just ignore those
 
 			if strings.ContainsRune(`0123456789abcedf`, r) {
-				escapedHexDigits = append(escapedHexDigits, r)
+				escapedHexDigits[0] = r
 				st = stSlashEscapeXNum
 				continue
 			}
@@ -107,17 +107,17 @@ func BlkIDDecodeLabel(in string) (string, error) {
 		case stSlashEscapeXNum:
 			// got one digit, make sure we get a second digit
 			if strings.ContainsRune(`0123456789abcedf`, r) {
-				escapedHexDigits = append(escapedHexDigits, r)
+				escapedHexDigits[1] = r
 
 				// the escapedHexDigits can now be decoded and written out
-				v, err := strconv.ParseUint(string(escapedHexDigits), 16, 8)
+				v, err := strconv.ParseUint(string(escapedHexDigits[:]), 16, 8)
 				if err != nil {
 					// should be logically impossible, we ensured that only
 					// rune digits in the hexadecimal range above were put into this rune
 					// buffer
 					return "", fmt.Errorf("internal error, unable to parse escape sequence: %v", err)
 				}
-				escapedHexDigits = []rune{}
+				escapedHexDigits = [2]rune{0, 0}
 				out.WriteRune(rune(v))
 				st = stNormal
 				continue

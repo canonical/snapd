@@ -112,6 +112,10 @@ func (ts *diskLabelSuite) TestBlkIDDecodeLabelUnhappy(c *C) {
 			"string is malformed, unexpected character 'z' not part of a valid escape sequence",
 		},
 		{
+			`\x09\x7y`,
+			"string is malformed, unexpected character 'y' not part of a valid escape sequence",
+		},
+		{
 			`\z`,
 			`string is malformed, unexpected character '\\' not part of a valid escape sequence`,
 		},
@@ -120,16 +124,29 @@ func (ts *diskLabelSuite) TestBlkIDDecodeLabelUnhappy(c *C) {
 			`string is malformed, unfinished escape sequence`,
 		},
 		{
+			`\x40\`,
+			`string is malformed, unfinished escape sequence`,
+		},
+		{
 			`\x`,
+			`string is malformed, unfinished escape sequence`,
+		},
+		{
+			`\x40\x`,
 			`string is malformed, unfinished escape sequence`,
 		},
 		{
 			`\x0`,
 			`string is malformed, unfinished escape sequence`,
 		},
+		{
+			`\x40\x4`,
+			`string is malformed, unfinished escape sequence`,
+		},
 	}
 
 	for _, t := range tt {
+		c.Logf("input: %q", t.in)
 		_, err := disks.BlkIDDecodeLabel(t.in)
 		c.Assert(err, ErrorMatches, t.experr)
 	}
