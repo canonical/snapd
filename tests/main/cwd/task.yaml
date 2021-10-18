@@ -45,7 +45,7 @@ execute: |
     # via a symlink attack in /tmp) is remapped to a special directory.
     # FIXME: su doesn't have /snap/bin in PATH.
     case "$SPREAD_SYSTEM" in
-    fedora-34-*|opensuse-tumbleweed-*)
+    fedora-*|opensuse-tumbleweed-*|arch-linux-*)
         # nothiing, we have to go through tests.session which always starts in
         # the $HOME directory
         ;;
