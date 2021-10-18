@@ -593,13 +593,13 @@ func (x *cmdInstall) Execute([]string) error {
 
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
-		Channel:       x.Channel,
-		Revision:      x.Revision,
-		Dangerous:     dangerous,
-		Unaliased:     x.Unaliased,
-		CohortKey:     x.Cohort,
+		Channel:          x.Channel,
+		Revision:         x.Revision,
+		Dangerous:        dangerous,
+		Unaliased:        x.Unaliased,
+		CohortKey:        x.Cohort,
 		IgnoreValidation: x.IgnoreValidation,
-		IgnoreRunning: x.IgnoreRunning,
+		IgnoreRunning:    x.IgnoreRunning,
 	}
 	x.setModes(opts)
 
