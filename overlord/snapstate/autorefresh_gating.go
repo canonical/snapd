@@ -146,7 +146,8 @@ func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDurati
 // HoldTime of zero denotes maximum allowed hold time.
 // Holding fails if not all snaps can be held, in that case HoldError is returned
 // and it contains the details of snaps that prevented holding. On success the
-// function returns the remaining hold time.
+// function returns the remaining hold time. The remaining hold time is the
+// minimum of the remaining hold time for all affecting snaps.
 func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) (time.Duration, error) {
 	gating, err := refreshGating(st)
 	if err != nil {
@@ -218,6 +219,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		}
 		gating[heldSnap][gatingSnap] = hold
 
+		// note, left is guaranteed to be > 0 at this point
 		if durationMin == 0 || left < durationMin {
 			durationMin = left
 		}

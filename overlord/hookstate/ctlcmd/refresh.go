@@ -269,7 +269,7 @@ func (c *refreshCommand) hold() error {
 		return err
 	}
 	var details holdDetails
-	details.Hold = fmt.Sprintf("%s", remaining)
+	details.Hold = remaining.String()
 
 	out, err := yaml.Marshal(details)
 	if err != nil {
