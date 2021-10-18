@@ -39,7 +39,7 @@ func (s *mockDiskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
+func (s *mockDiskSuite) TestMockDeviceNameToDiskMapping(c *C) {
 	// one disk with different device names
 	d1 := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
@@ -73,7 +73,7 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 		"other-disk": d2,
 	}
 
-	r := disks.MockDeviceNameDisksToPartitionMapping(m)
+	r := disks.MockDeviceNameToDiskMapping(m)
 	defer r()
 
 	res, err := disks.DiskFromDeviceName("devName1")

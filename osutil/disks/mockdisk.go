@@ -235,10 +235,10 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 	// they exist independent of any other structure
 }
 
-// MockDeviceNameDisksToPartitionMapping will mock DiskFromDeviceName such that
-// the provided map of device names to mock disks is used instead of the actual
+// MockDeviceNameToDiskMapping will mock DiskFromDeviceName such that the
+// provided map of device names to mock disks is used instead of the actual
 // implementation using udev.
-func MockDeviceNameDisksToPartitionMapping(mockedDisks map[string]*MockDiskMapping) (restore func()) {
+func MockDeviceNameToDiskMapping(mockedDisks map[string]*MockDiskMapping) (restore func()) {
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 
 	checkMockDiskMappingsForDuplicates(mockedDisks)
