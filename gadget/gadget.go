@@ -149,7 +149,8 @@ type VolumeStructure struct {
 	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
-	// ID is the GPT partition ID
+	// ID is the GPT partition ID, this should always be made upper case for
+	// comparison purposes.
 	ID string `yaml:"id"`
 	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
 	// structures of type 'bare'
