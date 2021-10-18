@@ -109,11 +109,11 @@ func (ts *diskLabelSuite) TestBlkIDDecodeLabelUnhappy(c *C) {
 	}{
 		{
 			`\x7z`,
-			"string is malformed, unexpected 'z' character not part of a valid escape sequence",
+			"string is malformed, unexpected character 'z' not part of a valid escape sequence",
 		},
 		{
 			`\z`,
-			`string is malformed, unexpected '\\' character not part of a valid escape sequence`,
+			`string is malformed, unexpected character '\\' not part of a valid escape sequence`,
 		},
 		{
 			`\`,

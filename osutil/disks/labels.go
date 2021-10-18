@@ -61,6 +61,9 @@ const (
 // encoded by udev in BlkIDEncodeLabel for normal comparison, i.e.
 // "BIOS\x20Boot" becomes "BIOS Boot"
 func BlkIDDecodeLabel(in string) (string, error) {
+
+	const errFmtStr = "string is malformed, unexpected character '%c' not part of a valid escape sequence"
+
 	out := strings.Builder{}
 	escapedHexDigits := []rune{}
 	st := stNormal
@@ -83,7 +86,7 @@ func BlkIDDecodeLabel(in string) (string, error) {
 			// otherwise it's a format error, "\" is not in the set of
 			// characters allowed, so if we see one that is not followed by an
 			// x, then the string is malformed and can't be decoded
-			return "", fmt.Errorf("string is malformed, unexpected '\\' character not part of a valid escape sequence")
+			return "", fmt.Errorf(errFmtStr, '\\')
 		case stSlashEscapeX:
 			// now we expect exactly two hex digits, since the encoding would
 			// have written valid multi-byte runes that are UTF8 directly
@@ -100,7 +103,7 @@ func BlkIDDecodeLabel(in string) (string, error) {
 				st = stSlashEscapeXNum
 				continue
 			}
-			return "", fmt.Errorf("string is malformed, unexpected %q character not part of a valid escape sequence", r)
+			return "", fmt.Errorf(errFmtStr, r)
 		case stSlashEscapeXNum:
 			// got one digit, make sure we get a second digit
 			if strings.ContainsRune(`0123456789abcedf`, r) {
@@ -119,7 +122,7 @@ func BlkIDDecodeLabel(in string) (string, error) {
 				st = stNormal
 				continue
 			}
-			return "", fmt.Errorf("string is malformed, unexpected %q character not part of a valid escape sequence", r)
+			return "", fmt.Errorf(errFmtStr, r)
 		default:
 			return "", fmt.Errorf("internal error, unexpected parsing state")
 		}
