@@ -159,7 +159,7 @@ func DiskFromDevicePath(devicePath string) (Disk, error) {
 }
 
 // diskFromDevicePath is exposed for mocking from other tests via
-// MockDeviceNameDisksToPartitionMapping.
+// MockDevicePathToDiskMapping (which is yet to be added).
 var diskFromDevicePath = func(devicePath string) (Disk, error) {
 	// query for the disk props using udev with --path
 	props, err := udevPropertiesForPath(devicePath)
@@ -177,7 +177,7 @@ func DiskFromDeviceName(deviceName string) (Disk, error) {
 }
 
 // diskFromDeviceName is exposed for mocking from other tests via
-// MockDeviceNameDisksToPartitionMapping.
+// MockDeviceNameToDiskMapping.
 var diskFromDeviceName = func(deviceName string) (Disk, error) {
 	// query for the disk props using udev with --name
 	props, err := udevPropertiesForName(deviceName)

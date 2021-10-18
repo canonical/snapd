@@ -284,6 +284,20 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     return old_limit;
 }
 
+static bool _sc_is_snap_cgroup(const char *group) {
+    /* make a copy as basename may modify its input */
+    char copy[PATH_MAX] = {0};
+    strncpy(copy, group, sizeof(copy) - 1);
+    char *leaf = basename(copy);
+    if (!sc_startswith(leaf, "snap.")) {
+        return false;
+    }
+    if (!sc_endswith(leaf, ".service") && !sc_endswith(leaf, ".scope")) {
+        return false;
+    }
+    return true;
+}
+
 static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     self->v2.devmap_fd = -1;
     self->v2.cgroup_fd = -1;
@@ -291,6 +305,14 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     char *own_group SC_CLEANUP(sc_cleanup_string) = sc_cgroup_v2_own_path_full();
     if (own_group == NULL) {
         die("cannot obtain own group path");
+    }
+    debug("process in cgroup %s", own_group);
+    if (!_sc_is_snap_cgroup(own_group)) {
+        /* we cannot proceed to install a device filtering program when the
+         * process is not in a snap specific cgroup, as we would effectively
+         * lock down the group that can be shared with other processes or even
+         * the whole desktop session */
+        die("%s is not a snap cgroup", own_group);
     }
 
     /* fix the memlock limit if needed, this affects creating maps */
