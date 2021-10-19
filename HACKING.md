@@ -12,7 +12,7 @@ Go 1.13 or later is required to build `snapd`.
 
 If you need to build older versions of snapd, please have a look at the file
 `debian/control` to find out what dependencies were needed at the time
-(including which version of the go compiler).
+(including which version of the Go compiler).
 
 ### Setting up your build environment
 
@@ -31,7 +31,7 @@ export PATH="$PATH:$GOPATH/bin"
 When working with the source of Go programs, you should define a path within
 your home directory (or other workspace) which will be your `GOPATH`. `GOPATH`
 is similar to Java's `CLASSPATH` or Python's `~/.local`. `GOPATH` is
-documented [online](http://golang.org/pkg/go/build/) and inside the go tool
+documented [online](http://golang.org/pkg/go/build/) and inside the `go` tool
 itself.
 
     go help gopath
@@ -50,7 +50,7 @@ packages and compiled binaries, respectively.
 Setting `GOPATH` correctly is critical when developing Go programs. Set and
 export it as part of your login script.
 
-Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
+Add `$GOPATH/bin` to your `PATH`, so you can run the Go programs you install:
 
     PATH="$PATH:$GOPATH/bin"
 
@@ -165,7 +165,7 @@ Install a suitable cross-compiler for the target architecture.
 sudo apt-get install gcc-arm-linux-gnueabihf
 ```
 
-Verify the default architecture version of your GCC cross compiler.
+Verify the default architecture version of your GCC cross-compiler.
 
 ```
 arm-linux-gnueabihf-gcc -v
@@ -176,7 +176,7 @@ arm-linux-gnueabihf-gcc -v
 --with-mode=thumb
 ```
 
-Verify the supported Go cross compile ARM targets [here](
+Verify the supported Go cross-compile ARM targets [here](
 https://github.com/golang/go/wiki/GoArm).
 
 `Snapd` depends on libseccomp v2.3 or later. The following instructions can be
