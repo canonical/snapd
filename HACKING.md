@@ -10,6 +10,8 @@ integration/system level tests.
 
 Go 1.13 or later is required to build `snapd`.
 
+If you need to build older versions of snapd, please have a look at the file `debian/control` to find out what dependencies were needed at the time (including which version of the go compiler).
+
 ### Setting up your build environment
 
 If your Go environment (e.g. `GOPATH`) is already configured, you should skip
@@ -93,7 +95,7 @@ For more information on testing, please see the Testing section.
 
 ### Build host dependencies
 
-Build dependencies can automatically be resolved using `build-deb`on Ubuntu.
+Build dependencies can automatically be resolved using `build-dep`on Ubuntu.
 
     cd ~/snapd
     sudo apt-get build-dep .
@@ -121,7 +123,7 @@ mkdir -p /tmp/build
 go build -o /tmp/build/snapd ./cmd/snapd
 ```
 
-To build the all`snapd` Go components:
+To build all the`snapd` Go components:
 
 ```
 cd ~/snapd
@@ -129,13 +131,26 @@ mkdir -p /tmp/build
 go build -o /tmp/build ./...
 ```
 
-### Cross-compiling (example: ARM target)
+### Cross-compiling (example: ARM v7 target)
 
 Install a suitable cross-compiler for the target architecture.
 
 ```
 sudo apt-get install gcc-arm-linux-gnueabihf
 ```
+
+Verify the default architecture version of your GCC cross compiler.
+
+```
+arm-linux-gnueabihf-gcc -v
+:
+--with-arch=armv7-a
+--with-fpu=vfpv3-d16
+--with-float=hard
+--with-mode=thumb
+```
+
+Verify the supported Go cross compile ARM targets [here](https://github.com/golang/go/wiki/GoArm).
 
 `Snapd` depends on libseccomp v2.3 or later. The following instructions can be used to
 cross-compile the library:
@@ -157,30 +172,33 @@ export CGO_ENABLED=1
 export CGO_LDFLAGS="-L${HOME}/libseccomp/build/lib"
 export GOOS=linux
 export GOARCH=arm
+export GOARM=7
 ```
 
-To build the `snap` commandline client:
+The Go environment variables are now explicitly set to target the ARM v7 architecture.
+
+Run the same build commands from the Building (natively) section above. 
+
+Verify the target architecture by looking at the application ELF header.
 
 ```
-cd ~/snapd
-mkdir -p /tmp/build
-go build -o /tmp/build/snapd ./cmd/snapd
+readelf -h /tmp/build/snapd
+:
+Class:                             ELF32
+OS/ABI:                            UNIX - System V
+Machine:                           ARM
 ```
 
-To build the `snapd` REST API daemon:
+CGO produced ELF binaries contain additional architecture attributes that
+reflect the exact ARM architecture we targeted.
 
 ```
-cd ~/snapd
-mkdir -p /tmp/build
-go build -o /tmp/build/snapd ./cmd/snapd
-```
-
-To build all`snapd` Go components:
-
-```
-cd ~/snapd
-mkdir -p /tmp/build
-go build -o /tmp/build ./...
+readelf -A /tmp/build/snap-seccomp
+:
+File Attributes
+  Tag_CPU_name: "7-A"
+  Tag_CPU_arch: v7
+  Tag_FP_arch: VFPv3-D16
 ```
 
 ### Testing
