@@ -49,6 +49,7 @@ execute: |
   
   echo "But it can be installed with --ignore-validation flag"
   snap install --ignore-validation hello-world
+  snap validate | MATCH "^$ACCOUNT_ID/testenforce1=1 +enforce +1 +invalid"
   snap remove --purge hello-world
 
   echo "Snap cannot be removed when required"
