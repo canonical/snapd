@@ -1,0 +1,30 @@
+summary: Ensure that snapd quits on SIGTERM
+
+details: |
+    This is a regression test for LP#1946656. We want to check that a pending
+    connection can not prevent snapd from quitting.
+
+restore: |
+    echo "Restarting snapd"
+    # No harm if it was already running
+    systemctl start snapd.service
+
+execute: |
+    echo "Make a request, keep the connection open"
+    nc -U /run/snapd.socket << EOF &
+    GET /v2/apps HTTP/1.1
+    Host: localhost
+
+    EOF
+
+    echo "Stopping snapd, and measuring time"
+    TEST_TIME0="$(date +'%s')"
+    systemctl stop snapd.service
+
+    retry -n 10 sh -c 'systemctl status snapd.service | MATCH "inactive"'
+    TEST_TIME1="$(date +'%s')"
+
+    if ((TEST_TIME1 > TEST_TIME0 + 5)); then
+        echo "Stopping snapd took more than 5 seconds!"
+        exit 1
+    fi
