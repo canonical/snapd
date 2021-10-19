@@ -65,7 +65,7 @@ The easiest way to get the source for `snapd` is to clone the Github repository
 in a directory where you have read-write permissions, such as your home
 directory.
 
-    cd
+    cd ~/
     git clone https://github.com/snapcore/snapd.git
     cd snapd
 
@@ -90,7 +90,7 @@ Add your fork as an additional remote to an already cloned `snapd` main
 repository. Replace `<user>` with your Github account username.
 
 ```
-cd snapd
+cd ~/snapd
 git remote add fork git@github.com:<user>/snapd.git
 ```
 
