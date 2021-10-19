@@ -17,6 +17,7 @@ prepare: |
     if ! command -v curl; then
         snap install --devmode --edge test-snapd-curl
         snap alias test-snapd-curl.curl curl
+        tests.cleanup defer snap remove --purge test-snapd-curl
     fi
 
     # The default timeout for the configure hook is 5min - however in the
@@ -24,16 +25,13 @@ prepare: |
     # microk8s spread test because it really take a bit to get configured.
     cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
     sed 's/SNAPD_CONFIGURE_HOOK_TIMEOUT=.*s/SNAPD_CONFIGURE_HOOK_TIMEOUT=180s/g' -i /etc/systemd/system/snapd.service.d/local.conf
+    tests.cleanup defer mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
     systemctl daemon-reload
+    tests.cleanup defer systemctl daemon-reload
     systemctl restart snapd.socket
+    tests.cleanup defer systemctl restart snapd.socket
 
 restore: |
-    mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
-    systemctl daemon-reload
-    systemctl restart snapd.socket
-
-    snap remove --purge test-snapd-curl
-
     snap remove --purge microk8s
 
     # TODO: remove handling of snap_daemon user once microk8s is updated not
