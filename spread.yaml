@@ -59,6 +59,7 @@ environment:
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
+    EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
@@ -168,6 +169,7 @@ backends:
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
         halt-timeout: 2h
+        cpu-family: 'Intel Cascade Lake'
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
@@ -226,6 +228,8 @@ backends:
                   image: ubuntu-20.04-64
                   username: ubuntu
                   password: ubuntu
+                  bios: uefi
+                  # TODO: remove one everyone switch to official spread
                   flags: [virtio]
             - ubuntu-18.04-64:
                   username: ubuntu
@@ -458,6 +462,9 @@ debug-each: |
                 echo "# device cgroup $cgroup_dev"
                 cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
             fi
+        else
+            echo "# snap confinement device filtering maps"
+            ls -l /sys/fs/bpf/snap || true
         fi
 
         case "$SPREAD_SYSTEM" in

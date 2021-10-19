@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -74,6 +75,9 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", nil)
+	s.state.Unlock()
 	manager, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 	s.manager = manager
@@ -269,7 +273,9 @@ func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskEnsureRestarting(c *C) {
 	// we do no start new hooks runs if we are restarting
-	s.state.RequestRestart(state.RestartDaemon)
+	s.state.Lock()
+	restart.MockPending(s.state, restart.RestartDaemon)
+	s.state.Unlock()
 
 	s.se.Ensure()
 	s.se.Wait()
