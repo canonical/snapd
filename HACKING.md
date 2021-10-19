@@ -17,7 +17,7 @@ If you need to build older versions of snapd, please have a look at the file
 ### Setting up your build environment
 
 If your Go environment (e.g. `GOPATH`) is already configured, you should skip
-this step. The go environment setup can be added to your shell login script
+this step. The Go environment setup can be added to your shell login script
 (e.g. ~/.bashrc for bash) for automatic setup (after a terminal restart).
 
 ```
@@ -61,7 +61,7 @@ above).
 
 ### Getting the snapd sources
 
-The easiest way to get the source for `snapd` is to clone the Github repository
+The easiest way to get the source for `snapd` is to clone the GitHub repository
 in a directory where you have read-write permissions, such as your home
 directory.
 
@@ -82,12 +82,12 @@ http://www.ubuntu.com/legal/contributors).
 Complete requirements can be found in CONTRIBUTING.md.
 
 Contributions are submitted through a Pull Request created from a fork of the
-`snapd` repository (under your Github account). 
+`snapd` repository (under your GitHub account). 
 
-Start by creating a fork of the `snapd` repository on Github.
+Start by creating a fork of the `snapd` repository on GitHub.
 
 Add your fork as an additional remote to an already cloned `snapd` main
-repository. Replace `<user>` with your Github account username.
+repository. Replace `<user>` with your GitHub account username.
 
 ```
 cd ~/snapd
@@ -109,9 +109,9 @@ git commit -a -m "commit message"
 git push fork <branchname>
 ```
 
-Create the Pull Request for your branch on Github.
+Create the Pull Request for your branch on GitHub.
 
-This complete process is outlined in the Github documentation [here](
+This complete process is outlined in the GitHub documentation [here](
 https://docs.github.com/en/github/collaborating-with-pull-requests).
 
 We value good tests, so when you fix a bug or add a new feature we highly
@@ -133,7 +133,7 @@ Go module dependencies are automatically resolved at build time.
 
 ### Building (natively)
 
-To build the `snap` commandline client:
+To build the `snap` command line client:
 
 ```
 cd ~/snapd
