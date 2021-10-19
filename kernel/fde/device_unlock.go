@@ -51,6 +51,17 @@ func runFDEDeviceUnlockCommand(req *DeviceUnlockRequest) (output []byte, err err
 	return runFDEinitramfsHelper("fde-device-unlock", stdin)
 }
 
+var runFDEDeviceUnlock = runFDEDeviceUnlockCommand
+
+func MockRunFDEDeviceUlock(mock func(*DeviceUnlockRequest) ([]byte, error)) (restore func()) {
+	osutil.MustBeTestBinary("fde-device-unlock can only be mocked in tests")
+	oldRunFDEDeviceUnlock := runFDEDeviceUnlock
+	runFDEDeviceUnlock = mock
+	return func() {
+		runFDEDeviceUnlock = oldRunFDEDeviceUnlock
+	}
+}
+
 // DeviceUnlockParams contains the parameters for fde-device-unlock
 // "device-unlock" operation.
 type DeviceUnlockParams struct {
@@ -71,7 +82,7 @@ func DeviceUnlock(params *DeviceUnlockParams) (err error) {
 	}
 	logger.Debugf("running fde-device-unlock on %q with name %q", req.Device, req.PartitionName)
 
-	output, err := runFDEDeviceUnlockCommand(req)
+	output, err := runFDEDeviceUnlock(req)
 	if err != nil {
 		return fmt.Errorf(`cannot run fde-device-unlock "device-unlock": %v`, osutil.OutputErr(output, err))
 	}
