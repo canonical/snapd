@@ -463,11 +463,11 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 			return err
 		}
 
-		snaps, err := snapstate.InstalledSnaps(s)
+		snaps, ignoreValidation, err := snapstate.InstalledSnaps(s)
 		if err != nil {
 			return err
 		}
-		err = vsets.CheckInstalledSnaps(snaps)
+		err = vsets.CheckInstalledSnaps(snaps, ignoreValidation)
 		if verr, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
 			if len(verr.InvalidSnaps) > 0 || len(verr.MissingSnaps) > 0 {
 				return verr
@@ -596,7 +596,7 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 // checks if it's not in conflict with existing validation sets in enforcing mode
 // (all currently tracked validation set assertions get refreshed), and if they
 // are valid for installed snaps.
-func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (vs *asserts.ValidationSet, err error) {
+func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (vs *asserts.ValidationSet, err error) {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, err
@@ -661,7 +661,7 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		if err := valsets.Conflict(); err != nil {
 			return err
 		}
-		if err := valsets.CheckInstalledSnaps(snaps); err != nil {
+		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
 			return err
 		}
 		return nil

@@ -359,7 +359,7 @@ func (v *ValidationSets) Conflict() error {
 }
 
 // CheckInstalledSnaps checks installed snaps against the validation sets.
-func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
+func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValidation map[string]bool) error {
 	installed := naming.NewSnapSet(nil)
 	for _, sn := range snaps {
 		installed.Add(sn)
@@ -380,7 +380,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 				switch {
 				case !isInstalled && (cstrs.presence == asserts.PresenceOptional || cstrs.presence == asserts.PresenceInvalid):
 					// not installed, but optional or not required
-				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
+				case isInstalled && cstrs.presence == asserts.PresenceInvalid && !ignoreValidation[rc.Name]:
 					// installed but not expected to be present
 					if invalid[rc.Name] == nil {
 						invalid[rc.Name] = make(map[string]bool)
@@ -389,7 +389,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				case isInstalled:
 					// presence is either optional or required
-					if rev != unspecifiedRevision && rev != sn.(*InstalledSnap).Revision {
+					if rev != unspecifiedRevision && rev != sn.(*InstalledSnap).Revision && !ignoreValidation[rc.Name] {
 						// expected a different revision
 						if wrongrev[rc.Name] == nil {
 							wrongrev[rc.Name] = make(map[snap.Revision]map[string]bool)
@@ -401,7 +401,11 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 						sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 					}
 				default:
-					// not installed but required
+					// not installed but required.
+					// note, not checking ignoreValidation here because it's not a viable scenario (it's not
+					// possible to have enforced validation set while not having the required snap at all - it
+					// is only possible to have it with a wrong revision, or installed while invalid, in both
+					// cases through --ignore-validation flag).
 					if missing[rc.Name] == nil {
 						missing[rc.Name] = make(map[string]bool)
 					}
