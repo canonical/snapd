@@ -184,8 +184,6 @@ func runFdeRevealKey() error {
 		// hook, the lock operation must be implemented here
 		// to block decryption operations. This example does
 		// nothing.
-	case "features":
-		fmt.Fprintf(osStdout, `{"features":[]}`)
 	default:
 		return fmt.Errorf(`unsupported operation %q`, js.Op)
 	}

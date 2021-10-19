@@ -3222,5 +3222,7 @@ func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
 		},
 	}, nil, nil, nil)
 	close(quit)
-	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: net/http: request canceled \(Client.Timeout exceeded while awaiting headers\).*`)
+	// go 1.17 started quoting the failing URL, also context deadline
+	// exceeded may appear in place of request being canceled
+	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: (net/http: request canceled|context deadline exceeded) \(Client.Timeout exceeded while awaiting headers\).*`)
 }

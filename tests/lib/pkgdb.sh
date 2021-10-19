@@ -601,11 +601,13 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-21.04-64|ubuntu-21.10-64)
+        ubuntu-21.04-64|ubuntu-21.10-64*)
+            # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 fwupd
                 golang
+                linux-tools-$(uname -r)
                 qemu-utils
                 "
             ;;
@@ -630,6 +632,13 @@ pkg_dependencies_ubuntu_classic(){
                 sbuild
                 schroot
                 "
+            ;;
+    esac
+    case "$SPREAD_SYSTEM" in
+        debian-11-*|debian-sid-*)
+            echo "
+                 bpftool
+                 "
             ;;
     esac
 }
@@ -657,6 +666,7 @@ pkg_dependencies_ubuntu_core(){
 pkg_dependencies_fedora_centos_common(){
     echo "
         python3
+        bpftool
         clang
         curl
         dbus-x11
@@ -728,6 +738,7 @@ pkg_dependencies_opensuse(){
         apparmor-profiles
         audit
         bash-completion
+        bpftool
         clang
         curl
         dbus-1-python3
@@ -763,6 +774,7 @@ pkg_dependencies_arch(){
     apparmor
     base-devel
     bash-completion
+    bpf
     clang
     curl
     evolution-data-server

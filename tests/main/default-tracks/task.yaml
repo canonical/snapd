@@ -5,11 +5,12 @@ environment:
     A_TRACK: default
 
 prepare: |
-    snap install http jq
+    snap install jq
+    snap install test-snapd-curl --edge
 
 execute: |
     # first, sanity check that the snap has a default track
-    snap run http GET "https://api.snapcraft.io/v2/snaps/info/$A_SNAP" Snap-Device-Series:16 > info
+    snap run test-snapd-curl.curl -H "Snap-Device-Series: 16" "https://api.snapcraft.io/v2/snaps/info/$A_SNAP" > info
     test "$( snap run  jq -r '."default-track"' < info )" == "$A_TRACK"
 
     # TODO: check the output of 'snap info' for the default-track-having snap
@@ -23,7 +24,7 @@ execute: |
     "$TESTSTOOLS"/snapd-state check-state ".data.snaps.\"$A_SNAP\".channel" = "$A_TRACK/candidate"
 
     snap remove --purge "$A_SNAP"
-    snap remove --purge http
+    snap remove --purge test-snapd-curl
     snap remove --purge jq
 
     # now try a multi-install

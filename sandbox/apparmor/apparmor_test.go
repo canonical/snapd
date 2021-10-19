@@ -233,67 +233,59 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 
 	var testcases = []struct {
-		exitCodes   []string
+		exitCodes   []int
 		expFeatures []string
 	}{
 		{
-			exitCodes: []string{"1", "1", "1"},
+			exitCodes: []int{1, 1, 1},
 		},
 		{
-			exitCodes:   []string{"1", "1", "0"},
+			exitCodes:   []int{1, 1, 0},
 			expFeatures: []string{"qipcrtr-socket"},
 		},
 		{
-			exitCodes:   []string{"1", "0", "1"},
+			exitCodes:   []int{1, 0, 1},
 			expFeatures: []string{"include-if-exists"},
 		},
 		{
-			exitCodes:   []string{"1", "0", "0"},
+			exitCodes:   []int{1, 0, 0},
 			expFeatures: []string{"include-if-exists", "qipcrtr-socket"},
 		},
 		{
-			exitCodes:   []string{"0", "1", "1"},
+			exitCodes:   []int{0, 1, 1},
 			expFeatures: []string{"unsafe"},
 		},
 		{
-			exitCodes:   []string{"0", "1", "0"},
+			exitCodes:   []int{0, 1, 0},
 			expFeatures: []string{"qipcrtr-socket", "unsafe"},
 		},
 		{
-			exitCodes:   []string{"0", "0", "1"},
+			exitCodes:   []int{0, 0, 1},
 			expFeatures: []string{"include-if-exists", "unsafe"},
 		},
 		{
-			exitCodes:   []string{"0", "0", "0"},
+			exitCodes:   []int{0, 0, 0},
 			expFeatures: []string{"include-if-exists", "qipcrtr-socket", "unsafe"},
 		},
 	}
 
 	for _, t := range testcases {
 		d := c.MkDir()
-		err := ioutil.WriteFile(filepath.Join(d, "iter"), []byte("0"), 0755)
+		contents := ""
+		for _, code := range t.exitCodes {
+			contents += fmt.Sprintf("%d ", code)
+		}
+		err := ioutil.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
 		c.Assert(err, IsNil)
-		c.Assert(t.exitCodes, HasLen, 3, Commentf("invalid test setup, must have three exit codes for three apparmor parser features probed"))
 		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
 cat >> %[1]s/stdin
 echo "" >> %[1]s/stdin
 
-iter=$(cat %[1]s/iter)
-iter=$(( iter + 1 )) 
-echo $iter > %[1]s/iter
+read -r EXIT_CODE CODES_FOR_NEXT_CALLS < %[1]s/codes
+echo "$CODES_FOR_NEXT_CALLS" > %[1]s/codes
 
-case $iter in
-		1)
-			exit %[2]s
-		;;
-		2)
-			exit %[3]s
-		;;
-		3)
-			exit %[4]s
-		;;
-esac
-`, d, t.exitCodes[0], t.exitCodes[1], t.exitCodes[2]))
+exit "$EXIT_CODE"
+`, d))
 		defer mockParserCmd.Restore()
 		restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 		defer restore()
@@ -306,7 +298,11 @@ esac
 			c.Check(features, DeepEquals, t.expFeatures)
 		}
 
-		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}, {"apparmor_parser", "--preprocess"}, {"apparmor_parser", "--preprocess"}})
+		var expectedCalls [][]string
+		for range t.exitCodes {
+			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
+		}
+		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, `profile snap-test {

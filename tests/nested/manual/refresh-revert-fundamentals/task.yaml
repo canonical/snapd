@@ -11,16 +11,13 @@ environment:
     NESTED_CORE_REFRESH_CHANNEL: edge
     NESTED_BUILD_SNAPD_FROM_CURRENT: false
     NESTED_USE_CLOUD_INIT: true
-    # TODO:UC20: temporarily disable secure boot and encryption support. The
-    # location of encryption keys has changed, thus the nested VM will not boot
-    # until the kernel snap is rebuilt with snapd 2.48.
-    NESTED_ENABLE_SECURE_BOOT: false
-    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_ENABLE_TPM: true
 
     SNAP/kernel: pc-kernel
     TRACK/kernel: 20
 
-    SNAP/gadget: pc    
+    SNAP/gadget: pc
     TRACK/gadget: 20
 
     SNAP/snapd: snapd
@@ -30,11 +27,8 @@ environment:
     TRACK/base: latest
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    
-    FROM_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
-    TO_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
+    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
+    TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 
     if [ "$FROM_REV" = "$TO_REV" ]; then
         echo "Initial and target revisions are the same, skipping..."
@@ -46,23 +40,18 @@ prepare: |
     tests.nested create-vm core
 
 debug: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     tests.nested exec "snap changes" || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     if [ -f skip.test ]; then
         exit
     fi
 
-    FROM_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
-    TO_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
+    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
+    TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 
     tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
-    
+
     echo "Refresh the snap $SNAP"
     INITIAL_BOOT_ID=$(tests.nested boot-id)
     REFRESH_ID=$(tests.nested exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")

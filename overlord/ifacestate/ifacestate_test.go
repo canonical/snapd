@@ -469,11 +469,14 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	conns := make(map[string]*interfaces.ConnRef)
 	connOpts := make(map[string]*ifacestate.ConnectOpts)
 
-	// no connections
+	// no connections and tasks created (also, no stray tasks in the state)
 	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
-	c.Check(ts.Tasks(), HasLen, 0)
+	c.Check(ts, IsNil)
 	c.Check(hasInterfaceHooks, Equals, false)
+	// state.TaskCount() is the only way of checking for stray tasks without a
+	// change (state.Tasks() filters those out).
+	c.Assert(s.state.TaskCount(), Equals, 0)
 
 	// two connections
 	cref1 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
@@ -1862,6 +1865,69 @@ func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c
 	c.Assert(logLines, HasLen, 2)
 	c.Assert(logLines[0], testutil.Contains, "error trying to compare the snap system key:")
 	c.Assert(logLines[1], Equals, "")
+}
+
+func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := ifacestate.MockRemoveStaleConnections(func(s *state.State) error { return nil })
+	defer restore()
+
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot":             map[string]interface{}{"interface": "test", "auto": true},
+		"other-consumer:plug other-producer:slot": map[string]interface{}{"interface": "test", "auto": true},
+	})
+	sideInfo := &snap.SideInfo{
+		RealName: brokenSnapName,
+		Revision: snap.R(1),
+	}
+
+	// have one of them in state, and broken due to missing snap.yaml
+	snapstate.Set(s.state, brokenSnapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+		SnapType: "app",
+	})
+
+	// sanity check - snap is broken
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, brokenSnapName, &snapst), IsNil)
+	curInfo, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(curInfo.Broken, Matches, fmt.Sprintf(`cannot find installed snap "%s" at revision 1: missing file .*/1/meta/snap.yaml`, brokenSnapName))
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	mgr := s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that nothing is connected
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+
+	// but the consumer:plug producer:slot connection is kept in the state and only the other one
+	// got dropped.
+	var conns map[string]interface{}
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test", "auto": true},
+	})
+
+	c.Check(s.log.String(), testutil.Contains, fmt.Sprintf("Snap %q is broken, ignored by reloadConnections", brokenSnapName))
+}
+
+func (s *interfaceManagerSuite) TestStaleAutoConnectionsNotRemovedIfPlugSnapBroken(c *C) {
+	s.testStaleAutoConnectionsNotRemovedIfSnapBroken(c, "consumer")
+}
+
+func (s *interfaceManagerSuite) TestStaleAutoConnectionsNotRemovedIfSlotSnapBroken(c *C) {
+	s.testStaleAutoConnectionsNotRemovedIfSnapBroken(c, "producer")
 }
 
 func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
@@ -4247,6 +4313,90 @@ plugs:
 	})
 }
 
+func (s *interfaceManagerSuite) TestAutoDisconnectIgnoreHookError(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	mgr := s.hookManager(c)
+
+	// fail when running the disconnect hooks
+	hijackFunc := func(*hookstate.Context) error { return errors.New("test") }
+	mgr.RegisterHijack("disconnect-plug-plug", "consumer", hijackFunc)
+	mgr.RegisterHijack("disconnect-slot-slot", "producer", hijackFunc)
+
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+hooks:
+  disconnect-plug-plug:
+`
+
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+hooks:
+  disconnect-slot-slot:
+`
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+
+	s.state.Unlock()
+	s.manager(c)
+	s.state.Lock()
+
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(consumerInfo.Plugs["plug"], nil, nil),
+		Slot: interfaces.NewConnectedSlot(producerInfo.Slots["slot"], nil, nil),
+	}
+
+	// call disconnect with the AutoDisconnect flag (used when removing a snap)
+	ts, err := ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithAutoSet())
+	c.Assert(err, IsNil)
+
+	change := s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the hook setup should be set to ignore errors
+	var hooksCount int
+	for _, t := range ts.Tasks() {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+
+		var hooksetup hookstate.HookSetup
+		err = t.Get("hook-setup", &hooksetup)
+		c.Assert(err, IsNil)
+		c.Check(hooksetup.IgnoreError, Equals, true)
+
+		err = t.Get("undo-hook-setup", &hooksetup)
+		c.Assert(err, IsNil)
+		c.Check(hooksetup.IgnoreError, Equals, true)
+
+		hooksCount++
+	}
+
+	// should have two disconnection tasks
+	c.Assert(hooksCount, Equals, 2)
+
+	// the change should not have failed
+	c.Check(change.Err(), IsNil)
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+}
+
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	var consumerYaml = `
@@ -6456,6 +6606,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 		SnapType: "os",
 	})
 	st.Unlock()
+	s.mockSnap(c, coreSnapYaml)
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
@@ -6496,6 +6647,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 		SnapType: "os",
 	})
 	st.Unlock()
+	s.mockSnap(c, coreSnapYaml)
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
