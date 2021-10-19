@@ -560,6 +560,150 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 	}
 }
 
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedWithDeviceUnlock(c *C) {
+
+	// setup mock disks to use for locating the partition
+	// restore := disks.MockMountPointDisksToPartitionMapping()
+	// defer restore()
+
+	mockDiskWithoutAnyDev := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{},
+	}
+
+	mockDiskForDeviceUnlock := &disks.MockDiskMapping{
+		PartitionLabelToPartUUID: map[string]string{
+			"name": "name-dev-partuuid",
+		},
+	}
+
+	key := makeMockSealedKeyFile(c, nil)
+
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		return []byte(fmt.Sprintf(`{"key": "%s"}`, base64.StdEncoding.EncodeToString(makeMockUnencryptedPayload()))), nil
+	})
+	defer restore()
+	restore = secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	for idx, tc := range []struct {
+		err             string
+		blockdevErr     string
+		dmsetupErr      string
+		deviceUnlockErr error
+		disk            *disks.MockDiskMapping
+	}{
+		{
+			// happy case with device-unlock
+			disk: mockDiskForDeviceUnlock,
+		}, {
+			// unhappy case with device-unlock
+			disk: mockDiskWithoutAnyDev,
+			err:  `partition label "name" not found`,
+		}, {
+			disk:        mockDiskForDeviceUnlock,
+			blockdevErr: "mock blockdev error",
+			err:         `cannot get disk size: mock blockdev error`,
+		}, {
+			disk:       mockDiskForDeviceUnlock,
+			dmsetupErr: "mock dmsetup error",
+			err:        `cannot create mapper "name-device-locked" on /dev/disk/by-partuuid/name-dev-partuuid: mock dmsetup error`,
+		}, {
+			disk:            mockDiskForDeviceUnlock,
+			deviceUnlockErr: fmt.Errorf("mock unlock error"),
+			err:             `cannot run fde-device-unlock "device-unlock": mock unlock error`,
+		},
+	} {
+		func() {
+			randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
+			restore := secboot.MockRandomKernelUUID(func() string {
+				return randomUUID
+			})
+			defer restore()
+
+			c.Logf("tc %v: %+v", idx, tc)
+			_, restoreConnect := mockSbTPMConnection(c, fmt.Errorf("unexpected tpm call"))
+			defer restoreConnect()
+
+			restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+				c.Error("unexpected call")
+				return false
+			})
+			defer restore()
+
+			defaultDevice := "name"
+
+			deviceUnlockCmd := testutil.MockCommand(c, "fde-device-unlock", ``)
+			defer deviceUnlockCmd.Restore()
+
+			fdeDeviceUnlockCalls := 0
+			restore = fde.MockRunFDEDeviceUlock(func(req *fde.DeviceUnlockRequest) ([]byte, error) {
+				fdeDeviceUnlockCalls++
+				c.Logf("called")
+				c.Check(req, DeepEquals, &fde.DeviceUnlockRequest{
+					Op:            "device-unlock",
+					Key:           []byte{0, 1, 2, 3, 4, 5},
+					Device:        "/dev/disk/by-partuuid/name-dev-partuuid",
+					PartitionName: "name",
+				})
+				return nil, tc.deviceUnlockErr
+			})
+			defer restore()
+
+			blockdevScript := `echo 2097152` // 1GB
+			if tc.blockdevErr != "" {
+				blockdevScript = fmt.Sprintf(`echo "%s"; exit 1`, tc.blockdevErr)
+			}
+			blockdevCmd := testutil.MockCommand(c, "blockdev", blockdevScript)
+			defer blockdevCmd.Restore()
+
+			dmsetupScript := ``
+			if tc.dmsetupErr != "" {
+				dmsetupScript = fmt.Sprintf(`echo "%s"; exit 1`, tc.dmsetupErr)
+			}
+			dmsetupCmd := testutil.MockCommand(c, "dmsetup", dmsetupScript)
+			defer dmsetupCmd.Restore()
+
+			restore = secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb_tpm2.Connection, volumeName, sourceDevicePath,
+				keyPath string, pinReader io.Reader, options *sb.ActivateVolumeOptions) (bool, error) {
+				c.Errorf("unexpected call")
+				return false, fmt.Errorf("unexpected call")
+			})
+			defer restore()
+
+			restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, keyReader io.Reader,
+				options *sb.ActivateVolumeOptions) error {
+				c.Errorf("unexpected attempt to activate with recovery key")
+				return fmt.Errorf("unexpected call")
+			})
+			defer restore()
+
+			opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+			unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, key, opts)
+			if tc.err == "" {
+				c.Assert(err, IsNil)
+				c.Assert(fdeDeviceUnlockCalls, Equals, 1)
+				c.Assert(unlockRes, Equals, secboot.UnlockResult{
+					UnlockMethod: secboot.UnlockedWithKey,
+					IsEncrypted:  true,
+					PartDevice:   "/dev/disk/by-partuuid/name-dev-partuuid",
+					FsDevice:     "/dev/mapper/name-device-locked",
+				})
+				c.Assert(blockdevCmd.Calls(), DeepEquals, [][]string{
+					{"blockdev", "--getsz", "/dev/disk/by-partuuid/name-dev-partuuid"},
+				})
+				c.Assert(dmsetupCmd.Calls(), DeepEquals, [][]string{
+					{"dmsetup", "create", "name-device-locked", "--uuid", "name-dev-partuuid",
+						"--table", "0 2095104 linear /dev/disk/by-partuuid/name-dev-partuuid 2048"},
+				})
+			} else {
+				c.Assert(err, ErrorMatches, tc.err)
+			}
+		}()
+	}
+}
+
 func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 	tmpDir := c.MkDir()
 

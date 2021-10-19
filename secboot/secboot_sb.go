@@ -243,6 +243,7 @@ func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string,
 	if err := fde.DeviceUnlock(params); err != nil {
 		return res, err
 	}
+	res.UnlockMethod = UnlockedWithKey
 	res.IsEncrypted = true
 	res.PartDevice = partDevice
 	res.FsDevice = mapperDevice
