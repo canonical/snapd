@@ -1,8 +1,8 @@
 # Hacking on snapd
 
 Hacking on `snapd` is fun and straightforward. The code is extensively unit
-tested and we use the [spread](https://github.com/snapcore/spread) integration test framework for the
-integration/system level tests.
+tested and we use the [spread](https://github.com/snapcore/spread)
+integration test framework for the integration/system level tests.
 
 ## Development
 
@@ -10,13 +10,15 @@ integration/system level tests.
 
 Go 1.13 or later is required to build `snapd`.
 
-If you need to build older versions of snapd, please have a look at the file `debian/control` to find out what dependencies were needed at the time (including which version of the go compiler).
+If you need to build older versions of snapd, please have a look at the file
+`debian/control` to find out what dependencies were needed at the time
+(including which version of the go compiler).
 
 ### Setting up your build environment
 
 If your Go environment (e.g. `GOPATH`) is already configured, you should skip
-this step. The go environment setup can be added to your shell login
-script (e.g. ~/.bashrc for bash) for automatic setup (after a terminal restart).
+this step. The go environment setup can be added to your shell login script
+(e.g. ~/.bashrc for bash) for automatic setup (after a terminal restart).
 
 ```
 export GOPATH=${HOME}/work
@@ -28,21 +30,22 @@ export PATH="$PATH:$GOPATH/bin"
 
 When working with the source of Go programs, you should define a path within
 your home directory (or other workspace) which will be your `GOPATH`. `GOPATH`
-is similar to Java's `CLASSPATH` or Python's `~/.local`. `GOPATH` is documented
-[online](http://golang.org/pkg/go/build/) and inside the go tool itself
+is similar to Java's `CLASSPATH` or Python's `~/.local`. `GOPATH` is
+documented [online](http://golang.org/pkg/go/build/) and inside the go tool
+itself.
 
     go help gopath
 
 Various conventions exist for naming the location of your `GOPATH`, but it
-should exist, and be writable by you. For example
+should exist, and be writable by you. For example:
 
     export GOPATH=${HOME}/work
     mkdir $GOPATH
 
 will define and create `$HOME/work` as your local `GOPATH`. The `go` tool
 itself will create three subdirectories inside your `GOPATH` when required;
-`src`, `pkg` and `bin`, which hold the source of Go programs, compiled packages
-and compiled binaries, respectively.
+`src`, `pkg` and `bin`, which hold the source of Go programs, compiled
+packages and compiled binaries, respectively.
 
 Setting `GOPATH` correctly is critical when developing Go programs. Set and
 export it as part of your login script.
@@ -58,15 +61,16 @@ above).
 
 ### Getting the snapd sources
 
-The easiest way to get the source for `snapd` is to clone the Github repository in
-a directory where you have read-write permissions, such as your home directory.
+The easiest way to get the source for `snapd` is to clone the Github repository
+in a directory where you have read-write permissions, such as your home
+directory.
 
-    cd ~/
+    cd
     git clone https://github.com/snapcore/snapd.git
     cd snapd
 
-This will allow you to build and test `snapd`. If you wish to contribute to the
-`snapd` project, please see the Contributing section.
+This will allow you to build and test `snapd`. If you wish to contribute to
+the `snapd` project, please see the Contributing section.
 
 ### Contributing
 
@@ -77,16 +81,38 @@ http://www.ubuntu.com/legal/contributors).
 
 Complete requirements can be found in CONTRIBUTING.md.
 
-Before you contribute to the`snapd` project, please fork the `snapd` repository
-(under your Github account), and submit patches through a Pull Request.
+Contributions are submitted through a Pull Request created from a fork of the
+`snapd` repository (under your Github account). 
+
+Start by creating a fork of the `snapd` repository on Github.
+
+Add your fork as an additional remote to an already cloned `snapd` main
+repository. Replace `<user>` with your Github account username.
 
 ```
-cd ~/
-git clone https://github.com/<user>/snapd.git
 cd snapd
+git remote add fork git@github.com:<user>/snapd.git
 ```
 
-This process is outlined in the Github documentation [here](https://docs.github.com/en/github/collaborating-with-pull-requests)
+Create a working branch on which to commit your work. Replace
+`<branchname>` with a suitable branch name.
+
+```
+git checkout -b <branchname>
+```
+
+Make changes to the repository and commit the changes to your
+working branch. Push the changes to your forked `snapd` repository.
+
+```
+git commit -a -m "commit message"
+git push fork <branchname>
+```
+
+Create the Pull Request for your branch on Github.
+
+This complete process is outlined in the Github documentation [here](
+https://docs.github.com/en/github/collaborating-with-pull-requests).
 
 We value good tests, so when you fix a bug or add a new feature we highly
 encourage you to add tests.
@@ -112,7 +138,7 @@ To build the `snap` commandline client:
 ```
 cd ~/snapd
 mkdir -p /tmp/build
-go build -o /tmp/build/snapd ./cmd/snapd
+go build -o /tmp/build/snap ./cmd/snap
 ```
 
 To build the `snapd` REST API daemon:
@@ -150,10 +176,11 @@ arm-linux-gnueabihf-gcc -v
 --with-mode=thumb
 ```
 
-Verify the supported Go cross compile ARM targets [here](https://github.com/golang/go/wiki/GoArm).
+Verify the supported Go cross compile ARM targets [here](
+https://github.com/golang/go/wiki/GoArm).
 
-`Snapd` depends on libseccomp v2.3 or later. The following instructions can be used to
-cross-compile the library:
+`Snapd` depends on libseccomp v2.3 or later. The following instructions can be
+used to cross-compile the library:
 
 ```
 cd ~/
@@ -175,9 +202,10 @@ export GOARCH=arm
 export GOARM=7
 ```
 
-The Go environment variables are now explicitly set to target the ARM v7 architecture.
+The Go environment variables are now explicitly set to target the ARM v7
+architecture.
 
-Run the same build commands from the Building (natively) section above. 
+Run the same build commands from the Building (natively) section above.
 
 Verify the target architecture by looking at the application ELF header.
 
