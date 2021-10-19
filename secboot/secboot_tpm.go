@@ -267,7 +267,7 @@ func unlockEncryptedPartitionWithSealedKey(tpm *sb_tpm2.Connection, mapperName, 
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
-	options := activateVolOpts(allowRecovery)
+	options := activateVolOpts(false /*allowRecovery*/)
 	// ignoring model checker as it doesn't work with tpm "legacy" platform ke y data
 	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
 	if err == sb.ErrRecoveryKeyUsed {
