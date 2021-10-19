@@ -1,4 +1,4 @@
-summary: Check snapd built from current branch boots with the stable kernel
+summary: Check snapd built from current branch boots with the fundamental snaps
 
 systems: [ubuntu-20.04-*]
 
@@ -8,12 +8,19 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: true
     NESTED_ENABLE_TPM: true
 
+    NESTED_IMG_CHANNEL: edge
     NESTED_KERNEL_CHANNEL: stable
     NESTED_GADGET_CHANNEL: stable
     NESTED_BASE_CHANNEL: stable
     NESTED_SNAPD_CHANNEL: edge
-
     NESTED_IMAGE_ID: boot-stable-kernel
+
+    # TODO: include the following scenarios
+    # edge + build_from_branch snapd + stable everything else (this test)
+    # edge + build_from_branch snapd + beta kernel + stable everything else
+    # edge + build_from_branch snapd + beta gadget + stable everything else
+    # edge + build_from_branch snapd + beta base (core20) + stable everything else
+
     NESTED_REPACK_KERNEL_SNAP: false
     NESTED_REPACK_GADGET_SNAP: false
     NESTED_REPACK_BASE_SNAP: false

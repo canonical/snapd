@@ -25,13 +25,13 @@ debug: |
     fi
 
 execute: |
-    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CHANNEL" = "$NESTED_REFRESH_CHANNEL" ]; then
-        echo "This test need to start from beta/candidate/stable channel"
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_IMG_CHANNEL" = "$NESTED_REFRESH_CHANNEL" ]; then
+        echo "This test needs to start from beta/candidate/stable channel"
         exit 0
     fi
 
     echo "Refresh the core snap to $NESTED_REFRESH_CHANNEL channel"
-    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CHANNEL}"
+    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_IMG_CHANNEL}"
     tests.nested exec "sudo snap refresh --${NESTED_REFRESH_CHANNEL} core" || true
 
     if ! tests.nested wait-for ssh; then

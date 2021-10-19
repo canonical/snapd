@@ -72,7 +72,8 @@ environment:
     # Configure nested images to be reused on the following tests
     NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
     # Channel used to create the nested vm
-    NESTED_CHANNEL: '$(HOST: echo "${NESTED_CHANNEL:-edge}")'
+    # Default tracking channel for snaps in the nested image, used with the ubuntu-image --channel option to create the nested vm
+    NESTED_IMG_CHANNEL: '$(HOST: echo "${NESTED_IMG_CHANNEL:-edge}")'
     # Channel used to refresh once the vm is already created
     NESTED_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_REFRESH_CHANNEL:-edge}")'
     # Channel used for the kernel snap

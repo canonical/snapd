@@ -40,7 +40,7 @@ environment:
 
   # unset this otherwise ubuntu-image complains about overriding the channel for
   # a model with grade higher than dangerous when building the image
-  NESTED_CHANNEL: ""
+  NESTED_IMG_CHANNEL: ""
 
 prepare: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then

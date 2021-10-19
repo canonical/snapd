@@ -8,7 +8,7 @@ details: |
 systems: [ubuntu-16.04-64]
     
 execute: |
-    INITIAL_REV="$(tests.nested snap-rev core "${NESTED_CHANNEL}")"
+    INITIAL_REV="$(tests.nested snap-rev core "${NESTED_IMG_CHANNEL}")"
     NEW_REV="$(tests.nested snap-rev core "${NESTED_REFRESH_CHANNEL}")"
 
     if [ "$INITIAL_REV" = "$NEW_REV" ]; then
@@ -23,7 +23,7 @@ execute: |
     tests.nested exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
     echo "Go to known good starting place"
-    tests.nested exec "snap download core --${NESTED_CHANNEL}"
+    tests.nested exec "snap download core --${NESTED_IMG_CHANNEL}"
     tests.nested exec "sudo snap ack core_*.assert"
     tests.nested exec "sudo snap install core_*.snap"
 

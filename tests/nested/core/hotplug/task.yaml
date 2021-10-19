@@ -30,7 +30,7 @@ execute: |
     #shellcheck source=tests/lib/hotplug.sh
     . "$TESTSLIB/hotplug.sh"
 
-    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" != "true" ] && [ "$NESTED_REFRESH_CHANNEL" != "$NESTED_CHANNEL" ]; then
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" != "true" ] && [ "$NESTED_REFRESH_CHANNEL" != "$NESTED_IMG_CHANNEL" ]; then
         echo "Refresh core snap to desired channel"
         nested_refresh_to_new_core "$NESTED_REFRESH_CHANNEL"
     fi

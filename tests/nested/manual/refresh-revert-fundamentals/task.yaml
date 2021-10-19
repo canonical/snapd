@@ -7,7 +7,7 @@ details: |
 systems: [ubuntu-20.04-*]
 
 environment:
-    NESTED_CHANNEL: beta
+    NESTED_IMG_CHANNEL: beta
     NESTED_REFRESH_CHANNEL: edge
     NESTED_BUILD_SNAPD_FROM_CURRENT: false
     NESTED_USE_CLOUD_INIT: true
@@ -30,7 +30,7 @@ environment:
     TRACK/base: latest
 
 prepare: |
-    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CHANNEL)"
+    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_IMG_CHANNEL)"
     TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_REFRESH_CHANNEL)"
 
     if [ "$FROM_REV" = "$TO_REV" ]; then
@@ -50,10 +50,10 @@ execute: |
         exit
     fi
 
-    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_CHANNEL)"
+    FROM_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_IMG_CHANNEL)"
     TO_REV="$(tests.nested snap-rev "$SNAP" $TRACK/$NESTED_REFRESH_CHANNEL)"
 
-    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CHANNEL}.*"
+    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_IMG_CHANNEL}.*"
     
     echo "Refresh the snap $SNAP"
     INITIAL_BOOT_ID=$(tests.nested boot-id)

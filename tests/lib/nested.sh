@@ -422,7 +422,7 @@ nested_cleanup_env() {
 
 nested_get_image_name() {
     local TYPE="$1"
-    local SOURCE="${NESTED_CHANNEL}"
+    local SOURCE="${NESTED_IMG_CHANNEL}"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION="16"
 
@@ -593,7 +593,6 @@ nested_create_core_vm() {
                         # Prepare the pc kernel snap
                         KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
 
-                        chmod 0600 "$KERNEL_SNAP"
                         EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
                         # sign the pc-kernel snap with fakestore if requested
@@ -705,8 +704,8 @@ EOF
             export SNAPPY_FORCE_SAS_URL
             UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
             export UBUNTU_IMAGE_SNAP_CMD
-            if [ -n "$NESTED_CHANNEL" ]; then
-                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CHANNEL"
+            if [ -n "$NESTED_IMG_CHANNEL" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_IMG_CHANNEL"
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
