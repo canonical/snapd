@@ -631,6 +631,7 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 sbuild
                 schroot
+                systemd-timesyncd
                 "
             ;;
     esac
