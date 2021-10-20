@@ -197,7 +197,7 @@ version: 1
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0)
 	c.Assert(err, IsNil)
-	c.Check(string(stdout), Equals, "")
+	c.Check(string(stdout), Equals, "hold: 48h0m0s\n")
 	c.Check(string(stderr), Equals, "")
 
 	mockContext.Lock()
@@ -223,7 +223,8 @@ version: 1
 `)
 
 	// pretend snap foo is held initially
-	c.Check(snapstate.HoldRefresh(s.st, "snap1", 0, "foo"), IsNil)
+	_, err = snapstate.HoldRefresh(s.st, "snap1", 0, "foo")
+	c.Check(err, IsNil)
 	s.st.Unlock()
 
 	// sanity check

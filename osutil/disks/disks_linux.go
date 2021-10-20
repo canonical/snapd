@@ -144,11 +144,20 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 	// create the full path by pre-pending /sys, since udev doesn't include /sys
 	devpath = filepath.Join(dirs.SysfsDir, devpath)
 
+	// check if the device has partitions by attempting to actually search for
+	// them in /sys with the DEVPATH and DEVNAME
+
+	paths, err := filepath.Glob(filepath.Join(devpath, filepath.Base(devname)+"*"))
+	if err != nil {
+		return nil, fmt.Errorf("internal error with glob pattern: %v", err)
+	}
+
 	return &disk{
-		major:   major,
-		minor:   minor,
-		devname: devname,
-		devpath: devpath,
+		major:         major,
+		minor:         minor,
+		devname:       devname,
+		devpath:       devpath,
+		hasPartitions: len(paths) != 0,
 	}, nil
 }
 

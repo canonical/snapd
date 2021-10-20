@@ -3034,14 +3034,22 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 
 	// when there is no mapping file, it is not an error, the map returned is
 	// just nil/has no items in it
-	mAbsent, err := gadget.LoadDiskVolumesDeviceTraits()
+	mAbsent, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
 	c.Assert(err, IsNil)
 	c.Assert(mAbsent, HasLen, 0)
 
-	err = gadget.SaveDiskVolumesDeviceTraits(m)
+	// load looks in SnapDeviceDir since it is meant to be used during run mode
+	// when /var/lib/snapd/device/disk-mapping.json is the real version from
+	// ubuntu-data, but during install mode, we will need to save to the host
+	// ubuntu-data which is not located at /run/mnt/data or
+	// /var/lib/snapd/device, but rather
+	// /run/mnt/ubuntu-data/system-data/var/lib/snapd/device so this takes a
+	// directory argument when we save it
+	err = gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDir, m)
 	c.Assert(err, IsNil)
 
-	m2, err := gadget.LoadDiskVolumesDeviceTraits()
+	// now that it was saved to dirs.SnapDeviceDir, we can load it correctly
+	m2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, m2)
