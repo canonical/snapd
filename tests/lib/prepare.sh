@@ -779,7 +779,7 @@ setup_reflash_magic() {
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     # install ubuntu-image
-    snap install --classic --edge ubuntu-image
+    snap install --classic --candidate ubuntu-image
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
