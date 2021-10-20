@@ -1068,6 +1068,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	names = strutil.Deduplicate(names)
+
 	toInstall := make([]string, 0, len(names))
 	for _, name := range names {
 		var snapst SnapState
@@ -1208,6 +1210,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	if err != nil {
 		return nil, nil, err
 	}
+
+	names = strutil.Deduplicate(names)
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
@@ -2740,6 +2744,8 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	names = strutil.Deduplicate(names)
+
 	if err := validateSnapNames(names); err != nil {
 		return nil, nil, err
 	}

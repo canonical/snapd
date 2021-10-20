@@ -249,3 +249,17 @@ func (strutilSuite) TestSortedListsUniqueMerge(c *check.C) {
 		c.Check(res, check.DeepEquals, t.res)
 	}
 }
+
+func (strutilSuite) TestDeduplicate(c *check.C) {
+	for _, t := range []struct {
+		input  []string
+		output []string
+	}{
+		{input: []string{"a", "b", "c"}, output: []string{"a", "b", "c"}},
+		{input: []string{"a", "b", "a"}, output: []string{"a", "b"}},
+		{input: []string{"a", "a", "a", "a", "b", "b", "a"}, output: []string{"a", "b"}},
+		{input: []string{}, output: []string{}},
+	} {
+		c.Assert(strutil.Deduplicate(t.input), check.DeepEquals, t.output)
+	}
+}
