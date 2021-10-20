@@ -638,6 +638,7 @@ pkg_dependencies_ubuntu_classic(){
         debian-11-*|debian-sid-*)
             echo "
                  bpftool
+                 strace
                  "
             ;;
     esac
