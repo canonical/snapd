@@ -64,10 +64,11 @@ func BlkIDDecodeLabel(in string) (string, error) {
 			return "", fmt.Errorf(`string is malformed, unparsable escape sequence at "%s"`, beforeMatch[i:])
 		}
 		out.WriteString(beforeMatch)
-		n, err := strconv.ParseUint(in[start+2:start+4], 16, 8)
+		hex := in[start+2 : start+4]
+		n, err := strconv.ParseUint(hex, 16, 8)
 		if err != nil {
 			// This cannot really happen, since the regexp wouldn't match otherwise
-			panic("cannot parse hex despite matching regexp")
+			return "", fmt.Errorf("internal error: cannot parse hex %q despite matching regexp", hex)
 		}
 		out.WriteRune(rune(n))
 		pos = m[1]
