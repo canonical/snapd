@@ -12,7 +12,7 @@ environment:
   SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
 
 prepare: |
-  snap install http --devmode # devmode so it can save to any dir
+  snap install test-snapd-curl --edge --devmode # devmode so it can save to any dir
 
   # save the version of snapd from the PR to refresh to later
   INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
@@ -20,11 +20,11 @@ prepare: |
 
   # download and install snapd 2.49.2
   if os.query is-pc-amd64; then
-    http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_X86"
+    test-snapd-curl.curl -s -o snapd_2.49.2.snap "$SNAPD_2_49_2_X86"
   elif os.query is-arm64; then
-    http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARM64"
+    test-snapd-curl.curl -s -o snapd_2.49.2.snap "$SNAPD_2_49_2_ARM64"
   elif os.query is-armhf; then
-    http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARMHF"
+    test-snapd-curl.curl -s -o snapd_2.49.2.snap "$SNAPD_2_49_2_ARMHF"
   else
     echo "architecture not supported for this variant"
     exit 0
