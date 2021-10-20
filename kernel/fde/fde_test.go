@@ -626,3 +626,29 @@ func (s *fdeSuite) TestDeviceSetupError(c *C) {
 	err := fde.DeviceSetup(runSetupHook, params)
 	c.Check(err, ErrorMatches, "device setup failed with: something failed badly")
 }
+
+func (s *fdeSuite) TestDeviceUnlock(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
+	defer restore()
+	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
+	mockSystemdRun := testutil.MockCommand(c, "fde-device-unlock", fmt.Sprintf(`
+cat - > %s
+`, fdeRevealKeyStdin))
+	defer mockSystemdRun.Restore()
+
+	// sanity check
+	c.Assert(fde.HasDeviceUnlock(), Equals, true)
+	key := []byte{0, 1, 2, 3, 4, 5}
+	err := fde.DeviceUnlock(&fde.DeviceUnlockParams{
+		Key:           key,
+		Device:        "/dev/mapper/data-device-locked",
+		PartitionName: "data",
+	})
+	c.Assert(err, IsNil)
+	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+		{"fde-device-unlock"},
+	})
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/mapper/data-device-locked","partition-name":"data"}`, base64.StdEncoding.EncodeToString(key)))
+}
