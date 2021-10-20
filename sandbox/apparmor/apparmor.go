@@ -327,6 +327,9 @@ func probeParserFeatures() ([]string, error) {
 	if tryAppArmorParserFeature(parser, "network qipcrtr dgram,") {
 		features = append(features, "qipcrtr-socket")
 	}
+	if tryAppArmorParserFeature(parser, "capability bpf,") {
+		features = append(features, "bpf")
+	}
 	sort.Strings(features)
 	return features, nil
 }
