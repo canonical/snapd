@@ -11,7 +11,7 @@ restore: |
 
 execute: |
     echo "Make a request, keep the connection open"
-    nc -U /run/snapd.socket << EOF &
+    nc -q 20 -U /run/snapd.socket << EOF &
     GET /v2/apps HTTP/1.1
     Host: localhost
 
@@ -21,7 +21,12 @@ execute: |
     TEST_TIME0="$(date +'%s')"
     systemctl stop snapd.service
 
-    retry -n 10 sh -c 'systemctl status snapd.service | MATCH "inactive"'
+    # The systemctl command waits for the operation to complete, but just to be
+    # extra safe check that it's either inactive or has just been restarted. We
+    # don't want to stop the socket itself, as that might hide the issue we
+    # want to test.
+    retry -n 100 --wait 0.1 sh -c 'systemctl status snapd.service | MATCH "inactive"'
+
     TEST_TIME1="$(date +'%s')"
 
     if ((TEST_TIME1 > TEST_TIME0 + 5)); then

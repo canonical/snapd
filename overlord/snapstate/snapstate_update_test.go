@@ -1108,7 +1108,8 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	tr.Commit()
 
 	// pretend that the snap was held during last auto-refresh
-	c.Assert(snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap"), IsNil)
+	_, err := snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap")
+	c.Assert(err, IsNil)
 	// sanity check
 	held, err := snapstate.HeldSnaps(s.state)
 	c.Assert(err, IsNil)
