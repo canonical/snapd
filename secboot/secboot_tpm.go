@@ -209,20 +209,19 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 	//            intermediate certs from the manufacturer.
 
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
+	tpmDeviceAvailable := false
 	// Obtain a TPM connection.
-	tpm, tpmErr := sbConnectToDefaultTPM()
-	if tpmErr != nil {
+	if tpm, tpmErr := sbConnectToDefaultTPM(); tpmErr != nil {
 		if !xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
 			return res, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
 	} else {
-		defer tpm.Close()
+		// Also check if the TPM device is enabled. The platform firmware may disable the storage
+		// and endorsement hierarchies, but the device will remain visible to the operating system.
+		tpmDeviceAvailable = isTPMEnabled(tpm)
+		tpm.Close()
 	}
-
-	// Also check if the TPM device is enabled. The platform firmware may disable the storage
-	// and endorsement hierarchies, but the device will remain visible to the operating system.
-	tpmDeviceAvailable := tpmErr == nil && isTPMEnabled(tpm)
 
 	// if we don't have a tpm, and we allow using a recovery key, do that
 	// directly
@@ -237,7 +236,7 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 
 	// otherwise we have a tpm and we should use the sealed key first, but
 	// this method will fallback to using the recovery key if enabled
-	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
+	method, err := unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
 	res.UnlockMethod = method
 	if err == nil {
 		res.FsDevice = targetDevice
@@ -262,7 +261,7 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb_tpm2.Connection, mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
+func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
 	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
