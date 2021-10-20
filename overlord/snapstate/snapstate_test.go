@@ -7053,7 +7053,6 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// try a kernel snap first
 	si := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(3)}
 	tPrepare := s.state.NewTask("prepare-snap", "dummy task")
 	snapsup := &snapstate.SnapSetup{
@@ -7094,5 +7093,4 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
 	c.Assert(tsNew, IsNil)
-
 }
