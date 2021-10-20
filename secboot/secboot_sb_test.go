@@ -575,13 +575,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedWithDeviceUnlock
 	// restore := disks.MockMountPointDisksToPartitionMapping()
 	// defer restore()
 
-	mockDiskWithoutAnyDev := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{},
-	}
+	mockDiskWithoutAnyDev := &disks.MockDiskMapping{}
 
 	mockDiskForDeviceUnlock := &disks.MockDiskMapping{
-		PartitionLabelToPartUUID: map[string]string{
-			"name": "name-dev-partuuid",
+		Structure: []disks.Partition{
+			{
+				PartitionLabel: "name",
+				PartitionUUID:  "name-dev-partuuid",
+			},
 		},
 	}
 
@@ -635,7 +636,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedWithDeviceUnlock
 			_, restoreConnect := mockSbTPMConnection(c, fmt.Errorf("unexpected tpm call"))
 			defer restoreConnect()
 
-			restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+			restore = secboot.MockIsTPMEnabled(func(tpm *sb.TPMConnection) bool {
 				c.Error("unexpected call")
 				return false
 			})
@@ -674,7 +675,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedWithDeviceUnlock
 			dmsetupCmd := testutil.MockCommand(c, "dmsetup", dmsetupScript)
 			defer dmsetupCmd.Restore()
 
-			restore = secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb_tpm2.Connection, volumeName, sourceDevicePath,
+			restore = secboot.MockSbActivateVolumeWithTPMSealedKey(func(tpm *sb.TPMConnection, volumeName, sourceDevicePath,
 				keyPath string, pinReader io.Reader, options *sb.ActivateVolumeOptions) (bool, error) {
 				c.Errorf("unexpected call")
 				return false, fmt.Errorf("unexpected call")
