@@ -11,11 +11,23 @@ restore: |
 
 execute: |
     echo "Make a request, keep the connection open"
-    nc -q 20 -U /run/snapd.socket << EOF &
-    GET /v2/apps HTTP/1.1
-    Host: localhost
-
+    python3 - << EOF > stamp &
+    import socket, time
+    s=socket.socket(socket.SOCK_STREAM,socket.AF_UNIX)
+    s.connect('/run/snapd.socket')
+    s.send(b'GET /v2/apps HTTP/1.1\r\nHost: localhost\r\n\r\n')
+    s.recv(10000)
+    print('DONE')
+    time.sleep(60)
     EOF
+
+    tests.cleanup defer rm -f stamp
+
+    while ! grep DONE stamp
+    do
+        echo "Waiting for snapd reply..."
+        sleep 0.1
+    done
 
     echo "Stopping snapd, and measuring time"
     TEST_TIME0="$(date +'%s')"
