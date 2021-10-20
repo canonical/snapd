@@ -442,7 +442,7 @@ fi
 	})
 }
 
-func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
+func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C) {
 	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
 `)
 	defer restore()
@@ -475,6 +475,53 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	b = []byte("CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	opts := &disks.Options{IsDecryptedDevice: true}
+	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "242:1")
+	c.Assert(d.HasPartitions(), Equals, false)
+	parts, err := d.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, HasLen, 0)
+}
+
+func (s *diskSuite) TestDiskFromMountPointIsDecryptedunlockedDeviceVolumeHappy(c *C) {
+	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something-device-locked rw
+`)
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something-device-locked":
+			return map[string]string{
+				"DEVTYPE": "disk",
+			}, nil
+		case "/dev/disk/by-partuuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
+			return map[string]string{
+				"DEVTYPE": "disk",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	// name expected by fde
+	b := []byte("something-device-locked")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	c.Assert(err, IsNil)
+
+	b = []byte("5a522809-c87e-4dfa-81a8-8dc5667d1304")
 	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
 	c.Assert(err, IsNil)
 
