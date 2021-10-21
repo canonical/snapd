@@ -366,3 +366,11 @@ func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, err
 		snapsToRefresh = old
 	}
 }
+
+func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) (restore func()) {
+	old := AddCurrentTrackingToValidationSetsStack
+	AddCurrentTrackingToValidationSetsStack = f
+	return func() {
+		AddCurrentTrackingToValidationSetsStack = old
+	}
+}

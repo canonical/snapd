@@ -593,15 +593,24 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	allSnaps := len(inst.Snaps) == 0
+
 	// we need refreshed snap-declarations to enforce refresh-control as best as
 	// we can, this also ensures that snap-declarations and their prerequisite
 	// assertions are updated regularly; update validation sets assertions only
 	// if refreshing all snaps (no snap names explicitly requested).
 	opts := &assertstate.RefreshAssertionsOptions{
-		IsRefreshOfAllSnaps: len(inst.Snaps) == 0,
+		IsRefreshOfAllSnaps: allSnaps,
 	}
 	if err := assertstateRefreshSnapAssertions(st, inst.userID, opts); err != nil {
 		return nil, err
+	}
+
+	if allSnaps {
+		// update validation sets stack
+		if err := assertstateAddCurrentTrackingToValidationSetsStack(st); err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO: use a per-request context

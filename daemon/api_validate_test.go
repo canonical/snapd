@@ -960,7 +960,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
 	st.Lock()
 	var tr assertstate.ValidationSetTracking
 	err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "bar", &tr)
-	st.Unlock()
+	defer st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
 		Mode:      assertstate.Enforce,
@@ -968,6 +968,19 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
 		Name:      "bar",
 		Current:   3,
 	})
+
+	// verify the stack of validation sets has been updated
+	stack, err := assertstate.ValidationSetsStack(st)
+	c.Assert(err, check.IsNil)
+	c.Check(stack, check.DeepEquals, []map[string]*assertstate.ValidationSetTracking{
+		{
+			fmt.Sprintf("%s/bar", s.dev1acct.AccountID()): {
+				Mode:      assertstate.Enforce,
+				AccountID: s.dev1acct.AccountID(),
+				Name:      "bar",
+				Current:   3,
+			},
+		}})
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeIgnoreValidationOK(c *check.C) {

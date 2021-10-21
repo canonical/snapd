@@ -5981,6 +5981,37 @@ func findStrictlyOnePrereqTask(c *C, chg *state.Change) *state.Task {
 	return prereqTask
 }
 
+func (s *validationSetsSuite) TestAutoRefreshUpdatesValidationSetsStack(c *C) {
+	var refreshAssertionsCalled, updateValidationSetsStackCalled int
+
+	restore := mockAutoRefreshAssertions(func(*state.State, int) error {
+		refreshAssertionsCalled++
+		return nil
+	})
+	defer restore()
+
+	restore2 := snapstate.MockAddCurrentTrackingToValidationSetsStack(func(*state.State) error {
+		updateValidationSetsStackCalled++
+		return nil
+	})
+	defer restore2()
+	restore3 := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	defer restore3()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	_, ts, err := snapstate.AutoRefresh(context.TODO(), st)
+	c.Assert(err, IsNil)
+	c.Check(ts, NotNil)
+
+	c.Check(refreshAssertionsCalled, Equals, 1)
+	c.Check(updateValidationSetsStackCalled, Equals, 1)
+}
+
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequiredRevision(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()

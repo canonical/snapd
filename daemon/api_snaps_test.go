@@ -541,6 +541,12 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 		return assertstate.RefreshSnapAssertions(s, userID, opts)
 	})()
 
+	updateTrackingStack := false
+	defer daemon.MockAddCurrentTrackingToValidationSetsStack(func(s *state.State) error {
+		updateTrackingStack = true
+		return nil
+	})()
+
 	d := s.daemon(c)
 
 	for _, tst := range []struct {
@@ -553,6 +559,7 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 	} {
 		refreshSnapAssertions = false
 		refreshAssertionsOpts = nil
+		updateTrackingStack = false
 
 		defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 			c.Check(names, check.HasLen, 0)
@@ -570,6 +577,7 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 		c.Check(refreshSnapAssertions, check.Equals, true)
 		c.Assert(refreshAssertionsOpts, check.NotNil)
 		c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, true)
+		c.Check(updateTrackingStack, check.Equals, true)
 	}
 }
 

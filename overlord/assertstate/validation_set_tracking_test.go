@@ -255,3 +255,88 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	err = valsets.Conflict()
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
 }
+
+func (s *validationSetTrackingSuite) TestAddToValidationSetsStack(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	all, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 0)
+
+	tr1 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  1,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr1)
+	tr2 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "baz",
+		Mode:      assertstate.Monitor,
+		Current:   4,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr2)
+
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsStack(s.st), IsNil)
+	top, err := assertstate.ValidationSetsStackTop(s.st)
+	c.Assert(err, IsNil)
+	c.Check(top, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": {
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			PinnedAt:  1,
+			Current:   2,
+		},
+		"foo/baz": {
+			AccountID: "foo",
+			Name:      "baz",
+			Mode:      assertstate.Monitor,
+			Current:   4,
+		},
+	})
+
+	// adding unchanged validation set tracking doesn't create another entry
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsStack(s.st), IsNil)
+	top2, err := assertstate.ValidationSetsStackTop(s.st)
+	c.Assert(err, IsNil)
+	c.Check(top, DeepEquals, top2)
+	stack, err := assertstate.ValidationSetsStack(s.st)
+	c.Assert(err, IsNil)
+	c.Check(stack, HasLen, 1)
+
+	tr3 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "boo",
+		Mode:      assertstate.Enforce,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr3)
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsStack(s.st), IsNil)
+	top3, err := assertstate.ValidationSetsStackTop(s.st)
+	c.Assert(err, IsNil)
+	c.Check(top3, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": {
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			PinnedAt:  1,
+			Current:   2,
+		},
+		"foo/baz": {
+			AccountID: "foo",
+			Name:      "baz",
+			Mode:      assertstate.Monitor,
+			Current:   4,
+		},
+		"foo/boo": {
+			AccountID: "foo",
+			Name:      "boo",
+			Mode:      assertstate.Enforce,
+			Current:   2,
+		},
+	})
+}
