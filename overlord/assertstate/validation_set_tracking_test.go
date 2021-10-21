@@ -316,6 +316,12 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsStack(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.st, &tr3)
 	c.Assert(assertstate.AddCurrentTrackingToValidationSetsStack(s.st), IsNil)
+
+	stack, err = assertstate.ValidationSetsStack(s.st)
+	c.Assert(err, IsNil)
+	// the stack now has 2 entries
+	c.Check(stack, HasLen, 2)
+
 	top3, err := assertstate.ValidationSetsStackTop(s.st)
 	c.Assert(err, IsNil)
 	c.Check(top3, DeepEquals, map[string]*assertstate.ValidationSetTracking{
