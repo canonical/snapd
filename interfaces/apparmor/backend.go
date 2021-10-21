@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -693,10 +694,8 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 		switch placeholder {
 		case "###INCLUDEIFEXISTSSNAPTUNING###":
 			features, _ := parserFeatures()
-			for _, f := range features {
-				if f == "include-if-exists" {
-					return "#include if exists \"/var/lib/snapd/apparmor/snap-tuning\""
-				}
+			if strutil.ListContains(features, "include-if-exists") {
+				return `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`
 			}
 			return ""
 		case "###VAR###":
@@ -705,10 +704,8 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
 			features, _ := parserFeatures()
-			for _, f := range features {
-				if f == "unsafe" {
-					return "change_profile unsafe /**,"
-				}
+			if strutil.ListContains(features, "unsafe") {
+				return "change_profile unsafe /**,"
 			}
 			return "change_profile,"
 		case "###SNIPPETS###":

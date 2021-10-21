@@ -1011,7 +1011,7 @@ func (s *backendSuite) TestCombineSnippetsIncludeIfExists(c *C) {
 		expected: "",
 	}, {
 		features: []string{"include-if-exists"},
-		expected: "#include if exists \"/var/lib/snapd/apparmor/snap-tuning\"",
+		expected: `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`,
 	}}
 
 	for i, scenario := range includeIfExistsScenarios {
