@@ -1854,7 +1854,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithBPFCapability(c *C
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
 	defer restore()
 	// Pretend apparmor_parser supports bpf capability
-	apparmor_sandbox.MockFeatures(nil, nil, []string{"bpf"}, nil)
+	apparmor_sandbox.MockFeatures(nil, nil, []string{"cap-bpf"}, nil)
 
 	// Hijack interaction with apparmor_parser
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
@@ -1888,7 +1888,7 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithBPFCapability(c *C
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
-	c.Assert(files[0].Name(), Equals, "bpf")
+	c.Assert(files[0].Name(), Equals, "cap-bpf")
 	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 

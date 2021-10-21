@@ -143,8 +143,8 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// profile of snap-confine as loading it would fail.
 	if features, err := apparmor_sandbox.ParserFeatures(); err != nil {
 		logger.Noticef("cannot determine apparmor_parser features: %v", err)
-	} else if strutil.ListContains(features, "bpf") {
-		policy["bpf"] = &osutil.MemoryFileState{
+	} else if strutil.ListContains(features, "cap-bpf") {
+		policy["cap-bpf"] = &osutil.MemoryFileState{
 			Content: []byte(capabilityBPFSnippet),
 			Mode:    0644,
 		}
