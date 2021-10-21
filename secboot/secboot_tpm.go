@@ -220,6 +220,9 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 		// Also check if the TPM device is enabled. The platform firmware may disable the storage
 		// and endorsement hierarchies, but the device will remain visible to the operating system.
 		tpmDeviceAvailable = isTPMEnabled(tpm)
+		// later during ActivateVolumeWithKeyData secboot will
+		// open the TPM again, close it as it can't be opened
+		// multiple times and also we are done using it here
 		tpm.Close()
 	}
 
@@ -266,8 +269,8 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
-	options := activateVolOpts(false /*allowRecovery*/)
-	// ignoring model checker as it doesn't work with tpm "legacy" platform ke y data
+	options := activateVolOpts(allowRecovery)
+	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
 	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
