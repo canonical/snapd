@@ -45,3 +45,11 @@ func MockValidationSetAssertionForMonitor(f func(st *state.State, accountID, nam
 		validationSetAssertionForMonitor = old
 	}
 }
+
+func MockValidationSetAssertionForEnforce(f func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (vs *asserts.ValidationSet, err error)) func() {
+	old := validationSetAssertionForEnforce
+	validationSetAssertionForEnforce = f
+	return func() {
+		validationSetAssertionForEnforce = old
+	}
+}

@@ -306,9 +306,6 @@ void sc_setup_device_cgroup(const char *security_tag)
 		return;
 	}
 
-	/* Note that -1 is the neutral value for a file descriptor.
-	 * The cleanup function associated with this variable closes
-	 * descriptors other than -1. */
 	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
 	    sc_device_cgroup_new(security_tag, 0);
 	/* Setup the device group access control list */

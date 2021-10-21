@@ -89,8 +89,11 @@ var (
 	}
 )
 
-func createVirtioDevicesInSysfs(c *C, devsToPartition map[string]bool) {
-	diskDir := filepath.Join(dirs.SysfsDir, virtioDiskDevPath)
+func createVirtioDevicesInSysfs(c *C, path string, devsToPartition map[string]bool) {
+	if path == "" {
+		path = virtioDiskDevPath
+	}
+	diskDir := filepath.Join(dirs.SysfsDir, path)
 	for dev, isPartition := range devsToPartition {
 		err := os.MkdirAll(filepath.Join(diskDir, dev), 0755)
 		c.Assert(err, IsNil)
@@ -111,7 +114,7 @@ func (s *diskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *diskSuite) TestDiskFromNameHappy(c *C) {
+func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 	const sdaSysfsPath = "/devices/pci0000:00/0000:00:01.1/0000:01:00.1/ata1/host0/target0:0:0/0:0:0:0/block/sda"
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
@@ -131,13 +134,29 @@ func (s *diskSuite) TestDiskFromNameHappy(c *C) {
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, sdaSysfsPath))
+	// it doesn't have any partitions since we didn't mock any in sysfs
+	c.Assert(d.HasPartitions(), Equals, false)
+
+	// if we mock some sysfs partitions then it has partitions when we it has
+	// some partitions on it it
+	createVirtioDevicesInSysfs(c, sdaSysfsPath, map[string]bool{
+		"sda1": true,
+		"sda2": true,
+	})
+
+	d, err = disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "1:2")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+	c.Assert(d.HasPartitions(), Equals, true)
 }
 
-func (s *diskSuite) TestDiskFromPathHappy(c *C) {
+func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	const vdaSysfsPath = "/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb"
+	fullSysPath := filepath.Join("/sys", vdaSysfsPath)
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--path")
-		c.Assert(dev, Equals, filepath.Join("/sys", vdaSysfsPath))
+		c.Assert(dev, Equals, fullSysPath)
 		return map[string]string{
 			"MAJOR":   "1",
 			"MINOR":   "2",
@@ -148,15 +167,31 @@ func (s *diskSuite) TestDiskFromPathHappy(c *C) {
 	})
 	defer restore()
 
-	d, err := disks.DiskFromDevicePath(filepath.Join("/sys", vdaSysfsPath))
+	d, err := disks.DiskFromDevicePath(fullSysPath)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vdb")
 	// note that we don't always prepend exactly /sys, we use dirs.SysfsDir
 	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, vdaSysfsPath))
+
+	// it doesn't have any partitions since we didn't mock any in sysfs
+	c.Assert(d.HasPartitions(), Equals, false)
+
+	// if we mock some sysfs partitions then it has partitions when we it has
+	// some partitions on it it
+	createVirtioDevicesInSysfs(c, vdaSysfsPath, map[string]bool{
+		"vdb1": true,
+		"vdb2": true,
+	})
+
+	d, err = disks.DiskFromDevicePath(fullSysPath)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "1:2")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vdb")
+	c.Assert(d.HasPartitions(), Equals, true)
 }
 
-func (s *diskSuite) TestDiskFromNameUnhappyPartition(c *C) {
+func (s *diskSuite) TestDiskFromDeviceNameUnhappyPartition(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda1")
@@ -172,7 +207,7 @@ func (s *diskSuite) TestDiskFromNameUnhappyPartition(c *C) {
 	c.Assert(err, ErrorMatches, "device \"sda1\" is not a disk, it has DEVTYPE of \"partition\"")
 }
 
-func (s *diskSuite) TestDiskFromNameUnhappyBadUdevOutput(c *C) {
+func (s *diskSuite) TestDiskFromDeviceNameUnhappyBadUdevOutput(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -346,7 +381,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 
 	// create just the single valid partition in sysfs, and an invalid
 	// non-partition device that we should ignore
-	createVirtioDevicesInSysfs(c, map[string]bool{
+	createVirtioDevicesInSysfs(c, "", map[string]bool{
 		"vda4": true,
 		"vda5": false,
 	})
@@ -601,7 +636,7 @@ func (s *diskSuite) TestDiskFromMountPointPartitionsHappy(c *C) {
 	defer restore()
 
 	// create all 4 partitions as device nodes in sysfs
-	createVirtioDevicesInSysfs(c, map[string]bool{
+	createVirtioDevicesInSysfs(c, "", map[string]bool{
 		"vda1": true,
 		"vda2": true,
 		"vda3": true,
@@ -833,7 +868,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// mock the dev nodes in sysfs for the partitions
-	createVirtioDevicesInSysfs(c, map[string]bool{
+	createVirtioDevicesInSysfs(c, "", map[string]bool{
 		"vda1": true,
 		"vda2": true,
 		"vda3": true,
