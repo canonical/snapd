@@ -215,7 +215,7 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 		},
 		{
 			exitCodes:   []int{0, 0, 0},
-			expFeatures: []string{"bpf", "qipcrtr-socket", "unsafe"},
+			expFeatures: []string{"cap-bpf", "qipcrtr-socket", "unsafe"},
 		},
 	}
 
@@ -296,7 +296,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"bpf", "qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-bpf", "qipcrtr-socket", "unsafe"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -336,7 +336,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"bpf", "qipcrtr-socket", "unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-bpf", "qipcrtr-socket", "unsafe"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)
