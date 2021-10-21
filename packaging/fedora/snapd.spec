@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.53
+Version:        2.53.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -978,6 +978,31 @@ fi
 
 
 %changelog
+* Thu Oct 21 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.53.1
+ - spread: run lxd tests with version from latest/stable
+ - secboot: use latest secboot with tpm legacy platform and v2 fully
+   optional (#10946)
+ - cmd/snap-confine: die when snap process is outside of snap
+   specific cgroup (2.53)
+ - interfaces/u2f-devices: add Nitrokey 3
+ - Update the ubuntu-image channel to candidate
+ - Allow hostnames up to 253 characters, with dot-delimited elements 
+   (as suggested by man 7 hostname).
+ - Disable i386 until it is possible to build snapd using lxd
+ - o/snapstate, hookstate: print remaining hold time on snapctl
+   --hold
+ - tests/snapd-sigterm: be more robust against service restart
+ - tests: add a regression test for snapd hanging on SIGTERM
+ - daemon: use the syscall connection to get the socket
+   credentials
+ - interfaces/builtin/hardware-observer: add /proc/bus/input/devices
+   too
+ - cmd/snap-confine/snap-confine.apparmor.in: update ld rule for
+   s390x impish
+ - interface/modem-manager: add accept for MBIM/QMI proxy clients
+ - secboot: revert move to new version
+
 * Tue Oct 05 2021 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.53
  - overlord: fix generated snap-revision assertions in remodel unit
