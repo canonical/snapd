@@ -257,7 +257,8 @@ func (strutilSuite) TestDeduplicate(c *check.C) {
 	}{
 		{input: []string{"a", "b", "c"}, output: []string{"a", "b", "c"}},
 		{input: []string{"a", "b", "a"}, output: []string{"a", "b"}},
-		{input: []string{"a", "a", "a", "a", "b", "b", "a"}, output: []string{"a", "b"}},
+		// order of of first occurrence is preserved
+		{input: []string{"a", "a", "a", "c", "a", "b", "b", "a"}, output: []string{"a", "c", "b"}},
 		{input: []string{}, output: []string{}},
 	} {
 		c.Assert(strutil.Deduplicate(t.input), check.DeepEquals, t.output)
