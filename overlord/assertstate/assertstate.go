@@ -344,8 +344,6 @@ func delayedCrossMgrInit() {
 	snapstate.AutoAliases = AutoAliases
 	// hook the helper for getting enforced validation sets
 	snapstate.EnforcedValidationSets = EnforcedValidationSets
-	// hook the helper for saving current validation sets to the stack
-	snapstate.AddCurrentTrackingToValidationSetsStack = AddCurrentTrackingToValidationSetsStack
 }
 
 // AutoRefreshAssertions tries to refresh all assertions

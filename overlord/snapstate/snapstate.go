@@ -1947,8 +1947,6 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 // into the Autorefresh function.
 var AutoRefreshAssertions func(st *state.State, userID int) error
 
-var AddCurrentTrackingToValidationSetsStack func(st *state.State) error
-
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
 // assertions.
@@ -1960,13 +1958,6 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 		// since some snaps may be held and not refreshed.
 		if err := AutoRefreshAssertions(st, userID); err != nil {
 			return nil, nil, err
-		}
-
-		// update validation sets stack
-		if AddCurrentTrackingToValidationSetsStack != nil {
-			if err := AddCurrentTrackingToValidationSetsStack(st); err != nil {
-				return nil, nil, err
-			}
 		}
 	}
 
