@@ -306,10 +306,9 @@ void sc_setup_device_cgroup(const char *security_tag)
 		return;
 	}
 
-	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
-	    sc_device_cgroup_new(security_tag, 0);
-	/* Setup the device group access control list */
-	sc_udev_setup_acls_common(cgroup);
+	/* cgroup wrapper is lazily initialized when devices are actually
+	 * assigned */
+	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) = NULL;
 	for (struct udev_list_entry * entry = assigned; entry != NULL;
 	     entry = udev_list_entry_get_next(entry)) {
 		const char *path = udev_list_entry_get_name(entry);
@@ -335,7 +334,8 @@ void sc_setup_device_cgroup(const char *security_tag)
 		 * previously created/setup but should no longer be setup due
 		 * to interface disconnection, etc. */
 		if (__sc_udev_device_has_current_tag != NULL) {
-			if (__sc_udev_device_has_current_tag(device, udev_tag) <= 0) {
+			if (__sc_udev_device_has_current_tag(device, udev_tag)
+			    <= 0) {
 				debug("device %s has no matching current tag",
 				      path);
 				udev_device_unref(device);
@@ -344,11 +344,24 @@ void sc_setup_device_cgroup(const char *security_tag)
 			debug("device %s has matching current tag", path);
 		}
 
+		if (cgroup == NULL) {
+			/* initialize cgroup wrapper only know when we are sure that there
+			 * are devices assigned to this snap */
+			cgroup = sc_device_cgroup_new(security_tag, 0);
+			/* Setup the device group access control list */
+			sc_udev_setup_acls_common(cgroup);
+		}
 		sc_udev_allow_assigned_device(cgroup, device);
 		udev_device_unref(device);
 	}
-	/* Move ourselves to the device cgroup */
-	sc_device_cgroup_attach_pid(cgroup, getpid());
-	debug("associated snap application process %i with device cgroup %s",
-	      getpid(), security_tag);
+	if (cgroup != NULL) {
+		/* Move ourselves to the device cgroup */
+		sc_device_cgroup_attach_pid(cgroup, getpid());
+		debug
+		    ("associated snap application process %i with device cgroup %s",
+		     getpid(), security_tag);
+		return;
+	}
+	debug("no devices tagged with %s, skipping device cgroup setup",
+	      udev_tag);
 }
