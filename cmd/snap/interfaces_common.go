@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-// SnapAndName holds a snap name and a plug or slot name.
+// SnapAndName holds a snap name and, optionally, a plug or slot name.
 type SnapAndName struct {
 	Snap string
 	Name string
@@ -51,5 +51,23 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 	if sn.Snap == "" && sn.Name == "" {
 		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or snap)"), value)
 	}
+	return nil
+}
+
+// SnapAndNameStrict holds a snap name and a plug or slot name (both components
+// must be non-empty).
+type SnapAndNameStrict struct {
+	SnapAndName
+}
+
+func (sn *SnapAndNameStrict) UnmarshalFlag(value string) error {
+	sn.Snap, sn.Name = "", ""
+
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name)"), value)
+	}
+
+	sn.Snap, sn.Name = parts[0], parts[1]
 	return nil
 }
