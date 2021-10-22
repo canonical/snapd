@@ -35,7 +35,8 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
     # a global setting for LXD channel to use in the tests
-    LXD_SNAP_CHANNEL: "latest/candidate"
+    LXD_SNAP_CHANNEL: "latest/stable"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -897,7 +898,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -932,7 +933,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -971,7 +972,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb

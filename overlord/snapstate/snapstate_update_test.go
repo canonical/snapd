@@ -1108,7 +1108,8 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	tr.Commit()
 
 	// pretend that the snap was held during last auto-refresh
-	c.Assert(snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap"), IsNil)
+	_, err := snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap")
+	c.Assert(err, IsNil)
 	// sanity check
 	held, err := snapstate.HeldSnaps(s.state)
 	c.Assert(err, IsNil)
@@ -6193,9 +6194,8 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
+
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -6212,7 +6212,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}}}, {
 		op: "storesvc-snap-action:action",
@@ -6264,9 +6264,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6284,7 +6282,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}}}, {
 		op: "storesvc-snap-action:action",
@@ -6335,6 +6333,8 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
+
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -6345,10 +6345,6 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 	// new snap revision from the store
 	c.Check(snapsup.Revision(), Equals, snap.R(11))
 
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
-
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOps := fakeOps{{
 		op: "storesvc-snap-action",
@@ -6356,7 +6352,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}}}, {
 		op: "storesvc-snap-action:action",
@@ -6407,10 +6403,6 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
-
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -6426,8 +6418,8 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
-			RefreshedDate: refreshedDate,
+			Epoch:         snap.E("1*"),
+			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1),
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
@@ -6572,15 +6564,13 @@ func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
+
 	// revision 5 is required and requesting revision 11 would fail
 	// without --ignore-validation.
 	revOpts := &snapstate.RevisionOptions{Revision: snap.R(11)}
 	_, err := snapstate.Update(s.state, "some-snap", revOpts, 0, snapstate.Flags{IgnoreValidation: true})
 	c.Assert(err, IsNil)
-
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOps := fakeOps{{
@@ -6589,7 +6579,7 @@ func (s *validationSetsSuite) TestUpdateToWrongRevisionIgnoreValidation(c *C) {
 			InstanceName:     "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(1),
-			Epoch:            snap.E("0"),
+			Epoch:            snap.E("1*"),
 			RefreshedDate:    refreshedDate,
 			IgnoreValidation: true,
 		}},
@@ -6683,13 +6673,11 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
+
 	names, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"some-snap"})
-
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOps := fakeOps{{
@@ -6698,7 +6686,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}},
 	}, {
@@ -6753,13 +6741,10 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetIgnoreValidat
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 	names, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"some-snap"})
-
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOps := fakeOps{{
@@ -6768,7 +6753,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetIgnoreValidat
 			InstanceName:     "some-snap",
 			SnapID:           "some-snap-id",
 			Revision:         snap.R(1),
-			Epoch:            snap.E("0"),
+			Epoch:            snap.E("1*"),
 			RefreshedDate:    refreshedDate,
 			IgnoreValidation: true,
 		}},
