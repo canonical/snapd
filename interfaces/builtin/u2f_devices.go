@@ -108,6 +108,11 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "42b1",
 	},
 	{
+		Name:             "Nitrokey 3",
+		VendorIDPattern:  "20a0",
+		ProductIDPattern: "42b2",
+	},
+	{
 		Name:             "Google Titan U2F",
 		VendorIDPattern:  "18d1",
 		ProductIDPattern: "5026",
