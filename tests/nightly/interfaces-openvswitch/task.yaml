@@ -14,7 +14,7 @@ details: |
 # Openvswitch getting stuck during installation sporadically on ubuntu-14.04-64
 # Openvswitch service fails to start on debian-sid
 # Openvswitch service not available on the following systems
-systems: [-ubuntu-core-*, -opensuse-*, -amazon-*, -arch-linux-*, -centos-*, -debian-sid-*, -ubuntu-14.04-64]
+systems: [-ubuntu-core-*, -opensuse-*, -amazon-*, -arch-linux-*, -centos-*, -debian-sid-*, -ubuntu-14.04-64, -fedora-33-*]
 
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
