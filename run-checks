@@ -50,7 +50,7 @@ case "${1:-all}" in
         short=1
         ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit."
         exit 1
 esac
 
