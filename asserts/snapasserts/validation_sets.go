@@ -377,10 +377,14 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 				sn := installed.Lookup(rc)
 				isInstalled := sn != nil
 
+				if isInstalled && ignoreValidation[rc.Name] {
+					continue
+				}
+
 				switch {
 				case !isInstalled && (cstrs.presence == asserts.PresenceOptional || cstrs.presence == asserts.PresenceInvalid):
 					// not installed, but optional or not required
-				case isInstalled && cstrs.presence == asserts.PresenceInvalid && !ignoreValidation[rc.Name]:
+				case isInstalled && cstrs.presence == asserts.PresenceInvalid:
 					// installed but not expected to be present
 					if invalid[rc.Name] == nil {
 						invalid[rc.Name] = make(map[string]bool)
@@ -389,7 +393,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValid
 					sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 				case isInstalled:
 					// presence is either optional or required
-					if rev != unspecifiedRevision && rev != sn.(*InstalledSnap).Revision && !ignoreValidation[rc.Name] {
+					if rev != unspecifiedRevision && rev != sn.(*InstalledSnap).Revision {
 						// expected a different revision
 						if wrongrev[rc.Name] == nil {
 							wrongrev[rc.Name] = make(map[snap.Revision]map[string]bool)
