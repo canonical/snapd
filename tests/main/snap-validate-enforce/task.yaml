@@ -80,3 +80,6 @@ execute: |
   snap validate | MATCH "^$ACCOUNT_ID/testenforce1 +enforce +2 +valid"
   snap validate | MATCH "^$ACCOUNT_ID/testenforce2 +enforce +1 +valid"
   snap list | MATCH "test-snapd-validation-set-enforcing +2\.0\.0 +2 +latest/edge"
+
+  snap validate --forget "$ACCOUNT_ID"/testenforce1
+  snap validate --forget "$ACCOUNT_ID"/testenforce2
