@@ -20,6 +20,10 @@ summary: |
 environment:
   ACCOUNT_ID: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f
 
+restore: |
+  snap validate --forget "$ACCOUNT_ID"/testenforce1 || true
+  snap validate --forget "$ACCOUNT_ID"/testenforce2 || true
+
 execute: |
   echo "Setting validation set in enforce mode fails when snap is not installed"
   if snap validate --enforce "$ACCOUNT_ID"/testenforce1 > log.txt 2>&1; then
@@ -80,7 +84,3 @@ execute: |
   snap validate | MATCH "^$ACCOUNT_ID/testenforce1 +enforce +2 +valid"
   snap validate | MATCH "^$ACCOUNT_ID/testenforce2 +enforce +1 +valid"
   snap list | MATCH "test-snapd-validation-set-enforcing +2\.0\.0 +2 +latest/edge"
-
-restore: |
-  snap validate --forget "$ACCOUNT_ID"/testenforce1 || true
-  snap validate --forget "$ACCOUNT_ID"/testenforce2 || true
