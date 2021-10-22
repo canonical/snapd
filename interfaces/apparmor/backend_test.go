@@ -1847,7 +1847,6 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
-// snap-confine policy when overlay is used and snapd has re-executed.
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithBPFCapability(c *C, reexec bool) {
 	restore := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
@@ -1883,8 +1882,8 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithBPFCapability(c *C
 	err := (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 
-	// capability bpf is supported by the parser, so an extra policy file
-	// for snap-confine
+	// Capability bpf is supported by the parser, so an extra policy file
+	// for snap-confine is present
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
@@ -1912,17 +1911,18 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithBPFCapability(c *C
 	}
 }
 
+// snap-confine policy when apparmor_parser supports BPF capability and snapd reexec
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFCapabilityReexec(c *C) {
 	const reexecd = true
 	s.testSetupSnapConfineGeneratedPolicyWithBPFCapability(c, reexecd)
 }
 
+// snap-confine policy when apparmor_parser supports BPF capability but no reexec
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFCapabilityNoReexec(c *C) {
 	const reexecd = false
 	s.testSetupSnapConfineGeneratedPolicyWithBPFCapability(c, reexecd)
 }
 
-// snap-confine policy when overlay is used and snapd has re-executed.
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *C) {
 	log, restore := logger.MockLogger()
 	defer restore()
@@ -1954,8 +1954,8 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *C
 	err = (&apparmor.Backend{}).Initialize(nil)
 	c.Assert(err, IsNil)
 
-	// capability bpf is supported by the parser, so an extra policy file
-	// for snap-confine
+	// Probing apparmor_parser capabilities failed, so nothing gets written
+	// to the snap-confine policy directory
 	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
@@ -1964,7 +1964,6 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *C
 	c.Assert(cmd.Calls(), HasLen, 0)
 
 	// But an error was logged
-
 	c.Assert(log.String(), testutil.Contains, "cannot determine apparmor_parser features: mock probe error")
 }
 
