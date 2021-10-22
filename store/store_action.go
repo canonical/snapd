@@ -98,7 +98,7 @@ type SnapAction struct {
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
 	// ValidationSets is an optional array of validation sets primary keys
-	// (relevant only for install action).
+	// (relevant for install and refresh actions).
 	ValidationSets [][]string
 }
 
@@ -523,7 +523,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
 	}
 
-	if useDeltas() {
+	if s.useDeltas() {
 		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", s.deltaFormat)
 		reqOptions.addHeader("Snap-Accept-Delta-Format", s.deltaFormat)
 	}

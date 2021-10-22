@@ -20,12 +20,7 @@ prepare: |
       exit
   fi
 
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-  # shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB/snaps.sh"
-
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
   echo "Repack the snapd snap with a marker file"
   unsquashfs -d snapd-snap snapd-from-deb.snap
 
@@ -41,10 +36,10 @@ prepare: |
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     case "$VARIANT" in
       gadget-extra)
@@ -59,13 +54,13 @@ prepare: |
         exit 1
         ;;
     esac
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
   fi
 
-  "$TESTSTOOLS"/nested-state build-image core
-  "$TESTSTOOLS"/nested-state create-vm core
+  tests.nested build-image core
+  tests.nested create-vm core
 
-  nested_copy snapd-boot-config-update.snap
+  tests.nested copy snapd-boot-config-update.snap
 
 debug: |
   cat boot-chains-before.json || true
@@ -77,11 +72,8 @@ execute: |
       exit
   fi
 
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
-  nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
-  SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
+  SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
   jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH ' bootassetstesting'
   case "$VARIANT" in
@@ -97,22 +89,22 @@ execute: |
   esac
 
   echo "Install new (unasserted) snapd and wait for reboot/change finishing"
-  boot_id="$( nested_get_boot_id )"
-  REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
-  nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+  boot_id="$( tests.nested boot-id )"
+  REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
+  tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
   if [ "$VARIANT" != "gadget-full" ]; then
     # reboot is automatically requested by snapd only if part of the command
     # line is changed, in case of gadget overriding the command line fully
     # (gadget-full variant) the static part of the command line from new snapd
     # is not used, hence there is no resealing and no reboot
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
   fi
   
   echo "check boot assets have been updated"
-  nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
-  nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
+  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
+  tests.nested exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
 
-  nested_exec "cat /proc/cmdline" > system.cmdline
+  tests.nested exec "cat /proc/cmdline" > system.cmdline
 
   case "$VARIANT" in
     no-gadget)
@@ -132,7 +124,7 @@ execute: |
   esac
 
   echo "Check ubuntu-data.sealed-key mtime is newer or not depending on test variant"
-  SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  SEALED_KEY_MTIME_2="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   case "$VARIANT" in
     no-gadget|gadget-extra)
       test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
@@ -142,7 +134,7 @@ execute: |
       ;;
   esac
 
-  nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
+  tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
   RESEAL_COUNT_2="$(jq -r '.["reseal-count"]' < boot-chains-after.json )"
   case "$VARIANT" in
     no-gadget|gadget-extra)

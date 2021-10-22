@@ -17,7 +17,7 @@ details: |
 # general. We discussed this in the past and we'd have to change how we do our
 # CI so that we can always build each branch against ubuntu 16.04 container and
 # only then repackage and test on a given distribution.
-systems: [ubuntu-14.04-64, ubuntu-16.04-32, ubuntu-16.04-64]
+systems: [ubuntu-14.04-64, ubuntu-16.04-64]
 
 prepare: |
     echo "Having installed the test snap in devmode"

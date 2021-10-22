@@ -496,6 +496,7 @@ distro_get_package_extension() {
 
 pkg_dependencies_ubuntu_generic(){
     echo "
+        python3
         autoconf
         automake
         autotools-dev
@@ -550,17 +551,6 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-14.04-*)
                 pkg_linux_image_extra
             ;;
-        ubuntu-16.04-32)
-            echo "
-                dbus-user-session
-                gccgo-6
-                evolution-data-server
-                fwupd
-                gnome-online-accounts
-                packagekit
-                "
-                pkg_linux_image_extra
-            ;;
         ubuntu-16.04-64)
             echo "
                 dbus-user-session
@@ -574,6 +564,17 @@ pkg_dependencies_ubuntu_classic(){
                 qemu
                 x11-utils
                 xvfb
+                "
+                pkg_linux_image_extra
+            ;;
+        ubuntu-18.04-32)
+            echo "
+                dbus-user-session
+                gccgo-6
+                evolution-data-server
+                fwupd
+                gnome-online-accounts
+                packagekit
                 "
                 pkg_linux_image_extra
             ;;
@@ -591,21 +592,22 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-20.04-64)
             echo "
                 evolution-data-server
+                fwupd
                 gccgo-9
+                libvirt-daemon-system
                 packagekit
+                qemu-kvm
                 qemu-utils
                 shellcheck
                 "
             ;;
-        ubuntu-20.10-64)
-            echo "
-                qemu-utils
-                "
-            ;;
-        ubuntu-21.04-64)
+        ubuntu-21.04-64|ubuntu-21.10-64*)
+            # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
+                fwupd
                 golang
+                linux-tools-$(uname -r)
                 qemu-utils
                 "
             ;;
@@ -629,7 +631,16 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 sbuild
                 schroot
+                systemd-timesyncd
                 "
+            ;;
+    esac
+    case "$SPREAD_SYSTEM" in
+        debian-11-*|debian-sid-*)
+            echo "
+                 bpftool
+                 strace
+                 "
             ;;
     esac
 }
@@ -654,8 +665,10 @@ pkg_dependencies_ubuntu_core(){
         pkg_linux_image_extra
 }
 
-pkg_dependencies_fedora(){
+pkg_dependencies_fedora_centos_common(){
     echo "
+        python3
+        bpftool
         clang
         curl
         dbus-x11
@@ -686,8 +699,15 @@ pkg_dependencies_fedora(){
         "
 }
 
+pkg_dependencies_fedora(){
+    echo "
+         libcap-static
+        "
+}
+
 pkg_dependencies_amazon(){
     echo "
+        python3
         curl
         dbus-x11
         expect
@@ -698,6 +718,7 @@ pkg_dependencies_amazon(){
         grub2-tools
         jq
         iptables-services
+        libcap-static
         man
         nc
         net-tools
@@ -715,9 +736,11 @@ pkg_dependencies_amazon(){
 
 pkg_dependencies_opensuse(){
     echo "
+        python3
         apparmor-profiles
         audit
         bash-completion
+        bpftool
         clang
         curl
         dbus-1-python3
@@ -750,8 +773,10 @@ pkg_dependencies_opensuse(){
 
 pkg_dependencies_arch(){
     echo "
+    apparmor
     base-devel
     bash-completion
+    bpf
     clang
     curl
     evolution-data-server
@@ -783,7 +808,6 @@ pkg_dependencies_arch(){
     xdg-user-dirs
     xdg-utils
     xfsprogs
-    apparmor
     zsh
     "
 }
@@ -801,7 +825,11 @@ pkg_dependencies(){
         amazon-*|centos-7-*)
             pkg_dependencies_amazon
             ;;
-        fedora-*|centos-*)
+        centos-*)
+            pkg_dependencies_fedora_centos_common
+            ;;
+        fedora-*)
+            pkg_dependencies_fedora_centos_common
             pkg_dependencies_fedora
             ;;
         opensuse-*)

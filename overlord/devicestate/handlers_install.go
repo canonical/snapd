@@ -34,11 +34,13 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -52,38 +54,28 @@ var (
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
-	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
-	//            filtering on the resultant cloud config
-	shouldUseUbuntuSeed := model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg)
+	grade := model.Grade()
+
+	// we always set the cloud-init src directory if it exists, it is
+	// automatically ignored by sysconfig in the case it shouldn't be used
+	if osutil.IsDirectory(ubuntuSeedCloudCfg) {
+		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+	}
 
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
 	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		// this is implicitly handled by ConfigureTargetSystem when it
-		// configures cloud-init, so we just need to allow cloud-init for the
-		// gadget config to be used, but we also should check to see if
-		// ubuntu-seed config should be allowed as well
 		opts.AllowCloudInit = true
-		if shouldUseUbuntuSeed {
-			opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-		}
 
 	// next thing is if are in secured grade and didn't have gadget config, we
 	// disable cloud-init always, clouds should have their own config via
 	// gadgets for grade secured
-	case model.Grade() == asserts.ModelSecured:
+	case grade == asserts.ModelSecured:
 		opts.AllowCloudInit = false
 
-	// next if we are grade dangerous, then we also install cloud configuration
-	// from ubuntu-seed if it exists
-	case shouldUseUbuntuSeed:
-		opts.AllowCloudInit = true
-		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-
-	// note that if none of the conditions were true, it means we are on grade
-	// dangerous or signed, and cloud-init is still allowed to run without
-	// additional configuration on first-boot, so that NoCloud CIDATA can be
-	// provided for example
+	// all other cases we allow cloud-init to run, either through config that is
+	// available at runtime via a CI-DATA USB drive, or via config on
+	// ubuntu-seed if that is allowed by the model grade, etc.
 	default:
 		opts.AllowCloudInit = true
 	}
@@ -126,6 +118,80 @@ func writeLogs(rootdir string) error {
 	if err := gz.Flush(); err != nil {
 		return fmt.Errorf("cannot flush compressed log output: %v", err)
 	}
+
+	return nil
+}
+
+func writeTimings(st *state.State, rootdir string) error {
+	logPath := filepath.Join(rootdir, "var/log/install-timings.txt.gz")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	var chgIDs []string
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "seed" || chg.Kind() == "install-system" {
+			// this is captured via "--ensure=seed" and
+			// "--ensure=install-system" below
+			continue
+		}
+		chgIDs = append(chgIDs, chg.ID())
+	}
+
+	// state must be unlocked for "snap changes/debug timings" to work
+	st.Unlock()
+	defer st.Lock()
+
+	// XXX: ugly, ugly, but using the internal timings requires
+	//      some refactor as a lot of the required bits are not
+	//      exported right now
+	// first all changes
+	fmt.Fprintf(gz, "---- Output of: snap changes\n")
+	cmd := exec.Command("snap", "changes")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	fmt.Fprintf(gz, "\n")
+	// then the seeding
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=seed\n")
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	fmt.Fprintf(gz, "\n")
+	// then the install
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=install-system\n")
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=install-system")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	// then the other changes (if there are any)
+	for _, chgID := range chgIDs {
+		fmt.Fprintf(gz, "---- Output of snap debug timings %s\n", chgID)
+		cmd = exec.Command("snap", "debug", "timings", chgID)
+		cmd.Stdout = gz
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("cannot collect timings output: %v", err)
+		}
+		fmt.Fprintf(gz, "\n")
+	}
+
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush timings output: %v", err)
+	}
+
 	return nil
 }
 
@@ -166,11 +232,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
-	bopts.Encrypt = useEncryption
+	bopts.EncryptionType = encryptionType
+	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
 
 	model := deviceCtx.Model()
 
@@ -178,7 +245,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	validationConstraints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	ginfo, err := gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	var ginfo *gadget.Info
+	timings.Run(perfTimings, "read-info-and-validate", "Read and validate gagdet info", func(timings.Measurer) {
+		ginfo, err = gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
@@ -205,11 +275,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
-	func() {
+	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver)
-	}()
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
 	}
@@ -252,7 +322,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, model)
-	if err := sysconfigConfigureTargetSystem(model, opts); err != nil {
+	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
+		err = sysconfigConfigureTargetSystem(model, opts)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -271,8 +344,50 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	if err := bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver); err != nil {
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
+		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
+	})
+	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+
+	// TODO: FIXME: this should go away after we have time to design a proper
+	//              solution
+	// TODO: only run on specific models?
+
+	// on some specific devices, we need to create these directories in
+	// _writable_defaults in order to allow the install-device hook to install
+	// some files there, this eventually will go away when we introduce a proper
+	// mechanism not using system-files to install files onto the root
+	// filesystem from the install-device hook
+	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func fixupWritableDefaultDirs(systemDataDir string) error {
+	// the _writable_default directory is used to put files in place on
+	// ubuntu-data from install mode, so we abuse it here for a specific device
+	// to let that device install files with system-files and the install-device
+	// hook
+
+	// eventually this will be a proper, supported, designed mechanism instead
+	// of just this hack, but this hack is just creating the directories, since
+	// the system-files interface only allows creating the file, not creating
+	// the directories leading up to that file, and since the file is deeply
+	// nested we would effectively have to give all permission to the device
+	// to create any file on ubuntu-data which we don't want to do, so we keep
+	// this restriction to let the device create one specific file, and then
+	// we behind the scenes just create the directories for the device
+
+	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/"} {
+		dirToCreate := sysconfig.WritableDefaultsDir(systemDataDir, subDirToCreate)
+
+		if err := os.MkdirAll(dirToCreate, 0755); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -344,7 +459,7 @@ var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -353,7 +468,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return false, nil
+		return res, nil
 	}
 
 	// check if the model prefers to be unencrypted
@@ -361,7 +476,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	//       if the install is unencrypted or encrypted
 	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
 		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
-		return false, nil
+		return res, nil
 	}
 
 	// check if encryption is available
@@ -371,22 +486,25 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	)
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			checkEncryptionErr = m.checkFDEFeatures(st)
+			res, checkEncryptionErr = m.checkFDEFeatures()
 		}
 	}
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
 	if !hasFDESetupHook {
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
+		if checkEncryptionErr == nil {
+			res = secboot.EncryptionTypeLUKS
+		}
 	}
 
 	// check if encryption is required
 	if checkEncryptionErr != nil {
 		if secured {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		}
 		if encrypted {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
 		if hasFDESetupHook {
@@ -396,11 +514,10 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		}
 
 		// not required, go without
-		return false, nil
+		return res, nil
 	}
 
-	// encrypt
-	return true, nil
+	return res, nil
 }
 
 // RebootOptions can be attached to restart-system-to-run-mode tasks to control
@@ -431,11 +548,6 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
-	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
-		logger.Noticef("cannot write installation log: %v", err)
-	}
-
 	// ensure the next boot goes into run mode
 	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
 		return err
@@ -447,21 +559,30 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return err
 	}
 
+	// write timing information
+	if err := writeTimings(st, boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write timings: %v", err)
+	}
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
+	}
+
 	// request by default a restart as the last action after a
 	// successful install or what install-device requested via
 	// snapctl reboot
-	rst := state.RestartSystemNow
+	rst := restart.RestartSystemNow
 	what := "restart"
 	switch rebootOpts.Op {
 	case RebootHaltOp:
 		what = "halt"
-		rst = state.RestartSystemHaltNow
+		rst = restart.RestartSystemHaltNow
 	case RebootPoweroffOp:
 		what = "poweroff"
-		rst = state.RestartSystemPoweroffNow
+		rst = restart.RestartSystemPoweroffNow
 	}
 	logger.Noticef("request immediate system %s", what)
-	st.RequestRestart(rst)
+	restart.Request(st, rst)
 
 	return nil
 }

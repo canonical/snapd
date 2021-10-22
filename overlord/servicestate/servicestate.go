@@ -51,6 +51,7 @@ type ServiceActionConflictError struct{ error }
 
 func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[string][]string {
 	explicitServices := make(map[string][]string, len(appInfos))
+	// requested maps "snapname.appname" to app name.
 	requested := make(map[string]bool, len(names))
 	for _, name := range names {
 		// Name might also be a snap name (or other strings the user wrote on
@@ -61,9 +62,9 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 
 	for _, app := range appInfos {
 		snapName := app.Snap.InstanceName()
-		appName := app.String()
-		if requested[appName] {
-			explicitServices[snapName] = append(explicitServices[snapName], app.ServiceName())
+		// app.String() gives "snapname.appname"
+		if requested[app.String()] {
+			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
 		}
 	}
 
@@ -126,7 +127,20 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		sort.Strings(explicitSvcs)
 		cmd.ExplicitServices = explicitSvcs
 
-		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		// When composing the task summary, prefer using the explicit
+		// services, if that's not empty
+		var summary string
+		if len(explicitSvcs) > 0 {
+			svcs = explicitSvcs
+		} else if inst.Action == "restart" {
+			// Use a generic message, since we cannot know the exact list of
+			// services affected
+			summary = fmt.Sprintf("Run service command %q for running services of snap %q", cmd.Action, cmd.SnapName)
+		}
+
+		if summary == "" {
+			summary = fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		}
 		task := st.NewTask("service-control", summary)
 		task.Set("service-action", cmd)
 		if prev != nil {

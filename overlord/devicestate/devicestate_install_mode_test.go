@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -51,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 type deviceMgrInstallModeSuite struct {
@@ -204,7 +207,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	var brOpts install.Options
 	var installRunCalled int
 	var installSealingObserver gadget.ContentObserver
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
 		// ensure we can grab the lock here, i.e. that it's not taken
 		s.state.Lock()
 		s.state.Unlock()
@@ -320,8 +323,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(brDevice, Equals, "")
 	if tc.encrypt {
 		c.Assert(brOpts, DeepEquals, install.Options{
-			Mount:   true,
-			Encrypt: true,
+			Mount:          true,
+			EncryptionType: secboot.EncryptionTypeLUKS,
 		})
 	} else {
 		c.Assert(brOpts, DeepEquals, install.Options{
@@ -341,7 +344,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
-	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	return nil
 }
@@ -350,7 +353,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, fmt.Errorf("The horror, The horror")
 	})
 	defer restore()
@@ -380,7 +383,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -419,14 +422,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -488,17 +491,17 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(waitTasks[0].ID(), Equals, installDevice.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
 }
 
-func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst state.RestartType) {
+func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst restart.RestartType) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -530,22 +533,22 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	c.Check(installSystem.Err(), IsNil)
 
 	// we did end up requesting the right shutdown
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{rst})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{rst})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootHalt(c *C) {
-	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--halt", state.RestartSystemHaltNow)
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--halt", restart.RestartSystemHaltNow)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootPoweroff(c *C) {
-	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--poweroff", state.RestartSystemPoweroffNow)
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--poweroff", restart.RestartSystemPoweroffNow)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -608,7 +611,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSetupRunSystemTaskNoRestarts(c *C
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -794,8 +797,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
-		c.Check(options.Encrypt, Equals, false)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeNone)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -860,8 +863,8 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
-		c.Check(options.Encrypt, Equals, true)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -871,8 +874,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDataKey(c *C) {
-	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
-		c.Check(options.Encrypt, Equals, true)
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
@@ -888,7 +891,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -941,6 +944,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
+
+	// and the special dirs in _writable_defaults were created
+	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
+		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir), dir)
+		c.Assert(fullDir, testutil.FilePresent)
+	}
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
@@ -987,7 +996,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 	})
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetOnlyInSigned(c *C) {
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetAndSeedConfigSigned(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
@@ -1006,18 +1015,18 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetOnlyIn
 
 	s.mockInstallModeChange(c, "signed", "")
 
-	// we didn't tell sysconfig about the ubuntu-seed cloud-init files, just
-	// the gadget ones
+	// sysconfig is told about both configs
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
-			AllowCloudInit: true,
-			TargetRootDir:  boot.InstallHostWritableDir,
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			AllowCloudInit:  true,
+			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			CloudInitSrcDir: cloudCfg,
 		},
 	})
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAndUbuntuSeedInDangerous(c *C) {
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAndUbuntuSeedDangerous(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
@@ -1048,19 +1057,11 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAn
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeSignedNoUbuntuSeedCloudInit(c *C) {
-	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
-
+	// pretend we have no cloud-init config anywhere
 	s.mockInstallModeChange(c, "signed", "")
 
-	// and did NOT tell sysconfig about the cloud-init file, but also did not
-	// explicitly disable cloud init
+	// we didn't pass any cloud-init src dir but still left cloud-init enabled
+	// if for example a CI-DATA USB drive was provided at runtime
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
@@ -1093,7 +1094,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredGadgetCloudConfCloudIn
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(c *C) {
-	// pretend we have a cloud-init config on the seed partition
+	// pretend we have a cloud-init config on the seed partition with some files
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
@@ -1107,13 +1108,15 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(
 	})
 	c.Assert(err, IsNil)
 
-	// and did NOT tell sysconfig about the cloud-init files, instead it was
-	// disabled because only gadget cloud-init is allowed
+	// we did tell sysconfig about the ubuntu-seed cloud config dir because it
+	// exists, but it is up to sysconfig to use the model to determine to ignore
+	// the files
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
-			AllowCloudInit: false,
-			TargetRootDir:  boot.InstallHostWritableDir,
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			AllowCloudInit:  false,
+			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			CloudInitSrcDir: cloudCfg,
 		},
 	})
 }
@@ -1162,7 +1165,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -1178,7 +1181,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: volume "pc" has no structure with system-save role\)`)
+- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: required partition with system-save role is missing\)`)
 	// no restart request on failure
 	c.Check(s.restartRequests, HasLen, 0)
 }
@@ -1187,7 +1190,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -1223,21 +1226,25 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 
 	for _, tc := range []struct {
-		hasFDESetupHook bool
-		hasTPM          bool
-		encrypt         bool
+		hasFDESetupHook      bool
+		fdeSetupHookFeatures string
+
+		hasTPM         bool
+		encryptionType secboot.EncryptionType
 	}{
 		// unhappy: no tpm, no hook
-		{false, false, false},
+		{false, "[]", false, secboot.EncryptionTypeNone},
 		// happy: either tpm or hook or both
-		{false, true, true},
-		{true, false, true},
-		{true, true, true},
+		{false, "[]", true, secboot.EncryptionTypeLUKS},
+		{true, "[]", false, secboot.EncryptionTypeLUKS},
+		{true, "[]", true, secboot.EncryptionTypeLUKS},
+		// happy but device-setup hook
+		{true, `["device-setup"]`, true, secboot.EncryptionTypeDeviceSetupHook},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()
 			defer ctx.Unlock()
-			ctx.Set("fde-setup-result", []byte(`{"features":[]}`))
+			ctx.Set("fde-setup-result", []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)))
 			return nil, nil
 		}
 		rhk := hookstate.MockRunHook(hookInvoke)
@@ -1256,9 +1263,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		})
 		defer restore()
 
-		encrypt, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx)
+		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx)
 		c.Assert(err, IsNil)
-		c.Check(encrypt, Equals, tc.encrypt, Commentf("%v", tc))
+		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 	}
 }
 
@@ -1309,8 +1316,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 		})
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 
-		encrypt, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
+		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 		c.Assert(err, IsNil)
+		encrypt := (encryptionType != secboot.EncryptionTypeNone)
 		c.Check(encrypt, Equals, tc.expectedEncryption)
 	}
 }
@@ -1389,22 +1397,27 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 	for _, tc := range []struct {
 		hookOutput  string
 		expectedErr string
+
+		encryptionType secboot.EncryptionType
 	}{
 		// invalid json
-		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`},
+		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`, secboot.EncryptionTypeNone},
 		// no output is invalid
-		{"", `cannot parse hook output "": unexpected end of JSON input`},
+		{"", `cannot parse hook output "": unexpected end of JSON input`, secboot.EncryptionTypeNone},
 		// specific error
-		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`},
-		{`{}`, `cannot use hook: neither "features" nor "error" returned`},
+		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`, secboot.EncryptionTypeNone},
+		{`{}`, `cannot use hook: neither "features" nor "error" returned`, secboot.EncryptionTypeNone},
 		// valid
-		{`{"features":[]}`, ""},
-		{`{"features":["a"]}`, ""},
-		{`{"features":["a","b"]}`, ""},
+		{`{"features":[]}`, "", secboot.EncryptionTypeLUKS},
+		{`{"features":["a"]}`, "", secboot.EncryptionTypeLUKS},
+		{`{"features":["a","b"]}`, "", secboot.EncryptionTypeLUKS},
 		// features must be list of strings
-		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`},
-		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`},
-		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`},
+		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
+		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
+		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`, secboot.EncryptionTypeNone},
+		// valid and switches to "device-setup"
+		{`{"features":["device-setup"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
+		{`{"features":["a","device-setup","b"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()
@@ -1415,11 +1428,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		rhk := hookstate.MockRunHook(hookInvoke)
 		defer rhk()
 
-		err := devicestate.DeviceManagerCheckFDEFeatures(s.mgr, st)
+		et, err := devicestate.DeviceManagerCheckFDEFeatures(s.mgr, st)
 		if tc.expectedErr != "" {
 			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
 		} else {
 			c.Check(err, IsNil, Commentf("%v", tc))
+			c.Check(et, Equals, tc.encryptionType, Commentf("%v", tc))
 		}
 	}
 }
@@ -1479,4 +1493,69 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsHook(c *C
 	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 	c.Check(err, IsNil)
 	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as querying kernel fde-setup hook did not succeed:.*\n")
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallHappyLogfiles(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	mockedSnapCmd := testutil.MockCommand(c, "snap", `
+echo "mock output of: $(basename "$0") $*"
+`)
+	defer mockedSnapCmd.Restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	// pretend we are seeding
+	chg := s.state.NewChange("seed", "just for testing")
+	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
+	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(s.restartRequests, HasLen, 1)
+
+	// logs are created
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-mode.log.gz"), testutil.FilePresent)
+	timingsPath := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-timings.txt.gz")
+	c.Check(timingsPath, testutil.FilePresent)
+
+	f, err := os.Open(timingsPath)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	c.Assert(err, IsNil)
+	content, err := ioutil.ReadAll(gz)
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, `---- Output of: snap changes
+mock output of: snap changes
+
+---- Output of snap debug timings --ensure=seed
+mock output of: snap debug timings --ensure=seed
+
+---- Output of snap debug timings --ensure=install-system
+mock output of: snap debug timings --ensure=install-system
+`)
+
+	// and the right commands are run
+	c.Check(mockedSnapCmd.Calls(), DeepEquals, [][]string{
+		{"snap", "changes"},
+		{"snap", "debug", "timings", "--ensure=seed"},
+		{"snap", "debug", "timings", "--ensure=install-system"},
+	})
 }

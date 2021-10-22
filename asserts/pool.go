@@ -1020,3 +1020,8 @@ func (p *Pool) ClearGroups() error {
 	p.curPhase = poolPhaseAdd
 	return nil
 }
+
+// Backstore returns the memory backstore of this pool.
+func (p *Pool) Backstore() Backstore {
+	return p.bs
+}

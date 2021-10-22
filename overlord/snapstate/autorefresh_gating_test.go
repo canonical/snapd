@@ -30,6 +30,8 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -83,6 +85,11 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	s.store = &autoRefreshGatingStore{fakeStore: &fakeStore{}}
 	snapstate.ReplaceStore(s.state, s.store)
 	s.state.Set("refresh-privacy-key", "privacy-key")
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
@@ -107,12 +114,12 @@ func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []
 }
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *snap.Info {
-	snapInfo := snaptest.MockSnap(c, string(snapYaml), &snap.SideInfo{
+	snapInfo := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(1),
 	})
 
 	snapName := snapInfo.SnapName()
-	si := &snap.SideInfo{RealName: snapName, SnapID: "id", Revision: snap.R(1)}
+	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
@@ -153,6 +160,12 @@ type: base
 `
 
 const snapByaml = `name: snap-b
+type: app
+base: base-snap-b
+version: 1
+`
+
+const snapBByaml = `name: snap-bb
 type: app
 base: base-snap-b
 version: 1
@@ -224,6 +237,14 @@ slots:
     desktop:
 `
 
+const someSnap = `name: some-snap
+type: app
+`
+
+const someOtherSnap = `name: some-other-snap
+type: app
+`
+
 func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
 	now, err := time.Parse(time.RFC3339, "2021-06-03T10:00:00Z")
 	c.Assert(err, IsNil)
@@ -237,20 +258,20 @@ func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-03T10:00:00Z", // first held now
-			"48h", // max duration
-			"48h", // expected
+			"48h",                  // max duration
+			"48h",                  // expected
 		},
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-02T10:00:00Z", // first held (1 day ago)
-			"48h", // max duration
-			"24h", // expected
+			"48h",                  // max duration
+			"24h",                  // expected
 		},
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-01T10:00:00Z", // first held (2 days ago)
-			"48h", // max duration
-			"00h", // expected
+			"48h",                  // max duration
+			"00h",                  // expected
 		},
 		{
 			"2021-03-08T10:00:00Z", // last refreshed (almost 3 months ago)
@@ -332,12 +353,16 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelper(c *C) {
 
 	mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b", "snap-c", "snap-d", "snap-e", "snap-f")
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
 	// this could be merged with the above HoldRefresh call, but it's fine if
 	// done separately too.
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-e"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-e"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-f", 0, "snap-f"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-e")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-e")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-f", 0, "snap-f")
+	c.Assert(err, IsNil)
 
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
@@ -356,6 +381,65 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelper(c *C) {
 		"snap-f": {
 			// holding self set for maxPostponement minus 1 day due to last refresh.
 			"snap-f": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-07T10:00:00Z"),
+		},
+	})
+}
+
+func (s *autorefreshGatingSuite) TestHoldRefreshReturnsMinimumHoldTime(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	now := "2021-05-10T10:00:00Z"
+	restore := snapstate.MockTimeNow(func() time.Time {
+		t, err := time.Parse(time.RFC3339, now)
+		c.Assert(err, IsNil)
+		return t
+	})
+	defer restore()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+	mockInstalledSnap(c, st, snapCyaml, false)
+	mockInstalledSnap(c, st, snapDyaml, false)
+	mockInstalledSnap(c, st, snapEyaml, false)
+	mockInstalledSnap(c, st, snapFyaml, false)
+
+	mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b", "snap-c", "snap-d", "snap-e", "snap-f")
+
+	// only holding self: max postponement - buffer time returned
+	rem, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "2136h0m0s")
+
+	// holding self and some other snaps, max hold time of holding other snaps returned.
+	rem, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-e")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "48h0m0s")
+
+	// advance time
+	now = "2021-05-11T12:00:00Z"
+	rem, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-e")
+	c.Assert(err, IsNil)
+	// it's now less due to previous hold
+	c.Check(rem.String(), Equals, "22h0m0s")
+
+	var gating map[string]map[string]*snapstate.HoldState
+	c.Assert(st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
+		"snap-b": {
+			// holding of other snaps for maxOtherHoldDuration (48h)
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+		},
+		"snap-c": {
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+		},
+		"snap-e": {
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+		},
+		"snap-a": {
+			// holding self set for maxPostponement minus 1 day due to last refresh.
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-07T10:00:00Z"),
 		},
 	})
 }
@@ -381,7 +465,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 
 	// hold it for just a bit (10h) initially
 	hold := time.Hour * 10
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err := snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "48h0m0s")
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
@@ -392,7 +478,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 
 	// holding for a shorter time is fine too
 	hold = time.Hour * 5
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "48h0m0s")
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
@@ -407,7 +495,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 
 	// default hold time requested
 	hold = 0
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "26h0m0s")
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
@@ -438,7 +528,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperCloseToMaxPostponement(c *
 
 	// request default hold time
 	var hold time.Duration
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err := snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "24h0m0s")
 
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
@@ -464,11 +556,13 @@ func (s *autorefreshGatingSuite) TestHoldRefreshExplicitHoldTime(c *C) {
 
 	hold := time.Hour * 24 * 3
 	// holding self for 3 days
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-a"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", hold, "snap-a")
+	c.Assert(err, IsNil)
 
 	// snap-b holds snap-a for 1 day
 	hold = time.Hour * 24
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
 
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
@@ -500,11 +594,12 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 
 	// holding itself
 	hold := time.Hour * 24 * 96
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-a"), ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-a" of 2304h0m0s by snap "snap-a" exceeds maximum holding time`)
+	_, err := snapstate.HoldRefresh(st, "snap-a", hold, "snap-a")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-a" of 2304h0m0s by snap "snap-a" exceeds maximum holding time`)
 
 	// holding other snap
 	hold = time.Hour * 49
-	err := snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
+	_, err = snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
 	c.Check(err, ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-b" of 49h0m0s by snap "snap-a" exceeds maximum holding time`)
 	herr, ok := err.(*snapstate.HoldError)
 	c.Assert(ok, Equals, true)
@@ -517,17 +612,21 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 
 	// hold for maximum allowed for other snaps
 	hold = time.Hour * 48
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-b"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
+	c.Assert(err, IsNil)
 	// 2 days passed since it was first held
 	now = "2021-05-12T10:00:00Z"
 	hold = time.Minute * 2
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
+	_, err = snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
 
 	// refreshed long time ago (> maxPostponement)
 	mockLastRefreshed(c, st, "2021-01-01T10:00:00Z", "snap-b")
 	hold = time.Hour * 2
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
+	_, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-b")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
+	_, err = snapstate.HoldRefresh(st, "snap-b", 0, "snap-b")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
 }
 
 func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
@@ -554,10 +653,13 @@ func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(held, IsNil)
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-c"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-c")
+	c.Assert(err, IsNil)
 	// holding self
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", time.Hour*24*4, "snap-d"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", time.Hour*24*4, "snap-d")
+	c.Assert(err, IsNil)
 
 	held, err = snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -573,6 +675,57 @@ func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
 	held, err = snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(held, IsNil)
+}
+
+// Test that if all snaps cannot be held anymore, we don't hold only some of them
+// e.g. is a snap and its base snap have updates and the snap wants to hold (itself
+// and the base) but the base cannot be held, it doesn't make sense to refresh the
+// base but hold the affected snap.
+func (s *autorefreshGatingSuite) TestDontHoldSomeSnapsIfSomeFail(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// snap-b and snap-bb have base-snap-b base
+	mockInstalledSnap(c, st, snapByaml, useHook)
+	mockInstalledSnap(c, st, snapBByaml, useHook)
+	mockInstalledSnap(c, st, baseSnapByaml, noHook)
+
+	mockInstalledSnap(c, st, snapCyaml, useHook)
+	mockInstalledSnap(c, st, snapDyaml, useHook)
+
+	now := "2021-05-01T10:00:00Z"
+	restore := snapstate.MockTimeNow(func() time.Time {
+		t, err := time.Parse(time.RFC3339, now)
+		c.Assert(err, IsNil)
+		return t
+	})
+	defer restore()
+
+	// snap-b, base-snap-b get refreshed and affect snap-b (gating snap)
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b")
+	c.Assert(err, IsNil)
+	// unrealted snap-d gets refreshed and holds itself
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-d")
+	c.Assert(err, IsNil)
+
+	// advance time by 49h
+	now = "2021-05-03T11:00:00Z"
+	// snap-b, base-snap-b and snap-c get refreshed and snap-a (gating snap) wants to hold them
+	_, err = snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b", "snap-c")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "base-snap-b" anymore, maximum refresh postponement exceeded`)
+	// snap-bb (gating snap) wants to hold base-snap-b as well and succeeds since it didn't exceed its holding time yet
+	_, err = snapstate.HoldRefresh(st, "snap-bb", 0, "base-snap-b")
+	c.Assert(err, IsNil)
+
+	held, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	// note, snap-b couldn't hold base-snap-b anymore so we didn't hold snap-b
+	// and snap-c. base-snap-b was held by snap-bb.
+	c.Check(held, DeepEquals, map[string]bool{
+		"snap-d":      true,
+		"base-snap-b": true,
+	})
 }
 
 func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
@@ -592,8 +745,10 @@ func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
 	mockInstalledSnap(c, st, snapCyaml, false)
 	mockInstalledSnap(c, st, snapDyaml, false)
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c")
+	c.Assert(err, IsNil)
 	// sanity
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -663,8 +818,10 @@ func (s *autorefreshGatingSuite) TestResetGatingForRefreshedHelper(c *C) {
 	mockInstalledSnap(c, st, snapCyaml, false)
 	mockInstalledSnap(c, st, snapDyaml, false)
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c")
+	c.Assert(err, IsNil)
 
 	c.Assert(snapstate.ResetGatingForRefreshed(st, "snap-b", "snap-c"), IsNil)
 	var gating map[string]map[string]*snapstate.HoldState
@@ -692,9 +849,11 @@ func (s *autorefreshGatingSuite) TestPruneSnapsHold(c *C) {
 	mockInstalledSnap(c, st, snapDyaml, false)
 
 	// snap-a is holding itself and 3 other snaps
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-d"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-d")
+	c.Assert(err, IsNil)
 	// in addition, snap-c is held by snap-d.
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-c"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-c")
+	c.Assert(err, IsNil)
 
 	// sanity check
 	held, err := snapstate.HeldSnaps(st)
@@ -747,7 +906,7 @@ func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
 
 	c.Assert(s.repo.AddSnap(snapB), IsNil)
 
-	updates := []*snap.Info{baseSnapA}
+	updates := []string{baseSnapA.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -774,7 +933,7 @@ func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
 	c.Assert(s.repo.AddSnap(snapB), IsNil)
 	c.Assert(s.repo.AddSnap(snapC), IsNil)
 
-	updates := []*snap.Info{core}
+	updates := []string{core.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -797,7 +956,7 @@ func (s *autorefreshGatingSuite) TestAffectedByKernel(c *C) {
 	mockInstalledSnap(c, s.state, snapCyaml, useHook)
 	mockInstalledSnap(c, s.state, snapByaml, noHook)
 
-	updates := []*snap.Info{kernel}
+	updates := []string{kernel.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -805,6 +964,26 @@ func (s *autorefreshGatingSuite) TestAffectedByKernel(c *C) {
 			Restart: true,
 			AffectingSnaps: map[string]bool{
 				"kernel": true,
+			}}})
+}
+
+func (s *autorefreshGatingSuite) TestAffectedBySelf(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+
+	snapC := mockInstalledSnap(c, s.state, snapCyaml, useHook)
+	updates := []string{snapC.InstanceName()}
+	affected, err := snapstate.AffectedByRefresh(st, updates)
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-c": {
+			AffectingSnaps: map[string]bool{
+				"snap-c": true,
 			}}})
 }
 
@@ -820,7 +999,7 @@ func (s *autorefreshGatingSuite) TestAffectedByGadget(c *C) {
 	mockInstalledSnap(c, s.state, snapCyaml, useHook)
 	mockInstalledSnap(c, s.state, snapByaml, noHook)
 
-	updates := []*snap.Info{kernel}
+	updates := []string{kernel.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -840,7 +1019,7 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapD := mockInstalledSnap(c, s.state, snapDyaml, useHook)
+	snapD := mockInstalledSnap(c, s.state, snapDyaml, noHook)
 	snapE := mockInstalledSnap(c, s.state, snapEyaml, useHook)
 	// unrelated snap
 	snapF := mockInstalledSnap(c, s.state, snapFyaml, useHook)
@@ -852,7 +1031,7 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	updates := []*snap.Info{snapD}
+	updates := []string{snapD.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -884,13 +1063,13 @@ func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	updates := []*snap.Info{core}
+	updates := []string{core.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, HasLen, 0)
 }
 
-func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
+func (s *autorefreshGatingSuite) TestNotAffectedByPlugWithMountBackend(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -900,7 +1079,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	defer st.Unlock()
 
 	snapD := mockInstalledSnap(c, s.state, snapDyaml, useHook)
-	snapE := mockInstalledSnap(c, s.state, snapEyaml, useHook)
+	snapE := mockInstalledSnap(c, s.state, snapEyaml, noHook)
 	// unrelated snap
 	snapF := mockInstalledSnap(c, s.state, snapFyaml, useHook)
 
@@ -911,16 +1090,11 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	// snapE has a plug using mount backend and is refreshed, this affects slot of snap-d.
-	updates := []*snap.Info{snapE}
+	// snapE has a plug using mount backend and is refreshed, this doesn't affect slot of snap-d.
+	updates := []string{snapE.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
-		"snap-d": {
-			Restart: true,
-			AffectingSnaps: map[string]bool{
-				"snap-e": true,
-			}}})
+	c.Check(affected, HasLen, 0)
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *C) {
@@ -932,7 +1106,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *
 	st.Lock()
 	defer st.Unlock()
 
-	snapdSnap := mockInstalledSnap(c, s.state, snapdYaml, useHook)
+	snapdSnap := mockInstalledSnap(c, s.state, snapdYaml, noHook)
 	snapG := mockInstalledSnap(c, s.state, snapGyaml, useHook)
 	// unrelated snap
 	snapF := mockInstalledSnap(c, s.state, snapFyaml, useHook)
@@ -945,7 +1119,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *
 	c.Assert(err, IsNil)
 
 	// snapE has a plug using mount backend, refreshing snapd affects snapE.
-	updates := []*snap.Info{snapdSnap}
+	updates := []string{snapdSnap.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -975,7 +1149,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendCoreSlot(c *C
 	c.Assert(err, IsNil)
 
 	// snapG has a plug using mount backend, refreshing core affects snapE.
-	updates := []*snap.Info{coreSnap}
+	updates := []string{coreSnap.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -1003,7 +1177,7 @@ func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
 	mockInstalledSnap(c, s.state, snapEyaml, useHook)
 	core18 := mockInstalledSnap(c, s.state, core18Yaml, noHook)
 
-	updates := []*snap.Info{core18}
+	updates := []string{core18.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -1041,23 +1215,7 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected := map[string]*snapstate.AffectedSnapInfo{
-		"snap-a": {
-			Base:    true,
-			Restart: true,
-			AffectingSnaps: map[string]bool{
-				"snap-c": true,
-				"snap-d": true,
-			},
-		},
-		"snap-b": {
-			AffectingSnaps: map[string]bool{
-				"snap-e": true,
-				"snap-f": true,
-			},
-		},
-	}
-
+	affected := []string{"snap-a", "snap-b"}
 	seenSnaps := make(map[string]bool)
 
 	ts := snapstate.CreateGateAutoRefreshHooks(st, affected)
@@ -1070,29 +1228,59 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 		c.Check(hs.Hook, Equals, "gate-auto-refresh")
 		c.Check(hs.Optional, Equals, true)
 		seenSnaps[hs.Snap] = true
-
-		var data interface{}
-		c.Assert(t.Get("hook-context", &data), IsNil)
-
-		// the order of hook tasks is not deterministic
-		if hs.Snap == "snap-a" {
-			c.Check(data, DeepEquals, map[string]interface{}{
-				"base":            true,
-				"restart":         true,
-				"affecting-snaps": []interface{}{"snap-c", "snap-d"}})
-		} else {
-			c.Assert(hs.Snap, Equals, "snap-b")
-			c.Check(data, DeepEquals, map[string]interface{}{
-				"base":            false,
-				"restart":         false,
-				"affecting-snaps": []interface{}{"snap-e", "snap-f"}})
-		}
 	}
 
 	checkHook(ts.Tasks()[0])
 	checkHook(ts.Tasks()[1])
 
 	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true, "snap-b": true})
+}
+
+func (s *autorefreshGatingSuite) TestAffectedByRefreshCandidates(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, useHook)
+	// unrelated snap
+	mockInstalledSnap(c, st, snapByaml, useHook)
+
+	// no refresh-candidates in state
+	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	c.Assert(err, IsNil)
+	c.Check(affected, HasLen, 0)
+
+	candidates := map[string]*snapstate.RefreshCandidate{"snap-a": {}}
+	st.Set("refresh-candidates", &candidates)
+
+	affected, err = snapstate.AffectedByRefreshCandidates(st)
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-a": {
+			AffectingSnaps: map[string]bool{
+				"snap-a": true,
+			}}})
+}
+
+func (s *autorefreshGatingSuite) TestAffectingSnapsForAffectedByRefreshCandidates(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, useHook)
+	mockInstalledSnap(c, st, snapByaml, useHook)
+	mockInstalledSnap(c, st, baseSnapByaml, useHook)
+
+	candidates := map[string]*snapstate.RefreshCandidate{
+		"snap-a":      {},
+		"snap-b":      {},
+		"base-snap-b": {},
+	}
+	st.Set("refresh-candidates", &candidates)
+
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, "snap-b")
+	c.Assert(err, IsNil)
+	c.Check(affecting, DeepEquals, []string{"base-snap-b", "snap-b"})
 }
 
 func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
@@ -1136,8 +1324,15 @@ func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	_, tss, err = snapstate.AutoRefresh(context.TODO(), st)
 	c.Check(err, IsNil)
 	c.Assert(tss, HasLen, 2)
-	// TODO: verify conditional-auto-refresh task data
-	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	task := tss[0].Tasks()[0]
+	c.Check(task.Kind(), Equals, "conditional-auto-refresh")
+	var toUpdate map[string]*snapstate.RefreshCandidate
+	c.Assert(task.Get("snaps", &toUpdate), IsNil)
+	seenSnaps := make(map[string]bool)
+	for up := range toUpdate {
+		seenSnaps[up] = true
+	}
+	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true})
 	c.Check(tss[1].Tasks()[0].Kind(), Equals, "run-hook")
 }
 
@@ -1179,7 +1374,8 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	defer restore()
 
 	// pretend some snaps are held
-	c.Assert(snapstate.HoldRefresh(st, "gating-snap", 0, "snap-a", "snap-d"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "gating-snap", 0, "snap-a", "snap-d")
+	c.Assert(err, IsNil)
 	// sanity check
 	heldSnaps, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -1188,7 +1384,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 		"snap-d": true,
 	})
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a", "snap-c"})
 	c.Assert(tss, HasLen, 2)
@@ -1244,11 +1440,13 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	// check hooks for affected snaps
 	seenSnaps := make(map[string]bool)
 	var hs hookstate.HookSetup
-	c.Assert(tss[1].Tasks()[0].Get("hook-setup", &hs), IsNil)
+	task := tss[1].Tasks()[0]
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	seenSnaps[hs.Snap] = true
 
-	c.Assert(tss[1].Tasks()[1].Get("hook-setup", &hs), IsNil)
+	task = tss[1].Tasks()[1]
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	seenSnaps[hs.Snap] = true
 
@@ -1272,6 +1470,90 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	c.Check(heldSnaps, DeepEquals, map[string]bool{
 		"snap-a": true,
 	})
+}
+
+// this test demonstrates that affectedByRefresh uses current snap info (not
+// snap infos of store updates) by simulating a different base for the updated
+// snap from the store.
+func (s *autorefreshGatingSuite) TestAffectedByRefreshUsesCurrentSnapInfo(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "base-snap-b",
+			Revision: snap.R(3),
+		},
+	}, {
+		Architectures: []string{"all"},
+		Base:          "new-base",
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-b",
+			Revision: snap.R(5),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, s.state, snapByaml, useHook)
+	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-b"})
+	c.Assert(tss, HasLen, 2)
+
+	c.Assert(tss[0].Tasks(), HasLen, 1)
+	checkGatingTask(c, tss[0].Tasks()[0], map[string]*snapstate.RefreshCandidate{
+		"snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "app",
+				Base:      "new-base",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-b",
+					Revision: snap.R(5),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+		"base-snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "base",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "base-snap-b",
+					Revision: snap.R(3),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+	})
+
+	c.Assert(tss[1].Tasks(), HasLen, 1)
+	var hs hookstate.HookSetup
+	task := tss[1].Tasks()[0]
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
+	c.Check(hs.Hook, Equals, "gate-auto-refresh")
+	c.Check(hs.Snap, Equals, "snap-b")
+
+	// check that refresh-candidates in the state were updated
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 2)
+	c.Check(candidates["snap-b"], NotNil)
+	c.Check(candidates["base-snap-b"], NotNil)
 }
 
 func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C) {
@@ -1314,7 +1596,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C)
 	logbuf, restoreLogger := logger.MockLogger()
 	defer restoreLogger()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"snap-a"})
 	c.Assert(tss, HasLen, 2)
@@ -1383,7 +1665,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1NoHooks(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-c"})
 	c.Assert(tss, HasLen, 1)
@@ -1417,7 +1699,7 @@ func fakeReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	return info, nil
 }
 
-func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gateAutoRefreshHook func(snapName string), expected []string) {
+func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gateAutoRefreshHook func(snapName string), expected []string) *state.Change {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1470,9 +1752,16 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 		beforePhase1()
 	}
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
+
+	var snaps map[string]interface{}
+	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	c.Assert(tss[0].Tasks()[0].Get("snaps", &snaps), IsNil)
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps["snap-a"], NotNil)
+	c.Check(snaps["base-snap-b"], NotNil)
 
 	chg := s.state.NewChange("refresh", "...")
 	for _, ts := range tss {
@@ -1488,6 +1777,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	c.Check(chg.Err(), IsNil)
 
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+
+	return chg
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
@@ -1538,7 +1829,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 
 	seenSnapsWithGateAutoRefreshHook := make(map[string]bool)
 
-	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
+	chg := s.testAutoRefreshPhase2(c, nil, func(snapName string) {
 		seenSnapsWithGateAutoRefreshHook[snapName] = true
 	}, expected)
 
@@ -1549,6 +1840,16 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tasks := chg.Tasks()
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b", "snap-a" as needed`)
+
+	var snaps map[string]interface{}
+	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	chg.Tasks()[0].Get("snaps", &snaps)
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps["snap-a"], NotNil)
+	c.Check(snaps["base-snap-b"], NotNil)
 
 	// all snaps refreshed, all removed from refresh-candidates.
 	var candidates map[string]*snapstate.RefreshCandidate
@@ -1587,14 +1888,28 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 		"check-rerefresh",
 	}
 
-	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
+	chg := s.testAutoRefreshPhase2(c, nil, func(snapName string) {
 		if snapName == "snap-b" {
 			// pretend than snap-b calls snapctl --hold to hold refresh of base-snap-b
-			c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+			_, err := snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b")
+			c.Assert(err, IsNil)
 		}
 	}, expected)
 
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
+	tasks := chg.Tasks()
+
+	var snaps map[string]interface{}
+	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	chg.Tasks()[0].Get("snaps", &snaps)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(snaps["snap-a"], NotNil)
+
+	// no re-refresh for base-snap-b because it was held.
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "snap-a" as needed`)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
@@ -1630,8 +1945,10 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
 
 	s.testAutoRefreshPhase2(c, func() {
 		// pretend that snap-a and base-snap-b are initially held
-		c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
-		c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+		_, err := snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a")
+		c.Assert(err, IsNil)
+		_, err = snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b")
+		c.Assert(err, IsNil)
 	}, func(snapName string) {
 		if snapName == "snap-a" {
 			// pretend than snap-a calls snapctl --proceed
@@ -1655,17 +1972,18 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2AllHeld(c *C) {
 		"run-hook [snap-a;gate-auto-refresh]",
 		// snap-b hook is triggered because of base-snap-b refresh
 		"run-hook [snap-b;gate-auto-refresh]",
-		"check-rerefresh",
 	}
 
 	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
 		switch snapName {
 		case "snap-b":
 			// pretend that snap-b calls snapctl --hold to hold refresh of base-snap-b
-			c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+			_, err := snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b")
+			c.Assert(err, IsNil)
 		case "snap-a":
 			// pretend that snap-a calls snapctl --hold to hold itself
-			c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
+			_, err := snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a")
+			c.Assert(err, IsNil)
 		default:
 			c.Fatalf("unexpected snap %q", snapName)
 		}
@@ -1734,7 +2052,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 
 	snapstate.MockSnapReadInfo(fakeReadInfo)
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
@@ -1802,7 +2120,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
@@ -1830,6 +2148,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
 
+	// no refresh of snap-a because of the conflict.
 	expected := []string{
 		"conditional-auto-refresh",
 		"run-hook [snap-a;gate-auto-refresh]",
@@ -1881,7 +2200,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2ConflictOtherSnapOp(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"snap-a"})
 
@@ -1901,37 +2220,21 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2ConflictOtherSnapOp(c *C) {
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fake-auto-refresh",
 		Snap:       "snap-a",
+		ChangeID:   chg.ID(),
 	})
 
 	_, err = snapstate.Update(s.state, "snap-a", nil, 0, snapstate.Flags{})
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fake-auto-refresh",
 		Snap:       "snap-a",
+		ChangeID:   chg.ID(),
 	})
 
+	// only 2 tasks because we don't run settle() so conditional-auto-refresh
+	// doesn't run and no new tasks get created.
 	expected := []string{
 		"conditional-auto-refresh",
 		"run-hook [snap-a;gate-auto-refresh]",
-		"prerequisites",
-		"download-snap",
-		"validate-snap",
-		"mount-snap",
-		"run-hook [snap-a;pre-refresh]",
-		"stop-snap-services",
-		"remove-aliases",
-		"unlink-current-snap",
-		"copy-snap-data",
-		"setup-profiles",
-		"link-snap",
-		"auto-connect",
-		"set-auto-aliases",
-		"setup-aliases",
-		"run-hook [snap-a;post-refresh]",
-		"start-snap-services",
-		"cleanup",
-		"run-hook [snap-a;configure]",
-		"run-hook [snap-a;check-health]",
-		"check-rerefresh",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
 }
@@ -1991,7 +2294,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restoreModel()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
@@ -2033,9 +2336,12 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		"run-hook [base-snap-b;check-health]",
 		"check-rerefresh",
 	}
-	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+	tasks := chg.Tasks()
+	verifyPhasedAutorefreshTasks(c, tasks, expected)
+	// no re-refresh for snap-a because it was held.
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b" as needed`)
 
-	// only snap-a remains in refresh-candidates because it was gated;
+	// only snap-a remains in refresh-candidates because it was held;
 	// base-snap-b got pruned (was refreshed).
 	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
@@ -2043,7 +2349,291 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	c.Check(candidates["snap-a"], NotNil)
 }
 
+func (s *snapmgrTestSuite) TestAutoRefreshForGatingSnapErrorAutoRefreshInProgress(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("auto-refresh", "...")
+	task := st.NewTask("foo", "...")
+	chg.AddTask(task)
+
+	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-a"), ErrorMatches, `there is an auto-refresh in progress`)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshForGatingSnapErrorNothingHeld(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-a"), ErrorMatches, `no snaps are held by snap "snap-a"`)
+}
+
+func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-a",
+			Revision: snap.R(8),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		Base:          "base-snap-b",
+		SideInfo: snap.SideInfo{
+			RealName: "snap-b",
+			Revision: snap.R(2),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "base-snap-b",
+			Revision: snap.R(3),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, s.state, snapAyaml, useHook)
+	mockInstalledSnap(c, s.state, snapByaml, useHook)
+	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	// pretend some snaps are held
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
+	c.Assert(err, IsNil)
+
+	lastRefreshTime := time.Now().Add(-99 * time.Hour)
+	st.Set("last-refresh", lastRefreshTime)
+
+	// pretend that snap-b triggers auto-refresh (by calling snapctl refresh --proceed)
+	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-b"), IsNil)
+
+	changes := st.Changes()
+	c.Assert(changes, HasLen, 1)
+	chg := changes[0]
+	c.Assert(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.Summary(), Equals, `Auto-refresh snaps "base-snap-b", "snap-b"`)
+	var snapNames []string
+	var apiData map[string]interface{}
+	c.Assert(chg.Get("snap-names", &snapNames), IsNil)
+	c.Check(snapNames, DeepEquals, []string{"base-snap-b", "snap-b"})
+	c.Assert(chg.Get("api-data", &apiData), IsNil)
+	c.Check(apiData, DeepEquals, map[string]interface{}{
+		"snap-names": []interface{}{"base-snap-b", "snap-b"},
+	})
+
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	conditionalRefreshTask := tasks[0]
+	checkGatingTask(c, conditionalRefreshTask, map[string]*snapstate.RefreshCandidate{
+		"base-snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "base",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "base-snap-b",
+					Revision: snap.R(3),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+		"snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "app",
+				Base:      "base-snap-b",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-b",
+					Revision: snap.R(2),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+	})
+
+	// the gate-auto-refresh hook task for snap-b is present
+	c.Check(tasks[1].Kind(), Equals, "run-hook")
+	var hs hookstate.HookSetup
+	c.Assert(tasks[1].Get("hook-setup", &hs), IsNil)
+	c.Check(hs.Hook, Equals, "gate-auto-refresh")
+	c.Check(hs.Snap, Equals, "snap-b")
+	c.Check(hs.Optional, Equals, true)
+
+	// last-refresh wasn't modified
+	var lr time.Time
+	st.Get("last-refresh", &lr)
+	c.Check(lr.Equal(lastRefreshTime), Equals, true)
+}
+
+func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapMoreAffectedSnaps(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-a",
+			Revision: snap.R(8),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "base-snap-b",
+			Revision: snap.R(3),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		Base:          "base-snap-b",
+		SideInfo: snap.SideInfo{
+			RealName: "snap-b",
+			Revision: snap.R(2),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, s.state, snapAyaml, useHook)
+	mockInstalledSnap(c, s.state, snapByaml, useHook)
+	mockInstalledSnap(c, s.state, snapBByaml, useHook)
+	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	// pretend snap-b holds base-snap-b.
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b")
+	c.Assert(err, IsNil)
+
+	// pretend that snap-b triggers auto-refresh (by calling snapctl refresh --proceed)
+	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-b"), IsNil)
+
+	changes := st.Changes()
+	c.Assert(changes, HasLen, 1)
+	chg := changes[0]
+	c.Assert(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.Summary(), Equals, `Auto-refresh snaps "base-snap-b", "snap-b"`)
+	var snapNames []string
+	var apiData map[string]interface{}
+	c.Assert(chg.Get("snap-names", &snapNames), IsNil)
+	c.Check(snapNames, DeepEquals, []string{"base-snap-b", "snap-b"})
+	c.Assert(chg.Get("api-data", &apiData), IsNil)
+	c.Check(apiData, DeepEquals, map[string]interface{}{
+		"snap-names": []interface{}{"base-snap-b", "snap-b"},
+	})
+
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 3)
+	conditionalRefreshTask := tasks[0]
+	checkGatingTask(c, conditionalRefreshTask, map[string]*snapstate.RefreshCandidate{
+		"base-snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "base",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "base-snap-b",
+					Revision: snap.R(3),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+		"snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "app",
+				Base:      "base-snap-b",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-b",
+					Revision: snap.R(2),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+	})
+
+	seenSnaps := make(map[string]bool)
+
+	// check that the gate-auto-refresh hooks are run.
+	// snap-bb's hook is triggered because it is affected by base-snap-b refresh
+	// (and intersects with affecting snap of snap-b). Note, snap-a is not here
+	// because it is not affected by snaps affecting snap-b.
+	for i := 1; i <= 2; i++ {
+		c.Assert(tasks[i].Kind(), Equals, "run-hook")
+		var hs hookstate.HookSetup
+		c.Assert(tasks[i].Get("hook-setup", &hs), IsNil)
+		c.Check(hs.Hook, Equals, "gate-auto-refresh")
+		c.Check(hs.Optional, Equals, true)
+		seenSnaps[hs.Snap] = true
+	}
+	c.Check(seenSnaps, DeepEquals, map[string]bool{
+		"snap-b":  true,
+		"snap-bb": true,
+	})
+}
+
+func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapNoCandidatesAnymore(c *C) {
+	// only snap-a will have a refresh available
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-a",
+			Revision: snap.R(8),
+		},
+	}}
+
+	logbuf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, s.state, snapAyaml, useHook)
+	mockInstalledSnap(c, s.state, snapByaml, useHook)
+	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	// pretend some snaps are held
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
+	c.Assert(err, IsNil)
+
+	// pretend that snap-b triggers auto-refresh (by calling snapctl refresh --proceed)
+	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-b"), IsNil)
+	c.Assert(st.Changes(), HasLen, 0)
+
+	// but base-snap-b has no update anymore.
+	c.Check(logbuf.String(), testutil.Contains, `auto-refresh: all snaps previously held by "snap-b" are up-to-date`)
+}
+
 func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) {
+	c.Assert(len(tasks), Equals, len(expected))
 	for i, t := range tasks {
 		var got string
 		if t.Kind() == "run-hook" {
@@ -2055,4 +2645,137 @@ func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) 
 		}
 		c.Assert(got, Equals, expected[i], Commentf("#%d", i))
 	}
+}
+
+func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
+	var requiredRevision string
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": requiredRevision,
+		}
+		snapC := map[string]interface{}{
+			"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "snap-c",
+			"presence": "required",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap, snapC)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restoreEnforcedValidationSets()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(st, repo)
+
+	mockInstalledSnap(c, s.state, someSnap, noHook)
+	mockInstalledSnap(c, s.state, someOtherSnap, noHook)
+	mockInstalledSnap(c, s.state, snapCyaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	refreshedDate, err := time.Parse(time.RFC3339, "2021-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreRevDate := snapstate.MockRevisionDate(func(sn *snap.Info) time.Time {
+		return refreshedDate
+	})
+	defer restoreRevDate()
+
+	requiredRevision = "1"
+	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
+	c.Assert(err, IsNil)
+	// some-snap is already at the required revision 1, so not refreshed
+	c.Check(names, DeepEquals, []string{"snap-c", "some-other-snap"})
+
+	// check that refresh-candidates in the state were updated
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 2)
+	c.Check(candidates["snap-c"], NotNil)
+	c.Check(candidates["some-other-snap"], NotNil)
+	c.Check(candidates["some-snap"], IsNil)
+	c.Assert(s.fakeBackend.ops, HasLen, 3)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:  "snap-c",
+			SnapID:        "snap-c-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-other-snap",
+			SnapID:        "some-other-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}},
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+		},
+		revno: snap.R(11),
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "refresh",
+			InstanceName: "some-other-snap",
+			SnapID:       "some-other-snap-id",
+		},
+		revno: snap.R(11),
+	}})
+
+	s.fakeBackend.ops = nil
+	requiredRevision = "11"
+	names, _, err = snapstate.AutoRefreshPhase1(context.TODO(), st, "")
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"snap-c", "some-other-snap", "some-snap"})
+
+	// check that refresh-candidates in the state were updated
+	var candidates2 map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates2), IsNil)
+	c.Assert(candidates2, HasLen, 3)
+	c.Check(candidates2["snap-c"], NotNil)
+	c.Check(candidates2["some-snap"], NotNil)
+	c.Check(candidates["some-other-snap"], NotNil)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
+	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+		},
+		revno: snap.R(11),
+	})
+	c.Check(s.fakeBackend.ops[3], DeepEquals, fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "refresh",
+			InstanceName:   "some-snap",
+			SnapID:         "some-snap-id",
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			Revision:       snap.R(11),
+		},
+		revno: snap.R(11),
+	})
 }

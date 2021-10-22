@@ -46,7 +46,7 @@ func validateJournalSettings(tr config.ConfGetter) error {
 func handleJournalConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "journal.persistent")
 	if err != nil {
-		return nil
+		return err
 	}
 
 	if output == "" {
@@ -101,20 +101,19 @@ func handleJournalConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *
 	}
 
 	if opts == nil {
-		ver, err := systemd.Version()
-		if err != nil {
-			return err
-		}
-
 		// old systemd-journal (e.g. on core16) closes the pipes on SIGUSR1,
 		// causing SIGPIPE and restart of snapd and other services.
 		// upstream bug: https://bugs.freedesktop.org/show_bug.cgi?id=84923,
 		// therefore only tell journald to reload if it's new enough.
-		if ver >= 236 {
+		err := systemd.EnsureAtLeast(236)
+		if err == nil {
 			sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, nil)
 			if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
 				return err
 			}
+		} else if !systemd.IsSystemdTooOld(err) {
+			// systemd not available
+			return err
 		}
 	}
 

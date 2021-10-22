@@ -71,6 +71,27 @@ const (
 	sealingMethodFDESetupHook = sealingMethod("fde-setup-hook")
 )
 
+// MockSecbootResealKeys is only useful in testing. Note that this is a very low
+// level call and may need significant environment setup.
+func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
+	osutil.MustBeTestBinary("secbootResealKeys only can be mocked in tests")
+	old := secbootResealKeys
+	secbootResealKeys = f
+	return func() {
+		secbootResealKeys = old
+	}
+}
+
+// MockResealKeyToModeenv is only useful in testing.
+func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool) error) (restore func()) {
+	osutil.MustBeTestBinary("resealKeyToModeenv only can be mocked in tests")
+	old := resealKeyToModeenv
+	resealKeyToModeenv = f
+	return func() {
+		resealKeyToModeenv = old
+	}
+}
+
 func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
 }
@@ -310,9 +331,11 @@ func sealedKeysMethod(rootdir string) (sm sealingMethod, err error) {
 	return sealingMethod(content), err
 }
 
+var resealKeyToModeenv = resealKeyToModeenvImpl
+
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
-func resealKeyToModeenv(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	method, err := sealedKeysMethod(rootdir)
 	if err == errNoSealedKeys {
 		// nothing to do

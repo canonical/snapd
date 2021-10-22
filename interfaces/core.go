@@ -40,6 +40,18 @@ func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	return err
 }
 
+func BeforeConnectPlug(iface Interface, plug *ConnectedPlug) error {
+	if iface.Name() != plug.plugInfo.Interface {
+		return fmt.Errorf("cannot sanitize connection for plug %q (interface %q) using interface %q",
+			PlugRef{Snap: plug.plugInfo.Snap.InstanceName(), Name: plug.plugInfo.Name}, plug.plugInfo.Interface, iface.Name())
+	}
+	var err error
+	if iface, ok := iface.(ConnPlugSanitizer); ok {
+		err = iface.BeforeConnectPlug(plug)
+	}
+	return err
+}
+
 // ByName returns an Interface for the given interface name. Note that in order for
 // this to work properly, the package "interfaces/builtin" must also eventually be
 // imported to populate the full list of interfaces.
@@ -174,6 +186,12 @@ type Interface interface {
 	AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool
 }
 
+// PlugSanitizer can be implemented by Interfaces that have reasons to sanitize
+// their plugs specifically before a connection is performed.
+type ConnPlugSanitizer interface {
+	BeforeConnectPlug(plug *ConnectedPlug) error
+}
+
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
 type PlugSanitizer interface {
 	BeforePreparePlug(plug *snap.PlugInfo) error
@@ -197,6 +215,17 @@ type StaticInfo struct {
 	ImplicitOnCore bool `json:"implicit-on-core,omitempty"`
 	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
 	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
+
+	// AffectsPlugOnRefresh tells if refreshing of a snap with a slot of this interface
+	// is disruptive for the snap on the plug side (when the interface is connected),
+	// meaning that a refresh of the slot-side affects snap(s) on the plug side
+	// due to e.g. namespace changes which require freezing and thawing of the
+	// running processes. This flag is consulted when computing snaps affected
+	// by refresh for auto-refresh gating with gate-auto-refresh hooks.
+	// TODO: if we change the snap-update-ns logic to avoid the freezeing/thawing
+	// if there are no changes, there are interfaces like appstream-metadata or
+	// system-packages-doc that could get the flag set back to false.
+	AffectsPlugOnRefresh bool `json:"affects-plug-on-refresh,omitempty"`
 
 	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
 	BaseDeclarationPlugs string
@@ -266,6 +295,8 @@ const (
 	SecurityKMod SecuritySystem = "kmod"
 	// SecuritySystemd identifies the systemd services security system.
 	SecuritySystemd SecuritySystem = "systemd"
+	// SecurityPolkit identifies the polkit security system.
+	SecurityPolkit SecuritySystem = "polkit"
 )
 
 var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString

@@ -77,7 +77,7 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
-func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
+func generateGroupSliceFile(grp *quota.Group) []byte {
 	buf := bytes.Buffer{}
 
 	template := `[Unit]
@@ -99,7 +99,7 @@ TasksAccounting=true
 
 	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
 
-	return buf.Bytes(), nil
+	return buf.Bytes()
 }
 
 func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
@@ -286,7 +286,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		}
 	}
 
-	disableEnabledServices, err = enableServices(toEnable, inter)
+	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnable), func(nested timings.Measurer) {
+		disableEnabledServices, err = enableServices(toEnable, inter)
+	})
 	if err != nil {
 		return err
 	}
@@ -680,10 +682,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 
 	// now make sure that all of the slice units exist
 	for _, grp := range neededQuotaGrps.AllQuotaGroups() {
-		content, err := generateGroupSliceFile(grp)
-		if err != nil {
-			return err
-		}
+		content := generateGroupSliceFile(grp)
 
 		sliceFileName := grp.SliceFileName()
 		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
@@ -1585,6 +1584,9 @@ type RestartServicesFlags struct {
 // are only restarted if they are active, so if a service is meant to be
 // restarted no matter it's state, it should be included in the
 // explicitServices list.
+// The list of explicitServices needs to use systemd unit names.
+// TODO: change explicitServices format to be less unusual, more consistent
+// (introduce AppRef?)
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)

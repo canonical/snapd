@@ -3,7 +3,7 @@ summary: "Check that refresh-modes sigkill works"
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
-kill-timeout: 5m
+kill-timeout: 10m
 
 restore: |
     # remove to ensure all services are stopped

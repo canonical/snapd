@@ -322,7 +322,7 @@ func (m *autoRefresh) Ensure() error {
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh.Format(time.RFC3339))
 	}
 
-	held, holdTime, err := m.isRefreshHeld(refreshSchedule)
+	held, holdTime, err := m.isRefreshHeld()
 	if err != nil {
 		return err
 	}
@@ -364,7 +364,7 @@ func (m *autoRefresh) Ensure() error {
 				return nil
 			}
 
-			err = m.launchAutoRefresh(refreshSchedule)
+			err = m.launchAutoRefresh()
 			if _, ok := err.(*httputil.PersistentNetworkError); !ok {
 				m.nextRefresh = time.Time{}
 			} // else - refresh will be retried after refreshRetryDelay
@@ -376,7 +376,7 @@ func (m *autoRefresh) Ensure() error {
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,
 // as indicated by m.EffectiveRefreshHold().
-func (m *autoRefresh) isRefreshHeld(refreshSchedule []*timeutil.Schedule) (bool, time.Time, error) {
+func (m *autoRefresh) isRefreshHeld() (bool, time.Time, error) {
 	now := time.Now()
 	// should we hold back refreshes?
 	holdTime, err := m.EffectiveRefreshHold()
@@ -471,8 +471,25 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	return refreshScheduleDefault()
 }
 
+func autoRefreshSummary(updated []string) string {
+	var msg string
+	switch len(updated) {
+	case 0:
+		return ""
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
+	case 2, 3:
+		quoted := strutil.Quoted(updated)
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
+	default:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
+	}
+	return msg
+}
+
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) error {
+func (m *autoRefresh) launchAutoRefresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 	defer func() {
@@ -492,7 +509,7 @@ func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) er
 
 	// re-check if the refresh is held because it could have been re-held and
 	// pushed back, in which case we need to abort the auto-refresh and wait
-	held, _, holdErr := m.isRefreshHeld(refreshSchedule)
+	held, _, holdErr := m.isRefreshHeld()
 	if holdErr != nil {
 		return holdErr
 	}
@@ -514,19 +531,10 @@ func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) er
 		return err
 	}
 
-	var msg string
-	switch len(updated) {
-	case 0:
+	msg := autoRefreshSummary(updated)
+	if msg == "" {
 		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2, 3:
-		quoted := strutil.Quoted(updated)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
-	default:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)

@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -66,6 +67,8 @@ const (
 	//  - "1": client supports squashfs snaps
 	UbuntuCoreWireProtocol = "1"
 )
+
+var requestTimeout = 10 * time.Second
 
 // the LimitTime should be slightly more than 3 times of our http.Client
 // Timeout value
@@ -158,6 +161,12 @@ type Store struct {
 	proxyConnectHeader http.Header
 
 	userAgent string
+
+	xdeltaCheckLock sync.Mutex
+	// whether we should use deltas or not
+	shouldUseDeltas *bool
+	// which xdelta3 we picked when we checked the deltas
+	xdelta3CmdFunc func(args ...string) *exec.Cmd
 }
 
 var ErrTooManyRequests = errors.New("too many requests")
@@ -387,7 +396,7 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 		userAgent:          userAgent,
 	}
 	store.client = store.newHTTPClient(&httputil.ClientOptions{
-		Timeout:    10 * time.Second,
+		Timeout:    requestTimeout,
 		MayLogBody: true,
 	})
 	store.SetCacheDownloads(cfg.CacheDownloads)

@@ -47,8 +47,10 @@ prepare: |
     {"snap-id": "$PC_SNAP_ID", "snap-revision": "$START_REVISION"}
     EOF
 
-    new_snap_declaration "$BLOB_DIR" pc_x1.snap --snap-decl-json decl-headers.json
-    new_snap_revision "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json
+    p=$(new_snap_declaration "$BLOB_DIR" pc_x1.snap --snap-decl-json decl-headers.json)
+    snap ack "$p"
+    p=$(new_snap_revision "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
+    snap ack "$p"
 
     cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
@@ -139,8 +141,10 @@ execute: |
 
     if [[ "$SPREAD_REBOOT" == 0 ]]; then
 
-        new_snap_declaration "$BLOB_DIR" pc_x2.snap --snap-decl-json decl-headers.json
-        new_snap_revision "$BLOB_DIR" pc_x2.snap --snap-rev-json rev-headers-2.json
+        p=$(new_snap_declaration "$BLOB_DIR" pc_x2.snap --snap-decl-json decl-headers.json)
+        snap ack "$p"
+        p=$(new_snap_revision "$BLOB_DIR" pc_x2.snap --snap-rev-json rev-headers-2.json)
+        snap ack "$p"
 
         snap install pc_x2.snap
 
@@ -173,8 +177,10 @@ execute: |
         fi
 
         # prepare & install the next update
-        new_snap_declaration "$BLOB_DIR" pc_x3.snap --snap-decl-json decl-headers.json
-        new_snap_revision "$BLOB_DIR" pc_x3.snap --snap-rev-json rev-headers-3.json
+        p=$(new_snap_declaration "$BLOB_DIR" pc_x3.snap --snap-decl-json decl-headers.json)
+        snap ack "$p"
+        p=$(new_snap_revision "$BLOB_DIR" pc_x3.snap --snap-rev-json rev-headers-3.json)
+        snap ack "$p"
 
         snap install pc_x3.snap
 

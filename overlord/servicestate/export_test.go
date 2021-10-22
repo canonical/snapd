@@ -29,7 +29,10 @@ var (
 	UpdateSnapstateServices  = updateSnapstateServices
 	CheckSystemdVersion      = checkSystemdVersion
 	QuotaStateAlreadyUpdated = quotaStateAlreadyUpdated
+	ServiceControlTs         = serviceControlTs
 )
+
+type QuotaStateUpdated = quotaStateUpdated
 
 func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {
 	return m.doQuotaControl(t, to)

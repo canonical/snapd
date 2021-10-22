@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/timings"
 )
 
 var installRun = install.Run
@@ -43,11 +44,6 @@ type cmdCreatePartitions struct {
 		Device     string `positional-arg-name:"<device>"`
 	} `positional-args:"yes"`
 }
-
-const (
-	short = "Create missing partitions for the device"
-	long  = ""
-)
 
 type simpleObserver struct{}
 
@@ -71,11 +67,16 @@ func main() {
 
 	obs := &simpleObserver{}
 
-	options := install.Options{
-		Mount:   args.Mount,
-		Encrypt: args.Encrypt,
+	var encryptionType secboot.EncryptionType
+	if args.Encrypt {
+		encryptionType = secboot.EncryptionTypeLUKS
 	}
-	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs)
+
+	options := install.Options{
+		Mount:          args.Mount,
+		EncryptionType: encryptionType,
+	}
+	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs, timings.New(nil))
 	if err != nil {
 		panic(err)
 	}

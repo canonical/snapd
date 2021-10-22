@@ -3,9 +3,11 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    # TODO: some distros started shipping Go 1.16 which defaults to having
-    # modules enabled, drop this when snapd starts supporting Go modules
-    GO111MODULE: "off"
+    # on some distros the default GOPROXY setting is 'direct' (eg. Fedora), the
+    # go import tags of packages such as maze.io/x/crypt (which is one of
+    # secboot dependencies), cannot be obtained when poking the import URL
+    # directly, thus we need to force the golang.org hosted proxy to be used
+    GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -33,7 +35,8 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
     # a global setting for LXD channel to use in the tests
-    LXD_SNAP_CHANNEL: "latest/candidate"
+    LXD_SNAP_CHANNEL: "latest/stable"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -41,7 +44,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.50
+    DELTA_REF: 2.52
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -57,6 +60,7 @@ environment:
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
+    EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
@@ -81,13 +85,15 @@ backends:
         systems:
             - ubuntu-14.04-64:
                   workers: 6
-            - ubuntu-16.04-32:
-                  workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+                  storage: 12G
+            - ubuntu-18.04-32:
+                  workers: 6
             - ubuntu-18.04-64:
                   workers: 8
             - ubuntu-20.04-64:
+                  storage: 12G
                   workers: 8
             - ubuntu-core-16-64:
                   image: ubuntu-16.04-64
@@ -103,11 +109,10 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-                  # XXX: old name, remove once new spread is deployed
-                  secureboot: true
-            - ubuntu-20.10-64:
-                  workers: 8
             - ubuntu-21.04-64:
+                  workers: 8
+            - ubuntu-21.10-64:
+                  storage: 12G
                   workers: 8
 
             - debian-9-64:
@@ -134,9 +139,9 @@ backends:
                   storage: preserve-size
                   image: centos-7-64
             # unstable systems below
-            - opensuse-15.1-64:
-                  workers: 6
             - opensuse-15.2-64:
+                  workers: 6
+            - opensuse-15.3-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -152,13 +157,11 @@ backends:
         location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-16.04-64:
-                  workers: 6
             - ubuntu-18.04-64:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   workers: 6
 
     google-nested:
@@ -167,6 +170,7 @@ backends:
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
         halt-timeout: 2h
+        cpu-family: 'Intel Cascade Lake'
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
@@ -180,10 +184,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-20.10-64:
-                  image: ubuntu-2010-64-virt-enabled
+            - ubuntu-21.04-64:
+                  image: ubuntu-2104-64-virt-enabled
                   storage: 20G
-                  workers: 6
+                  workers: 3
 
     qemu-nested:
         memory: 4G
@@ -225,6 +229,8 @@ backends:
                   image: ubuntu-20.04-64
                   username: ubuntu
                   password: ubuntu
+                  bios: uefi
+                  # TODO: remove one everyone switch to official spread
                   flags: [virtio]
             - ubuntu-18.04-64:
                   username: ubuntu
@@ -238,10 +244,10 @@ backends:
             - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.04-64:
+            - ubuntu-21.10-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
@@ -421,8 +427,8 @@ debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
-        #shellcheck source=tests/lib/nested.sh
-        . "$TESTSLIB/nested.sh"
+        #shellcheck source=tests/lib/systems.sh
+        . "$TESTSLIB/systems.sh"
 
         echo '# System information'
         cat /etc/os-release || true
@@ -433,19 +439,35 @@ debug-each: |
         echo '# Go information'
         go version || true
 
-        if nested_is_nested_system; then
+        if tests.nested is-nested; then
             echo '# nested VM status'
-            systemctl status nested-vm || true
-            journalctl --no-pager -u nested-vm || true
-            nested_print_serial_log
-                # add another echo in case the serial log is missing a newline
-                echo
+            tests.nested vm status
+            tests.nested get serial-log
+            # add another echo in case the serial log is missing a newline
+            echo
 
-            nested_exec sudo journalctl --no-pager -u snapd || true
+            tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
         echo '# journal messages for snapd'
         "$TESTSTOOLS"/journal-state get-log -u snapd
+
+        echo '# user sessions information'
+        journalctl --user -u snapd.session-agent.service
+        systemctl status --user snapd.session-agent  || true
+
+        if ! is_cgroupv2; then
+            # dump any information on device cgroup of current session
+            cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
+            if [ -n "$cgroup_dev" ]; then
+                echo "# device cgroup $cgroup_dev"
+                cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
+            fi
+        else
+            echo "# snap confinement device filtering maps"
+            ls -l /sys/fs/bpf/snap || true
+        fi
+
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
@@ -505,9 +527,7 @@ repack: |
         trap "rm -rf delta-ref.tar current.delta repacked-current.tar $tmpdir" EXIT
         if [ "$REPACK_KEEP_VENDOR" = "n" ]; then
             tar -C "$tmpdir" -xvf - <&3
-            find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
-                ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
-                -delete
+            rm -rf "$tmpdir"/$DELTA_PREFIX/vendor/*
             tar -C "$tmpdir" -c "$DELTA_PREFIX" --sort=name > repacked-current.tar
         else
             cat <&3 > repacked-current.tar
@@ -641,6 +661,11 @@ prepare: |
     elif [ -d "$DELTA_PREFIX" ]; then
         find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
         rmdir "$DELTA_PREFIX"
+    fi
+
+    # TODO: drop once 21.10 images are fixed
+    if [[ "$SPREAD_SYSTEM" == ubuntu-21.10-* ]] && [[ -e /home/ubuntu/.ssh ]]; then
+        chown -R ubuntu:ubuntu /home/ubuntu/.ssh
     fi
 
     # Take the MATCH and REBOOT functions from spread and allow our shell
@@ -809,14 +834,6 @@ suites:
         backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
-            TRAVIS_BUILD_NUMBER: '$(HOST: echo "$TRAVIS_BUILD_NUMBER")'
-            TRAVIS_BRANCH: '$(HOST: echo "$TRAVIS_BRANCH")'
-            TRAVIS_COMMIT: '$(HOST: echo "$TRAVIS_COMMIT")'
-            TRAVIS_JOB_NUMBER: '$(HOST: echo "$TRAVIS_JOB_NUMBER")'
-            TRAVIS_PULL_REQUEST: '$(HOST: echo "$TRAVIS_PULL_REQUEST")'
-            TRAVIS_JOB_ID: '$(HOST: echo "$TRAVIS_JOB_ID")'
-            TRAVIS_REPO_SLUG: '$(HOST: echo "$TRAVIS_REPO_SLUG")'
-            TRAVIS_TAG: '$(HOST: echo "$TRAVIS_TAG")'
             COVERMODE: '$(HOST: echo "$COVERMODE")'
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
@@ -877,25 +894,22 @@ suites:
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state prepare
+            tests.nested prepare
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested vm remove
+            tests.nested restore
+            tests.cleanup restore
             tests.backup restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -915,30 +929,27 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image classic
+            tests.nested prepare
+            tests.nested build-image classic
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm classic
+            tests.nested create-vm classic
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested vm remove
+            tests.cleanup restore
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -957,30 +968,27 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image core
+            tests.nested prepare
+            tests.nested build-image core
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm core
+            tests.nested create-vm core
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested vm remove
+            tests.cleanup restore
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

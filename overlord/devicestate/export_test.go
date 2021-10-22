@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
@@ -177,6 +178,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func SetBootRevisionsUpdated(m *DeviceManager, b bool) {
+	m.bootRevisionsUpdated = b
+}
+
 func SetInstalledRan(m *DeviceManager, b bool) {
 	m.ensureInstalledRan = b
 }
@@ -203,6 +208,14 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 	return remodCtx.(interface {
 		deviceBackend() storecontext.DeviceBackend
 	}).deviceBackend()
+}
+
+func RemodelSetRecoverySystemLabel(remodCtx remodelContext, label string) {
+	remodCtx.setRecoverySystemLabel(label)
+}
+
+func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) error {
+	return m.recordSeededSystem(st, sys)
 }
 
 var (
@@ -292,7 +305,7 @@ func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconf
 	}
 }
 
-func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
@@ -324,10 +337,10 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 	return mgr.runFDESetupHook(req)
 }
 
-func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
 	return mgr.checkEncryption(st, deviceCtx)
 }
 
-func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) error {
-	return mgr.checkFDEFeatures(st)
+func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
+	return mgr.checkFDEFeatures()
 }

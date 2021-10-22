@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
@@ -43,7 +44,8 @@ func (s *scanningSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.rootDir = c.MkDir()
-	s.AddCleanup(cgroup.MockFsRootPath(s.rootDir))
+	dirs.SetRootDir(s.rootDir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func mustParseTag(tag string) naming.SecurityTag {

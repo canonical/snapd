@@ -243,7 +243,7 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
+func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {
 	// realistic model setup
 	if model == nil {
 		model = s.Brands.Model("can0nical", "pc", map[string]interface{}{
@@ -282,7 +282,7 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
 	// registered
-	s.mockModel(c, st, nil)
+	s.mockModel(st, nil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -301,7 +301,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *daemon.Daemon {
 	return s.daemonWithStore(c, s)
 }
 
-func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
+func (s *apiBaseSuite) daemonWithOverlordMock() *daemon.Daemon {
 	if s.d != nil {
 		panic("called daemon*() twice")
 	}
@@ -311,7 +311,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 	return s.d
 }
 
-func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon {
+func (s *apiBaseSuite) daemonWithOverlordMockAndStore() *daemon.Daemon {
 	if s.d != nil {
 		panic("called daemon*() twice")
 	}
@@ -373,7 +373,7 @@ func (m *fakeSnapManager) Ensure() error {
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	st := d.Overlord().State()
 	runner := d.Overlord().TaskRunner()
 	d.Overlord().AddManager(newFakeSnapManager(st, runner))

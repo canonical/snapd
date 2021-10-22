@@ -56,8 +56,10 @@ prepare: |
     cat <<EOF > rev-headers.json
     {"snap-id": "$PC_KERNEL_ID", "snap-revision": "$START_REVISION"}
     EOF
-    new_snap_declaration "$BLOB_DIR" pc-kernel_x1.snap --snap-decl-json decl-headers.json
-    new_snap_revision "$BLOB_DIR" pc-kernel_x1.snap --snap-rev-json rev-headers.json
+    p=$(new_snap_declaration "$BLOB_DIR" pc-kernel_x1.snap --snap-decl-json decl-headers.json)
+    snap ack "$p"
+    p=$(new_snap_revision "$BLOB_DIR" pc-kernel_x1.snap --snap-rev-json rev-headers.json)
+    snap ack "$p"
     # new gadget
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
     unsquashfs -d pc-snap gadget.snap
@@ -76,8 +78,10 @@ prepare: |
     cat <<EOF > rev-headers.json
     {"snap-id": "$PC_SNAP_ID", "snap-revision": "$START_REVISION"}
     EOF
-    new_snap_declaration "$BLOB_DIR" pc_x1.snap --snap-decl-json decl-headers.json
-    new_snap_revision "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json
+    p=$(new_snap_declaration "$BLOB_DIR" pc_x1.snap --snap-decl-json decl-headers.json)
+    snap ack "$p"
+    p=$(new_snap_revision "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
+    snap ack "$p"
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

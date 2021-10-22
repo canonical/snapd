@@ -50,6 +50,8 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
+var commandFromSystemSnap = snapdtool.CommandFromSystemSnap
+
 var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
 	retry.Exponential{
 		Initial: 500 * time.Millisecond,
@@ -80,14 +82,79 @@ func init() {
 }
 
 // Deltas enabled by default on classic, but allow opting in or out on both classic and core.
-func useDeltas() bool {
-	// only xdelta3 is supported for now, so check the binary exists here
-	// TODO: have a per-format checker instead
-	if _, err := getXdelta3Cmd(); err != nil {
+func (s *Store) useDeltas() (use bool) {
+	s.xdeltaCheckLock.Lock()
+	defer s.xdeltaCheckLock.Unlock()
+
+	// check the cached value if available
+	if s.shouldUseDeltas != nil {
+		return *s.shouldUseDeltas
+	}
+
+	defer func() {
+		// cache whatever value we return for next time
+		s.shouldUseDeltas = &use
+	}()
+
+	// check if deltas were disabled by the environment
+	if !osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true) {
+		// then the env var is explicitly false, we can't use deltas
+		logger.Debugf("delta usage disabled by environment variable")
 		return false
 	}
 
-	return osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true)
+	// TODO: have a per-format checker instead, we currently only support
+	// xdelta3 as a format for deltas
+
+	// check if the xdelta3 config command works from the system snap
+	cmd, err := commandFromSystemSnap("/usr/bin/xdelta3", "config")
+	if err == nil {
+		// we have a xdelta3 from the system snap, make sure it works
+		if runErr := cmd.Run(); runErr == nil {
+			// success using the system snap provided one, setup the callback to
+			// use the cmd we got from CommandFromSystemSnap, but with a small
+			// tweak - this cmd to run xdelta3 from the system snap will likely
+			// have other arguments and a different main exe usually, so
+			// use it exactly as we got it from CommandFromSystemSnap,
+			// but drop the last arg which we know is "config"
+			exe := cmd.Path
+			args := cmd.Args[:len(cmd.Args)-1]
+			env := cmd.Env
+			dir := cmd.Dir
+			s.xdelta3CmdFunc = func(xDelta3args ...string) *exec.Cmd {
+				return &exec.Cmd{
+					Path: exe,
+					Args: append(args, xDelta3args...),
+					Env:  env,
+					Dir:  dir,
+				}
+			}
+			return true
+		} else {
+			logger.Noticef("unable to use system snap provided xdelta3, running config command failed: %v", runErr)
+		}
+	}
+
+	// we didn't have one from a system snap or it didn't work, fallback to
+	// trying xdelta3 from the system
+	loc, err := exec.LookPath("xdelta3")
+	if err != nil {
+		// no xdelta3 in the env, so no deltas
+		logger.Noticef("no host system xdelta3 available to use deltas")
+		return false
+	}
+
+	if err := exec.Command(loc, "config").Run(); err != nil {
+		// xdelta3 in the env failed to run, so no deltas
+		logger.Noticef("unable to use host system xdelta3, running config command failed: %v", err)
+		return false
+	}
+
+	// the xdelta3 in the env worked, so use that one
+	s.xdelta3CmdFunc = func(args ...string) *exec.Cmd {
+		return exec.Command(loc, args...)
+	}
+	return true
 }
 
 func (s *Store) cdnHeader() (string, error) {
@@ -157,7 +224,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return nil
 	}
 
-	if useDeltas() {
+	if s.useDeltas() {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 
 		if len(downloadInfo.Deltas) == 1 {
@@ -623,15 +690,12 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 	return download(context.TODO(), deltaName, deltaInfo.Sha3_384, url, user, s, w, 0, pbar, dlOpts)
 }
 
-func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
-	if osutil.ExecutableExists("xdelta3") {
-		return exec.Command("xdelta3", args...), nil
-	}
-	return snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", args...)
+// applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
+var applyDelta = func(s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
+	return s.applyDeltaImpl(name, deltaPath, deltaInfo, targetPath, targetSha3_384)
 }
 
-// applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
-var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
+func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
 	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
 
@@ -646,16 +710,20 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, 
 	partialTargetPath := targetPath + ".partial"
 
 	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
-	cmd, err := getXdelta3Cmd(xdelta3Args...)
-	if err != nil {
-		return err
+
+	// sanity check that deltas are available and that the path for the xdelta3
+	// command is set
+	if ok := s.useDeltas(); !ok {
+		return fmt.Errorf("internal error: applyDelta used when deltas are not available")
 	}
 
-	if err := cmd.Run(); err != nil {
+	// run the xdelta3 command, cleaning up if we fail and logging about it
+	if runErr := s.xdelta3CmdFunc(xdelta3Args...).Run(); runErr != nil {
+		logger.Noticef("encountered error applying delta: %v", runErr)
 		if err := os.Remove(partialTargetPath); err != nil {
-			logger.Noticef("failed to remove partial delta target %q: %s", partialTargetPath, err)
+			logger.Noticef("error cleaning up partial delta target %q: %s", partialTargetPath, err)
 		}
-		return err
+		return runErr
 	}
 
 	if err := os.Chmod(partialTargetPath, 0600); err != nil {
@@ -705,7 +773,7 @@ func (s *Store) downloadAndApplyDelta(name, targetPath string, downloadInfo *sna
 	}
 
 	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
-	if err := applyDelta(name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
+	if err := applyDelta(s, name, deltaPath, deltaInfo, targetPath, downloadInfo.Sha3_384); err != nil {
 		return err
 	}
 

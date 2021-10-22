@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -309,7 +310,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// at this point the system is "restarting", pretend the restart has
 	// happened
 	c.Assert(chg.Status(), Equals, state.DoingStatus)
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
 	st.Lock()
@@ -333,6 +334,10 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	c.Check(err, IsNil)
 	_, err = snapstate.CurrentInfo(state, "pc")
 	c.Check(err, IsNil)
+
+	// No kernel extraction happens during seeding, the kernel is already
+	// there either from ubuntu-image or from "install" mode.
+	c.Check(bloader.ExtractKernelAssetsCalls, HasLen, 0)
 
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
