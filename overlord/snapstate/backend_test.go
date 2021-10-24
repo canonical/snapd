@@ -278,6 +278,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Symlink: "$SNAP/usr",
 			},
 		}
+	case "channel-for-base/stable":
+		info.Base = "some-base"
 	case "channel-for-user-daemon":
 		info.Apps = map[string]*snap.AppInfo{
 			"user-daemon": {

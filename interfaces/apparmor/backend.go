@@ -138,6 +138,18 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
 	}
 
+	// Check whether apparmor_parser supports bpf capability. Some older
+	// versions do not, hence the capability cannot be part of the default
+	// profile of snap-confine as loading it would fail.
+	if features, err := apparmor_sandbox.ParserFeatures(); err != nil {
+		logger.Noticef("cannot determine apparmor_parser features: %v", err)
+	} else if strutil.ListContains(features, "cap-bpf") {
+		policy["cap-bpf"] = &osutil.MemoryFileState{
+			Content: []byte(capabilityBPFSnippet),
+			Mode:    0644,
+		}
+	}
+
 	// Ensure that generated policy is what we computed above.
 	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
 	if err != nil {

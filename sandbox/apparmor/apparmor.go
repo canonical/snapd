@@ -335,14 +335,18 @@ func probeParserFeatures() ([]string, error) {
 		},
 		{
 			feature: "include-if-exists",
-			probe:   "#include if exists \"/foo\"",
+			probe:   `#include if exists "/foo"`,
 		},
 		{
 			feature: "qipcrtr-socket",
 			probe:   "network qipcrtr dgram,",
 		},
+		{
+			feature: "cap-bpf",
+			probe:   "capability bpf,",
+		},
 	}
-	features := make([]string, 0, 3)
+	features := make([]string, 0, 4)
 	for _, fp := range featureProbes {
 		if tryAppArmorParserFeature(parser, args, fp.probe) {
 			features = append(features, fp.feature)
