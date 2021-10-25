@@ -209,7 +209,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 		c.Fatalf("expected nothing to reach the server")
 	})
 	rest, err := Parser(Client()).ParseArgs([]string{"disconnect", "consumer"})
-	c.Assert(err, ErrorMatches, `invalid value: "consumer" \(want snap:name\)`)
+	c.Assert(err, ErrorMatches, `invalid value: "consumer" \(want snap:name or :name\)`)
 	c.Assert(rest, DeepEquals, []string{"consumer"})
 	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")

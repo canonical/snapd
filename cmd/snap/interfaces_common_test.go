@@ -31,16 +31,25 @@ var _ = Suite(&SnapAndNameSuite{})
 
 func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 	var sn SnapAndName
+
 	// Typical
 	err := sn.UnmarshalFlag("snap:name")
 	c.Assert(err, IsNil)
 	c.Check(sn.Snap, Equals, "snap")
 	c.Check(sn.Name, Equals, "name")
+
 	// Abbreviated
 	err = sn.UnmarshalFlag("snap")
 	c.Assert(err, IsNil)
 	c.Check(sn.Snap, Equals, "snap")
 	c.Check(sn.Name, Equals, "")
+
+	// Core snap
+	err = sn.UnmarshalFlag(":name")
+	c.Assert(err, IsNil)
+	c.Check(sn.Snap, Equals, "")
+	c.Check(sn.Name, Equals, "name")
+
 	// Invalid
 	for _, input := range []string{
 		"snap:",          // Empty name, should be spelled as "snap"
@@ -49,7 +58,7 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 		"",               // Empty input
 	} {
 		err = sn.UnmarshalFlag(input)
-		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or snap\)`)
+		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name, snap or :name\)`)
 		c.Check(sn.Snap, Equals, "")
 		c.Check(sn.Name, Equals, "")
 	}
@@ -57,10 +66,17 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 
 func (s *SnapAndNameSuite) TestUnmarshalFlagStrict(c *C) {
 	var sn SnapAndNameStrict
+
 	// Typical
 	err := sn.UnmarshalFlag("snap:name")
 	c.Assert(err, IsNil)
 	c.Check(sn.Snap, Equals, "snap")
+	c.Check(sn.Name, Equals, "name")
+
+	// Core snap
+	err = sn.UnmarshalFlag(":name")
+	c.Assert(err, IsNil)
+	c.Check(sn.Snap, Equals, "")
 	c.Check(sn.Name, Equals, "name")
 
 	// Invalid
@@ -70,10 +86,9 @@ func (s *SnapAndNameSuite) TestUnmarshalFlagStrict(c *C) {
 		"snap:name:more", // Name containing :, probably a typo
 		"",               // Empty input
 		"snap",           // Name empty unsupported for strict
-		":name",          // Snap empty
 	} {
 		err = sn.UnmarshalFlag(input)
-		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name\)`)
+		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or :name\)`)
 		c.Check(sn.Snap, Equals, "")
 		c.Check(sn.Name, Equals, "")
 	}
