@@ -11,8 +11,12 @@ prepare: |
 restore: |
     # Restore the initial timezone
     if [ -f timezone.txt ]; then
-        timedatectl set-timezone "$(cat timezone.txt)" || true
+        timedatectl set-timezone "$(cat timezone.txt)"
     fi
+    # This is skipped because after regenerate the link changes to
+    # localtime -> ../usr/share/zoneinfo/Etc/UTC but originally was
+    # localtime -> /usr/share/zoneinfo/Etc/UTC
+    "$TESTSTOOLS"/fs-state skip-monitor /etc/localtime
 
 execute: |
     echo "The interface is disconnected by default"
@@ -40,6 +44,11 @@ execute: |
     # Set the timezone2 as timezone and check the status
     test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone2"
     test "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2"
+
+    # reset the timezone to the original
+    test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$(cat timezone.txt)"
+    test "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$(cat timezone.txt)"
+    rm timezone.txt
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

@@ -19,8 +19,20 @@
 
 package sysconfig
 
+var (
+	FilterCloudCfgFile = filterCloudCfgFile
+)
+
 func CloudDatasourcesInUse(configFile string) (*CloudDatasourcesInUseResult, error) {
 	res, err := cloudDatasourcesInUse(configFile)
+	if err != nil {
+		return nil, err
+	}
+	return (*CloudDatasourcesInUseResult)(res), err
+}
+
+func CloudDatasourcesInUseForDir(dir string) (*CloudDatasourcesInUseResult, error) {
+	res, err := cloudDatasourcesInUseForDir(dir)
 	if err != nil {
 		return nil, err
 	}

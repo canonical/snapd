@@ -10,18 +10,10 @@ restore: |
 execute: |
   check_empty() {
     local OUT="$1"
-    case "$SPREAD_SYSTEM" in
-        # special case systems using unified cgroup v2 hierarchy
-        fedora-33-*|fedora-34-*|debian-sid-*|arch-*|opensuse-tumbleweed-*)
-            echo "$OUT" | MATCH '^WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement$'
-            ;;
-        *)
-            if [ -n "$OUT" ]; then
-                echo "Expected no output, but got: $OUT"
-                exit 1
-            fi
-      ;;
-    esac
+    if [ -n "$OUT" ]; then
+        echo "Expected no output, but got: $OUT"
+        exit 1
+    fi
   }
 
   # network is connected by default

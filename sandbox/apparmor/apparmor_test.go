@@ -193,29 +193,78 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-	d := c.MkDir()
 
 	var testcases = []struct {
-		exit     string
-		features []string
+		exitCodes   []int
+		expFeatures []string
 	}{
-		{"exit 1", []string{}},
-		{"exit 0", []string{"unsafe"}},
+		{
+			exitCodes: []int{1, 1, 1},
+		},
+		{
+			exitCodes:   []int{1, 0, 1},
+			expFeatures: []string{"qipcrtr-socket"},
+		},
+		{
+			exitCodes:   []int{0, 1, 1},
+			expFeatures: []string{"unsafe"},
+		},
+		{
+			exitCodes:   []int{0, 0, 1},
+			expFeatures: []string{"qipcrtr-socket", "unsafe"},
+		},
+		{
+			exitCodes:   []int{0, 0, 0},
+			expFeatures: []string{"cap-bpf", "qipcrtr-socket", "unsafe"},
+		},
 	}
 
 	for _, t := range testcases {
-		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf("cat > %s/stdin; %s", d, t.exit))
+		d := c.MkDir()
+		contents := ""
+		for _, code := range t.exitCodes {
+			contents += fmt.Sprintf("%d ", code)
+		}
+		err := ioutil.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
+		c.Assert(err, IsNil)
+		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
+cat >> %[1]s/stdin
+echo "" >> %[1]s/stdin
+
+read -r EXIT_CODE CODES_FOR_NEXT_CALLS < %[1]s/codes
+echo "$CODES_FOR_NEXT_CALLS" > %[1]s/codes
+
+exit "$EXIT_CODE"
+`, d))
 		defer mockParserCmd.Restore()
 		restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 		defer restore()
 
 		features, err := apparmor.ProbeParserFeatures()
 		c.Assert(err, IsNil)
-		c.Check(features, DeepEquals, t.features)
-		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}})
+		if len(t.expFeatures) == 0 {
+			c.Check(features, HasLen, 0)
+		} else {
+			c.Check(features, DeepEquals, t.expFeatures)
+		}
+
+		var expectedCalls [][]string
+		for range t.exitCodes {
+			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
+		}
+		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, "profile snap-test {\n change_profile unsafe /**,\n}")
+		c.Check(string(data), Equals, `profile snap-test {
+ change_profile unsafe /**,
+}
+profile snap-test {
+ network qipcrtr dgram,
+}
+profile snap-test {
+ capability bpf,
+}
+`)
 	}
 
 	// Pretend that we just don't have apparmor_parser at all.
@@ -247,7 +296,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-bpf", "qipcrtr-socket", "unsafe"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -287,7 +336,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"unsafe"})
+	c.Check(features, DeepEquals, []string{"cap-bpf", "qipcrtr-socket", "unsafe"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)

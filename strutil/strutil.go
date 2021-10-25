@@ -27,7 +27,7 @@ import (
 	"unicode/utf8"
 )
 
-// Convert the given size in btes to a readable string
+// SizeToStr converts the given size in bytes to a readable string
 func SizeToStr(size int64) string {
 	suffixes := []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
 	for _, suf := range suffixes {

@@ -71,6 +71,8 @@ func init() {
 			summary:              systemPackagesDocSummary,
 			implicitOnClassic:    true,
 			baseDeclarationSlots: systemPackagesDocBaseDeclarationSlots,
+			// affects the plug snap because of mount backend
+			affectsPlugOnRefresh: true,
 		},
 	})
 }

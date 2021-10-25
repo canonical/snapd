@@ -61,6 +61,8 @@ check-unit-tests:
 endif
 
 new_format = \
+	 libsnap-confine-private/bpf-support.c \
+	 libsnap-confine-private/bpf-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/cgroup-support-test.c \
@@ -162,6 +164,11 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
+if ENABLE_BPF
+libsnap_confine_private_a_SOURCES += \
+	libsnap-confine-private/bpf-support.c \
+	libsnap-confine-private/bpf-support.h
+endif
 libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS)
 
 noinst_LIBRARIES += libsnap-confine-private-debug.a
@@ -285,7 +292,7 @@ snap_confine_snap_confine_STATIC =
 # all external libraries, this way it can be reused in
 # snap_confine_snap_confine_debug_LDADD withouth applying any text
 # transformations
-snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS)
+snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS) -ldl
 
 if STATIC_LIBCAP
 snap_confine_snap_confine_STATIC += -lcap
@@ -524,6 +531,7 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
 
 snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
+snap_gdb_shim_snap_gdb_shim_LDFLAGS = -static
 
 ##
 ## snap-gdbserver-shim
@@ -535,6 +543,7 @@ snap_gdb_shim_snap_gdbserver_shim_SOURCES = \
 	snap-gdb-shim/snap-gdbserver-shim.c
 
 snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
+snap_gdb_shim_snap_gdbserver_shim_LDFLAGS = -static
 
 ##
 ## snapd-generator

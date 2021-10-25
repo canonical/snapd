@@ -123,10 +123,9 @@ func inspectNodeForTranslations(fset *token.FileSet, f *ast.File, n ast.Node) bo
 				}
 				// the "`" is special
 				if s[0] == '`' {
-					// replace inner " with \"
-					s = strings.Replace(s, "\"", "\\\"", -1)
-					// replace \n with \\n
-					s = strings.Replace(s, "\n", "\\n", -1)
+					// keep escaped ", replace inner " with \", replace \n with \\n
+					rep := strings.NewReplacer(`\"`, `\"`, `"`, `\"`, "\n", "\\n")
+					s = rep.Replace(s)
 				}
 				// strip leading and trailing " (or `)
 				s = s[1 : len(s)-1]

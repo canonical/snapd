@@ -25,11 +25,16 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -42,6 +47,8 @@ type refreshCommand struct {
 	// these two options are mutually exclusive
 	Proceed bool `long:"proceed" description:"Proceed with potentially disruptive refreshes"`
 	Hold    bool `long:"hold" description:"Do not proceed with potentially disruptive refreshes"`
+
+	PrintInhibitLock bool `long:"show-lock" description:"Show the value of the run inhibit lock held during refreshes (empty means not held)"`
 }
 
 var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
@@ -89,17 +96,30 @@ func init() {
 }
 
 func (c *refreshCommand) Execute(args []string) error {
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot run without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	if !context.IsEphemeral() && context.HookName() != "gate-auto-refresh" {
 		return fmt.Errorf("can only be used from gate-auto-refresh hook")
 	}
 
-	if c.Proceed && c.Hold {
-		return fmt.Errorf("cannot use --proceed and --hold together")
+	var which string
+	for _, opt := range []struct {
+		val  bool
+		name string
+	}{
+		{c.PrintInhibitLock, "--show-lock"},
+		{c.Hold, "--hold"},
+		{c.Proceed, "--proceed"},
+	} {
+		if opt.val && which != "" {
+			return fmt.Errorf("cannot use %s and %s together", opt.name, which)
+		}
+		if opt.val {
+			which = opt.name
+		}
 	}
 
 	// --pending --proceed is a verbose way of saying --proceed, so only
@@ -115,6 +135,8 @@ func (c *refreshCommand) Execute(args []string) error {
 		return c.proceed()
 	case c.Hold:
 		return c.hold()
+	case c.PrintInhibitLock:
+		return c.printInhibitLockHint()
 	}
 
 	return nil
@@ -130,6 +152,10 @@ type updateDetails struct {
 	Restart bool `yaml:"restart"`
 }
 
+type holdDetails struct {
+	Hold string `yaml:"hold"`
+}
+
 // refreshCandidate is a subset of refreshCandidate defined by snapstate and
 // stored in "refresh-candidates".
 type refreshCandidate struct {
@@ -143,24 +169,27 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	context.Lock()
 	defer context.Unlock()
 
-	if context.IsEphemeral() {
-		// TODO: support ephemeral context
-		return nil, nil
+	st := context.State()
+
+	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
 	}
 
 	var base, restart bool
-	context.Get("base", &base)
-	context.Get("restart", &restart)
-
-	var candidates map[string]*refreshCandidate
-	st := context.State()
-	if err := st.Get("refresh-candidates", &candidates); err != nil {
-		return nil, err
+	if affectedInfo, ok := affected[context.InstanceName()]; ok {
+		base = affectedInfo.Base
+		restart = affectedInfo.Restart
 	}
 
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+	}
+
+	var candidates map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+		return nil, err
 	}
 
 	var pending string
@@ -200,10 +229,6 @@ func (c *refreshCommand) printPendingInfo() error {
 	if err != nil {
 		return err
 	}
-	// XXX: remove when ephemeral context is supported.
-	if details == nil {
-		return nil
-	}
 	out, err := yaml.Marshal(details)
 	if err != nil {
 		return err
@@ -224,17 +249,33 @@ func (c *refreshCommand) hold() error {
 	// cache the action so that hook handler can implement default behavior
 	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
-	var affecting []string
-	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
-		return fmt.Errorf("internal error: cannot get affecting-snaps")
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
+	if err != nil {
+		return err
+	}
+	if len(affecting) == 0 {
+		// this shouldn't happen because the hook is executed during auto-refresh
+		// change which conflicts with other changes (if it happens that means
+		// something changed in the meantime and we didn't handle conflicts
+		// correctly).
+		return fmt.Errorf("internal error: snap %q is not affected by any snaps", ctx.InstanceName())
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
-	if err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...); err != nil {
+	remaining, err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...)
+	if err != nil {
 		// TODO: let a snap hold again once for 1h.
 		return err
 	}
+	var details holdDetails
+	details.Hold = remaining.String()
+
+	out, err := yaml.Marshal(details)
+	if err != nil {
+		return err
+	}
+	c.printf("%s", string(out))
 
 	return nil
 }
@@ -246,8 +287,14 @@ func (c *refreshCommand) proceed() error {
 
 	// running outside of hook
 	if ctx.IsEphemeral() {
-		// TODO: consider having a permission via an interface for this before making this not experimental
 		st := ctx.State()
+		allow, err := allowRefreshProceedOutsideHook(st, ctx.InstanceName())
+		if err != nil {
+			return err
+		}
+		if !allow {
+			return fmt.Errorf("cannot proceed: requires snap-refresh-control interface")
+		}
 		// we need to check if GateAutoRefreshHook feature is enabled when
 		// running by the snap (we don't need to do this when running from the
 		// hook because in that case hook task won't be created if not enabled).
@@ -268,5 +315,49 @@ func (c *refreshCommand) proceed() error {
 	// holdState, allowing the snap to --hold with fresh duration limit.
 	ctx.Cache("action", snapstate.GateAutoRefreshProceed)
 
+	return nil
+}
+
+func allowRefreshProceedOutsideHook(st *state.State, snapName string) (bool, error) {
+	conns, err := ifacestate.ConnectionStates(st)
+	if err != nil {
+		return false, fmt.Errorf("internal error: cannot get connections: %s", err)
+	}
+	for refStr, connState := range conns {
+		if connState.Undesired || connState.Interface != "snap-refresh-control" {
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(refStr)
+		if err != nil {
+			return false, fmt.Errorf("internal error: %s", err)
+		}
+		if connRef.PlugRef.Snap == snapName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (c *refreshCommand) printInhibitLockHint() error {
+	ctx := c.context()
+	ctx.Lock()
+	snapName := ctx.InstanceName()
+	ctx.Unlock()
+
+	// obtain snap lock before manipulating runinhibit lock.
+	lock, err := snaplock.OpenLock(snapName)
+	if err != nil {
+		return err
+	}
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	hint, err := runinhibit.IsLocked(snapName)
+	if err != nil {
+		return err
+	}
+	c.printf("%s", hint)
 	return nil
 }

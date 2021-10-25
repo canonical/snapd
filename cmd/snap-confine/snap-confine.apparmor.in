@@ -14,7 +14,11 @@
     # any abstractions
     /etc/ld.so.cache r,
     /etc/ld.so.preload r,
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
+
+    # Do not assume that the interpreter is always named like
+    # ld-linux-x86_64.so, as on some architectures there can be a version after
+    # the .so suffix, eg. ld-linux-aarch64.so.1
+    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
     # libc, you are funny
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
@@ -72,6 +76,13 @@
 
     # cgroup: reading own cgroup
     @{PROC}/@{pid}/cgroup r,
+
+    # cgroup: manage bpf map for device cgroup
+    /sys/fs/bpf/ r,
+    /sys/fs/bpf/snap/ rw,
+    /sys/fs/bpf/snap/* rw,
+    # s-c may need to raise the memlock limit
+    capability sys_resource,
 
     # querying udev
     /etc/udev/udev.conf r,
@@ -454,7 +465,7 @@
         # We run privileged, so be fanatical about what we include and don't use
         # any abstractions
         /etc/ld.so.cache r,
-        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
+        /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld{-*,64}.so* mrix,
         # libc, you are funny
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
         /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,

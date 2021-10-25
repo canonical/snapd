@@ -8,7 +8,7 @@ systems:
     # Centos 7 gives error "Unit user@12345.service not loaded."
     - -centos-7-*
 
-kill-timeout: 5m
+kill-timeout: 10m
 
 prepare: |
     snap set system experimental.user-daemons=true

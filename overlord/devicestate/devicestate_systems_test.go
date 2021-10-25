@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed"
@@ -418,7 +419,7 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallHappyForAny(c *C) {
 		"snapd_recovery_system": "20191119",
 		"snapd_recovery_mode":   "install",
 	})
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.logbuf.String(), Matches, `.*: restarting into system "20191119" for action "Install"\n`)
 }
 
@@ -556,7 +557,7 @@ func (s *deviceMgrSystemsSuite) testRequestModeWithRestart(c *C, toModes []strin
 			"snapd_recovery_system": label,
 			"snapd_recovery_mode":   mode,
 		})
-		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 		s.restartRequests = nil
 		s.bootloader.BootVars = map[string]string{}
 
@@ -747,7 +748,7 @@ func (s *deviceMgrSystemsSuite) TestRebootNoLabelNoModeHappy(c *C) {
 	m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
 	c.Assert(err, IsNil)
 	// requested restart
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// but no bootloader changes
 	c.Check(m, DeepEquals, map[string]string{
 		"snapd_recovery_system": "",
@@ -776,7 +777,7 @@ func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
 		"snapd_recovery_system": "20191119",
 		"snapd_recovery_mode":   "install",
 	})
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.logbuf.String(), Matches, `.*: rebooting into system "20191119" in "install" mode\n`)
 }
 
@@ -805,7 +806,7 @@ func (s *deviceMgrSystemsSuite) TestRebootModeOnlyHappy(c *C) {
 			"snapd_recovery_system": s.mockedSystemSeeds[0].label,
 			"snapd_recovery_mode":   mode,
 		})
-		c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "20191119" in "%s" mode\n`, mode))
 	}
 }
@@ -844,7 +845,7 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToRun(c *C) {
 		"snapd_recovery_mode":   "run",
 		"snapd_recovery_system": s.mockedSystemSeeds[0].label,
 	})
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "run" mode\n`, s.mockedSystemSeeds[0].label))
 }
 
@@ -871,7 +872,7 @@ func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
 		"snapd_recovery_mode":   "",
 		"snapd_recovery_system": "",
 	})
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.logbuf.String(), Matches, `.*: rebooting system\n`)
 }
 
@@ -1370,7 +1371,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
 	// a reboot is expected
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
@@ -1405,7 +1406,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 		testutil.FileEquals, expectedFilesLog.String())
 
 	// these things happen on snapd startup
-	state.MockRestarting(s.state, state.RestartUnset)
+	restart.MockPending(s.state, restart.RestartUnset)
 	s.state.Set("tried-systems", []string{"1234"})
 	s.bootloader.SetBootVars(map[string]string{
 		"try_recovery_system":    "",
@@ -1545,7 +1546,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
 	// a reboot is expected
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", newModel, s.storeSigning.Trusted, "foo", "bar")
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
@@ -1582,7 +1583,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		testutil.FileEquals, expectedFilesLog.String())
 
 	// these things happen on snapd startup
-	state.MockRestarting(s.state, state.RestartUnset)
+	restart.MockPending(s.state, restart.RestartUnset)
 	s.state.Set("tried-systems", []string{"1234"})
 	s.bootloader.SetBootVars(map[string]string{
 		"try_recovery_system":    "",
@@ -1746,7 +1747,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
 	// a reboot is expected
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// sanity check asserted snaps location
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FilePresent)
 	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
@@ -1783,7 +1784,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	})
 
 	// these things happen on snapd startup
-	state.MockRestarting(s.state, state.RestartUnset)
+	restart.MockPending(s.state, restart.RestartUnset)
 	s.state.Set("tried-systems", []string{"1234undo"})
 	s.bootloader.SetBootVars(map[string]string{
 		"try_recovery_system":    "",
@@ -1857,7 +1858,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
 	// a reboot is expected
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
@@ -1882,7 +1883,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	})
 
 	// these things happen on snapd startup
-	state.MockRestarting(s.state, state.RestartUnset)
+	restart.MockPending(s.state, restart.RestartUnset)
 	// after reboot the relevant startup code identified that the tried
 	// system failed to operate properly
 	s.state.Set("tried-systems", []string{})
@@ -2040,7 +2041,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
 	// a reboot is expected
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
 	s.restartRequests = nil
 
@@ -2050,7 +2051,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	// the system unexpectedly reboots before the task is marked as done
 	tskCreate.SetStatus(state.DoStatus)
 	tskFinalize.SetStatus(state.DoStatus)
-	state.MockRestarting(s.state, state.RestartUnset)
+	restart.MockPending(s.state, restart.RestartUnset)
 	// we may have rebooted just before the task was marked as done, in
 	// which case tried systems would be populated
 	s.state.Set("tried-systems", []string{"1234undo"})
