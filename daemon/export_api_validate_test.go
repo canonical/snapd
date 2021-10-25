@@ -30,7 +30,7 @@ type (
 	ValidationSetResult = validationSetResult
 )
 
-func MockCheckInstalledSnaps(f func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error) func() {
+func MockCheckInstalledSnaps(f func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error) func() {
 	old := checkInstalledSnaps
 	checkInstalledSnaps = f
 	return func() {
@@ -46,7 +46,7 @@ func MockValidationSetAssertionForMonitor(f func(st *state.State, accountID, nam
 	}
 }
 
-func MockValidationSetAssertionForEnforce(f func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (vs *asserts.ValidationSet, err error)) func() {
+func MockValidationSetAssertionForEnforce(f func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (vs *asserts.ValidationSet, err error)) func() {
 	old := validationSetAssertionForEnforce
 	validationSetAssertionForEnforce = f
 	return func() {

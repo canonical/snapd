@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&apiValidationSetsSuite{})
@@ -365,7 +366,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C
 		return as, nil
 	}
 
-	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 		c.Assert(vsets, check.NotNil)
 		sort.Sort(byName(snaps))
 		c.Assert(snaps, check.DeepEquals, []*snapasserts.InstalledSnap{
@@ -378,6 +379,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C
 				Revision: snap.R(4),
 			},
 		})
+		c.Assert(ignoreValidation, check.IsNil)
 		// nil indicates successful validation
 		return nil
 	})
@@ -420,7 +422,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemoteValidationF
 		c.Assert(err, check.IsNil)
 		return as, nil
 	}
-	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 		return &snapasserts.ValidationSetsValidationError{}
 	})
 	defer restore()
@@ -491,7 +493,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(
 		return as, nil
 	}
 
-	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 		c.Assert(vsets, check.NotNil)
 		sort.Sort(byName(snaps))
 		c.Assert(snaps, check.DeepEquals, []*snapasserts.InstalledSnap{
@@ -500,6 +502,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(
 				Revision: snap.R(33),
 			},
 		})
+		c.Assert(ignoreValidation, check.IsNil)
 		// nil indicates successful validation
 		return nil
 	})
@@ -540,7 +543,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetFromRemoteFallbackToLocalAs
 			Type: assertType,
 		}
 	}
-	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
+	restore := daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
 		// nil indicates successful validation
 		return nil
 	})
@@ -921,7 +924,8 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetUnsupportedAction(c *chec
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
-	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
+	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*asserts.ValidationSet, error) {
+		c.Check(ignoreValidation, check.HasLen, 0)
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 0)
@@ -966,8 +970,58 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
 	})
 }
 
+func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeIgnoreValidationOK(c *check.C) {
+	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*asserts.ValidationSet, error) {
+		c.Check(ignoreValidation, check.DeepEquals, map[string]bool{"snap-b": true})
+		c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
+			snapasserts.NewInstalledSnap("snap-b", "yOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.R("1"))})
+		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
+		c.Assert(name, check.Equals, "bar")
+		c.Assert(sequence, check.Equals, 0)
+		c.Check(userID, check.Equals, 0)
+		as := s.mockAssert(c, "bar", "3")
+		return as.(*asserts.ValidationSet), nil
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "snap-b", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Current:  snap.R(1),
+		Flags:    snapstate.Flags{IgnoreValidation: true},
+	})
+
+	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key)
+
+	st.Unlock()
+	defer st.Lock()
+	body := `{"action":"apply","mode":"enforce"}`
+	req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/bar", s.dev1acct.AccountID()), strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+
+	// verify tracking information
+	st.Lock()
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "bar", &tr)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
+		Mode:      assertstate.Enforce,
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		Current:   3,
+	})
+}
+
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeSpecificSequence(c *check.C) {
-	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
+	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*asserts.ValidationSet, error) {
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 5)
@@ -1014,7 +1068,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeSpecificSequen
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeUpdateFromMonitorMode(c *check.C) {
-	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
+	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*asserts.ValidationSet, error) {
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 0)
@@ -1071,7 +1125,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeUpdateFromMoni
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeError(c *check.C) {
-	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
+	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*asserts.ValidationSet, error) {
 		return nil, fmt.Errorf("boom")
 	})
 	defer restore()
@@ -1107,7 +1161,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeError(c *check
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeErrorStaysInMonitor(c *check.C) {
-	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
+	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*asserts.ValidationSet, error) {
 		return nil, fmt.Errorf("boom")
 	})
 	defer restore()

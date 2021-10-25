@@ -3023,7 +3023,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedHappy(c *C
 	}
 
 	sequence := 0
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	c.Check(vs.Revision(), Equals, 2)
 	c.Check(vs.Sequence(), Equals, 2)
@@ -3060,7 +3060,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 	}
 
 	sequence := 2
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	c.Check(vs.Revision(), Equals, 2)
 	c.Check(vs.Sequence(), Equals, 2)
@@ -3095,7 +3095,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 
 	snaps := []*snapasserts.InstalledSnap{}
 	sequence := 0
-	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps)
+	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, NotNil)
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
 	c.Assert(ok, Equals, true)
@@ -3147,7 +3147,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyCon
 
 	snaps := []*snapasserts.InstalledSnap{}
 	sequence := 0
-	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps)
+	_, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Check(err, ErrorMatches, fmt.Sprintf(`validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid \(%s/boo\) and required at revision 1 \(%s/bar\)`, s.dev1Acct.AccountID(), s.dev1Acct.AccountID()))
 
 	// and it hasn't been committed
@@ -3187,7 +3187,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterForge
 	}
 
 	sequence := 0
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	// new assertion got fetched
 	c.Check(vs.Revision(), Equals, 5)
@@ -3238,7 +3238,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	}
 
 	sequence := 0
-	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps)
+	vs, err := assertstate.ValidationSetAssertionForEnforce(st, s.dev1Acct.AccountID(), "bar", sequence, 0, snaps, nil)
 	c.Assert(err, IsNil)
 	// new assertion got fetched
 	c.Check(vs.Revision(), Equals, 5)
