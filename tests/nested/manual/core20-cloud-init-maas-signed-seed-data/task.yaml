@@ -1,4 +1,4 @@
-summary: Test that UC20 with testkeys can boot a grade signed model with cloud-init.
+summary: Test that UC20 can use cloud-init config on ubuntu-seed with grade signed.
 
 systems: [ubuntu-20.04-64]
 
@@ -13,7 +13,7 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
   # don't use cloud-init to create the user, we manually use cloud-init via
-  # --param-cdrom in the test setup
+  # ubuntu-seed with MAAS style cloud-init config
   NESTED_USE_CLOUD_INIT: false
 
   # sign all the snaps we build for the image with fakestore
@@ -24,7 +24,7 @@ environment:
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
 
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-signed.model
-  NESTED_IMAGE_ID: cloud-init-signed-testkeys
+  NESTED_IMAGE_ID: grade-signed-cloud-init-maas
 
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -58,15 +58,13 @@ prepare: |
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 
-  # modify and repack gadget snap to add a defaults section and use our own
-  # prepare-device hook to use the fakedevicesvc
-  mkdir "$(nested_get_extra_snaps_path)"
-
   # Get the snakeoil key and cert for signing gadget assets (shim)
   KEY_NAME=$(nested_get_snakeoil_key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
+  # modify and repack gadget snap to add a defaults section and use our own
+  # prepare-device hook to use the fakedevicesvc
   snap download --basename=pc --channel="20/edge" pc
   unsquashfs -d pc-gadget pc.snap
 
@@ -88,18 +86,28 @@ prepare: |
 
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
+  #shellcheck disable=SC2148
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
-  # first boot - legit NoCloud usage
-  nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
-
-  # second boot - attacker drive
-  nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
-
   tests.nested build-image core
-  # first boot will use seed1 to create the normal-user in addition to the 
-  # system-user assertion
-  tests.nested create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
+
+  # now mount the image and add our cloud-init config to the image, which will
+  # point cloud-init at MAAS, but we don't run MAAS here since that would be
+  # fragile and slow, so instead the test will just check that we copied the 
+  # right files
+  img="$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
+
+  # meh this is inefficient but it is simpler than trying to handle variable 
+  # arguments inside nested_add_file_to_vm
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-cloud-config.cfg
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-datasource.cfg
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-reporting.cfg
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-ubuntu-sso.cfg
+  nested_add_file_to_vm "$img" 50-curtin-networking.cfg
+
+  # first boot will now copy the cloud-init config we put on ubuntu-seed to 
+  # the run system, filtering it in the process
+  tests.nested create-vm core
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -108,14 +116,18 @@ restore: |
   fi
 
   # stop fake device svc
-  systemctl stop fakedevicesvc
+  # systemctl stop fakedevicesvc
 
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
 debug: |
-  systemctl status fakedevicesvc || true
+  tests.nested exec "snap changes"
+  tests.nested exec "snap tasks 1"
+  tests.nested exec "snap tasks 2"
+
+  tests.nested exec "cloud-init status --long"
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -126,39 +138,54 @@ execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  echo "The initial cloud-init user was created"
-  tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
-
-  echo "And we can run things as the normal user"
-  tests.nested exec_as normal-user ubuntu "sudo true"
-
-  echo "And we got a serial assertion from the fakestore"
-  tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
-
   echo "Waiting for snapd to react to cloud-init"
-  retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
+  seen=0
+  # the first message is about snapd noticing that cloud-init is in error, and
+  # for how long snapd will wait for cloud-init, this message should show up
+  # relatively quickly
+  for i in $(seq 60); do
+      if tests.nested exec "sudo journalctl --no-pager -u snapd" | MATCH "cloud-init reported to be in error state, will disable in 3 minutes"; then
+          seen=1
+          break
+      fi
+      sleep 1
+  done
+  if [ "$seen" = "0" ]; then
+      echo "snapd did not notice cloud-init in error state, test failed"
+      exit 1
+  fi
+  seen=0
 
-  echo "Ensuring that cloud-init got disabled after running"
-  tests.nested exec "cloud-init status" | MATCH "status: disabled"
+  # we now wait for 3 minutes before snapd gives up waiting and disables 
+  # cloud-init
+  for i in $(seq 200); do
+      if tests.nested exec "sudo journalctl --no-pager -u snapd" | MATCH "reported to be in error state after 3 minutes"; then
+          seen=1
+          break
+      fi
+      sleep 1
+  done
+
+  if [ "$seen" = "0" ]; then
+      echo "snapd did not disable cloud-init, test failed"
+      exit 1
+  fi
+
+  echo "Ensuring that cloud-init got disabled"
+  tests.nested exec "cloud-init status" | MATCH "status: error"
   tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
-  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
-  # gracefully shutdown so that we don't have file corruption
-  echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-  boot_id="$(nested_get_boot_id)"
-  nested_shutdown
+  echo "Relevant files were copied"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-cloud-config.cfg"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-datasource.cfg"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-reporting.cfg"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-curtin-networking.cfg"
 
-  # replace the seed.iso with the new attacker iso
-  mv seed2.iso seed.iso
+  echo "Filtered files were not copied"
+  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-ubuntu-sso.cfg"
 
-  echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-  nested_force_start_vm
-  tests.nested wait-for reboot "${boot_id}"
+  echo "The datasource_list restriction file was installed"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
 
-  echo "The cloud-init attacker user was not created"
-  tests.nested exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
-
-  echo "cloud-init is still disabled"
-  tests.nested exec "cloud-init status" | MATCH "status: disabled"
-  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
-  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+  # note that zzzz_snapd.cfg is not installed because cloud-init is in error and
+  # thus we just disable cloud-init

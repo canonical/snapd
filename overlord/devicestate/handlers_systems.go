@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -272,7 +273,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	t.SetStatus(state.DoneStatus)
 
 	logger.Noticef("restarting into candidate system %q", label)
-	m.state.RequestRestart(state.RestartSystemNow)
+	restart.Request(m.state, restart.RestartSystemNow)
 	return nil
 }
 
@@ -326,7 +327,7 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	st.Lock()
 	defer st.Unlock()
 
-	if ok, _ := st.Restarting(); ok {
+	if ok, _ := restart.Pending(st); ok {
 		// don't continue until we are in the restarted snapd
 		t.Logf("Waiting for system reboot...")
 		return &state.Retry{}

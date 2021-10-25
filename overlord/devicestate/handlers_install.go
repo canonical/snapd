@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
@@ -231,11 +232,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
-	bopts.Encrypt = useEncryption
+	bopts.EncryptionType = encryptionType
+	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
 
 	model := deviceCtx.Model()
 
@@ -457,7 +459,7 @@ var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -466,7 +468,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return false, nil
+		return res, nil
 	}
 
 	// check if the model prefers to be unencrypted
@@ -474,7 +476,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	//       if the install is unencrypted or encrypted
 	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
 		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
-		return false, nil
+		return res, nil
 	}
 
 	// check if encryption is available
@@ -484,22 +486,25 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	)
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			checkEncryptionErr = m.checkFDEFeatures()
+			res, checkEncryptionErr = m.checkFDEFeatures()
 		}
 	}
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
 	if !hasFDESetupHook {
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
+		if checkEncryptionErr == nil {
+			res = secboot.EncryptionTypeLUKS
+		}
 	}
 
 	// check if encryption is required
 	if checkEncryptionErr != nil {
 		if secured {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		}
 		if encrypted {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
 		if hasFDESetupHook {
@@ -509,11 +514,10 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		}
 
 		// not required, go without
-		return false, nil
+		return res, nil
 	}
 
-	// encrypt
-	return true, nil
+	return res, nil
 }
 
 // RebootOptions can be attached to restart-system-to-run-mode tasks to control
@@ -567,18 +571,18 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	// request by default a restart as the last action after a
 	// successful install or what install-device requested via
 	// snapctl reboot
-	rst := state.RestartSystemNow
+	rst := restart.RestartSystemNow
 	what := "restart"
 	switch rebootOpts.Op {
 	case RebootHaltOp:
 		what = "halt"
-		rst = state.RestartSystemHaltNow
+		rst = restart.RestartSystemHaltNow
 	case RebootPoweroffOp:
 		what = "poweroff"
-		rst = state.RestartSystemPoweroffNow
+		rst = restart.RestartSystemPoweroffNow
 	}
 	logger.Noticef("request immediate system %s", what)
-	st.RequestRestart(rst)
+	restart.Request(st, rst)
 
 	return nil
 }
