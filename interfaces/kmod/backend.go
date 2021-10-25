@@ -67,22 +67,13 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 	return "kmod"
 }
 
-// Setup creates a conf file with list of kernel modules required by given snap,
-// writes it in /etc/modules-load.d/ directory and immediately loads the modules
-// using /sbin/modprobe. The devMode is ignored.
-//
-// If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
-	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
-	if err != nil {
-		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", snapName, err)
-	}
-
-	content, modules := deriveContent(spec.(*Specification), snapInfo)
+// setupModules creates a conf file with list of kernel modules required by
+// given snap, writes it in /etc/modules-load.d/ directory and immediately
+// loads the modules using /sbin/modprobe. The devMode is ignored.
+func (b *Backend) setupModules(snapInfo *snap.Info, spec *Specification) error {
+	content, modules := deriveContent(spec, snapInfo)
 	// synchronize the content with the filesystem
-	glob := interfaces.SecurityTagGlob(snapName)
+	glob := interfaces.SecurityTagGlob(snapInfo.InstanceName())
 	dir := dirs.SnapKModModulesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
@@ -96,6 +87,29 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if len(changed) > 0 {
 		b.loadModules(modules)
 	}
+	return nil
+}
+
+// Setup will make the kmod backend generate the needed system files (such as
+// those under /etc/modules-load.d/ and /etc/modprobe.d/) and call the
+// appropriate system commands so that the desired kernel module configuration
+// will be applied.
+// The devMode is ignored.
+//
+// If the method fails it should be re-tried (with a sensible strategy) by the caller.
+func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := snapInfo.InstanceName()
+	// Get the snippets that apply to this snap
+	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	if err != nil {
+		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", snapName, err)
+	}
+
+	err = b.setupModules(snapInfo, spec.(*Specification))
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
