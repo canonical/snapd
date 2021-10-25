@@ -3708,10 +3708,7 @@ func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 }
 
 type validationSetsSuite struct {
-	testutil.BaseTest
-	state        *state.State
-	fakeStore    *fakeStore
-	fakeBackend  *fakeSnappyBackend
+	snapmgrTestSuite
 	storeSigning *assertstest.StoreStack
 	dev1acct     *asserts.Account
 	acct1Key     *asserts.AccountKey
@@ -3721,18 +3718,7 @@ type validationSetsSuite struct {
 var _ = Suite(&validationSetsSuite{})
 
 func (s *validationSetsSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
-	s.state = state.New(nil)
-
-	r := snapstatetest.MockDeviceModel(DefaultModel())
-	s.AddCleanup(r)
-
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.fakeStore = &fakeStore{
-		fakeBackend: s.fakeBackend,
-		state:       s.state,
-	}
+	s.snapmgrTestSuite.SetUpTest(c)
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
@@ -3741,30 +3727,6 @@ func (s *validationSetsSuite) SetUpTest(c *C) {
 	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
 	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
-
-	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
-	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
-		task := st.NewTask("save-snapshot", "...")
-		ts = state.NewTaskSet(task)
-		return ts, nil
-	}
-	s.AddCleanup(func() {
-		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
-	})
-
-	oldAutoAliases := snapstate.AutoAliases
-	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
-		return nil, nil
-	}
-	s.AddCleanup(func() {
-		snapstate.AutoAliases = oldAutoAliases
-	})
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	snapstate.ReplaceStore(s.state, s.fakeStore)
-	s.state.Set("seeded", true)
-	s.state.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...interface{}) asserts.Assertion {
@@ -3989,6 +3951,65 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 		revno: snap.R(2),
 	}}
 	c.Assert(s.fakeBackend.ops[1:], DeepEquals, expectedOps)
+}
+
+func (s *validationSetsSuite) testInstallSnapRequiredByValidationSetWithBase(c *C, presenceForBase string) error {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap-with-base",
+			"presence": "required",
+		}
+		// base snap is invalid
+		someBase := map[string]interface{}{
+			"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-base",
+			"presence": presenceForBase,
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap, someBase)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-base", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install", "...")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	defer s.se.Stop()
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	return chg.Err()
+}
+
+func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithInvalidBase(c *C) {
+	err := s.testInstallSnapRequiredByValidationSetWithBase(c, "invalid")
+	c.Check(err, ErrorMatches, `cannot perform the following tasks:
+.*Ensure prerequisites for "some-snap-with-base" are available \(cannot install snap base "some-base": cannot install snap "some-base" due to enforcing rules of validation set 16/foo/bar/1\)`)
+}
+
+func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithRequiredBase(c *C) {
+	err := s.testInstallSnapRequiredByValidationSetWithBase(c, "required")
+	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallWithOutdatedPrereq(c *C) {

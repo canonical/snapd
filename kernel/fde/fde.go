@@ -29,6 +29,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 // HasRevealKey return true if the current system has a "fde-reveal-key"
@@ -80,16 +82,25 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 	return &res, nil
 }
 
+// TODO: unexport this because how the hook is driven is an implemenation
+//       detail. It creates quite a bit of churn unfortunately, see
+//       https://github.com/snapcore/snapd/compare/master...mvo5:ice/refactor-fde?expand=1
+//
 // SetupRequest carries the operation and parameters for the fde-setup hooks
 // made available to them via the snapctl fde-setup-request command.
 type SetupRequest struct {
-	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
 
 	// This needs to be a []byte so that Go's standard library will base64
 	// encode it automatically for us
-	Key     []byte `json:"key,omitempty"`
+	Key []byte `json:"key,omitempty"`
+
+	// Only used when called with "initial-setup"
 	KeyName string `json:"key-name,omitempty"`
+
+	// The part of the device kernel path for a "setup-device" call.
+	// Only used when called with "device-setup"
+	Device string `json:"device,omitempty"`
 }
 
 // A RunSetupHookFunc implements running the fde-setup kernel hook.
@@ -125,4 +136,53 @@ func InitialSetup(runSetupHook RunSetupHookFunc, params *InitialSetupParams) (*I
 		return nil, err
 	}
 	return res, nil
+}
+
+// CheckFeatures returns the features of fde-setup hook.
+func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
+	req := &SetupRequest{
+		Op: "features",
+	}
+	output, err := runSetupHook(req)
+	if err != nil {
+		return nil, err
+	}
+	var res struct {
+		Features []string `json:"features"`
+		Error    string   `json:"error"`
+	}
+	if err := json.Unmarshal(output, &res); err != nil {
+		return nil, fmt.Errorf("cannot parse hook output %q: %v", output, err)
+	}
+	if res.Features == nil && res.Error == "" {
+		return nil, fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
+	if res.Error != "" {
+		return nil, fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
+	}
+	return res.Features, nil
+}
+
+// DeviceSetupParams contains the inputs for the fde-setup hook.
+// The encryption key and the device (partition) are passed in.
+type DeviceSetupParams struct {
+	Key    []byte
+	Device string
+}
+
+// DeviceSetup invokes the "device-setup" op running the fde-setup
+// hook via runSetupHook. This can be used to e.g. initialize
+// inline crypto hardware.
+func DeviceSetup(runSetupHook RunSetupHookFunc, params *DeviceSetupParams) error {
+	req := &SetupRequest{
+		Op:     "device-setup",
+		Key:    params.Key,
+		Device: params.Device,
+	}
+	hookOutput, err := runSetupHook(req)
+	if err != nil {
+		return fmt.Errorf("device setup failed with: %v", osutil.OutputErr(hookOutput, err))
+	}
+
+	return nil
 }

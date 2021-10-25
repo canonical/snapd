@@ -11,6 +11,7 @@ details: |
 environment:
   SNAP_NAME: test-snapd-refresh-control
   CONTENT_SNAP_NAME: test-snapd-refresh-control-provider
+  NOHOOK_SNAP: test-snap-refresh-control-iface
   CONTROL_FILE: /var/snap/test-snapd-refresh-control/common/control
   DEBUG_LOG_FILE: /var/snap/test-snapd-refresh-control/common/debug.log
 
@@ -18,21 +19,23 @@ prepare: |
   snap install --devmode jq
   snap set system experimental.gate-auto-refresh-hook=true
 
+  echo "Install test snaps"
+  snap install "$SNAP_NAME"
+  snap install "$CONTENT_SNAP_NAME"
+  "$TESTSTOOLS"/snaps-state install-local "$NOHOOK_SNAP"
+
 debug: |
   jq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
 
 execute: |
   LAST_REFRESH_CHANGE_ID=1
 
-  echo "Install test snaps"
-  snap install "$SNAP_NAME"
-  snap install "$CONTENT_SNAP_NAME"
-
   echo "Connecting the two test snaps with content interface"
   snap connect "$SNAP_NAME:content" "$CONTENT_SNAP_NAME:content"
 
   echo "Connecting snap-refresh-control interface to allow the snap to call snapctl refresh --proceed"
   snap connect "$SNAP_NAME:snap-refresh-control"
+  snap connect "$NOHOOK_SNAP:snap-refresh-control"
 
   # sanity check
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
@@ -42,6 +45,12 @@ execute: |
   "$SNAP_NAME".pending > pending.log
   MATCH "pending: none" < pending.log
   NOMATCH "version:" < pending.log
+
+  echo "Check that --proceed complains if nothing is held by the snap initially"
+  "$SNAP_NAME".proceed 2>&1 | MATCH "no snaps are held by snap \"$SNAP_NAME\""
+
+  echo "And that --proceed can be used with a snap that doesn't have gate-auto-refresh hook"
+  "$NOHOOK_SNAP".proceed 2>&1 | MATCH "no snaps are held by snap \"$NOHOOK_SNAP\""
 
   snap set core refresh.schedule="0:00-23:59"
 
