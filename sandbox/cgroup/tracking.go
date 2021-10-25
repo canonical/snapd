@@ -316,6 +316,7 @@ func startTransientScope(conn *dbus.Conn, unitName string, pid int) (job dbus.Ob
 		}
 		return "", fmt.Errorf("cannot create transient scope: %s", err)
 	}
+	logger.Debugf("create transient scope job: %s", job)
 	return job, nil
 }
 
@@ -413,7 +414,6 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 		return err
 	}
 	jobWaitFor <- job
-	logger.Debugf("create transient scope job: %s", job)
 	timeout := time.NewTimer(createScopeJobTimeout)
 	defer timeout.Stop()
 	select {
