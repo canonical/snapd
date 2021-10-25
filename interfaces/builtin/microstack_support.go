@@ -216,19 +216,6 @@ mknod - |S_IFBLK -
 mknodat - - |S_IFBLK -
 `
 
-var microStackConnectedPlugUDev = []string{
-	`KERNEL=="vhost-net"`,
-	`KERNEL=="vhost-scsi"`,
-	`KERNEL=="vhost-vsock"`,
-	`SUBSYSTEM=="block", KERNEL=="nbd[0-9]*"`,
-	`SUBSYSTEM=="misc", KERNEL=="vfio"`,
-	`SUBSYSTEM=="vfio", KERNEL=="[0-9]*"`,
-	`SUBSYSTEM=="block", KERNEL=="loop[0-9]*"`,
-	`SUBSYSTEM=="misc", KERNEL=="loop-control"`,
-	`SUBSYSTEM=="misc", KERNEL=="device-mapper"`,
-	`SUBSYSTEM=="block", KERNEL=="dm-[0-9]*"`,
-}
-
 type microStackInterface struct {
 	commonInterface
 }
@@ -255,11 +242,11 @@ func init() {
 		summary:                  microStackSupportSummary,
 		implicitOnCore:           true,
 		implicitOnClassic:        true,
+		controlsDeviceCgroup:     true,
 		baseDeclarationSlots:     microStackSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     microStackSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor:    microStackSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
-		connectedPlugUDev:        microStackConnectedPlugUDev,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
 		serviceSnippets:          []string{`Delegate=true`},
 	}})
