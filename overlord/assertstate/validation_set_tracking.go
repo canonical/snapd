@@ -173,29 +173,29 @@ func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error
 	return sets, err
 }
 
-// AddCurrentTrackingToValidationSetsStack stores the current state of validation-sets
-// tracking on top of the validation sets stack.
-func AddCurrentTrackingToValidationSetsStack(st *state.State) error {
+// AddCurrentTrackingToValidationSetsHistory stores the current state of validation-sets
+// tracking on top of the validation sets history.
+func AddCurrentTrackingToValidationSetsHistory(st *state.State) error {
 	all, err := ValidationSets(st)
 	if err != nil {
 		return err
 	}
-	return addToValidationSetsStack(st, all)
+	return addToValidationSetsHistory(st, all)
 }
 
-func addToValidationSetsStack(st *state.State, currentTracking map[string]*ValidationSetTracking) error {
-	var vsstack []map[string]*ValidationSetTracking
-	if err := st.Get("validation-sets-stack", &vsstack); err != nil && err != state.ErrNoState {
+func addToValidationSetsHistory(st *state.State, currentTracking map[string]*ValidationSetTracking) error {
+	var vshist []map[string]*ValidationSetTracking
+	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
 		return err
 	}
-	if len(currentTracking) == 0 && len(vsstack) == 0 {
+	if len(currentTracking) == 0 && len(vshist) == 0 {
 		return nil
 	}
 
 	var matches bool
-	if len(vsstack) > 0 {
-		// only add to the stack if it's different than topmost entry
-		top := vsstack[len(vsstack)-1]
+	if len(vshist) > 0 {
+		// only add to the history if it's different than topmost entry
+		top := vshist[len(vshist)-1]
 		if len(top) == len(currentTracking) {
 			matches = true
 			for vskey, tr := range currentTracking {
@@ -214,24 +214,24 @@ func addToValidationSetsStack(st *state.State, currentTracking map[string]*Valid
 		}
 	}
 	if !matches {
-		vsstack = append(vsstack, currentTracking)
+		vshist = append(vshist, currentTracking)
 	}
-	st.Set("validation-sets-stack", &vsstack)
+	st.Set("validation-sets-history", &vshist)
 	return nil
 }
 
-// ValidationSetsStackTop returns the topmost validation sets tracking state from
-// the validations sets tracking stack.
-func ValidationSetsStackTop(st *state.State) (map[string]*ValidationSetTracking, error) {
-	var vsstack []*json.RawMessage
-	if err := st.Get("validation-sets-stack", &vsstack); err != nil && err != state.ErrNoState {
+// ValidationSetsHistoryTop returns the topmost validation sets tracking state from
+// the validations sets tracking history.
+func ValidationSetsHistoryTop(st *state.State) (map[string]*ValidationSetTracking, error) {
+	var vshist []*json.RawMessage
+	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if len(vsstack) == 0 {
+	if len(vshist) == 0 {
 		return nil, nil
 	}
 	// decode just the topmost entry
-	raw := vsstack[len(vsstack)-1]
+	raw := vshist[len(vshist)-1]
 	var top map[string]*ValidationSetTracking
 	if err := json.Unmarshal([]byte(*raw), &top); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal validation set tracking state: %v", err)
@@ -239,11 +239,11 @@ func ValidationSetsStackTop(st *state.State) (map[string]*ValidationSetTracking,
 	return top, nil
 }
 
-// ValidationSetsStack returns the complete stack of validation sets tracking.
-func ValidationSetsStack(st *state.State) ([]map[string]*ValidationSetTracking, error) {
-	var vsstack []map[string]*ValidationSetTracking
-	if err := st.Get("validation-sets-stack", &vsstack); err != nil && err != state.ErrNoState {
+// ValidationSetsHistory returns the complete history of validation sets tracking.
+func ValidationSetsHistory(st *state.State) ([]map[string]*ValidationSetTracking, error) {
+	var vshist []map[string]*ValidationSetTracking
+	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	return vsstack, nil
+	return vshist, nil
 }

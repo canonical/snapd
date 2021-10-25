@@ -608,7 +608,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 
 	if allSnaps {
 		// update validation sets stack
-		if err := assertstateAddCurrentTrackingToValidationSetsStack(st); err != nil {
+		if err := assertstateAddCurrentTrackingToValidationSetsHistory(st); err != nil {
 			return nil, err
 		}
 	}

@@ -54,10 +54,10 @@ func MockValidationSetAssertionForEnforce(f func(st *state.State, accountID, nam
 	}
 }
 
-func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) func() {
-	old := assertstateAddCurrentTrackingToValidationSetsStack
-	assertstateAddCurrentTrackingToValidationSetsStack = f
+func MockAddCurrentTrackingToValidationSetsHistory(f func(st *state.State) error) func() {
+	old := assertstateAddCurrentTrackingToValidationSetsHistory
+	assertstateAddCurrentTrackingToValidationSetsHistory = f
 	return func() {
-		assertstateAddCurrentTrackingToValidationSetsStack = old
+		assertstateAddCurrentTrackingToValidationSetsHistory = old
 	}
 }

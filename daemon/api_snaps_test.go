@@ -542,7 +542,7 @@ func (s *snapsSuite) TestRefreshAll(c *check.C) {
 	})()
 
 	updateTrackingStack := false
-	defer daemon.MockAddCurrentTrackingToValidationSetsStack(func(s *state.State) error {
+	defer daemon.MockAddCurrentTrackingToValidationSetsHistory(func(s *state.State) error {
 		updateTrackingStack = true
 		return nil
 	})()

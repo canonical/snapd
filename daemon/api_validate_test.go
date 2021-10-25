@@ -970,9 +970,9 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
 	})
 
 	// verify the stack of validation sets has been updated
-	stack, err := assertstate.ValidationSetsStack(st)
+	vshist, err := assertstate.ValidationSetsHistory(st)
 	c.Assert(err, check.IsNil)
-	c.Check(stack, check.DeepEquals, []map[string]*assertstate.ValidationSetTracking{
+	c.Check(vshist, check.DeepEquals, []map[string]*assertstate.ValidationSetTracking{
 		{
 			fmt.Sprintf("%s/bar", s.dev1acct.AccountID()): {
 				Mode:      assertstate.Enforce,

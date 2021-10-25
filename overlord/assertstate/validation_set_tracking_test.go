@@ -31,7 +31,6 @@ import (
 
 type validationSetTrackingSuite struct {
 	st *state.State
-	//storeSigning *assertstest.StoreStack
 	dev1Signing *assertstest.SigningDB
 	dev1acct    *asserts.Account
 }
@@ -256,7 +255,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
 }
 
-func (s *validationSetTrackingSuite) TestAddToValidationSetsStack(c *C) {
+func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -280,8 +279,8 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsStack(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.st, &tr2)
 
-	c.Assert(assertstate.AddCurrentTrackingToValidationSetsStack(s.st), IsNil)
-	top, err := assertstate.ValidationSetsStackTop(s.st)
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+	top, err := assertstate.ValidationSetsHistoryTop(s.st)
 	c.Assert(err, IsNil)
 	c.Check(top, DeepEquals, map[string]*assertstate.ValidationSetTracking{
 		"foo/bar": {
@@ -300,13 +299,13 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsStack(c *C) {
 	})
 
 	// adding unchanged validation set tracking doesn't create another entry
-	c.Assert(assertstate.AddCurrentTrackingToValidationSetsStack(s.st), IsNil)
-	top2, err := assertstate.ValidationSetsStackTop(s.st)
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+	top2, err := assertstate.ValidationSetsHistoryTop(s.st)
 	c.Assert(err, IsNil)
 	c.Check(top, DeepEquals, top2)
-	stack, err := assertstate.ValidationSetsStack(s.st)
+	vshist, err := assertstate.ValidationSetsHistory(s.st)
 	c.Assert(err, IsNil)
-	c.Check(stack, HasLen, 1)
+	c.Check(vshist, HasLen, 1)
 
 	tr3 := assertstate.ValidationSetTracking{
 		AccountID: "foo",
@@ -315,14 +314,14 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsStack(c *C) {
 		Current:   2,
 	}
 	assertstate.UpdateValidationSet(s.st, &tr3)
-	c.Assert(assertstate.AddCurrentTrackingToValidationSetsStack(s.st), IsNil)
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
 
-	stack, err = assertstate.ValidationSetsStack(s.st)
+	vshist, err = assertstate.ValidationSetsHistory(s.st)
 	c.Assert(err, IsNil)
-	// the stack now has 2 entries
-	c.Check(stack, HasLen, 2)
+	// the history now has 2 entries
+	c.Check(vshist, HasLen, 2)
 
-	top3, err := assertstate.ValidationSetsStackTop(s.st)
+	top3, err := assertstate.ValidationSetsHistoryTop(s.st)
 	c.Assert(err, IsNil)
 	c.Check(top3, DeepEquals, map[string]*assertstate.ValidationSetTracking{
 		"foo/bar": {

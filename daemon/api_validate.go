@@ -427,7 +427,7 @@ func enforceValidationSet(st *state.State, accountID, name string, sequence, use
 	}
 	assertstate.UpdateValidationSet(st, &tr)
 
-	if err := assertstate.AddCurrentTrackingToValidationSetsStack(st); err != nil {
+	if err := assertstate.AddCurrentTrackingToValidationSetsHistory(st); err != nil {
 		return InternalError(err.Error())
 	}
 
