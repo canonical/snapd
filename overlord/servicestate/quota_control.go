@@ -24,8 +24,6 @@ import (
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -35,40 +33,21 @@ import (
 )
 
 var (
-	systemdVersion int
+	systemdVersionError error
 )
 
-// TODO: move to a systemd.AtLeast() ?
-func checkSystemdVersion() error {
-	vers, err := systemd.Version()
-	if err != nil {
-		return err
-	}
-	systemdVersion = vers
-	return nil
+func checkSystemdVersion() {
+	systemdVersionError = systemd.EnsureAtLeast(230)
 }
 
 func init() {
-	if err := checkSystemdVersion(); err != nil {
-		logger.Noticef("failed to check systemd version: %v", err)
-	}
-}
-
-// MockSystemdVersion mocks the systemd version to the given version. This is
-// only available for unit tests and will panic when run in production.
-func MockSystemdVersion(vers int) (restore func()) {
-	osutil.MustBeTestBinary("cannot mock systemd version outside of tests")
-	old := systemdVersion
-	systemdVersion = vers
-	return func() {
-		systemdVersion = old
-	}
+	checkSystemdVersion()
 }
 
 func quotaGroupsAvailable(st *state.State) error {
 	// check if the systemd version is too old
-	if systemdVersion < 230 {
-		return fmt.Errorf("systemd version too old: snap quotas requires systemd 230 and newer (currently have %d)", systemdVersion)
+	if systemdVersionError != nil {
+		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
 	}
 
 	tr := config.NewTransaction(st)

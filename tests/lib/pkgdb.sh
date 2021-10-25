@@ -594,16 +594,20 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 gccgo-9
+                libvirt-daemon-system
                 packagekit
+                qemu-kvm
                 qemu-utils
                 shellcheck
                 "
             ;;
-        ubuntu-21.04-64|ubuntu-21.10-64)
+        ubuntu-21.04-64|ubuntu-21.10-64*)
+            # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
                 fwupd
                 golang
+                linux-tools-$(uname -r)
                 qemu-utils
                 "
             ;;
@@ -627,7 +631,16 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 sbuild
                 schroot
+                systemd-timesyncd
                 "
+            ;;
+    esac
+    case "$SPREAD_SYSTEM" in
+        debian-11-*|debian-sid-*)
+            echo "
+                 bpftool
+                 strace
+                 "
             ;;
     esac
 }
@@ -652,9 +665,10 @@ pkg_dependencies_ubuntu_core(){
         pkg_linux_image_extra
 }
 
-pkg_dependencies_fedora(){
+pkg_dependencies_fedora_centos_common(){
     echo "
         python3
+        bpftool
         clang
         curl
         dbus-x11
@@ -685,6 +699,12 @@ pkg_dependencies_fedora(){
         "
 }
 
+pkg_dependencies_fedora(){
+    echo "
+         libcap-static
+        "
+}
+
 pkg_dependencies_amazon(){
     echo "
         python3
@@ -698,6 +718,7 @@ pkg_dependencies_amazon(){
         grub2-tools
         jq
         iptables-services
+        libcap-static
         man
         nc
         net-tools
@@ -719,6 +740,7 @@ pkg_dependencies_opensuse(){
         apparmor-profiles
         audit
         bash-completion
+        bpftool
         clang
         curl
         dbus-1-python3
@@ -754,6 +776,7 @@ pkg_dependencies_arch(){
     apparmor
     base-devel
     bash-completion
+    bpf
     clang
     curl
     evolution-data-server
@@ -802,7 +825,11 @@ pkg_dependencies(){
         amazon-*|centos-7-*)
             pkg_dependencies_amazon
             ;;
-        fedora-*|centos-*)
+        centos-*)
+            pkg_dependencies_fedora_centos_common
+            ;;
+        fedora-*)
+            pkg_dependencies_fedora_centos_common
             pkg_dependencies_fedora
             ;;
         opensuse-*)

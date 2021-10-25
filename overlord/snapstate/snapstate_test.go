@@ -36,6 +36,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
@@ -50,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -98,6 +100,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", nil)
+	s.state.Unlock()
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -111,6 +116,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		fakeTotalProgress:   100,
 		fakeBackend:         s.fakeBackend,
 		state:               s.state,
+		downloadError:       make(map[string]error),
 	}
 
 	// setup a bootloader for policy and boot
@@ -130,6 +136,11 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
@@ -3253,7 +3264,7 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	task := st.NewTask("auto-connect", "...")
 
 	// not restarting
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
 	snapsup := &snapstate.SnapSetup{SideInfo: si}
@@ -3261,7 +3272,7 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	c.Check(err, IsNil)
 
 	// restarting ... we always wait
-	state.MockRestarting(st, state.RestartDaemon)
+	restart.MockPending(st, restart.RestartDaemon)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
@@ -3320,7 +3331,7 @@ type: snapd
 		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
 
 		// restarting
-		state.MockRestarting(st, state.RestartUnset)
+		restart.MockPending(st, restart.RestartUnset)
 		c.Assert(snapstate.FinishRestart(task, snapsup), IsNil)
 		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
 
@@ -3977,11 +3988,10 @@ func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
 	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
 }
 
-func (snapStateSuite) TestDefaultContentPlugProviders(c *C) {
+func (snapStateSuite) TestDefaultProviderContentTags(c *C) {
 	info := &snap.Info{
 		Plugs: map[string]*snap.PlugInfo{},
 	}
-
 	info.Plugs["foo"] = &snap.PlugInfo{
 		Snap:      info,
 		Name:      "sound-themes",
@@ -4009,9 +4019,13 @@ func (snapStateSuite) TestDefaultContentPlugProviders(c *C) {
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(st, repo)
 
-	providers := snapstate.DefaultContentPlugProviders(st, info)
-	sort.Strings(providers)
-	c.Check(providers, DeepEquals, []string{"common-themes", "some-snap"})
+	providerContentAttrs := snapstate.DefaultProviderContentAttrs(st, info)
+
+	c.Check(providerContentAttrs, HasLen, 2)
+	sort.Strings(providerContentAttrs["common-themes"])
+	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
+	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
 }
 
 func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.TaskSet {
@@ -4509,6 +4523,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			stype: "os",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "ubuntu-core",
+		},
+		{
 			op:   "discard-namespace",
 			name: "ubuntu-core",
 		},
@@ -4607,6 +4625,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 			stype: "os",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "ubuntu-core",
 		},
 		{
 			op:   "discard-namespace",
@@ -5284,6 +5306,37 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestConflictChangeId(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snaps := []string{"a", "b", "c"}
+	changes := make([]*state.Change, len(snaps))
+
+	for i, name := range snaps {
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Sequence: []*snap.SideInfo{
+				{RealName: name, Revision: snap.R(11)},
+			},
+			Current: snap.R(11),
+		})
+
+		ts, err := snapstate.Enable(s.state, name)
+		c.Assert(err, IsNil)
+
+		changes[i] = s.state.NewChange("enable", "...")
+		changes[i].AddAll(ts)
+	}
+
+	for i, name := range snaps {
+		err := snapstate.CheckChangeConflictMany(s.state, []string{name}, "")
+		c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+
+		conflictErr := err.(*snapstate.ChangeConflictError)
+		c.Assert(conflictErr.ChangeID, Equals, changes[i].ID())
+	}
+}
+
 func (s *snapmgrTestSuite) TestConflictRemodeling(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5335,9 +5388,16 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	// a remodel conflicts with any other change
 	err := snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
 	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "remodel" not allowed until they are done`)
+	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	conflictErr := err.(*snapstate.ChangeConflictError)
+	c.Assert(conflictErr.ChangeID, Equals, chg.ID())
+
 	// and so does the  remodel conflicts with any other change
 	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
 	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "create-recovery-system" not allowed until they are done`)
+	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	conflictErr = err.(*snapstate.ChangeConflictError)
+	c.Assert(conflictErr.ChangeID, Equals, chg.ID())
 }
 
 type contentStore struct {
@@ -5350,93 +5410,97 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(sars) != 1 {
-		panic("expected to be queried for install of only one snap at a time")
-	}
-	info := sars[0].Info
-	switch info.InstanceName() {
-	case "snap-content-plug":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"some-plug": {
-				Snap:      info,
-				Name:      "shared-content",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-slot",
-					"content":          "shared-content",
-				},
-			},
-		}
-	case "snap-content-plug-compat":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"some-plug": {
-				Snap:      info,
-				Name:      "shared-content",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-slot:some-slot",
-					"content":          "shared-content",
-				},
-			},
-		}
-	case "snap-content-slot":
-		info.Slots = map[string]*snap.SlotInfo{
-			"some-slot": {
-				Snap:      info,
-				Name:      "shared-content",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"content": "shared-content",
-				},
-			},
-		}
-	case "snap-content-circular1":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"circular-plug1": {
-				Snap:      info,
-				Name:      "circular-plug1",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-circular2",
-					"content":          "circular2",
-				},
-			},
-		}
-		info.Slots = map[string]*snap.SlotInfo{
-			"circular-slot1": {
-				Snap:      info,
-				Name:      "circular-slot1",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"content": "circular1",
-				},
-			},
-		}
-	case "snap-content-circular2":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"circular-plug2": {
-				Snap:      info,
-				Name:      "circular-plug2",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-circular1",
-					"content":          "circular2",
-				},
-			},
-		}
-		info.Slots = map[string]*snap.SlotInfo{
-			"circular-slot2": {
-				Snap:      info,
-				Name:      "circular-slot2",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"content": "circular1",
-				},
-			},
-		}
+	if len(sars) < 1 || len(sars) > 2 {
+		panic("expected to be queried for install of 1 or 2 snaps at a time")
 	}
 
-	return []store.SnapActionResult{{Info: info}}, nil, err
+	var res []store.SnapActionResult
+	for _, s := range sars {
+		info := s.Info
+		switch info.InstanceName() {
+		case "snap-content-plug":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"some-plug": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-slot",
+						"content":          "shared-content",
+					},
+				},
+			}
+		case "snap-content-plug-compat":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"some-plug": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-slot:some-slot",
+						"content":          "shared-content",
+					},
+				},
+			}
+		case "snap-content-slot":
+			info.Slots = map[string]*snap.SlotInfo{
+				"some-slot": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"content": "shared-content",
+					},
+				},
+			}
+		case "snap-content-circular1":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"circular-plug1": {
+					Snap:      info,
+					Name:      "circular-plug1",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-circular2",
+						"content":          "circular2",
+					},
+				},
+			}
+			info.Slots = map[string]*snap.SlotInfo{
+				"circular-slot1": {
+					Snap:      info,
+					Name:      "circular-slot1",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"content": "circular1",
+					},
+				},
+			}
+		case "snap-content-circular2":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"circular-plug2": {
+					Snap:      info,
+					Name:      "circular-plug2",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-circular1",
+						"content":          "circular2",
+					},
+				},
+			}
+			info.Slots = map[string]*snap.SlotInfo{
+				"circular-slot2": {
+					Snap:      info,
+					Name:      "circular-slot2",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"content": "circular1",
+					},
+				},
+			}
+		}
+		res = append(res, store.SnapActionResult{Info: info})
+	}
+	return res, nil, err
 }
 
 func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
@@ -6746,4 +6810,40 @@ func (s *snapmgrTestSuite) TestMinimalInstallInfoSortByType(c *C) {
 		&installTestType{snap.TypeGadget},
 		&installTestType{snap.TypeApp},
 		&installTestType{snap.TypeApp}})
+}
+
+func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 0)
+	c.Check(ignoreValidation, HasLen, 0)
+
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(23), SnapID: "foo-id"}},
+		Current:  snap.R(23),
+	})
+	snaptest.MockSnap(c, string(`name: foo
+version: 1`), &snap.SideInfo{Revision: snap.R("13")})
+
+	snapstate.Set(st, "bar", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "bar", Revision: snap.R(5), SnapID: "bar-id"}},
+		Current:  snap.R(5),
+		Flags:    snapstate.Flags{IgnoreValidation: true},
+	})
+	snaptest.MockSnap(c, string(`name: bar
+version: 1`), &snap.SideInfo{Revision: snap.R("5")})
+
+	snaps, ignoreValidation, err = snapstate.InstalledSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("foo", "foo-id", snap.R("23")),
+		snapasserts.NewInstalledSnap("bar", "bar-id", snap.R("5"))})
+
+	c.Check(ignoreValidation, DeepEquals, map[string]bool{"bar": true})
 }

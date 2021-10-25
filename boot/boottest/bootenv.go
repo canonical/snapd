@@ -75,7 +75,7 @@ func includesType(which []snap.Type, t snap.Type) bool {
 			return true
 		}
 	}
-	return true
+	return false
 }
 
 func exactlyType(which []snap.Type, t snap.Type) bool {

@@ -57,6 +57,10 @@ func findError(format string, ref *asserts.Ref, err error) error {
 
 type RefreshAssertionsOptions struct {
 	IsAutoRefresh bool
+	// IsRefreshOfAllSnaps indicates if assertions are refreshed together with
+	// all installed snaps, which means validation set assertions can be refreshed
+	// as well. It is implied if IsAutoRefresh is true.
+	IsRefreshOfAllSnaps bool
 }
 
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
@@ -352,10 +356,16 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 }
 
 // RefreshSnapAssertions tries to refresh all snap-centered assertions
-func RefreshSnapAssertions(s *state.State, userID int) error {
-	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
+func RefreshSnapAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+	if opts == nil {
+		opts = &RefreshAssertionsOptions{}
+	}
+	opts.IsAutoRefresh = false
 	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
 		return err
+	}
+	if !opts.IsRefreshOfAllSnaps {
+		return nil
 	}
 	return RefreshValidationSetAssertions(s, userID, opts)
 }
@@ -420,7 +430,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		return err
 	}
 
-	checkForConflicts := func(db *asserts.Database, bs asserts.Backstore) error {
+	checkConflictsAndPresence := func(db *asserts.Database, bs asserts.Backstore) error {
 		vsets := snapasserts.NewValidationSets()
 		tmpDb := db.WithStackedBackstore(bs)
 		for _, vs := range enforceModeSets {
@@ -449,12 +459,32 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 				return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
 			}
 		}
-		return vsets.Conflict()
+		if err := vsets.Conflict(); err != nil {
+			return err
+		}
+
+		snaps, ignoreValidation, err := snapstate.InstalledSnaps(s)
+		if err != nil {
+			return err
+		}
+		err = vsets.CheckInstalledSnaps(snaps, ignoreValidation)
+		if verr, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
+			if len(verr.InvalidSnaps) > 0 || len(verr.MissingSnaps) > 0 {
+				return verr
+			}
+			// ignore wrong revisions
+			return nil
+		}
+		return err
 	}
 
-	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkForConflicts, userID, deviceCtx, opts); err != nil {
+	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts); err != nil {
 		if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
 			logger.Noticef("cannot refresh to conflicting validation set assertions: %v", err)
+			return nil
+		}
+		if _, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
+			logger.Noticef("cannot refresh to validation set assertions that do not satisfy installed snaps: %v", err)
 			return nil
 		}
 		return err
@@ -566,7 +596,7 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 // checks if it's not in conflict with existing validation sets in enforcing mode
 // (all currently tracked validation set assertions get refreshed), and if they
 // are valid for installed snaps.
-func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (vs *asserts.ValidationSet, err error) {
+func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (vs *asserts.ValidationSet, err error) {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, err
@@ -631,7 +661,7 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		if err := valsets.Conflict(); err != nil {
 			return err
 		}
-		if err := valsets.CheckInstalledSnaps(snaps); err != nil {
+		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
 			return err
 		}
 		return nil
