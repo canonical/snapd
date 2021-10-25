@@ -96,7 +96,9 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 
 	// serverSideId may be 0, but if it exists it is going to replace previous
 	// notification with same local id.
+	srv.mu.Lock()
 	serverSideId := srv.localToServerID[id]
+	srv.mu.Unlock()
 	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
 		msg.AppName, serverSideId, msg.Icon, msg.Title, msg.Body,
 		flattenActions(msg.Actions), hints,
@@ -104,6 +106,9 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	if err := call.Store(&serverSideId); err != nil {
 		return err
 	}
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	srv.serverToLocalID[serverSideId] = id
 	srv.localToServerID[id] = serverSideId
 	return nil
@@ -141,17 +146,15 @@ func fdoPriority(priority Priority) uint8 {
 
 // CloseNotification closes a notification message with the given ID.
 func (srv *fdoBackend) CloseNotification(id ID) error {
+	srv.mu.Lock()
 	serverSideId, ok := srv.localToServerID[id]
+	srv.mu.Unlock()
+
 	if !ok {
 		return fmt.Errorf("unknown notification with id %q", id)
 	}
 	call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, serverSideId)
-	if err := call.Store(); err != nil {
-		return err
-	}
-	delete(srv.localToServerID, id)
-	delete(srv.serverToLocalID, serverSideId)
-	return nil
+	return call.Store()
 }
 
 func (srv *fdoBackend) IdleDuration() time.Duration {
@@ -206,10 +209,11 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 		case <-ctx.Done():
 			return ctx.Err()
 		case sig, ok := <-ch:
-			if ok {
-				if err := srv.processSignal(sig, observer); err != nil {
-					return err
-				}
+			if !ok {
+				return nil
+			}
+			if err := srv.processSignal(sig, observer); err != nil {
+				return err
 			}
 		}
 	}
