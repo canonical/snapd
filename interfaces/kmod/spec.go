@@ -34,6 +34,8 @@ import (
 // setup process.
 type Specification struct {
 	modules map[string]bool
+
+	moduleOptions     map[string]string
 	disallowedModules map[string]bool
 }
 
@@ -57,6 +59,20 @@ func (spec *Specification) Modules() map[string]bool {
 		result[k] = v
 	}
 	return result
+}
+
+// SetModuleOptions specifies which options to use when loading the given kernel module.
+func (spec *Specification) SetModuleOptions(module, options string) error {
+	if spec.moduleOptions == nil {
+		spec.moduleOptions = make(map[string]string)
+	}
+	spec.moduleOptions[module] = options
+	return nil
+}
+
+// moduleOptions returns the load options for each kernel module
+func (spec *Specification) ModuleOptions() map[string]string {
+	return spec.moduleOptions
 }
 
 // DisallowModule adds a kernel module to the list of disallowed modules.
