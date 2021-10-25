@@ -345,8 +345,8 @@ void sc_setup_device_cgroup(const char *security_tag)
 		}
 
 		if (cgroup == NULL) {
-			/* initialize cgroup wrapper only know when we are sure that there
-			 * are devices assigned to this snap */
+			/* initialize cgroup wrapper only when we are sure that there are
+			 * devices assigned to this snap */
 			cgroup = sc_device_cgroup_new(security_tag, 0);
 			/* Setup the device group access control list */
 			sc_udev_setup_acls_common(cgroup);
@@ -360,8 +360,8 @@ void sc_setup_device_cgroup(const char *security_tag)
 		debug
 		    ("associated snap application process %i with device cgroup %s",
 		     getpid(), security_tag);
-		return;
+	} else {
+		debug("no devices tagged with %s, skipping device cgroup setup",
+		      udev_tag);
 	}
-	debug("no devices tagged with %s, skipping device cgroup setup",
-	      udev_tag);
 }
