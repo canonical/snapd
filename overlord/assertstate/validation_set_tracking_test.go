@@ -30,7 +30,7 @@ import (
 )
 
 type validationSetTrackingSuite struct {
-	st *state.State
+	st          *state.State
 	dev1Signing *assertstest.SigningDB
 	dev1acct    *asserts.Account
 }

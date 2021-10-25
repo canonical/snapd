@@ -143,7 +143,7 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
 
-	assertstateRefreshSnapAssertions                   = assertstate.RefreshSnapAssertions
+	assertstateRefreshSnapAssertions                     = assertstate.RefreshSnapAssertions
 	assertstateAddCurrentTrackingToValidationSetsHistory = assertstate.AddCurrentTrackingToValidationSetsHistory
 )
 
