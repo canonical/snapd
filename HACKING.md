@@ -18,7 +18,7 @@ If you need to build older versions of snapd, please have a look at the file
 
 If your Go environment (e.g. `GOPATH`) is already configured, you should skip
 this step. The Go environment setup can be added to your shell login script
-(e.g. ~/.bashrc for bash) for automatic setup (after a terminal restart).
+(e.g. `~/.bashrc` for bash) for automatic setup (after a terminal restart).
 
 ```
 export GOPATH=${HOME}/work
@@ -72,54 +72,7 @@ directory.
 This will allow you to build and test `snapd`. If you wish to contribute to
 the `snapd` project, please see the Contributing section.
 
-### Contributing
-
-Contributions are always welcome!
-
-Please make sure that you sign the Canonical contributor agreement [here](
-http://www.ubuntu.com/legal/contributors).
-
-Complete requirements can be found in CONTRIBUTING.md.
-
-Contributions are submitted through a Pull Request created from a fork of the
-`snapd` repository (under your GitHub account). 
-
-Start by creating a fork of the `snapd` repository on GitHub.
-
-Add your fork as an additional remote to an already cloned `snapd` main
-repository. Replace `<user>` with your GitHub account username.
-
-```
-cd ~/snapd
-git remote add fork git@github.com:<user>/snapd.git
-```
-
-Create a working branch on which to commit your work. Replace
-`<branchname>` with a suitable branch name.
-
-```
-git checkout -b <branchname>
-```
-
-Make changes to the repository and commit the changes to your
-working branch. Push the changes to your forked `snapd` repository.
-
-```
-git commit -a -m "commit message"
-git push fork <branchname>
-```
-
-Create the Pull Request for your branch on GitHub.
-
-This complete process is outlined in the GitHub documentation [here](
-https://docs.github.com/en/github/collaborating-with-pull-requests).
-
-We value good tests, so when you fix a bug or add a new feature we highly
-encourage you to add tests.
-
-For more information on testing, please see the Testing section.
-
-### Build host dependencies
+### Installing build dependencies
 
 Build dependencies can automatically be resolved using `build-dep`on Ubuntu.
 
@@ -228,6 +181,52 @@ File Attributes
   Tag_CPU_arch: v7
   Tag_FP_arch: VFPv3-D16
 ```
+### Contributing
+
+Contributions are always welcome!
+
+Please make sure that you sign the Canonical contributor agreement [here](
+http://www.ubuntu.com/legal/contributors).
+
+Complete requirements can be found in CONTRIBUTING.md.
+
+Contributions are submitted through a Pull Request created from a fork of the
+`snapd` repository (under your GitHub account). 
+
+Start by creating a fork of the `snapd` repository on GitHub.
+
+Add your fork as an additional remote to an already cloned `snapd` main
+repository. Replace `<user>` with your GitHub account username.
+
+```
+cd ~/snapd
+git remote add fork git@github.com:<user>/snapd.git
+```
+
+Create a working branch on which to commit your work. Replace
+`<branchname>` with a suitable branch name.
+
+```
+git checkout -b <branchname>
+```
+
+Make changes to the repository and commit the changes to your
+working branch. Push the changes to your forked `snapd` repository.
+
+```
+git commit -a -m "commit message"
+git push fork <branchname>
+```
+
+Create the Pull Request for your branch on GitHub.
+
+This complete process is outlined in the GitHub documentation [here](
+https://docs.github.com/en/github/collaborating-with-pull-requests).
+
+We value good tests, so when you fix a bug or add a new feature we highly
+encourage you to add tests.
+
+For more information on testing, please see the Testing section.
 
 ### Testing
 
