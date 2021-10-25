@@ -68,7 +68,7 @@ nested_wait_for_snap_command() {
     done
 }
 
-nested_check_unit_active() {
+nested_check_unit_stays_active() {
     local nested_unit="${1:-$NESTED_VM}"
     local retry=${2:-5}
     local wait=${3:-1}
@@ -86,7 +86,7 @@ nested_check_unit_active() {
 
 nested_check_boot_errors() {
     # Check if the service started and it is running without errors
-    if nested_is_core_20_system && ! nested_check_unit_active "$NESTED_VM" 15 1; then
+    if nested_is_core_20_system && ! nested_check_unit_stays_active "$NESTED_VM" 15 1; then
         # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
         # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
         # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
