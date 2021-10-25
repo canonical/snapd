@@ -54,7 +54,7 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 		}
 	}
 	if sn.Snap == "" && sn.Name == "" {
-		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name, snap or :name)"), value)
+		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or snap)"), value)
 	}
 	return nil
 }

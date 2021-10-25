@@ -58,7 +58,7 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 		"",               // Empty input
 	} {
 		err = sn.UnmarshalFlag(input)
-		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name, snap or :name\)`)
+		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or snap\)`)
 		c.Check(sn.Snap, Equals, "")
 		c.Check(sn.Name, Equals, "")
 	}
