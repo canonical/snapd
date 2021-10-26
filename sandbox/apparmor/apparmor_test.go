@@ -22,8 +22,10 @@ package apparmor_test
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -231,78 +233,25 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-
-	var testcases = []struct {
-		exitCodes   []int
-		expFeatures []string
-	}{
-		{
-			exitCodes: []int{1, 1, 1, 1},
-		},
-		{
-			exitCodes:   []int{1, 1, 1, 0},
-			expFeatures: []string{"cap-bpf"},
-		},
-		{
-			exitCodes:   []int{1, 1, 0, 1},
-			expFeatures: []string{"qipcrtr-socket"},
-		},
-		{
-			exitCodes:   []int{1, 1, 0, 0},
-			expFeatures: []string{"cap-bpf", "qipcrtr-socket"},
-		},
-		{
-			exitCodes:   []int{1, 0, 1, 1},
-			expFeatures: []string{"include-if-exists"},
-		},
-		{
-			exitCodes:   []int{1, 0, 1, 0},
-			expFeatures: []string{"cap-bpf", "include-if-exists"},
-		},
-		{
-			exitCodes:   []int{1, 0, 0, 1},
-			expFeatures: []string{"include-if-exists", "qipcrtr-socket"},
-		},
-		{
-			exitCodes:   []int{1, 0, 0, 0},
-			expFeatures: []string{"cap-bpf", "include-if-exists", "qipcrtr-socket"},
-		},
-		{
-			exitCodes:   []int{0, 1, 1, 0},
-			expFeatures: []string{"cap-bpf", "unsafe"},
-		},
-		{
-			exitCodes:   []int{0, 1, 0, 1},
-			expFeatures: []string{"qipcrtr-socket", "unsafe"},
-		},
-		{
-			exitCodes:   []int{0, 1, 0, 0},
-			expFeatures: []string{"cap-bpf", "qipcrtr-socket", "unsafe"},
-		},
-		{
-			exitCodes:   []int{0, 0, 1, 1},
-			expFeatures: []string{"include-if-exists", "unsafe"},
-		},
-		{
-			exitCodes:   []int{0, 0, 1, 0},
-			expFeatures: []string{"cap-bpf", "include-if-exists", "unsafe"},
-		},
-		{
-			exitCodes:   []int{0, 0, 0, 1},
-			expFeatures: []string{"include-if-exists", "qipcrtr-socket", "unsafe"},
-		},
-		{
-			exitCodes:   []int{0, 0, 0, 0},
-			expFeatures: []string{"cap-bpf", "include-if-exists", "qipcrtr-socket", "unsafe"},
-		},
-	}
-
-	for _, t := range testcases {
+	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "cap-bpf"}
+	// test all combinations of features
+	for i := 0; i < int(math.Pow(2, float64(len(features)))); i++ {
+		expFeatures := []string{}
 		d := c.MkDir()
 		contents := ""
-		for _, code := range t.exitCodes {
+		var expectedCalls [][]string
+		for j, f := range features {
+			code := 0
+			if i&(1<<j) == 0 {
+				expFeatures = append([]string{f}, expFeatures...)
+			} else {
+				code = 1
+			}
+			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
 			contents += fmt.Sprintf("%d ", code)
 		}
+		// probeParserFeatures() sorts the features
+		sort.Strings(expFeatures)
 		err := ioutil.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
 		c.Assert(err, IsNil)
 		mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fmt.Sprintf(`
@@ -320,16 +269,12 @@ exit "$EXIT_CODE"
 
 		features, err := apparmor.ProbeParserFeatures()
 		c.Assert(err, IsNil)
-		if len(t.expFeatures) == 0 {
+		if len(expFeatures) == 0 {
 			c.Check(features, HasLen, 0)
 		} else {
-			c.Check(features, DeepEquals, t.expFeatures)
+			c.Check(features, DeepEquals, expFeatures)
 		}
 
-		var expectedCalls [][]string
-		for range t.exitCodes {
-			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
-		}
 		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
