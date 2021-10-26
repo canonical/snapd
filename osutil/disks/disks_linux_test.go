@@ -1158,6 +1158,49 @@ echo 512
 	})
 }
 
+func (s *diskSuite) TestDiskSizeInBytesGPTUnexpectedSfdiskUnit(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":              "1",
+			"MINOR":              "2",
+			"DEVTYPE":            "disk",
+			"DEVNAME":            "/dev/sda",
+			"ID_PART_TABLE_UUID": "foo",
+			"ID_PART_TABLE_TYPE": "gpt",
+			"DEVPATH":            "/devices/foo/sda",
+		}, nil
+	})
+	defer restore()
+
+	cmd := testutil.MockCommand(c, "sfdisk", `
+echo '{
+	"partitiontable": {
+		"unit": "not-sectors",
+		"lastlba": 42
+	}
+}'
+`)
+	defer cmd.Restore()
+
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+echo 512
+`)
+	defer blockDevCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	_, err = d.SizeInBytes()
+	c.Assert(err, ErrorMatches, "cannot get size in sectors, sfdisk reported unknown unit not-sectors")
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/sda"},
+	})
+}
+
 func (s *diskSuite) TestDiskSizeInBytesGPTSectorSize4K(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
