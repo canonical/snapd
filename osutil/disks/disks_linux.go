@@ -318,9 +318,12 @@ type sfdiskPartitionTable struct {
 
 // okay to use in initrd for dos disks since it uses blockdev command, but for
 // gpt disks, we need to use sfdisk, which is not okay to use in the initrd
-func (d *disk) SizeInSectors() (uint64, error) {
+func (d *disk) SizeInBytes() (uint64, error) {
 	if d.schema == "dos" {
-		return blockDeviceSizeInSectors(d.devname)
+		numSectors, err := blockDeviceSizeInSectors(d.devname)
+		// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
+		// zero
+		return numSectors * 512, err
 	}
 	// otherwise we need to use sfdisk on the device node
 	output, err := exec.Command("sfdisk", "--json", d.devname).Output()
@@ -338,8 +341,14 @@ func (d *disk) SizeInSectors() (uint64, error) {
 		return 0, fmt.Errorf("cannot get size in sectors, sfdisk reported unknown unit %s", dump.PartitionTable.Unit)
 	}
 
-	//the size is just the last LBA + 1
-	return dump.PartitionTable.LastLBA + 1, nil
+	// the size in sectors is just the (last LBA + 1) * sectorSize() - sfdisk
+	// actually always returns in the number of physical sectors
+	sectorSz, err := d.SectorSize()
+	if err != nil {
+		return 0, fmt.Errorf("cannot get sector size: %v", err)
+	}
+
+	return (dump.PartitionTable.LastLBA + 1) * sectorSz, nil
 }
 
 func (d *disk) Schema() string {

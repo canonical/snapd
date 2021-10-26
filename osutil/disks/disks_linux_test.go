@@ -1114,7 +1114,7 @@ echo 512
 	})
 }
 
-func (s *diskSuite) TestDiskSizeInSectorsGPT(c *C) {
+func (s *diskSuite) TestDiskSizeInBytesGPT(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1140,20 +1140,69 @@ echo '{
 `)
 	defer cmd.Restore()
 
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+echo 512
+`)
+	defer blockDevCmd.Restore()
+
 	d, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, IsNil)
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.SizeInSectors()
+	sz, err := d.SizeInBytes()
 	c.Assert(err, IsNil)
-	c.Assert(sz, Equals, uint64(43))
+	c.Assert(sz, Equals, uint64(43*512))
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 }
 
-func (s *diskSuite) TestDiskSizeInSectorsDOS(c *C) {
+func (s *diskSuite) TestDiskSizeInBytesGPTSectorSize4K(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":              "1",
+			"MINOR":              "2",
+			"DEVTYPE":            "disk",
+			"DEVNAME":            "/dev/sda",
+			"ID_PART_TABLE_UUID": "foo",
+			"ID_PART_TABLE_TYPE": "gpt",
+			"DEVPATH":            "/devices/foo/sda",
+		}, nil
+	})
+	defer restore()
+
+	cmd := testutil.MockCommand(c, "sfdisk", `
+echo '{
+	"partitiontable": {
+		"unit": "sectors",
+		"lastlba": 42
+	}
+}'
+`)
+	defer cmd.Restore()
+
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+echo 4096
+`)
+	defer blockDevCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	sz, err := d.SizeInBytes()
+	c.Assert(err, IsNil)
+	c.Assert(sz, Equals, uint64(43*4096))
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/sda"},
+	})
+}
+
+func (s *diskSuite) TestDiskSizeInBytesDOS(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1170,7 +1219,7 @@ func (s *diskSuite) TestDiskSizeInSectorsDOS(c *C) {
 	defer restore()
 
 	cmd := testutil.MockCommand(c, "blockdev", `
-echo 512
+echo 10000
 `)
 	defer cmd.Restore()
 
@@ -1179,9 +1228,9 @@ echo 512
 	c.Assert(d.Schema(), Equals, "dos")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.SizeInSectors()
+	sz, err := d.SizeInBytes()
 	c.Assert(err, IsNil)
-	c.Assert(sz, Equals, uint64(512))
+	c.Assert(sz, Equals, uint64(10000*512))
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getsz", "/dev/sda"},
 	})

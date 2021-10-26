@@ -54,7 +54,7 @@ type MockDiskMapping struct {
 	ID              string
 	DiskSchema      string
 	SectorSizeBytes uint64
-	SizeSectors     uint64
+	SizeBytes       uint64
 }
 
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
@@ -164,8 +164,8 @@ func (d *MockDiskMapping) SectorSize() (uint64, error) {
 	return d.SectorSizeBytes, nil
 }
 
-func (d *MockDiskMapping) SizeInSectors() (uint64, error) {
-	return d.SizeSectors, nil
+func (d *MockDiskMapping) SizeInBytes() (uint64, error) {
+	return d.SizeBytes, nil
 }
 
 // Mountpoint is a combination of a mountpoint location and whether that

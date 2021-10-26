@@ -94,23 +94,23 @@ type Disk interface {
 	// disk such as /sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/.
 	KernelDevicePath() string
 
-	// Schema returns the schema for the disk, either DOS or GPT.
+	// Schema returns the schema for the disk, either DOS or GPT in lowercase.
 	Schema() string
 
 	// SectorSize returns the sector size for the disk in bytes, usually 512,
-	// sometimes 4096, possible even 8196 some day.
+	// sometimes 4096, possibly even 8196 some day.
 	// TODO: make this return a quantity.Size when that is doable without
 	// importing gadget
 	SectorSize() (uint64, error)
 
-	// SizeInSectors returns the overall size of the disk in sectors. For DOS
+	// SizeInBytes returns the overall size of the disk in bytes. For DOS
 	// disks, this is usually obtained via an ioctl via running blockdev --getsz
-	// while on GPT disks, this uses sfdisk to the get the first LBA. The
+	// while on GPT disks, this uses sfdisk to the get the last LBA. The
 	// dependency on sfdisk means that this function for GPT disks is not
 	// currently usable in the UC20 initrd which lacks this tool.
 	// TODO: make this return a quantity.Size when that is doable without
 	// importing gadget
-	SizeInSectors() (uint64, error)
+	SizeInBytes() (uint64, error)
 }
 
 // Partition represents a partition on a Disk device.
