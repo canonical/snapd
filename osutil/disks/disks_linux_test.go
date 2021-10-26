@@ -1200,6 +1200,57 @@ echo 4096
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "/dev/sda"},
 	})
+
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/sda"},
+	})
+}
+
+func (s *diskSuite) TestDiskSizeInBytesGPTNon512MultipleSectorSizeError(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":              "1",
+			"MINOR":              "2",
+			"DEVTYPE":            "disk",
+			"DEVNAME":            "/dev/sda",
+			"ID_PART_TABLE_UUID": "foo",
+			"ID_PART_TABLE_TYPE": "gpt",
+			"DEVPATH":            "/devices/foo/sda",
+		}, nil
+	})
+	defer restore()
+
+	cmd := testutil.MockCommand(c, "sfdisk", `
+echo '{
+	"partitiontable": {
+		"unit": "sectors",
+		"lastlba": 42
+	}
+}'
+`)
+	defer cmd.Restore()
+
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+echo 513
+`)
+	defer blockDevCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	_, err = d.SizeInBytes()
+	c.Assert(err, ErrorMatches, `cannot get sector size: cannot calculate structure size: sector size \(513\) is not a multiple of 512`)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/sda"},
+	})
+
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/sda"},
+	})
 }
 
 func (s *diskSuite) TestDiskSizeInBytesDOS(c *C) {
