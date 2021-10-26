@@ -44,8 +44,6 @@ var (
 
 	Flatten = flatten
 
-	FilesystemInfoForPartition = filesystemInfoForPartition
-
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
 

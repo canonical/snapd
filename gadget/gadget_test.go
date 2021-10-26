@@ -2614,6 +2614,10 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 	Schema:     "gpt",
 	Size:       2 * quantity.SizeGiB,
 	SectorSize: 512,
+
+	// ( 2 GB / 512 B sector size ) - 34 typical GPT header backup sectors +
+	// 1 sector to get the exclusive end
+	UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-34) + 1,
 }
 
 const mockSimpleGadgetYaml = `volumes:
@@ -2686,12 +2690,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 
 	// layout is not compatible if the device is too small
 	smallDeviceLayout := mockDeviceLayout
-	smallDeviceLayout.Size = 100 * quantity.SizeMiB
-	// sanity check
-	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
-	c.Assert(err, ErrorMatches, `device /dev/node \(100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
+	smallDeviceLayout.UsableSectorsEnd = uint64(100 * quantity.SizeMiB / 512)
 
+	// sanity check
+	c.Check(gadgetLayoutWithExtras.Size > quantity.Size(smallDeviceLayout.UsableSectorsEnd*uint64(smallDeviceLayout.SectorSize)), Equals, true)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
+	c.Assert(err, ErrorMatches, `device /dev/node \(last usable byte at 100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
 }
 
 func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
@@ -2736,11 +2740,12 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 				Node: "/dev/node2",
 			},
 		},
-		ID:         "anything",
-		Device:     "/dev/node",
-		Schema:     "dos",
-		Size:       2 * quantity.SizeGiB,
-		SectorSize: 512,
+		ID:               "anything",
+		Device:           "/dev/node",
+		Schema:           "dos",
+		Size:             2 * quantity.SizeGiB,
+		UsableSectorsEnd: uint64(2*quantity.SizeGiB/512 - 34 + 1),
+		SectorSize:       512,
 	}
 	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockMBRGadgetYaml, nil)
 	c.Assert(err, IsNil)
@@ -2847,7 +2852,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// now we fail to find the /dev/node3 structure from the gadget on disk because the gadget says it must be bigger
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size is smaller than gadget size`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is smaller than gadget size 10485760000000 \(9.54 TiB\)`)
 
 	// change the gadget size to be smaller than the on disk size and the role to be one that is not expanded
 	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Size = 1 * quantity.SizeMiB
@@ -2855,7 +2860,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// now we fail because the gadget says it should be smaller and it can't be expanded
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size is larger than gadget size \(and the role should not be expanded\)`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is larger than gadget size 1048576 \(1 MiB\) \(and the role should not be expanded\)`)
 
 	// but a smaller partition on disk for SystemData role is okay
 	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemData
