@@ -87,14 +87,14 @@ execute: |
             # On Ubuntu 16.04 with systemd 229, without access to the session
             # bus, we fall back to the system bus.
             MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
-            MATCH 'DEBUG: creat transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-18.04-*)
             # On Ubuntu 18.04 with systemd 237, without access to the session
             # bus, we fall back to the system bus.
             MATCH 'DEBUG: using system bus now, session bus was not available' <debug.txt
-            MATCH 'DEBUG: creat transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/system.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-20.04-*|ubuntu-21.04-*)
