@@ -345,8 +345,12 @@ func probeParserFeatures() ([]string, error) {
 			feature: "cap-bpf",
 			probe:   "capability bpf,",
 		},
+		{
+			feature: "cap-audit-read",
+			probe:   "capability audit_read,",
+		},
 	}
-	features := make([]string, 0, 4)
+	features := make([]string, 0, 5)
 	for _, fp := range featureProbes {
 		if tryAppArmorParserFeature(parser, args, fp.probe) {
 			features = append(features, fp.feature)
