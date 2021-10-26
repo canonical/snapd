@@ -320,7 +320,7 @@ func probeParserFeatures() ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
-	features := make([]string, 0, 2)
+	features := make([]string, 0, 4)
 	if tryAppArmorParserFeature(parser, "change_profile unsafe /**,") {
 		features = append(features, "unsafe")
 	}
@@ -329,6 +329,9 @@ func probeParserFeatures() ([]string, error) {
 	}
 	if tryAppArmorParserFeature(parser, "capability bpf,") {
 		features = append(features, "cap-bpf")
+	}
+	if tryAppArmorParserFeature(parser, "capability audit_read,") {
+		features = append(features, "cap-audit-read")
 	}
 	sort.Strings(features)
 	return features, nil
