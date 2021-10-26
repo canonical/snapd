@@ -59,8 +59,11 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 	return nil
 }
 
-// SnapAndNameStrict holds a snap name and a plug or slot name (both components
-// must be non-empty).
+// SnapAndNameStrict holds a plug or slot name and, optionally, a snap name.
+// The following combinations are allowed:
+// * <snap>:<plug/slot>
+// * :<plug/slot>
+// Every other combination results in an error.
 type SnapAndNameStrict struct {
 	SnapAndName
 }
