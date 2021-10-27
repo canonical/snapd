@@ -121,7 +121,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	// Try to ensure we have an accurate time before doing any
 	// refreshy stuff. Note that this call will not block.
 	devMgr := deviceMgr(st)
-	maxWait := 10 * 60 * time.Second
+	maxWait := 10 * time.Minute
 	if !devMgr.ntpSyncedOrWaitedLongerThan(maxWait) {
 		return false, nil
 	}
