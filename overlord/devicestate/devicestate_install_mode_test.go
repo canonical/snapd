@@ -1572,7 +1572,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockHappy(c *
 	// a month old timestamp file
 	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
 
-	// pretend we have a cloud-init config on the seed partition
 	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
@@ -1581,7 +1580,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockHappy(c *
 	installSystem := s.findInstallSystem()
 	c.Assert(installSystem, NotNil)
 
-	// and was run successfully
+	// installation was successful
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(installSystem.Status(), Equals, state.DoneStatus)
 
@@ -1610,7 +1609,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C)
 	c.Assert(os.Chmod(timesyncDirInDst, 0000), IsNil)
 	defer os.Chmod(timesyncDirInDst, 0755)
 
-	// pretend we have a cloud-init config on the seed partition
 	s.mockInstallModeChange(c, "dangerous", "")
 
 	s.state.Lock()
@@ -1619,7 +1617,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C)
 	installSystem := s.findInstallSystem()
 	c.Assert(installSystem, NotNil)
 
-	// and was run successfully
+	// install failed copying the timestamp
 	c.Check(installSystem.Err(), ErrorMatches, `(?s).*\(cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
 	c.Check(installSystem.Status(), Equals, state.ErrorStatus)
 }

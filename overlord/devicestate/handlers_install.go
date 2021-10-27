@@ -344,7 +344,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
 
-	// preserve systemd-timesync clock timestamp, so that RTC-less devices
+	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
 	// can start with a more recent time on the next boot
 	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir); err != nil {
 		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
