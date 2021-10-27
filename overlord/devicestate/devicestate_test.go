@@ -63,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -1837,5 +1838,17 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
 	// Nanosecond since the device manager got started is
 	// certainly over
 	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1*time.Nanosecond)
+	c.Check(syncedOrWaited, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		// no timedate1
+		return false, timeutil.NoTimedate1Error{}
+	})
+	defer restore()
+
+	// There is no timedate1 dbus service, no point in waiting
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
 	c.Check(syncedOrWaited, Equals, true)
 }

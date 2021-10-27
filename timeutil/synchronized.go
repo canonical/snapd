@@ -40,8 +40,16 @@ func isNoServiceOrUnknownPropertyDbusErr(err error) bool {
 	return false
 }
 
-// IsNTPSynchronized returns true if the time is syncronized using something like
-// NTP.
+type NoTimedate1Error struct {
+	err error
+}
+
+func (e NoTimedate1Error) Error() string {
+	return fmt.Sprintf("cannot find org.freedesktop.timedate1 dbus service: %v", e.err)
+}
+
+// IsNTPSynchronized returns true if the time is syncronized according to
+// systemd-timedated.
 func IsNTPSynchronized() (bool, error) {
 	// shared connection, no need to close
 	conn, err := dbusutil.SystemBus()
@@ -53,7 +61,7 @@ func IsNTPSynchronized() (bool, error) {
 	dbusV, err := tdObj.GetProperty("org.freedesktop.timedate1.NTPSynchronized")
 	if err != nil {
 		if isNoServiceOrUnknownPropertyDbusErr(err) {
-			return true, nil
+			return false, NoTimedate1Error{err}
 		}
 		return false, fmt.Errorf("cannot check for ntp sync: %v", err)
 	}
