@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -99,6 +100,9 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", nil)
+	s.state.Unlock()
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -3260,7 +3264,7 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	task := st.NewTask("auto-connect", "...")
 
 	// not restarting
-	state.MockRestarting(st, state.RestartUnset)
+	restart.MockPending(st, restart.RestartUnset)
 	si := &snap.SideInfo{RealName: "some-app"}
 	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
 	snapsup := &snapstate.SnapSetup{SideInfo: si}
@@ -3268,7 +3272,7 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	c.Check(err, IsNil)
 
 	// restarting ... we always wait
-	state.MockRestarting(st, state.RestartDaemon)
+	restart.MockPending(st, restart.RestartDaemon)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
@@ -3327,7 +3331,7 @@ type: snapd
 		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
 
 		// restarting
-		state.MockRestarting(st, state.RestartUnset)
+		restart.MockPending(st, restart.RestartUnset)
 		c.Assert(snapstate.FinishRestart(task, snapsup), IsNil)
 		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
 
@@ -6813,9 +6817,10 @@ func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snaps, err := snapstate.InstalledSnaps(st)
+	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 0)
+	c.Check(ignoreValidation, HasLen, 0)
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
@@ -6825,10 +6830,20 @@ func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	snaptest.MockSnap(c, string(`name: foo
 version: 1`), &snap.SideInfo{Revision: snap.R("13")})
 
-	snaps, err = snapstate.InstalledSnaps(st)
+	snapstate.Set(st, "bar", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "bar", Revision: snap.R(5), SnapID: "bar-id"}},
+		Current:  snap.R(5),
+		Flags:    snapstate.Flags{IgnoreValidation: true},
+	})
+	snaptest.MockSnap(c, string(`name: bar
+version: 1`), &snap.SideInfo{Revision: snap.R("5")})
+
+	snaps, ignoreValidation, err = snapstate.InstalledSnaps(st)
 	c.Assert(err, IsNil)
-	c.Check(snaps, HasLen, 1)
-	c.Check(snaps[0].SnapName(), Equals, "foo")
-	c.Check(snaps[0].ID(), Equals, "foo-id")
-	c.Check(snaps[0].Revision, Equals, snap.R("23"))
+	c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("foo", "foo-id", snap.R("23")),
+		snapasserts.NewInstalledSnap("bar", "bar-id", snap.R("5"))})
+
+	c.Check(ignoreValidation, DeepEquals, map[string]bool{"bar": true})
 }

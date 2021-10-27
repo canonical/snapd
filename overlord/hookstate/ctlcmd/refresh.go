@@ -152,6 +152,10 @@ type updateDetails struct {
 	Restart bool `yaml:"restart"`
 }
 
+type holdDetails struct {
+	Hold string `yaml:"hold"`
+}
+
 // refreshCandidate is a subset of refreshCandidate defined by snapstate and
 // stored in "refresh-candidates".
 type refreshCandidate struct {
@@ -259,10 +263,19 @@ func (c *refreshCommand) hold() error {
 
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
-	if err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...); err != nil {
+	remaining, err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...)
+	if err != nil {
 		// TODO: let a snap hold again once for 1h.
 		return err
 	}
+	var details holdDetails
+	details.Hold = remaining.String()
+
+	out, err := yaml.Marshal(details)
+	if err != nil {
+		return err
+	}
+	c.printf("%s", string(out))
 
 	return nil
 }

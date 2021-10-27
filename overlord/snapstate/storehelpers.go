@@ -434,9 +434,7 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 	return store.SnapActionResult{}, e
 }
 
-func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int, deviceCtx DeviceContext) (*snap.Info, error) {
-	// TODO: support ignore-validation?
-
+func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revision, userID int, flags Flags, deviceCtx DeviceContext) (*snap.Info, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return nil, err
@@ -460,35 +458,42 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		Revision: revision,
 	}
 
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
-	if enforcedSets != nil {
-		requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+	var storeFlags store.SnapActionFlags
+	if !flags.IgnoreValidation {
+		enforcedSets, err := EnforcedValidationSets(st)
 		if err != nil {
 			return nil, err
 		}
-		if !requiredRevision.Unset() {
-			if revision != requiredRevision {
-				return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s",
-					curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
+		if enforcedSets != nil {
+			requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+			if err != nil {
+				return nil, err
 			}
-			// note, not checking if required revision matches snapst.Current because
-			// this is already indirectly prevented by infoForUpdate().
+			if !requiredRevision.Unset() {
+				if revision != requiredRevision {
+					return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s",
+						curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
+				}
+				// note, not checking if required revision matches snapst.Current because
+				// this is already indirectly prevented by infoForUpdate().
 
-			// specific revision is required, reset cohort in current snaps
-			for _, sn := range curSnaps {
-				if sn.InstanceName == curInfo.InstanceName() {
-					sn.CohortKey = ""
-					break
+				// specific revision is required, reset cohort in current snaps
+				for _, sn := range curSnaps {
+					if sn.InstanceName == curInfo.InstanceName() {
+						sn.CohortKey = ""
+						break
+					}
 				}
 			}
+			if len(requiredValsets) > 0 {
+				setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
+			}
 		}
-		if len(requiredValsets) > 0 {
-			setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
-		}
+	} else {
+		storeFlags = store.SnapActionIgnoreValidation
 	}
+
+	action.Flags = storeFlags
 
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
