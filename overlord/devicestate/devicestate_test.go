@@ -1836,7 +1836,6 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
 	// NTP is also not synced here but the wait time of 1
 	// Nanosecond since the device manager got started is
 	// certainly over
-	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1)
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1*time.Nanosecond)
 	c.Check(syncedOrWaited, Equals, true)
-
 }
