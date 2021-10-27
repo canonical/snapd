@@ -77,10 +77,19 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFeatures(c *C) {
-	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
 	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
 	c.Assert(err, ErrorMatches, "cannot connect plug on system without audit_read support")
+}
+
+func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingNoAppArmor(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
+	defer r()
+	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	c.Assert(err, IsNil)
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestAppArmorSpec(c *C) {
