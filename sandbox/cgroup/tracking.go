@@ -352,10 +352,9 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 	conn.Signal(signals)
 
 	var wg sync.WaitGroup
-	closeChan := make(chan struct{})
 	defer func() {
+		close(jobWaitFor)
 		// wait for the signal handling to finish before returning
-		close(closeChan)
 		wg.Wait()
 	}()
 	wg.Add(1)
@@ -367,7 +366,13 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 			select {
 			case job, ok := <-jobWaitFor:
 				if !ok {
-					continue
+					// the channel got closed, meaning it's
+					// time to clean up
+					conn.RemoveSignal(signals)
+					conn.RemoveMatchSignal(jobRemoveMatch...)
+					close(jobResultChan)
+					close(signals)
+					return
 				}
 				if result, ok := jobResults[job]; ok {
 					// maybe we already have result for this job
@@ -401,11 +406,6 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 					// later
 					jobResults[jobFromSignal] = result
 				}
-			case <-closeChan:
-				conn.RemoveSignal(signals)
-				conn.RemoveMatchSignal(jobRemoveMatch...)
-				close(jobResultChan)
-				return
 			}
 		}
 	}()
@@ -450,7 +450,6 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 		// establishing a device cgroup filtering in the wrong group
 		return doCreateTransientScopeJobRemovedSync(conn, unitName, pid)
 	}
-	//
 	return doCreateTransientScopeNoSync(conn, unitName, pid)
 }
 
