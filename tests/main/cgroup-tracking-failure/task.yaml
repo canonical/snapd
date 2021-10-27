@@ -215,7 +215,7 @@ execute: |
             MATCH 'DEBUG: snapd cannot track the started application' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-12345.slice/session-c[0-9]+.scope' <cgroup.txt
             ;;
-        ubuntu-20.04-*)
+        ubuntu-20.04-*|ubuntu-core-20-*)
             # There is a session bus, there is systemd --user and it performs
             # the cgroup transition with the help of systemd --system.
             MATCH 'DEBUG: using session bus' <debug.txt
