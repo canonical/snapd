@@ -1827,11 +1827,15 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
 	})
 	defer restore()
 
-	// ntp is not synced yet and the wait time is not over
-	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1000*time.Second)
+	// NTP is not synced yet and the (arbitrary selected) wait
+	// time of 12h since the device manager got started is not
+	// over yet
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
 	c.Check(syncedOrWaited, Equals, false)
 
-	// here the wait time is over
+	// NTP is also not synced here but the wait time of 1
+	// Nanosecond since the device manager got started is
+	// certainly over
 	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1)
 	c.Check(syncedOrWaited, Equals, true)
 
