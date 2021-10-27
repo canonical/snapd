@@ -319,6 +319,38 @@ type sfdiskPartitionTable struct {
 // okay to use in initrd for dos disks since it uses blockdev command, but for
 // gpt disks, we need to use sfdisk, which is not okay to use in the initrd
 func (d *disk) SizeInBytes() (uint64, error) {
+	// We have two different implementations of getting the "size" of a disk in
+	// bytes, depending on the schema. The main reason we have two different
+	// methods and in fact effectively get two different size calculations for
+	// even the same disk depending on the schema is because we use the size of
+	// a disk primarily just for calculating the end of an auto-expanded
+	// partition when we are creating partitions during UC20+ install mode, and
+	// the tool we use for this, sfdisk is rather picky and inconsistent when it
+	// comes to creating partitions and their sizes.
+	// For DOS disks, we can just use the normal straight-forward size using an
+	// ioctl on the disk via the blockdev command.
+	// For GPT disks however, we need to use sfdisk itself to get the last
+	// "logical block address" (LBA), which is the maximum sector that sfdisk
+	// will allow a partition to exist in, even though this sector does not seem
+	// to appear at the end of the disk. This is because the last LBA is
+	// actually a relative measurement not relative to the very start of the
+	// physical disk, but rather relative to the first usable LBA, so the total
+	// size of the disk is given by last LBA + first LBA, but when creating
+	// partitions on the disk, sfdisk treats the first partition as existing at
+	// the first LBA, meaning instead of referring to it as occupying the space
+	// [ FirstLBA + Offset, FirstLBA + Offset + Size ]
+	// instead we must refer to it as occupying the space
+	// [ Offset, Offset + Size ]
+	// which means that when we are auto-expanding the last partition (starting
+	// at OffsetLast for example), we refer to it as existing in the space
+	// [ OffsetLast, LastLBA - OffsetLast ]
+	// And actually even that is somewhat incorrect, since really we want to use
+	// the last sector so it is actually
+	// [ OffsetLast, LastLBA + 1 - OffsetLast ]
+	// in the native logical sector size of the disk. This is where the math
+	// below comes from and it has been verified empirically with the version of
+	// sfdisk present in focal and used on UC20.
+
 	if d.schema == "dos" {
 		numSectors, err := blockDeviceSizeInSectors(d.devname)
 		// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
@@ -341,8 +373,9 @@ func (d *disk) SizeInBytes() (uint64, error) {
 		return 0, fmt.Errorf("cannot get size in sectors, sfdisk reported unknown unit %s", dump.PartitionTable.Unit)
 	}
 
-	// the size in sectors is just the (last LBA + 1) * sectorSize() - sfdisk
-	// actually always returns in the number of physical sectors
+	// the size in bytes is just the (last LBA + 1) * sectorSize() - sfdisk
+	// actually always returns in the number of physical sectors unlike blockdev
+	// above for DOS disks
 	sectorSz, err := d.SectorSize()
 	if err != nil {
 		return 0, fmt.Errorf("cannot get sector size: %v", err)

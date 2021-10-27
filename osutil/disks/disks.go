@@ -104,10 +104,12 @@ type Disk interface {
 	SectorSize() (uint64, error)
 
 	// SizeInBytes returns the overall size of the disk in bytes. For DOS
-	// disks, this is usually obtained via an ioctl via running blockdev --getsz
-	// while on GPT disks, this uses sfdisk to the get the last LBA. The
-	// dependency on sfdisk means that this function for GPT disks is not
-	// currently usable in the UC20 initrd which lacks this tool.
+	// disks, this is usually obtained via an ioctl via running the command
+	// "blockdev --getsz". While on GPT disks, this uses sfdisk to the get the
+	// last logical block (sector) address which sfdisk treats as the effective
+	// size of the disk. The dependency on sfdisk means that this function for
+	// GPT disks is not currently usable in the UC20 initrd which lacks this
+	// tool.
 	// TODO: make this return a quantity.Size when that is doable without
 	// importing gadget
 	SizeInBytes() (uint64, error)
