@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -73,6 +74,22 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *NetlinkAuditInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFeatures(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer r()
+	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	c.Assert(err, ErrorMatches, "cannot connect plug on system without audit_read support")
+}
+
+func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingNoAppArmor(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
+	defer r()
+	err := interfaces.BeforeConnectPlug(s.iface, s.plug)
+	c.Assert(err, IsNil)
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestAppArmorSpec(c *C) {
