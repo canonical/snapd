@@ -871,6 +871,12 @@ var overlayRootSnippet = `
   "###UPPERDIR###/{,**/}" r,
 `
 
+// capabilityBPFSnippet contains extra permissions for snap-confine to execute
+// bpf() syscall and set up or modify cgroupv2 device access filtering
+var capabilityBPFSnippet = `
+capability bpf,
+`
+
 var ptraceTraceDenySnippet = `
 # While commands like 'ps', 'ip netns identify <pid>', 'ip netns pids foo', etc
 # trigger a 'ptrace (trace)' denial, they aren't actually tracing other
