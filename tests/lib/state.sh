@@ -28,6 +28,7 @@ is_snapd_state_saved() {
 }
 
 save_snapd_state() {
+    prepare_state
     if os.query is-core; then
         boot_path="$("$TESTSTOOLS"/boot-state boot-path)"
         test -n "$boot_path" || return 1
