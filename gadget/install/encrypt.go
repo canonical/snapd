@@ -35,23 +35,33 @@ var (
 	secbootAddRecoveryKey        = secboot.AddRecoveryKey
 )
 
-// encryptedDevice represents a LUKS-backed encrypted block device.
-type encryptedDevice struct {
-	parent *gadget.OnDiskStructure
-	name   string
-	Node   string
+// encryptedDeviceCryptsetup represents a encrypted block device.
+type encryptedDevice interface {
+	Node() string
+	AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error
+	Close() error
 }
 
-// newEncryptedDevice creates an encrypted device in the existing partition using the
-// specified key.
-func newEncryptedDevice(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (*encryptedDevice, error) {
-	dev := &encryptedDevice{
+// encryptedDeviceLUKS represents a LUKS-backed encrypted block device.
+type encryptedDeviceLUKS struct {
+	parent *gadget.OnDiskStructure
+	name   string
+	node   string
+}
+
+// sanity
+var _ = encryptedDevice(&encryptedDeviceLUKS{})
+
+// newEncryptedDeviceLUKS creates an encrypted device in the existing
+// partition using the specified key with the LUKS backend.
+func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
+	dev := &encryptedDeviceLUKS{
 		parent: part,
 		name:   name,
 		// A new block device is used to access the encrypted data. Note that
 		// you can't open an encrypted device under different names and a name
 		// can't be used in more than one device at the same time.
-		Node: fmt.Sprintf("/dev/mapper/%s", name),
+		node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
 
 	if err := secbootFormatEncryptedDevice(key, name+"-enc", part.Node); err != nil {
@@ -65,11 +75,15 @@ func newEncryptedDevice(part *gadget.OnDiskStructure, key secboot.EncryptionKey,
 	return dev, nil
 }
 
-func (dev *encryptedDevice) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
+func (dev *encryptedDeviceLUKS) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
 	return secbootAddRecoveryKey(key, rkey, dev.parent.Node)
 }
 
-func (dev *encryptedDevice) Close() error {
+func (dev *encryptedDeviceLUKS) Node() string {
+	return dev.node
+}
+
+func (dev *encryptedDeviceLUKS) Close() error {
 	return cryptsetupClose(dev.name)
 }
 

@@ -723,11 +723,11 @@ func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
 	for i := 0; i < 10; i++ {
 		wgGetDevice.Add(1)
 		wg.Add(1)
-		go func(n int) {
+		go func() {
 			_, err := sto.EnsureDeviceSession()
 			c.Assert(err, IsNil)
 			wg.Done()
-		}(i)
+		}()
 	}
 
 	wgGetDevice.Wait()

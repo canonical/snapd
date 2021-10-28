@@ -33,14 +33,12 @@ import (
 
 type handlersSuite struct {
 	baseHandlerSuite
-
-	stateBackend *witnessRestartReqStateBackend
 }
 
 var _ = Suite(&handlersSuite{})
 
 func (s *handlersSuite) SetUpTest(c *C) {
-	s.setup(c, s.stateBackend)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }

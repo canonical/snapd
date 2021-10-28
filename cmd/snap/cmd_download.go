@@ -116,29 +116,29 @@ func printInstallHint(assertPath, snapPath string) {
 // for testing
 var downloadDirect = downloadDirectImpl
 
-func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error {
 	tsto, err := image.NewToolingStore()
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching snap %q\n"), snapName)
-	snapPath, snapInfo, _, err := tsto.DownloadSnap(snapName, dlOpts)
+	dlSnap, err := tsto.DownloadSnap(snapName, dlOpts)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(Stdout, i18n.G("Fetching assertions for %q\n"), snapName)
-	assertPath, err := fetchSnapAssertionsDirect(tsto, snapPath, snapInfo)
+	assertPath, err := fetchSnapAssertionsDirect(tsto, dlSnap.Path, dlSnap.Info)
 	if err != nil {
 		return err
 	}
-	printInstallHint(assertPath, snapPath)
+	printInstallHint(assertPath, dlSnap.Path)
 	return nil
 }
 
 func (x *cmdDownload) downloadFromStore(snapName string, revision snap.Revision) error {
-	dlOpts := image.DownloadOptions{
+	dlOpts := image.DownloadSnapOptions{
 		TargetDir: x.TargetDir,
 		Basename:  x.Basename,
 		Channel:   x.Channel,

@@ -292,7 +292,7 @@ snap_confine_snap_confine_STATIC =
 # all external libraries, this way it can be reused in
 # snap_confine_snap_confine_debug_LDADD withouth applying any text
 # transformations
-snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS)
+snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS) -ldl
 
 if STATIC_LIBCAP
 snap_confine_snap_confine_STATIC += -lcap
@@ -531,6 +531,7 @@ snap_gdb_shim_snap_gdb_shim_SOURCES = \
 	snap-gdb-shim/snap-gdb-shim.c
 
 snap_gdb_shim_snap_gdb_shim_LDADD = libsnap-confine-private.a
+snap_gdb_shim_snap_gdb_shim_LDFLAGS = -static
 
 ##
 ## snap-gdbserver-shim
@@ -542,6 +543,7 @@ snap_gdb_shim_snap_gdbserver_shim_SOURCES = \
 	snap-gdb-shim/snap-gdbserver-shim.c
 
 snap_gdb_shim_snap_gdbserver_shim_LDADD = libsnap-confine-private.a
+snap_gdb_shim_snap_gdbserver_shim_LDFLAGS = -static
 
 ##
 ## snapd-generator

@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
@@ -81,7 +82,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		// boot assets were updated, request a restart now so that the
 		// situation does not end up more complicated if more updates of
 		// boot assets were to be applied
-		st.RequestRestart(state.RestartSystem)
+		snapstate.RestartSystem(t)
 	}
 
 	// minimize wasteful redos

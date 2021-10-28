@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var _ = check.Suite(&apiQuotaSuite{})
@@ -58,7 +59,7 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
 
-	r := servicestate.MockSystemdVersion(248)
+	r := systemd.MockSystemdVersion(248, nil)
 	s.AddCleanup(r)
 
 	// POST requires root
