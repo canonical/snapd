@@ -414,15 +414,13 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 		return err
 	}
 	jobWaitFor <- job
-	timeout := time.NewTimer(createScopeJobTimeout)
-	defer timeout.Stop()
 	select {
 	case result := <-jobResultChan:
 		logger.Debugf("job result is %q", result)
 		if result != "done" {
 			return fmt.Errorf("transient scope could not be started, job %v finished with result %v", job, result)
 		}
-	case <-timeout.C:
+	case <-time.After(createScopeJobTimeout):
 		return fmt.Errorf("transient scope not created in %v", createScopeJobTimeout)
 	}
 	logger.Debugf("transient scope %v created", unitName)
