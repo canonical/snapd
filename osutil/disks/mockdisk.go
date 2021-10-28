@@ -164,7 +164,7 @@ func (d *MockDiskMapping) SectorSize() (uint64, error) {
 	return d.SectorSizeBytes, nil
 }
 
-func (d *MockDiskMapping) SizeInBytes() (uint64, error) {
+func (d *MockDiskMapping) LastUsableByte() (uint64, error) {
 	return d.SizeBytes, nil
 }
 

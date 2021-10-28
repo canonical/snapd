@@ -103,16 +103,19 @@ type Disk interface {
 	// importing gadget
 	SectorSize() (uint64, error)
 
-	// SizeInBytes returns the overall size of the disk in bytes. For DOS
-	// disks, this is usually obtained via an ioctl via running the command
-	// "blockdev --getsz". While on GPT disks, this uses sfdisk to the get the
-	// last logical block (sector) address which sfdisk treats as the effective
-	// size of the disk. The dependency on sfdisk means that this function for
-	// GPT disks is not currently usable in the UC20 initrd which lacks this
-	// tool.
+	// LastUsableByte returns the last byte on the disk that a partition can
+	// exist. This is distinct from the "size" of a disk, since for example on a
+	// GPT disk, there is a backup of the GPT headers at the end of the disk,
+	// and these sectors where the backup is located are not usable for creating
+	// a partition at the end of the disk. For DOS, the last usable byte is
+	// indeed the same as the physical size of the disk, but GPT has the backup
+	// headers so this will be smaller than the physical size of the disk. For
+	// GPT disks, this is determined using sfdisk, and as such is not usable in
+	// the UC20 initrd which lacks this tool, though DOS disks use blockdev
+	// which is available in the initrd.
 	// TODO: make this return a quantity.Size when that is doable without
 	// importing gadget
-	SizeInBytes() (uint64, error)
+	LastUsableByte() (uint64, error)
 }
 
 // Partition represents a partition on a Disk device.

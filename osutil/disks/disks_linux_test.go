@@ -1114,7 +1114,7 @@ echo 512
 	})
 }
 
-func (s *diskSuite) TestDiskSizeInBytesGPT(c *C) {
+func (s *diskSuite) TestDiskLastUsableByteGPT(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1150,7 +1150,7 @@ echo 512
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.SizeInBytes()
+	sz, err := d.LastUsableByte()
 	c.Assert(err, IsNil)
 	c.Assert(sz, Equals, uint64(43*512))
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -1158,7 +1158,7 @@ echo 512
 	})
 }
 
-func (s *diskSuite) TestDiskSizeInBytesGPTUnexpectedSfdiskUnit(c *C) {
+func (s *diskSuite) TestDiskLastUsableByteGPTUnexpectedSfdiskUnit(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1194,14 +1194,14 @@ echo 512
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	_, err = d.SizeInBytes()
+	_, err = d.LastUsableByte()
 	c.Assert(err, ErrorMatches, "cannot get size in sectors, sfdisk reported unknown unit not-sectors")
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 }
 
-func (s *diskSuite) TestDiskSizeInBytesGPTSectorSize4K(c *C) {
+func (s *diskSuite) TestDiskLastUsableByteGPTSectorSize4K(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1237,7 +1237,7 @@ echo 4096
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.SizeInBytes()
+	sz, err := d.LastUsableByte()
 	c.Assert(err, IsNil)
 	c.Assert(sz, Equals, uint64(43*4096))
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
@@ -1249,7 +1249,7 @@ echo 4096
 	})
 }
 
-func (s *diskSuite) TestDiskSizeInBytesGPTNon512MultipleSectorSizeError(c *C) {
+func (s *diskSuite) TestDiskLastUsableByteGPTNon512MultipleSectorSizeError(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1285,7 +1285,7 @@ echo 513
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	_, err = d.SizeInBytes()
+	_, err = d.LastUsableByte()
 	c.Assert(err, ErrorMatches, `cannot get sector size: cannot calculate structure size: sector size \(513\) is not a multiple of 512`)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "/dev/sda"},
@@ -1296,7 +1296,7 @@ echo 513
 	})
 }
 
-func (s *diskSuite) TestDiskSizeInBytesDOS(c *C) {
+func (s *diskSuite) TestDiskLastUsableByteDOS(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1322,7 +1322,7 @@ echo 10000
 	c.Assert(d.Schema(), Equals, "dos")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.SizeInBytes()
+	sz, err := d.LastUsableByte()
 	c.Assert(err, IsNil)
 	c.Assert(sz, Equals, uint64(10000*512))
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
