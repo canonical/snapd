@@ -57,6 +57,12 @@ type ValidationSetTracking struct {
 	LocalOnly bool `json:"local-only,omitempty"`
 }
 
+func (vs *ValidationSetTracking) sameAs(tr *ValidationSetTracking) bool {
+	return vs.AccountID == tr.AccountID && vs.Current == tr.Current &&
+		vs.LocalOnly == tr.LocalOnly && vs.Mode == tr.Mode &&
+		vs.Name == tr.Name && vs.PinnedAt == tr.PinnedAt
+}
+
 // ValidationSetKey formats the given account id and name into a validation set key.
 func ValidationSetKey(accountID, name string) string {
 	return fmt.Sprintf("%s/%s", accountID, name)
@@ -184,8 +190,8 @@ func AddCurrentTrackingToValidationSetsHistory(st *state.State) error {
 }
 
 func addToValidationSetsHistory(st *state.State, currentTracking map[string]*ValidationSetTracking) error {
-	var vshist []map[string]*ValidationSetTracking
-	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
+	vshist, err := ValidationSetsHistory(st)
+	if err != nil {
 		return err
 	}
 	if len(currentTracking) == 0 && len(vshist) == 0 {
@@ -204,9 +210,7 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 					matches = false
 					break
 				}
-				if prev.AccountID != tr.AccountID || prev.Current != tr.Current ||
-					prev.LocalOnly != tr.LocalOnly || prev.Mode != tr.Mode ||
-					prev.Name != tr.Name || prev.PinnedAt != tr.PinnedAt {
+				if !prev.sameAs(tr) {
 					matches = false
 					break
 				}
