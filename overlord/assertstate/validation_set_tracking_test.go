@@ -345,3 +345,66 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
 		},
 	})
 }
+
+func (s *validationSetTrackingSuite) TestAddToValidationSetsHistoryRemovesOldEntries(c *C) {
+	restore := assertstate.MockMaxValidationSetsHistorySize(4)
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	all, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 0)
+
+	for i := 1; i <= 6; i++ {
+		tr := assertstate.ValidationSetTracking{
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			Current:   i,
+		}
+		assertstate.UpdateValidationSet(s.st, &tr)
+
+		c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+	}
+
+	vshist, err := assertstate.ValidationSetsHistory(s.st)
+	c.Assert(err, IsNil)
+
+	// two first entries got dropped
+	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   3,
+			},
+		},
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   4,
+			},
+		},
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   5,
+			},
+		},
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   6,
+			},
+		},
+	})
+}

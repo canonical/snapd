@@ -29,6 +29,9 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+// maximum number of entries kept in validation-sets-history in the state
+var maxValidationSetsHistorySize = 50
+
 // ValidationSetMode reflects the mode of respective validation set, which is
 // either monitoring or enforcing.
 type ValidationSetMode int
@@ -219,6 +222,9 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 	}
 	if !matches {
 		vshist = append(vshist, currentTracking)
+	}
+	if len(vshist) > maxValidationSetsHistorySize {
+		vshist = vshist[len(vshist)-maxValidationSetsHistorySize:]
 	}
 	st.Set("validation-sets-history", &vshist)
 	return nil

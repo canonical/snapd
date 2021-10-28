@@ -31,3 +31,11 @@ func MockMaxGroups(n int) (restore func()) {
 		maxGroups = oldMaxGroups
 	}
 }
+
+func MockMaxValidationSetsHistorySize(n int) (restore func()) {
+	oldMaxValidationSetsHistorySize := maxValidationSetsHistorySize
+	maxValidationSetsHistorySize = n
+	return func() {
+		maxValidationSetsHistorySize = oldMaxValidationSetsHistorySize
+	}
+}
