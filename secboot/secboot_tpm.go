@@ -65,8 +65,9 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled = isTPMEnabledImpl
-	provisionTPM = provisionTPMImpl
+	isTPMEnabled              = isTPMEnabledImpl
+	provisionTPM              = provisionTPMImpl
+	provisionTPMWithCustomSRK = provisionTPMWithCustomSRKImpl
 
 	// dummy to check whether the interfaces match
 	_ (sb.SnapModel) = ModelForSealing(nil)
@@ -424,14 +425,12 @@ func TpmPrepare(dir string) error {
 	}
 	defer f.Close()
 
-	var srkTmpl struct {
-		Ptr *tpm2.Public `tpm2:"sized"`
-	}
-	if _, err := mu.UnmarshalFromReader(f, &srkTmpl); err != nil {
+	var srkTmpl *tpm2.Public
+	if _, err := mu.UnmarshalFromReader(f, mu.Sized(&srkTmpl)); err != nil {
 		return fmt.Errorf("cannot read SRK template: %v", err)
 	}
 
-	err = tpm.EnsureProvisionedWithCustomSRK(sb_tpm2.ProvisionModeWithoutLockout, nil, srkTmpl.Ptr)
+	err = provisionTPMWithCustomSRK(tpm, sb_tpm2.ProvisionModeWithoutLockout, nil, srkTmpl)
 	if err != nil && err != sb_tpm2.ErrTPMProvisioningRequiresLockout {
 		return fmt.Errorf("cannot prepare TPM: %v", err)
 	}
@@ -441,6 +440,10 @@ func TpmPrepare(dir string) error {
 	}
 
 	return nil
+}
+
+func provisionTPMWithCustomSRKImpl(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+	return tpm.EnsureProvisionedWithCustomSRK(mode, lockoutAuth, srkTemplate)
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {

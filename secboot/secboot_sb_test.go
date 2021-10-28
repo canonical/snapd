@@ -34,6 +34,7 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
+	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
@@ -1887,4 +1888,84 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 
 	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
+}
+
+func (s *secbootSuite) TestTpmPrepare(c *C) {
+	mockTpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		c.Check(tpm, Equals, mockTpm)
+		return true
+	})
+	defer restore()
+
+	expectedTemplate := &tpm2.Public{
+		Type:    tpm2.ObjectTypeRSA,
+		NameAlg: tpm2.HashAlgorithmSHA256,
+		Attrs: tpm2.AttrFixedTPM | tpm2.AttrFixedParent | tpm2.AttrSensitiveDataOrigin | tpm2.AttrUserWithAuth | tpm2.AttrNoDA |
+			tpm2.AttrRestricted | tpm2.AttrDecrypt,
+		Params: &tpm2.PublicParamsU{
+			RSADetail: &tpm2.RSAParams{
+				Symmetric: tpm2.SymDefObject{
+					Algorithm: tpm2.SymObjectAlgorithmAES,
+					KeyBits:   &tpm2.SymKeyBitsU{Sym: 128},
+					Mode:      &tpm2.SymModeU{Sym: tpm2.SymModeCFB}},
+				Scheme:   tpm2.RSAScheme{Scheme: tpm2.RSASchemeNull},
+				KeyBits:  2048,
+				Exponent: 0}}}
+	mu.MustCopyValue(&expectedTemplate, expectedTemplate)
+
+	dir := c.MkDir()
+
+	f, err := os.OpenFile(filepath.Join(dir, "tpm2-srk.tmpl"), os.O_RDWR|os.O_CREATE, 0600)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	mu.MustMarshalToWriter(f, mu.Sized(expectedTemplate))
+
+	provisioningCalls := 0
+	restore = secboot.MockProvisionTPMWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+		provisioningCalls += 1
+		c.Check(tpm, Equals, mockTpm)
+		c.Check(mode, Equals, sb_tpm2.ProvisionModeWithoutLockout)
+		c.Check(lockoutAuth, IsNil)
+		c.Check(srkTemplate, DeepEquals, expectedTemplate)
+		return nil
+	})
+	defer restore()
+
+	c.Check(secboot.TpmPrepare(dir), IsNil)
+	c.Check(provisioningCalls, Equals, 1)
+}
+
+func (s *secbootSuite) TestTpmPrepareNoTPM(c *C) {
+	_, restore := mockSbTPMConnection(c, sb_tpm2.ErrNoTPM2Device)
+	defer restore()
+
+	restore = secboot.MockProvisionTPMWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+		c.Error("unexpected provisioning call")
+		return nil
+	})
+	defer restore()
+
+	c.Check(secboot.TpmPrepare(c.MkDir()), IsNil)
+}
+
+func (s *secbootSuite) TestTpmPrepareTPMNotEnabled(c *C) {
+	mockTpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockIsTPMEnabled(func(tpm *sb_tpm2.Connection) bool {
+		c.Check(tpm, Equals, mockTpm)
+		return false
+	})
+	defer restore()
+
+	restore = secboot.MockProvisionTPMWithCustomSRK(func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte, srkTemplate *tpm2.Public) error {
+		c.Error("unexpected provisioning call")
+		return nil
+	})
+	defer restore()
+
+	c.Check(secboot.TpmPrepare(c.MkDir()), IsNil)
 }

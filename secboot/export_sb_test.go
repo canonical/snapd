@@ -23,6 +23,7 @@ package secboot
 import (
 	"io"
 
+	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
@@ -46,6 +47,14 @@ func MockProvisionTPM(f func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode
 	provisionTPM = f
 	return func() {
 		provisionTPM = old
+	}
+}
+
+func MockProvisionTPMWithCustomSRK(f func(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte, srkTemplate *tpm2.Public) error) (restore func()) {
+	old := provisionTPMWithCustomSRK
+	provisionTPMWithCustomSRK = f
+	return func() {
+		provisionTPMWithCustomSRK = old
 	}
 }
 
