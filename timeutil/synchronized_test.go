@@ -20,6 +20,7 @@
 package timeutil_test
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/godbus/dbus"
@@ -144,7 +145,8 @@ func (s *syncedSuite) TestIsNTPSynchronizedStrangeEr(c *C) {
 func (s *syncedSuite) TestIsNTPSynchronizedNoTimedatectlNoErr(c *C) {
 	// note that there is no mock timedate1 create so we are on an empty bus
 	synced, err := timeutil.IsNTPSynchronized()
-	c.Check(err, IsNil)
+	c.Check(err, ErrorMatches, `cannot find org.freedesktop.timedate1 dbus service: .*`)
+	c.Check(errors.As(err, &timeutil.NoTimedate1Error{}), Equals, true)
 	// is this case we just assume ntp is synced
-	c.Check(synced, Equals, true)
+	c.Check(synced, Equals, false)
 }
