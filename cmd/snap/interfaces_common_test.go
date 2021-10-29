@@ -31,25 +31,16 @@ var _ = Suite(&SnapAndNameSuite{})
 
 func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 	var sn SnapAndName
-
 	// Typical
 	err := sn.UnmarshalFlag("snap:name")
 	c.Assert(err, IsNil)
 	c.Check(sn.Snap, Equals, "snap")
 	c.Check(sn.Name, Equals, "name")
-
 	// Abbreviated
 	err = sn.UnmarshalFlag("snap")
 	c.Assert(err, IsNil)
 	c.Check(sn.Snap, Equals, "snap")
 	c.Check(sn.Name, Equals, "")
-
-	// Core snap
-	err = sn.UnmarshalFlag(":name")
-	c.Assert(err, IsNil)
-	c.Check(sn.Snap, Equals, "")
-	c.Check(sn.Name, Equals, "name")
-
 	// Invalid
 	for _, input := range []string{
 		"snap:",          // Empty name, should be spelled as "snap"
