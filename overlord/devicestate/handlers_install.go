@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
@@ -119,6 +120,31 @@ func writeLogs(rootdir string) error {
 		return fmt.Errorf("cannot flush compressed log output: %v", err)
 	}
 
+	return nil
+}
+
+func writeTimesyncdClock(srcRootDir, dstRootDir string) error {
+	// keep track of the time
+	const timesyncClockInRoot = "/var/lib/systemd/timesync/clock"
+	clockSrc := filepath.Join(srcRootDir, timesyncClockInRoot)
+	clockDst := filepath.Join(dstRootDir, timesyncClockInRoot)
+	if err := os.MkdirAll(filepath.Dir(clockDst), 0755); err != nil {
+		return fmt.Errorf("cannot store the clock: %v", err)
+	}
+	if !osutil.FileExists(clockSrc) {
+		logger.Noticef("timesyncd clock timestamp %v does not exist", clockSrc)
+		return nil
+	}
+	// clock file is owned by a specific user/group, thus preserve
+	// attributes of the source
+	if err := osutil.CopyFile(clockSrc, clockDst, osutil.CopyFlagPreserveAll); err != nil {
+		return fmt.Errorf("cannot copy clock: %v", err)
+	}
+	// the file is empty however, its modification timestamp is used to set
+	// up the current time
+	if err := os.Chtimes(clockDst, timeNow(), timeNow()); err != nil {
+		return fmt.Errorf("cannot update clock timestamp: %v", err)
+	}
 	return nil
 }
 
@@ -316,6 +342,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
+	}
+
+	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
+	// can start with a more recent time on the next boot
+	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
 	}
 
 	// configure the run system
