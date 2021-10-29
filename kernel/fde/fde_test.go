@@ -74,6 +74,8 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 	// correct fde-reveal-key, no logging
 	err = os.Chmod(mockBin+"fde-reveal-key", 0755)
 	c.Assert(err, IsNil)
+
+	c.Check(fde.HasRevealKey(), Equals, true)
 }
 
 func (s *fdeSuite) TestInitialSetupV2(c *C) {
@@ -495,7 +497,7 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	// fix randutil outcome
 	rand.Seed(1)
 
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", `echo failed 1>&2; false`)
+	mockSystemdRun := testutil.MockCommand(c, "systemd-run", `echo failed 1>&2; false`)
 	defer mockSystemdRun.Restore()
 	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
 	defer restore()
@@ -505,11 +507,94 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 		SealedKey: sealedKey,
 	}
 	_, err := fde.Reveal(&p)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key "reveal": 
------
-failed
-service result: exit-code
------`)
+	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key "reveal": failed`)
+
+	root := dirs.GlobalRootDir
+	calls := mockSystemdRun.Calls()
+	c.Check(calls, DeepEquals, [][]string{
+		{
+			"systemd-run", "--collect", "--service-type=exec", "--quiet",
+			"--property=RuntimeMaxSec=2m0s",
+			"--property=SystemCallFilter=~@mount",
+			fmt.Sprintf("--property=StandardInput=file:%s/run/fde-reveal-key/fde-reveal-key.stdin", root),
+			fmt.Sprintf("--property=StandardOutput=file:%s/run/fde-reveal-key/fde-reveal-key.stdout", root),
+			fmt.Sprintf("--property=StandardError=file:%s/run/fde-reveal-key/fde-reveal-key.stderr", root),
+			fmt.Sprintf(`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" = 0 ]; then touch %[1]s/run/fde-reveal-key/fde-reveal-key.success; else echo "service result: $SERVICE_RESULT" >%[1]s/run/fde-reveal-key/fde-reveal-key.failed; fi'`, root),
+			"--user",
+			"fde-reveal-key",
+		},
+	})
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestDeviceSetupHappy(c *C) {
+	mockKey := []byte{1, 2, 3, 4}
+	mockDevice := "/dev/sda2"
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req, DeepEquals, &fde.SetupRequest{
+			Op:     "device-setup",
+			Key:    mockKey,
+			Device: mockDevice,
+		})
+		// empty reply: no error
+		mockJSON := `{}`
+		return []byte(mockJSON), nil
+	}
+
+	params := &fde.DeviceSetupParams{
+		Key:    mockKey,
+		Device: mockDevice,
+	}
+	err := fde.DeviceSetup(runSetupHook, params)
+	c.Assert(err, IsNil)
+}
+
+func (s *fdeSuite) TestDeviceSetupError(c *C) {
+	mockKey := []byte{1, 2, 3, 4}
+	mockDevice := "/dev/sda2"
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req, DeepEquals, &fde.SetupRequest{
+			Op:     "device-setup",
+			Key:    mockKey,
+			Device: mockDevice,
+		})
+		// empty reply: no error
+		mockJSON := `something failed badly`
+		return []byte(mockJSON), fmt.Errorf("exit status 1")
+	}
+
+	params := &fde.DeviceSetupParams{
+		Key:    mockKey,
+		Device: mockDevice,
+	}
+	err := fde.DeviceSetup(runSetupHook, params)
+	c.Check(err, ErrorMatches, "device setup failed with: something failed badly")
+}
+
+func (s *fdeSuite) TestHasDeviceUnlock(c *C) {
+	oldPath := os.Getenv("PATH")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	mockRoot := c.MkDir()
+	os.Setenv("PATH", mockRoot+"/bin")
+	mockBin := mockRoot + "/bin/"
+	err := os.Mkdir(mockBin, 0755)
+	c.Assert(err, IsNil)
+
+	// no fde-device-unlock binary
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// fde-device-unlock without +x
+	err = ioutil.WriteFile(mockBin+"fde-device-unlock", nil, 0644)
+	c.Assert(err, IsNil)
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// correct fde-device-unlock, no logging
+	err = os.Chmod(mockBin+"fde-device-unlock", 0755)
+	c.Assert(err, IsNil)
+
+	c.Check(fde.HasDeviceUnlock(), Equals, true)
 }

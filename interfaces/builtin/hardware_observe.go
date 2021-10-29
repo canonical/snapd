@@ -45,6 +45,9 @@ capability sys_admin,
 /etc/modprobe.d/{,*} r,
 /{,usr/}lib/modprobe.d/{,*} r,
 
+# for reading the available input devices on the system
+/proc/bus/input/devices r,
+
 # files in /sys pertaining to hardware (eg, 'lspci -A linux-sysfs')
 /sys/{block,bus,class,devices,firmware}/{,**} r,
 

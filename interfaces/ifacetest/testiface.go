@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -103,6 +104,13 @@ type TestInterface struct {
 	SystemdConnectedSlotCallback func(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	SystemdPermanentPlugCallback func(spec *systemd.Specification, plug *snap.PlugInfo) error
 	SystemdPermanentSlotCallback func(spec *systemd.Specification, slot *snap.SlotInfo) error
+
+	// Support for interacting with the polkit backend.
+
+	PolkitConnectedPlugCallback func(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	PolkitConnectedSlotCallback func(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	PolkitPermanentPlugCallback func(spec *polkit.Specification, plug *snap.PlugInfo) error
+	PolkitPermanentSlotCallback func(spec *polkit.Specification, slot *snap.SlotInfo) error
 }
 
 // TestHotplugInterface is an interface for various kinds of tests
@@ -408,6 +416,36 @@ func (t *TestInterface) SystemdPermanentSlot(spec *systemd.Specification, slot *
 func (t *TestInterface) SystemdPermanentPlug(spec *systemd.Specification, plug *snap.PlugInfo) error {
 	if t.SystemdPermanentPlugCallback != nil {
 		return t.SystemdPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+// Support for interacting with the polkit backend.
+
+func (t *TestInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.PolkitConnectedPlugCallback != nil {
+		return t.PolkitConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) PolkitConnectedSlot(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.PolkitConnectedSlotCallback != nil {
+		return t.PolkitConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) PolkitPermanentSlot(spec *polkit.Specification, slot *snap.SlotInfo) error {
+	if t.PolkitPermanentSlotCallback != nil {
+		return t.PolkitPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) PolkitPermanentPlug(spec *polkit.Specification, plug *snap.PlugInfo) error {
+	if t.PolkitPermanentPlugCallback != nil {
+		return t.PolkitPermanentPlugCallback(spec, plug)
 	}
 	return nil
 }

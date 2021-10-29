@@ -3,7 +3,9 @@ summary: ensure that snap-confine drops CAP_SYS_ADMIN for non-root
 # This test is not executed on a core system simply because of the hassle of
 # building the support C program. In the future it might be improved with the
 # use of the classic snap where we just use classic to build the helper.
-systems: [-ubuntu-core-*]
+# Arch, CentOS, AMZN2, openSUSE do not have a static version of libcap.
+# Ubuntu 14.04 does not have a proper session setup.
+systems: [-ubuntu-core-*, -arch-linux-*, -centos-*, -amazon-linux-*, -opensuse-*, -ubuntu-14.04-*]
 
 environment:
     # This is used to abbreviate some of the paths below.
@@ -17,8 +19,15 @@ prepare: |
 
     echo "Compile and prepare the support program"
     # Because we use the snap data directory we don't need to clean it up
-    # manually as all snaps and their data are reset after each test.
-    gcc -Wall -Wextra -Werror ./has-sys-admin.c -lcap -o "$P/has-sys-admin"
+    # manually as all snaps and their data are reset after each test. Build the
+    # binary statically, such that it can execute regardless of an older glibc
+    # in the base snap.
+    gcc -Wall -Wextra -Werror ./has-sys-admin.c -o "$P/has-sys-admin" -lcap -static
+
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
 
 execute: |
     echo "The test executables files have the expected mode and ownership"
@@ -30,8 +39,8 @@ execute: |
     # user. The "test" user inside the spread suite is guaranteed to have
     # UID/GID of 12345. First test that the program correctly detects that the
     # test user does not have CAP_SYS_ADMIN and root does.
-    su -l -c "$P/has-sys-admin" test | MATCH 'Does not have cap_sys_admin'
-    "$P/has-sys-admin"               | MATCH 'Has cap_sys_admin'
+    tests.session -u test exec sh -c "$P/has-sys-admin" | MATCH 'Does not have cap_sys_admin'
+    "$P/has-sys-admin" | MATCH 'Has cap_sys_admin'
 
     echo "Running under snap-confine as non-root and root"
     # This is the same as the two above but it goes through snap-confine as
@@ -40,17 +49,20 @@ execute: |
     # as there are two shell expansions done. Also, we are using "snap run
     # test-snapd-sh" in order to ensure that we can start the program even if
     # su/sudo's secure PATH does not contain the snap bin directory.
-    su -l -c "snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Does not have cap_sys_admin'
+    tests.session -u test exec sh -c "snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" | \
+        MATCH 'Does not have cap_sys_admin'
     #shellcheck disable=SC2016
-    snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Has cap_sys_admin'
+    snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin' | MATCH 'Has cap_sys_admin'
 
     # We should preserve CAP_SYS_ADMIN when run under sudo from non-root or
     # root
     echo "Running under sudo and under snap-confine from non-root and root"
-    su -l -c "sudo snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Has cap_sys_admin'
-    sudo snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Has cap_sys_admin'
+    tests.session -u test exec sh -c "sudo snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" | \
+        MATCH 'Has cap_sys_admin'
+    sudo snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin' | MATCH 'Has cap_sys_admin'
 
     # We should drop CAP_SYS_ADMIN when run with sudo -u test
     echo "Running under sudo -u non-root under snap-confine from non-root and root"
-    su -l -c "sudo -u test snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" test | MATCH 'Does not have cap_sys_admin'
-    sudo -u test snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin'                  | MATCH 'Does not have cap_sys_admin'
+    tests.session -u test exec sh -c "sudo -u test snap run test-snapd-sh.sh -c '\$SNAP_COMMON/has-sys-admin'" | \
+        MATCH 'Does not have cap_sys_admin'
+    sudo -u test snap run test-snapd-sh.sh -c '$SNAP_COMMON/has-sys-admin' | MATCH 'Does not have cap_sys_admin'

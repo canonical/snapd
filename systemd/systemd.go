@@ -34,6 +34,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/template"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -63,6 +64,9 @@ var (
 	daemonReloadLock extMutex
 
 	osutilIsMounted = osutil.IsMounted
+
+	// allow mocking the systemd version
+	Version = getVersion
 
 	// allow replacing the systemd implementation with a mock one
 	newSystemd = newSystemdReal
@@ -97,7 +101,7 @@ func (m *extMutex) Taken(errMsg string) {
 
 // MockNewSystemd can be used to replace the constructor of the
 // Systemd types with a function that returns a mock object.
-func MockNewSystemd(f func(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
+func MockNewSystemd(f func(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
 	oldNewSystemd := newSystemd
 	newSystemd = f
 	return func() {
@@ -116,6 +120,17 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	}
 
 	return bs, nil
+}
+
+func MockSystemdVersion(version int, injectedError error) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock systemd version outside of tests")
+	old := Version
+	Version = func() (int, error) {
+		return version, injectedError
+	}
+	return func() {
+		Version = old
+	}
 }
 
 // MockSystemctl is called from the commands to actually call out to
@@ -146,8 +161,8 @@ func Available() error {
 	return err
 }
 
-// Version returns systemd version.
-func Version() (int, error) {
+// getVersion returns systemd version.
+func getVersion() (int, error) {
 	out, err := systemctlCmd("--version")
 	if err != nil {
 		return 0, err
@@ -183,6 +198,36 @@ func Version() (int, error) {
 	return ver, nil
 }
 
+type systemdTooOldError struct {
+	expected int
+	got      int
+}
+
+func (e *systemdTooOldError) Error() string {
+	return fmt.Sprintf("systemd version %d is too old (expected at least %d)", e.got, e.expected)
+}
+
+// IsSystemdTooOld returns true if the error is a result of a failed
+// check whether systemd version is at least what was asked for.
+func IsSystemdTooOld(err error) bool {
+	_, ok := err.(*systemdTooOldError)
+	return ok
+}
+
+// EnsureAtLeast checks whether the installed version of systemd is greater or
+// equal than the given one. An error is returned if the required version is
+// not matched, and also if systemd is not installed or not working
+func EnsureAtLeast(requiredVersion int) error {
+	version, err := Version()
+	if err != nil {
+		return err
+	}
+	if version < requiredVersion {
+		return &systemdTooOldError{got: version, expected: requiredVersion}
+	}
+	return nil
+}
+
 var osutilStreamCommand = osutil.StreamCommand
 
 // jctl calls journalctl to get the JSON logs of the given services.
@@ -215,8 +260,34 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 	}
 }
 
+type MountUnitOptions struct {
+	// Whether the unit is transient or persistent across reboots
+	Lifetime UnitLifetime
+	SnapName string
+	Revision string
+	What     string
+	Where    string
+	Fstype   string
+	Options  []string
+	Origin   string
+}
+
+// Backend identifies the implementation backend in use by a Systemd instance.
+type Backend int
+
+const (
+	// RunningSystemdBackend identifies the implementation backend
+	// talking to the running system systemd daemon.
+	RunningSystemdBackend Backend = iota
+	// EmulationModeBackend identifies the implementation backend
+	// emulating a subset of systemd against a filesystem.
+	EmulationModeBackend
+)
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
+	// Backend returns the underlying implementation backend.
+	Backend() Backend
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
 	// DaemonRexec reexecutes systemd's system manager, should be
@@ -264,8 +335,13 @@ type Systemd interface {
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	// AddMountUnitFileWithOptions adds/enables/starts a mount unit with options.
+	AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
+	// ListMountUnits gets the list of targets of the mount units created by
+	// the `origin` module for the given snap
+	ListMountUnits(snapName, origin string) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -323,26 +399,26 @@ type Reporter interface {
 	Notify(string)
 }
 
-func newSystemdReal(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd {
-	switch kind {
-	case FullImplementation:
+func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd {
+	switch be {
+	case RunningSystemdBackend:
 		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
-	case EmulationMode:
+	case EmulationModeBackend:
 		return &emulation{rootDir: rootDir}
 	default:
-		panic(fmt.Sprintf("unsupported systemd kind %v", kind))
+		panic(fmt.Sprintf("unsupported systemd backend %v", be))
 	}
 }
 
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
 func New(mode InstanceMode, rep Reporter) Systemd {
-	return newSystemd(FullImplementation, "", mode, rep)
+	return newSystemd(RunningSystemdBackend, "", mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
 func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
-	return newSystemd(FullImplementation, rootDir, mode, rep)
+	return newSystemd(RunningSystemdBackend, rootDir, mode, rep)
 }
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
@@ -352,7 +428,7 @@ func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
 		rootDir = dirs.GlobalRootDir
 	}
-	return newSystemd(EmulationMode, rootDir, SystemMode, nil)
+	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -373,13 +449,6 @@ const (
 	GlobalUserMode
 )
 
-type Kind int
-
-const (
-	FullImplementation Kind = iota
-	EmulationMode
-)
-
 type systemd struct {
 	rootDir  string
 	reporter Reporter
@@ -397,6 +466,10 @@ func (s *systemd) systemctl(args ...string) ([]byte, error) {
 		panic("unknown InstanceMode")
 	}
 	return systemctlCmd(args...)
+}
+
+func (s *systemd) Backend() Backend {
+	return RunningSystemdBackend
 }
 
 func (s *systemd) DaemonReload() error {
@@ -1065,40 +1138,95 @@ func (l Log) PID() string {
 	return "-"
 }
 
+type UnitLifetime int
+
+const (
+	Persistent UnitLifetime = iota
+	Transient
+)
+
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
 }
 
+// MountUnitPathWithLifetime returns the path of a {,auto}mount unit
+// created in the systemd directory suitable for the given unit lifetime
+func MountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir string) string {
+	escapedPath := EscapeUnitNamePath(mountPointDir)
+	var servicesPath string
+	switch lifetime {
+	case Persistent:
+		servicesPath = dirs.SnapServicesDir
+	case Transient:
+		servicesPath = dirs.SnapRuntimeServicesDir
+	default:
+		panic(fmt.Sprintf("unknown systemd unit lifetime %q", lifetime))
+	}
+	return filepath.Join(servicesPath, escapedPath+".mount")
+}
+
+// ExistingMountUnitPath finds the location of an existing mount unit
+func ExistingMountUnitPath(mountPointDir string) string {
+	lifetimes := []UnitLifetime{Persistent, Transient}
+	for _, lifetime := range lifetimes {
+		unit := MountUnitPathWithLifetime(lifetime, mountPointDir)
+		if osutil.FileExists(unit) {
+			return unit
+		}
+	}
+	return ""
+}
+
 var squashfsFsType = squashfs.FsType
 
 // XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
 // with order of mounting most likely related to zfs-linux and/or systemd).
-var mountUnitTemplate = `[Unit]
-Description=Mount unit for %s, revision %s
+const mountUnitTemplate = `[Unit]
+Description=Mount unit for {{.SnapName}}
+{{- with .Revision}}, revision {{.}}{{end}}
+{{- with .Origin}} via {{.}}{{end}}
 Before=snapd.service
 After=zfs-mount.service
 
 [Mount]
-What=%s
-Where=%s
-Type=%s
-Options=%s
+What={{.What}}
+Where={{.Where}}
+Type={{.Fstype}}
+Options={{join .Options ","}}
 LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
+{{- with .Origin}}
+X-SnapdOrigin={{.}}
+{{- end}}
 `
 
-func writeMountUnitFile(snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
-	content := fmt.Sprintf(mountUnitTemplate, snapName, revision, what, where, fstype, strings.Join(options, ","))
-	mu := MountUnitPath(where)
-	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
-	if err != nil {
-		return "", err
+var templateFuncs = template.FuncMap{"join": strings.Join}
+var parsedMountUnitTemplate = template.Must(template.New("unit").Funcs(templateFuncs).Parse(mountUnitTemplate))
+
+const (
+	snappyOriginModule = "X-SnapdOrigin"
+)
+
+func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
+	if u == nil {
+		return "", errors.New("writeMountUnitFile() expects valid mount options")
 	}
-	return mountUnitName, nil
+
+	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
+	outf, err := osutil.NewAtomicFile(mu, 0644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return "", fmt.Errorf("cannot open mount unit file: %v", err)
+	}
+	defer outf.Cancel()
+
+	if err := parsedMountUnitTemplate.Execute(outf, &u); err != nil {
+		return "", fmt.Errorf("cannot generate mount unit: %v", err)
+	}
+	return filepath.Base(mu), outf.Commit()
 }
 
 func fsMountOptions(fstype string) []string {
@@ -1128,15 +1256,27 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
-
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, hostFsType, options)
+	return s.AddMountUnitFileWithOptions(&MountUnitOptions{
+		Lifetime: Persistent,
+		SnapName: snapName,
+		Revision: revision,
+		What:     what,
+		Where:    where,
+		Fstype:   hostFsType,
+		Options:  options,
+	})
+}
+
+func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	mountUnitName, err := writeMountUnitFile(unitOptions)
 	if err != nil {
 		return "", err
 	}
@@ -1161,8 +1301,8 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
-	if !osutil.FileExists(unit) {
+	unit := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
+	if unit == "" {
 		return nil
 	}
 
@@ -1196,6 +1336,101 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func workaroundSystemdQuoting(fragmentPath, where string) string {
+	// We know that the directory components of the fragment path do not need
+	// quoting and are therefore reliable. As for the file name, we workaround
+	// the wrong quoting of older systemd version by re-encoding the "Where"
+	// ourselves.
+	dir := filepath.Dir(fragmentPath)
+	baseName := EscapeUnitNamePath(where)
+	unitType := filepath.Ext(fragmentPath)
+	return filepath.Join(dir, baseName+unitType)
+}
+
+func extractOriginModule(systemdUnitPath string) (string, error) {
+	f, err := os.Open(systemdUnitPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	var originModule string
+	s := bufio.NewScanner(f)
+	prefix := snappyOriginModule + "="
+	for s.Scan() {
+		line := s.Text()
+		if strings.HasPrefix(line, prefix) {
+			originModule = line[len(prefix):]
+			break
+		}
+	}
+	return originModule, nil
+}
+
+func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
+	out, err := s.systemctl("show", "--property=Description,Where,FragmentPath", "*.mount")
+	if err != nil {
+		return nil, err
+	}
+
+	var mountPoints []string
+	if bytes.TrimSpace(out) == nil {
+		return mountPoints, nil
+	}
+	// Results are separated by a blank line, so we can split them like this:
+	units := bytes.Split(out, []byte("\n\n"))
+	for _, unitOutput := range units {
+		var where, description, fragmentPath string
+		lines := bytes.Split(bytes.Trim(unitOutput, "\n"), []byte("\n"))
+		for _, line := range lines {
+			splitVal := strings.SplitN(string(line), "=", 2)
+			if len(splitVal) != 2 {
+				return nil, fmt.Errorf("cannot parse systemctl output: %q", line)
+			}
+			switch splitVal[0] {
+			case "Description":
+				description = splitVal[1]
+			case "Where":
+				where = splitVal[1]
+			case "FragmentPath":
+				fragmentPath = splitVal[1]
+			default:
+				return nil, fmt.Errorf("unexpected property %q", splitVal[0])
+			}
+		}
+
+		ourDescription := fmt.Sprintf("Mount unit for %s", snapName)
+		if !strings.HasPrefix(description, ourDescription) {
+			continue
+		}
+
+		// Under Ubuntu 16.04, systemd improperly quotes the FragmentPath, so
+		// we must do some extra work here to get the correct path. This code
+		// can be removed once we stop supporting old distros
+		fragmentPath = workaroundSystemdQuoting(fragmentPath, where)
+
+		// only return units programmatically created by some snapd backend:
+		// the mount unit used to mount the snap's squashfs is generally
+		// uninteresting
+		originModule, err := extractOriginModule(fragmentPath)
+		if err != nil || originModule == "" {
+			continue
+		}
+
+		// If an `origin` was given, we must return only units created by it
+		if origin != "" && originModule != origin {
+			continue
+		}
+
+		if where == "" {
+			return nil, fmt.Errorf(`missing "Where" in mount unit %q`, fragmentPath)
+		}
+
+		mountPoints = append(mountPoints, where)
+	}
+	return mountPoints, nil
 }
 
 func (s *systemd) ReloadOrRestart(serviceName string) error {
