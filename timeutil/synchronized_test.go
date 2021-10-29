@@ -144,6 +144,5 @@ func (s *syncedSuite) TestIsNTPSynchronizedNoTimedatectlNoErr(c *C) {
 	synced, err := timeutil.IsNTPSynchronized()
 	c.Check(err, ErrorMatches, `cannot find org.freedesktop.timedate1 dbus service: .*`)
 	c.Check(errors.As(err, &timeutil.NoTimedate1Error{}), Equals, true)
-	// is this case we just assume ntp is synced
 	c.Check(synced, Equals, false)
 }
