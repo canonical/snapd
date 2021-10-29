@@ -6817,9 +6817,10 @@ func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snaps, err := snapstate.InstalledSnaps(st)
+	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 0)
+	c.Check(ignoreValidation, HasLen, 0)
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
@@ -6829,12 +6830,22 @@ func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	snaptest.MockSnap(c, string(`name: foo
 version: 1`), &snap.SideInfo{Revision: snap.R("13")})
 
-	snaps, err = snapstate.InstalledSnaps(st)
+	snapstate.Set(st, "bar", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "bar", Revision: snap.R(5), SnapID: "bar-id"}},
+		Current:  snap.R(5),
+		Flags:    snapstate.Flags{IgnoreValidation: true},
+	})
+	snaptest.MockSnap(c, string(`name: bar
+version: 1`), &snap.SideInfo{Revision: snap.R("5")})
+
+	snaps, ignoreValidation, err = snapstate.InstalledSnaps(st)
 	c.Assert(err, IsNil)
-	c.Check(snaps, HasLen, 1)
-	c.Check(snaps[0].SnapName(), Equals, "foo")
-	c.Check(snaps[0].ID(), Equals, "foo-id")
-	c.Check(snaps[0].Revision, Equals, snap.R("23"))
+	c.Check(snaps, testutil.DeepUnsortedMatches, []*snapasserts.InstalledSnap{
+		snapasserts.NewInstalledSnap("foo", "foo-id", snap.R("23")),
+		snapasserts.NewInstalledSnap("bar", "bar-id", snap.R("5"))})
+
+	c.Check(ignoreValidation, DeepEquals, map[string]bool{"bar": true})
 }
 
 func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {

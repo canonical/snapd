@@ -1068,6 +1068,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	names = strutil.Deduplicate(names)
+
 	toInstall := make([]string, 0, len(names))
 	for _, name := range names {
 		var snapst SnapState
@@ -1208,6 +1210,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	if err != nil {
 		return nil, nil, err
 	}
+
+	names = strutil.Deduplicate(names)
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
@@ -2740,6 +2744,8 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	names = strutil.Deduplicate(names)
+
 	if err := validateSnapNames(names); err != nil {
 		return nil, nil, err
 	}
@@ -3038,23 +3044,24 @@ func All(st *state.State) (map[string]*SnapState, error) {
 
 // InstalledSnaps returns the list of all installed snaps suitable for
 // ValidationSets checks.
-func InstalledSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
-	var snaps []*snapasserts.InstalledSnap
+func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, err error) {
 	all, err := All(st)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	ignoreValidation = make(map[string]bool)
 	for _, snapState := range all {
 		cur, err := snapState.CurrentInfo()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		snaps = append(snaps,
-			snapasserts.NewInstalledSnap(snapState.InstanceName(),
-				snapState.CurrentSideInfo().SnapID,
-				cur.Revision))
+		snaps = append(snaps, snapasserts.NewInstalledSnap(snapState.InstanceName(),
+			snapState.CurrentSideInfo().SnapID, cur.Revision))
+		if snapState.IgnoreValidation {
+			ignoreValidation[snapState.InstanceName()] = true
+		}
 	}
-	return snaps, nil
+	return snaps, ignoreValidation, nil
 }
 
 // NumSnaps returns the number of installed snaps.
