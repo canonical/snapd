@@ -1,9 +1,9 @@
 #!/bin/bash -e
 
 show_help() {
-    echo "usage: remove-with-group <user>"
-    echo "usage: list-users"
-    echo "usage: list-groups"
+    echo "usage: user-state remove-with-group <user>"
+    echo "usage: user-state list-users"
+    echo "usage: user-state list-groups"
     echo ""
     echo "The tool is used to manage users and groups."
 }
@@ -21,10 +21,10 @@ remove_with_group() {
         else
             userdel --force --remove "$USER"
         fi
-    fi
-    if getent passwd "$USER"; then
-        echo "user-state: user exists after removal"
-        exit 1
+        if getent passwd "$USER"; then
+            echo "user-state: user exists after removal"
+            exit 1
+        fi
     fi
 
     if getent group "$USER"; then
@@ -33,10 +33,10 @@ remove_with_group() {
         else
             groupdel "$USER"
         fi
-    fi
-    if getent group "$USER"; then
-        echo "user-state: group exists after removal"
-        exit 1
+        if getent group "$USER"; then
+            echo "user-state: group exists after removal"
+            exit 1
+        fi
     fi
 }
 

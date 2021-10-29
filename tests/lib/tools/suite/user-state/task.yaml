@@ -2,9 +2,9 @@ summary: smoke test for the user-state tool
 
 execute: |
     # Check help
-    "$TESTSTOOLS"/user-state | MATCH "usage: remove-with-group <user>"
-    "$TESTSTOOLS"/user-state -h | MATCH "usage: remove-with-group <user>"
-    "$TESTSTOOLS"/user-state --help | MATCH "usage: remove-with-group <user>"
+    "$TESTSTOOLS"/user-state | MATCH "usage: user-state remove-with-group <user>"
+    "$TESTSTOOLS"/user-state -h | MATCH "usage: user-state remove-with-group <user>"
+    "$TESTSTOOLS"/user-state --help | MATCH "usage: user-state remove-with-group <user>"
 
     # Check list users
     "$TESTSTOOLS"/user-state list-users | MATCH test
@@ -14,11 +14,12 @@ execute: |
 
     # Check remove user and group
     if [ -f /var/lib/extrausers/passwd ]; then
-        adduser --extrausers mytest001 mytest001
+        adduser --extrausers --quiet --disabled-password --gecos '' mytest001
     else
         groupadd mytest001
         useradd mytest001 -g mytest001
     fi
+    "$TESTSTOOLS"/user-state list-users | MATCH mytest001
     "$TESTSTOOLS"/user-state remove-with-group mytest001
 
     "$TESTSTOOLS"/user-state list-users | NOMATCH mytest001
