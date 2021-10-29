@@ -1844,7 +1844,7 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
 func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
 	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
 		// no timedate1
-		return false, timeutil.NoTimedate1Error{}
+		return false, timeutil.NoTimedate1Error{Err: fmt.Errorf("boom")}
 	})
 	defer restore()
 

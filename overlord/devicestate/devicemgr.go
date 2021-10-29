@@ -30,8 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
@@ -1699,7 +1697,7 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 
 	var err error
 	m.ntpSynchronized, err = timeutilIsNTPSynchronized()
-	if xerrors.As(err, &timeutil.NoTimedate1Error{}) {
+	if errors.As(err, &timeutil.NoTimedate1Error{}) {
 		// no timedate1 dbus service, no need to wait for it
 		return true
 	}

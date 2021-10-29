@@ -41,11 +41,11 @@ func isNoServiceOrUnknownPropertyDbusErr(err error) bool {
 }
 
 type NoTimedate1Error struct {
-	err error
+	Err error
 }
 
 func (e NoTimedate1Error) Error() string {
-	return fmt.Sprintf("cannot find org.freedesktop.timedate1 dbus service: %v", e.err)
+	return fmt.Sprintf("cannot find org.freedesktop.timedate1 dbus service: %v", e.Err)
 }
 
 // IsNTPSynchronized returns true if the time is syncronized according to
