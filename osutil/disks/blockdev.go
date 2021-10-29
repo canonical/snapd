@@ -59,7 +59,7 @@ func blockDeviceSectorSize(devpath string) (uint64, error) {
 	// when we calculate the size in sectors, as blockdev --getsz always returns
 	// the size in 512-byte sectors
 	if sz%512 != 0 {
-		return 0, fmt.Errorf("cannot calculate structure size: sector size (%d) is not a multiple of 512", sz)
+		return 0, fmt.Errorf("sector size (%d) is not a multiple of 512", sz)
 	}
 	if sz == 0 {
 		// extra paranoia

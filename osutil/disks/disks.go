@@ -103,19 +103,26 @@ type Disk interface {
 	// importing gadget
 	SectorSize() (uint64, error)
 
-	// LastUsableByte returns the last byte on the disk that a partition can
-	// exist. This is distinct from the "size" of a disk, since for example on a
-	// GPT disk, there is a backup of the GPT headers at the end of the disk,
-	// and these sectors where the backup is located are not usable for creating
-	// a partition at the end of the disk. For DOS, the last usable byte is
-	// indeed the same as the physical size of the disk, but GPT has the backup
-	// headers so this will be smaller than the physical size of the disk. For
-	// GPT disks, this is determined using sfdisk, and as such is not usable in
-	// the UC20 initrd which lacks this tool, though DOS disks use blockdev
-	// which is available in the initrd.
+	// SizeInBytes returns the overall size of the disk in bytes. Not all of the
+	// bytes may be usable for partitions, as some space on disks is reserved
+	// for metadata such as the MBR on DOS disks or the GPT headers (and backup)
+	// on GPT disks.
 	// TODO: make this return a quantity.Size when that is doable without
 	// importing gadget
-	LastUsableByte() (uint64, error)
+	SizeInBytes() (uint64, error)
+
+	// UsableSectorsEnd returns the exclusive end of usable sectors on the disk
+	// where partitions may occupy and be created. Specifically, the end is not
+	// itself usable, it is the region immediately after usable space; this sort
+	// of measurement is used when partitioning disks to indicate where a given
+	// partition ends.
+	// The sector unit is the in the native size for the disk, either 512 or
+	// 4096 bytes typically.
+	// This measurement is distinct from the size of the disk, though for some
+	// disks, this measurement may be the size of the disk in sectors - this is
+	// the case for DOS disks, but not for GPT disks. GPT disks have a backup
+	// header section at the end of the disk that is not usable for partitions.
+	UsableSectorsEnd() (uint64, error)
 }
 
 // Partition represents a partition on a Disk device.

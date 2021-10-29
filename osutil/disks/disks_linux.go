@@ -316,29 +316,41 @@ type sfdiskPartitionTable struct {
 	LastLBA  uint64 `json:"lastlba"`
 }
 
+func (d *disk) SizeInBytes() (uint64, error) {
+	// TODO: this could be implemented by reading the "size" file in sysfs
+	// instead of using blockdev
+
+	// The size of the disk is always given by using blockdev, but blockdev
+	// returns the size in 512-byte blocks, so for bytes we have to multiply by
+	// 512.
+	num512Sectors, err := blockDeviceSizeInSectors(d.devname)
+	// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
+	// zero
+	return num512Sectors * 512, err
+}
+
 // okay to use in initrd for dos disks since it uses blockdev command, but for
 // gpt disks, we need to use sfdisk, which is not okay to use in the initrd
-func (d *disk) LastUsableByte() (uint64, error) {
-	// We have two different implementations of getting the last usable byte for
-	// a disk in bytes, depending on the schema. For DOS disks, this is just the
-	// size of the disk. For GPT disks however, we need to get the last
-	// "logical block address" (LBA), which is the sector before the backup
-	// GPT headers sectors and currently the easiest way to get this is using
-	// sfdisk.
-
+func (d *disk) UsableSectorsEnd() (uint64, error) {
 	if d.schema == "dos" {
-		// TODO: this can probably just read /sys/block/<dev>/size instead
-		numSectors, err := blockDeviceSizeInSectors(d.devname)
-		// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
-		// zero
-		return numSectors * 512, err
+		// for DOS disks, it is sufficient to just get the size in bytes and
+		// divide by the sector size
+		byteSz, err := d.SizeInBytes()
+		if err != nil {
+			return 0, err
+		}
+		sectorSz, err := d.SectorSize()
+		if err != nil {
+			return 0, err
+		}
+		return byteSz / sectorSz, nil
 	}
 
-	// TODO: instead of using sfdisk we could read the GPT headers directly to
-	// get the LastLBA property, we would want to verify that the disk is indeed
-	// a GPT disk when we read these sectors
+	// TODO: this could also be accomplished by reading from the GPT headers
+	// directly to get the last logical block address (LBA) instead of using
+	// sfdisk, in which case this function could then be used in the initrd
 
-	// otherwise we need to use sfdisk on the device node
+	// otherwise for GPT, we need to use sfdisk on the device node
 	output, err := exec.Command("sfdisk", "--json", d.devname).Output()
 	if err != nil {
 		return 0, err
@@ -354,15 +366,13 @@ func (d *disk) LastUsableByte() (uint64, error) {
 		return 0, fmt.Errorf("cannot get size in sectors, sfdisk reported unknown unit %s", dump.PartitionTable.Unit)
 	}
 
-	// the size in bytes is just the (last LBA + 1) * sectorSize() - sfdisk
-	// actually always returns in the number of physical sectors unlike blockdev
-	// above for DOS disks
-	sectorSz, err := d.SectorSize()
-	if err != nil {
-		return 0, fmt.Errorf("cannot get sector size: %v", err)
-	}
+	// the last logical block address (LBA) is the location of the last
+	// occupiable sector, so the end is 1 further (the end itself is not
+	// included)
 
-	return (dump.PartitionTable.LastLBA + 1) * sectorSz, nil
+	// sfdisk always returns the sectors in native sector size, so we don't need
+	// to do any conversion here
+	return (dump.PartitionTable.LastLBA + 1), nil
 }
 
 func (d *disk) Schema() string {
