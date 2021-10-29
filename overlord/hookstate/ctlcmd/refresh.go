@@ -209,11 +209,11 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 		Pending: pending,
 	}
 
-	allow, err := hasSnapRefreshControlInterface(st, context.InstanceName())
+	hasRefreshControl, err := hasSnapRefreshControlInterface(st, context.InstanceName())
 	if err != nil {
 		return nil, err
 	}
-	if allow {
+	if hasRefreshControl {
 		up.CohortKey = snapst.CohortKey
 	}
 
@@ -297,11 +297,11 @@ func (c *refreshCommand) proceed() error {
 	// running outside of hook
 	if ctx.IsEphemeral() {
 		st := ctx.State()
-		allow, err := hasSnapRefreshControlInterface(st, ctx.InstanceName())
+		hasRefreshControl, err := hasSnapRefreshControlInterface(st, ctx.InstanceName())
 		if err != nil {
 			return err
 		}
-		if !allow {
+		if !hasRefreshControl {
 			return fmt.Errorf("cannot proceed: requires snap-refresh-control interface")
 		}
 		// we need to check if GateAutoRefreshHook feature is enabled when
