@@ -55,7 +55,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
+func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet) {
 	kinds := taskKinds(ts.Tasks())
 
 	expected := []string{
@@ -295,7 +295,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 2, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 2, ts)
 
 	// and ensure that it will remove the revisions after "current"
 	// (si3, si4)
@@ -697,7 +697,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
@@ -3398,7 +3398,7 @@ func (s *snapmgrTestSuite) TestUpdateAmend(c *C) {
 
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-7"}, s.user.ID, snapstate.Flags{Amend: true})
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts)
 
 	// ensure we go from local to store revision-7
 	var snapsup snapstate.SnapSetup
@@ -4102,7 +4102,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 
 	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
@@ -4133,7 +4133,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
 	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -4425,7 +4425,7 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 	c.Assert(te, NotNil)
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, expectedDiscards, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, expectedDiscards, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -4448,7 +4448,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 3, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh, 3, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -4493,7 +4493,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Check(updates, DeepEquals, []string{"some-snap"})
 
 	ts := tts[0]
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts, s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, ts)
 
 	// check that the tasks are in non-default lane
 	for _, t := range ts.Tasks() {
@@ -4920,7 +4920,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshes(c *C) {
 	c.Assert(tts, HasLen, 2)
 	verifyLastTasksetIsReRefresh(c, tts)
 	c.Check(updates, DeepEquals, []string{"some-snap"})
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[0], s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[0])
 
 	c.Check(validateCalled, Equals, true)
 }
@@ -4986,8 +4986,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
 	c.Assert(snapsupInstance.InstanceName(), Equals, "some-snap_instance")
 
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, tts[0], s.state)
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 1, tts[1], s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 3, tts[0])
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 1, tts[1])
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C) {
@@ -5044,8 +5044,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C)
 	verifyLastTasksetIsReRefresh(c, tts)
 	sort.Strings(updates)
 	c.Check(updates, DeepEquals, []string{"some-snap", "some-snap_instance"})
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[0], s.state)
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[1], s.state)
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[0])
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter, 0, tts[1])
 
 	c.Check(validateCalled, Equals, true)
 }
