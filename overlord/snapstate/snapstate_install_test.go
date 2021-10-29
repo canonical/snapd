@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -56,7 +56,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
+func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet) {
 	kinds := taskKinds(ts.Tasks())
 
 	expected := []string{
@@ -177,7 +177,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, 0, 0, ts, s.state)
+	verifyInstallTasks(c, 0, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -220,7 +220,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnClassic(c *C) {
 	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+	verifyInstallTasks(c, noConfigure, 0, ts)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -238,7 +238,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnCore(c *C) {
 	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, noConfigure|updatesBootConfig, 0, ts, s.state)
+	verifyInstallTasks(c, noConfigure|updatesBootConfig, 0, ts)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -256,7 +256,7 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapsup.CohortKey, Equals, "what")
 
-	verifyInstallTasks(c, 0, 0, ts, s.state)
+	verifyInstallTasks(c, 0, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -273,7 +273,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, 0, 0, ts, s.state)
+	verifyInstallTasks(c, 0, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -3271,7 +3271,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
 
 	for i, ts := range tts {
-		verifyInstallTasks(c, 0, 0, ts, s.state)
+		verifyInstallTasks(c, 0, 0, ts)
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
