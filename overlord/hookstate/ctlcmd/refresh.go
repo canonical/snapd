@@ -145,7 +145,7 @@ func (c *refreshCommand) Execute(args []string) error {
 type updateDetails struct {
 	Pending   string `yaml:"pending,omitempty"`
 	Channel   string `yaml:"channel,omitempty"`
-	CohortKey string `yaml:"cohort-key,omitempty"`
+	CohortKey string `yaml:"cohort,omitempty"`
 	Version   string `yaml:"version,omitempty"`
 	Revision  int    `yaml:"revision,omitempty"`
 	// TODO: epoch

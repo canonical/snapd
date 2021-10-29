@@ -372,7 +372,7 @@ version: 1
 	stdout, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
 	c.Assert(err, IsNil)
 	// cohort is printed
-	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort-key: some-cohort-key\nbase: false\nrestart: false\n")
+	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
 }
 
 func (s *refreshSuite) TestPendingWithCohort(c *C) {
@@ -398,7 +398,7 @@ version: 1
 	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
 	c.Assert(err, IsNil)
 	// cohort is printed
-	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort-key: some-cohort-key\nbase: false\nrestart: false\n")
+	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
 }
 
 func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
