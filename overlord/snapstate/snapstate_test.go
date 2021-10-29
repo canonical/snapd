@@ -6893,17 +6893,17 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 	tasks := ts.Tasks()
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
-	tLink := tasks[1]
-	tUpdateGadgetAssets := tasks[2]
+	tUpdateGadgetAssets := tasks[1]
+	tLink := tasks[2]
 	c.Assert(tPrepare.Kind(), Equals, "prepare-snap")
 	c.Assert(tPrepare.Summary(), Equals, `Prepare snap "some-kernel" (2) for remodel`)
 	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
-	c.Assert(tLink.Kind(), Equals, "link-snap")
-	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
-	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
 	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
-	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{tLink})
+	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
+	c.Assert(tLink.Kind(), Equals, "link-snap")
+	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
+	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
 
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base")
 	c.Assert(err, IsNil)
@@ -6961,20 +6961,20 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	// since this is the kernel, we have our task + dummy task + link-snap + update-gadget-assets
+	// since this is the kernel, we have our task + dummy task + update-gadget-assets + link-snap
 	c.Assert(tasks, HasLen, 4)
-	tLink := tasks[2]
-	tUpdateGadgetAssets := tasks[3]
+	tUpdateGadgetAssets := tasks[2]
+	tLink := tasks[3]
+	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
+	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{
+		tDummy,
+	})
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
 	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{
 		// waits for last task in the set
-		tDummy,
-	})
-	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
-	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
-	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{
-		tLink,
+		tUpdateGadgetAssets,
 	})
 	for _, tsk := range []*state.Task{tLink, tUpdateGadgetAssets} {
 		var ssID string
