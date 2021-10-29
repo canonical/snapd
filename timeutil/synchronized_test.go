@@ -34,9 +34,6 @@ import (
 const (
 	timedate1BusName    = "org.freedesktop.timedate1"
 	timedate1ObjectPath = "/org/freedesktop/timedate1"
-	timedate1Interface  = "org.freedesktop.timedate1"
-
-	timedate1NTPproperty = "org.freedesktop.timedate1.NTPSynchronized"
 )
 
 type mockTimedate1 struct {
