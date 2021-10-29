@@ -111,8 +111,8 @@ type DeviceManager struct {
 	registered                   bool
 	reg                          chan struct{}
 
-	preseed         bool
-	ntpSynchronized bool
+	preseed             bool
+	ntpSyncedOrTimedOut bool
 }
 
 // Manager returns a new device manager.
@@ -1691,22 +1691,22 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
 
 func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
-	if m.ntpSynchronized || time.Now().After(startTime.Add(maxWait)) {
+	if m.ntpSyncedOrTimedOut || time.Now().After(startTime.Add(maxWait)) {
 		return true
 	}
 
 	var err error
-	m.ntpSynchronized, err = timeutilIsNTPSynchronized()
+	m.ntpSyncedOrTimedOut, err = timeutilIsNTPSynchronized()
 	if errors.As(err, &timeutil.NoTimedate1Error{}) {
 		// no timedate1 dbus service, no need to wait for it
-		m.ntpSynchronized = true
+		m.ntpSyncedOrTimedOut = true
 		return true
 	}
 	if err != nil {
 		logger.Debugf("cannot check if ntp is syncronized: %v", err)
 	}
 
-	return m.ntpSynchronized
+	return m.ntpSyncedOrTimedOut
 }
 
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
