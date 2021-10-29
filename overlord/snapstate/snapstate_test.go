@@ -406,6 +406,7 @@ const (
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	updatesGadgetAssets
 	updatesBootConfig
 	noConfigure
 )
@@ -6155,6 +6156,31 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
+
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnKernelRefresh(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "brand-kernel", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "brand-kernel", SnapID: "brand-kernel-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+
+	// and on update
+	ts, err := snapstate.Update(s.state, "brand-kernel", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadgetAssets, 0, ts, s.state)
 
 }
 
