@@ -1820,6 +1820,12 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(ok, Equals, true)
 	c.Check(n, Equals, 2)
+
+	// and the result was cached
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
 }
 
 func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
@@ -1842,7 +1848,9 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
 }
 
 func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
+	n := 0
 	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
 		// no timedate1
 		return false, timeutil.NoTimedate1Error{Err: fmt.Errorf("boom")}
 	})
@@ -1851,4 +1859,11 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
 	// There is no timedate1 dbus service, no point in waiting
 	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
 	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+
+	// and the result was cached
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+
 }

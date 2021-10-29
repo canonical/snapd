@@ -1699,6 +1699,7 @@ func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool 
 	m.ntpSynchronized, err = timeutilIsNTPSynchronized()
 	if errors.As(err, &timeutil.NoTimedate1Error{}) {
 		// no timedate1 dbus service, no need to wait for it
+		m.ntpSynchronized = true
 		return true
 	}
 	if err != nil {
