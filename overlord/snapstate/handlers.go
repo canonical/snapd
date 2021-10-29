@@ -1342,6 +1342,21 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
 	}
 
+	// update snapst.RevertStatus map if needed
+	if snapsup.Revert {
+		switch snapsup.RevertStatus {
+		case NotBlocked:
+			if snapst.RevertStatus == nil {
+				snapst.RevertStatus = make(map[int]RevertStatus)
+			}
+			snapst.RevertStatus[snapst.Current.N] = NotBlocked
+		default:
+			delete(snapst.RevertStatus, snapst.Current.N)
+		}
+	} else {
+		delete(snapst.RevertStatus, cand.Revision.N)
+	}
+
 	oldCurrent := snapst.Current
 	snapst.Current = cand.Revision
 	snapst.Active = true
@@ -2391,6 +2406,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapst.Current == snapsup.Revision() && snapst.Active {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", snapsup.InstanceName())
 	}
+
+	// drop any potential revert status for this revision
+	delete(snapst.RevertStatus, snapsup.Revision().N)
 
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil
