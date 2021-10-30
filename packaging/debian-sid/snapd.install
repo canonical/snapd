@@ -38,3 +38,6 @@ usr/lib/snapd/snap-gdbserver-shim
 usr/lib/systemd/system-environment-generators
 # but system generators end up in lib
 lib/systemd/system-generators
+
+# service for loading apparmor profiles for snap applications
+usr/lib/snapd/snapd-apparmor

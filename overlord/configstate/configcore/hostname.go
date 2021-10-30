@@ -41,7 +41,7 @@ func init() {
 // We are conservative here and follow hostname(7). The hostnamectl
 // binary is more liberal but let's err on the side of caution for
 // now.
-var validHostname = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`).MatchString
+var validHostnameRegexp = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}(\.[a-z0-9-]{1,63})*$`).MatchString
 
 func validateHostnameSettings(tr config.ConfGetter) error {
 	hostname, err := coreCfg(tr, "system.hostname")
@@ -51,7 +51,9 @@ func validateHostnameSettings(tr config.ConfGetter) error {
 	if hostname == "" {
 		return nil
 	}
-	if !validHostname(hostname) {
+
+	validHostname := len(hostname) <= 253 && validHostnameRegexp(hostname)
+	if !validHostname {
 		return fmt.Errorf("cannot set hostname %q: name not valid", hostname)
 	}
 

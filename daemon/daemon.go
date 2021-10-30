@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
@@ -76,7 +78,7 @@ type Daemon struct {
 	standbyOpinions *standby.StandbyOpinions
 
 	// set to what kind of restart was requested if any
-	requestedRestart state.RestartType
+	requestedRestart restart.RestartType
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -160,7 +162,9 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if srsp, ok := rsp.(StructuredResponse); ok {
 		rjson := srsp.JSON()
 
-		_, rst := st.Restarting()
+		st.Lock()
+		_, rst := restart.Pending(st)
+		st.Unlock()
 		rjson.addMaintenanceFromRestartType(rst)
 
 		if rjson.Type != ResponseTypeError {
@@ -351,8 +355,8 @@ func (d *Daemon) Start() error {
 
 	// before serving actual connections remove the maintenance.json file as we
 	// are no longer down for maintenance, this state most closely corresponds
-	// to state.RestartUnset
-	if err := d.updateMaintenanceFile(state.RestartUnset); err != nil {
+	// to restart.RestartUnset
+	if err := d.updateMaintenanceFile(restart.RestartUnset); err != nil {
 		return err
 	}
 
@@ -383,7 +387,7 @@ func (d *Daemon) Start() error {
 }
 
 // HandleRestart implements overlord.RestartBehavior.
-func (d *Daemon) HandleRestart(t state.RestartType) {
+func (d *Daemon) HandleRestart(t restart.RestartType) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -395,27 +399,27 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
-	case state.RestartDaemon:
+	case restart.RestartDaemon:
 		// save the restart kind to write out a maintenance.json in a bit
 		d.requestedRestart = t
-	case state.RestartSystem, state.RestartSystemNow:
+	case restart.RestartSystem, restart.RestartSystemNow:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
 
 		// save the restart kind to write out a maintenance.json in a bit
 		scheduleFallback(rebootReboot)
 		d.requestedRestart = t
-	case state.RestartSystemHaltNow:
+	case restart.RestartSystemHaltNow:
 		scheduleFallback(rebootHalt)
 		d.requestedRestart = t
-	case state.RestartSystemPoweroffNow:
+	case restart.RestartSystemPoweroffNow:
 		scheduleFallback(rebootPoweroff)
 		d.requestedRestart = t
-	case state.RestartSocket:
+	case restart.RestartSocket:
 		// save the restart kind to write out a maintenance.json in a bit
 		d.requestedRestart = t
 		d.restartSocket = true
-	case state.StopDaemon:
+	case restart.StopDaemon:
 		logger.Noticef("stopping snapd as requested")
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
@@ -431,9 +435,9 @@ var (
 	rebootMaxTentatives    = 3
 )
 
-func (d *Daemon) updateMaintenanceFile(rst state.RestartType) error {
+func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
 	// for unset restart, just remove the maintenance.json file
-	if rst == state.RestartUnset {
+	if rst == restart.RestartUnset {
 		err := os.Remove(dirs.SnapdMaintenanceFile)
 		// only return err if the error was something other than the file not
 		// existing
@@ -458,7 +462,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	if d.expectedRebootDidNotHappen {
 		// make the reboot retry immediate
 		immediateReboot := true
-		return d.doReboot(sigCh, state.RestartSystem, immediateReboot, rebootRetryWaitTimeout)
+		return d.doReboot(sigCh, restart.RestartSystem, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
 		return fmt.Errorf("internal error: no Overlord")
@@ -473,12 +477,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// shutdown or not as a consequence of this request
 	needsFullShutdown := false
 	switch d.requestedRestart {
-	case state.RestartSystem, state.RestartSystemNow, state.RestartSystemHaltNow, state.RestartSystemPoweroffNow:
+	case restart.RestartSystem, restart.RestartSystemNow, restart.RestartSystemHaltNow, restart.RestartSystemPoweroffNow:
 		needsFullShutdown = true
 	}
 	immediateShutdown := false
 	switch d.requestedRestart {
-	case state.RestartSystemNow, state.RestartSystemHaltNow, state.RestartSystemPoweroffNow:
+	case restart.RestartSystemNow, restart.RestartSystemHaltNow, restart.RestartSystemPoweroffNow:
 		immediateShutdown = true
 	}
 	restartSocket := d.restartSocket
@@ -498,7 +502,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
 		hookMgr := d.overlord.HookManager()
-		if ok, _ := d.state.Restarting(); ok {
+		d.state.Lock()
+		ok, _ := restart.Pending(d.state)
+		d.state.Unlock()
+		if ok {
 			logger.Noticef("gracefully waiting for running hooks")
 			hookMgr.GracefullyWaitRunningHooks()
 			logger.Noticef("done waiting for running hooks")
@@ -599,16 +606,16 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	return rebootDelay, nil
 }
 
-func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst state.RestartType, immediate bool, waitTimeout time.Duration) error {
+func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immediate bool, waitTimeout time.Duration) error {
 	rebootDelay, err := d.rebootDelay(immediate)
 	if err != nil {
 		return err
 	}
 	action := rebootReboot
 	switch rst {
-	case state.RestartSystemHaltNow:
+	case restart.RestartSystemHaltNow:
 		action = rebootHalt
-	case state.RestartSystemPoweroffNow:
+	case restart.RestartSystemPoweroffNow:
 		action = rebootPoweroff
 	}
 	// ask for shutdown and wait for it to happen.
@@ -701,6 +708,8 @@ func (d *Daemon) RebootAsExpected(st *state.State) error {
 	return nil
 }
 
+var errExpectedReboot = errors.New("expected reboot did not happen")
+
 // RebootDidNotHappen implements part of overlord.RestartBehavior.
 func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 	var nTentative int
@@ -712,7 +721,7 @@ func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 	if nTentative > rebootMaxTentatives {
 		// giving up, proceed normally, some in-progress refresh
 		// might get rolled back!!
-		st.ClearReboot()
+		restart.ClearReboot(st)
 		clearReboot(st)
 		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentatives)
 		return nil
@@ -720,14 +729,14 @@ func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 	st.Set("daemon-system-restart-tentative", nTentative)
 	d.state = st
 	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentatives)
-	return state.ErrExpectedReboot
+	return errExpectedReboot
 }
 
 // New Daemon
 func New() (*Daemon, error) {
 	d := &Daemon{}
 	ovld, err := overlord.New(d)
-	if err == state.ErrExpectedReboot {
+	if err == errExpectedReboot {
 		// we proceed without overlord until we reach Stop
 		// where we will schedule and wait again for a system restart.
 		// ATM we cannot do that in New because we need to satisfy

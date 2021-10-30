@@ -267,6 +267,8 @@ var templateCommon = `
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,
   @{PROC}/sys/kernel/shmmax r,
+  # Allow apps to introspect the level of dbus mediation AppArmor implements.
+  /sys/kernel/security/apparmor/features/dbus/mask r,
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/fs/file-nr r,
   @{PROC}/sys/fs/inotify/max_* r,
@@ -274,6 +276,7 @@ var templateCommon = `
   @{PROC}/sys/kernel/random/boot_id r,
   @{PROC}/sys/kernel/random/entropy_avail r,
   @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/cap_last_cap r,
   # Allow access to the uuidd daemon (this daemon is a thin wrapper around
   # time and getrandom()/{,u}random and, when available, runs under an
   # unprivilged, dedicated user).
@@ -868,6 +871,12 @@ var overlayRootSnippet = `
   "###UPPERDIR###/{,**/}" r,
 `
 
+// capabilityBPFSnippet contains extra permissions for snap-confine to execute
+// bpf() syscall and set up or modify cgroupv2 device access filtering
+var capabilityBPFSnippet = `
+capability bpf,
+`
+
 var ptraceTraceDenySnippet = `
 # While commands like 'ps', 'ip netns identify <pid>', 'ip netns pids foo', etc
 # trigger a 'ptrace (trace)' denial, they aren't actually tracing other
@@ -880,6 +889,17 @@ var ptraceTraceDenySnippet = `
 # dangerous access frivolously.
 deny ptrace (trace),
 deny capability sys_ptrace,
+`
+
+var sysModuleCapabilityDenySnippet = `
+# The rtnetlink kernel interface can trigger the loading of kernel modules,
+# first attempting to operate on a network module (this requires the net_admin
+# capability) and falling back to loading ordinary modules (and this requires
+# the sys_module capability). For reference, see the dev_load() function in:
+# https://kernel.ubuntu.com/git/ubuntu/ubuntu-focal.git/tree/net/core/dev_ioctl.c?h=v5.13#n354
+# The following rule is used to silence the denials for attempting to load
+# generic kernel modules, while still allowing the loading of network modules.
+deny capability sys_module,
 `
 
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.

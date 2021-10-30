@@ -215,6 +215,7 @@ func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to basic graphical desktop resources`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "desktop")
+	c.Assert(si.AffectsPlugOnRefresh, Equals, true)
 }
 
 func (s *DesktopInterfaceSuite) TestInterfaces(c *C) {

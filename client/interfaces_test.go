@@ -70,7 +70,7 @@ func (cs *clientSuite) TestClientInterfacesAll(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientInterfacesConnected(c *check.C) {
-	// Ask for for a summary of connected interfaces.
+	// Ask for a summary of connected interfaces.
 	cs.rsp = `{
 		"type": "sync",
 		"result": [

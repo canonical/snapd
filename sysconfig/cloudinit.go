@@ -97,6 +97,13 @@ type supportedFilteredReporting struct {
 	TokenSecret string `yaml:"token_secret,omitempty"`
 }
 
+// supportedFilteredDatasources is the set of datasources we support filtering
+// cloud-init config for. It is expected that this list grows as we support for
+// more clouds.
+var supportedFilteredDatasources = []string{
+	"MAAS",
+}
+
 // filterCloudCfg filters a cloud-init configuration struct parsed from a single
 // cloud-init configuration file. The config provided here may be a subset of
 // the full cloud-init configuration from the file in that there may be
@@ -144,6 +151,23 @@ func filterCloudCfg(cfg *supportedFilteredCloudConfig, allowedDatasources []stri
 // returned if the input file was entirely filtered out and there is nothing
 // left.
 func filterCloudCfgFile(in string, allowedDatasources []string) (string, error) {
+	// we don't allow any files to be installed/filtered from ubuntu-seed if
+	// there are no datasources at all
+	if len(allowedDatasources) == 0 {
+		return "", nil
+	}
+
+	// otherwise if there are datasources that are allowed, then we perform
+	// filtering on the file
+	// note that this logic means that "generic" cloud-init config which is not
+	// specific to a datasource will not get installed unless either:
+	// * there is another file specifying a datasource that intersects with the
+	//   set of datasources mentioned in the gadget and intersects with what we
+	//   support
+	// * there are no datasources mentioned in the gadget and there are other
+	//   cloud-init files on ubuntu-seed which specify a datasource and
+	//   intersect with what we support
+
 	dstFileName := filepath.Base(in)
 	filteredFile, err := ioutil.TempFile("", dstFileName)
 	if err != nil {
@@ -199,7 +223,9 @@ type cloudDatasourcesInUseResult struct {
 	// ExplicitlyNoneAllowed is true when datasource_list was set to
 	// specifically the empty list, thus disallowing use of any datasource
 	ExplicitlyNoneAllowed bool
-	// Mentioned is the full set of datasources mentioned in the yaml config.
+	// Mentioned is the full set of datasources mentioned in the yaml config,
+	// both sources from ExplicitlyAllowed and from implicitly mentioned in the
+	// config.
 	Mentioned []string
 }
 
@@ -263,6 +289,69 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 	return res, nil
 }
 
+// cloudDatasourcesInUseForDir considers all files in a directory as individual
+// cloud-init config files, and analyzes all datasources in use for each file
+// and returns their union. It does not distinguish between mentioned,
+// explicitly allowed, or explicitly disallowed, but it does follow cloud-init's
+// logic for determining the overwriting of properties. So, for example, if a
+// file sets datasource_list: [] and no other file processed later (files are
+// processed in lexical order) sets this property to another value, it will be
+// treated as if the config explicitly disallows no datasources. If, on the
+// other hand, a file processed later sets datasource_list: [foo], then foo is
+// used instead and the explicit disallowing is ignored/overwritten.
+func cloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, error) {
+	// cloud-init only considers files with file extension .cfg so we do too.
+	files, err := filepath.Glob(filepath.Join(dir, "*.cfg"))
+	if err != nil {
+		return nil, err
+	}
+
+	// sort the filenames so they are in lexographical order - this is the same
+	// order that cloud-init processes them
+	sort.Strings(files)
+
+	res := &cloudDatasourcesInUseResult{}
+
+	resMentionedMap := map[string]bool{}
+
+	for _, f := range files {
+		fRes, err := cloudDatasourcesInUse(f)
+		// TODO: or should we fail on broken individual files? probably?
+		if err != nil {
+			logger.Noticef("error analyzing cloud-init datasources in use for file %s: %v", f, err)
+			continue
+		}
+
+		// if we have an explicit setting for what is allowed, then that always
+		// overwrites previous settings of ExplicitlyAllowed
+		if len(fRes.ExplicitlyAllowed) != 0 {
+			res.ExplicitlyNoneAllowed = false
+			res.ExplicitlyAllowed = fRes.ExplicitlyAllowed
+		} else if fRes.ExplicitlyNoneAllowed {
+			// if we are now explicitly disallowing datasources, then overwrite that
+			// setting - this is mutually exclusive with ExplicitlyAllowed
+			// having a non-zero length
+			res.ExplicitlyNoneAllowed = true
+			res.ExplicitlyAllowed = nil
+		}
+
+		// we always keep track of the mentioned datasources, it's not an issue
+		// to mention datasources and also have datasources disallowed, the
+		// higher level logic is expected to handle this properly
+		for _, ds := range fRes.Mentioned {
+			if !resMentionedMap[ds] {
+				res.Mentioned = append(res.Mentioned, ds)
+				resMentionedMap[ds] = true
+			}
+		}
+	}
+
+	sort.Strings(res.Mentioned)
+	sort.Strings(res.ExplicitlyAllowed)
+
+	return res, nil
+}
+
 type cloudInitConfigInstallOptions struct {
 	// Prefix is the prefix to add to files when installing them.
 	Prefix string
@@ -281,7 +370,7 @@ type cloudInitConfigInstallOptions struct {
 // installCloudInitCfgDir installs glob cfg files from the source directory to
 // the cloud config dir, optionally filtering the files for safe and supported
 // keys in the configuration before installing them.
-func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallOptions) error {
+func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallOptions) (installedFiles []string, err error) {
 	if opts == nil {
 		opts = &cloudInitConfigInstallOptions{}
 	}
@@ -289,23 +378,52 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(ccl) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
-		return fmt.Errorf("cannot make cloud config dir: %v", err)
+		return nil, fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
 
 	for _, cc := range ccl {
-		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, opts.Prefix+filepath.Base(cc)), 0); err != nil {
-			return err
+		src := cc
+		baseName := filepath.Base(cc)
+		dst := filepath.Join(ubuntuDataCloudCfgDir, opts.Prefix+baseName)
+
+		if opts.Filter {
+			filteredFile, err := filterCloudCfgFile(cc, opts.AllowedDatasources)
+			if err != nil {
+				return nil, fmt.Errorf("error while filtering cloud-config file %s: %v", baseName, err)
+			}
+			src = filteredFile
 		}
+
+		// src may be the empty string if we were copying a file that got
+		// entirely emptied, in which case we shouldn't copy anything since
+		// there's nothing to install from this config file
+		if src == "" {
+			logger.Noticef("cloud-init config file %s was filtered out", baseName)
+			continue
+		}
+
+		if err := osutil.CopyFile(src, dst, 0); err != nil {
+			return nil, err
+		}
+
+		// make sure that the new file is world readable, since cloud-init does
+		// not run as root (somehow?)
+		if err := os.Chmod(dst, 0644); err != nil {
+			return nil, err
+		}
+
+		installedFiles = append(installedFiles, dst)
 	}
-	return nil
+
+	return installedFiles, nil
 }
 
 // installGadgetCloudInitCfg installs a single cloud-init config file from the
@@ -351,16 +469,19 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 
 	grade := model.Grade()
 
+	gadgetDatasourcesRes := &cloudDatasourcesInUseResult{}
+
 	// we always allow gadget cloud config, so install that first
 	if HasGadgetCloudConf(opts.GadgetDir) {
 		// then copy / install the gadget config first
 		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
 
-		// TODO: save the gadget datasource and use it below in deciding what to
-		// allow through for grade: signed
-		if _, err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+		datasourcesRes, err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
+		if err != nil {
 			return err
 		}
+
+		gadgetDatasourcesRes = datasourcesRes
 
 		// we don't return here to enable also copying any cloud-init config
 		// from ubuntu-seed in order for both to be used simultaneously for
@@ -368,6 +489,18 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 		// testing purposes you also want to provision another user with
 		// ubuntu-seed cloud-init config
 	}
+
+	// after installing gadget config, check if we have to consider ubuntu-seed
+	// at all, if a source dir wasn't provided to us we can just exit early
+	// here, note that it's valid to allow cloud-init, but not set
+	// CloudInitSrcDir and not have a gadget cloud.conf, in this case cloud-init
+	// may pick up dynamic metadata and userdata from NoCloud sources such as a
+	// USB or CD-ROM drive with label CIDATA, etc. during first-boot
+	if opts.CloudInitSrcDir == "" {
+		return nil
+	}
+
+	// otherwise there is most likely something on ubuntu-seed
 
 	installOpts := &cloudInitConfigInstallOptions{
 		// set the prefix such that any ubuntu-seed config that ends up getting
@@ -380,11 +513,116 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 		// for secured we are done, we only allow gadget cloud-config on secured
 		return nil
 	case asserts.ModelSigned:
-		// TODO: for grade signed, we will install ubuntu-seed config but filter
-		// it and ensure that the ubuntu-seed config matches the config from the
-		// gadget if that exists
-		// for now though, just return
-		return nil
+		// for grade signed, we filter config coming from ubuntu-seed
+		installOpts.Filter = true
+
+		// in order to decide what to allow through the filter, we need to
+		// consider the whole set of config files on ubuntu-seed as a single
+		// bundle of files and determine the datasource(s) in use there, and
+		// compare this with the datasource(s) we support through the gadget and
+		// in supportedFilteredDatasources
+
+		ubuntuSeedDatasourceRes, err := cloudDatasourcesInUseForDir(opts.CloudInitSrcDir)
+		if err != nil {
+			return err
+		}
+
+		// handle the various permutations for the datasources mentioned in the
+		// gadget
+		switch {
+		case gadgetDatasourcesRes.ExplicitlyNoneAllowed:
+			// no datasources were allowed, so set it to the empty list to
+			// disallow anything being installed
+			installOpts.AllowedDatasources = nil
+
+		// consider the case where the gadget explicitly allows specific
+		// datasources before considering any of the implicit mentions
+
+		case len(gadgetDatasourcesRes.ExplicitlyAllowed) != 0:
+			// allow the intersection of what the gadget explicitly allows, what
+			// ubuntu-seed either explicitly allows (or what it mentions), and
+			// what we statically support
+
+			if len(ubuntuSeedDatasourceRes.ExplicitlyAllowed) != 0 {
+				// use ubuntu-seed explicitly allowed in the intersection computation
+				installOpts.AllowedDatasources = strutil.Intersection(
+					supportedFilteredDatasources,
+					ubuntuSeedDatasourceRes.ExplicitlyAllowed,
+					gadgetDatasourcesRes.ExplicitlyAllowed,
+				)
+			} else if len(ubuntuSeedDatasourceRes.Mentioned) != 0 && !ubuntuSeedDatasourceRes.ExplicitlyNoneAllowed {
+				// use ubuntu-seed mentioned in the intersection computation
+				installOpts.AllowedDatasources = strutil.Intersection(
+					supportedFilteredDatasources,
+					ubuntuSeedDatasourceRes.Mentioned,
+					gadgetDatasourcesRes.ExplicitlyAllowed,
+				)
+			} else {
+				// then the ubuntu-seed datasources didn't either mention any
+				// datasources, or it explicitly disallowed any datasources (
+				// which would be weird to have config on ubuntu-seed which says
+				// "please ignore this other config on ubuntu-seed")
+				// but in any case we know a priori that the intersection will
+				// be empty
+				installOpts.AllowedDatasources = nil
+			}
+
+		case len(gadgetDatasourcesRes.Mentioned) != 0:
+			// allow the intersection of what the gadget mentions, what
+			// ubuntu-seed either explicitly allows (or what it mentions), and
+			// what we statically support
+
+			if len(ubuntuSeedDatasourceRes.ExplicitlyAllowed) != 0 {
+				// use ubuntu-seed explicitly allowed in the intersection computation
+				installOpts.AllowedDatasources = strutil.Intersection(
+					supportedFilteredDatasources,
+					ubuntuSeedDatasourceRes.ExplicitlyAllowed,
+					gadgetDatasourcesRes.Mentioned,
+				)
+			} else if len(ubuntuSeedDatasourceRes.Mentioned) != 0 && !ubuntuSeedDatasourceRes.ExplicitlyNoneAllowed {
+				// use ubuntu-seed mentioned in the intersection computation
+				installOpts.AllowedDatasources = strutil.Intersection(
+					supportedFilteredDatasources,
+					ubuntuSeedDatasourceRes.Mentioned,
+					gadgetDatasourcesRes.Mentioned,
+				)
+			} else {
+				// then the ubuntu-seed datasources didn't either mention any
+				// datasources, or it explicitly disallowed any datasources (
+				// which would be weird to have config on ubuntu-seed which says
+				// "please ignore this other config on ubuntu-seed")
+				// but in any case we know a priori that the intersection will
+				// be empty
+				installOpts.AllowedDatasources = nil
+			}
+
+		default:
+			// gadget had no opinion on the datasources used, so we allow the
+			// intersection of what ubuntu-seed explicitly allowed (or
+			// mentioned) with what we statically allow
+			if len(ubuntuSeedDatasourceRes.ExplicitlyAllowed) != 0 {
+				// use ubuntu-seed explicitly allowed in the intersection computation
+				installOpts.AllowedDatasources = strutil.Intersection(
+					supportedFilteredDatasources,
+					ubuntuSeedDatasourceRes.ExplicitlyAllowed,
+				)
+			} else if len(ubuntuSeedDatasourceRes.Mentioned) != 0 && !ubuntuSeedDatasourceRes.ExplicitlyNoneAllowed {
+				// use ubuntu-seed mentioned in the intersection computation
+				installOpts.AllowedDatasources = strutil.Intersection(
+					supportedFilteredDatasources,
+					ubuntuSeedDatasourceRes.Mentioned,
+				)
+			} else {
+				// then the ubuntu-seed datasources didn't either mention any
+				// datasources, or it explicitly disallowed any datasources (
+				// which would be weird to have config on ubuntu-seed which says
+				// "please ignore this other config on ubuntu-seed")
+				// but in any case we know a priori that the intersection will
+				// be empty
+				installOpts.AllowedDatasources = nil
+			}
+		}
+
 	case asserts.ModelDangerous:
 		// for grade dangerous we just install all the config from ubuntu-seed
 		installOpts.Filter = false
@@ -392,14 +630,28 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 		return fmt.Errorf("internal error: unknown model assertion grade %s", grade)
 	}
 
-	if opts.CloudInitSrcDir != "" {
-		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts)
+	// check if we will actually be able to install anything
+	if installOpts.Filter && len(installOpts.AllowedDatasources) == 0 {
+		return nil
 	}
 
-	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have
-	// a gadget cloud.conf, in this case cloud-init may pick up dynamic metadata
-	// and userdata from NoCloud sources such as a CD-ROM drive with label
-	// CIDATA, etc. during first-boot
+	// try installing the files, this is the case either where we are filtering
+	// and there are some files that will be filtered, or where we are not
+	// filtering and thus don't know anything about what files we might install,
+	// but we will install them all because we are in grade dangerous
+	installedFiles, err := installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts)
+	if err != nil {
+		return err
+	}
+
+	if installOpts.Filter && len(installedFiles) != 0 {
+		// we are filtering files and we installed some, so we also need to
+		// install a datasource restriction file at the end just as a paranoia
+		// measure
+		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, strings.Join(installOpts.AllowedDatasources, ",")))
+		restrictFile := filepath.Join(ubuntuDataCloudDir(WritableDefaultsDir(opts.TargetRootDir)), "cloud.cfg.d/99_snapd_datasource.cfg")
+		return ioutil.WriteFile(restrictFile, yaml, 0644)
+	}
 
 	return nil
 }
@@ -498,14 +750,39 @@ func CloudInitStatus() (CloudInitState, error) {
 	}
 
 	out, err := exec.Command(ciBinary, "status").CombinedOutput()
-	if err != nil {
-		return CloudInitErrored, osutil.OutputErr(out, err)
-	}
+
+	// in the case where cloud-init is actually in an error condition, like
+	// where MAAS is the datasource but there is no MAAS server for example,
+	// then cloud-init will exit with status 1 and output `status: error`
+	// we want to handle that case specially below by returning non-nil error,
+	// but also CloudInitErrored, so first inspect the output to see if it
+	// matches
 	// output should just be "status: <state>"
 	match := cloudInitStatusRe.FindSubmatch(out)
 	if len(match) != 2 {
+		// check if running the command had an error, if it did then return that
+		if err != nil {
+			return CloudInitErrored, osutil.OutputErr(out, err)
+		}
+		// otherwise we had some sort of malformed output
 		return CloudInitErrored, fmt.Errorf("invalid cloud-init output: %v", osutil.OutputErr(out, err))
 	}
+
+	// otherwise we had a successful match, but we need to check if the status
+	// command errored itself
+	if err != nil {
+		if string(match[1]) == "error" {
+			// then the status was indeed error and we should treat this as the
+			// "positively identified" error case
+			return CloudInitErrored, nil
+		}
+		// otherwise just ignore the parsing of the output and just return the
+		// error normally
+		return CloudInitErrored, fmt.Errorf("cloud-init errored: %v", osutil.OutputErr(out, err))
+	}
+
+	// otherwise no error from cloud-init
+
 	switch string(match[1]) {
 	case "disabled":
 		// here since we weren't disabled by the file, we are in "disabled but
@@ -515,6 +792,9 @@ func CloudInitStatus() (CloudInitState, error) {
 		// https://bugs.launchpad.net/cloud-init/+bug/1883122
 		return CloudInitUntriggered, nil
 	case "error":
+		// this shouldn't happen in practice, but handle it here anyways in case
+		// cloud-init ever changes it's mind and starts reporting error state
+		// with a 0 exit code
 		return CloudInitErrored, nil
 	case "done":
 		return CloudInitDone, nil
@@ -522,7 +802,7 @@ func CloudInitStatus() (CloudInitState, error) {
 	case "running", "not run":
 		fallthrough
 	default:
-		// these states are all
+		// these states are all the generic "enabled" state
 		return CloudInitEnabled, nil
 	}
 }

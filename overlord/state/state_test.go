@@ -76,6 +76,23 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	c.Check(&mSt2B, DeepEquals, mSt2)
 }
 
+func (ss *stateSuite) TestStrayTaskWithNoChange(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	_ = st.NewTask("bar", "...")
+
+	// only the task with associate change is returned
+	c.Assert(st.Tasks(), HasLen, 1)
+	c.Assert(st.Tasks()[0].ID(), Equals, t1.ID())
+	// but count includes all tasks
+	c.Assert(st.TaskCount(), Equals, 2)
+}
+
 func (ss *stateSuite) TestSetPanic(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -168,10 +185,9 @@ func (ss *stateSuite) TestCache(c *C) {
 }
 
 type fakeStateBackend struct {
-	checkpoints      [][]byte
-	error            func() error
-	ensureBefore     time.Duration
-	restartRequested bool
+	checkpoints  [][]byte
+	error        func() error
+	ensureBefore time.Duration
 }
 
 func (b *fakeStateBackend) Checkpoint(data []byte) error {
@@ -184,10 +200,6 @@ func (b *fakeStateBackend) Checkpoint(data []byte) error {
 
 func (b *fakeStateBackend) EnsureBefore(d time.Duration) {
 	b.ensureBefore = d
-}
-
-func (b *fakeStateBackend) RequestRestart(t state.RestartType) {
-	b.restartRequested = true
 }
 
 func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
@@ -961,66 +973,6 @@ func (ss *stateSuite) TestPruneHonorsStartOperationTime(c *C) {
 	st.Prune(opTime, pruneWait, abortWait, 100)
 	c.Assert(st.Changes(), HasLen, 1)
 	c.Check(chg.Status(), Equals, state.HoldStatus)
-}
-
-func (ss *stateSuite) TestRequestRestart(c *C) {
-	b := new(fakeStateBackend)
-	st := state.New(b)
-
-	ok, t := st.Restarting()
-	c.Check(ok, Equals, false)
-	c.Check(t, Equals, state.RestartUnset)
-
-	st.RequestRestart(state.RestartDaemon)
-
-	c.Check(b.restartRequested, Equals, true)
-
-	ok, t = st.Restarting()
-	c.Check(ok, Equals, true)
-	c.Check(t, Equals, state.RestartDaemon)
-}
-
-func (ss *stateSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
-	b := new(fakeStateBackend)
-	st := state.New(b)
-
-	st.Lock()
-	err := st.VerifyReboot("boot-id-1")
-	st.Unlock()
-	c.Assert(err, IsNil)
-
-	ok, t := st.Restarting()
-	c.Check(ok, Equals, false)
-	c.Check(t, Equals, state.RestartUnset)
-
-	st.Lock()
-	st.RequestRestart(state.RestartSystem)
-	st.Unlock()
-
-	c.Check(b.restartRequested, Equals, true)
-
-	ok, t = st.Restarting()
-	c.Check(ok, Equals, true)
-	c.Check(t, Equals, state.RestartSystem)
-
-	var fromBootID string
-	st.Lock()
-	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), IsNil)
-	st.Unlock()
-	c.Check(fromBootID, Equals, "boot-id-1")
-
-	st.Lock()
-	err = st.VerifyReboot("boot-id-1")
-	st.Unlock()
-	c.Check(err, Equals, state.ErrExpectedReboot)
-
-	st.Lock()
-	err = st.VerifyReboot("boot-id-2")
-	st.Unlock()
-	c.Assert(err, IsNil)
-	st.Lock()
-	c.Check(st.Get("system-restart-from-boot-id", &fromBootID), Equals, state.ErrNoState)
-	st.Unlock()
 }
 
 func (ss *stateSuite) TestReadStateInitsCache(c *C) {

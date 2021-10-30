@@ -75,7 +75,8 @@ build_deb(){
         rm -rf vendor/*/*
     fi
 
-    su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    unshare -n -- \
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 }
@@ -117,7 +118,8 @@ build_rpm() {
     rm -rf "$rpm_dir"/BUILD/*
 
     # Build our source package
-    rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
+    unshare -n -- \
+            rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
 
     # .. and we need all necessary build dependencies available
     deps=()
@@ -131,11 +133,12 @@ build_rpm() {
     distro_install_package "${deps[@]}"
 
     # And now build our binary package
-    rpmbuild \
-        --with testkeys \
-        --nocheck \
-        -ba \
-        "$packaging_path/snapd.spec"
+    unshare -n -- \
+            rpmbuild \
+            --with testkeys \
+            --nocheck \
+            -ba \
+            "$packaging_path/snapd.spec"
 
     find "$rpm_dir"/RPMS -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
 }
@@ -177,7 +180,8 @@ build_arch_pkg() {
     mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
 
     chown -R test:test /tmp/pkg
-    su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
+    unshare -n -- \
+            su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
     # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
     # the package file name extension, keep it simple and try a glob instead
@@ -519,14 +523,9 @@ prepare_project() {
             ;;
     esac
 
-    # update vendoring
-    if [ -z "$(command -v govendor)" ]; then
-        rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
-        go get -u github.com/kardianos/govendor
-    fi
-    # Retry govendor sync to minimize the number of connection errors during the sync
+    # Retry go mod vendor to minimize the number of connection errors during the sync
     for _ in $(seq 10); do
-        if quiet govendor sync; then
+        if quiet go mod vendor; then
             break
         fi
         sleep 1
@@ -539,7 +538,7 @@ prepare_project() {
         sleep 1
     done
 
-    # govendor runs as root and will leave strange permissions
+    # go mod runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
     if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
@@ -613,6 +612,20 @@ prepare_suite() {
 prepare_suite_each() {
     local variant="$1"
 
+    # Create runtime files in case those don't exist
+    # This is for the first test of the suite. We cannot perform these operations in prepare_suite
+    # because not all suites are triggering it (for example the tools suite doesn't).
+    touch "$RUNTIME_STATE_PATH/runs"
+    touch "$RUNTIME_STATE_PATH/journalctl_cursor"
+
+    # Start fs monitor
+    "$TESTSTOOLS"/fs-state start-monitor
+
+    # Save all the installed packages
+    if os.query is-classic; then
+        tests.pkgs list-installed > installed-initial.pkgs
+    fi
+
     # back test directory to be restored during the restore
     tests.backup prepare
 
@@ -662,6 +675,19 @@ restore_suite_each() {
     # restore test directory saved during prepare
     tests.backup restore
 
+    # Save all the installed packages and remove the new packages installed 
+    if os.query is-classic; then
+        tests.pkgs list-installed > installed-final.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+
+        # shellcheck disable=SC2002
+        packages="$(cat installed-new.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs remove $packages
+        fi
+    fi
+
     # On Arch it seems that using sudo / su for working with the test user
     # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
     # cleans up itself sometime after the test but not instantly, leading to
@@ -690,6 +716,8 @@ restore_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    "$TESTSTOOLS"/fs-state check-monitor
 }
 
 restore_suite() {

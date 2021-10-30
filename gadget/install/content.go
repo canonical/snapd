@@ -66,7 +66,7 @@ func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget
 			return err
 		}
 	case ds.HasFilesystem():
-		if err := writeFilesystemContent(ds, gadgetRoot, observer); err != nil {
+		if err := writeFilesystemContent(ds, observer); err != nil {
 			return err
 		}
 	}
@@ -95,7 +95,7 @@ func mountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	return nil
 }
 
-func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentObserver) (err error) {
+func writeFilesystemContent(ds *gadget.OnDiskStructure, observer gadget.ContentObserver) (err error) {
 	mountpoint := filepath.Join(contentMountpoint, strconv.Itoa(ds.Index))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
