@@ -26,6 +26,16 @@ environment:
     NESTED_REPACK_BASE_SNAP: false
 
 prepare: |
+    # In this test it is needed to download the snapd for the image because by default
+    # the channel used for each snap is the one defined in the model.
+    EXTRA_SNAPS_PATH="$(tests.nested get extra-snaps-path)"
+    snap download --basename=pc-kernel --channel="20/$NESTED_KERNEL_CHANNEL" pc-kernel
+    snap download --basename=pc --channel="20/$NESTED_GADGET_CHANNEL" pc
+    snap download --basename=core20 --channel="$NESTED_BASE_CHANNEL" core20
+    mv pc-kernel.snap "$EXTRA_SNAPS_PATH"
+    mv pc.snap "$EXTRA_SNAPS_PATH"
+    mv core20.snap "$EXTRA_SNAPS_PATH"
+
     tests.nested build-image core
     tests.nested create-vm core
 
