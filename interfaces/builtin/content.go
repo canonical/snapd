@@ -226,13 +226,13 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # directory.
 `)
 		for i, w := range writePaths {
-			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
 				resolveSpecialVariable(w, slot.Snap()))
 			source, target := sourceTarget(plug, slot, w)
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
-			emit("  mount options=(bind, rw) %s/ -> %s{,-[0-9]*}/,\n", source, target)
-			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
-			emit("  umount %s{,-[0-9]*}/,\n", target)
+			emit("  mount options=(bind, rw) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
+			emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
+			emit("  umount \"%s{,-[0-9]*}/\",\n", target)
 			// TODO: The assumed prefix depth could be optimized to be more
 			// precise since content sharing can only take place in a fixed
 			// list of places with well-known paths (well, constrained set of
@@ -251,15 +251,15 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # read-only.
 `)
 		for i, r := range readPaths {
-			fmt.Fprintf(contentSnippet, "%s/** mrkix,\n",
+			fmt.Fprintf(contentSnippet, "\"%s/**\" mrkix,\n",
 				resolveSpecialVariable(r, slot.Snap()))
 
 			source, target := sourceTarget(plug, slot, r)
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
-			emit("  mount options=(bind) %s/ -> %s{,-[0-9]*}/,\n", source, target)
-			emit("  remount options=(bind, ro) %s{,-[0-9]*}/,\n", target)
-			emit("  mount options=(rprivate) -> %s{,-[0-9]*}/,\n", target)
-			emit("  umount %s{,-[0-9]*}/,\n", target)
+			emit("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
+			emit("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target)
+			emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
+			emit("  umount \"%s{,-[0-9]*}/\",\n", target)
 			// Look at the TODO comment above.
 			apparmor.GenWritableProfile(emit, source, 1)
 			apparmor.GenWritableProfile(emit, target, 1)
@@ -283,7 +283,7 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 `)
 		for _, w := range writePaths {
 			_, target := sourceTarget(plug, slot, w)
-			fmt.Fprintf(contentSnippet, "%s/** mrwklix,\n",
+			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
 				target)
 		}
 	}
