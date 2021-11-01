@@ -401,7 +401,6 @@ func (s *snapmgrTestSuite) TestUserFromUserID(c *C) {
 const (
 	unlinkBefore = 1 << iota
 	cleanupAfter
-	maybeCore
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
@@ -4335,7 +4334,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
-	verifyInstallTasks(c, runCoreConfigure|maybeCore, 0, tsl[0])
+	verifyInstallTasks(c, snap.TypeOS, runCoreConfigure, 0, tsl[0])
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
@@ -4898,7 +4897,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, HasLen, 1)
 	ts := state.NewTaskSet(chg.Tasks()...)
-	verifyInstallTasks(c, noConfigure, 0, ts)
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
 
 	// ensure preferences from the core snap got transferred over
 	var snapst snapstate.SnapState
@@ -6134,7 +6133,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyInstallTasks(c, updatesGadget, 0, ts)
+	verifyInstallTasks(c, snap.TypeGadget, 0, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
@@ -6158,7 +6157,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts)
+	verifyUpdateTasks(c, snap.TypeGadget, doesReRefresh, 0, ts)
 
 }
 
