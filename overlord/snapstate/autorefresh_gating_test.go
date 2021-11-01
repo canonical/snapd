@@ -1803,8 +1803,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"setup-aliases",
 		"run-hook [base-snap-b;post-refresh]",
 		"start-snap-services",
-		"cleanup",
 		"run-hook [base-snap-b;check-health]",
+		"cleanup",
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
@@ -1821,9 +1821,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"setup-aliases",
 		"run-hook [snap-a;post-refresh]",
 		"start-snap-services",
-		"cleanup",
 		"run-hook [snap-a;configure]",
 		"run-hook [snap-a;check-health]",
+		"cleanup",
 		"check-rerefresh",
 	}
 
@@ -1882,9 +1882,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 		"setup-aliases",
 		"run-hook [snap-a;post-refresh]",
 		"start-snap-services",
-		"cleanup",
 		"run-hook [snap-a;configure]",
 		"run-hook [snap-a;check-health]",
+		"cleanup",
 		"check-rerefresh",
 	}
 
@@ -1937,9 +1937,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
 		"setup-aliases",
 		"run-hook [snap-a;post-refresh]",
 		"start-snap-services",
-		"cleanup",
 		"run-hook [snap-a;configure]",
 		"run-hook [snap-a;check-health]",
+		"cleanup",
 		"check-rerefresh",
 	}
 
@@ -2170,8 +2170,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 		"setup-aliases",
 		"run-hook [base-snap-b;post-refresh]",
 		"start-snap-services",
-		"cleanup",
 		"run-hook [base-snap-b;check-health]",
+		"cleanup",
 		"check-rerefresh",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
@@ -2332,8 +2332,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		"setup-aliases",
 		"run-hook [base-snap-b;post-refresh]",
 		"start-snap-services",
-		"cleanup",
 		"run-hook [base-snap-b;check-health]",
+		"cleanup",
 		"check-rerefresh",
 	}
 	tasks := chg.Tasks()

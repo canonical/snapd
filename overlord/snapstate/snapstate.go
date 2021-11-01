@@ -232,10 +232,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapst.IsInstalled() && !snapst.Active {
 		return nil, fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
 	}
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		if inUseCheck == nil {
-			return nil, fmt.Errorf("internal error: doInstall: inUseCheck not provided for refresh")
-		}
+	if refreshing(snapst, snapsup) && inUseCheck == nil {
+		return nil, fmt.Errorf("internal error: doInstall: inUseCheck not provided for refresh")
 	}
 
 	if snapsup.Flags.Classic {
@@ -284,8 +282,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			}
 		}
 	}
-
-	ts := state.NewTaskSet()
 
 	targetRevision := snapsup.Revision()
 	revisionStr := ""
@@ -346,8 +342,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
-	runRefreshHooks := (snapst.IsInstalled() && !snapsup.Flags.Revert)
-	if runRefreshHooks {
+	if refreshing(snapst, snapsup) {
 		preRefreshHook := SetupPreRefreshHook(st, snapsup.InstanceName())
 		addTask(preRefreshHook)
 		prev = preRefreshHook
@@ -421,7 +416,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = bootConfigUpdate
 	}
 
-	if runRefreshHooks {
+	if refreshing(snapst, snapsup) {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.InstanceName())
 		addTask(postRefreshHook)
 		prev = postRefreshHook
@@ -440,8 +435,49 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(startSnapServices)
 	prev = startSnapServices
 
+	installSet := state.NewTaskSet(tasks...)
+	installSet.MarkEdge(prereq, BeginEdge)
+	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	if installHook != nil {
+		installSet.MarkEdge(installHook, HooksEdge)
+	}
+
+	ts := state.NewTaskSet()
+	if err := ts.AddAllWithEdges(installSet); err != nil {
+		return nil, err
+	}
+
+	if checkAsserts != nil {
+		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
+	}
+
+	if flags&skipConfigure != 0 {
+		return installSet, nil
+	}
+
+	// we do not support configuration for bases or the "snapd" snap yet
+	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
+		confFlags := 0
+		notCore := snapsup.InstanceName() != "core"
+		hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
+		if !snapst.IsInstalled() && hasSnapID && notCore {
+			// installation, run configure using the gadget defaults
+			// if available, system config defaults (attached to
+			// "core") are consumed only during seeding, via an
+			// explicit configure step separate from installing
+			confFlags |= UseConfigDefaults
+		}
+		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
+		configSet.WaitAll(ts)
+		ts.AddAll(configSet)
+	}
+
+	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
+	healthCheck.WaitAll(ts)
+	ts.AddTask(healthCheck)
+
 	// Do not do that if we are reverting to a local revision
-	if snapst.IsInstalled() && !snapsup.Flags.Revert {
+	if refreshing(snapst, snapsup) {
 		var retain int
 		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
 			// on classic we only keep 2 copies by default
@@ -463,13 +499,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		for i := currentIndex + 1; i < len(seq); i++ {
 			si := seq[i]
 			if si.Revision == targetRevision {
-				// but don't discard this one; its' the thing we're switching to!
+				// but don't discard this one; it's the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
-			ts.WaitFor(prev)
-			tasks = append(tasks, ts.Tasks()...)
-			prev = tasks[len(tasks)-1]
+			rmTs := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
+			rmTs.WaitAll(ts)
+			ts.AddAll(rmTs)
 		}
 
 		// make sure we're not scheduling the removal of the target
@@ -500,53 +535,21 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			if inUse(snapsup.InstanceName(), si.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
-			ts.WaitFor(prev)
-			tasks = append(tasks, ts.Tasks()...)
-			prev = tasks[len(tasks)-1]
+			rmTs := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
+			rmTs.WaitAll(ts)
+			ts.AddAll(rmTs)
 		}
 
-		addTask(st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr)))
+		cleanTask := st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr))
+		cleanTask.WaitAll(ts)
+		ts.AddTask(cleanTask)
 	}
-
-	installSet := state.NewTaskSet(tasks...)
-	installSet.WaitAll(ts)
-	installSet.MarkEdge(prereq, BeginEdge)
-	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
-	if installHook != nil {
-		installSet.MarkEdge(installHook, HooksEdge)
-	}
-	ts.AddAllWithEdges(installSet)
-	if checkAsserts != nil {
-		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
-	}
-
-	if flags&skipConfigure != 0 {
-		return installSet, nil
-	}
-
-	// we do not support configuration for bases or the "snapd" snap yet
-	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
-		confFlags := 0
-		notCore := snapsup.InstanceName() != "core"
-		hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
-		if !snapst.IsInstalled() && hasSnapID && notCore {
-			// installation, run configure using the gadget defaults
-			// if available, system config defaults (attached to
-			// "core") are consumed only during seeding, via an
-			// explicit configure step separate from installing
-			confFlags |= UseConfigDefaults
-		}
-		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
-		configSet.WaitAll(ts)
-		ts.AddAll(configSet)
-	}
-
-	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
-	healthCheck.WaitAll(ts)
-	ts.AddTask(healthCheck)
 
 	return ts, nil
+}
+
+func refreshing(snapst *SnapState, snapsup *SnapSetup) bool {
+	return snapst.IsInstalled() && !snapsup.Revert
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.

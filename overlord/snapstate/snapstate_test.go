@@ -6155,7 +6155,6 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
-
 }
 
 func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {

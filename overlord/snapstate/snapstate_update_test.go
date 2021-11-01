@@ -96,6 +96,10 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"start-snap-services")
 
 	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run post-refresh hook of .*`)
+	expected = append(expected,
+		"run-hook[configure]",
+		"run-hook[check-health]",
+	)
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -107,14 +111,9 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 			"cleanup",
 		)
 	}
-	expected = append(expected,
-		"run-hook[configure]",
-		"run-hook[check-health]",
-	)
 	if opts&doesReRefresh != 0 {
 		expected = append(expected, "check-rerefresh")
 	}
-
 	c.Assert(kinds, DeepEquals, expected)
 }
 
@@ -301,13 +300,13 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	var snapsup snapstate.SnapSetup
 	tasks := ts.Tasks()
 
-	i := len(tasks) - 8
+	i := len(tasks) - 6
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Revision(), Equals, si3.Revision)
 
-	i = len(tasks) - 6
+	i = len(tasks) - 4
 	c.Check(tasks[i].Kind(), Equals, "clear-snap")
 	err = tasks[i].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
@@ -5650,8 +5649,9 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
-cleanup: Hold
-run-hook: Hold`)
+run-hook: Hold
+run-hook: Hold
+cleanup: Hold`)
 	c.Check(errSig, Matches, `(?sm)snap-install:
 prerequisites: Undo
  snap-setup: "some-snap"
@@ -5666,8 +5666,9 @@ set-auto-aliases: Hold
 setup-aliases: Hold
 run-hook: Hold
 start-snap-services: Hold
-cleanup: Hold
-run-hook: Hold`)
+run-hook: Hold
+run-hook: Hold
+cleanup: Hold`)
 
 	// run again with empty "ubuntu-core-transition-retry"
 	s.state.Set("ubuntu-core-transition-retry", 0)
