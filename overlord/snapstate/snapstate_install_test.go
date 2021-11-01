@@ -21,12 +21,14 @@ package snapstate_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -4313,4 +4315,91 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Sequence, DeepEquals, seq)
+}
+func (s *snapmgrTestSuite) TestUndoInstallWithSameRev(c *C) {
+	// different paths to install a revision already stored in the state
+	installFuncs := []installFn{
+		func(si *snap.SideInfo) (*state.TaskSet, error) {
+			yaml := "name: some-snap\nversion: 1.0\nepoch: 1*"
+			path := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+			ts, _, err := snapstate.InstallPath(s.state, si, path, "some-snap", "", snapstate.Flags{})
+			return ts, err
+		}, func(si *snap.SideInfo) (*state.TaskSet, error) {
+			return snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: si.Revision}, s.user.ID, snapstate.Flags{})
+		},
+	}
+
+	for _, fn := range installFuncs {
+		s.testUndoInstallWithSameRev(c, fn)
+	}
+}
+
+func (s *snapmgrTestSuite) testUndoInstallWithSameRev(c *C, installFn installFn) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// mocks a failing last task
+	s.o.TaskRunner().AddHandler("test-fail", func(task *state.Task, tomb *tomb.Tomb) error {
+		return errors.New("expected: test failure")
+	}, nil)
+
+	// add two revisions, mock the snapstate.Configure to fail, check it failed before and works now
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(2),
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/stable",
+		Sequence: []*snap.SideInfo{
+			{
+				RealName: "some-snap",
+				SnapID:   "some-snap-id",
+				Revision: snap.R(1),
+			},
+			si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	ts, err := installFn(si)
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+
+	chg := s.state.NewChange("install", "install a snap")
+	chg.AddAll(ts)
+
+	// mock a hook failure at the end of the end install
+	hookTask := findLastTask(chg, "run-hook")
+	c.Assert(hookTask, NotNil)
+	failTask := s.state.NewTask("test-fail", "")
+	failTask.WaitFor(hookTask)
+
+	chg.AddTask(failTask)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure all our tasks ran
+	c.Assert(chg.Err(), NotNil)
+	c.Assert(chg.IsReady(), Equals, true)
+}
+
+func findLastTask(chg *state.Change, kind string) *state.Task {
+	ts := chg.Tasks()
+	for i := len(ts) - 1; i >= 0; i-- {
+		t := ts[i]
+		if t.Kind() == kind {
+			return t
+		}
+	}
+
+	return nil
 }
