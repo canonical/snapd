@@ -170,7 +170,7 @@ backends:
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
         halt-timeout: 2h
-        cpu-family: 'Intel Cascade Lake'
+        cpu-family: "Intel Cascade Lake"
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
