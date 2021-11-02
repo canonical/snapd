@@ -194,7 +194,22 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["content-plug"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "content interface target path is not clean:.*")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "content interface path is not clean:.*")
+}
+
+func (s *ContentSuite) TestSanitizePlugApparmorInterpretedChar(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  content: mycont
+  target: foo"bar
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`content interface path is invalid: "foo\\"bar" contains a reserved apparmor char.*`)
 }
 
 func (s *ContentSuite) TestSanitizePlugNilAttrMap(c *C) {
@@ -221,6 +236,22 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content"]
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
+}
+
+func (s *ContentSuite) TestSanitizeSlotApparmorInterpretedChar(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-plug:
+  interface: content
+  source:
+   read: [$SNAP/shared]
+   write: ["$SNAP_DATA/foo}bar"]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["content-plug"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`content interface path is invalid: "\$SNAP_DATA/foo}bar" contains a reserved apparmor char.*`)
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {

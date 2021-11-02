@@ -70,6 +70,16 @@ func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
 }
 
+func validatePath(path string) error {
+	if err := apparmor.ValidateNoAppArmorRegexp(path); err != nil {
+		return fmt.Errorf("content interface path is invalid: %v", err)
+	}
+	if ok := cleanSubPath(path); !ok {
+		return fmt.Errorf("content interface path is not clean: %q", path)
+	}
+	return nil
+}
+
 func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	content, ok := slot.Attrs["content"].(string)
 	if !ok || len(content) == 0 {
@@ -104,8 +114,8 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	paths := rpath
 	paths = append(paths, wpath...)
 	for _, p := range paths {
-		if !cleanSubPath(p) {
-			return fmt.Errorf("content interface path is not clean: %q", p)
+		if err := validatePath(p); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -124,8 +134,8 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if !cleanSubPath(target) {
-		return fmt.Errorf("content interface target path is not clean: %q", target)
+	if err := validatePath(target); err != nil {
+		return err
 	}
 
 	return nil
