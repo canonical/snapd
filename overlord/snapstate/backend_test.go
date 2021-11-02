@@ -377,6 +377,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "kernel-id":
 		name = "kernel"
 		typ = snap.TypeKernel
+	case "brand-kernel-id":
+		name = "brand-kernel"
+		typ = snap.TypeKernel
 	case "brand-gadget-id":
 		name = "brand-gadget"
 		typ = snap.TypeGadget
