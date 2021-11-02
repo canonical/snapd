@@ -294,6 +294,7 @@ var (
 		newGrub,
 		newAndroidBoot,
 		newLk,
+		newPiboot,
 	}
 )
 
