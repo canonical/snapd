@@ -75,10 +75,11 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 			"unlink-current-snap",
 		)
 	}
+	if opts&(updatesGadget|updatesGadgetAssets) != 0 {
+		expected = append(expected, "update-gadget-assets")
+	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected,
-			"update-gadget-assets",
-			"update-gadget-cmdline")
+		expected = append(expected, "update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -94,8 +95,6 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		"setup-aliases",
 		"run-hook[post-refresh]",
 		"start-snap-services")
-
-	c.Assert(ts.Tasks()[len(expected)-2].Summary(), Matches, `Run post-refresh hook of .*`)
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
