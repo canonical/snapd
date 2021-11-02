@@ -6830,7 +6830,30 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 	})
 }
 
+var nonReLinkKinds = []string{
+	"copy-snap-data",
+	"setup-profiles",
+	"auto-connect",
+	"set-auto-aliases",
+	"setup-aliases",
+	"run-hook[install]",
+	"start-snap-services",
+	"run-hook[configure]",
+	"run-hook[check-health]",
+}
+
+func kindsToSet(kinds []string) map[string]bool {
+	s := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		s[k] = true
+	}
+	return s
+}
+
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6839,6 +6862,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
 	tUpdateGadgetAssets := tasks[1]
@@ -6856,6 +6880,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base")
 	c.Assert(err, IsNil)
 	tasks = ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	c.Assert(tasks, HasLen, 2)
 	tPrepare = tasks[0]
 	tLink = tasks[1]
@@ -6867,6 +6892,9 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6890,6 +6918,9 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6909,6 +6940,7 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + dummy task + update-gadget-assets + link-snap
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]
@@ -6942,6 +6974,7 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks = tsNew.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	// since this is the base, we have our task + link-snap only
 	c.Assert(tasks, HasLen, 2)
 	tLink = tasks[1]
@@ -6959,6 +6992,9 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6967,6 +7003,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	ts, err := snapstate.SwitchToNewGadget(s.state, "some-gadget")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
 	tUpdateGadgetAssets := tasks[1]
@@ -6983,6 +7020,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7008,6 +7048,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7026,6 +7069,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
 	// since this is the gadget, we have our task + dummy task + update assets + update cmdline
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]

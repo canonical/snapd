@@ -56,7 +56,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func expectedDoInstallTasks(typ snap.Type, opts, discards int) []string {
+func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []string, filterOut map[string]bool) []string {
 	if !release.OnClassic {
 		switch typ {
 		case snap.TypeGadget:
@@ -67,12 +67,15 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int) []string {
 			opts |= updatesBootConfig
 		}
 	}
-	expected := []string{
-		"prerequisites",
-		"download-snap",
-		"validate-snap",
-		"mount-snap",
+	if startTasks == nil {
+		startTasks = []string{
+			"prerequisites",
+			"download-snap",
+			"validate-snap",
+			"mount-snap",
+		}
 	}
+	expected := startTasks
 	if opts&unlinkBefore != 0 {
 		expected = append(expected,
 			"run-hook[pre-refresh]",
@@ -125,13 +128,20 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int) []string {
 		"run-hook[check-health]",
 	)
 
-	return expected
+	filtered := make([]string, 0, len(expected))
+	for _, k := range expected {
+		if !filterOut[k] {
+			filtered = append(filtered, k)
+		}
+	}
+
+	return filtered
 }
 
 func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSet) {
 	kinds := taskKinds(ts.Tasks())
 
-	expected := expectedDoInstallTasks(typ, opts, discards)
+	expected := expectedDoInstallTasks(typ, opts, discards, nil, nil)
 
 	c.Assert(kinds, DeepEquals, expected)
 }
