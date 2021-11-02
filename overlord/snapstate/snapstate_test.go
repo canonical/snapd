@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -68,7 +68,7 @@ import (
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
-type snapmgrTestSuite struct {
+type snapmgrBaseTest struct {
 	testutil.BaseTest
 	o       *overlord.Overlord
 	state   *state.State
@@ -85,16 +85,14 @@ type snapmgrTestSuite struct {
 	user3 *auth.UserState
 }
 
-func (s *snapmgrTestSuite) settle(c *C) {
+func (s *snapmgrBaseTest) settle(c *C) {
 	err := s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
 	c.Assert(err, IsNil)
 }
 
-var _ = Suite(&snapmgrTestSuite{})
-
 var fakeRevDateEpoch = time.Date(2018, 1, 0, 0, 0, 0, 0, time.UTC)
 
-func (s *snapmgrTestSuite) SetUpTest(c *C) {
+func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
@@ -245,7 +243,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}))
 }
 
-func (s *snapmgrTestSuite) TearDownTest(c *C) {
+func (s *snapmgrBaseTest) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
@@ -299,6 +297,12 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	}, nil)
 
 }
+
+type snapmgrTestSuite struct {
+	snapmgrBaseTest
+}
+
+var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 	snapst := snapstate.SnapState{
