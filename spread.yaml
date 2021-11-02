@@ -461,7 +461,7 @@ debug-each: |
         "$TESTSTOOLS"/journal-state get-log -u snapd
 
         echo '# user sessions information'
-        journalctl --user -u snapd.session-agent.service
+        journalctl --user -u snapd.session-agent.service || true
         systemctl status --user snapd.session-agent  || true
 
         if ! is_cgroupv2; then
