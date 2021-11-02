@@ -15,6 +15,7 @@ environment:
     PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
+    TESTSTMP: /var/tmp/snapd-tools
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
@@ -35,7 +36,8 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
     # a global setting for LXD channel to use in the tests
-    LXD_SNAP_CHANNEL: "latest/candidate"
+    LXD_SNAP_CHANNEL: "latest/edge"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -114,10 +116,9 @@ backends:
                   storage: 12G
                   workers: 8
 
-            - debian-9-64:
-                  workers: 6
-                  manual: true
             - debian-10-64:
+                  workers: 6
+            - debian-11-64:
                   workers: 6
             - debian-sid-64:
                   workers: 6
@@ -462,6 +463,9 @@ debug-each: |
                 echo "# device cgroup $cgroup_dev"
                 cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
             fi
+        else
+            echo "# snap confinement device filtering maps"
+            ls -l /sys/fs/bpf/snap || true
         fi
 
         case "$SPREAD_SYSTEM" in
@@ -895,7 +899,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -930,7 +934,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -969,7 +973,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb

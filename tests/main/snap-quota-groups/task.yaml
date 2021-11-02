@@ -16,7 +16,8 @@ systems:
   - -ubuntu-core-16-*
 
 prepare: |
-  snap install go-example-webserver jq remarshal http hello-world
+  snap install go-example-webserver jq remarshal hello-world
+  snap install test-snapd-curl --edge --devmode
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
@@ -80,7 +81,7 @@ execute: |
       exit 1
   fi
 
-  snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-one | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-one | jq -r '.result.current.memory')"
   kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
   pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
@@ -168,7 +169,7 @@ execute: |
   # in reporting it's memory usage on old systemd versions
   snap set-quota group-five --memory=10MB --parent=group-four hello-world
 
-  snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-five | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-five | jq -r '.result.current.memory')"
   # both 0 and 4096 values are expected here, 0 is for older systemd/kernels 
   # where an empty cgroup has exactly 0, but on newer systems there is some 
   # minimum amount of accounting memory for an empty cgroup, so it shows up as 
@@ -178,7 +179,7 @@ execute: |
     exit 1
   fi
 
-  snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-four | jq -r '.result.current.memory')"
+  snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-four | jq -r '.result.current.memory')"
   if [ "$snapdSaysMemUsage" != null ] && [ "$snapdSaysMemUsage" != 0 ] && [ "$snapdSaysMemUsage" != 4096 ] ; then
     echo "unexpected memory usage for empty quota group group-four, snapd says: $snapdSaysMemUsage"
     exit 1

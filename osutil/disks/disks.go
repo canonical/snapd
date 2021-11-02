@@ -76,6 +76,10 @@ type Disk interface {
 	// does not have partitions for example.
 	HasPartitions() bool
 
+	// DiskID returns the partition table ID, which is either a hexadecimal
+	// number for DOS disks, or a UUID for GPT disks.
+	DiskID() string
+
 	// Partitions returns all partitions found on a physical disk device. Note
 	// that this method, and all others that require discovering partitions on
 	// the disk, caches the partitions once first found and does not re-discover
@@ -89,6 +93,36 @@ type Disk interface {
 	// KernelDevicePath returns the full device path in /sys/devices for the
 	// disk such as /sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/.
 	KernelDevicePath() string
+
+	// Schema returns the schema for the disk, either DOS or GPT in lowercase.
+	Schema() string
+
+	// SectorSize returns the sector size for the disk in bytes, usually 512,
+	// sometimes 4096, possibly even 8196 some day.
+	// TODO: make this return a quantity.Size when that is doable without
+	// importing gadget
+	SectorSize() (uint64, error)
+
+	// SizeInBytes returns the overall size of the disk in bytes. Not all of the
+	// bytes may be usable for partitions, as some space on disks is reserved
+	// for metadata such as the MBR on DOS disks or the GPT headers (and backup)
+	// on GPT disks.
+	// TODO: make this return a quantity.Size when that is doable without
+	// importing gadget
+	SizeInBytes() (uint64, error)
+
+	// UsableSectorsEnd returns the exclusive end of usable sectors on the disk
+	// where partitions may occupy and be created. Specifically, the end is not
+	// itself usable, it is the region immediately after usable space; this sort
+	// of measurement is used when partitioning disks to indicate where a given
+	// partition ends.
+	// The sector unit is the in the native size for the disk, either 512 or
+	// 4096 bytes typically.
+	// This measurement is distinct from the size of the disk, though for some
+	// disks, this measurement may be the size of the disk in sectors - this is
+	// the case for DOS disks, but not for GPT disks. GPT disks have a backup
+	// header section at the end of the disk that is not usable for partitions.
+	UsableSectorsEnd() (uint64, error)
 }
 
 // Partition represents a partition on a Disk device.

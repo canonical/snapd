@@ -631,6 +631,7 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 sbuild
                 schroot
+                systemd-timesyncd
                 "
             ;;
     esac
@@ -638,6 +639,7 @@ pkg_dependencies_ubuntu_classic(){
         debian-11-*|debian-sid-*)
             echo "
                  bpftool
+                 strace
                  "
             ;;
     esac
