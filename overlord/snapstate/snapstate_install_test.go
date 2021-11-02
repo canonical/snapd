@@ -3708,7 +3708,7 @@ func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 }
 
 type validationSetsSuite struct {
-	snapmgrTestSuite
+	snapmgrBaseTest
 	storeSigning *assertstest.StoreStack
 	dev1acct     *asserts.Account
 	acct1Key     *asserts.AccountKey
@@ -3718,7 +3718,7 @@ type validationSetsSuite struct {
 var _ = Suite(&validationSetsSuite{})
 
 func (s *validationSetsSuite) SetUpTest(c *C) {
-	s.snapmgrTestSuite.SetUpTest(c)
+	s.snapmgrBaseTest.SetUpTest(c)
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")

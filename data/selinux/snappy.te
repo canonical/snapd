@@ -591,6 +591,7 @@ init_read_state(snappy_confine_t)
 
 # libudev
 udev_manage_pid_dirs(snappy_confine_t)
+udev_read_db(snappy_confine_t)
 
 # basic access to system info in /proc
 kernel_read_system_state(snappy_confine_t)

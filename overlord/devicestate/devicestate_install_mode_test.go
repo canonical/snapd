@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -1558,4 +1559,65 @@ mock output of: snap debug timings --ensure=install-system
 		{"snap", "debug", "timings", "--ensure=seed"},
 		{"snap", "debug", "timings", "--ensure=install-system"},
 	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockHappy(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+	// a month old timestamp file
+	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
+
+	s.mockInstallModeChange(c, "dangerous", "")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// installation was successful
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+
+	clockTsInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/clock")
+	fi, err := os.Stat(clockTsInDst)
+	c.Assert(err, IsNil)
+	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
+	c.Check(fi.Size(), Equals, int64(0))
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+
+	timesyncDirInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/")
+	c.Assert(os.MkdirAll(timesyncDirInDst, 0755), IsNil)
+	c.Assert(os.Chmod(timesyncDirInDst, 0000), IsNil)
+	defer os.Chmod(timesyncDirInDst, 0755)
+
+	s.mockInstallModeChange(c, "dangerous", "")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// install failed copying the timestamp
+	c.Check(installSystem.Err(), ErrorMatches, `(?s).*\(cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
+	c.Check(installSystem.Status(), Equals, state.ErrorStatus)
 }

@@ -68,6 +68,49 @@ nested_wait_for_snap_command() {
     done
 }
 
+nested_check_unit_stays_active() {
+    local nested_unit="${1:-$NESTED_VM}"
+    local retry=${2:-5}
+    local wait=${3:-1}
+
+    while [ "$retry" -ge 0 ]; do
+        retry=$(( retry - 1 ))
+
+        if ! systemctl is-active "$nested_unit"; then
+            echo "Unit $nested_unit is not active. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
+
+nested_check_boot_errors() {
+    # Check if the service started and it is running without errors
+    if nested_is_core_20_system && ! nested_check_unit_stays_active "$NESTED_VM" 15 1; then
+        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
+        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
+        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
+        if nested_status_vm | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
+            return 1
+        fi
+    fi
+}
+
+nested_retry_start_with_boot_errors() {
+    local retry=3
+    while [ "$retry" -ge 0 ]; do
+        retry=$(( retry - 1 ))
+        if ! nested_check_boot_errors; then
+            nested_restart
+        else
+            return 0
+        fi
+    done
+
+    echo "VM failing to boot, aborting!"
+    return 1
+}
+
 nested_get_boot_id() {
     nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -1035,6 +1078,9 @@ nested_start_core_vm_unit() {
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
 
+    # make sure the service started and it is running
+    nested_retry_start_with_boot_errors
+
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
 
@@ -1140,6 +1186,12 @@ nested_start() {
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
     nested_prepare_tools
+}
+
+nested_restart() {
+    nested_force_stop_vm
+    nested_force_start_vm
+    wait_for_service "$NESTED_VM" active
 }
 
 nested_create_classic_vm() {
