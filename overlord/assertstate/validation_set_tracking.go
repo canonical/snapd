@@ -197,6 +197,12 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 	if err != nil {
 		return err
 	}
+
+	// if nothing is being tracked and history is empty (meaning nothing was
+	// tracked before, then don't store anything.
+	// if nothing is being tracked but history is not empty, then we want to
+	// store empty tracking - this means snap validate --forget was used and
+	// we need to remember such empty state in the history.
 	if len(currentTracking) == 0 && len(vshist) == 0 {
 		return nil
 	}
@@ -209,11 +215,7 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 			matches = true
 			for vskey, tr := range currentTracking {
 				prev, ok := top[vskey]
-				if !ok {
-					matches = false
-					break
-				}
-				if !prev.sameAs(tr) {
+				if !ok || !prev.sameAs(tr) {
 					matches = false
 					break
 				}
@@ -230,9 +232,9 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 	return nil
 }
 
-// ValidationSetsHistoryTop returns the topmost validation sets tracking state from
+// validationSetsHistoryTop returns the topmost validation sets tracking state from
 // the validations sets tracking history.
-func ValidationSetsHistoryTop(st *state.State) (map[string]*ValidationSetTracking, error) {
+func validationSetsHistoryTop(st *state.State) (map[string]*ValidationSetTracking, error) {
 	var vshist []*json.RawMessage
 	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
 		return nil, err
