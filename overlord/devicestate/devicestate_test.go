@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -90,7 +91,7 @@ type deviceMgrBaseSuite struct {
 
 	ancillary []asserts.Assertion
 
-	restartRequests []state.RestartType
+	restartRequests []restart.RestartType
 	restartObserve  func()
 
 	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
@@ -158,15 +159,15 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
-	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
-	})
-	s.state = s.o.State()
-	s.state.Lock()
-	s.state.VerifyReboot("boot-id-0")
+	}))
 	s.state.Unlock()
 	s.se = s.o.StateEngine()
 

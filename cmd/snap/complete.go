@@ -202,7 +202,7 @@ func (s keyName) Complete(match string) []flags.Completion {
 }
 
 type disconnectSlotOrPlugSpec struct {
-	SnapAndName
+	SnapAndNameStrict
 }
 
 func (dps disconnectSlotOrPlugSpec) Complete(match string) []flags.Completion {
@@ -217,7 +217,7 @@ func (dps disconnectSlotOrPlugSpec) Complete(match string) []flags.Completion {
 }
 
 type disconnectSlotSpec struct {
-	SnapAndName
+	SnapAndNameStrict
 }
 
 // TODO: look at what the previous arg is, and filter accordingly

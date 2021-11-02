@@ -32,7 +32,12 @@ type SnapAndName struct {
 	Name string
 }
 
-// UnmarshalFlag unmarshals snap and plug or slot name.
+// UnmarshalFlag unmarshals the snap and plug or slot name. The following
+// combinations are allowed:
+// * <snap>:<plug/slot>
+// * <snap>
+// * :<plug/slot>
+// Every other combination results in an error.
 func (sn *SnapAndName) UnmarshalFlag(value string) error {
 	parts := strings.Split(value, ":")
 	sn.Snap = ""
@@ -51,5 +56,31 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 	if sn.Snap == "" && sn.Name == "" {
 		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or snap)"), value)
 	}
+	return nil
+}
+
+// SnapAndNameStrict holds a plug or slot name and, optionally, a snap name.
+// The following combinations are allowed:
+// * <snap>:<plug/slot>
+// * :<plug/slot>
+// Every other combination results in an error.
+type SnapAndNameStrict struct {
+	SnapAndName
+}
+
+// UnmarshalFlag unmarshals the snap and plug or slot name. The following
+// combinations are allowed:
+// * <snap>:<plug/slot>
+// * :<plug/slot>
+// Every other combination results in an error.
+func (sn *SnapAndNameStrict) UnmarshalFlag(value string) error {
+	sn.Snap, sn.Name = "", ""
+
+	parts := strings.Split(value, ":")
+	if len(parts) != 2 || parts[1] == "" {
+		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or :name)"), value)
+	}
+
+	sn.Snap, sn.Name = parts[0], parts[1]
 	return nil
 }
