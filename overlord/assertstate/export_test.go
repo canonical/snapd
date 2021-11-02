@@ -21,7 +21,7 @@ package assertstate
 
 // expose for testing
 var (
-	DoFetch = doFetch
+	DoFetch                  = doFetch
 	ValidationSetsHistoryTop = validationSetsHistoryTop
 )
 
