@@ -192,7 +192,7 @@ func AddCurrentTrackingToValidationSetsHistory(st *state.State) error {
 	return addToValidationSetsHistory(st, all)
 }
 
-func addToValidationSetsHistory(st *state.State, currentTracking map[string]*ValidationSetTracking) error {
+func addToValidationSetsHistory(st *state.State, validationSets map[string]*ValidationSetTracking) error {
 	vshist, err := ValidationSetsHistory(st)
 	if err != nil {
 		return err
@@ -203,7 +203,7 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 	// if nothing is being tracked but history is not empty, then we want to
 	// store empty tracking - this means snap validate --forget was used and
 	// we need to remember such empty state in the history.
-	if len(currentTracking) == 0 && len(vshist) == 0 {
+	if len(validationSets) == 0 && len(vshist) == 0 {
 		return nil
 	}
 
@@ -211,11 +211,11 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 	if len(vshist) > 0 {
 		// only add to the history if it's different than topmost entry
 		top := vshist[len(vshist)-1]
-		if len(top) == len(currentTracking) {
+		if len(top) == len(validationSets) {
 			matches = true
-			for vskey, tr := range currentTracking {
+			for vskey, vset := range validationSets {
 				prev, ok := top[vskey]
-				if !ok || !prev.sameAs(tr) {
+				if !ok || !prev.sameAs(vset) {
 					matches = false
 					break
 				}
@@ -223,7 +223,7 @@ func addToValidationSetsHistory(st *state.State, currentTracking map[string]*Val
 		}
 	}
 	if !matches {
-		vshist = append(vshist, currentTracking)
+		vshist = append(vshist, validationSets)
 	}
 	if len(vshist) > maxValidationSetsHistorySize {
 		vshist = vshist[len(vshist)-maxValidationSetsHistorySize:]
