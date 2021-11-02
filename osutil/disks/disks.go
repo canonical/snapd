@@ -76,6 +76,10 @@ type Disk interface {
 	// does not have partitions for example.
 	HasPartitions() bool
 
+	// DiskID returns the partition table ID, which is either a hexadecimal
+	// number for DOS disks, or a UUID for GPT disks.
+	DiskID() string
+
 	// Partitions returns all partitions found on a physical disk device. Note
 	// that this method, and all others that require discovering partitions on
 	// the disk, caches the partitions once first found and does not re-discover
@@ -89,6 +93,29 @@ type Disk interface {
 	// KernelDevicePath returns the full device path in /sys/devices for the
 	// disk such as /sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/.
 	KernelDevicePath() string
+
+	// Schema returns the schema for the disk, either DOS or GPT in lowercase.
+	Schema() string
+
+	// SectorSize returns the sector size for the disk in bytes, usually 512,
+	// sometimes 4096, possibly even 8196 some day.
+	// TODO: make this return a quantity.Size when that is doable without
+	// importing gadget
+	SectorSize() (uint64, error)
+
+	// LastUsableByte returns the last byte on the disk that a partition can
+	// exist. This is distinct from the "size" of a disk, since for example on a
+	// GPT disk, there is a backup of the GPT headers at the end of the disk,
+	// and these sectors where the backup is located are not usable for creating
+	// a partition at the end of the disk. For DOS, the last usable byte is
+	// indeed the same as the physical size of the disk, but GPT has the backup
+	// headers so this will be smaller than the physical size of the disk. For
+	// GPT disks, this is determined using sfdisk, and as such is not usable in
+	// the UC20 initrd which lacks this tool, though DOS disks use blockdev
+	// which is available in the initrd.
+	// TODO: make this return a quantity.Size when that is doable without
+	// importing gadget
+	LastUsableByte() (uint64, error)
 }
 
 // Partition represents a partition on a Disk device.
