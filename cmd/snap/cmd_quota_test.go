@@ -497,3 +497,48 @@ func (s *quotaSuite) TestNoQuotaGroups(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "No quota groups defined.\n")
 }
+
+func (s *quotaSuite) TestMemoryDisabledQuotaGroups(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	_memoryCGroupFunc := main.MemoryCGroupFunc
+	defer func() {
+		main.MemoryCGroupFunc = _memoryCGroupFunc
+	}()
+
+	main.MemoryCGroupFunc = func() ([]string, error) {
+		return []string{"memory", "0", "77", "0"}, nil
+	}
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
+		`{"type": "sync", "status-code": 200, "result": []}`))
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
+	c.Assert(err, check.NotNil)
+	c.Check(rest, check.HasLen, 1) // not consumed
+	c.Check(err.Error(), check.Equals, "memory cgroup disabled on this system")
+}
+
+func (s *quotaSuite) TestMemoryEnabledQuotaGroups(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	_memoryCGroupFunc := main.MemoryCGroupFunc
+	defer func() {
+		main.MemoryCGroupFunc = _memoryCGroupFunc
+	}()
+
+	main.MemoryCGroupFunc = func() ([]string, error) {
+		return []string{"memory", "0", "77", "1"}, nil
+	}
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
+		`{"type": "sync", "status-code": 200, "result": []}`))
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "No quota groups defined.\n")
+}

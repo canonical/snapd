@@ -21,7 +21,9 @@ package main
 
 import (
 	"fmt"
+	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -108,6 +110,11 @@ type cmdSetQuota struct {
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {
+	errCgroupCheck := checkMemoryGroupStatus()
+	if errCgroupCheck != nil {
+		return errCgroupCheck
+	}
+
 	var maxMemory string
 	switch {
 	case x.MemoryMax != "":
@@ -206,8 +213,14 @@ type cmdQuota struct {
 }
 
 func (x *cmdQuota) Execute(args []string) (err error) {
+	fmt.Println("Burak")
 	if len(args) != 0 {
 		return fmt.Errorf("too many arguments provided")
+	}
+
+	errCgroupCheck := checkMemoryGroupStatus()
+	if errCgroupCheck != nil {
+		return errCgroupCheck
 	}
 
 	group, err := x.client.GetQuotaGroup(x.Positional.GroupName)
@@ -269,6 +282,11 @@ type cmdRemoveQuota struct {
 }
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
+	errCgroupCheck := checkMemoryGroupStatus()
+	if errCgroupCheck != nil {
+		return errCgroupCheck
+	}
+
 	chgID, err := x.client.RemoveQuotaGroup(x.Positional.GroupName)
 	if err != nil {
 		return err
@@ -289,6 +307,12 @@ type cmdQuotas struct {
 }
 
 func (x *cmdQuotas) Execute(args []string) (err error) {
+
+	errCgroupCheck := checkMemoryGroupStatus()
+	if errCgroupCheck != nil {
+		return errCgroupCheck
+	}
+
 	res, err := x.client.Quotas()
 	if err != nil {
 		return err
@@ -376,4 +400,47 @@ func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(
 		return nil
 	}
 	return processGroups(roots)
+}
+
+var MemoryCGroupFunc = getMemoryCGroupOutput
+
+func getMemoryCGroupOutput() ([]string, error) {
+	grep := exec.Command("grep", "memory")
+	catCgroups := exec.Command("cat", "/proc/cgroups")
+	pipe, errCgroups := catCgroups.StdoutPipe()
+	if errCgroups != nil {
+		return nil, fmt.Errorf("internal error: cannot retrieve control groups info")
+	}
+
+	defer pipe.Close()
+	grep.Stdin = pipe
+	catCgroups.Start()
+	memoryInfoBytes, errMemoryCheck := grep.Output()
+	if errMemoryCheck != nil {
+		return nil, fmt.Errorf("internal error: cannot retrieve memory control group info")
+	}
+	return strings.Fields(string(memoryInfoBytes)), nil
+
+}
+
+//	since the control groups can be enabled/disabled without the kernel config the only
+//	way to identify the status of memory control groups is via /proc/cgroups
+//	"cat /proc/cgroups | grep memory" returns the active status of memory control group
+//	and the 3rd parameter is the status
+//	0 => false => disabled 1 => true => enabled
+func checkMemoryGroupStatus() error {
+	parsedLine, errCGroupOutput := MemoryCGroupFunc()
+	if errCGroupOutput != nil {
+		return errCGroupOutput
+	}
+	isMemoryEnabled, errParseValue := strconv.ParseBool(parsedLine[3])
+	if errParseValue != nil {
+		return fmt.Errorf("internal error: cannot parse memory control group status")
+	}
+
+	if !isMemoryEnabled {
+		return fmt.Errorf("memory cgroup disabled on this system")
+	}
+
+	return nil
 }
