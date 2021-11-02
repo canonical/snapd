@@ -876,6 +876,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	for i := 0; i < 10; i++ {
 		_, readInfoErr = readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
 		if readInfoErr == nil {
+			logger.Debugf("snap %q (%v) available at %q", snapsup.InstanceName(), snapsup.Revision(), snapsup.placeInfo().MountDir())
 			break
 		}
 		if _, ok := readInfoErr.(*snap.NotFoundError); !ok {
