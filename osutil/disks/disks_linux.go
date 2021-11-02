@@ -22,6 +22,7 @@ package disks
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -115,7 +116,21 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
+type errNonPhysicalDisk struct {
+	err string
+}
+
+func (e errNonPhysicalDisk) Error() string { return e.err }
+
 func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
+	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
+	// the disk, so check for that first and if it's missing then we return a
+	// specific NotAPhysicalDisk error
+	schema := props["ID_PART_TABLE_TYPE"]
+	if schema == "" {
+		return nil, errNonPhysicalDisk{fmt.Sprintf("device with %s %q is not a physical disk", deviceIDType, deviceIdentifier)}
+	}
+
 	major, err := strconv.Atoi(props["MAJOR"])
 	if err != nil {
 		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output", deviceIDType, deviceIdentifier)
@@ -132,13 +147,39 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", deviceIdentifier, devType)
 	}
 
-	// TODO: should we try to introspect the device more to find out if it has
-	// partitions? we don't currently need that information for how we use
-	// DiskFromName but it might be useful eventually
+	devname := props["DEVNAME"]
+	if devname == "" {
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"DEVNAME\"", deviceIDType, deviceIdentifier)
+	}
+
+	devpath := props["DEVPATH"]
+	if devpath == "" {
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"DEVPATH\"", deviceIDType, deviceIdentifier)
+	}
+	// create the full path by pre-pending /sys, since udev doesn't include /sys
+	devpath = filepath.Join(dirs.SysfsDir, devpath)
+
+	partTableID := props["ID_PART_TABLE_UUID"]
+	if partTableID == "" {
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"ID_PART_TABLE_UUID\"", deviceIDType, deviceIdentifier)
+	}
+
+	// check if the device has partitions by attempting to actually search for
+	// them in /sys with the DEVPATH and DEVNAME
+
+	paths, err := filepath.Glob(filepath.Join(devpath, filepath.Base(devname)+"*"))
+	if err != nil {
+		return nil, fmt.Errorf("internal error with glob pattern: %v", err)
+	}
 
 	return &disk{
-		major: major,
-		minor: minor,
+		schema:        schema,
+		diskID:        partTableID,
+		major:         major,
+		minor:         minor,
+		devname:       devname,
+		devpath:       devpath,
+		hasPartitions: len(paths) != 0,
 	}, nil
 }
 
@@ -149,7 +190,7 @@ func DiskFromDevicePath(devicePath string) (Disk, error) {
 }
 
 // diskFromDevicePath is exposed for mocking from other tests via
-// MockDeviceNameDisksToPartitionMapping.
+// MockDevicePathToDiskMapping (which is yet to be added).
 var diskFromDevicePath = func(devicePath string) (Disk, error) {
 	// query for the disk props using udev with --path
 	props, err := udevPropertiesForPath(devicePath)
@@ -167,7 +208,7 @@ func DiskFromDeviceName(deviceName string) (Disk, error) {
 }
 
 // diskFromDeviceName is exposed for mocking from other tests via
-// MockDeviceNameDisksToPartitionMapping.
+// MockDeviceNameToDiskMapping.
 var diskFromDeviceName = func(deviceName string) (Disk, error) {
 	// query for the disk props using udev with --name
 	props, err := udevPropertiesForName(deviceName)
@@ -178,29 +219,164 @@ var diskFromDeviceName = func(deviceName string) (Disk, error) {
 	return diskFromUdevProps(deviceName, "name", props)
 }
 
+func mountPointsForPartitionRoot(part Partition, mountOptsMatching map[string]string) ([]string, error) {
+	mounts, err := osutil.LoadMountInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	mountpoints := []string{}
+mountLoop:
+	for _, mnt := range mounts {
+		if mnt.DevMajor == part.Major && mnt.DevMinor == part.Minor && mnt.Root == "/" {
+			// check if mount opts match
+			for key, val := range mountOptsMatching {
+				candVal, ok := mnt.MountOptions[key]
+				if !ok || candVal != val {
+					// either the option is missing from this mount or it has a
+					// different value
+					continue mountLoop
+				}
+			}
+			mountpoints = append(mountpoints, mnt.MountDir)
+		}
+	}
+
+	return mountpoints, nil
+}
+
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
 func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	// call the unexported version that may be mocked by tests
 	return diskFromMountPoint(mountpoint, opts)
 }
 
-type partition struct {
-	fsLabel   string
-	partLabel string
-	partUUID  string
-}
-
 type disk struct {
 	major int
 	minor int
+
+	schema string
+
+	diskID string
+
+	// devname is the DEVNAME property for the disk device like /dev/sda
+	devname string
+
+	// devpath is the DEVPATH property for the disk device like
+	// /sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb.
+	devpath string
+
 	// partitions is the set of discovered partitions for the disk, each
 	// partition must have a partition uuid, but may or may not have either a
 	// partition label or a filesystem label
-	partitions []partition
+	partitions []Partition
 
 	// whether the disk device has partitions, and thus is of type "disk", or
 	// whether the disk device is a volume that is not a physical disk
 	hasPartitions bool
+}
+
+func (d *disk) KernelDeviceNode() string {
+	return d.devname
+}
+
+func (d *disk) KernelDevicePath() string {
+	return d.devpath
+}
+
+func (d *disk) DiskID() string {
+	return d.diskID
+}
+
+func (d *disk) Partitions() ([]Partition, error) {
+	if !d.hasPartitions {
+		// for i.e. device mapper disks which don't have partitions
+		return nil, nil
+	}
+	if err := d.populatePartitions(); err != nil {
+		return nil, err
+	}
+
+	return d.partitions, nil
+}
+
+// okay to use in initrd, uses blockdev command
+func (d *disk) SectorSize() (uint64, error) {
+	return blockDeviceSectorSize(d.devname)
+}
+
+// sfdiskDeviceDump represents the sfdisk --dump JSON output format.
+type sfdiskDeviceDump struct {
+	PartitionTable sfdiskPartitionTable `json:"partitiontable"`
+}
+
+type sfdiskPartitionTable struct {
+	Unit     string `json:"unit"`
+	FirstLBA uint64 `json:"firstlba"`
+	LastLBA  uint64 `json:"lastlba"`
+}
+
+func (d *disk) SizeInBytes() (uint64, error) {
+	// TODO: this could be implemented by reading the "size" file in sysfs
+	// instead of using blockdev
+
+	// The size of the disk is always given by using blockdev, but blockdev
+	// returns the size in 512-byte blocks, so for bytes we have to multiply by
+	// 512.
+	num512Sectors, err := blockDeviceSizeInSectors(d.devname)
+	// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
+	// zero
+	return num512Sectors * 512, err
+}
+
+// okay to use in initrd for dos disks since it uses blockdev command, but for
+// gpt disks, we need to use sfdisk, which is not okay to use in the initrd
+func (d *disk) UsableSectorsEnd() (uint64, error) {
+	if d.schema == "dos" {
+		// for DOS disks, it is sufficient to just get the size in bytes and
+		// divide by the sector size
+		byteSz, err := d.SizeInBytes()
+		if err != nil {
+			return 0, err
+		}
+		sectorSz, err := d.SectorSize()
+		if err != nil {
+			return 0, err
+		}
+		return byteSz / sectorSz, nil
+	}
+
+	// TODO: this could also be accomplished by reading from the GPT headers
+	// directly to get the last logical block address (LBA) instead of using
+	// sfdisk, in which case this function could then be used in the initrd
+
+	// otherwise for GPT, we need to use sfdisk on the device node
+	output, err := exec.Command("sfdisk", "--json", d.devname).Output()
+	if err != nil {
+		return 0, err
+	}
+
+	var dump sfdiskDeviceDump
+	if err := json.Unmarshal(output, &dump); err != nil {
+		return 0, fmt.Errorf("cannot parse sfdisk output: %v", err)
+	}
+
+	// check that the unit is sectors
+	if dump.PartitionTable.Unit != "sectors" {
+		return 0, fmt.Errorf("cannot get size in sectors, sfdisk reported unknown unit %s", dump.PartitionTable.Unit)
+	}
+
+	// the last logical block address (LBA) is the location of the last
+	// occupiable sector, so the end is 1 further (the end itself is not
+	// included)
+
+	// sfdisk always returns the sectors in native sector size, so we don't need
+	// to do any conversion here
+	return (dump.PartitionTable.LastLBA + 1), nil
+}
+
+func (d *disk) Schema() string {
+	return d.schema
 }
 
 // diskFromMountPointImpl returns a Disk for the underlying mount source of the
@@ -328,7 +504,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	}
 
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
-	// partition originated from
+	// partition originated from if this mount point is indeed for a partition
 	if majorMinor, ok := props["ID_PART_ENTRY_DISK"]; ok {
 		maj, min, err := parseDeviceMajorMinor(majorMinor)
 		if err != nil {
@@ -337,6 +513,42 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		}
 		d.major = maj
 		d.minor = min
+
+		// now go find the devname and devpath for this major/minor pair since
+		// we will need that later - note that the props variable at this point
+		// is for the partition, not the parent disk itself, hence the
+		// additional lookup
+		realDiskProps, err := udevPropertiesForName(filepath.Join("/dev/block/", majorMinor))
+		if err != nil {
+			return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
+		}
+
+		if realDiskProps["DEVNAME"] == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"DEVNAME\"", partMountPointSource)
+		}
+
+		d.devname = realDiskProps["DEVNAME"]
+
+		if realDiskProps["DEVPATH"] == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"DEVPATH\"", partMountPointSource)
+		}
+		// the DEVPATH is given as relative to /sys, so for simplicity's sake
+		// add /sys to the path we save as we return it later
+		d.devpath = filepath.Join(dirs.SysfsDir, realDiskProps["DEVPATH"])
+
+		// get the partition table ID and the schema
+		partTableID := realDiskProps["ID_PART_TABLE_UUID"]
+		if partTableID == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_UUID\"", partMountPointSource)
+		}
+
+		schema := realDiskProps["ID_PART_TABLE_TYPE"]
+		if schema == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"", partMountPointSource)
+		}
+
+		d.schema = schema
+		d.diskID = partTableID
 
 		// since the mountpoint device has a disk, the mountpoint source itself
 		// must be a partition from a disk, thus the disk has partitions
@@ -360,38 +572,24 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 
 func (d *disk) populatePartitions() error {
 	if d.partitions == nil {
-		d.partitions = []partition{}
+		d.partitions = []Partition{}
 
-		// step 1. find the devpath for the disk, then glob for matching
-		//         devices using the devname in that sysfs directory
+		// step 1. using the devpath for the disk, glob for matching devices
+		//         using the devname in that sysfs directory
 		// step 2. iterate over all those devices and save all the ones that are
 		//         partitions using the partition sysfs file
 		// step 3. for all partition devices found, query udev to get the labels
 		//         of the partition and filesystem as well as the partition uuid
 		//         and save for later
 
-		udevProps, err := udevPropertiesForName(filepath.Join("/dev/block", d.Dev()))
-		if err != nil {
-			return err
-		}
-
-		// get the base device name
-		devName := udevProps["DEVNAME"]
-		if devName == "" {
-			return fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVNAME\"", d.Dev())
-		}
 		// the DEVNAME as returned by udev includes the /dev/mmcblk0 path, we
 		// just want mmcblk0 for example
-		devName = filepath.Base(devName)
+		devName := filepath.Base(d.devname)
 
-		// get the device path in sysfs
-		devPath := udevProps["DEVPATH"]
-		if devPath == "" {
-			return fmt.Errorf("cannot get udev properties for device %s, missing udev property \"DEVPATH\"", d.Dev())
-		}
-
-		// glob for /sys/${devPath}/${devName}*
-		paths, err := filepath.Glob(filepath.Join(dirs.SysfsDir, devPath, devName+"*"))
+		// glob for d.devpath/${devName}*
+		// note that d.devpath already has /sys in it from when the disk was
+		// created
+		paths, err := filepath.Glob(filepath.Join(d.devpath, devName+"*"))
 		if err != nil {
 			return fmt.Errorf("internal error getting udev properties for device %s: %v", err, d.Dev())
 		}
@@ -400,7 +598,7 @@ func (d *disk) populatePartitions() error {
 		sort.Strings(paths)
 
 		for _, path := range paths {
-			part := partition{}
+			part := Partition{}
 
 			// check if this device is a partition - note that the mere
 			// existence of this file is sufficient to indicate that it is a
@@ -421,22 +619,46 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
+			// the devpath and devname should always be available
+			devpath, ok := udevProps["DEVPATH"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVPATH\"", partDev, d.Dev())
+			}
+			part.KernelDevicePath = filepath.Join(dirs.SysfsDir, devpath)
+
+			devname, ok := udevProps["DEVNAME"]
+			if !ok {
+				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVNAME\"", partDev, d.Dev())
+			}
+			part.KernelDeviceNode = devname
+
 			// we should always have the partition uuid, and we may not have
 			// either the partition label or the filesystem label, on GPT disks
 			// the partition label is optional, and may or may not have a
 			// filesystem on the partition, on MBR we will never have a
 			// partition label, and we also may or may not have a filesystem on
 			// the partition
-			part.partUUID = udevProps["ID_PART_ENTRY_UUID"]
-			if part.partUUID == "" {
+			part.PartitionUUID = udevProps["ID_PART_ENTRY_UUID"]
+			if part.PartitionUUID == "" {
 				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
+			}
+
+			// we should also always have the device major/minor for this device
+			part.Major, err = strconv.Atoi(udevProps["MAJOR"])
+			if err != nil {
+				return fmt.Errorf("cannot parse device major number format: %v", err)
+			}
+
+			part.Minor, err = strconv.Atoi(udevProps["MINOR"])
+			if err != nil {
+				return fmt.Errorf("cannot parse device major number format: %v", err)
 			}
 
 			// on MBR disks we may not have a partition label, so this may be
 			// the empty string. Note that this value is encoded similarly to
 			// libblkid and should be compared with normal Go strings that are
 			// encoded using BlkIDEncodeLabel.
-			part.partLabel = udevProps["ID_PART_ENTRY_NAME"]
+			part.PartitionLabel = udevProps["ID_PART_ENTRY_NAME"]
 
 			// a partition doesn't need to have a filesystem, and such may not
 			// have a filesystem label; the bios-boot partition in the amd64 pc
@@ -445,7 +667,10 @@ func (d *disk) populatePartitions() error {
 			// Note that this value is also encoded similarly to
 			// ID_PART_ENTRY_NAME and thus should only be compared with normal
 			// Go strings that are encoded with BlkIDEncodeLabel.
-			part.fsLabel = udevProps["ID_FS_LABEL_ENC"]
+			part.FilesystemLabel = udevProps["ID_FS_LABEL_ENC"]
+
+			// similar to above, this may be empty, but if non-empty is encoded
+			part.FilesystemUUID = udevProps["ID_FS_UUID_ENC"]
 
 			// prepend the partition to the front, this has the effect that if
 			// two partitions have the same label (either filesystem or
@@ -459,7 +684,7 @@ func (d *disk) populatePartitions() error {
 			// non-unique filesystem labels or non-unique partition labels (or
 			// even non-unique partition uuids)? then we would just error if we
 			// encounter a duplicated value for a partition
-			d.partitions = append([]partition{part}, d.partitions...)
+			d.partitions = append([]Partition{part}, d.partitions...)
 		}
 	}
 
@@ -473,44 +698,62 @@ func (d *disk) populatePartitions() error {
 	return nil
 }
 
-func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+func (d *disk) FindMatchingPartitionWithPartLabel(label string) (Partition, error) {
 	// always encode the label
 	encodedLabel := BlkIDEncodeLabel(label)
 
 	if err := d.populatePartitions(); err != nil {
-		return "", err
+		return Partition{}, err
 	}
 
 	for _, p := range d.partitions {
-		if p.partLabel == encodedLabel {
-			return p.partUUID, nil
+		if p.PartitionLabel == encodedLabel {
+			return p, nil
 		}
 	}
 
-	return "", PartitionNotFoundError{
+	return Partition{}, PartitionNotFoundError{
 		SearchType:  "partition-label",
 		SearchQuery: label,
 	}
 }
 
-func (d *disk) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
+func (d *disk) FindMatchingPartitionWithFsLabel(label string) (Partition, error) {
 	// always encode the label
 	encodedLabel := BlkIDEncodeLabel(label)
 
 	if err := d.populatePartitions(); err != nil {
-		return "", err
+		return Partition{}, err
 	}
 
 	for _, p := range d.partitions {
-		if p.fsLabel == encodedLabel {
-			return p.partUUID, nil
+		if p.FilesystemLabel == encodedLabel {
+			return p, nil
 		}
 	}
 
-	return "", PartitionNotFoundError{
+	return Partition{}, PartitionNotFoundError{
 		SearchType:  "filesystem-label",
 		SearchQuery: label,
 	}
+}
+
+// compatibility methods
+// TODO: eliminate these and use the more generic functions in callers
+func (d *disk) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
+	p, err := d.FindMatchingPartitionWithFsLabel(label)
+	if err != nil {
+		return "", err
+	}
+	return p.PartitionUUID, nil
+}
+
+func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+	p, err := d.FindMatchingPartitionWithPartLabel(label)
+	if err != nil {
+		return "", err
+	}
+	return p.PartitionUUID, nil
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {

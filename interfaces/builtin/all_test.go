@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -101,6 +102,19 @@ type mountDefiner4 interface {
 	MountPermanentSlot(spec *mount.Specification, slot *snap.SlotInfo) error
 }
 
+type polkitDefiner1 interface {
+	PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+type polkitDefiner2 interface {
+	PolkitConnectedSlot(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+}
+type polkitDefiner3 interface {
+	PolkitPermanentPlug(spec *polkit.Specification, plug *snap.PlugInfo) error
+}
+type polkitDefiner4 interface {
+	PolkitPermanentSlot(spec *polkit.Specification, slot *snap.SlotInfo) error
+}
+
 type seccompDefiner1 interface {
 	SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 }
@@ -162,6 +176,11 @@ var allGoodDefiners = []reflect.Type{
 	reflect.TypeOf((*mountDefiner2)(nil)).Elem(),
 	reflect.TypeOf((*mountDefiner3)(nil)).Elem(),
 	reflect.TypeOf((*mountDefiner4)(nil)).Elem(),
+	// polkit
+	reflect.TypeOf((*polkitDefiner1)(nil)).Elem(),
+	reflect.TypeOf((*polkitDefiner2)(nil)).Elem(),
+	reflect.TypeOf((*polkitDefiner3)(nil)).Elem(),
+	reflect.TypeOf((*polkitDefiner4)(nil)).Elem(),
 	// seccomp
 	reflect.TypeOf((*seccompDefiner1)(nil)).Elem(),
 	reflect.TypeOf((*seccompDefiner2)(nil)).Elem(),
@@ -363,7 +382,7 @@ func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
 	var sigs []funcSig
 
 	// All the valid signatures from all the specification definers from all the backends.
-	for _, backend := range []string{"AppArmor", "SecComp", "UDev", "DBus", "Systemd", "KMod"} {
+	for _, backend := range []string{"AppArmor", "SecComp", "UDev", "DBus", "Systemd", "KMod", "Polkit"} {
 		backendLower := strings.ToLower(backend)
 		sigs = append(sigs, []funcSig{{
 			name: fmt.Sprintf("%sPermanentPlug", backend),

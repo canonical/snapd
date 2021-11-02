@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -343,7 +345,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
-	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	return nil
 }
@@ -421,7 +423,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *C) {
@@ -490,13 +492,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(waitTasks[0].ID(), Equals, installDevice.ID())
 
 	// we did request a restart through restartSystemToRunModeTask
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
 }
 
-func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst state.RestartType) {
+func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst restart.RestartType) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -532,15 +534,15 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	c.Check(installSystem.Err(), IsNil)
 
 	// we did end up requesting the right shutdown
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{rst})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{rst})
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootHalt(c *C) {
-	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--halt", state.RestartSystemHaltNow)
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--halt", restart.RestartSystemHaltNow)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootPoweroff(c *C) {
-	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--poweroff", state.RestartSystemPoweroffNow)
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--poweroff", restart.RestartSystemPoweroffNow)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhappy(c *C) {
@@ -1557,4 +1559,65 @@ mock output of: snap debug timings --ensure=install-system
 		{"snap", "debug", "timings", "--ensure=seed"},
 		{"snap", "debug", "timings", "--ensure=install-system"},
 	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockHappy(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+	// a month old timestamp file
+	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
+
+	s.mockInstallModeChange(c, "dangerous", "")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// installation was successful
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+
+	clockTsInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/clock")
+	fi, err := os.Stat(clockTsInDst)
+	c.Assert(err, IsNil)
+	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
+	c.Check(fi.Size(), Equals, int64(0))
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+
+	timesyncDirInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/")
+	c.Assert(os.MkdirAll(timesyncDirInDst, 0755), IsNil)
+	c.Assert(os.Chmod(timesyncDirInDst, 0000), IsNil)
+	defer os.Chmod(timesyncDirInDst, 0755)
+
+	s.mockInstallModeChange(c, "dangerous", "")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// install failed copying the timestamp
+	c.Check(installSystem.Err(), ErrorMatches, `(?s).*\(cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
+	c.Check(installSystem.Status(), Equals, state.ErrorStatus)
 }

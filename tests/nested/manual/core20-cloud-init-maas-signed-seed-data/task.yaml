@@ -116,8 +116,6 @@ prepare: |
 
   #shellcheck disable=SC2148
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
-  # stop fake device svc after we are done
-  tests.cleanup defer systemctl stop fakedevicesvc
 
   tests.nested build-image core
 
@@ -145,6 +143,8 @@ restore: |
       echo "This test needs test keys to be trusted"
       exit
   fi
+
+  systemctl stop fakedevicesvc
 
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh

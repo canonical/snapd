@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -594,7 +595,7 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
-	if ok, _ := task.State().Restarting(); ok {
+	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
 		return &state.Retry{}
@@ -680,6 +681,27 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 	}
 
 	return nil
+}
+
+// RestartSystem requests a system restart.
+// It considers how the Change the task belongs to is configured
+// (system-restart-immediate) to choose whether request an immediate
+// restart or not.
+func RestartSystem(task *state.Task) {
+	chg := task.Change()
+	var immediate bool
+	if chg != nil {
+		// ignore errors intentionally, to follow
+		// RequestRestart itself which does not
+		// return errors. If the state is corrupt
+		// something else will error
+		chg.Get("system-restart-immediate", &immediate)
+	}
+	rst := restart.RestartSystem
+	if immediate {
+		rst = restart.RestartSystemNow
+	}
+	restart.Request(task.State(), rst)
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -1046,6 +1068,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	names = strutil.Deduplicate(names)
+
 	toInstall := make([]string, 0, len(names))
 	for _, name := range names {
 		var snapst SnapState
@@ -1186,6 +1210,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	if err != nil {
 		return nil, nil, err
 	}
+
+	names = strutil.Deduplicate(names)
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
@@ -1831,6 +1857,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			SideInfo:    snapst.CurrentSideInfo(),
 			Flags:       snapst.Flags.ForSnapSetup(),
 			InstanceKey: snapst.InstanceKey,
+			Type:        snap.Type(snapst.SnapType),
 			CohortKey:   opts.CohortKey,
 		}
 
@@ -1909,7 +1936,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	}
 	if sideInfo == nil {
 		// refresh from given revision from store
-		return updateToRevisionInfo(st, snapst, opts.Revision, userID, deviceCtx)
+		return updateToRevisionInfo(st, snapst, opts.Revision, userID, flags, deviceCtx)
 	}
 
 	// refresh-to-local, this assumes the snap revision is mounted
@@ -2152,7 +2179,8 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 	return tasksets, nil
 }
 
-// LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel
+// LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
+// additionally update-gadget-assets for the kernel snap, tasks for a remodel.
 func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -2177,7 +2205,107 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 		// good
 	default:
 		// bad
-		return nil, fmt.Errorf("cannot link type %v", info.Type())
+		return nil, fmt.Errorf("internal error: cannot link type %v", info.Type())
+	}
+
+	snapsup := &SnapSetup{
+		SideInfo:    snapst.CurrentSideInfo(),
+		Flags:       snapst.Flags.ForSnapSetup(),
+		Type:        info.Type(),
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: snapst.InstanceKey,
+	}
+
+	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
+	prepareSnap.Set("snap-setup", &snapsup)
+	prev := prepareSnap
+	ts := state.NewTaskSet(prepareSnap)
+	// preserve the same order as during the update
+	if info.Type() == snap.TypeKernel {
+		// kernel snaps can carry boot assets
+		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
+		gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
+		gadgetUpdate.WaitFor(prev)
+		ts.AddTask(gadgetUpdate)
+		prev = gadgetUpdate
+	}
+	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
+	linkSnap.Set("snap-setup-task", prepareSnap.ID())
+	linkSnap.WaitFor(prev)
+	ts.AddTask(linkSnap)
+	// we need this for remodel
+	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	return ts, nil
+}
+
+func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
+	var snapsup SnapSetup
+	for _, tsk := range tasks {
+		if tsk.Has("snap-setup") {
+			if err := tsk.Get("snap-setup", &snapsup); err != nil {
+				return nil, nil, err
+			}
+			return tsk, &snapsup, nil
+		}
+	}
+	return nil, nil, nil
+}
+
+// AddLinkNewBaseOrKernel creates the same tasks as LinkNewBaseOrKernel but adds
+// them to the provided task set.
+func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+	allTasks := ts.Tasks()
+	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
+	if err != nil {
+		return nil, err
+	}
+	if snapSetupTask == nil {
+		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
+	}
+	// the first task added here waits for the last task in the existing set
+	prev := allTasks[len(allTasks)-1]
+	// preserve the same order as during the update
+	if snapsup.Type == snap.TypeKernel {
+		// kernel snaps can carry boot assets
+		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
+		gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
+		// wait for the last task in existing set
+		gadgetUpdate.WaitFor(prev)
+		ts.AddTask(gadgetUpdate)
+		prev = gadgetUpdate
+	}
+	linkSnap := st.NewTask("link-snap",
+		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
+	linkSnap.WaitFor(prev)
+	ts.AddTask(linkSnap)
+	return ts, nil
+}
+
+// LinkNewBaseOrKernel creates a new task set with
+// prepare/update-gadget-assets/update-gadget-cmdline tasks for the gadget snap,
+// for remodel.
+func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, &snap.NotInstalledError{Snap: name}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckChangeConflict(st, name, nil); err != nil {
+		return nil, err
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	if info.Type() != snap.TypeGadget {
+		return nil, fmt.Errorf("internal error: cannot link type %v", info.Type())
 	}
 
 	snapsup := &SnapSetup{
@@ -2191,13 +2319,40 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 	prepareSnap.Set("snap-setup", &snapsup)
 
-	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
-	linkSnap.Set("snap-setup-task", prepareSnap.ID())
-	linkSnap.WaitFor(prepareSnap)
+	gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
+	gadgetUpdate.WaitFor(prepareSnap)
+	gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
+	gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
+	gadgetCmdline.WaitFor(gadgetUpdate)
+	gadgetCmdline.Set("snap-setup-task", prepareSnap.ID())
 
 	// we need this for remodel
-	ts := state.NewTaskSet(prepareSnap, linkSnap)
+	ts := state.NewTaskSet(prepareSnap, gadgetUpdate, gadgetCmdline)
 	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	return ts, nil
+}
+
+// AddGadgetAssetsTasks creates the same tasks as SwitchToNewGadget but adds
+// them to the provided task set.
+func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+	allTasks := ts.Tasks()
+	snapSetupTask, snapsup, err := findSnapSetupTask(allTasks)
+	if err != nil {
+		return nil, err
+	}
+	if snapSetupTask == nil {
+		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
+	}
+	gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
+	gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
+	// wait for the last task in existing set
+	gadgetUpdate.WaitFor(allTasks[len(allTasks)-1])
+	ts.AddTask(gadgetUpdate)
+	// gadget snaps can carry kernel command line fragments
+	gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
+	gadgetCmdline.Set("snap-setup-task", snapSetupTask.ID())
+	gadgetCmdline.WaitFor(gadgetUpdate)
+	ts.AddTask(gadgetCmdline)
 	return ts, nil
 }
 
@@ -2595,6 +2750,8 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	names = strutil.Deduplicate(names)
+
 	if err := validateSnapNames(names); err != nil {
 		return nil, nil, err
 	}
@@ -2893,23 +3050,24 @@ func All(st *state.State) (map[string]*SnapState, error) {
 
 // InstalledSnaps returns the list of all installed snaps suitable for
 // ValidationSets checks.
-func InstalledSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
-	var snaps []*snapasserts.InstalledSnap
+func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, err error) {
 	all, err := All(st)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	ignoreValidation = make(map[string]bool)
 	for _, snapState := range all {
 		cur, err := snapState.CurrentInfo()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		snaps = append(snaps,
-			snapasserts.NewInstalledSnap(snapState.InstanceName(),
-				snapState.CurrentSideInfo().SnapID,
-				cur.Revision))
+		snaps = append(snaps, snapasserts.NewInstalledSnap(snapState.InstanceName(),
+			snapState.CurrentSideInfo().SnapID, cur.Revision))
+		if snapState.IgnoreValidation {
+			ignoreValidation[snapState.InstanceName()] = true
+		}
 	}
-	return snaps, nil
+	return snaps, ignoreValidation, nil
 }
 
 // NumSnaps returns the number of installed snaps.
