@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
+	"github.com/snapcore/snapd/polkit/validate"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -85,8 +87,30 @@ func (iface *polkitInterface) getActionPrefix(attribs interfaces.Attrer) (string
 	return prefix, nil
 }
 
+func loadPolkitPolicy(filename, actionPrefix string) (polkit.Policy, error) {
+	content, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf(`could not read file %q: %v`, filename, err)
+	}
+
+	// Check that the file content is a valid polkit policy file
+	actionIDs, err := validate.ValidatePolicy(bytes.NewReader(content))
+	if err != nil {
+		return nil, fmt.Errorf(`could not validate policy file %q: %v`, filename, err)
+	}
+
+	// Check that the action IDs in the policy file match the action prefix
+	for _, id := range actionIDs {
+		if id != actionPrefix && !strings.HasPrefix(id, actionPrefix+".") {
+			return nil, fmt.Errorf(`policy file %q contains unexpected action ID %q`, filename, id)
+		}
+	}
+
+	return polkit.Policy(content), nil
+}
+
 func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	_, err := iface.getActionPrefix(plug)
+	actionPrefix, err := iface.getActionPrefix(plug)
 	if err != nil {
 		return err
 	}
@@ -101,11 +125,11 @@ func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, pl
 	}
 	for _, filename := range policyFiles {
 		suffix := strings.TrimSuffix(filepath.Base(filename), ".policy")
-		content, err := ioutil.ReadFile(filename)
+		policy, err := loadPolkitPolicy(filename, actionPrefix)
 		if err != nil {
-			return fmt.Errorf(`could not read file %q: %v`, filename, err)
+			return err
 		}
-		if err := spec.AddPolicy(suffix, polkit.Policy(content)); err != nil {
+		if err := spec.AddPolicy(suffix, policy); err != nil {
 			return err
 		}
 	}

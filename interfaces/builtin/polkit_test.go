@@ -104,7 +104,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin</allow_active>
-    </default>
+    </defaults>
   </action>
 </policyconfig>`
 	const samplePolicy2 = `<policyconfig/>`
@@ -137,6 +137,53 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitNotFile(c *C) {
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Check(err, ErrorMatches, `could not read file ".*/meta/polkit.foo.policy": read .*: is a directory`)
+}
+
+func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadXML(c *C) {
+	const samplePolicy = `<malformed`
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+
+	polkitSpec := &polkit.Specification{}
+	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Check(err, ErrorMatches, `could not validate policy file ".*/meta/polkit.foo.policy": XML syntax error on line 1: unexpected EOF`)
+}
+
+func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadAction(c *C) {
+	const samplePolicy = `<policyconfig>
+  <action id="org.freedesktop.systemd1.manage-units">
+    <description>A conflict with systemd's polkit actions</description>
+    <message>Manage system services</message>
+    <defaults>
+      <allow_any>yes</allow_any>
+    </defaults>
+  </action>
+</policyconfig>`
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+
+	polkitSpec := &polkit.Specification{}
+	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
+}
+
+func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadImplies(c *C) {
+	const samplePolicy = `<policyconfig>
+  <action id="org.example.foo.some-action">
+    <description>Some action</description>
+    <message>Allow "some action" (and also managing system services for some reason)</message>
+    <defaults>
+      <allow_any>yes</allow_any>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.imply">org.freedesktop.systemd1.manage-units</annotate>
+  </action>
+</policyconfig>`
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+
+	polkitSpec := &polkit.Specification{}
+	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
 }
 
 func (s *polkitInterfaceSuite) TestSanitizeSlot(c *C) {
