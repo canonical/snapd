@@ -6,7 +6,9 @@ details: |
 # Interfaces not defined for ubuntu core systems
 # FIXME: `udisksctl mount -b  "$device"` fails on arch with:
 #   Object /org/freedesktop/UDisks2/block_devices/loop200 is not a mountable filesystem.
-systems: [-ubuntu-core-*, -arch-linux-*]
+# 2021-11-02: disabled ubuntu-18.04-32 because it keeps failing when trying
+#             to create/use /dev/loop200
+systems: [-ubuntu-core-*, -arch-linux-*, -ubuntu-18.04-32]
 
 environment:
     FS_PATH: "$(pwd)/dev0-fake0"
