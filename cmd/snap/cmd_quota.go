@@ -213,7 +213,6 @@ type cmdQuota struct {
 }
 
 func (x *cmdQuota) Execute(args []string) (err error) {
-	fmt.Println("Burak")
 	if len(args) != 0 {
 		return fmt.Errorf("too many arguments provided")
 	}
