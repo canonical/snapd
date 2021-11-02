@@ -751,6 +751,12 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 					tagSnippets += ptraceTraceDenySnippet
 				}
 
+				// Deny the sys_module capability unless it has been explicitly
+				// requested
+				if spec.SuppressSysModuleCapability() && !spec.UsesSysModuleCapability() {
+					tagSnippets += sysModuleCapabilityDenySnippet
+				}
+
 				// Use 'ix' rules in the home interface unless an
 				// interface asked to suppress them
 				repl := "ix"
