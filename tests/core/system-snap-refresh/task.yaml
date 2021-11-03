@@ -7,6 +7,10 @@ details: |
 
 systems: [ubuntu-core-*]
 
+environment:
+    # uploading the core or otherwise large snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
     TARGET_SNAP_NAME=core
     if os.query is-core18; then
