@@ -184,7 +184,10 @@ func (s *SessionAgent) Init() error {
 	}
 
 	// Set up notification manager
-	s.notificationMgr = notification.NewNotificationManager(s.bus, "io.snapcraft.SessionAgent")
+	// Note that session bus may be nil, see the comment in tryConnectSessionBus.
+	if s.bus != nil {
+		s.notificationMgr = notification.NewNotificationManager(s.bus, "io.snapcraft.SessionAgent")
+	}
 
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
 	if l, err := netutil.GetListener(agentSocket, listenerMap); err != nil {
@@ -244,7 +247,9 @@ func (s *SessionAgent) Start() {
 	s.tomb.Go(s.runServer)
 	s.tomb.Go(s.shutdownServerOnKill)
 	s.tomb.Go(s.exitOnIdle)
-	s.tomb.Go(s.handleNotifications)
+	if s.notificationMgr != nil {
+		s.tomb.Go(s.handleNotifications)
+	}
 	systemd.SdNotify("READY=1")
 }
 
@@ -288,8 +293,11 @@ Loop:
 			// Have we been idle? Consult idle duration from connection tracker
 			// and from notification manager, pick the lower one.
 			idleDuration := s.idle.idleDuration()
-			if dur := s.notificationMgr.IdleDuration(); dur < idleDuration {
-				idleDuration = dur
+			// notificationMgr may be nil if session bus is not available
+			if s.notificationMgr != nil {
+				if dur := s.notificationMgr.IdleDuration(); dur < idleDuration {
+					idleDuration = dur
+				}
 			}
 			if idleDuration >= s.IdleTimeout {
 				s.tomb.Kill(nil)
@@ -302,6 +310,8 @@ Loop:
 	return nil
 }
 
+// handleNotifications blocks handling notifications.
+// This should only be called when notificationMgr is available (i.e. s.bus is set).
 func (s *SessionAgent) handleNotifications() error {
 	err := s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background()))
 	if err != nil {
