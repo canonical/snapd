@@ -647,6 +647,7 @@ prepare_suite_each() {
         if os.query is-classic; then
             prepare_each_classic
         fi
+        prepare_memory_limit_override
     fi
     # Check if journalctl is ready to run the test
     "$TESTSTOOLS"/journal-state check-log-started
@@ -763,6 +764,8 @@ restore_project_each() {
     # will most likely not function correctly anymore. It looks like this
     # happens with: https://forum.snapcraft.io/t/4101 and is a source of
     # failure in the autopkgtest environment.
+    # Also catch a scenario when snapd service hits the MemoryMax limit set while
+    # preparing the tests.
     if dmesg|grep "oom-killer"; then
         echo "oom-killer got invoked during the tests, this should not happen."
         echo "Dmesg debug output:"
