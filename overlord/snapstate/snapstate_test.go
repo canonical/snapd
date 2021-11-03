@@ -88,9 +88,12 @@ type snapmgrBaseTest struct {
 // state must be locked by caller
 func (s *snapmgrBaseTest) settle(c *C) {
 	s.state.Unlock()
+	defer s.state.Lock()
+
 	err := s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
-	s.state.Lock()
 	if err != nil {
+		s.state.Lock()
+		defer s.state.Unlock()
 		c.Error(err)
 		s.logTasks(c)
 		c.FailNow()
