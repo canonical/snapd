@@ -404,6 +404,9 @@ apps:
   sd-control:
     command: bin/run
     plugs: [ sd-control ]
+  shared-memory:
+    command: bin/run
+    plugs: [ shared-memory ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
