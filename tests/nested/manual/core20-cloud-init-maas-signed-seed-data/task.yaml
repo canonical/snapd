@@ -204,7 +204,20 @@ execute: |
   echo "Ensuring that cloud-init got disabled"
   # either in the case of the gadget saying no datasources or in the case of the
   # MAAS datasource being broken and thus getting eventually disabled by snapd
-  retry --wait 1 -n 60 sh -c "tests.nested exec sh -c 'test -f /etc/cloud/cloud-init.disabled'"
+  # uggggggghhhhhhhhhh bash quoting strikes again - arguments to the test 
+  # command do not get passed if we do something obvious like
+  # retry --wait 1 -n 240 sh -c "tests.nested exec sh -c 'test -f /etc/cloud/cloud-init.disabled'"
+  # so instead we must put this command into a file, copy it over and then
+  # execute this file, putting the scoreboard at BASH ∞ + 1, IAN 0
+  cat > /tmp/snapd-cloud-init-disabled-check.sh <<EOF
+  #!/bin/bash -e
+  test -f /etc/cloud/cloud-init.disabled
+  EOF
+
+  tests.nested copy /tmp/snapd-cloud-init-disabled-check.sh
+  tests.nested exec "chmod +x /home/user1/snapd-cloud-init-disabled-check.sh"
+
+  retry --wait 1 -n 240 sh -c "tests.nested exec /home/user1/snapd-cloud-init-disabled-check.sh"
 
   echo "Relevant files were copied"
   if [ "$GADGET_DATASOURCE" = "explicitly-none" ]; then
@@ -250,7 +263,6 @@ execute: |
     cat datasource_restrict.cfg | yaml2json | jq -r '."datasource_list" | .[]' | MATCH MAAS
     #shellcheck disable=SC2002
     test "$(cat datasource_restrict.cfg | yaml2json | jq -r '."datasource_list" | .[]' | wc -l)" = 1
-    
   fi
 
   # note that zzzz_snapd.cfg is not installed because cloud-init is in error and
