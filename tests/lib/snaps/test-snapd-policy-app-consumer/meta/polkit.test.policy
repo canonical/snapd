@@ -6,6 +6,6 @@
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin</allow_active>
-    </default>
+    </defaults>
   </action>
 </policyconfig>
