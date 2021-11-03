@@ -671,6 +671,7 @@ var (
 		"classic-support": nil,
 		"docker":          nil,
 		"lxd":             nil,
+		"shared-memory":   nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -802,6 +803,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"raw-volume":                true,
+		"shared-memory":             true,
 		"storage-framework-service": true,
 		"thumbnailer-service":       true,
 		"ubuntu-download-manager":   true,
@@ -988,6 +990,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"packagekit-control":    true,
 		"personal-files":        true,
 		"sd-control":            true,
+		"shared-memory":         true,
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
