@@ -513,6 +513,8 @@ debug-each: |
         ps axl
         echo "# /var/lib/snapd"
         find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
+        echo '# system journal messages'
+        journalctl -e
     fi
 
 rename:
@@ -737,7 +739,6 @@ suites:
         debug: |
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
-                journalctl -e
             fi
     tests/core/:
         summary: Subset of Ubuntu Core specific tests
