@@ -934,7 +934,7 @@ func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	// XXX: timeout is ignored
+	// TODO: remove unused timeout parameter from the interface
 	_, err := s.systemctl("restart", serviceName)
 	return err
 }
