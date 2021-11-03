@@ -22,6 +22,10 @@ FAILED_TYPE = 'Failed'
 ABORTED_TYPE = 'Aborted'
 SUCCESSFUL_TYPE = 'Successful'
 
+# Setups
+BEFORE_TYPE = 'Before'
+AFTER_TYPE = 'After'
+
 # Printable names
 ALL = 'all'
 NONE = 'none'
@@ -33,6 +37,7 @@ ERROR_DEBUG = 'error-debug'
 FAILED = 'failed'
 ABORTED = 'aborted'
 SUCCESSFUL = 'successful'
+SETUP = 'setup'
 
 RESULT = 'result'
 START = 'Found'
@@ -45,6 +50,7 @@ OPERATIONS = [
     'Allocated', 'Connecting', 'Connected', 'Sending'
     ]
 RESULTS = ['Successful', 'Aborted', 'Failed']
+SETUP_TYPES = [BEFORE_TYPE, AFTER_TYPE]
 
 
 class Action:
@@ -66,13 +72,33 @@ class Action:
 
     def __dict__(self):
         return {
-            'type': 'action',
+            'type': self.type,
             'date': self.date,
             'time': self.time,
             'verb': self.verb,
             'task': self.task
             }
 
+class Setup:
+    """
+    Setup represents the lines used to configure the spread run
+    which appear before and after a spread run
+    """
+
+    def __init__(self, setup_type, source_line):
+        self.type = SETUP
+        self.setup_type = setup_type
+        self.source_line = source_line
+
+    def __repr__(self):
+        return self.source_line
+
+    def __dict__(self):
+        return {
+            'type': self.type,
+            'setup_type': self.setup_type,
+            'source_line': self.source_line
+            }
 
 class Result:
     """
@@ -259,10 +285,7 @@ class LogReader:
     def export_log(self, filepath):
         prepared_log = []
         for item in self.full_log:
-            if isinstance(item, str):
-                prepared_log.append(item)
-            else:
-                prepared_log.append(item.__dict__())
+            prepared_log.append(item.__dict__())
         with open(filepath, 'w') as json_file:
             json.dump(prepared_log, json_file)
 
@@ -285,7 +308,9 @@ class LogReader:
                 line = self._next_line()
                 if self._match_start(line):
                     break
-                self.full_log.append(line)
+                else:
+                   setup = self._get_setup(line)
+                   self.full_log.append(setup)
 
             if self.iter >= len(self.lines):
                 print("log-parser: log start not found, the log is either empty, corrupted or cut")
@@ -411,7 +436,7 @@ class LogReader:
             extra = None
         elif info_type == DEBUG_TYPE:
             verb = parts[3]
-            task = parts[4]
+            task = parts[5]
             extra = None
         else:
             print('log-parser: detail type not recognized: {}'.format(info_type))
@@ -463,6 +488,10 @@ class LogReader:
         task = None
         extra = ' '.join(parts[3:])
         return Operation(verb, task, extra, date, time, line)
+
+    def _get_setup(self, line):
+        """ Get the setup object for lines initial lines of the log """
+        return Setup(BEFORE_TYPE, line)
 
 
 def _make_parser():
