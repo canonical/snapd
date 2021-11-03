@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -44,6 +45,7 @@ import (
 	_ "github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -6912,4 +6914,293 @@ func (s *snapmgrTestSuite) TestUpdateDeduplicatesSnapNames(c *C) {
 	updated, _, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(updated, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
+}
+
+func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var restartRequested []restart.RestartType
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+
+	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	// use services-snap here to make sure services would be stopped/started appropriately
+	siKernel := snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(7),
+		SnapID:   "kernel-id",
+	}
+	siBase := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(7),
+		SnapID:   "core18-snap-id",
+	}
+	for _, si := range []*snap.SideInfo{&siKernel, &siBase} {
+		snaptest.MockSnap(c, fmt.Sprintf(`name: %s`, si.RealName), si)
+		typ := "kernel"
+		if si.RealName == "core18" {
+			typ = "base"
+		}
+		snapstate.Set(s.state, si.RealName, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        []*snap.SideInfo{si},
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        typ,
+		})
+	}
+
+	chg := s.state.NewChange("refresh", "refresh kernel and base")
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"kernel", "core18"}, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"core18", "kernel"})
+	snapTasks := make(map[string]*state.Task)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+		for _, tsk := range ts.Tasks() {
+			switch tsk.Kind() {
+			// setup-profiles should appear right before link-snap,
+			// while set-auto-aliase appears right after
+			// auto-connect
+			case "link-snap", "auto-connect", "setup-profiles", "set-auto-aliases":
+				snapsup, err := snapstate.TaskSnapSetup(tsk)
+				c.Assert(err, IsNil)
+				snapTasks[fmt.Sprintf("%s@%s", tsk.Kind(), snapsup.InstanceName())] = tsk
+				if tsk.Kind() == "link-snap" {
+					opts := 0
+					if snapsup.Type == snap.TypeBase {
+						opts |= noConfigure
+					}
+					verifyUpdateTasks(c, snapsup.Type, opts, 0, ts)
+				}
+			}
+		}
+	}
+
+	c.Assert(snapTasks, HasLen, 8)
+	linkSnapKernel := snapTasks["link-snap@kernel"]
+	autoConnectKernel := snapTasks["auto-connect@kernel"]
+	linkSnapBase := snapTasks["link-snap@core18"]
+	autoConnectBase := snapTasks["auto-connect@core18"]
+
+	c.Assert(linkSnapBase.WaitTasks(), DeepEquals, []*state.Task{
+		snapTasks["setup-profiles@core18"], snapTasks["setup-profiles@kernel"],
+	})
+	c.Assert(linkSnapKernel.WaitTasks(), DeepEquals, []*state.Task{
+		snapTasks["setup-profiles@kernel"], linkSnapBase,
+	})
+	c.Assert(autoConnectKernel.WaitTasks(), DeepEquals, []*state.Task{
+		snapTasks["link-snap@kernel"], autoConnectBase,
+	})
+	c.Assert(autoConnectBase.WaitTasks(), DeepEquals, []*state.Task{
+		snapTasks["link-snap@core18"], snapTasks["link-snap@kernel"],
+	})
+	c.Assert(snapTasks["set-auto-aliases@kernel"].WaitTasks(), DeepEquals, []*state.Task{
+		autoConnectKernel,
+	})
+	c.Assert(snapTasks["set-auto-aliases@core18"].WaitTasks(), DeepEquals, []*state.Task{
+		autoConnectBase, autoConnectKernel,
+	})
+	// have fake backend indicate a need to reboot for both snaps
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"kernel": true,
+		"core18": true,
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	// a single system restart was requested
+	c.Check(restartRequested, DeepEquals, []restart.RestartType{
+		restart.RestartSystem,
+	})
+
+	for _, name := range []string{"kernel", "core18"} {
+		snapID := "kernel-id"
+		if name == "core18" {
+			snapID = "core18-snap-id"
+		}
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+
+		c.Assert(snapst.Active, Equals, true)
+		c.Assert(snapst.Sequence, HasLen, 2)
+		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+			RealName: name,
+			SnapID:   snapID,
+			Channel:  "",
+			Revision: snap.R(7),
+		})
+		c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+			RealName: name,
+			Channel:  "latest/stable",
+			SnapID:   snapID,
+			Revision: snap.R(11),
+		})
+	}
+
+	// ops come in semi random order, but we know that link and auto-connect
+	// operations will be done in a specific order,
+	ops := make([]string, 0, 8)
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "link-snap" {
+			split := strings.Split(op.path, "/")
+			c.Assert(len(split) > 2, Equals, true)
+			ops = append(ops, filepath.Join(split[len(split)-2:]...))
+		} else if op.op == "cleanup-trash" {
+			ops = append(ops, fmt.Sprintf("%s-%s", op.op, op.name))
+		} else if strings.HasPrefix(op.op, "auto-connect:") || strings.HasPrefix(op.op, "setup-profiles:") {
+			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
+		}
+	}
+	c.Assert(ops, HasLen, 8)
+	c.Assert(ops[0:2], testutil.DeepUnsortedMatches, []string{
+		"setup-profiles:Doing-kernel/11", "setup-profiles:Doing-core18/11",
+	})
+	c.Assert(ops[2:6], DeepEquals, []string{
+		"core18/11", "kernel/11",
+		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11",
+	})
+	c.Assert(ops[6:], testutil.DeepUnsortedMatches, []string{
+		"cleanup-trash-core18", "cleanup-trash-kernel",
+	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var restartRequested []restart.RestartType
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+
+	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	// use services-snap here to make sure services would be stopped/started appropriately
+	siKernel := snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(7),
+		SnapID:   "kernel-id",
+	}
+	siBase := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(7),
+		SnapID:   "core18-snap-id",
+	}
+	for _, si := range []*snap.SideInfo{&siKernel, &siBase} {
+		snaptest.MockSnap(c, fmt.Sprintf(`name: %s`, si.RealName), si)
+		typ := "kernel"
+		if si.RealName == "core18" {
+			typ = "base"
+		}
+		snapstate.Set(s.state, si.RealName, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        []*snap.SideInfo{si},
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        typ,
+		})
+	}
+
+	chg := s.state.NewChange("refresh", "refresh kernel and base")
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"kernel", "core18"}, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"core18", "kernel"})
+	var autoConnectBase, autoConnectKernel *state.Task
+	for _, ts := range tss {
+		chg.AddAll(ts)
+		for _, tsk := range ts.Tasks() {
+			if tsk.Kind() == "auto-connect" {
+				snapsup, err := snapstate.TaskSnapSetup(tsk)
+				c.Assert(err, IsNil)
+				if snapsup.Type == "kernel" {
+					autoConnectKernel = tsk
+				} else {
+					autoConnectBase = tsk
+				}
+				break
+			}
+		}
+	}
+	// verify auto connect of kernel waits for base
+	waitsForBase := false
+	for _, tsk := range autoConnectKernel.WaitTasks() {
+		if tsk == autoConnectBase {
+			waitsForBase = true
+		}
+	}
+	c.Assert(waitsForBase, Equals, true, Commentf("auto-connect of kernel does not wait for base"))
+
+	// have fake backend indicate a need to reboot for both snaps
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"kernel": true,
+		"core18": true,
+	}
+	errInjected := 0
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "auto-connect:Doing" && op.name == "kernel" {
+			errInjected++
+			return fmt.Errorf("auto-connect-kernel mock error")
+		}
+		return nil
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
+	c.Check(restartRequested, DeepEquals, []restart.RestartType{
+		// do path
+		restart.RestartSystem,
+		// undo
+		restart.RestartSystem,
+		restart.RestartSystem,
+	})
+	c.Check(errInjected, Equals, 1)
+
+	// ops come in semi random order, but we know that link and auto-connect
+	// operations will be done in a specific order,
+	ops := make([]string, 0, 7)
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "link-snap" {
+			split := strings.Split(op.path, "/")
+			c.Assert(len(split) > 2, Equals, true)
+			ops = append(ops, filepath.Join(split[len(split)-2:]...))
+		} else if strings.HasPrefix(op.op, "auto-connect:") {
+			ops = append(ops, fmt.Sprintf("%s-%s/%s", op.op, op.name, op.revno))
+		}
+	}
+	c.Assert(ops, HasLen, 7)
+	c.Assert(ops[0:5], DeepEquals, []string{
+		// link snaps
+		"core18/11", "kernel/11",
+		"auto-connect:Doing-core18/11",
+		"auto-connect:Doing-kernel/11", // fails
+		"auto-connect:Undoing-core18/11",
+	})
+	// those run unordered
+	c.Assert(ops[5:], testutil.DeepUnsortedMatches, []string{"core18/7", "kernel/7"})
 }
