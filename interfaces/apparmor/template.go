@@ -892,6 +892,17 @@ deny ptrace (trace),
 deny capability sys_ptrace,
 `
 
+var sysModuleCapabilityDenySnippet = `
+# The rtnetlink kernel interface can trigger the loading of kernel modules,
+# first attempting to operate on a network module (this requires the net_admin
+# capability) and falling back to loading ordinary modules (and this requires
+# the sys_module capability). For reference, see the dev_load() function in:
+# https://kernel.ubuntu.com/git/ubuntu/ubuntu-focal.git/tree/net/core/dev_ioctl.c?h=v5.13#n354
+# The following rule is used to silence the denials for attempting to load
+# generic kernel modules, while still allowing the loading of network modules.
+deny capability sys_module,
+`
+
 // updateNSTemplate defines the apparmor profile for per-snap snap-update-ns.
 //
 // The per-snap snap-update-ns profiles are composed via a template and

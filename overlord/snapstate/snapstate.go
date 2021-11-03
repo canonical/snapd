@@ -2205,7 +2205,7 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 		// good
 	default:
 		// bad
-		return nil, fmt.Errorf("cannot link type %v", info.Type())
+		return nil, fmt.Errorf("internal error: cannot link type %v", info.Type())
 	}
 
 	snapsup := &SnapSetup{
@@ -2218,20 +2218,23 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 	prepareSnap.Set("snap-setup", &snapsup)
-
-	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
-	linkSnap.Set("snap-setup-task", prepareSnap.ID())
-	linkSnap.WaitFor(prepareSnap)
-	// we need this for remodel
-	ts := state.NewTaskSet(prepareSnap, linkSnap)
-	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	prev := prepareSnap
+	ts := state.NewTaskSet(prepareSnap)
+	// preserve the same order as during the update
 	if info.Type() == snap.TypeKernel {
 		// kernel snaps can carry boot assets
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
 		gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
-		gadgetUpdate.WaitFor(linkSnap)
+		gadgetUpdate.WaitFor(prev)
 		ts.AddTask(gadgetUpdate)
+		prev = gadgetUpdate
 	}
+	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
+	linkSnap.Set("snap-setup-task", prepareSnap.ID())
+	linkSnap.WaitFor(prev)
+	ts.AddTask(linkSnap)
+	// we need this for remodel
+	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
 	return ts, nil
 }
 
@@ -2259,20 +2262,23 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	if snapSetupTask == nil {
 		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
 	}
-	linkSnap := st.NewTask("link-snap",
-		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
-	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
-	// wait for the last task in existing set
-	linkSnap.WaitFor(allTasks[len(allTasks)-1])
-	ts.AddTask(linkSnap)
+	// the first task added here waits for the last task in the existing set
+	prev := allTasks[len(allTasks)-1]
+	// preserve the same order as during the update
 	if snapsup.Type == snap.TypeKernel {
 		// kernel snaps can carry boot assets
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
 		gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
 		// wait for the last task in existing set
-		gadgetUpdate.WaitFor(linkSnap)
+		gadgetUpdate.WaitFor(prev)
 		ts.AddTask(gadgetUpdate)
+		prev = gadgetUpdate
 	}
+	linkSnap := st.NewTask("link-snap",
+		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
+	linkSnap.WaitFor(prev)
+	ts.AddTask(linkSnap)
 	return ts, nil
 }
 
