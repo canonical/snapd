@@ -4271,31 +4271,26 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	seq := []*snap.SideInfo{{
+	si := &snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(1),
-	}, {
-		RealName: "some-snap",
-		SnapID:   "some-snap-id",
-		Revision: snap.R(2),
-	}}
-	curInfo := seq[len(seq)-1]
+	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/stable",
-		Sequence:        seq,
-		Current:         curInfo.Revision,
+		Sequence:        []*snap.SideInfo{si},
+		Current:         si.Revision,
 		SnapType:        "app",
 	})
 
 	// the default is also 2 but this makes the test more robust against changes
 	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "refresh.retain", 2), IsNil)
+	c.Assert(tr.Set("core", "refresh.retain", 1), IsNil)
 	tr.Commit()
 
 	// install already stored revision
-	ts, err := installFn(curInfo)
+	ts, err := installFn(si)
 	c.Assert(err, IsNil)
 	c.Assert(ts, NotNil)
 	chg := s.state.NewChange("install", "")
@@ -4312,5 +4307,5 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Assert(snapst.Sequence, DeepEquals, seq)
+	c.Assert(snapst.Sequence, DeepEquals, []*snap.SideInfo{si})
 }
