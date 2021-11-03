@@ -1622,8 +1622,10 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	}
 	st.Set("refresh-candidates", rc)
 
-	c.Assert(snapstate.HoldRefresh(st, "some-snap", 0, "foo-snap"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "another-snap", 0, "some-snap"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "some-snap", 0, "foo-snap")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "another-snap", 0, "some-snap")
+	c.Assert(err, IsNil)
 
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -1677,7 +1679,8 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	rc := map[string]*snapstate.RefreshCandidate{"some-snap": {}}
 	st.Set("refresh-candidates", rc)
 
-	c.Assert(snapstate.HoldRefresh(st, "some-snap", 0, "some-snap"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "some-snap", 0, "some-snap")
+	c.Assert(err, IsNil)
 
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -1884,4 +1887,34 @@ func (s *snapmgrTestSuite) TestRemoveSucceedsWithInstanceName(c *C) {
 	c.Check(removed, NotNil)
 	c.Check(ts, NotNil)
 	c.Check(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "some-snap",
+			SnapID:   "some-snap-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "some-base",
+			SnapID:   "some-base-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"})
+	c.Assert(err, IsNil)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
+	c.Check(ts, HasLen, 2)
 }

@@ -35,7 +35,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
@@ -149,7 +148,8 @@ type VolumeStructure struct {
 	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
-	// ID is the GPT partition ID
+	// ID is the GPT partition ID, this should always be made upper case for
+	// comparison purposes.
 	ID string `yaml:"id"`
 	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
 	// structures of type 'bare'
@@ -271,16 +271,16 @@ type DiskStructureDeviceTraits struct {
 	Size quantity.Size `json:"size"`
 }
 
-// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume / device
-// traits to a file on disk for later loading and verification.
-func SaveDiskVolumesDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) error {
+// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume /
+// device traits to a file inside the provided directory on disk for
+// later loading and verification.
+func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDeviceTraits) error {
 	b, err := json.Marshal(mapping)
 	if err != nil {
 		return err
 	}
 
-	// TODO: should this live in dirs?
-	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+	filename := filepath.Join(dir, "disk-mapping.json")
 
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
@@ -291,10 +291,10 @@ func SaveDiskVolumesDeviceTraits(mapping map[string]DiskVolumeDeviceTraits) erro
 // LoadDiskVolumesDeviceTraits loads the mapping of volumes to disk traits if
 // there is any. If there is no file with the mapping available, nil is
 // returned.
-func LoadDiskVolumesDeviceTraits() (map[string]DiskVolumeDeviceTraits, error) {
+func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits, error) {
 	var mapping map[string]DiskVolumeDeviceTraits
 
-	filename := filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json")
+	filename := filepath.Join(dir, "disk-mapping.json")
 	if !osutil.FileExists(filename) {
 		return nil, nil
 	}
