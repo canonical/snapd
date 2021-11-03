@@ -158,14 +158,15 @@ execute: |
     # shellcheck disable=SC2164
     pushd "$PROJECT_PATH"
 
-    echo "Ensure we use the ubuntu-16.04 packaging if this host is 14.04"
+    echo "Ensure we use the correct version when host is 14.04"
     if os.query is-trusty; then
-      rm -f debian
-      ln -s "packaging/ubuntu-16.04" debian
-      tests.cleanup defer sh -c "$PROJECT_PATH/generate-packaging-dir"
+      # prepare-restore.sh will only have updated
+      # packaging/ubuntu-14.04/changelog so make sure this is also done for
+      # the ubuntu-16.04 packaging as well as this is what will be used to
+      # build the snapd snap
 
       # Use fake version to ensure we are always bigger than anything else
-      dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
+      dch --changelog packaging/ubuntu-16.04/changelog --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
     fi
 
     echo "Build the snap"
