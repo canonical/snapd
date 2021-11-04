@@ -19,7 +19,7 @@
 
 package builtin
 
-const scsiGenericSummary = `allows access to generic driver (SCSI)devices`
+const scsiGenericSummary = `allows access to SCSI generic driver devices`
 
 const scsiGenericBaseDeclarationSlots = `
   scsi-generic:
