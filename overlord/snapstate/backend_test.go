@@ -279,6 +279,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Symlink: "$SNAP/usr",
 			},
 		}
+	case "channel-for-base/stable":
+		info.Base = "some-base"
 	case "channel-for-user-daemon":
 		info.Apps = map[string]*snap.AppInfo{
 			"user-daemon": {
@@ -375,6 +377,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		typ = snap.TypeSnapd
 	case "kernel-id":
 		name = "kernel"
+		typ = snap.TypeKernel
+	case "brand-kernel-id":
+		name = "brand-kernel"
 		typ = snap.TypeKernel
 	case "brand-gadget-id":
 		name = "brand-gadget"

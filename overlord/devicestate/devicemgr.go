@@ -21,7 +21,6 @@ package devicestate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -58,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -111,7 +111,8 @@ type DeviceManager struct {
 	registered                   bool
 	reg                          chan struct{}
 
-	preseed bool
+	preseed             bool
+	ntpSyncedOrTimedOut bool
 }
 
 // Manager returns a new device manager.
@@ -1687,6 +1688,27 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
 }
 
+var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
+
+func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
+	if m.ntpSyncedOrTimedOut || time.Now().After(startTime.Add(maxWait)) {
+		return true
+	}
+
+	var err error
+	m.ntpSyncedOrTimedOut, err = timeutilIsNTPSynchronized()
+	if errors.As(err, &timeutil.NoTimedate1Error{}) {
+		// no timedate1 dbus service, no need to wait for it
+		m.ntpSyncedOrTimedOut = true
+		return true
+	}
+	if err != nil {
+		logger.Debugf("cannot check if ntp is syncronized: %v", err)
+	}
+
+	return m.ntpSyncedOrTimedOut
+}
+
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	// state must be locked
 	st := m.state
@@ -1748,32 +1770,15 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 }
 
 func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error) {
-	// TODO: move most of this to kernel/fde.Features
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	req := &fde.SetupRequest{
-		Op: "features",
-	}
-	output, err := m.runFDESetupHook(req)
+	features, err := fde.CheckFeatures(m.runFDESetupHook)
 	if err != nil {
 		return et, err
 	}
-	var res struct {
-		Features []string `json:"features"`
-		Error    string   `json:"error"`
-	}
-	if err := json.Unmarshal(output, &res); err != nil {
-		return et, fmt.Errorf("cannot parse hook output %q: %v", output, err)
-	}
-	if res.Features == nil && res.Error == "" {
-		return et, fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
-	}
-	if res.Error != "" {
-		return et, fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
-	}
-	if strutil.ListContains(res.Features, "device-setup") {
+	if strutil.ListContains(features, "device-setup") {
 		et = secboot.EncryptionTypeDeviceSetupHook
 	} else {
 		et = secboot.EncryptionTypeLUKS

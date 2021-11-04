@@ -9,6 +9,8 @@ systems: [-ubuntu-core-*]
 
 environment:
   TMPFSMOUNT: /var/lib/snapd
+  # filling tmpfs mounted under /var/lib/snapd triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
   systemctl stop snapd.{socket,service}

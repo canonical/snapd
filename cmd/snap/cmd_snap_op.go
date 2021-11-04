@@ -474,9 +474,10 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
-	Cohort        string `long:"cohort"`
-	IgnoreRunning bool   `long:"ignore-running" hidden:"yes"`
-	Positional    struct {
+	Cohort           string `long:"cohort"`
+	IgnoreValidation bool   `long:"ignore-validation"`
+	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
+	Positional       struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -592,12 +593,13 @@ func (x *cmdInstall) Execute([]string) error {
 
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
-		Channel:       x.Channel,
-		Revision:      x.Revision,
-		Dangerous:     dangerous,
-		Unaliased:     x.Unaliased,
-		CohortKey:     x.Cohort,
-		IgnoreRunning: x.IgnoreRunning,
+		Channel:          x.Channel,
+		Revision:         x.Revision,
+		Dangerous:        dangerous,
+		Unaliased:        x.Unaliased,
+		CohortKey:        x.Cohort,
+		IgnoreValidation: x.IgnoreValidation,
+		IgnoreRunning:    x.IgnoreRunning,
 	}
 	x.setModes(opts)
 
@@ -617,6 +619,9 @@ func (x *cmdInstall) Execute([]string) error {
 
 	if x.asksForMode() || x.asksForChannel() {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	}
+	if x.IgnoreValidation {
+		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
 
 	if x.Name != "" {
@@ -1106,6 +1111,8 @@ func init() {
 			"name": i18n.G("Install the snap file under the given instance name"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"cohort": i18n.G("Install the snap in the given cohort"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 		}), nil)

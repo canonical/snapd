@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -135,6 +136,18 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 			Mode:    0644,
 		}
 		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
+	}
+
+	// Check whether apparmor_parser supports bpf capability. Some older
+	// versions do not, hence the capability cannot be part of the default
+	// profile of snap-confine as loading it would fail.
+	if features, err := apparmor_sandbox.ParserFeatures(); err != nil {
+		logger.Noticef("cannot determine apparmor_parser features: %v", err)
+	} else if strutil.ListContains(features, "cap-bpf") {
+		policy["cap-bpf"] = &osutil.MemoryFileState{
+			Content: []byte(capabilityBPFSnippet),
+			Mode:    0644,
+		}
 	}
 
 	// Ensure that generated policy is what we computed above.
@@ -736,6 +749,12 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 				// interface said it uses them.
 				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
 					tagSnippets += ptraceTraceDenySnippet
+				}
+
+				// Deny the sys_module capability unless it has been explicitly
+				// requested
+				if spec.SuppressSysModuleCapability() && !spec.UsesSysModuleCapability() {
+					tagSnippets += sysModuleCapabilityDenySnippet
 				}
 
 				// Use 'ix' rules in the home interface unless an

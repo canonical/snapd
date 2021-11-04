@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -114,6 +115,14 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	var seeded bool
 	st.Get("seeded", &seeded)
 	if !seeded {
+		return false, nil
+	}
+
+	// Try to ensure we have an accurate time before doing any
+	// refreshy stuff. Note that this call will not block.
+	devMgr := deviceMgr(st)
+	maxWait := 10 * time.Minute
+	if !devMgr.ntpSyncedOrWaitedLongerThan(maxWait) {
 		return false, nil
 	}
 
@@ -401,23 +410,34 @@ type modelSnapsForRemodel struct {
 	newModelSnap     *asserts.ModelSnap
 }
 
-func remodelKernelOrBaseTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+func (ms *modelSnapsForRemodel) canHaveUC18PinnedTrack() bool {
+	return ms.newModelSnap != nil &&
+		(ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "gadget")
+}
+
+func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 	userID := 0
 	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
 	if err != nil {
 		return nil, err
 	}
+
+	addExistingSnapTasks := snapstate.LinkNewBaseOrKernel
+	if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
+		addExistingSnapTasks = snapstate.SwitchToNewGadget
+	}
+
 	if ms.currentSnap == ms.newSnap {
+		// new model uses the same base, kernel or gadget snap
 		changed := false
 		if ms.new.Grade() != asserts.ModelGradeUnset {
 			// UC20 models can specify default channel for all snaps
-			// including base and kernel
-			// new model uses the same base or kernel
+			// including base, kernel and gadget
 			changed, err = installedSnapChannelChanged(st, ms.newSnap, newModelSnapChannel)
 			if err != nil {
 				return nil, err
 			}
-		} else if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "kernel" {
+		} else if ms.canHaveUC18PinnedTrack() {
 			// UC18 models could only specify track for the kernel
 			// and gadget snaps
 			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
@@ -465,49 +485,31 @@ func remodelKernelOrBaseTasks(ctx context.Context, st *state.State, ms modelSnap
 					// switch-snap-channel
 					return ts, nil
 				} else {
-					// in other cases make sure that the
-					// kernel or base is linked and available
-					return snapstate.AddLinkNewBaseOrKernel(st, ts)
+					if ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "base" {
+						// in other cases make sure that
+						// the kernel or base is linked
+						// and available, and that
+						// kernel updates boot assets if
+						// needed
+						ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
+						if err != nil {
+							return nil, err
+						}
+					} else if ms.newModelSnap.SnapType == "gadget" {
+						// gadget snaps may need gadget
+						// related tasks such as assets
+						// update or command line update
+						ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
+						if err != nil {
+							return nil, err
+						}
+					}
+					return ts, nil
 				}
 			}
 		}
 	}
-	return snapstate.LinkNewBaseOrKernel(st, ms.newSnap)
-}
-
-func remodelGadgetTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-	userID := 0
-	newGadgetChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
-	if err != nil {
-		return nil, err
-	}
-	if ms.currentSnap == ms.newSnap {
-		// already installed, but may be using a different channel
-		changed := false
-		if ms.new.Grade() != asserts.ModelGradeUnset {
-			// UC20 models can specify default channel for all snaps
-			// including the gadget
-			changed, err = installedSnapChannelChanged(st, ms.newSnap, newGadgetChannel)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			// pre UC20 models could only specify a track for the
-			// gadget
-			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
-		}
-		if changed {
-			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
-				&snapstate.RevisionOptions{Channel: newGadgetChannel},
-				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
-		}
-		return nil, nil
-	}
-
-	// install the new gadget
-	return snapstateInstallWithDeviceContext(ctx, st, ms.newSnap,
-		&snapstate.RevisionOptions{Channel: newGadgetChannel},
-		userID, snapstate.Flags{}, deviceCtx, fromChange)
+	return addExistingSnapTasks(st, ms.newSnap)
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
@@ -522,7 +524,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Kernel(),
 		newModelSnap:     new.KernelSnap(),
 	}
-	ts, err := remodelKernelOrBaseTasks(ctx, st, kms, deviceCtx, fromChange)
+	ts, err := remodelEssentialSnapTasks(ctx, st, kms, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +539,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Base(),
 		newModelSnap:     new.BaseSnap(),
 	}
-	ts, err = remodelKernelOrBaseTasks(ctx, st, bms, deviceCtx, fromChange)
+	ts, err = remodelEssentialSnapTasks(ctx, st, bms, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -552,7 +554,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Gadget(),
 		newModelSnap:     new.GadgetSnap(),
 	}
-	ts, err = remodelGadgetTasks(ctx, st, gms, deviceCtx, fromChange)
+	ts, err = remodelEssentialSnapTasks(ctx, st, gms, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}

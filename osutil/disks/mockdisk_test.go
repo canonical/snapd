@@ -39,11 +39,14 @@ func (s *mockDiskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
+func (s *mockDiskSuite) TestMockDeviceNameToDiskMapping(c *C) {
 	// one disk with different device names
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
@@ -52,8 +55,11 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 	}
 
 	d2 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label2": "part2",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label2",
+				PartitionUUID:   "part2",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d2",
@@ -67,7 +73,7 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 		"other-disk": d2,
 	}
 
-	r := disks.MockDeviceNameDisksToPartitionMapping(m)
+	r := disks.MockDeviceNameToDiskMapping(m)
 	defer r()
 
 	res, err := disks.DiskFromDeviceName("devName1")
@@ -104,16 +110,22 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniqueness(c *C) {
 	// two different disks with different DevNum's
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
 	}
 
 	d2 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: false,
 		DevNum:            "d2",
@@ -152,8 +164,11 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniquen
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesConsistency(c *C) {
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
@@ -177,22 +192,24 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesConsist
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
-		},
-		PartitionLabelToPartUUID: map[string]string{
-			"part-label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+				PartitionLabel:  "part-label1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
 	}
 
 	d2 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label2": "part2",
-		},
-		PartitionLabelToPartUUID: map[string]string{
-			"part-label2": "part2",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label2",
+				PartitionUUID:   "part2",
+				PartitionLabel:  "part-label2",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d2",
@@ -322,10 +339,19 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevices(c *C) {
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-seed":     "ubuntu-seed-part",
-			"ubuntu-boot":     "ubuntu-boot-part",
-			"ubuntu-data-enc": "ubuntu-data-enc-part",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "ubuntu-seed",
+				PartitionUUID:   "ubuntu-seed-part",
+			},
+			{
+				FilesystemLabel: "ubuntu-boot",
+				PartitionUUID:   "ubuntu-boot-part",
+			},
+			{
+				FilesystemLabel: "ubuntu-data-enc",
+				PartitionUUID:   "ubuntu-data-enc-part",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",

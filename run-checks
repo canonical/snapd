@@ -9,6 +9,8 @@ else
     goctest="go test"
 fi
 COVERMODE=${COVERMODE:-atomic}
+COVERAGE_SUFFIX=${GO_BUILD_TAGS:-notags}
+COVERAGE_OUT=${COVERAGE_OUT:-.coverage/coverage-$COVERAGE_SUFFIX.cov}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.13 by default
@@ -48,7 +50,7 @@ case "${1:-all}" in
         short=1
         ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit."
         exit 1
 esac
 
@@ -86,19 +88,10 @@ endmsg() {
 }
 addtrap endmsg
 
-# Append the coverage profile of a package to the project coverage.
-append_coverage() (
-    profile="$1"
-    if [ -f "$profile" ]; then
-        grep -v "^mode:" -- "$profile" >> .coverage/coverage.out || true
-        rm "$profile"
-    fi
-)
-
 missing_interface_spread_test() {
     snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
-    core_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-core/meta/snap.yaml"
-    classic_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-classic/meta/snap.yaml"
+    core_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-core/meta/snap.yaml"
+    classic_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-classic/meta/snap.yaml"
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
         search="plugs: \\[ $iface \\]"
         case "$iface" in
@@ -298,29 +291,16 @@ if [ "$UNIT" = 1 ]; then
     else
         coverage=""
         if [ -z "${SKIP_COVERAGE-}" ]; then
-            coverage="-coverprofile=.coverage/coverage.out -covermode=$COVERMODE"
+            coverage="-coverprofile=$COVERAGE_OUT -covermode=$COVERMODE"
             # Prepare the coverage output profile.
-            rm -rf .coverage
-            mkdir .coverage
-            echo "mode: $COVERMODE" > .coverage/coverage.out
+            mkdir -p "$(dirname "$COVERAGE_OUT")"
+            echo "mode: $COVERMODE" > "$COVERAGE_OUT"
         else
             echo "Skipping test coverage"
         fi
 
-        if command -v dpkg >/dev/null && dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
-            # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
-        else
-            for pkg in $(go list ./... | grep -v '/vendor/' ); do
-                # shellcheck disable=SC2086
-                GOTRACEBACK=1 go test $tags -timeout 5m -i "$pkg"
-                if [ -z "${SKIP_COVERAGE-}" ]; then
-                    # shellcheck disable=SC2086
-                    GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage "$pkg"
-                    append_coverage .coverage/profile.out
-                fi
-            done
-        fi
+        # shellcheck disable=SC2046,SC2086
+        GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
     fi
 
     # python unit test for mountinfo.query and version-compare
