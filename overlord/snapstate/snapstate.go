@@ -1068,6 +1068,8 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	names = strutil.Deduplicate(names)
+
 	toInstall := make([]string, 0, len(names))
 	for _, name := range names {
 		var snapst SnapState
@@ -1208,6 +1210,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	if err != nil {
 		return nil, nil, err
 	}
+
+	names = strutil.Deduplicate(names)
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: flags.IsAutoRefresh}
 	updates, stateByInstanceName, ignoreValidation, err := refreshCandidates(ctx, st, names, user, refreshOpts)
@@ -2201,7 +2205,7 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 		// good
 	default:
 		// bad
-		return nil, fmt.Errorf("cannot link type %v", info.Type())
+		return nil, fmt.Errorf("internal error: cannot link type %v", info.Type())
 	}
 
 	snapsup := &SnapSetup{
@@ -2214,20 +2218,23 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 
 	prepareSnap := st.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 	prepareSnap.Set("snap-setup", &snapsup)
-
-	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
-	linkSnap.Set("snap-setup-task", prepareSnap.ID())
-	linkSnap.WaitFor(prepareSnap)
-	// we need this for remodel
-	ts := state.NewTaskSet(prepareSnap, linkSnap)
-	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	prev := prepareSnap
+	ts := state.NewTaskSet(prepareSnap)
+	// preserve the same order as during the update
 	if info.Type() == snap.TypeKernel {
 		// kernel snaps can carry boot assets
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
 		gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
-		gadgetUpdate.WaitFor(linkSnap)
+		gadgetUpdate.WaitFor(prev)
 		ts.AddTask(gadgetUpdate)
+		prev = gadgetUpdate
 	}
+	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapst.Current))
+	linkSnap.Set("snap-setup-task", prepareSnap.ID())
+	linkSnap.WaitFor(prev)
+	ts.AddTask(linkSnap)
+	// we need this for remodel
+	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
 	return ts, nil
 }
 
@@ -2255,20 +2262,23 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	if snapSetupTask == nil {
 		return nil, fmt.Errorf("internal error: cannot identify task with snap-setup")
 	}
-	linkSnap := st.NewTask("link-snap",
-		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
-	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
-	// wait for the last task in existing set
-	linkSnap.WaitFor(allTasks[len(allTasks)-1])
-	ts.AddTask(linkSnap)
+	// the first task added here waits for the last task in the existing set
+	prev := allTasks[len(allTasks)-1]
+	// preserve the same order as during the update
 	if snapsup.Type == snap.TypeKernel {
 		// kernel snaps can carry boot assets
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
 		gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())
 		// wait for the last task in existing set
-		gadgetUpdate.WaitFor(linkSnap)
+		gadgetUpdate.WaitFor(prev)
 		ts.AddTask(gadgetUpdate)
+		prev = gadgetUpdate
 	}
+	linkSnap := st.NewTask("link-snap",
+		fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system during remodel"), snapsup.InstanceName(), snapsup.SideInfo.Revision))
+	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
+	linkSnap.WaitFor(prev)
+	ts.AddTask(linkSnap)
 	return ts, nil
 }
 
@@ -2740,6 +2750,8 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	names = strutil.Deduplicate(names)
+
 	if err := validateSnapNames(names); err != nil {
 		return nil, nil, err
 	}
@@ -3038,23 +3050,24 @@ func All(st *state.State) (map[string]*SnapState, error) {
 
 // InstalledSnaps returns the list of all installed snaps suitable for
 // ValidationSets checks.
-func InstalledSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
-	var snaps []*snapasserts.InstalledSnap
+func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool, err error) {
 	all, err := All(st)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	ignoreValidation = make(map[string]bool)
 	for _, snapState := range all {
 		cur, err := snapState.CurrentInfo()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		snaps = append(snaps,
-			snapasserts.NewInstalledSnap(snapState.InstanceName(),
-				snapState.CurrentSideInfo().SnapID,
-				cur.Revision))
+		snaps = append(snaps, snapasserts.NewInstalledSnap(snapState.InstanceName(),
+			snapState.CurrentSideInfo().SnapID, cur.Revision))
+		if snapState.IgnoreValidation {
+			ignoreValidation[snapState.InstanceName()] = true
+		}
 	}
-	return snaps, nil
+	return snaps, ignoreValidation, nil
 }
 
 // NumSnaps returns the number of installed snaps.
