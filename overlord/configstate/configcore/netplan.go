@@ -33,6 +33,7 @@ package configcore
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -41,7 +42,9 @@ import (
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -160,7 +163,12 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 
 	// Always starts with a clean config to avoid merging of keys
 	// that got unset.
-	configs := []string{"network=null"}
+	//
+	// XXX: The osutil.FileExists() is needed until LP:1946957 gets fixed
+	var configs []string
+	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/etc/netplan/90-snapd-conf.yaml")) {
+		configs = []string{"network=null"}
+	}
 	// and then pass the full new config in
 	for key := range cfg {
 		// We pass the new config back to netplan as json, the reason

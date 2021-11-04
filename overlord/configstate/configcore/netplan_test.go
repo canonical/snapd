@@ -21,6 +21,7 @@ package configcore_test
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -238,7 +239,7 @@ func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
 	}
 }
 
-func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
+func (s *netplanSuite) TestNetplanWriteConfigHappyNoPrevConfig(c *C) {
 	// export the V2 api, things work with that
 	s.backend.ExportApiV2()
 
@@ -257,11 +258,43 @@ func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
-		`network=null/90-snapd-conf`,
 		`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/90-snapd-conf`,
 	})
 	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
+	// see https://bugs.launchpad.net/netplan/+bug/1946957 why needed
+	// XXX: once the above bug is fixed we can delete this test
+	mockNetplanFile := filepath.Join(dirs.GlobalRootDir, "/etc/netplan/90-snapd-conf.yaml")
+	err := os.MkdirAll(filepath.Dir(mockNetplanFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockNetplanFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
+	// and everything is fine
+	s.fakestore.status = map[string]bool{"host1": true}
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiApplyRet = true
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+
+	err = configcore.Run(coreDev, tr)
+	c.Assert(err, IsNil)
+
+	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
+		`network=null/90-snapd-conf`,
+		`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/90-snapd-conf`,
+	})
+	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
@@ -302,6 +335,13 @@ network:
       dhcp6: true`
 	s.backend.ExportApiV2()
 
+	// see https://bugs.launchpad.net/netplan/+bug/1946957 why needed
+	mockNetplanFile := filepath.Join(dirs.GlobalRootDir, "/etc/netplan/90-snapd-conf.yaml")
+	err := os.MkdirAll(filepath.Dir(mockNetplanFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockNetplanFile, nil, 0644)
+	c.Assert(err, IsNil)
+
 	// we have connectivity
 	s.fakestore.status = map[string]bool{"host1": true}
 	s.backend.ConfigApiTryRet = true
@@ -314,7 +354,7 @@ network:
 	s.state.Unlock()
 	tr.Set("core", "system.network.netplan.network.bridges.br54.dhcp4", nil)
 
-	err := configcore.Run(coreDev, tr)
+	err = configcore.Run(coreDev, tr)
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
