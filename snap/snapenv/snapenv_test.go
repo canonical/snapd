@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -286,4 +287,31 @@ func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 	c.Assert(env["SNAP_DATA"], Equals, "/var/snap/foo/17")
 
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
+}
+
+func (s *HTestSuite) TestHiddenDirEnv(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	testDir := c.MkDir()
+	usr.HomeDir = testDir
+
+	restore := MockUserCurrent(func() (*user.User, error) {
+		return usr, nil
+	})
+	defer restore()
+
+	env := osutil.Environment{}
+	ExtendEnvForRun(env, mockSnapInfo, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+
+	c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, "common"))
+	c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+	c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+}
+
+func MockUserCurrent(f func() (*user.User, error)) func() {
+	old := userCurrent
+	userCurrent = f
+	return func() {
+		userCurrent = old
+	}
 }

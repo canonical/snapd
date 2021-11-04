@@ -71,8 +71,10 @@ func (s *copydataSuite) TestCopyData(c *C) {
 		{snapDir: dirs.UserHomeSnapDir, opts: nil},
 		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
 		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
-
 		s.testCopyData(c, t.snapDir, t.opts)
+		c.Assert(os.RemoveAll(s.tempdir), IsNil)
+		s.tempdir = c.MkDir()
+		dirs.SetRootDir(s.tempdir)
 	}
 }
 
@@ -213,6 +215,9 @@ func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
 		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
 	} {
 		s.testCopyDataUndo(c, t.snapDir, t.opts)
+		c.Assert(os.RemoveAll(s.tempdir), IsNil)
+		s.tempdir = c.MkDir()
+		dirs.SetRootDir(s.tempdir)
 	}
 }
 

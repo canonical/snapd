@@ -37,6 +37,8 @@ import (
 // them through snap-confine (for classic confined snaps).
 const PreservedUnsafePrefix = "SNAP_SAVED_"
 
+var userCurrent = user.Current
+
 // ExtendEnvForRun extends the given environment with what is is
 // required for snap-{confine,exec}, that means SNAP_{NAME,REVISION}
 // etc are all set.
@@ -55,7 +57,7 @@ func ExtendEnvForRun(env osutil.Environment, info *snap.Info, opts *dirs.SnapDir
 func snapEnv(info *snap.Info, opts *dirs.SnapDirOptions) osutil.Environment {
 	// Environment variables with basic properties of a snap.
 	env := basicEnv(info)
-	if usr, err := user.Current(); err == nil && usr.HomeDir != "" {
+	if usr, err := userCurrent(); err == nil && usr.HomeDir != "" {
 		// Environment variables with values specific to the calling user.
 		for k, v := range userEnv(info, usr.HomeDir, opts) {
 			env[k] = v
