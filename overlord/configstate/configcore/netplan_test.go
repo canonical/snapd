@@ -100,6 +100,11 @@ func (s *netplanSuite) SetUpTest(c *C) {
 
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/netplan"), 0755)
 	c.Assert(err, IsNil)
+
+	// XXX: remove once https://bugs.launchpad.net/netplan/+bug/1949893
+	// is fixed
+	mockedNetplan := testutil.MockCommand(c, "netplan", "")
+	s.AddCleanup(mockedNetplan.Restore)
 }
 
 func (s *netplanSuite) TearDownTest(c *C) {
