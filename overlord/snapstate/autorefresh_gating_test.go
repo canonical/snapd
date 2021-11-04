@@ -1768,10 +1768,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -2061,10 +2059,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(installSizeCalled, Equals, true)
 	if fail {
@@ -2140,10 +2136,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	conflictChange.AddTask(conflictTask)
 	conflictTask.WaitFor(tss[0].Tasks()[0])
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -2303,10 +2297,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)

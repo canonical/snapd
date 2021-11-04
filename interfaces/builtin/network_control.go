@@ -352,7 +352,8 @@ func init() {
 		connectedPlugMount:            networkControlConnectedPlugMount,
 		connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
 
-		suppressPtraceTrace: true,
+		suppressPtraceTrace:         true,
+		suppressSysModuleCapability: true,
 
 		// affects the plug snap because of mount backend
 		affectsPlugOnRefresh: true,

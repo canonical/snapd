@@ -169,6 +169,39 @@ slots:
 				{(*apparmor.Specification).SuppressHomeIx, true},
 			},
 		},
+		// sys_module capability
+		{
+			// setting nothing
+			&commonInterface{name: "common", suppressSysModuleCapability: false, usesSysModuleCapability: false},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, false},
+				{(*apparmor.Specification).SuppressSysModuleCapability, false},
+			},
+		},
+		{
+			// setting only uses
+			&commonInterface{name: "common", suppressSysModuleCapability: false, usesSysModuleCapability: true},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, true},
+				{(*apparmor.Specification).SuppressSysModuleCapability, false},
+			},
+		},
+		{
+			// setting only suppress
+			&commonInterface{name: "common", suppressSysModuleCapability: true, usesSysModuleCapability: false},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, false},
+				{(*apparmor.Specification).SuppressSysModuleCapability, true},
+			},
+		},
+		{
+			// setting both, only uses is set
+			&commonInterface{name: "common", suppressSysModuleCapability: true, usesSysModuleCapability: true},
+			Checks{
+				{(*apparmor.Specification).UsesSysModuleCapability, true},
+				{(*apparmor.Specification).SuppressSysModuleCapability, false},
+			},
+		},
 	}
 
 	for _, test := range tests {
