@@ -445,7 +445,16 @@ class LogReader:
         return Info(info_type, verb, task, extra, date, time, detail, line)
 
     def _get_result(self, line):
-        """ Get the Result object including the details for the result """
+        """ Get the Result object including the details for the result
+        Example of lines:
+        2021-11-04 10:51:41 Successful tasks: 10041
+        2021-11-04 10:51:41 Aborted tasks: 2
+        2021-11-04 10:51:41 Failed tasks: 4
+            - google:debian-11-64:tests/main/snap-user-service-socket-activation
+            - google:opensuse-15.2-64:tests/main/disk-space-awareness
+            - google:ubuntu-core-18-64:tests/main/services-disabled-kept-happy
+            - google:ubuntu-core-18-64:tests/main/snap-connections
+        """
         parts = line.strip().split(' ')
         if len(parts) < 3:
             print(parts)
@@ -467,6 +476,10 @@ class LogReader:
     def _get_action(self, line):
         """
         Get the Action object for lines preparing, executing and restoring
+        Example of lines:
+        2021-11-04 10:46:07 Preparing google:ubuntu-20.04-64:tests/completion/snippets:funkyfunc (nov040945-011538)...
+        2021-11-04 10:46:09 Executing google:ubuntu-18.04-32:tests/main/document-portal-activation (nov040945-011663) (10019/10047)...
+        2021-11-04 10:47:01 Restoring google:ubuntu-20.04-64 (nov040945-011544)...
         """
         parts = line.strip().split(' ')
         if len(parts) < 3:
@@ -478,7 +491,15 @@ class LogReader:
         return Action(verb, task.split('...')[0], date, time, line)
 
     def _get_operation(self, line):
-        """ Get the Operation object for lines rebooting, allocating, etc """
+        """ Get the Operation object for lines rebooting, allocating, etc
+        Example of lines:
+        2021-11-04 09:48:32 Rebooting on nov040945-011632 (google:arch-linux-64) as requested...
+        2021-11-04 09:47:47 Allocated google:debian-11-64 (nov040945-011728).
+        2021-11-04 09:45:41 Allocating google:arch-linux-64...
+        2021-11-04 10:51:32 Discarding google:ubuntu-18.04-32 (nov040945-011692)...
+        2021-11-04 09:46:32 Waiting for google:debian-10-64 (nov040945-011516) to boot at 34.138.21.231...
+        2021-11-04 09:46:34 Sending project content to google:centos-8-64 (nov040945-011292)...
+        """
         parts = line.strip().split(' ')
         if len(parts) < 3:
             return None
