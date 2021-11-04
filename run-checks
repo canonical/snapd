@@ -50,7 +50,7 @@ case "${1:-all}" in
         short=1
         ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit."
         exit 1
 esac
 
@@ -90,8 +90,8 @@ addtrap endmsg
 
 missing_interface_spread_test() {
     snap_yaml="tests/lib/snaps/test-snapd-policy-app-consumer/meta/snap.yaml"
-    core_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-core/meta/snap.yaml"
-    classic_snap_yaml="tests/lib/snaps/test-snapd-policy-app-provider-classic/meta/snap.yaml"
+    core_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-core/meta/snap.yaml"
+    classic_snap_yaml="tests/main/interfaces-many-snap-provided/test-snapd-policy-app-provider-classic/meta/snap.yaml"
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
         search="plugs: \\[ $iface \\]"
         case "$iface" in

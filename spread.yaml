@@ -15,6 +15,7 @@ environment:
     PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
+    TESTSTMP: /var/tmp/snapd-tools
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
@@ -35,7 +36,8 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
     # a global setting for LXD channel to use in the tests
-    LXD_SNAP_CHANNEL: "latest/candidate"
+    LXD_SNAP_CHANNEL: "latest/edge"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -114,10 +116,9 @@ backends:
                   storage: 12G
                   workers: 8
 
-            - debian-9-64:
-                  workers: 6
-                  manual: true
             - debian-10-64:
+                  workers: 6
+            - debian-11-64:
                   workers: 6
             - debian-sid-64:
                   workers: 6
@@ -169,7 +170,7 @@ backends:
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
         halt-timeout: 2h
-        cpu-family: 'Intel Cascade Lake'
+        cpu-family: "Intel Cascade Lake"
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
@@ -448,11 +449,19 @@ debug-each: |
             tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
+        echo "# definition of snapd.service"
+        systemctl cat snapd.service || true
+        echo "# status of snapd service"
+        systemctl status snapd.service || true
+        echo "# memory limits of snapd service that systemd uses"
+        systemctl show snapd.service | grep -e MemoryMax= -e MemoryLimit= || true
+        echo "# memory limits of snapd service that are actually set"
+        cat /sys/fs/cgroup/memory/system.slice/snapd.service/memory.limit_in_bytes || true
         echo '# journal messages for snapd'
         "$TESTSTOOLS"/journal-state get-log -u snapd
 
         echo '# user sessions information'
-        journalctl --user -u snapd.session-agent.service
+        journalctl --user -u snapd.session-agent.service || true
         systemctl status --user snapd.session-agent  || true
 
         if ! is_cgroupv2; then
@@ -462,6 +471,9 @@ debug-each: |
                 echo "# device cgroup $cgroup_dev"
                 cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
             fi
+        else
+            echo "# snap confinement device filtering maps"
+            ls -l /sys/fs/bpf/snap || true
         fi
 
         case "$SPREAD_SYSTEM" in
@@ -501,6 +513,8 @@ debug-each: |
         ps axl
         echo "# /var/lib/snapd"
         find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
+        echo '# system journal messages'
+        journalctl -e
     fi
 
 rename:
@@ -725,7 +739,6 @@ suites:
         debug: |
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
-                journalctl -e
             fi
     tests/core/:
         summary: Subset of Ubuntu Core specific tests
@@ -895,7 +908,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -930,7 +943,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -969,7 +982,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
-            snap install ubuntu-image --classic
+            snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb

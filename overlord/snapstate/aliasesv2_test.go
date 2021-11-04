@@ -576,10 +576,8 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -635,10 +633,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -755,10 +751,8 @@ func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -958,10 +952,8 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -1030,10 +1022,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableAllAliasesRunThrough(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -1127,10 +1117,8 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -1179,10 +1167,8 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -1228,10 +1214,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveManualAliasRunThrough(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -1396,10 +1380,8 @@ func (s *snapmgrTestSuite) TestPreferRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{
@@ -1460,10 +1442,8 @@ func (s *snapmgrTestSuite) TestParallelInstancePreferRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
 	expected := fakeOps{

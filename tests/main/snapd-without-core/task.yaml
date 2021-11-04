@@ -5,6 +5,10 @@ summary: Ensure the snapd works without core on classic systems
 # snap so we don't need to test there.
 systems: [ubuntu-1*, ubuntu-2*]
 
+environment:
+    # uploading large snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
     rm -f /tmp/snapd_*.snap
 

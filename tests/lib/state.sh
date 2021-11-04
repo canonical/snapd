@@ -1,8 +1,8 @@
 #!/bin/bash
 
-SNAPD_STATE_PATH="$SPREAD_PATH/tests/snapd-state"
-SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state/snapd-state.tar"
-RUNTIME_STATE_PATH="$SPREAD_PATH/tests/runtime-state"
+SNAPD_STATE_PATH="$TESTSTMP/snapd-state"
+SNAPD_STATE_FILE="$TESTSTMP/snapd-state/snapd-state.tar"
+RUNTIME_STATE_PATH="$TESTSTMP/runtime-state"
 SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 
 # shellcheck source=tests/lib/systemd.sh
@@ -28,6 +28,7 @@ is_snapd_state_saved() {
 }
 
 save_snapd_state() {
+    prepare_state
     if os.query is-core; then
         boot_path="$("$TESTSTOOLS"/boot-state boot-path)"
         test -n "$boot_path" || return 1
