@@ -426,10 +426,5 @@ func enforceValidationSet(st *state.State, accountID, name string, sequence, use
 		Current:  vs.Sequence(),
 	}
 	assertstate.UpdateValidationSet(st, &tr)
-
-	if err := assertstate.AddCurrentTrackingToValidationSetsHistory(st); err != nil {
-		return InternalError(err.Error())
-	}
-
 	return SyncResponse(nil)
 }

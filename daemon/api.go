@@ -143,8 +143,7 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
 
-	assertstateRefreshSnapAssertions                     = assertstate.RefreshSnapAssertions
-	assertstateAddCurrentTrackingToValidationSetsHistory = assertstate.AddCurrentTrackingToValidationSetsHistory
+	assertstateRefreshSnapAssertions = assertstate.RefreshSnapAssertions
 )
 
 func ensureStateSoonImpl(st *state.State) {
