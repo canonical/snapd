@@ -80,6 +80,8 @@ type fakeOp struct {
 	inhibitHint runinhibit.Hint
 
 	requireSnapdTooling bool
+
+	dirOpts *dirs.SnapDirOptions
 }
 
 type fakeOps []fakeOp
@@ -918,25 +920,27 @@ func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, use
 
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter, opts *dirs.SnapDirOptions) error {
 	p.Notify("copy-data")
-	old := "<no-old>"
+	op := &fakeOp{
+		op:   "copy-data",
+		path: newInfo.MountDir(),
+		old:  "<no-old>",
+	}
+
 	if oldInfo != nil {
-		old = oldInfo.MountDir()
+		op.old = oldInfo.MountDir()
+	}
+
+	if opts != nil && opts.HiddenSnapDataDir {
+		op.dirOpts = opts
 	}
 
 	if newInfo.MountDir() == f.copySnapDataFailTrigger {
-		f.appendOp(&fakeOp{
-			op:   "copy-data.failed",
-			path: newInfo.MountDir(),
-			old:  old,
-		})
+		op.op = "copy-data.failed"
+		f.appendOp(op)
 		return errors.New("fail")
 	}
 
-	f.appendOp(&fakeOp{
-		op:   "copy-data",
-		path: newInfo.MountDir(),
-		old:  old,
-	})
+	f.appendOp(op)
 	return f.maybeErrForLastOp()
 }
 

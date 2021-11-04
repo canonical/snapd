@@ -6890,4 +6890,6 @@ func (s *snapmgrTestSuite) TestUpdateWithHiddenSnapDataDir(c *C) {
 	s.settle(c)
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 }
