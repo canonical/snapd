@@ -182,9 +182,9 @@ func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error
 	return sets, err
 }
 
-// AddCurrentTrackingToValidationSetsHistory stores the current state of validation-sets
+// addCurrentTrackingToValidationSetsHistory stores the current state of validation-sets
 // tracking on top of the validation sets history.
-func AddCurrentTrackingToValidationSetsHistory(st *state.State) error {
+func addCurrentTrackingToValidationSetsHistory(st *state.State) error {
 	all, err := ValidationSets(st)
 	if err != nil {
 		return err
@@ -199,7 +199,7 @@ func addToValidationSetsHistory(st *state.State, validationSets map[string]*Vali
 	}
 
 	// if nothing is being tracked and history is empty (meaning nothing was
-	// tracked before, then don't store anything.
+	// tracked before), then don't store anything.
 	// if nothing is being tracked but history is not empty, then we want to
 	// store empty tracking - this means snap validate --forget was used and
 	// we need to remember such empty state in the history.
