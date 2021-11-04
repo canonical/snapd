@@ -123,11 +123,11 @@ restore: |
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
 debug: |
-  tests.nested exec "snap changes"
-  tests.nested exec "snap tasks 1"
-  tests.nested exec "snap tasks 2"
+  tests.nested exec "snap changes" || true
+  tests.nested exec "snap tasks 1" || true
+  tests.nested exec "snap tasks 2" || true
 
-  tests.nested exec "cloud-init status --long"
+  tests.nested exec "cloud-init status --long" || true
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
