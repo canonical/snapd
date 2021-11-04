@@ -202,15 +202,16 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	if err != nil && !config.IsNoOption(err) {
 		return err
 	}
-	// do nothing if gate-auto-refresh-hook feature is not enabled.
-	// this acts as a workaround for the case where a snapd from edge was
-	// used and created refresh-candidates in the old format (an array) with the
-	// feature enabled, but the feature was then disabled so the new map format
-	// will never make it into the state. When the feature is enabled then
-	// auto-refresh code will re-initialize refresh-candidates in the correct format
-	// expected here.
+	// Remove refresh-candidates from state if gate-auto-refresh-hook feature is
+	// not enabled. This acts as a workaround for the case where a snapd from
+	// edge was used and created refresh-candidates in the old format (an array)
+	// with the feature enabled, but the feature was then disabled so the new
+	// map format will never make it into the state.
+	// When the feature is enabled then auto-refresh code will re-initialize
+	// refresh-candidates in the correct format expected here.
 	// See https://forum.snapcraft.io/t/cannot-r-emove-snap-json-cannot-unmarshal-array-into-go-value-of-type-map-string-snapstate-refreshcandidate/27276
 	if !gateAutoRefreshHook {
+		st.Set("refresh-candidates", nil)
 		return nil
 	}
 

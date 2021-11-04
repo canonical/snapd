@@ -409,14 +409,9 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) 
 
 	// it doesn't fail as long as experimental.gate-auto-refresh-hook is not enabled
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
-
-	// enable gate-auto-refresh-hook feature
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
-	tr.Commit()
-
-	// and fails when experimental.gate-auto-refresh-hook is enabled
-	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), ErrorMatches, `internal error: could not unmarshal state entry "refresh-candidates".*`)
+	var data interface{}
+	// and refresh-candidates has been removed from the state
+	c.Check(st.Get("refresh-candidates", data), Equals, state.ErrNoState)
 }
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
