@@ -344,3 +344,15 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
 	return mgr.checkFDEFeatures()
 }
+
+func MockTimeutilIsNTPSynchronized(f func() (bool, error)) (restore func()) {
+	old := timeutilIsNTPSynchronized
+	timeutilIsNTPSynchronized = f
+	return func() {
+		timeutilIsNTPSynchronized = old
+	}
+}
+
+func DeviceManagerNTPSyncedOrWaitedLongerThan(mgr *DeviceManager, maxWait time.Duration) bool {
+	return mgr.ntpSyncedOrWaitedLongerThan(maxWait)
+}
