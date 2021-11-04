@@ -3,6 +3,10 @@ summary: Check that core refresh will create the userd dbus serivce file
 # only run on systems that re-exec
 systems: [ubuntu-18*]
 
+environment:
+    # uploading the core snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
     # Remove the locale revision of core, if we installed one.
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"

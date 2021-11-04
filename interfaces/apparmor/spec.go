@@ -78,6 +78,10 @@ type Specification struct {
 	suppressPtraceTrace bool
 	usesPtraceTrace     bool
 
+	// Same as the above, but for the sys_module capability
+	suppressSysModuleCapability bool
+	usesSysModuleCapability     bool
+
 	// The home interface typically should have 'ix' as part of its rules,
 	// but specifying certain change_profile rules with these rules cases
 	// a 'conflicting x modifiers' parser error. Allow interfaces that
@@ -618,6 +622,30 @@ func (spec *Specification) SetSuppressPtraceTrace() {
 // by any of the interfaces in the spec.
 func (spec *Specification) SuppressPtraceTrace() bool {
 	return spec.suppressPtraceTrace
+}
+
+// SetUsesSysModuleCapability records that some interface has granted the
+// sys_module capability
+func (spec *Specification) SetUsesSysModuleCapability() {
+	spec.usesSysModuleCapability = true
+}
+
+// UsesSysModuleCapability returns whether the sys_module capability is being
+// used by any of the interfaces in the spec.
+func (spec *Specification) UsesSysModuleCapability() bool {
+	return spec.usesSysModuleCapability
+}
+
+// SetSuppressSysModuleCapability to request explicit denial of the sys_module
+// capability
+func (spec *Specification) SetSuppressSysModuleCapability() {
+	spec.suppressSysModuleCapability = true
+}
+
+// SuppressSysModuleCapability returns whether any interface has asked the
+// sys_module capability to be explicitly denied
+func (spec *Specification) SuppressSysModuleCapability() bool {
+	return spec.suppressSysModuleCapability
 }
 
 // SetSuppressHomeIx records suppression of the ix rules for the home
