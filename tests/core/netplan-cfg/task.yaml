@@ -46,4 +46,5 @@ execute: |
     echo "Unset the whole subtree works"
     snap unset system system.network.netplan.network.bridges.br54
     snap get -d system system.network.netplan | NOMATCH br54
-    ip link | NOMATCH br54
+    # XXX: enable once https://bugs.launchpad.net/netplan/+bug/1949893 is solved
+    #ip link | NOMATCH br54
