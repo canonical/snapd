@@ -53,7 +53,7 @@ execute: |
 
     echo "Deploy and expose an nginx service"
     microk8s kubectl run nginx --image=nginx
-    retry -n 40 sh -c "microk8s kubectl get pods | MATCH Running"
+    retry -n 120 sh -c "microk8s kubectl get pods | MATCH Running"
 
     microk8s kubectl expose pod/nginx --name nginx-np --type NodePort --target-port 80 --port 80
     # while the above command exposes the service on port 80, that's internal
@@ -62,4 +62,4 @@ execute: |
     microk8s kubectl patch svc nginx-np --patch '{"spec":{"ports":[{"port":80,"nodePort":31313}]}}'
 
     echo "Test if nginx can be connected"
-    retry -n 5 sh -c "curl --max-time 3 'http://localhost:31313/' | MATCH 'Welcome to nginx'"
+    retry -n 15 sh -c "curl --max-time 3 'http://localhost:31313/' | MATCH 'Welcome to nginx'"
