@@ -1554,10 +1554,8 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	// verify that the R(2) version is active now and R(7) is still there
 	var snapst snapstate.SnapState

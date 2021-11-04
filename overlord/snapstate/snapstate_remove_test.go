@@ -906,10 +906,8 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionDropsRevertStatus(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
