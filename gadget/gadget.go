@@ -457,10 +457,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		switch v.Bootloader {
 		case "":
 			// pass
-		case "grub", "u-boot", "android-boot", "lk":
+		case "grub", "u-boot", "android-boot", "lk", "piboot":
 			bootloadersFound += 1
 		default:
-			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot or lk")
+			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot, piboot or lk")
 		}
 	}
 	switch {
