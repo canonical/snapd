@@ -323,6 +323,12 @@ func (s *SessionAgent) handleNotifications() error {
 // Stop performs a graceful shutdown of the session agent and waits up to 5
 // seconds for it to complete.
 func (s *SessionAgent) Stop() error {
+	if s.bus != nil {
+		_, err := s.bus.ReleaseName(sessionAgentBusName)
+		if err != nil {
+			logger.Noticef("%v", err)
+		}
+	}
 	s.tomb.Kill(nil)
 	return s.tomb.Wait()
 }
