@@ -923,6 +923,11 @@ EOF
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20.snap"
     fi
 
+    if os.query is-core18; then
+        wget -q https://storage.googleapis.com/snapd-spread-tests/snaps/core18_20211102_amd64.snap
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/core18_20211102_amd64.snap"
+    fi
+
     /snap/bin/ubuntu-image snap \
                            -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
