@@ -452,7 +452,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			}
 		}
 
-		// if we're not using a stored revision, account for the one being added
+		// if we're not using an already present revision, account for the one being added
 		if snapst.LastIndex(targetRevision) == -1 {
 			retain-- //  we're adding one
 		}
