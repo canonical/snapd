@@ -171,7 +171,7 @@ execute: |
   # ugh bash quoting is terrrrrrrrrrible - we can't deeply nest quotes in retry,
   # tests.nested and MATCH here so we have to copy the command to a script to be
   # executed instead
-  cat > /tmp/snapd-journal-match-script.sh <<EOF
+  cat > /tmp/snapd-journal-match-script.sh << 'EOF'
   #!/bin/bash -e
   sudo journalctl --no-pager -u snapd | MATCH "$*"
   EOF
@@ -209,7 +209,7 @@ execute: |
   # retry --wait 1 -n 240 sh -c "tests.nested exec sh -c 'test -f /etc/cloud/cloud-init.disabled'"
   # so instead we must put this command into a file, copy it over and then
   # execute this file, putting the scoreboard at BASH ∞ + 1, IAN 0
-  cat > /tmp/snapd-cloud-init-disabled-check.sh <<EOF
+  cat > /tmp/snapd-cloud-init-disabled-check.sh << 'EOF'
   #!/bin/bash -e
   test -f /etc/cloud/cloud-init.disabled
   EOF
