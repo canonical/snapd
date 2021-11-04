@@ -33,7 +33,6 @@ package configcore
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -42,9 +41,7 @@ import (
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -161,14 +158,13 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return err
 	}
 
+	// Use the default config that every Ubuntu Core has. Using
+	// an alternative config hint proved very unstable (caused
+	// netplan crashes)
+	originHint := "00-snapd-config"
 	// Always starts with a clean config to avoid merging of keys
 	// that got unset.
-	//
-	// XXX: The osutil.FileExists() is needed until LP:1946957 gets fixed
-	var configs []string
-	if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/etc/netplan/90-snapd-conf.yaml")) {
-		configs = []string{"network=null"}
-	}
+	configs := []string{"network=null"}
 	// and then pass the full new config in
 	for key := range cfg {
 		// We pass the new config back to netplan as json, the reason
@@ -185,7 +181,6 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	for _, jsonNetplanConfig := range configs {
 		logger.Debugf("calling netplan.Set: %v", jsonNetplanConfig)
 
-		originHint := "90-snapd-conf"
 		var wasSet bool
 		if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Set", 0, jsonNetplanConfig, originHint).Store(&wasSet); err != nil {
 			return fmt.Errorf("cannot Set() config: %v", err)
