@@ -924,8 +924,8 @@ EOF
     fi
 
     if os.query is-core18; then
-        wget -q https://storage.googleapis.com/snapd-spread-tests/snaps/core18_20211102_amd64.snap
-        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/core18_20211102_amd64.snap"
+        curl -s -o core18.snap https://storage.googleapis.com/snapd-spread-tests/snaps/core18_20211102_amd64.snap
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/core18.snap"
     fi
 
     /snap/bin/ubuntu-image snap \
