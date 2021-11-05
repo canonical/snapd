@@ -30,6 +30,7 @@ var (
 	CheckSystemdVersion      = checkSystemdVersion
 	QuotaStateAlreadyUpdated = quotaStateAlreadyUpdated
 	ServiceControlTs         = serviceControlTs
+	CheckMemoryCGroupEnabled = checkMemoryCGroupEnabled
 )
 
 type QuotaStateUpdated = quotaStateUpdated

@@ -20,7 +20,11 @@
 package servicestate
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -33,6 +37,10 @@ import (
 )
 
 var (
+	memoryCGroupError error
+)
+
+var (
 	systemdVersionError error
 )
 
@@ -42,6 +50,42 @@ func checkSystemdVersion() {
 
 func init() {
 	checkSystemdVersion()
+}
+
+func checkMemoryCGroupEnabled() {
+	memoryCGroupError = memoryCGroupEnabled()
+}
+
+var CGroupsFilePath = "/proc/cgroups"
+
+//	since the control groups can be enabled/disabled without the kernel config the only
+//	way to identify the status of memory control groups is via /proc/cgroups
+//	"cat /proc/cgroups | grep memory" returns the active status of memory control group
+//	and the 3rd parameter is the status
+//	0 => false => disabled 1 => true => enabled
+func memoryCGroupEnabled() error {
+	cgroupsFile, errFileOpen := os.Open(CGroupsFilePath)
+	if errFileOpen != nil {
+		return fmt.Errorf("internal error: cannot open cgroups file")
+	}
+	defer cgroupsFile.Close()
+	scanner := bufio.NewScanner(cgroupsFile)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "memory\t") {
+			isMemoryEnabled, errParseValue := strconv.ParseBool(strings.Fields(line)[3])
+			if errParseValue != nil {
+				return fmt.Errorf("cannot parse memory control group status")
+			}
+			if !isMemoryEnabled {
+				return fmt.Errorf("memory cgroup disabled on this system")
+			} else {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("internal error: cannot parse memory control group status")
 }
 
 func quotaGroupsAvailable(st *state.State) error {
@@ -66,6 +110,10 @@ func quotaGroupsAvailable(st *state.State) error {
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
 func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error) {
+	if memoryCGroupError != nil {
+		return nil, memoryCGroupError
+	}
+
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -129,6 +177,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 // TODO: currently this only supports removing leaf sub-group groups, it doesn't
 // support removing parent quotas, but probably it makes sense to allow that too
 func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
+	if memoryCGroupError != nil {
+		return nil, memoryCGroupError
+	}
+
 	if snapdenv.Preseeding() {
 		return nil, fmt.Errorf("removing quota groups not supported while preseeding")
 	}
@@ -189,6 +241,10 @@ type QuotaGroupUpdate struct {
 // parents, removing sub-groups from their parents, and removing snaps from
 // the group.
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*state.TaskSet, error) {
+	if memoryCGroupError != nil {
+		return nil, memoryCGroupError
+	}
+
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}

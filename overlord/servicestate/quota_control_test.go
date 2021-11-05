@@ -21,9 +21,11 @@ package servicestate_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -920,4 +922,98 @@ func (s *quotaControlSuite) TestCreateQuotaCreateQuotaConflict(c *C) {
 
 	_, err = servicestate.CreateQuota(st, "foo", "", []string{"test-snap2"}, 2*quantity.SizeGiB)
 	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.CGroupsFilePath = _memoryCGroupFile
+	}()
+
+	cgroupsPath := "/tmp/cgroups_test"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, check.IsNil)
+	// memory is disabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	0
+devices	10	135	1`)
+	c.Assert(err, check.IsNil)
+	cgroupsFile.Sync()
+
+	// reset memory cgroup status with the disabled file
+	servicestate.CGroupsFilePath = cgroupsPath
+	servicestate.CheckMemoryCGroupEnabled()
+
+	// check if all operations fail with the expected error message
+	errExpected := `memory cgroup disabled on this system`
+	_, err = servicestate.AllQuotas(s.state)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.CGroupsFilePath = _memoryCGroupFile
+	}()
+
+	cgroupsPath := "/tmp/cgroups_test"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, check.IsNil)
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	1
+devices	10	135	1`)
+	c.Assert(err, check.IsNil)
+	cgroupsFile.Sync()
+
+	// reset memory cgroup status with the enabled file
+	servicestate.CGroupsFilePath = cgroupsPath
+	servicestate.CheckMemoryCGroupEnabled()
+
+	// check if all operations fail with the expected error message
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot use snap \"test-snap\" in group \"foo\": snap \"test-snap\" is not installed`)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot remove non-existent quota group \"foo\"`)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `group \"foo\" does not exist`)
+
+	_, err = servicestate.AllQuotas(s.state)
+	c.Assert(err, IsNil)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `quota not found`)
 }
