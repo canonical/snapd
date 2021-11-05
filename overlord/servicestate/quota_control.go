@@ -74,18 +74,30 @@ func memoryCGroupEnabled() error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "memory\t") {
-			isMemoryEnabled, ee := strconv.ParseBool(strings.Fields(line)[3])
-			if err != nil {
-				return fmt.Errorf("cannot parse memory control group status: %v", err)
-			}
-			if !isMemoryEnabled {
-				return fmt.Errorf("memory cgroup disabled on this system")
+			memoryCgroupValues := strings.Fields(line)
+			if len(memoryCgroupValues) == 4 { // any change in size should lead to an error for us to update
+				isMemoryEnabled, err := strconv.ParseBool(strings.Fields(line)[3])
+				if err != nil {
+					return fmt.Errorf("cannot parse memory control group status: %v", err)
+				}
+				if !isMemoryEnabled {
+					return fmt.Errorf("memory cgroup disabled on this system")
+				} else {
+					return nil
+				}
 			} else {
-				return nil
+				// change in size, should investigate the new structure
+				return fmt.Errorf("memory control group values doesn't meet size requirements")
 			}
 		}
 	}
-	return fmt.Errorf("internal error: cannot parse memory control group status")
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("cannot read /proc/cgroup contents: %v", err)
+	}
+
+	// no errors so far but the only path here is the cgroups file without the memory line
+	return fmt.Errorf("memory controller not available in the kernel config")
 }
 
 func quotaGroupsAvailable(st *state.State) error {
