@@ -239,6 +239,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(func() { s.ancillary = nil })
 	s.AddCleanup(func() { s.newFakeStore = nil })
+
+	s.AddCleanup(devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return true, nil
+	}))
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
