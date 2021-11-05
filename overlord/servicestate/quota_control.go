@@ -74,9 +74,9 @@ func memoryCGroupEnabled() error {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "memory\t") {
-			isMemoryEnabled, errParseValue := strconv.ParseBool(strings.Fields(line)[3])
-			if errParseValue != nil {
-				return fmt.Errorf("cannot parse memory control group status")
+			isMemoryEnabled, ee := strconv.ParseBool(strings.Fields(line)[3])
+			if err != nil {
+				return fmt.Errorf("cannot parse memory control group status: %v", err)
 			}
 			if !isMemoryEnabled {
 				return fmt.Errorf("memory cgroup disabled on this system")
