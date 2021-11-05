@@ -64,9 +64,9 @@ var CGroupsFilePath = "/proc/cgroups"
 //	and the 3rd parameter is the status
 //	0 => false => disabled 1 => true => enabled
 func memoryCGroupEnabled() error {
-	cgroupsFile, errFileOpen := os.Open(CGroupsFilePath)
-	if errFileOpen != nil {
-		return fmt.Errorf("internal error: cannot open cgroups file")
+	cgroupsFile, err := os.Open(CGroupsFilePath)
+	if err != nil {
+		return fmt.Errorf("cannot open cgroups file: %v", err)
 	}
 	defer cgroupsFile.Close()
 	scanner := bufio.NewScanner(cgroupsFile)
