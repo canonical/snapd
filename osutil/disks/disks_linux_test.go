@@ -323,7 +323,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyMissingUdevProps(c *C) {
 	defer restore()
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point, incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
+	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition(c *C) {
@@ -342,7 +342,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition
 	defer restore()
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point, bad udev output: invalid device number format: \(expected <int>:<int>\)`)
+	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: bad udev output: invalid device number format: \(expected <int>:<int>\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(c *C) {
@@ -370,7 +370,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `mountpoint source /dev/vda4 of /run/mnt/point is not a decrypted device: devtype is not disk \(is partition\)`)
+	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: not a decrypted device: devtype is not disk \(is partition\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) {
@@ -398,7 +398,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`mountpoint source /dev/mapper/something of /run/mnt/point is not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
@@ -549,7 +549,7 @@ fi
 	defer udevadmCmd.Restore()
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point, incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
+	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
 func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
@@ -625,7 +625,7 @@ fi
 `)
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/not-a-disk of /run/mnt/point, unsupported DEVTYPE \"not-a-disk\"")
+	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/not-a-disk of /run/mnt/point: unsupported DEVTYPE \"not-a-disk\"")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-disk"},
