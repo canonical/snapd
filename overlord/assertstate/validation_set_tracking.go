@@ -185,11 +185,11 @@ func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error
 // addCurrentTrackingToValidationSetsHistory stores the current state of validation-sets
 // tracking on top of the validation sets history.
 func addCurrentTrackingToValidationSetsHistory(st *state.State) error {
-	all, err := ValidationSets(st)
+	current, err := ValidationSets(st)
 	if err != nil {
 		return err
 	}
-	return addToValidationSetsHistory(st, all)
+	return addToValidationSetsHistory(st, current)
 }
 
 func addToValidationSetsHistory(st *state.State, validationSets map[string]*ValidationSetTracking) error {
