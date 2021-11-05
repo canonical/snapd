@@ -28,9 +28,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -105,7 +105,7 @@ const mockUC20GadgetYaml = `volumes:
         size: 750M
 `
 
-func (s *installSuite) setupMockSysfs(c *C) {
+func (s *installSuite) setupMockUdevSymlinks(c *C) {
 	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
 	c.Assert(err, IsNil)
 
@@ -113,23 +113,29 @@ func (s *installSuite) setupMockSysfs(c *C) {
 	c.Assert(err, IsNil)
 	err = os.Symlink("../../fakedevice0p1", filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
 	c.Assert(err, IsNil)
-
-	// make parent device
-	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/fakedevice0"), nil, 0644)
-	c.Assert(err, IsNil)
-	// and fake /sys/block structure
-	err = os.MkdirAll(filepath.Join(s.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
-	c.Assert(err, IsNil)
 }
 
 func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
-	s.setupMockSysfs(c)
+
+	s.setupMockUdevSymlinks(c)
+
+	m := map[string]*disks.MockDiskMapping{
+		filepath.Join(s.dir, "/dev/fakedevice0p1"): {
+			DevNum:  "42:0",
+			DevNode: "/dev/fakedevice0",
+			DevPath: "/sys/block/fakedevice0",
+		},
+	}
+
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer restore()
+
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
 	c.Assert(err, IsNil)
 
-	device, err := install.DeviceFromRole(lv, gadget.SystemSeed)
+	device, err := install.DeviceFromSystemSeedRole(lv)
 	c.Assert(err, IsNil)
-	c.Check(device, Matches, ".*/dev/fakedevice0")
+	c.Check(device, Equals, "/dev/fakedevice0")
 }
 
 func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
@@ -137,15 +143,15 @@ func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
 	c.Assert(err, IsNil)
 
-	_, err = install.DeviceFromRole(lv, gadget.SystemSeed)
+	_, err = install.DeviceFromSystemSeedRole(lv)
 	c.Assert(err, ErrorMatches, `cannot find device for role "system-seed": device not found`)
 }
 
 func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
-	s.setupMockSysfs(c)
+	s.setupMockUdevSymlinks(c)
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockGadgetYaml, nil)
 	c.Assert(err, IsNil)
 
-	_, err = install.DeviceFromRole(lv, gadget.SystemSeed)
+	_, err = install.DeviceFromSystemSeedRole(lv)
 	c.Assert(err, ErrorMatches, "cannot find role system-seed in gadget")
 }
