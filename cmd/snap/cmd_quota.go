@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os/exec"
 	"sort"
 	"strings"
 
@@ -378,25 +377,4 @@ func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(
 		return nil
 	}
 	return processGroups(roots)
-}
-
-var MemoryCGroupFunc = getMemoryCGroupOutput
-
-func getMemoryCGroupOutput() ([]string, error) {
-	grep := exec.Command("grep", "memory")
-	catCgroups := exec.Command("cat", "/proc/cgroups")
-	pipe, errCgroups := catCgroups.StdoutPipe()
-	if errCgroups != nil {
-		return nil, fmt.Errorf("internal error: cannot retrieve control groups info")
-	}
-
-	defer pipe.Close()
-	grep.Stdin = pipe
-	catCgroups.Start()
-	memoryInfoBytes, errMemoryCheck := grep.Output()
-	if errMemoryCheck != nil {
-		return nil, fmt.Errorf("internal error: cannot retrieve memory control group info")
-	}
-	return strings.Fields(string(memoryInfoBytes)), nil
-
 }
