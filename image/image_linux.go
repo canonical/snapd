@@ -532,10 +532,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
-		return err
-	}
-
 	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {
 		return err
@@ -547,6 +543,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 
 	// write resolved content to structure root
 	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
 		return err
 	}
 
