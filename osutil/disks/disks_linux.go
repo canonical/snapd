@@ -639,8 +639,8 @@ func (d *disk) populatePartitions() error {
 			}
 
 			// on dos disks, the type is formatted like "0xc", when we prefer to
-			// always use "0x0C" so fix the formatting
-			if d.schema == "DOS" {
+			// always use "0C" so fix the formatting
+			if d.schema == "dos" {
 				partType = strings.TrimPrefix(partType, "0x")
 				v, err := strconv.ParseUint(partType, 16, 8)
 				if err != nil {

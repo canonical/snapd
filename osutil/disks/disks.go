@@ -147,7 +147,9 @@ type Partition struct {
 	KernelDevicePath string
 	// KernelDeviceNode is the kernel device node in /dev.
 	KernelDeviceNode string
-	// PartitionType is the type of structure, for example 0x0C.
+	// PartitionType is the type of structure, for example 0C in the case of a
+	// vfat partition on a DOS disk, or 0FC63DAF-8483-4772-8E79-3D69D8477DE4,
+	// which is ext4 on a GPT disk. This is always upper case.
 	PartitionType string
 	// FilesystemType is the type of filesystem i.e. ext4 or vfat, etc.
 	FilesystemType string

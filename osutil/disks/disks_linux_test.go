@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
@@ -179,18 +180,70 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	const vdaSysfsPath = "/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb"
 	fullSysPath := filepath.Join("/sys", vdaSysfsPath)
+	n := 0
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
-		c.Assert(typeOpt, Equals, "--path")
-		c.Assert(dev, Equals, fullSysPath)
-		return map[string]string{
-			"MAJOR":              "1",
-			"MINOR":              "2",
-			"DEVTYPE":            "disk",
-			"DEVNAME":            "/dev/vdb",
-			"ID_PART_TABLE_UUID": "bar",
-			"ID_PART_TABLE_TYPE": "dos",
-			"DEVPATH":            vdaSysfsPath,
-		}, nil
+		n++
+		switch n {
+		case 1:
+			// for getting the disk itself the first time
+			c.Assert(typeOpt, Equals, "--path")
+			c.Assert(dev, Equals, fullSysPath)
+			return map[string]string{
+				"MAJOR":              "1",
+				"MINOR":              "2",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/vdb",
+				"ID_PART_TABLE_UUID": "bar",
+				"ID_PART_TABLE_TYPE": "dos",
+				"DEVPATH":            vdaSysfsPath,
+			}, nil
+		case 2:
+			// getting the disk again when there are partitions defined
+			c.Assert(typeOpt, Equals, "--path")
+			c.Assert(dev, Equals, fullSysPath)
+			return map[string]string{
+				"MAJOR":              "1",
+				"MINOR":              "2",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/vdb",
+				"ID_PART_TABLE_UUID": "bar",
+				"ID_PART_TABLE_TYPE": "dos",
+				"DEVPATH":            vdaSysfsPath,
+			}, nil
+		case 3:
+			// getting the first partition
+			c.Assert(typeOpt, Equals, "--name")
+			c.Assert(dev, Equals, "vdb1")
+			return map[string]string{
+				"DEVPATH":              vdaSysfsPath + "1",
+				"DEVNAME":              "/dev/vdb1",
+				"ID_PART_ENTRY_TYPE":   "0xc",
+				"ID_PART_ENTRY_SIZE":   "524288",
+				"ID_PART_ENTRY_NUMBER": "1",
+				"ID_PART_ENTRY_OFFSET": "2048",
+				"ID_PART_ENTRY_UUID":   "1212e868-01",
+				"MAJOR":                "1",
+				"MINOR":                "3",
+			}, nil
+		case 4:
+			// getting the second partition
+			c.Assert(typeOpt, Equals, "--name")
+			c.Assert(dev, Equals, "vdb2")
+			return map[string]string{
+				"DEVPATH":              vdaSysfsPath + "2",
+				"DEVNAME":              "/dev/vdb2",
+				"ID_PART_ENTRY_TYPE":   "0x83",
+				"ID_PART_ENTRY_SIZE":   "124473665",
+				"ID_PART_ENTRY_NUMBER": "2",
+				"ID_PART_ENTRY_OFFSET": "526336",
+				"ID_PART_ENTRY_UUID":   "1212e868-02",
+				"MAJOR":                "1",
+				"MINOR":                "4",
+			}, nil
+		default:
+			c.Errorf("test broken unexpected call to udevPropertiesForDevice for type %q on dev %q", typeOpt, dev)
+			return nil, fmt.Errorf("test broken, unexpected call for type %q on dev %q", typeOpt, dev)
+		}
 	})
 	defer restore()
 
@@ -218,6 +271,35 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vdb")
 	c.Assert(d.HasPartitions(), Equals, true)
+
+	parts, err := d.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{
+		{
+			Major:            1,
+			Minor:            4,
+			PartitionUUID:    "1212e868-02",
+			PartitionType:    "83",
+			KernelDevicePath: filepath.Join(dirs.SysfsDir, vdaSysfsPath) + "2",
+			KernelDeviceNode: "/dev/vdb2",
+			SizeInBytes:      124473665 * 512,
+			StartInBytes:     uint64(257 * quantity.SizeMiB),
+			StructureIndex:   2,
+		},
+		{
+			Major:            1,
+			Minor:            3,
+			PartitionUUID:    "1212e868-01",
+			PartitionType:    "0C",
+			KernelDevicePath: filepath.Join(dirs.SysfsDir, vdaSysfsPath) + "1",
+			KernelDeviceNode: "/dev/vdb1",
+			SizeInBytes:      uint64(256 * quantity.SizeMiB),
+			StartInBytes:     uint64(quantity.SizeMiB),
+			StructureIndex:   1,
+		},
+	})
+
+	c.Assert(n, Equals, 4)
 }
 
 func (s *diskSuite) TestDiskFromDeviceNameUnhappyPartition(c *C) {
