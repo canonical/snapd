@@ -50,6 +50,7 @@ func checkSystemdVersion() {
 
 func init() {
 	checkSystemdVersion()
+	checkMemoryCGroupEnabled()
 }
 
 func checkMemoryCGroupEnabled() {
