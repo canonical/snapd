@@ -50,7 +50,7 @@ def insert(db, col, value):
 
     json_value = _get_json(value)
     if not json_value:
-        print("report-mongodb: invalid value, it does not containg a valid json format")
+        print("report-mongodb: invalid value, it does not contain a valid json format")
         sys.exit(1)
 
     db[col].insert_one(json_value)
