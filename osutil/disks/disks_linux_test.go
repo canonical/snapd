@@ -338,6 +338,24 @@ func (s *diskSuite) TestDiskFromDeviceNameUnhappyNonPhysicalDisk(c *C) {
 	c.Assert(err, ErrorMatches, "device with name \"loop1\" is not a physical disk")
 }
 
+func (s *diskSuite) TestDiskFromDeviceNameUnhappyUnknownDiskSchema(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "loop1")
+		return map[string]string{
+			// unsupported disk schema
+			"ID_PART_TABLE_TYPE": "foobar",
+			"MAJOR":              "1",
+			"MINOR":              "3",
+			"DEVTYPE":            "disk",
+		}, nil
+	})
+	defer restore()
+
+	_, err := disks.DiskFromDeviceName("loop1")
+	c.Assert(err, ErrorMatches, "unsupported disk schema \"foobar\"")
+}
+
 func (s *diskSuite) TestDiskFromDeviceNameUnhappyBadUdevOutput(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")

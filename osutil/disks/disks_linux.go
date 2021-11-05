@@ -126,9 +126,14 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
 	// the disk, so check for that first and if it's missing then we return a
 	// specific NotAPhysicalDisk error
-	schema := props["ID_PART_TABLE_TYPE"]
+	schema := strings.ToLower(props["ID_PART_TABLE_TYPE"])
 	if schema == "" {
 		return nil, errNonPhysicalDisk{fmt.Sprintf("device with %s %q is not a physical disk", deviceIDType, deviceIdentifier)}
+	}
+
+	// for now we only support DOS and GPT schema disks
+	if schema != "dos" && schema != "gpt" {
+		return nil, fmt.Errorf("unsupported disk schema %q", props["ID_PART_TABLE_TYPE"])
 	}
 
 	major, err := strconv.Atoi(props["MAJOR"])
