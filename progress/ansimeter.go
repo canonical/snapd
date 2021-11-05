@@ -106,7 +106,7 @@ func (p *ANSIMeter) percent() string {
 	return fmt.Sprintf("%3.0f%%", q)
 }
 
-var formatDuration = quantity.FormatDuration
+var formatDuration = quantity.ProgressBarTimeLeft
 
 func (p *ANSIMeter) Set(current float64) {
 	if current < 0 {
@@ -118,30 +118,28 @@ func (p *ANSIMeter) Set(current float64) {
 
 	p.written = current
 	col := termWidth()
-	// time left: 5
+	// time left: 6
 	//    gutter: 1
 	//     speed: 8
 	//    gutter: 1
 	//   percent: 4
 	//    gutter: 1
 	//          =====
-	//           20
+	//           21
 	// and we want to leave at least 10 for the label, so:
 	//  * if      width <= 15, don't show any of this (progress bar is good enough)
-	//  * if 15 < width <= 20, only show time left (time left + gutter = 6)
-	//  * if 20 < width <= 29, also show percentage (percent + gutter = 5
-	//  * if 29 < width      , also show speed (speed+gutter = 9)
+	//  * if 15 < width <= 21, only show time left (time left + gutter = 6)
+	//  * if 21 < width <= 30, also show percentage (percent + gutter = 5
+	//  * if 30 < width      , also show speed (speed+gutter = 9)
 	var percent, speed, timeleft string
 	if col > 15 {
 		since := time.Now().UTC().Sub(p.t0).Seconds()
 		per := since / p.written
 		left := (p.total - p.written) * per
-		// XXX: duration unit string is controlled by translations, and
-		// may carry a multibyte unit suffix
 		timeleft = " " + formatDuration(left)
-		if col > 20 {
+		if col > 21 {
 			percent = " " + p.percent()
-			if col > 29 {
+			if col > 30 {
 				speed = " " + quantity.FormatBPS(p.written, since, -1)
 			}
 		}

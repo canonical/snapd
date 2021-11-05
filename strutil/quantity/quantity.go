@@ -21,9 +21,10 @@ package quantity
 
 import (
 	"fmt"
-	"math"
-
 	"github.com/snapcore/snapd/i18n"
+	"math"
+	"sort"
+	"strconv"
 )
 
 // these are taken from github.com/chipaca/quantity with permission :-)
@@ -199,4 +200,240 @@ func FormatDuration(dt float64) string {
 	}
 
 	return FormatAmount(uint64(dt), 4) + years
+}
+
+// Duration is represented in nano seconds.
+type Duration uint64
+
+const (
+	NSec Duration = 1
+	USec Duration = 1000
+	MSec Duration = 1000000
+	Sec  Duration = 1000000000
+	Min  Duration = (60 * Sec)
+	Hour Duration = (60 * Min)
+	Day  Duration = (24 * Hour)
+	Year Duration = (1461 * Day / 4)
+)
+
+// Maximum number of places (units of time) to render starting with years.
+// In the Compact case, only the first two places will be rendered,
+// discarding the rest. This allows for a more predictable width (at the
+// expense of accuracy).
+type Places uint32
+
+const (
+	ShowAll  Places = 8
+	ShowComp Places = 2
+)
+
+// The minimum Duration parameter allows the rendering to discard the units
+// of time less than the minimum. However, depending on what we are
+// rendering, we either need to peform a ceiling, floor or rounding
+// operation with the remainder below the minimum.
+type RenderMode uint32
+
+const (
+	TimeLeft    RenderMode = 0
+	TimePassed  RenderMode = 1
+	TimeRounded RenderMode = 2
+)
+
+// FormatDurationGeneric formats time duration similar to systemd
+// format_timespan, but with options allowing for a more compact
+// arrangement, including shortened suffixes. The function is provided
+// with dt in seconds (as in the output of time.Now().Seconds()). The 'min'
+// and 'max' Duration allows limiting the unit range rendered. Place values
+// less than 'min' will be processed according to RenderMode. RenderMode
+// allows rounding, flooring or ceiling to be applied to place value below
+// 'min'. Durations above the 'max' place value will result in "ages!".
+func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places, mode RenderMode, space bool) string {
+	var units = map[Duration]string{
+		Year: "y",
+		Day:  "d",
+		Hour: "h",
+		Min:  "m",
+		Sec:  "s",
+		MSec: "ms",
+		USec: "µs",
+		NSec: "ns",
+	}
+
+	// We need to access the map in order using an ordered array
+	var keys []Duration
+	for k := range units {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] > keys[j] })
+
+	var render string
+
+	// Invalid case: min > max
+	if min > max {
+		return "inv!"
+	}
+
+	// Special case: zero duration
+	if dt <= 0 {
+		return "0" + units[min]
+	}
+
+	// Special case: render as "ages!"
+	if dt >= float64(math.MaxUint64) {
+		return "ages!"
+	}
+
+	// Fractional seconds to nanoseconds
+	delta := uint64(dt * float64(Sec))
+
+	// If we only render a subset of place values, we need to apply
+	// the render mode to the last place value. We do this indirectly
+	// by moving up the 'min' accuracy.
+	if count == ShowComp {
+		for i := 0; i < len(keys); i++ {
+			// Only render places as indicated by count
+			if delta >= uint64(keys[i]) && keys[i] >= Min {
+				index := i + int(count) - 1
+				if keys[index] > min {
+					min = keys[index]
+				}
+				break
+			}
+
+			// Only one place as we are s, ms, us or ns
+			if delta >= uint64(keys[i]) && keys[i] < Min {
+				if keys[i] > min {
+					min = keys[i]
+				}
+				break
+			}
+		}
+	}
+
+	// Apply the rendermode to the least significant place value
+	mod := uint64(delta % uint64(min))
+	switch {
+	case mode == TimeLeft && mod > 0:
+		// Ceiling
+		delta = delta + uint64(min) - mod
+	case mode == TimePassed:
+		// Floor
+		delta = delta - mod
+	case mode == TimeRounded && mod >= (uint64(min)/2):
+		// Rounded Up
+		delta = delta + uint64(min) - mod
+	case mode == TimeRounded && mod < (uint64(min)/2):
+		// Rounded Down
+		delta = delta - mod
+	}
+
+	// Special case: less than minimum accuracy
+	if delta < uint64(min) {
+		return "0" + units[min]
+	}
+
+	// In ShowComp mode only 2-digit days are possible
+	if count == ShowComp && delta >= (100*uint64(Day)) {
+		return "ages!"
+	}
+
+	// Iterate through units of time in order from
+	// highest to lowest (years, days, ...)
+	for i := 0; i < len(keys); i++ {
+		done := false
+
+		// No place value left to render
+		if delta <= 0 {
+			break
+		}
+
+		// No place value left greater than required
+		// accuracy to render.
+		if delta < uint64(min) && len(render) != 0 {
+			break
+		}
+
+		// Remainder is less than current place value,
+		// skip to next.
+		if delta < uint64(keys[i]) {
+			continue
+		}
+
+		// If the duration exceeds the maximum place value
+		// (unit if time) we will not render it, just return
+		// "ages!".
+		if uint64(keys[i]) > uint64(max) {
+			return "ages!"
+		}
+
+		unit := uint64(delta / uint64(keys[i]))
+		remainder := uint64(delta % uint64(keys[i]))
+
+		// If the accuracy is less than 1s, we support
+		// rendering a fractional second part.
+		if delta < uint64(Min) && remainder > 0 && count == ShowAll {
+			digits := 0
+
+			// Number of digits required to render
+			// nano second fractunal accuracy.
+			for cc := uint64(keys[i]); cc > 1; cc /= 10 {
+				digits++
+			}
+
+			// Number of digits to render specified
+			// fractunal accuracy.
+			for cc := uint64(min); cc > 1; cc /= 10 {
+				digits--
+			}
+
+			frac := float64(delta) / float64(uint64(keys[i]))
+
+			// Should we generate a fractional second, else
+			// use the generic rendering function.
+			if digits > 0 {
+				if len(render) > 0 && space == true {
+					render += " "
+				}
+				render += strconv.FormatFloat(frac, 'f', digits, 64)
+				render += units[keys[i]]
+
+				delta = 0
+				done = true
+			}
+		}
+
+		// Generic place value rendering
+		if done == false {
+			// Insert spaced between place values if enabled.
+			if len(render) > 0 && space == true {
+				render += " "
+			}
+
+			render += fmt.Sprintf("%v", unit)
+			render += units[keys[i]]
+
+			delta = remainder
+		}
+	}
+	return render
+}
+
+// ProgressBarTimeLeft presents duration in a layout suitable for progress
+// indicators such as ANSIMeter. The rendered duration (time left) range is
+// between (and includes) hours and seconds. The width is guaranteed not to
+// exceed 6 runes by rendering only the two most significant units of time.
+// The ceiling() operation is performed on the unrendered least significant
+// place values (+1 on the least significant rendered unit).
+func ProgressBarTimeLeft(dt float64) string {
+	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimeLeft, false)
+}
+
+// ProgressBarTimePassed presents duration in a layout suitable for progress
+// indicators such as ANSIMeter. The rendered duration (time elapse) range is
+// between (and includes) hours and seconds. The width is guaranteed not to
+// exceed 6 runes by rendering only the two most significant units of time.
+// The floor() operation is performed on the unrendered least significant
+// place values (discarded).
+func ProgressBarTimePassed(dt float64) string {
+	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimePassed, false)
 }

@@ -119,9 +119,9 @@ func (ansiSuite) TestSetLayout(c *check.C) {
 			c.Check(out, check.Equals, "\r"+msg[:i-1]+"…", desc)
 		case i <= 15:
 			c.Check(out, check.Equals, fmt.Sprintf("\r%*s", -i, msg), desc)
-		case i <= 20:
+		case i <= 21:
 			c.Check(out, check.Equals, fmt.Sprintf("\r%*s ages!", -(i-6), msg), desc)
-		case i <= 29:
+		case i <= 30:
 			c.Check(out, check.Equals, fmt.Sprintf("\r%*s   0%% ages!", -(i-11), msg), desc)
 		default:
 			c.Check(out, check.Matches, fmt.Sprintf("\r%*s   0%%  [ 0-9]{4}B/s ages!", -(i-20), msg), desc)
