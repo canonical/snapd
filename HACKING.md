@@ -6,6 +6,14 @@ integration test framework for the integration/system level tests.
 
 ## Development
 
+### Supported Ubuntu distributions
+
+Ubuntu 18.04 LTS or later is recommended for `snapd` development.
+
+If you want to build or test on older versions of Ubuntu, additional steps
+may be required when installing dependencies.
+
+
 ### Supported Go version
 
 Go 1.13 or later is required to build `snapd`.
@@ -230,6 +238,12 @@ For more information on testing, please see the Testing section.
 
 ### Testing
 
+Install the following package(s) to satisfy test dependencies.
+
+```
+sudo apt-get install python3-yamlordereddictloader
+```
+
 To run the various tests that we have to ensure a high quality source just run:
 
     ./run-checks
@@ -250,8 +264,6 @@ If a test hangs, you can enable verbose mode:
     go test -v -check.vv
 
 (or -check.v for less verbose output).
-
-Note, the yamlordereddictloader python package is needed to carry out the tests format check.
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
