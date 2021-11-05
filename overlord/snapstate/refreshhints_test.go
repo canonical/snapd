@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -334,6 +335,11 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
 	// check that calling PruneRefreshCandidates when there is nothing to do is fine.
 	c.Assert(snapstate.PruneRefreshCandidates(st, "some-snap"), IsNil)
 
@@ -388,6 +394,24 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	c.Check(ok, Equals, false)
 	_, ok = candidates3["snap-c"]
 	c.Check(ok, Equals, true)
+}
+
+func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// bad format - an array
+	candidates := []*snapstate.RefreshCandidate{{
+		SnapSetup: snapstate.SnapSetup{Type: "app", SideInfo: &snap.SideInfo{RealName: "snap-a", Revision: snap.R(1)}},
+	}}
+	st.Set("refresh-candidates", candidates)
+
+	// it doesn't fail as long as experimental.gate-auto-refresh-hook is not enabled
+	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
+	var data interface{}
+	// and refresh-candidates has been removed from the state
+	c.Check(st.Get("refresh-candidates", data), Equals, state.ErrNoState)
 }
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
