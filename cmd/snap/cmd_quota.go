@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os/exec"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -110,11 +109,6 @@ type cmdSetQuota struct {
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {
-	errCgroupCheck := checkMemoryGroupStatus()
-	if errCgroupCheck != nil {
-		return errCgroupCheck
-	}
-
 	var maxMemory string
 	switch {
 	case x.MemoryMax != "":
@@ -217,11 +211,6 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		return fmt.Errorf("too many arguments provided")
 	}
 
-	errCgroupCheck := checkMemoryGroupStatus()
-	if errCgroupCheck != nil {
-		return errCgroupCheck
-	}
-
 	group, err := x.client.GetQuotaGroup(x.Positional.GroupName)
 	if err != nil {
 		return err
@@ -281,10 +270,6 @@ type cmdRemoveQuota struct {
 }
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
-	errCgroupCheck := checkMemoryGroupStatus()
-	if errCgroupCheck != nil {
-		return errCgroupCheck
-	}
 
 	chgID, err := x.client.RemoveQuotaGroup(x.Positional.GroupName)
 	if err != nil {
@@ -306,12 +291,6 @@ type cmdQuotas struct {
 }
 
 func (x *cmdQuotas) Execute(args []string) (err error) {
-
-	errCgroupCheck := checkMemoryGroupStatus()
-	if errCgroupCheck != nil {
-		return errCgroupCheck
-	}
-
 	res, err := x.client.Quotas()
 	if err != nil {
 		return err
@@ -420,26 +399,4 @@ func getMemoryCGroupOutput() ([]string, error) {
 	}
 	return strings.Fields(string(memoryInfoBytes)), nil
 
-}
-
-//	since the control groups can be enabled/disabled without the kernel config the only
-//	way to identify the status of memory control groups is via /proc/cgroups
-//	"cat /proc/cgroups | grep memory" returns the active status of memory control group
-//	and the 3rd parameter is the status
-//	0 => false => disabled 1 => true => enabled
-func checkMemoryGroupStatus() error {
-	parsedLine, errCGroupOutput := MemoryCGroupFunc()
-	if errCGroupOutput != nil {
-		return errCGroupOutput
-	}
-	isMemoryEnabled, errParseValue := strconv.ParseBool(parsedLine[3])
-	if errParseValue != nil {
-		return fmt.Errorf("internal error: cannot parse memory control group status")
-	}
-
-	if !isMemoryEnabled {
-		return fmt.Errorf("memory cgroup disabled on this system")
-	}
-
-	return nil
 }
