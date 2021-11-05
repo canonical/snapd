@@ -1,5 +1,9 @@
 summary: Check that download caching works
 
+environment:
+    # on core systems, the test was seen to misbehave when memory limit is set
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 execute: |
     echo "Install and remove the test-snapd-sh snap"
     snap install test-snapd-sh

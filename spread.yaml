@@ -170,7 +170,7 @@ backends:
         location: snapd-spread/us-east1-b
         plan: n2-standard-2
         halt-timeout: 2h
-        cpu-family: 'Intel Cascade Lake'
+        cpu-family: "Intel Cascade Lake"
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
@@ -449,11 +449,19 @@ debug-each: |
             tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
+        echo "# definition of snapd.service"
+        systemctl cat snapd.service || true
+        echo "# status of snapd service"
+        systemctl status snapd.service || true
+        echo "# memory limits of snapd service that systemd uses"
+        systemctl show snapd.service | grep -e MemoryMax= -e MemoryLimit= || true
+        echo "# memory limits of snapd service that are actually set"
+        cat /sys/fs/cgroup/memory/system.slice/snapd.service/memory.limit_in_bytes || true
         echo '# journal messages for snapd'
         "$TESTSTOOLS"/journal-state get-log -u snapd
 
         echo '# user sessions information'
-        journalctl --user -u snapd.session-agent.service
+        journalctl --user -u snapd.session-agent.service || true
         systemctl status --user snapd.session-agent  || true
 
         if ! is_cgroupv2; then
@@ -505,6 +513,8 @@ debug-each: |
         ps axl
         echo "# /var/lib/snapd"
         find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
+        echo '# system journal messages'
+        journalctl -e
     fi
 
 rename:
@@ -729,7 +739,6 @@ suites:
         debug: |
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
-                journalctl -e
             fi
     tests/core/:
         summary: Subset of Ubuntu Core specific tests
