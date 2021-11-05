@@ -122,6 +122,18 @@ type errNonPhysicalDisk struct {
 
 func (e errNonPhysicalDisk) Error() string { return e.err }
 
+func requiredUdevPropUint(props map[string]string, name string) (uint64, error) {
+	partIndex, ok := props[name]
+	if !ok {
+		return 0, fmt.Errorf("property %q not found", name)
+	}
+	v, err := strconv.ParseUint(partIndex, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("cannot parse %q: %v", partIndex, err)
+	}
+	return v, nil
+}
+
 func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
 	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
 	// the disk, so check for that first and if it's missing then we return a
@@ -660,49 +672,30 @@ func (d *disk) populatePartitions() error {
 
 			part.PartitionType = partType
 
-			size, ok := udevProps["ID_PART_ENTRY_SIZE"]
-			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_SIZE\"", partDev, d.Dev())
-			}
-
-			v, err := strconv.ParseUint(size, 10, 64)
-			if err != nil {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot parse partition size %q: %v", partDev, d.Dev(), size, err)
-			}
-
-			// udev always reports the size in 512 byte blocks, regardless of
-			// sector size, so multiply the size in 512 byte blocks by 512 to
-			// get the size in bytes
-			part.SizeInBytes = v * 512
-
 			// the partition may not have a filesystem, in which case this might
 			// be the empty string
 			part.FilesystemType = udevProps["ID_FS_TYPE"]
 
-			partIndex, ok := udevProps["ID_PART_ENTRY_NUMBER"]
-			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_NUMBER\"", partDev, d.Dev())
-			}
-
-			v, err = strconv.ParseUint(partIndex, 10, 64)
+			part.SizeInBytes, err = requiredUdevPropUint(udevProps, "ID_PART_ENTRY_SIZE")
 			if err != nil {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot parse partition index %q: %v", partDev, d.Dev(), size, err)
-			}
-			part.StructureIndex = v
-
-			partOffset, ok := udevProps["ID_PART_ENTRY_OFFSET"]
-			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_OFFSET\"", partDev, d.Dev())
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
 
-			v, err = strconv.ParseUint(partOffset, 10, 64)
+			part.StructureIndex, err = requiredUdevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
 			if err != nil {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot parse partition offset %q: %v", partDev, d.Dev(), size, err)
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
-			// udev always reports the size in 512 byte blocks, regardless of
-			// sector size, so multiply the size in 512 byte blocks by 512 to
-			// get the size in bytes
-			part.StartInBytes = v * 512
+
+			part.StartInBytes, err = requiredUdevPropUint(udevProps, "ID_PART_ENTRY_OFFSET")
+			if err != nil {
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
+			}
+
+			// udev always reports the size and offset in 512 byte blocks,
+			// regardless of sector size, so multiply the size in 512 byte
+			// blocks by 512 to get the size/offset in bytes
+			part.StartInBytes *= 512
+			part.SizeInBytes *= 512
 
 			// we should always have the partition uuid, and we may not have
 			// either the partition label or the filesystem label, on GPT disks
@@ -721,10 +714,17 @@ func (d *disk) populatePartitions() error {
 				return fmt.Errorf("cannot parse device major number format: %v", err)
 			}
 
-			part.Minor, err = strconv.Atoi(udevProps["MINOR"])
+			maj, err := requiredUdevPropUint(udevProps, "MAJOR")
 			if err != nil {
-				return fmt.Errorf("cannot parse device major number format: %v", err)
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
+			part.Major = int(maj)
+
+			min, err := requiredUdevPropUint(udevProps, "MINOR")
+			if err != nil {
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
+			}
+			part.Minor = int(min)
 
 			// on MBR disks we may not have a partition label, so this may be
 			// the empty string. Note that this value is encoded similarly to
