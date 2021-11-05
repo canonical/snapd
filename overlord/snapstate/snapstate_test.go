@@ -249,7 +249,7 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
 }
 
 func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
@@ -264,9 +264,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
+		return tracker.ForeignTask(kind, status, snapsup)
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-connect", fakeHandler, nil)

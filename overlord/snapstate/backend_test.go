@@ -1169,12 +1169,13 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error {
 	f.appendOp(&fakeOp{
 		op:    kind + ":" + status.String(),
 		name:  snapsup.InstanceName(),
 		revno: snapsup.Revision(),
 	})
+	return f.maybeErrForLastOp()
 }
 
 type byAlias []*backend.Alias
