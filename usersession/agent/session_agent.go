@@ -310,7 +310,7 @@ Loop:
 	return nil
 }
 
-// handleNotifications blocks handling notifications.
+// handleNotifications handles notifications in a blocking manner.
 // This should only be called when notificationMgr is available (i.e. s.bus is set).
 func (s *SessionAgent) handleNotifications() error {
 	err := s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background()))
