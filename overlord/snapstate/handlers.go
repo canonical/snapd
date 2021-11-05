@@ -1342,6 +1342,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
 	}
 
+	if snapsup.Revert {
+		// for undo; save it early so we don't have to make a deep copy
+		// before modifying it.
+		t.Set("old-revert-status", snapst.RevertStatus)
+	}
+
 	// update snapst.RevertStatus map if needed
 	if snapsup.Revert {
 		switch snapsup.RevertStatus {
@@ -1806,6 +1812,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
 	snapst.LastRefreshTime = oldLastRefreshTime
 	snapst.CohortKey = oldCohortKey
+
+	if isRevert {
+		var oldRevertStatus map[int]RevertStatus
+		err := t.Get("old-revert-status", &oldRevertStatus)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+		// may be nil if not set (e.g. created by old snapd)
+		snapst.RevertStatus = oldRevertStatus
+	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {
