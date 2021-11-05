@@ -269,7 +269,6 @@ type cmdRemoveQuota struct {
 }
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
-
 	chgID, err := x.client.RemoveQuotaGroup(x.Positional.GroupName)
 	if err != nil {
 		return err
