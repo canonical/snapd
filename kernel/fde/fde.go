@@ -29,6 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -185,4 +186,12 @@ func DeviceSetup(runSetupHook RunSetupHookFunc, params *DeviceSetupParams) error
 	}
 
 	return nil
+}
+
+// IsEncryptedDevice returns true when the provided device mapper name indicates
+// that it is encrypted using FDE hooks.
+func IsEncryptedDeviceMapperName(dmName string) bool {
+	// TODO: is there anything more we can use to limit the prefix of the
+	// dmName?
+	return dmName != "-device-locked" && strings.HasSuffix(dmName, "-device-locked")
 }
