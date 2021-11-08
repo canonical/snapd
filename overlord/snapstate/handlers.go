@@ -199,7 +199,7 @@ func defaultPrereqSnapsChannel() string {
 	return channel
 }
 
-func findLinkSnapTask(st *state.State, snapName string) (*state.Task, error) {
+func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -306,7 +306,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	}
 
 	// in progress?
-	if linkTask, err := findLinkSnapTask(st, snapName); err != nil {
+	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
 		return nil, err
 	} else if linkTask != nil {
 		return nil, onInFlight
@@ -387,7 +387,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 // Checks for conflicting tasks. Returns true if the operation should be skipped. The error
 // can be a state.Retry if the operation should be retried later.
 func shouldSkipToAvoidConflict(task *state.Task, snapName string) (bool, error) {
-	otherTask, err := findLinkSnapTask(task.State(), snapName)
+	otherTask, err := findLinkSnapTaskForSnap(task.State(), snapName)
 	if err != nil {
 		return false, err
 	}
