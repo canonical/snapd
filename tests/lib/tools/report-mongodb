@@ -50,6 +50,22 @@ def insert(db, col, value):
 
     json_value = _get_json(value)
     if not json_value:
+        # This is an example of a correct value to be sent to mongodb
+        # {
+        #    "type": "info",
+        #    "date": "2021-11-05",
+        #    "time": "20:32:14",
+        #    "info_type": "Error",
+        #    "verb": "executing",
+        #    "task": "google:ubuntu-18.04-64:tests/main/auto-refresh:parallel",
+        #    "extra": null,
+        #    "detail": {
+        #        "lines": ["-----\n",
+        #                  "snapd-state: expected a new auto-refresh change with id greater than 1, but it didn't happen\n",
+        #                  "-----\n",
+        #                  ".\n"]
+        #    }
+        # }
         print("report-mongodb: invalid value, it does not contain a valid json format")
         sys.exit(1)
 
