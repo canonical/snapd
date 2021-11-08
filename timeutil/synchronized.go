@@ -54,7 +54,7 @@ func IsNTPSynchronized() (bool, error) {
 	// shared connection, no need to close
 	conn, err := dbusutil.SystemBus()
 	if err != nil {
-		return false, fmt.Errorf("cannot connect to system bus: %v", err)
+		return false, NoTimedate1Error{err}
 	}
 
 	tdObj := conn.Object("org.freedesktop.timedate1", "/org/freedesktop/timedate1")
