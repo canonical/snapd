@@ -86,10 +86,9 @@ func memoryCGroupEnabled() error {
 				} else {
 					return nil
 				}
-			} else {
-				// change in size, should investigate the new structure
-				return fmt.Errorf("memory control group values doesn't meet size requirements")
 			}
+			// change in size, should investigate the new structure
+			return fmt.Errorf("memory control group configuration couldn't be parsed")
 		}
 	}
 
