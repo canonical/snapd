@@ -451,7 +451,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				retain = 3
 			}
 		}
-		retain-- //  we're adding one
+
+		// if we're not using an already present revision, account for the one being added
+		if snapst.LastIndex(targetRevision) == -1 {
+			retain-- //  we're adding one
+		}
 
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
