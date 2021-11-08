@@ -1469,25 +1469,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 
-	// update snapst.RevertStatus map if needed
-	if snapsup.Revert {
-		// for undo; save it early so we don't have to make a deep copy
-		// before modifying it.
-		t.Set("old-revert-status", snapst.RevertStatus)
-
-		switch snapsup.RevertStatus {
-		case NotBlocked:
-			if snapst.RevertStatus == nil {
-				snapst.RevertStatus = make(map[int]RevertStatus)
-			}
-			snapst.RevertStatus[oldCurrent.N] = NotBlocked
-		default:
-			delete(snapst.RevertStatus, oldCurrent.N)
-		}
-	} else {
-		delete(snapst.RevertStatus, cand.Revision.N)
-	}
-
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
@@ -1500,6 +1481,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
 	t.Set("old-cohort-key", oldCohortKey)
 	t.Set("old-last-refresh-time", oldLastRefreshTime)
+	if snapsup.Revert {
+		t.Set("old-revert-status", snapst.RevertStatus)
+		switch snapsup.RevertStatus {
+		case NotBlocked:
+			if snapst.RevertStatus == nil {
+				snapst.RevertStatus = make(map[int]RevertStatus)
+			}
+			snapst.RevertStatus[oldCurrent.N] = NotBlocked
+		default:
+			delete(snapst.RevertStatus, oldCurrent.N)
+		}
+	} else {
+		delete(snapst.RevertStatus, cand.Revision.N)
+	}
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
