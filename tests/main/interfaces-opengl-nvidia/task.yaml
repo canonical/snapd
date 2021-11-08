@@ -29,7 +29,6 @@ prepare: |
     if os.query is-bionic; then
         mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
         mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
-        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so."$NV_VERSION"
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so."$NV_VERSION"
@@ -38,7 +37,6 @@ prepare: |
         if os.query is-pc-amd64; then
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
-            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so."$NV_VERSION"
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so."$NV_VERSION"
@@ -48,7 +46,6 @@ prepare: |
     fi
     mkdir -p /usr/lib/nvidia-123/tls
     mkdir -p /usr/lib/nvidia-123/vdpau
-    echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX.so.0.0.1
     echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX_nvidia.so.0.0.1
     echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-glcore.so."$NV_VERSION"
     echo "canary-legacy" >> /usr/lib/nvidia-123/tls/libnvidia-tls.so."$NV_VERSION"
@@ -57,7 +54,6 @@ prepare: |
     if os.query is-pc-amd64; then
         mkdir -p /usr/lib32/nvidia-123/tls
         mkdir -p /usr/lib32/nvidia-123/vdpau
-        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX.so.0.0.1
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX_nvidia.so.0.0.1
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-glcore.so."$NV_VERSION"
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/tls/libnvidia-tls.so."$NV_VERSION"
@@ -73,14 +69,12 @@ restore: |
         rm -rf /usr/share/glvnd/egl_vendor.d/10_nvidia.json
         rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
         rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
-        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so."$NV_VERSION"
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so."$NV_VERSION"
         if os.query is-pc-amd64; then
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
-            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so."$NV_VERSION"
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so."$NV_VERSION"
@@ -100,7 +94,7 @@ execute: |
     if os.query is-bionic; then
         expected="canary-triplet"
     fi
-    files="libGLX.so.0.0.1 libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.$NV_VERSION tls/libnvidia-tls.so.$NV_VERSION libnvidia-tls.so.$NV_VERSION vdpau/libvdpau_nvidia.so.$NV_VERSION"
+    files="libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.$NV_VERSION tls/libnvidia-tls.so.$NV_VERSION libnvidia-tls.so.$NV_VERSION vdpau/libvdpau_nvidia.so.$NV_VERSION"
     for f in $files; do
        snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl/$f" | MATCH "$expected"
     done
