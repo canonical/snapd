@@ -1342,27 +1342,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
 	}
 
-	if snapsup.Revert {
-		// for undo; save it early so we don't have to make a deep copy
-		// before modifying it.
-		t.Set("old-revert-status", snapst.RevertStatus)
-	}
-
-	// update snapst.RevertStatus map if needed
-	if snapsup.Revert {
-		switch snapsup.RevertStatus {
-		case NotBlocked:
-			if snapst.RevertStatus == nil {
-				snapst.RevertStatus = make(map[int]RevertStatus)
-			}
-			snapst.RevertStatus[snapst.Current.N] = NotBlocked
-		default:
-			delete(snapst.RevertStatus, snapst.Current.N)
-		}
-	} else {
-		delete(snapst.RevertStatus, cand.Revision.N)
-	}
-
 	oldCurrent := snapst.Current
 	snapst.Current = cand.Revision
 	snapst.Active = true
@@ -1488,6 +1467,25 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		if err := m.createSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
+	}
+
+	// update snapst.RevertStatus map if needed
+	if snapsup.Revert {
+		// for undo; save it early so we don't have to make a deep copy
+		// before modifying it.
+		t.Set("old-revert-status", snapst.RevertStatus)
+
+		switch snapsup.RevertStatus {
+		case NotBlocked:
+			if snapst.RevertStatus == nil {
+				snapst.RevertStatus = make(map[int]RevertStatus)
+			}
+			snapst.RevertStatus[oldCurrent.N] = NotBlocked
+		default:
+			delete(snapst.RevertStatus, oldCurrent.N)
+		}
+	} else {
+		delete(snapst.RevertStatus, cand.Revision.N)
 	}
 
 	// save for undoLinkSnap
