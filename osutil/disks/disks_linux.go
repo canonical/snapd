@@ -22,6 +22,8 @@ package disks
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -115,7 +117,21 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
+type errNonPhysicalDisk struct {
+	err string
+}
+
+func (e errNonPhysicalDisk) Error() string { return e.err }
+
 func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
+	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
+	// the disk, so check for that first and if it's missing then we return a
+	// specific NotAPhysicalDisk error
+	schema := props["ID_PART_TABLE_TYPE"]
+	if schema == "" {
+		return nil, errNonPhysicalDisk{fmt.Sprintf("device with %s %q is not a physical disk", deviceIDType, deviceIdentifier)}
+	}
+
 	major, err := strconv.Atoi(props["MAJOR"])
 	if err != nil {
 		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output", deviceIDType, deviceIdentifier)
@@ -144,6 +160,11 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 	// create the full path by pre-pending /sys, since udev doesn't include /sys
 	devpath = filepath.Join(dirs.SysfsDir, devpath)
 
+	partTableID := props["ID_PART_TABLE_UUID"]
+	if partTableID == "" {
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"ID_PART_TABLE_UUID\"", deviceIDType, deviceIdentifier)
+	}
+
 	// check if the device has partitions by attempting to actually search for
 	// them in /sys with the DEVPATH and DEVNAME
 
@@ -153,6 +174,8 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 	}
 
 	return &disk{
+		schema:        schema,
+		diskID:        partTableID,
 		major:         major,
 		minor:         minor,
 		devname:       devname,
@@ -223,18 +246,6 @@ mountLoop:
 	return mountpoints, nil
 }
 
-func (d *disk) Partitions() ([]Partition, error) {
-	if !d.hasPartitions {
-		// for i.e. device mapper disks which don't have partitions
-		return nil, nil
-	}
-	if err := d.populatePartitions(); err != nil {
-		return nil, err
-	}
-
-	return d.partitions, nil
-}
-
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
 func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	// call the unexported version that may be mocked by tests
@@ -244,6 +255,10 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 type disk struct {
 	major int
 	minor int
+
+	schema string
+
+	diskID string
 
 	// devname is the DEVNAME property for the disk device like /dev/sda
 	devname string
@@ -268,6 +283,101 @@ func (d *disk) KernelDeviceNode() string {
 
 func (d *disk) KernelDevicePath() string {
 	return d.devpath
+}
+
+func (d *disk) DiskID() string {
+	return d.diskID
+}
+
+func (d *disk) Partitions() ([]Partition, error) {
+	if !d.hasPartitions {
+		// for i.e. device mapper disks which don't have partitions
+		return nil, nil
+	}
+	if err := d.populatePartitions(); err != nil {
+		return nil, err
+	}
+
+	return d.partitions, nil
+}
+
+// okay to use in initrd, uses blockdev command
+func (d *disk) SectorSize() (uint64, error) {
+	return blockDeviceSectorSize(d.devname)
+}
+
+// sfdiskDeviceDump represents the sfdisk --dump JSON output format.
+type sfdiskDeviceDump struct {
+	PartitionTable sfdiskPartitionTable `json:"partitiontable"`
+}
+
+type sfdiskPartitionTable struct {
+	Unit     string `json:"unit"`
+	FirstLBA uint64 `json:"firstlba"`
+	LastLBA  uint64 `json:"lastlba"`
+}
+
+func (d *disk) SizeInBytes() (uint64, error) {
+	// TODO: this could be implemented by reading the "size" file in sysfs
+	// instead of using blockdev
+
+	// The size of the disk is always given by using blockdev, but blockdev
+	// returns the size in 512-byte blocks, so for bytes we have to multiply by
+	// 512.
+	num512Sectors, err := blockDeviceSizeInSectors(d.devname)
+	// if err is non-nil, numSectors will be 0 and thus 0*512 will still be
+	// zero
+	return num512Sectors * 512, err
+}
+
+// okay to use in initrd for dos disks since it uses blockdev command, but for
+// gpt disks, we need to use sfdisk, which is not okay to use in the initrd
+func (d *disk) UsableSectorsEnd() (uint64, error) {
+	if d.schema == "dos" {
+		// for DOS disks, it is sufficient to just get the size in bytes and
+		// divide by the sector size
+		byteSz, err := d.SizeInBytes()
+		if err != nil {
+			return 0, err
+		}
+		sectorSz, err := d.SectorSize()
+		if err != nil {
+			return 0, err
+		}
+		return byteSz / sectorSz, nil
+	}
+
+	// TODO: this could also be accomplished by reading from the GPT headers
+	// directly to get the last logical block address (LBA) instead of using
+	// sfdisk, in which case this function could then be used in the initrd
+
+	// otherwise for GPT, we need to use sfdisk on the device node
+	output, err := exec.Command("sfdisk", "--json", d.devname).Output()
+	if err != nil {
+		return 0, err
+	}
+
+	var dump sfdiskDeviceDump
+	if err := json.Unmarshal(output, &dump); err != nil {
+		return 0, fmt.Errorf("cannot parse sfdisk output: %v", err)
+	}
+
+	// check that the unit is sectors
+	if dump.PartitionTable.Unit != "sectors" {
+		return 0, fmt.Errorf("cannot get size in sectors, sfdisk reported unknown unit %s", dump.PartitionTable.Unit)
+	}
+
+	// the last logical block address (LBA) is the location of the last
+	// occupiable sector, so the end is 1 further (the end itself is not
+	// included)
+
+	// sfdisk always returns the sectors in native sector size, so we don't need
+	// to do any conversion here
+	return (dump.PartitionTable.LastLBA + 1), nil
+}
+
+func (d *disk) Schema() string {
+	return d.schema
 }
 
 // diskFromMountPointImpl returns a Disk for the underlying mount source of the
@@ -427,6 +537,20 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		// add /sys to the path we save as we return it later
 		d.devpath = filepath.Join(dirs.SysfsDir, realDiskProps["DEVPATH"])
 
+		// get the partition table ID and the schema
+		partTableID := realDiskProps["ID_PART_TABLE_UUID"]
+		if partTableID == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_UUID\"", partMountPointSource)
+		}
+
+		schema := realDiskProps["ID_PART_TABLE_TYPE"]
+		if schema == "" {
+			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"", partMountPointSource)
+		}
+
+		d.schema = schema
+		d.diskID = partTableID
+
 		// since the mountpoint device has a disk, the mountpoint source itself
 		// must be a partition from a disk, thus the disk has partitions
 		d.hasPartitions = true
@@ -496,7 +620,7 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
-			// the devpath should always be available
+			// the devpath and devname should always be available
 			devpath, ok := udevProps["DEVPATH"]
 			if !ok {
 				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVPATH\"", partDev, d.Dev())
@@ -656,4 +780,37 @@ func (d *disk) HasPartitions() bool {
 	//       could instead populate the partitions here and then return whether
 	//       d.partitions is empty or not
 	return d.hasPartitions
+}
+
+func AllPhysicalDisks() ([]Disk, error) {
+	// get disks for every block device in /sys/block/
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+
+	files, err := ioutil.ReadDir(blockDir)
+	if err != nil {
+		return nil, err
+	}
+
+	disks := make([]Disk, 0, len(files))
+
+	for _, f := range files {
+		if f.IsDir() {
+			// unexpected to have a directory here and not a symlink, but for
+			// now just silently ignore it
+			continue
+		}
+
+		// get a disk by path with the name of the file and /block/
+		fullpath := filepath.Join(blockDir, f.Name())
+
+		disk, err := DiskFromDevicePath(fullpath)
+		if err != nil {
+			if errors.As(err, &errNonPhysicalDisk{}) {
+				continue
+			}
+			return nil, err
+		}
+		disks = append(disks, disk)
+	}
+	return disks, nil
 }
