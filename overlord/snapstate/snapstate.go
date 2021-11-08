@@ -1200,6 +1200,92 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 // consider.
 type updateFilter func(*snap.Info, *SnapState) bool
 
+func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) error {
+	var findTaskOfKind = func(ts *state.TaskSet, kind string) (*state.Task, int) {
+		for idx, tsk := range ts.Tasks() {
+			if tsk.Kind() == kind {
+				return tsk, idx
+			}
+		}
+		return nil, -1
+	}
+
+	haveBase, haveKernel := bootBaseTs != nil, kernelTs != nil
+	if !haveBase && !haveKernel {
+		return nil
+	}
+	if haveBase != haveKernel {
+		// have one but not the other
+		var linkSnap *state.Task
+		if haveKernel {
+			// only kernel in this update
+			linkSnap, _ = findTaskOfKind(kernelTs, "link-snap")
+		} else {
+			// only boot base in this update
+			linkSnap, _ = findTaskOfKind(bootBaseTs, "link-snap")
+		}
+		if linkSnap != nil {
+			// we're only updating the base or the kernel, so the link-snap
+			// task can request a reboot
+			linkSnap.Set("can-reboot", true)
+		}
+		return nil
+	}
+
+	// both kernel and boot base are being updated, reorder link-snap and
+	// auto-connect tasks from both snaps such that we end up with the
+	// following ordering:
+	//
+	// tasks of base and kernel ->
+	//     link-snap(base) ->
+	//        link-snap(kernel)(r) ->
+	//            auto-connect(base) ->
+	//                auto-connect(kernel) ->
+	//                    remaining tasks of base and kernel
+	//
+	// where (r) denotes the task that can effectively request a reboot
+
+	linkSnapKernel, lsKernelIdx := findTaskOfKind(kernelTs, "link-snap")
+	autoConnectKernel, _ := findTaskOfKind(kernelTs, "auto-connect")
+	if linkSnapKernel == nil || autoConnectKernel == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect for the kernel snap")
+	}
+	kernelLanes := linkSnapKernel.Lanes()
+	linkSnapBase, _ := findTaskOfKind(bootBaseTs, "link-snap")
+	autoConnectBase, acBaseIdx := findTaskOfKind(bootBaseTs, "auto-connect")
+	if linkSnapBase == nil || autoConnectBase == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect for the base snap")
+	}
+	baseLanes := linkSnapBase.Lanes()
+
+	for _, lane := range kernelLanes {
+		linkSnapBase.JoinLane(lane)
+		autoConnectBase.JoinLane(lane)
+	}
+	for _, lane := range baseLanes {
+		linkSnapKernel.JoinLane(lane)
+		autoConnectKernel.JoinLane(lane)
+	}
+	// make link-snap base wait for the last pre-link-snap-kernel task
+	linkSnapBase.WaitFor(kernelTs.Tasks()[lsKernelIdx-1])
+	// order: link-snap-base -> link-snap-kernel
+	linkSnapKernel.WaitFor(linkSnapBase)
+	// order: link-snap-kernel -> auto-connect-base
+	autoConnectBase.WaitFor(linkSnapKernel)
+	// order: auto-connect-base -> auto-connect-kernel
+	autoConnectKernel.WaitFor(autoConnectBase)
+	// make the first post auto-connect base wait for auto-connect kernel,
+	// this task already waits for auto-connect of base
+	bootBaseTs.Tasks()[acBaseIdx+1].WaitFor(autoConnectKernel)
+
+	linkSnapBase.Set("can-reboot", false)
+	// kernel link snap can reboot
+	linkSnapKernel.Set("can-reboot", true)
+	// first auto connect will wait for reboot, but the restart pending flag
+	// will be cleared for the second one that runs
+	return nil
+}
+
 func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -1353,7 +1439,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			ts.WaitAll(preTs)
 		}
 	}
-	var kernelTs, gadgetTs *state.TaskSet
+	var kernelTs, gadgetTs, bootBaseTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1396,12 +1482,17 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 				waitPrereq(ts, update.SnapBase())
 			}
 		}
-		// keep track of kernel/gadget udpates
+		// keep track of kernel/gadget updates
 		switch update.Type() {
 		case snap.TypeKernel:
 			kernelTs = ts
 		case snap.TypeGadget:
 			gadgetTs = ts
+		case snap.TypeBase, snap.TypeOS:
+			if update.InstanceName() == deviceCtx.Model().Base() {
+				// only the boot base is relevant for reboots
+				bootBaseTs = ts
+			}
 		}
 
 		scheduleUpdate(update.InstanceName(), ts)
@@ -1415,6 +1506,10 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// kernel aborts the wait tasks (the gadget) is put on "Hold".
 	if kernelTs != nil && gadgetTs != nil {
 		kernelTs.WaitAll(gadgetTs)
+	}
+
+	if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
+		return nil, nil, err
 	}
 
 	if len(newAutoAliases) != 0 {
