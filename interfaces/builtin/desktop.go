@@ -63,6 +63,10 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # some applications are known to mmap fonts
 /usr/{,local/}share/fonts/** m,
 
+# Allow access to the host's hunspell dictionaries for spellchecking
+# /usr/share/hunspell plus possible distro specific variants
+/usr/{,local/}share/{hunspell,myspell}/** r,
+
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
