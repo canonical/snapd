@@ -46,8 +46,6 @@ var (
 
 	FilesystemInfoForPartition = filesystemInfoForPartition
 
-	ListBlockDevices = listBlockDevices
-
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
 
