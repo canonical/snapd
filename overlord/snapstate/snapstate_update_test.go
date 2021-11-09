@@ -1006,6 +1006,66 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
 }
 
+func (s *snapmgrTestSuite) TestUpdateDropsRevertStatus(c *C) {
+	si := snap.SideInfo{
+		RealName: "services-snap",
+		Revision: snap.R(7),
+		SnapID:   "services-snap-id",
+	}
+	snaptest.MockSnap(c, `name: services-snap`, &si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si2 := snap.SideInfo{
+		RealName: "services-snap",
+		Revision: snap.R(11),
+		SnapID:   "services-snap-id",
+	}
+	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  si.Revision,
+		RevertStatus: map[int]snapstate.RevertStatus{
+			11: snapstate.NotBlocked,
+		},
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+		CohortKey:       "embattled",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "services-snap", &snapstate.RevisionOptions{
+		Channel:   "some-channel",
+		CohortKey: "some-cohort",
+	}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "services-snap", &snapst), IsNil)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(11))
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "services-snap",
+		SnapID:   "services-snap-id",
+		Channel:  "",
+		Revision: snap.R(7),
+	})
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		RealName: "services-snap",
+		Channel:  "some-channel",
+		SnapID:   "services-snap-id",
+		Revision: snap.R(11),
+	})
+	c.Check(snapst.RevertStatus, HasLen, 0)
+}
+
 func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -3417,6 +3477,50 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si7, &si11},
 		Current:  si7.Revision,
+	})
+
+	updates, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, s.user.ID, nil)
+	c.Check(err, IsNil)
+	c.Check(updates, HasLen, 0)
+
+	c.Assert(s.fakeBackend.ops, HasLen, 2)
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(7),
+			RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 7),
+			Block:         []snap.Revision{snap.R(11)},
+			Epoch:         snap.E("1*"),
+		}},
+		userID: 1,
+	})
+}
+
+func (s *snapmgrTestSuite) TestAllUpdateRevisionNotBlocked(c *C) {
+	//  update-all *should* set the block list
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(11),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si7.Revision,
+		RevertStatus: map[int]snapstate.RevertStatus{
+			si7.Revision.N: snapstate.NotBlocked,
+		},
 	})
 
 	updates, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, s.user.ID, nil)
