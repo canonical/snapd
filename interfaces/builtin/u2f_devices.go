@@ -150,7 +150,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Trezor",
 		VendorIDPattern:  "534c",
-		ProductIDPattern: "0001",
+		ProductIDPattern: "0001|0002",
 	},
 	{
 		Name:             "Trezor v2",
