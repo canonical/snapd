@@ -568,7 +568,6 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 			}, nil
 		case "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
 			return map[string]string{
-				// "DEVTYPE":            "disk",
 				"ID_PART_ENTRY_DISK": "42:0",
 			}, nil
 		case "/dev/block/42:0":
@@ -578,8 +577,6 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 				"DEVPATH":            "/devices/foo",
 				"ID_PART_TABLE_UUID": "foo-uuid",
 				"ID_PART_TABLE_TYPE": "thing",
-				// "DEVTYPE":            "disk",
-				// "ID_PART_ENTRY_DISK": "42:0",
 			}, nil
 		default:
 			c.Errorf("unexpected udev device properties requested: %s", dev)
