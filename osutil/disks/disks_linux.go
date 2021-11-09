@@ -123,10 +123,12 @@ type errNonPhysicalDisk struct {
 
 func (e errNonPhysicalDisk) Error() string { return e.err }
 
+const propNotFoundErrFmt = "property %q not found"
+
 func requiredUDevPropUint(props map[string]string, name string) (uint64, error) {
 	partIndex, ok := props[name]
 	if !ok {
-		return 0, fmt.Errorf("property %q not found", name)
+		return 0, fmt.Errorf(propNotFoundErrFmt, name)
 	}
 	v, err := strconv.ParseUint(partIndex, 10, 64)
 	if err != nil {
@@ -637,32 +639,36 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
+			emitUDevPropErr := func(e error) error {
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), e)
+			}
+
 			// the devpath and devname should always be available
 			devpath, ok := udevProps["DEVPATH"]
 			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVPATH\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVPATH"))
 			}
 			part.KernelDevicePath = filepath.Join(dirs.SysfsDir, devpath)
 
 			devname, ok := udevProps["DEVNAME"]
 			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVNAME\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVNAME"))
 			}
 			part.KernelDeviceNode = devname
 
 			// we should always have the partition type
 			partType, ok := udevProps["ID_PART_ENTRY_TYPE"]
 			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"ID_PART_ENTRY_TYPE\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "ID_PART_ENTRY_TYPE"))
 			}
 
 			// on dos disks, the type is formatted like "0xc", when we prefer to
 			// always use "0C" so fix the formatting
 			if d.schema == "dos" {
-				partType = strings.TrimPrefix(partType, "0x")
+				partType = strings.TrimPrefix(strings.ToLower(partType), "0x")
 				v, err := strconv.ParseUint(partType, 16, 8)
 				if err != nil {
-					return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), cannot convert MBR partition type %q: %v", partDev, d.Dev(), partType, err)
+					return emitUDevPropErr(fmt.Errorf("cannot convert MBR partition type %q: %v", partType, err))
 				}
 				partType = fmt.Sprintf("%02X", v)
 			} else {
@@ -679,17 +685,17 @@ func (d *disk) populatePartitions() error {
 
 			part.SizeInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_SIZE")
 			if err != nil {
-				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
+				return emitUDevPropErr(err)
 			}
 
 			part.StructureIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
 			if err != nil {
-				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
+				return emitUDevPropErr(err)
 			}
 
 			part.StartInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_OFFSET")
 			if err != nil {
-				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
+				return emitUDevPropErr(err)
 			}
 
 			// udev always reports the size and offset in 512 byte blocks,
@@ -706,24 +712,19 @@ func (d *disk) populatePartitions() error {
 			// the partition
 			part.PartitionUUID = udevProps["ID_PART_ENTRY_UUID"]
 			if part.PartitionUUID == "" {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "ID_PART_ENTRY_UUID"))
 			}
 
 			// we should also always have the device major/minor for this device
-			part.Major, err = strconv.Atoi(udevProps["MAJOR"])
-			if err != nil {
-				return fmt.Errorf("cannot parse device major number format: %v", err)
-			}
-
 			maj, err := requiredUDevPropUint(udevProps, "MAJOR")
 			if err != nil {
-				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
+				return emitUDevPropErr(err)
 			}
 			part.Major = int(maj)
 
 			min, err := requiredUDevPropUint(udevProps, "MINOR")
 			if err != nil {
-				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
+				return emitUDevPropErr(err)
 			}
 			part.Minor = int(min)
 
