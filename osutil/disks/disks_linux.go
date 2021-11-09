@@ -562,9 +562,13 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_UUID\"", partMountPointSource)
 		}
 
-		schema := realDiskProps["ID_PART_TABLE_TYPE"]
+		schema := strings.ToLower(realDiskProps["ID_PART_TABLE_TYPE"])
 		if schema == "" {
 			return nil, fmt.Errorf("cannot find disk for partition %s: incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"", partMountPointSource)
+		}
+
+		if schema != "gpt" && schema != "dos" {
+			return nil, fmt.Errorf("unsupported disk schema %q", realDiskProps["ID_PART_TABLE_TYPE"])
 		}
 
 		d.schema = schema

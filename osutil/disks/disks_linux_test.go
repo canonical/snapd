@@ -507,7 +507,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 				"DEVPATH":            virtioDiskDevPath,
 				"DEVTYPE":            "disk",
 				"ID_PART_TABLE_UUID": "some-gpt-uuid",
-				"ID_PART_TABLE_TYPE": "foo",
+				"ID_PART_TABLE_TYPE": "gpt",
 			}, nil
 		case 3:
 			c.Assert(dev, Equals, "vda4")
@@ -593,12 +593,14 @@ elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
 	echo "DEVPATH=%s"
 	echo "DEVTYPE=disk"
 	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
-	echo "ID_PART_TABLE_TYPE=foo-bar-type"
+	# GPT is upper case, it gets turned into lower case
+	echo "ID_PART_TABLE_TYPE=GPT"
 else
 	echo "unexpected arguments $*"
 	exit 1
 fi
 `, virtioDiskDevPath))
+	defer udevadmCmd.Restore()
 
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
@@ -607,6 +609,7 @@ fi
 	c.Assert(d.HasPartitions(), Equals, true)
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, virtioDiskDevPath))
+	c.Assert(d.Schema(), Equals, "gpt")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
@@ -628,6 +631,7 @@ else
 	exit 1
 fi
 `)
+	defer udevadmCmd.Restore()
 
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
@@ -662,7 +666,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 				"DEVNAME":            "foo",
 				"DEVPATH":            "/devices/foo",
 				"ID_PART_TABLE_UUID": "foo-uuid",
-				"ID_PART_TABLE_TYPE": "thing",
+				"ID_PART_TABLE_TYPE": "DOS",
 			}, nil
 		default:
 			c.Errorf("unexpected udev device properties requested: %s", dev)
@@ -689,6 +693,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:0")
 	c.Assert(d.HasPartitions(), Equals, true)
+	c.Assert(d.Schema(), Equals, "dos")
 }
 
 func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
@@ -704,12 +709,45 @@ else
 	exit 1
 fi
 `)
+	defer udevadmCmd.Restore()
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, ErrorMatches, "unsupported DEVTYPE \"not-a-disk\" for mount point source /dev/not-a-disk")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-disk"},
+	})
+}
+
+func (s *diskSuite) TestDiskFromMountPointUnsupportedSchema(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/not-a-supported-schema-disk rw
+`)
+	defer restore()
+
+	udevadmCmd := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/not-a-supported-schema-disk" ]; then
+	echo "DEVTYPE=disk"
+	echo "ID_PART_ENTRY_DISK=42:0"
+elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
+	echo "DEVTYPE=disk"
+	echo "DEVNAME=/dev/foo"
+	echo "DEVPATH=/block/32"
+	echo "ID_PART_TABLE_UUID=something"
+	echo "ID_PART_ENTRY_DISK=42:0"
+	echo "ID_PART_TABLE_TYPE=foo"
+else
+	echo "unexpected arguments $*"
+	exit 1
+fi
+`)
+	defer udevadmCmd.Restore()
+
+	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, ErrorMatches, "unsupported disk schema \"foo\"")
+
+	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-supported-schema-disk"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"},
 	})
 }
 
