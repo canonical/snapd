@@ -123,7 +123,7 @@ type errNonPhysicalDisk struct {
 
 func (e errNonPhysicalDisk) Error() string { return e.err }
 
-func requiredUdevPropUint(props map[string]string, name string) (uint64, error) {
+func requiredUDevPropUint(props map[string]string, name string) (uint64, error) {
 	partIndex, ok := props[name]
 	if !ok {
 		return 0, fmt.Errorf("property %q not found", name)
@@ -677,17 +677,17 @@ func (d *disk) populatePartitions() error {
 			// be the empty string
 			part.FilesystemType = udevProps["ID_FS_TYPE"]
 
-			part.SizeInBytes, err = requiredUdevPropUint(udevProps, "ID_PART_ENTRY_SIZE")
+			part.SizeInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_SIZE")
 			if err != nil {
 				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
 
-			part.StructureIndex, err = requiredUdevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
+			part.StructureIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
 			if err != nil {
 				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
 
-			part.StartInBytes, err = requiredUdevPropUint(udevProps, "ID_PART_ENTRY_OFFSET")
+			part.StartInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_OFFSET")
 			if err != nil {
 				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
@@ -715,13 +715,13 @@ func (d *disk) populatePartitions() error {
 				return fmt.Errorf("cannot parse device major number format: %v", err)
 			}
 
-			maj, err := requiredUdevPropUint(udevProps, "MAJOR")
+			maj, err := requiredUDevPropUint(udevProps, "MAJOR")
 			if err != nil {
 				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
 			part.Major = int(maj)
 
-			min, err := requiredUdevPropUint(udevProps, "MINOR")
+			min, err := requiredUDevPropUint(udevProps, "MINOR")
 			if err != nil {
 				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), err)
 			}
