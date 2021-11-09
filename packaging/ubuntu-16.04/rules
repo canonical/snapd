@@ -154,6 +154,9 @@ override_dh_clean:
 	$(MAKE) -C cmd distclean || true
 	# XXX: hacky^2
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
+	# XXX: drop old mvo5/libseccomp
+	rm -f ./cmd/snap-seccomp/old_seccomp.go
+	sed '/mvo5\/libseccomp-golang/d' -i go.mod go.sum vendor/modules.txt || true
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc

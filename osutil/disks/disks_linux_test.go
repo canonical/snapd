@@ -1440,3 +1440,80 @@ fi
 	// we never used sfdisk
 	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
 }
+
+func (s *diskSuite) TestAllPhysicalDisks(c *C) {
+	// mock some devices in /sys/block
+
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+	err := os.MkdirAll(blockDir, 0755)
+	c.Assert(err, IsNil)
+	devsToCreate := []string{"sda", "loop1", "loop2", "sdb", "nvme0n1", "mmcblk0"}
+	for _, dev := range devsToCreate {
+		err := ioutil.WriteFile(filepath.Join(blockDir, dev), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	restore := disks.MockUdevPropertiesForDevice(func(typ, dev string) (map[string]string, error) {
+		c.Assert(typ, Equals, "--path")
+		c.Assert(filepath.Dir(dev), Equals, blockDir)
+		switch filepath.Base(dev) {
+		case "sda":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "42",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/sda",
+				"DEVPATH":            "/devices/foo/sda",
+				"ID_PART_TABLE_UUID": "foo-sda-uuid",
+			}, nil
+		case "loop1":
+			return map[string]string{}, nil
+		case "loop2":
+			return map[string]string{}, nil
+		case "sdb":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "43",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/sdb",
+				"DEVPATH":            "/devices/foo/sdb",
+				"ID_PART_TABLE_UUID": "foo-sdb-uuid",
+			}, nil
+		case "nvme0n1":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "44",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/nvme0n1",
+				"DEVPATH":            "/devices/foo/nvme0n1",
+				"ID_PART_TABLE_UUID": "foo-nvme-uuid",
+			}, nil
+		case "mmcblk0":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "45",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/mmcblk0",
+				"DEVPATH":            "/devices/foo/mmcblk0",
+				"ID_PART_TABLE_UUID": "foo-mmc-uuid",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	d, err := disks.AllPhysicalDisks()
+	c.Assert(err, IsNil)
+	c.Assert(d, HasLen, 4)
+
+	c.Assert(d[0].KernelDeviceNode(), Equals, "/dev/mmcblk0")
+	c.Assert(d[1].KernelDeviceNode(), Equals, "/dev/nvme0n1")
+	c.Assert(d[2].KernelDeviceNode(), Equals, "/dev/sda")
+	c.Assert(d[3].KernelDeviceNode(), Equals, "/dev/sdb")
+}
