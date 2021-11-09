@@ -302,6 +302,9 @@ jobs:
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
+          # Make sure latest we get the latest code from submodules
+          git submodule update --remote --merge
+
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
           spread -abend google:${{ matrix.system }}:tests/...
@@ -367,6 +370,9 @@ jobs:
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
+          # Make sure latest we get the latest code from submodules
+          git submodule update --remote --merge
+
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
