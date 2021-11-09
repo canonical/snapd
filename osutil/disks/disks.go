@@ -138,6 +138,10 @@ type Partition struct {
 	PartitionLabel string
 	// the partition UUID
 	PartitionUUID string
+
+	// TODO: Major and Minor should be uints, they are required to be uints by
+	// the kernel, so it makes sense to match that here
+
 	// Major is the major number for this partition.
 	Major int
 	// Minor is the minor number for this partition.
