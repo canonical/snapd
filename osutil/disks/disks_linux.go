@@ -122,7 +122,7 @@ type errNonPhysicalDisk struct {
 
 func (e errNonPhysicalDisk) Error() string { return e.err }
 
-func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
+func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
 	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
 	// the disk, so check for that first and if it's missing then we return a
 	// specific NotAPhysicalDisk error
@@ -198,7 +198,7 @@ var diskFromDevicePath = func(devicePath string) (Disk, error) {
 		return nil, err
 	}
 
-	return diskFromUdevProps(devicePath, "path", props)
+	return diskFromUDevProps(devicePath, "path", props)
 }
 
 // DiskFromDeviceName finds a matching Disk using the specified name, such as
@@ -216,7 +216,7 @@ var diskFromDeviceName = func(deviceName string) (Disk, error) {
 		return nil, err
 	}
 
-	return diskFromUdevProps(deviceName, "name", props)
+	return diskFromUDevProps(deviceName, "name", props)
 }
 
 func mountPointsForPartitionRoot(part Partition, mountOptsMatching map[string]string) ([]string, error) {
@@ -265,7 +265,7 @@ var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
 		return nil, err
 	}
 
-	disk, err := diskFromPartUdevPropsAndOpts(props, nil)
+	disk, err := diskFromPartUDevProps(props, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find disk from partition device node %s: %v", node, err)
 	}
@@ -400,7 +400,7 @@ func (d *disk) Schema() string {
 	return d.schema
 }
 
-func diskFromPartUdevPropsAndOpts(props map[string]string, opts *Options) (*disk, error) {
+func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error) {
 	if opts != nil && opts.IsDecryptedDevice {
 		// verify that the mount point is indeed a mapper device, it should:
 		// 1. have DEVTYPE == disk from udev
@@ -598,7 +598,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
 	}
 
-	disk, err := diskFromPartUdevPropsAndOpts(props, opts)
+	disk, err := diskFromPartUDevProps(props, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find disk from mountpoint source %s of %s: %v", partMountPointSource, mountpoint, err)
 	}
