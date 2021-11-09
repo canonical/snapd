@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -851,4 +852,37 @@ func (d *disk) HasPartitions() bool {
 	//       could instead populate the partitions here and then return whether
 	//       d.partitions is empty or not
 	return d.hasPartitions
+}
+
+func AllPhysicalDisks() ([]Disk, error) {
+	// get disks for every block device in /sys/block/
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+
+	files, err := ioutil.ReadDir(blockDir)
+	if err != nil {
+		return nil, err
+	}
+
+	disks := make([]Disk, 0, len(files))
+
+	for _, f := range files {
+		if f.IsDir() {
+			// unexpected to have a directory here and not a symlink, but for
+			// now just silently ignore it
+			continue
+		}
+
+		// get a disk by path with the name of the file and /block/
+		fullpath := filepath.Join(blockDir, f.Name())
+
+		disk, err := DiskFromDevicePath(fullpath)
+		if err != nil {
+			if errors.As(err, &errNonPhysicalDisk{}) {
+				continue
+			}
+			return nil, err
+		}
+		disks = append(disks, disk)
+	}
+	return disks, nil
 }

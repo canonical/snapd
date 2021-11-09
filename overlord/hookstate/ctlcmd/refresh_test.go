@@ -131,15 +131,15 @@ base: snap1-base
 version: 1
 hooks:
  gate-auto-refresh:
-`)
+`, "")
 	mockInstalledSnap(c, s.st, `name: snap1-base
 type: base
 version: 1
-`)
+`, "")
 	mockInstalledSnap(c, s.st, `name: kernel
 type: kernel
 version: 1
-`)
+`, "")
 	s.st.Unlock()
 
 	for _, test := range refreshFromHookTests {
@@ -182,11 +182,11 @@ base: snap1-base
 version: 1
 hooks:
  gate-auto-refresh:
-`)
+`, "")
 	mockInstalledSnap(c, s.st, `name: snap1-base
 type: base
 version: 1
-`)
+`, "")
 
 	candidates := map[string]interface{}{
 		"snap1-base": mockRefreshCandidate("snap1-base", "edge", "v1", snap.Revision{N: 3}),
@@ -220,7 +220,7 @@ func (s *refreshSuite) TestRefreshProceed(c *C) {
 
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
-`)
+`, "")
 
 	// pretend snap foo is held initially
 	_, err = snapstate.HoldRefresh(s.st, "snap1", 0, "foo")
@@ -301,7 +301,7 @@ func (s *refreshSuite) TestRefreshProceedFromSnap(c *C) {
 	// note: don't mock the plug, it's enough to have it in conns
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
-`)
+`, "")
 
 	s.st.Set("conns", map[string]interface{}{
 		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
@@ -330,7 +330,7 @@ func (s *refreshSuite) TestPendingFromSnapNoRefreshCandidates(c *C) {
 
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
-`)
+`, "")
 
 	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
@@ -341,6 +341,64 @@ version: 1
 	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
+}
+
+func (s *refreshSuite) TestPendingFromSnapWithCohort(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`, "some-cohort-key")
+
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	c.Check(err, IsNil)
+
+	s.st.Unlock()
+	defer s.st.Lock()
+
+	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	c.Assert(err, IsNil)
+	// cohort is not printed if snap-refresh-control isn't connected
+	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
+
+	s.st.Lock()
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	})
+	s.st.Unlock()
+
+	stdout, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	c.Assert(err, IsNil)
+	// cohort is printed
+	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
+}
+
+func (s *refreshSuite) TestPendingWithCohort(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`, "some-cohort-key")
+
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	})
+
+	s.st.Unlock()
+	defer s.st.Lock()
+
+	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	c.Assert(err, IsNil)
+	// cohort is printed
+	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\ncohort: some-cohort-key\nbase: false\nrestart: false\n")
 }
 
 func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
@@ -355,7 +413,7 @@ func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
 	// note: don't mock the plug, it's enough to have it in conns
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
-`)
+`, "")
 	s.st.Set("conns", map[string]interface{}{
 		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
 	})
@@ -389,7 +447,7 @@ func (s *refreshSuite) TestRefreshProceedFromSnapErrorNoSnapRefreshControl(c *C)
 	// note: don't mock the plug, it's enough to have it in conns
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
-`)
+`, "")
 	s.st.Set("conns", map[string]interface{}{
 		"foo:plug core:slot": map[string]interface{}{
 			"interface": "snap-refresh-control",

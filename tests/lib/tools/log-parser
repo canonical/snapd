@@ -22,6 +22,10 @@ FAILED_TYPE = 'Failed'
 ABORTED_TYPE = 'Aborted'
 SUCCESSFUL_TYPE = 'Successful'
 
+# Setups
+BEFORE_TYPE = 'Before'
+AFTER_TYPE = 'After'
+
 # Printable names
 ALL = 'all'
 NONE = 'none'
@@ -33,6 +37,7 @@ ERROR_DEBUG = 'error-debug'
 FAILED = 'failed'
 ABORTED = 'aborted'
 SUCCESSFUL = 'successful'
+SETUP = 'setup'
 
 RESULT = 'result'
 START = 'Found'
@@ -45,6 +50,7 @@ OPERATIONS = [
     'Allocated', 'Connecting', 'Connected', 'Sending'
     ]
 RESULTS = ['Successful', 'Aborted', 'Failed']
+SETUP_TYPES = [BEFORE_TYPE, AFTER_TYPE]
 
 
 class Action:
@@ -66,13 +72,33 @@ class Action:
 
     def __dict__(self):
         return {
-            'type': 'action',
+            'type': self.type,
             'date': self.date,
             'time': self.time,
             'verb': self.verb,
             'task': self.task
             }
 
+class Setup:
+    """
+    Setup represents the lines used to configure the spread run
+    which appear before and after a spread run
+    """
+
+    def __init__(self, setup_type, source_line):
+        self.type = SETUP
+        self.setup_type = setup_type
+        self.source_line = source_line
+
+    def __repr__(self):
+        return self.source_line
+
+    def __dict__(self):
+        return {
+            'type': self.type,
+            'setup_type': self.setup_type,
+            'source_line': self.source_line
+            }
 
 class Result:
     """
@@ -259,10 +285,7 @@ class LogReader:
     def export_log(self, filepath):
         prepared_log = []
         for item in self.full_log:
-            if isinstance(item, str):
-                prepared_log.append(item)
-            else:
-                prepared_log.append(item.__dict__())
+            prepared_log.append(item.__dict__())
         with open(filepath, 'w') as json_file:
             json.dump(prepared_log, json_file)
 
@@ -285,11 +308,13 @@ class LogReader:
                 line = self._next_line()
                 if self._match_start(line):
                     break
-                self.full_log.append(line)
+                else:
+                   setup = self._get_setup(line)
+                   self.full_log.append(setup)
 
             if self.iter >= len(self.lines):
-                # Start not found, the log is either empty, corrupted or cut
-                self.iter = 0
+                print("log-parser: log start not found, the log is either empty, corrupted or cut")
+                sys.exit(1)
 
         # Then iterate line by line analyzing the log
         while self.iter < len(self.lines):
@@ -323,6 +348,7 @@ class LogReader:
                 if result:
                     self.full_log.append(result)
                 continue
+
 
     def _match_date(self, date):
         return re.findall(r'\d{4}-\d{2}-\d{2}', date)
@@ -410,7 +436,7 @@ class LogReader:
             extra = None
         elif info_type == DEBUG_TYPE:
             verb = parts[3]
-            task = parts[4]
+            task = parts[5]
             extra = None
         else:
             print('log-parser: detail type not recognized: {}'.format(info_type))
@@ -419,7 +445,16 @@ class LogReader:
         return Info(info_type, verb, task, extra, date, time, detail, line)
 
     def _get_result(self, line):
-        """ Get the Result object including the details for the result """
+        """ Get the Result object including the details for the result
+        Example of lines:
+        2021-11-04 10:51:41 Successful tasks: 10041
+        2021-11-04 10:51:41 Aborted tasks: 2
+        2021-11-04 10:51:41 Failed tasks: 4
+            - google:debian-11-64:tests/main/snap-user-service-socket-activation
+            - google:opensuse-15.2-64:tests/main/disk-space-awareness
+            - google:ubuntu-core-18-64:tests/main/services-disabled-kept-happy
+            - google:ubuntu-core-18-64:tests/main/snap-connections
+        """
         parts = line.strip().split(' ')
         if len(parts) < 3:
             print(parts)
@@ -441,6 +476,10 @@ class LogReader:
     def _get_action(self, line):
         """
         Get the Action object for lines preparing, executing and restoring
+        Example of lines:
+        2021-11-04 10:46:07 Preparing google:ubuntu-20.04-64:tests/completion/snippets:funkyfunc (nov040945-011538)...
+        2021-11-04 10:46:09 Executing google:ubuntu-18.04-32:tests/main/document-portal-activation (nov040945-011663) (10019/10047)...
+        2021-11-04 10:47:01 Restoring google:ubuntu-20.04-64 (nov040945-011544)...
         """
         parts = line.strip().split(' ')
         if len(parts) < 3:
@@ -452,7 +491,15 @@ class LogReader:
         return Action(verb, task.split('...')[0], date, time, line)
 
     def _get_operation(self, line):
-        """ Get the Operation object for lines rebooting, allocating, etc """
+        """ Get the Operation object for lines rebooting, allocating, etc
+        Example of lines:
+        2021-11-04 09:48:32 Rebooting on nov040945-011632 (google:arch-linux-64) as requested...
+        2021-11-04 09:47:47 Allocated google:debian-11-64 (nov040945-011728).
+        2021-11-04 09:45:41 Allocating google:arch-linux-64...
+        2021-11-04 10:51:32 Discarding google:ubuntu-18.04-32 (nov040945-011692)...
+        2021-11-04 09:46:32 Waiting for google:debian-10-64 (nov040945-011516) to boot at 34.138.21.231...
+        2021-11-04 09:46:34 Sending project content to google:centos-8-64 (nov040945-011292)...
+        """
         parts = line.strip().split(' ')
         if len(parts) < 3:
             return None
@@ -462,6 +509,10 @@ class LogReader:
         task = None
         extra = ' '.join(parts[3:])
         return Operation(verb, task, extra, date, time, line)
+
+    def _get_setup(self, line):
+        """ Get the setup object for lines initial lines of the log """
+        return Setup(BEFORE_TYPE, line)
 
 
 def _make_parser():
