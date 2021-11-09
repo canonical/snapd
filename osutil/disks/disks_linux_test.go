@@ -215,9 +215,10 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			c.Assert(typeOpt, Equals, "--name")
 			c.Assert(dev, Equals, "vdb1")
 			return map[string]string{
-				"DEVPATH":              vdaSysfsPath + "1",
-				"DEVNAME":              "/dev/vdb1",
-				"ID_PART_ENTRY_TYPE":   "0xc",
+				"DEVPATH": vdaSysfsPath + "1",
+				"DEVNAME": "/dev/vdb1",
+				// upper case 0X
+				"ID_PART_ENTRY_TYPE":   "0Xc",
 				"ID_PART_ENTRY_SIZE":   "524288",
 				"ID_PART_ENTRY_NUMBER": "1",
 				"ID_PART_ENTRY_OFFSET": "2048",
@@ -230,8 +231,9 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			c.Assert(typeOpt, Equals, "--name")
 			c.Assert(dev, Equals, "vdb2")
 			return map[string]string{
-				"DEVPATH":              vdaSysfsPath + "2",
-				"DEVNAME":              "/dev/vdb2",
+				"DEVPATH": vdaSysfsPath + "2",
+				"DEVNAME": "/dev/vdb2",
+				// lower case 0x
 				"ID_PART_ENTRY_TYPE":   "0x83",
 				"ID_PART_ENTRY_SIZE":   "124473665",
 				"ID_PART_ENTRY_NUMBER": "2",
