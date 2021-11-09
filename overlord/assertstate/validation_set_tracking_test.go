@@ -30,8 +30,7 @@ import (
 )
 
 type validationSetTrackingSuite struct {
-	st *state.State
-	//storeSigning *assertstest.StoreStack
+	st          *state.State
 	dev1Signing *assertstest.SigningDB
 	dev1acct    *asserts.Account
 }
@@ -254,4 +253,158 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	// XXX: switch to CheckPresenceInvalid / CheckPresenceRequired once available.
 	err = valsets.Conflict()
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
+}
+
+func (s *validationSetTrackingSuite) TestAddToValidationSetsHistory(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	all, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 0)
+
+	tr1 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  1,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr1)
+	tr2 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "baz",
+		Mode:      assertstate.Monitor,
+		Current:   4,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr2)
+
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+	top, err := assertstate.ValidationSetsHistoryTop(s.st)
+	c.Assert(err, IsNil)
+	c.Check(top, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": {
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			PinnedAt:  1,
+			Current:   2,
+		},
+		"foo/baz": {
+			AccountID: "foo",
+			Name:      "baz",
+			Mode:      assertstate.Monitor,
+			Current:   4,
+		},
+	})
+
+	// adding unchanged validation set tracking doesn't create another entry
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+	top2, err := assertstate.ValidationSetsHistoryTop(s.st)
+	c.Assert(err, IsNil)
+	c.Check(top, DeepEquals, top2)
+	vshist, err := assertstate.ValidationSetsHistory(s.st)
+	c.Assert(err, IsNil)
+	c.Check(vshist, HasLen, 1)
+
+	tr3 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "boo",
+		Mode:      assertstate.Enforce,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr3)
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+
+	vshist, err = assertstate.ValidationSetsHistory(s.st)
+	c.Assert(err, IsNil)
+	// the history now has 2 entries
+	c.Check(vshist, HasLen, 2)
+
+	top3, err := assertstate.ValidationSetsHistoryTop(s.st)
+	c.Assert(err, IsNil)
+	c.Check(top3, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": {
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			PinnedAt:  1,
+			Current:   2,
+		},
+		"foo/baz": {
+			AccountID: "foo",
+			Name:      "baz",
+			Mode:      assertstate.Monitor,
+			Current:   4,
+		},
+		"foo/boo": {
+			AccountID: "foo",
+			Name:      "boo",
+			Mode:      assertstate.Enforce,
+			Current:   2,
+		},
+	})
+}
+
+func (s *validationSetTrackingSuite) TestAddToValidationSetsHistoryRemovesOldEntries(c *C) {
+	restore := assertstate.MockMaxValidationSetsHistorySize(4)
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	all, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 0)
+
+	for i := 1; i <= 6; i++ {
+		tr := assertstate.ValidationSetTracking{
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			Current:   i,
+		}
+		assertstate.UpdateValidationSet(s.st, &tr)
+
+		c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+	}
+
+	vshist, err := assertstate.ValidationSetsHistory(s.st)
+	c.Assert(err, IsNil)
+
+	// two first entries got dropped
+	c.Check(vshist, DeepEquals, []map[string]*assertstate.ValidationSetTracking{
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   3,
+			},
+		},
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   4,
+			},
+		},
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   5,
+			},
+		},
+		{
+			"foo/bar": {
+				AccountID: "foo",
+				Name:      "bar",
+				Mode:      assertstate.Enforce,
+				Current:   6,
+			},
+		},
+	})
 }
