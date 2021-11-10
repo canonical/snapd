@@ -20,6 +20,9 @@
 package notification
 
 import (
+	"context"
+	"time"
+
 	"github.com/godbus/dbus"
 )
 
@@ -33,6 +36,7 @@ type gtkBackend struct {
 	conn      *dbus.Conn
 	manager   dbus.BusObject
 	desktopID string
+	firstUse  time.Time
 }
 
 // TODO: support actions via session agent.
@@ -50,6 +54,7 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 		conn:      conn,
 		manager:   conn.Object(gtkBusName, gtkObjectPath),
 		desktopID: desktopID,
+		firstUse:  time.Now(),
 	}
 	return b, nil
 }
@@ -94,4 +99,13 @@ func (srv *gtkBackend) SendNotification(id ID, msg *Message) error {
 func (srv *gtkBackend) CloseNotification(id ID) error {
 	call := srv.manager.Call(gtkInterface+".RemoveNotification", 0, srv.desktopID, id)
 	return call.Store()
+}
+
+func (srv *gtkBackend) HandleNotifications(context.Context) error {
+	// do nothing
+	return nil
+}
+
+func (srv *gtkBackend) IdleDuration() time.Duration {
+	return time.Since(srv.firstUse)
 }
