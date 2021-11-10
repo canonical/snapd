@@ -457,7 +457,7 @@ func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error
 		}
 
 		if !matchedHandler {
-			return nil, fmt.Errorf("no handler supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
+			return nil, fmt.Errorf("internal error: no back resolver supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
 		}
 	}
 

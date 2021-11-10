@@ -604,14 +604,14 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	disks.UnregisterDeviceMapperBackResolver("crypt-luks2")
 	defer func() {
 		// re-register it at the end, since it's registered by default
-		disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperHandler)
+		disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
 	}()
 
 	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: no handler supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
 
 	// but when it is available it works
-	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperHandler)
+	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
 
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
 	c.Assert(err, IsNil)

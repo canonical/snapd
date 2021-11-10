@@ -39,7 +39,7 @@ var (
 	luksUUIDPatternRe = regexp.MustCompile(`^CRYPT-LUKS2-([0-9a-f]{32})$`)
 )
 
-func cryptLuks2DeviceMapperHandler(dmUUID, dmName []byte) (dev string, ok bool) {
+func cryptLuks2DeviceMapperBackResolver(dmUUID, dmName []byte) (dev string, ok bool) {
 	if !strings.HasPrefix(string(dmUUID), "CRYPT-LUKS") {
 		return "", false
 	}
@@ -87,5 +87,5 @@ func cryptLuks2DeviceMapperHandler(dmUUID, dmName []byte) (dev string, ok bool) 
 }
 
 func init() {
-	RegisterDeviceMapperBackResolver("crypt-luks2", cryptLuks2DeviceMapperHandler)
+	RegisterDeviceMapperBackResolver("crypt-luks2", cryptLuks2DeviceMapperBackResolver)
 }
