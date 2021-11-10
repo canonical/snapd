@@ -6948,6 +6948,8 @@ func (s *snapmgrTestSuite) TestUndoInstallAfterDeletingRevisions(c *C) {
 	})
 
 	tr := config.NewTransaction(s.state)
+	// remove the first two revisions so the old-candidate-index+1 (in undoLinkSnap) would be out of bounds if we didn't
+	// account for discarded revisions
 	c.Assert(tr.Set("core", "refresh.retain", 1), IsNil)
 	tr.Commit()
 
