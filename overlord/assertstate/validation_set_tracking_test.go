@@ -133,6 +133,7 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	c.Check(gotSecond, Equals, true)
 }
 
+// there is a more extensive test for forget in assertstate_test.go.
 func (s *validationSetTrackingSuite) TestForget(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
