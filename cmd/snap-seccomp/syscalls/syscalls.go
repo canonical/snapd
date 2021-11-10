@@ -292,6 +292,7 @@ var SeccompSyscalls = []string{
 	"preadv2",
 	"prlimit64",
 	"process_madvise",
+	"process_mrelease",
 	"process_vm_readv",
 	"process_vm_writev",
 	"prof",

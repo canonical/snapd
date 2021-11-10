@@ -3,7 +3,7 @@
 show_help() {
     echo "usage: is-core, is-classic"
     echo "       is-core16, is-core18, is-core20"
-    echo "       is-trusty, is-xenial, is-bionic, is-focal, is-hirsute"
+    echo "       is-trusty, is-xenial, is-bionic, is-focal, is-hirsute, is-impish"
     echo "       is-ubuntu, is-debian, is-fedora, is-amazon-linux, is-arch-linux, is-centos, is-centos-7, is-opensuse"
     echo "       is-opensuse-tumbleweed, is-debian-sid, is-debian-11, is-debian-10"
     echo "       is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64"
