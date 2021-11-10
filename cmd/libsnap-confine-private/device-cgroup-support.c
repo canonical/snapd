@@ -73,20 +73,25 @@ static void sc_cleanup_cgroup_fds(sc_cgroup_fds *fds);
 static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
     self->v1.fds = sc_cgroup_fds_new();
 
+    /* are we creating the group or just using whatever there is? */
+    const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
     /* initialize to something sane */
     if (sc_udev_open_cgroup_v1(self->security_tag, flags, &self->v1.fds) < 0) {
-        if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
+        if (from_existing) {
             return -1;
         }
         die("cannot prepare cgroup v1 device hierarchy");
     }
-    /* Deny device access by default.
-     *
-     * Write 'a' to devices.deny to remove all existing devices that were added
-     * in previous launcher invocations, then add the static and assigned
-     * devices. This ensures that at application launch the cgroup only has
-     * what is currently assigned. */
-    sc_dprintf(self->v1.fds.devices_deny_fd, "a");
+    if (!from_existing) {
+        /* starting a device cgroup from scratch, so deny device access by
+         * default.
+         *
+         * Write 'a' to devices.deny to remove all existing devices that were added
+         * in previous launcher invocations, then add the static and assigned
+         * devices. This ensures that at application launch the cgroup only has
+         * what is currently assigned. */
+        sc_dprintf(self->v1.fds.devices_deny_fd, "a");
+    }
     return 0;
 }
 
