@@ -36,10 +36,10 @@ import (
 // e.g.
 // lxd.lxc -> /snap/core/current/usr/lib/snapd/complete.sh
 // lxc -> lxd.lxc
-func resetCompletionSymlinks(preseedChroot string) error {
-	files, err := ioutil.ReadDir(filepath.Join(preseedChroot, dirs.CompletersDir))
+func resetCompletionSymlinks(completersPath string) error {
+	files, err := ioutil.ReadDir(completersPath)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("error reading %s: %v", dirs.CompletersDir, err)
+		return fmt.Errorf("error reading %s: %v", completersPath, err)
 	}
 	completeShSymlinks := make(map[string]string)
 	var otherSymlinks []string
@@ -49,7 +49,7 @@ func resetCompletionSymlinks(preseedChroot string) error {
 		if fileInfo.Mode()&os.ModeSymlink == 0 {
 			continue
 		}
-		fullPath := filepath.Join(preseedChroot, dirs.CompletersDir, fileInfo.Name())
+		fullPath := filepath.Join(completersPath, fileInfo.Name())
 		if dirs.IsCompleteShSymlink(fullPath) {
 			if err := os.Remove(fullPath); err != nil {
 				return fmt.Errorf("error removing symlink %s: %v", fullPath, err)
@@ -174,8 +174,10 @@ func ResetPreseededChroot(preseedChroot string) error {
 		}
 	}
 
-	if err := resetCompletionSymlinks(preseedChroot); err != nil {
-		return err
+	for _, completersPath := range []string{dirs.CompletersDir, dirs.LegacyCompletersDir} {
+		if err := resetCompletionSymlinks(filepath.Join(preseedChroot, completersPath)); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -46,12 +46,13 @@ func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 			return fmt.Errorf("cannot remove alias symlink: %v", err)
 		}
 		removed[alias.Name] = true
-		completer := filepath.Join(dirs.CompletersDir, alias.Name)
-		target, err := os.Readlink(completer)
-		if err != nil || target != alias.Target {
-			continue
+		for _, completersPath := range []string{dirs.CompletersDir, dirs.LegacyCompletersDir} {
+			completer := filepath.Join(completersPath, alias.Name)
+			target, err := os.Readlink(completer)
+			if err == nil && target == alias.Target {
+				os.Remove(completer)
+			}
 		}
-		os.Remove(completer)
 	}
 
 	for _, alias := range add {
@@ -68,8 +69,20 @@ func (b Backend) UpdateAliases(add []*Alias, remove []*Alias) error {
 			return fmt.Errorf("cannot create alias symlink: %v", err)
 		}
 
+		removeLegacy := true
 		if dirs.IsCompleteShSymlink(filepath.Join(dirs.CompletersDir, alias.Target)) {
 			os.Symlink(alias.Target, filepath.Join(dirs.CompletersDir, alias.Name))
+		} else if dirs.IsCompleteShSymlink(filepath.Join(dirs.LegacyCompletersDir, alias.Target)) {
+			os.Symlink(alias.Target, filepath.Join(dirs.LegacyCompletersDir, alias.Name))
+			removeLegacy = false
+		}
+
+		if removeLegacy {
+			completer := filepath.Join(dirs.LegacyCompletersDir, alias.Name)
+			target, err := os.Readlink(completer)
+			if err == nil && target == alias.Target {
+				os.Remove(completer)
+			}
 		}
 	}
 	return nil
