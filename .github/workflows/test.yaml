@@ -301,10 +301,9 @@ jobs:
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
-          set -o pipefail
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
+          (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
