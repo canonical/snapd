@@ -405,7 +405,7 @@ var templateCommon = `
   signal (receive) peer=unconfined,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
-  /{,s}bin/udevadm ixr,
+  /{,usr/}{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
   /{,var/}run/udev/tags/snappy-assign/ r,
   @{PROC}/cmdline r,
