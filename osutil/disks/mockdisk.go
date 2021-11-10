@@ -261,6 +261,30 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 	// they exist independent of any other structure
 }
 
+// MockPartitionDeviceNodeToDiskMapping will mock DiskFromPartitionDeviceNode
+// such that the provided map of device names to mock disks is used instead of
+// the actual implementation using udev.
+func MockPartitionDeviceNodeToDiskMapping(mockedDisks map[string]*MockDiskMapping) (restore func()) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	checkMockDiskMappingsForDuplicates(mockedDisks)
+
+	// note that there can be multiple partitions that map to the same disk, so
+	// we don't really validate the keys of the provided mapping
+
+	old := diskFromPartitionDeviceNode
+	diskFromPartitionDeviceNode = func(node string) (Disk, error) {
+		disk, ok := mockedDisks[node]
+		if !ok {
+			return nil, fmt.Errorf("partition device node %q not mocked", node)
+		}
+		return disk, nil
+	}
+	return func() {
+		diskFromPartitionDeviceNode = old
+	}
+}
+
 // MockDeviceNameToDiskMapping will mock DiskFromDeviceName such that the
 // provided map of device names to mock disks is used instead of the actual
 // implementation using udev.

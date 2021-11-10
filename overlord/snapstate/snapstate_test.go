@@ -1525,7 +1525,113 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		Channel:  "",
 		Revision: snap.R(7),
 	})
+	c.Check(snapst.RevertStatus, HasLen, 0)
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
+}
+
+func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	siOld := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: []*snap.SideInfo{&siOld, &si},
+		Current:  si.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{RevertStatus: snapstate.NotBlocked})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// verify that the R(2) version is active now and R(7) is still there
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	// last refresh time shouldn't be modified on revert.
+	c.Check(snapst.LastRefreshTime, IsNil)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(2),
+	})
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
+	})
+	// we have reverted from rev 7 to rev 2, but rev 7 is marked as not blocked
+	// due to revert.
+	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
+		7: snapstate.NotBlocked,
+	})
+	c.Assert(snapst.Block(), HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestRevertRevisionNotBlockedUndo(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  si2.Revision,
+		RevertStatus: map[int]snapstate.RevertStatus{
+			3: snapstate.NotBlocked,
+		},
+	})
+
+	chg := s.state.NewChange("revert", "install a revert")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{RevertStatus: snapstate.NotBlocked})
+	c.Assert(err, IsNil)
+	tasks := ts.Tasks()
+	last := tasks[len(tasks)-1]
+	terr := s.state.NewTask("error-trigger", "provoking undo")
+	terr.WaitFor(last)
+	chg.AddAll(ts)
+	chg.AddTask(terr)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
+		3: snapstate.NotBlocked,
+	})
 }
 
 func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {

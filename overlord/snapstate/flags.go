@@ -35,6 +35,8 @@ type Flags struct {
 
 	// Revert flags the SnapSetup as coming from a revert
 	Revert bool `json:"revert,omitempty"`
+	// If reverting, set this status for the reverted revision.
+	RevertStatus RevertStatus `json:"revert-status,omitempty"`
 
 	// RemoveSnapPath is used via InstallPath to flag that the file passed in is
 	// temporary and should be removed

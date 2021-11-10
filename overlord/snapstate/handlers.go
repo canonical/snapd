@@ -1481,6 +1481,20 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
 	t.Set("old-cohort-key", oldCohortKey)
 	t.Set("old-last-refresh-time", oldLastRefreshTime)
+	if snapsup.Revert {
+		t.Set("old-revert-status", snapst.RevertStatus)
+		switch snapsup.RevertStatus {
+		case NotBlocked:
+			if snapst.RevertStatus == nil {
+				snapst.RevertStatus = make(map[int]RevertStatus)
+			}
+			snapst.RevertStatus[oldCurrent.N] = NotBlocked
+		default:
+			delete(snapst.RevertStatus, oldCurrent.N)
+		}
+	} else {
+		delete(snapst.RevertStatus, cand.Revision.N)
+	}
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
@@ -1791,6 +1805,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
 	snapst.LastRefreshTime = oldLastRefreshTime
 	snapst.CohortKey = oldCohortKey
+
+	if isRevert {
+		var oldRevertStatus map[int]RevertStatus
+		err := t.Get("old-revert-status", &oldRevertStatus)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+		// may be nil if not set (e.g. created by old snapd)
+		snapst.RevertStatus = oldRevertStatus
+	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {
@@ -2391,6 +2415,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapst.Current == snapsup.Revision() && snapst.Active {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", snapsup.InstanceName())
 	}
+
+	// drop any potential revert status for this revision
+	delete(snapst.RevertStatus, snapsup.Revision().N)
 
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil
