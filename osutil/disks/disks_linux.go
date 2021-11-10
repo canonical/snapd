@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -122,7 +123,7 @@ type errNonPhysicalDisk struct {
 
 func (e errNonPhysicalDisk) Error() string { return e.err }
 
-func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
+func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
 	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
 	// the disk, so check for that first and if it's missing then we return a
 	// specific NotAPhysicalDisk error
@@ -198,7 +199,7 @@ var diskFromDevicePath = func(devicePath string) (Disk, error) {
 		return nil, err
 	}
 
-	return diskFromUdevProps(devicePath, "path", props)
+	return diskFromUDevProps(devicePath, "path", props)
 }
 
 // DiskFromDeviceName finds a matching Disk using the specified name, such as
@@ -216,7 +217,7 @@ var diskFromDeviceName = func(deviceName string) (Disk, error) {
 		return nil, err
 	}
 
-	return diskFromUdevProps(deviceName, "name", props)
+	return diskFromUDevProps(deviceName, "name", props)
 }
 
 func mountPointsForPartitionRoot(part Partition, mountOptsMatching map[string]string) ([]string, error) {
@@ -265,8 +266,11 @@ var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
 		return nil, err
 	}
 
-	errId := fmt.Sprintf("partition device node %s", node)
-	return diskFromPartUdevPropsAndOpts(errId, props, nil)
+	disk, err := diskFromPartUDevProps(props, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk from partition device node %s: %v", node, err)
+	}
+	return disk, nil
 }
 
 type disk struct {
@@ -397,14 +401,14 @@ func (d *disk) Schema() string {
 	return d.schema
 }
 
-func diskFromPartUdevPropsAndOpts(partIDString string, props map[string]string, opts *Options) (*disk, error) {
+func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error) {
 	if opts != nil && opts.IsDecryptedDevice {
 		// verify that the mount point is indeed a mapper device, it should:
 		// 1. have DEVTYPE == disk from udev
 		// 2. have dm files in the sysfs entry for the maj:min of the device
 		if props["DEVTYPE"] != "disk" {
 			// not a decrypted device
-			return nil, fmt.Errorf("%s is not a decrypted device: devtype is not disk (is %s)", partIDString, props["DEVTYPE"])
+			return nil, fmt.Errorf("not a decrypted device: devtype is not disk (is %s)", props["DEVTYPE"])
 		}
 
 		// TODO:UC20: currently, we effectively parse the DM_UUID env variable
@@ -428,13 +432,13 @@ func diskFromPartUdevPropsAndOpts(partIDString string, props map[string]string, 
 		//            or not, given that these variables have been observed to
 		//            be missing from the initrd previously, and are not
 		//            available at all during userspace on UC20 for some reason
-		errFmt := "%s is not a decrypted device: could not read device mapper metadata: %v"
+		errFmt := "not a decrypted device: could not read device mapper metadata: %v"
 
 		if props["MAJOR"] == "" {
-			return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"MAJOR\"", partIDString)
+			return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
 		}
 		if props["MINOR"] == "" {
-			return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"MAJOR\"", partIDString)
+			return nil, fmt.Errorf("incomplete udev output missing required property \"MAJOR\"")
 		}
 
 		majmin := props["MAJOR"] + ":" + props["MINOR"]
@@ -442,12 +446,12 @@ func diskFromPartUdevPropsAndOpts(partIDString string, props map[string]string, 
 		dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
 		dmUUID, err := ioutil.ReadFile(filepath.Join(dmDir, "uuid"))
 		if err != nil {
-			return nil, fmt.Errorf(errFmt, partIDString, err)
+			return nil, fmt.Errorf(errFmt, err)
 		}
 
 		dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
 		if err != nil {
-			return nil, fmt.Errorf(errFmt, partIDString, err)
+			return nil, fmt.Errorf(errFmt, err)
 		}
 
 		// trim the suffix of the dm name from the dm uuid to safely match the
@@ -501,14 +505,14 @@ func diskFromPartUdevPropsAndOpts(partIDString string, props map[string]string, 
 		// and the physical backing device is a full disk and not a partition,
 		// but we don't have such use cases right now so just error, this can
 		// be revisited later on
-		return nil, fmt.Errorf("cannot find disk from %s, incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"", partIDString)
+		return nil, fmt.Errorf("incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 	}
 
 	majorMinor := props["ID_PART_ENTRY_DISK"]
 	maj, min, err := parseDeviceMajorMinor(majorMinor)
 	if err != nil {
 		// bad udev output?
-		return nil, fmt.Errorf("cannot find disk from %s, bad udev output: %v", partIDString, err)
+		return nil, fmt.Errorf("bad udev output: %v", err)
 	}
 
 	d := &disk{
@@ -522,21 +526,21 @@ func diskFromPartUdevPropsAndOpts(partIDString string, props map[string]string, 
 	// additional lookup
 	realDiskProps, err := udevPropertiesForName(filepath.Join("/dev/block/", majorMinor))
 	if err != nil {
-		return nil, fmt.Errorf("cannot find disk from %s: %v", partIDString, err)
+		return nil, err
 	}
 
 	if devtype := realDiskProps["DEVTYPE"]; devtype != "disk" {
-		return nil, fmt.Errorf("cannot find disk from %s, unsupported DEVTYPE %q", partIDString, devtype)
+		return nil, fmt.Errorf("unsupported DEVTYPE %q", devtype)
 	}
 
 	if realDiskProps["DEVNAME"] == "" {
-		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"DEVNAME\"", partIDString)
+		return nil, fmt.Errorf("incomplete udev output missing required property \"DEVNAME\"")
 	}
 
 	d.devname = realDiskProps["DEVNAME"]
 
 	if realDiskProps["DEVPATH"] == "" {
-		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"DEVPATH\"", partIDString)
+		return nil, fmt.Errorf("incomplete udev output missing required property \"DEVPATH\"")
 	}
 
 	// the DEVPATH is given as relative to /sys, so for simplicity's sake
@@ -545,12 +549,12 @@ func diskFromPartUdevPropsAndOpts(partIDString string, props map[string]string, 
 
 	partTableID := realDiskProps["ID_PART_TABLE_UUID"]
 	if partTableID == "" {
-		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"ID_PART_TABLE_UUID\"", partIDString)
+		return nil, fmt.Errorf("incomplete udev output missing required property \"ID_PART_TABLE_UUID\"")
 	}
 
 	schema := realDiskProps["ID_PART_TABLE_TYPE"]
 	if schema == "" {
-		return nil, fmt.Errorf("cannot find disk from %s: incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"", partIDString)
+		return nil, fmt.Errorf("incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"")
 	}
 
 	d.schema = schema
@@ -595,8 +599,11 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return nil, fmt.Errorf("cannot find disk for partition %s: %v", partMountPointSource, err)
 	}
 
-	errIdString := fmt.Sprintf("mountpoint source %s of %s", partMountPointSource, mountpoint)
-	return diskFromPartUdevPropsAndOpts(errIdString, props, opts)
+	disk, err := diskFromPartUDevProps(props, opts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find disk from mountpoint source %s of %s: %v", partMountPointSource, mountpoint, err)
+	}
+	return disk, nil
 }
 
 func (d *disk) populatePartitions() error {
@@ -808,4 +815,37 @@ func (d *disk) HasPartitions() bool {
 	//       could instead populate the partitions here and then return whether
 	//       d.partitions is empty or not
 	return d.hasPartitions
+}
+
+func AllPhysicalDisks() ([]Disk, error) {
+	// get disks for every block device in /sys/block/
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+
+	files, err := ioutil.ReadDir(blockDir)
+	if err != nil {
+		return nil, err
+	}
+
+	disks := make([]Disk, 0, len(files))
+
+	for _, f := range files {
+		if f.IsDir() {
+			// unexpected to have a directory here and not a symlink, but for
+			// now just silently ignore it
+			continue
+		}
+
+		// get a disk by path with the name of the file and /block/
+		fullpath := filepath.Join(blockDir, f.Name())
+
+		disk, err := DiskFromDevicePath(fullpath)
+		if err != nil {
+			if errors.As(err, &errNonPhysicalDisk{}) {
+				continue
+			}
+			return nil, err
+		}
+		disks = append(disks, disk)
+	}
+	return disks, nil
 }

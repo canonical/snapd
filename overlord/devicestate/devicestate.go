@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -114,6 +115,14 @@ func canAutoRefresh(st *state.State) (bool, error) {
 	var seeded bool
 	st.Get("seeded", &seeded)
 	if !seeded {
+		return false, nil
+	}
+
+	// Try to ensure we have an accurate time before doing any
+	// refreshy stuff. Note that this call will not block.
+	devMgr := deviceMgr(st)
+	maxWait := 10 * time.Minute
+	if !devMgr.ntpSyncedOrWaitedLongerThan(maxWait) {
 		return false, nil
 	}
 

@@ -289,7 +289,7 @@ Provides:      bundled(golang(github.com/juju/ratelimit))
 Provides:      bundled(golang(github.com/kr/pretty))
 Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
-Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
+Provides:      bundled(golang(github.com/seccomp/libseccomp-golang))
 Provides:      bundled(golang(github.com/snapcore/go-gettext))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
@@ -534,8 +534,6 @@ BUILDTAGS="nosecboot"
 %endif
 
 %if ! 0%{?with_bundled}
-# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
 # We don't need the snapcore fork for bolt - it is just a fix on ppc
 sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go errtracker/*.go
 %endif
