@@ -91,6 +91,3 @@ cmd/test-driver
 
 # Image files
 *.img
-
-# snapd-testing-tools comming from git subtree
-tests/lib/external/snapd-testing-tools/
