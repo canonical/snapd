@@ -301,9 +301,6 @@ jobs:
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
-          # Make sure latest we get the latest code from submodules
-          git submodule update --remote --merge
-
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
           # "pipefail" ensures that a non-zero status from the spread is
@@ -349,8 +346,6 @@ jobs:
           mkdir "${{ github.workspace }}"
     - name: Checkout code
       uses: actions/checkout@v2
-      with:
-        submodules: true
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
@@ -372,9 +367,6 @@ jobs:
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
-          # Make sure latest we get the latest code from submodules
-          git submodule update --remote --merge
-
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
