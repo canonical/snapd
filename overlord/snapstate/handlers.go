@@ -1916,17 +1916,18 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func countExcludedRevs(items []snap.Revision, seq []*snap.SideInfo) int {
+// countExcludedRevs counts how many of the revisions aren't present in the sequence of sideInfos
+func countExcludedRevs(revisions []snap.Revision, sideInfos []*snap.SideInfo) int {
 	var found int
-	for _, rev := range items {
-		for _, si := range seq {
+	for _, rev := range revisions {
+		for _, si := range sideInfos {
 			if si.Revision == rev {
 				found++
 			}
 		}
 	}
 
-	return len(items) - found
+	return len(revisions) - found
 }
 
 type doSwitchFlags struct {
