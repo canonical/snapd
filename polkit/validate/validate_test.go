@@ -47,6 +47,10 @@ func (s *validateSuite) TestRootElement(c *C) {
 	_, err := validateString("<policyconfig/><policyconfig/>")
 	c.Check(err, ErrorMatches, `invalid XML: additional data after root element`)
 
+	// Extra incomplete elements after root element
+	_, err = validateString("<policyconfig/><incomplete>")
+	c.Check(err, ErrorMatches, `invalid XML: additional data after root element`)
+
 	// Wrong root element
 	_, err = validateString("<xyz/>")
 	c.Check(err, ErrorMatches, `expected element type <policyconfig> but have <xyz>`)
