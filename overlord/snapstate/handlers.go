@@ -1801,7 +1801,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
 	} else if !isRevert {
 		// account for revisions discarded before the install failed
-		discarded := countExcludedRevs(oldRevsBeforeCand, snapst.Sequence)
+		discarded := countMissingRevs(oldRevsBeforeCand, snapst.Sequence)
 		oldCandidateIndex -= discarded
 
 		oldCand := snapst.Sequence[currentIndex]
@@ -1916,8 +1916,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// countExcludedRevs counts how many of the revisions aren't present in the sequence of sideInfos
-func countExcludedRevs(revisions []snap.Revision, sideInfos []*snap.SideInfo) int {
+// countMissingRevs counts how many of the revisions aren't present in the sequence of sideInfos
+func countMissingRevs(revisions []snap.Revision, sideInfos []*snap.SideInfo) int {
 	var found int
 	for _, rev := range revisions {
 		for _, si := range sideInfos {
