@@ -1,4 +1,0 @@
-summary: test for the not tool
-
-execute: |
-    not false && echo test | MATCH test
