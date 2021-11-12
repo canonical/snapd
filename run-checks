@@ -186,7 +186,7 @@ if [ "$STATIC" = 1 ]; then
 
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
-        echo Checking shell scripts...
+        echo "Checking shell scripts..."
         ( git ls-files -z 2>/dev/null ||
                 find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ) |
             xargs -0 file -N |

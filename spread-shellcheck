@@ -199,7 +199,7 @@ def findfiles(locations, exclude):
                     if name in ['spread.yaml', 'task.yaml']:
                         full_path = os.path.join(root, name)
                         if not is_file_in_dirs(full_path, exclude):
-                            yield os.path.join(root, name)
+                            yield full_path
         else:
             yield loc
 
