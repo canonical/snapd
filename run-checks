@@ -185,12 +185,13 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     if command -v shellcheck >/dev/null; then
+        exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo Checking shell scripts...
         ( git ls-files -z 2>/dev/null ||
                 find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ) |
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
-            grep -v snapd-testing-tools |
+            grep -v "$exclude_tools_path" |
             xargs shellcheck -x
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
         if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
@@ -201,7 +202,7 @@ if [ "$STATIC" = 1 ]; then
         fi
         unset regexp
         # also run spread-shellcheck
-        ./spread-shellcheck spread.yaml tests
+        ./spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
     fi
 
     echo "Checking spelling errors"

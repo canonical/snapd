@@ -57,6 +57,8 @@ def parse_arguments():
                               'validation'))
     parser.add_argument('-P', '--max-procs', default=N, type=int, metavar='N',
                         help='run these many shellchecks in parallel (default: %(default)s)')
+    parser.add_argument('-e', '--exclude', default=[], action="append",
+                        help='path to exclude of the shell check')
     parser.add_argument('paths', nargs='+', help='paths to check')
     return parser.parse_args()
 
@@ -181,14 +183,23 @@ def checkfile(path, executor):
     if errors:
         raise errors
 
+def is_file_in_dirs(file, dirs):
+    for dir in dirs:
+        if os.path.abspath(file).startswith('{}/'.format(os.path.abspath(dir))):
+            print('Skipping {}'.format(file))
+            return True
 
-def findfiles(locations):
+    return False
+
+def findfiles(locations, exclude):
     for loc in locations:
         if os.path.isdir(loc):
             for root, _, files in os.walk(loc, topdown=True):
                 for name in files:
                     if name in ['spread.yaml', 'task.yaml']:
-                        yield os.path.join(root, name)
+                        full_path = os.path.join(root, name)
+                        if not is_file_in_dirs(full_path, exclude):
+                            yield os.path.join(root, name)
         else:
             yield loc
 
@@ -201,9 +212,9 @@ def check1path(path, executor):
     return None
 
 
-def checkpaths(locs, executor):
+def checkpaths(locs, exclude, executor):
     # setup iterator
-    locations = findfiles(locs)
+    locations = findfiles(locs, exclude)
     failed = []
     for serr in executor.map(check1path, locations, itertools.repeat(executor)):
         if serr is None:
@@ -230,10 +241,11 @@ def loadfilelist(flistpath):
 
 def main(opts):
     paths = opts.paths or ['.']
+    exclude = opts.exclude
     failures = ShellcheckFailures()
     with ThreadPoolExecutor(max_workers=opts.max_procs) as executor:
         try:
-            checkpaths(paths, executor)
+            checkpaths(paths, exclude, executor)
         except ShellcheckFailures as sf:
             failures.merge(sf)
 
