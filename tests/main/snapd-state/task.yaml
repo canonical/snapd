@@ -10,6 +10,7 @@ debug: |
     systemctl status systemd-timedated || true
     journalctl -u systemd-timedated || true
     timedatectl || true
+    timedatectl timesync-status || true
 
 execute: |
     # Check help

@@ -378,6 +378,9 @@ prepare_classic() {
 
     disable_kernel_rate_limiting
 
+    # ensure that the system clock is ntp synced
+    timedatectl set-ntp true
+
     if os.query is-arch-linux; then
         # Arch packages do not ship empty directories by default, hence there is
         # no /etc/dbus-1/system.d what prevents dbus from properly establishing
