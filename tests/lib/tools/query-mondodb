@@ -26,7 +26,7 @@ def _make_parser():
     parser.add_argument('--task', help="Find results for a specific spread task (include variant)", default=".*")
     parser.add_argument('--include', help="Value to include in the output", action="append", default=[])
     parser.add_argument('--exclude', help="Value to exclude from the output", action="append", default=[])
-    parser.add_argument('--count', help="Number of values included in the output", default=1000)
+    parser.add_argument('--limit', help="Number of values included in the output", default=1000)
 
     return parser
 
@@ -53,7 +53,7 @@ def _get_json(value):
         return None
 
 
-def find(db, col, after_date, after_time, before_date, before_time, system, backend, task, include, exclude):
+def find(db, col, after_date, after_time, before_date, before_time, system, backend, task, include, exclude, limit):
     if not col in db.list_collection_names():
         print("report-mongodb: invalid db collection, it does not exist in db")
         sys.exit(1)
@@ -73,7 +73,7 @@ def find(db, col, after_date, after_time, before_date, before_time, system, back
         project[item] = 0
     project['_id'] = 0
 
-    elems = db[col].find(filter, project)
+    elems = db[col].find(filter, project).limit(int(limit))
     for elem in elems:
         print(elem)
 
@@ -101,7 +101,8 @@ def main():
         args.backend, 
         args.task,
         args.include,
-        args.exclude)
+        args.exclude,
+        args.limit)
 
 
 if __name__ == "__main__":
