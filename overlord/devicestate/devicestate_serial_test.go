@@ -2152,7 +2152,7 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	c.Check(device.KeyID, Not(Equals), keyID1)
 }
 
-func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoResister(c *C) {
+func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 

@@ -465,6 +465,7 @@ func (m *DeviceManager) ensureOperational() error {
 	if m.noRegister {
 		return nil
 	}
+	// noregister marker file is checked below after mostly in-memory checks
 
 	if m.changeInFlight("become-operational") {
 		return nil
@@ -1384,7 +1385,7 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 		return err
 	}
 	if !release.OnClassic || (device.Brand != "generic" && device.Brand != "canonical") {
-		return fmt.Errorf("cannot currently unregister device if not classic and model brand is not generic or canonical")
+		return fmt.Errorf("cannot currently unregister device if not classic or model brand is not generic or canonical")
 	}
 
 	if opts == nil {
@@ -1404,7 +1405,7 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 	if err := m.setDevice(device); err != nil {
 		return err
 	}
-	// TODO: delete key
+	// TODO: delete device keypair
 	m.lastBecomeOperationalAttempt = time.Time{}
 	m.becomeOperationalBackoff = 0
 	return nil
