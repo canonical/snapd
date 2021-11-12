@@ -201,7 +201,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(osutil.IsDirectory(filepath.Join(dirs.SnapDeviceDir, "private-keys-v1")), Equals, true)
 
 	// cannot unregister
-	c.Check(s.mgr.Unregister(nil), ErrorMatches, `cannot currently unregister device if not classic and model brand is not generic or canonical`)
+	c.Check(s.mgr.Unregister(nil), ErrorMatches, `cannot currently unregister device if not classic or model brand is not generic or canonical`)
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
