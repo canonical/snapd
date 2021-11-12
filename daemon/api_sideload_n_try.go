@@ -20,6 +20,8 @@
 package daemon
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -43,6 +45,24 @@ import (
 
 const maxReadBuflen = 1024 * 1024
 
+type Form struct {
+	Value      map[string][]string
+	FileHeader map[string][]*FileHeader
+}
+
+type FileHeader struct {
+	Filename string
+	TmpPath  string
+}
+
+func (f *Form) RemoveAll() {
+	for _, headers := range f.FileHeader {
+		for _, header := range headers {
+			os.Remove(header.TmpPath)
+		}
+	}
+}
+
 func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -50,7 +70,8 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	}
 
 	// POSTs to sideload snaps must be a multipart/form-data file upload.
-	form, err := multipart.NewReader(body, boundary).ReadForm(maxReadBuflen)
+	mpReader := multipart.NewReader(body, boundary)
+	form, err := readForm(mpReader)
 	if err != nil {
 		return BadRequest("cannot read POST form: %v", err)
 	}
@@ -74,51 +95,31 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	systemRestartImmediate := isTrue(form, "system-restart-immediate")
 
 	// find the file for the "snap" form field
-	var snapBody multipart.File
+	var tempPath string
 	var origPath string
 out:
-	for name, fheaders := range form.File {
+	for name, fheaders := range form.FileHeader {
 		if name != "snap" {
 			continue
 		}
 		for _, fheader := range fheaders {
-			snapBody, err = fheader.Open()
+			tempPath = fheader.TmpPath
 			origPath = fheader.Filename
-			if err != nil {
-				return BadRequest(`cannot open uploaded "snap" file: %v`, err)
-			}
-			defer snapBody.Close()
-
 			break out
 		}
 	}
-	defer form.RemoveAll()
 
-	if snapBody == nil {
+	if tempPath == "" {
 		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
 	// we are in charge of the tempfile life cycle until we hand it off to the change
 	changeTriggered := false
-	// if you change this prefix, look for it in the tests
-	// also see localInstallCleanup in snapstate/snapmgr.go
-	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
-	if err != nil {
-		return InternalError("cannot create temporary file: %v", err)
-	}
-
-	tempPath := tmpf.Name()
-
 	defer func() {
 		if !changeTriggered {
 			os.Remove(tempPath)
 		}
 	}()
-
-	if _, err := io.Copy(tmpf, snapBody); err != nil {
-		return InternalError("cannot copy request into temporary file: %v", err)
-	}
-	tmpf.Sync()
 
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
@@ -205,6 +206,100 @@ out:
 	changeTriggered = true
 
 	return AsyncResponse(nil, chg.ID())
+}
+
+// readForm returns a Form populated with values (for non-file parts) and file headers (for file
+// parts). The file headers contain the original file name and a path to the persisted file in
+// dirs.SnapDirBlob. Errors are *apiError.
+func readForm(reader *multipart.Reader) (form *Form, err error) {
+	maxMemory := int64(maxReadBuflen)
+	form = &Form{
+		Value:      make(map[string][]string),
+		FileHeader: make(map[string][]*FileHeader),
+	}
+
+	// clean up if we're failing the request
+	defer func() {
+		if err != nil {
+			form.RemoveAll()
+		}
+	}()
+
+	for {
+		part, err := reader.NextPart()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, BadRequest("cannot read POST form: %v", err)
+
+		}
+
+		name := part.FormName()
+		if name == "" {
+			continue
+		}
+
+		filename := part.FileName()
+		if filename == "" {
+			// non-file parts are kept in memory
+			buf := &bytes.Buffer{}
+
+			// copy one byte more than the max so we know if it exceeds the limit
+			n, err := io.CopyN(buf, part, maxMemory+1)
+			if err != nil && !errors.Is(err, io.EOF) {
+				return nil, InternalError("cannot read form data: %v", err)
+			}
+
+			maxMemory -= n
+			if maxMemory < 0 {
+				return nil, InternalError("cannot read form data: exceeds memory limit")
+			}
+
+			form.Value[name] = append(form.Value[name], buf.String())
+			continue
+		}
+
+		// file parts are persisted
+		tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
+		if err != nil {
+			return nil, InternalError("cannot create temp file for form data file part: %v", err)
+		}
+		defer func() {
+			if cerr := tmpf.Close(); err == nil && cerr != nil {
+				err = InternalError("cannot close temp file: %v", cerr)
+			}
+		}()
+
+		_, err = io.Copy(tmpf, part)
+		if err != nil {
+			return nil, InternalError("cannot write file part: %v", err)
+		}
+
+		if err := tmpf.Sync(); err != nil {
+			return nil, InternalError("cannot sync file: %v", err)
+		}
+
+		fh := &FileHeader{TmpPath: tmpf.Name(), Filename: filename}
+		form.FileHeader[name] = append(form.FileHeader[name], fh)
+	}
+
+	// sync the parent directory where the snap files were written to
+	dir, err := os.Open(dirs.SnapBlobDir)
+	if err != nil {
+		return nil, InternalError("cannot open parent dir for tmp snap files: %v", err)
+	}
+	defer func() {
+		if cerr := dir.Close(); err == nil && cerr != nil {
+			err = InternalError("cannot close parent dir for tmp snap files: %v", cerr)
+		}
+	}()
+
+	if err := dir.Sync(); err != nil {
+		return nil, InternalError("cannot sync parent dir for tmp snap files: %v", err)
+	}
+
+	return form, nil
 }
 
 func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {

@@ -508,6 +508,31 @@ func (s *sideloadSuite) TestInstallPathSystemRestartImmediate(c *check.C) {
 	c.Check(systemRestartImmediate, check.Equals, true)
 }
 
+func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
+	oldTempDir := os.Getenv("TMPDIR")
+	defer func() {
+		c.Assert(os.Setenv("TMPDIR", oldTempDir), check.IsNil)
+	}()
+	tmpDir := c.MkDir()
+	c.Assert(os.Setenv("TMPDIR", tmpDir), check.IsNil)
+
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	chgSummary, _ := s.sideloadCheck(c, sideLoadBodyWithoutDevMode, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
+
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Assert(err, check.IsNil)
+	c.Assert(files, check.HasLen, 0)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	c.Assert(err, check.IsNil)
+	c.Assert(matches, check.HasLen, 1)
+
+	data, err := ioutil.ReadFile(matches[0])
+	c.Assert(err, check.IsNil)
+	c.Assert(string(data), check.Equals, "xyzzy")
+}
+
 type trySuite struct {
 	apiBaseSuite
 }
