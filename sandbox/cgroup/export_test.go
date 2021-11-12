@@ -19,6 +19,8 @@
 package cgroup
 
 import (
+	"time"
+
 	"github.com/godbus/dbus"
 )
 
@@ -93,3 +95,11 @@ func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid in
 }
 
 func FreezerCgroupV1Dir() string { return freezerCgroupV1Dir }
+
+func MockCreateScopeJobTimeout(d time.Duration) (restore func()) {
+	oldCreateScopeJobTimeout := createScopeJobTimeout
+	createScopeJobTimeout = d
+	return func() {
+		createScopeJobTimeout = oldCreateScopeJobTimeout
+	}
+}

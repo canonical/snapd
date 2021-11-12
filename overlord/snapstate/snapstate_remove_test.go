@@ -253,10 +253,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	expected := fakeOps{
 		{
@@ -400,9 +398,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	s.settle(c)
-	s.state.Lock()
 
 	expected := fakeOps{
 		{
@@ -552,9 +548,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	s.settle(c)
-	s.state.Lock()
 
 	expected := fakeOps{
 		{
@@ -662,10 +656,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	expected := fakeOps{
 		{
@@ -833,10 +825,8 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(len(s.fakeBackend.ops), Equals, 2)
 	expected := fakeOps{
@@ -881,6 +871,55 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	c.Check(snapst.Sequence, HasLen, 2)
 }
 
+func (s *snapmgrTestSuite) TestRemoveOneRevisionDropsRevertStatus(c *C) {
+	si3 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(3),
+	}
+
+	si5 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(5),
+	}
+
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si5, &si3, &si7},
+		Current:  si7.Revision,
+		RevertStatus: map[int]snapstate.RevertStatus{
+			3: snapstate.NotBlocked,
+			5: snapstate.NotBlocked,
+		},
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Sequence, HasLen, 2)
+	// revert status of revision 3 got dropped
+	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
+		5: snapstate.NotBlocked,
+	})
+}
+
 func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -902,10 +941,8 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(len(s.fakeBackend.ops), Equals, 9)
 	expected := fakeOps{
@@ -1136,10 +1173,8 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1189,10 +1224,8 @@ func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1460,10 +1493,8 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 	// are still present.
 	injectError(c, chg, "clear-snap", snap.Revision{N: 1})
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	isUndone(c, chg.Tasks(), "unlink-snap", 1)
@@ -1540,10 +1571,8 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 	// current rev 1), before discarding the snap completely.
 	injectError(c, chg, "discard-snap", snap.Revision{N: 1})
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	isUndone(c, chg.Tasks(), "unlink-snap", 1)
@@ -1620,6 +1649,11 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	st.Lock()
 	defer st.Unlock()
 
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
 	for _, sn := range []string{"some-snap", "another-snap", "foo-snap"} {
 		si := snap.SideInfo{
 			RealName: sn,
@@ -1642,8 +1676,10 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	}
 	st.Set("refresh-candidates", rc)
 
-	c.Assert(snapstate.HoldRefresh(st, "some-snap", 0, "foo-snap"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "another-snap", 0, "some-snap"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "some-snap", 0, "foo-snap")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "another-snap", 0, "some-snap")
+	c.Assert(err, IsNil)
 
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -1657,10 +1693,8 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -1699,7 +1733,8 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	rc := map[string]*snapstate.RefreshCandidate{"some-snap": {}}
 	st.Set("refresh-candidates", rc)
 
-	c.Assert(snapstate.HoldRefresh(st, "some-snap", 0, "some-snap"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "some-snap", 0, "some-snap")
+	c.Assert(err, IsNil)
 
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -1710,10 +1745,8 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	// verify snap in the system state
 	var snapst snapstate.SnapState
@@ -1908,4 +1941,34 @@ func (s *snapmgrTestSuite) TestRemoveSucceedsWithInstanceName(c *C) {
 	c.Check(removed, NotNil)
 	c.Check(ts, NotNil)
 	c.Check(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "some-snap",
+			SnapID:   "some-snap-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			RealName: "some-base",
+			SnapID:   "some-base-id",
+			Revision: snap.R(1),
+		}},
+		Current: snap.R(1),
+		Active:  true,
+	})
+
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"})
+	c.Assert(err, IsNil)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
+	c.Check(ts, HasLen, 2)
 }

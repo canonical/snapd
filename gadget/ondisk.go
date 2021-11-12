@@ -36,8 +36,13 @@ type sfdiskDeviceDump struct {
 }
 
 type sfdiskPartitionTable struct {
-	Label      string            `json:"label"`
-	ID         string            `json:"id"`
+	// Label from sfdisk is really the schema for the disk; DOS or GPT.
+	Label string `json:"label"`
+	// ID is the disk's identifier, it is a UUID for GPT disks or an unsigned
+	// integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	ID string `json:"id"`
+	// Device is the full device node path in /dev as in /dev/sda.
 	Device     string            `json:"device"`
 	Unit       string            `json:"unit"`
 	FirstLBA   uint64            `json:"firstlba"`
@@ -46,6 +51,7 @@ type sfdiskPartitionTable struct {
 }
 
 type sfdiskPartition struct {
+	// Node is the full device node path in /dev as in /dev/sda1.
 	Node  string `json:"node"`
 	Start uint64 `json:"start"`
 	Size  uint64 `json:"size"`
@@ -54,9 +60,16 @@ type sfdiskPartition struct {
 	// says --part-attrs takes a space or comma separated list, the output from
 	// --json/--dump uses a different format.
 	Attrs string `json:"attrs"`
-	Type  string `json:"type"`
-	UUID  string `json:"uuid"`
-	Name  string `json:"name"`
+	// Type is the structure type, which is the same as VolumeStructure's Type,
+	// see that doc-comment for full details, but note that sfdisk may format
+	// the type differently than would normally be used in gadget.yaml so
+	// conversion should be done before using this Type field directly.
+	Type string `json:"type"`
+	// UUID is the partition UUID for the partition.
+	UUID string `json:"uuid"`
+	// Name is the GPT partition label for GPT disks. It is empty for MBR/DOS
+	// disks.
+	Name string `json:"name"`
 }
 
 // TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
@@ -78,9 +91,14 @@ type OnDiskStructure struct {
 // schema, the partition table, and the structure layout it contains.
 type OnDiskVolume struct {
 	Structure []OnDiskStructure
-	ID        string
-	Device    string
-	Schema    string
+	// ID is the disk's identifier, it is a UUID for GPT disks or an unsigned
+	// integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	ID string
+	// Device is the full device node path for the disk, such as /dev/vda.
+	Device string
+	// Schema is the disk schema, GPT or DOS.
+	Schema string
 	// size in bytes
 	Size quantity.Size
 	// sector size in bytes
@@ -182,17 +200,10 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 	}
 
 	for i, p := range ptable.Partitions {
-		info, err := filesystemInfo(p.Node)
+		bd, err := filesystemInfoForPartition(p.Node)
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain filesystem information: %v", err)
 		}
-		switch {
-		case len(info.BlockDevices) == 0:
-			continue
-		case len(info.BlockDevices) > 1:
-			return nil, fmt.Errorf("unexpected number of blockdevices for node %q: %v", p.Node, info.BlockDevices)
-		}
-		bd := info.BlockDevices[0]
 
 		vsType, err := fromSfdiskPartitionType(p.Type, ptable.Label)
 		if err != nil {
@@ -205,6 +216,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 			Label:      bd.Label,
 			Type:       vsType,
 			Filesystem: bd.FSType,
+			ID:         strings.ToUpper(p.UUID),
 		}
 
 		ds[i] = OnDiskStructure{
@@ -268,29 +280,94 @@ func UpdatePartitionList(dl *OnDiskVolume) error {
 	return nil
 }
 
-// lsblkFilesystemInfo represents the lsblk --fs JSON output format.
-type lsblkFilesystemInfo struct {
+// lsblkInfo represents the lsblk JSON output format.
+type lsblkInfo struct {
 	BlockDevices []lsblkBlockDevice `json:"blockdevices"`
 }
 
+// lsblkBlockDevice represents a block device from the output of lsblk, which
+// could either be a loopback device or a physical disk or a partition, etc.
+// As such, only some fields are set depending on the context that the struct is
+// returned in.
 type lsblkBlockDevice struct {
-	Name       string `json:"name"`
-	FSType     string `json:"fstype"`
-	Label      string `json:"label"`
-	UUID       string `json:"uuid"`
+	// common shared fields
+
+	// Name is the name of the block device as identified by the node in /dev,
+	// such as mmcblk0p1 or loop319 or vda. This is specifically just the name,
+	// not the full path in /dev/.
+	Name string `json:"name"`
+	// Mountpoint is the mount point of the specific block device if it is
+	// mounted, as determined by lsblk. Note that there could be multiple
+	// mountpoints, it is unclear which specific one lsblk chooses to use as
+	// this setting in this situation. For physical disk devices (not partition
+	// devices), this is null/empty.
 	Mountpoint string `json:"mountpoint"`
+
+	// --fs option specific fields
+
+	// FSType is the type of filesystem on this device, i.e. ext4, squashfs,
+	// vfat, etc.
+	FSType string `json:"fstype"`
+	// Label is the filesystem label for a partition/device.
+	Label string `json:"label"`
+	// UUID is the filesystem UUID for a partition/device.
+	UUID string `json:"uuid"`
+
+	// no --fs option specific fields
+
+	// Type is the type of block device, i.e. loop or disk typically.
+	Type string `json:"type"`
 }
 
-func filesystemInfo(node string) (*lsblkFilesystemInfo, error) {
-	output, err := exec.Command("lsblk", "--fs", "--json", node).CombinedOutput()
+// filesystemInfoForPartition returns information about the filesystem of a
+// single partition, identified by the device node path for this partition such
+// as /dev/mmcblk0p1 or /dev/sda1.
+func filesystemInfoForPartition(node string) (blk lsblkBlockDevice, err error) {
+	// verify that the specified node is indeed a partition by first running
+	// lsblk without the --fs
+	output, err := exec.Command("lsblk", "--json", node).CombinedOutput()
 	if err != nil {
-		return nil, osutil.OutputErr(output, err)
+		return blk, osutil.OutputErr(output, err)
 	}
 
-	var info lsblkFilesystemInfo
+	var info lsblkInfo
 	if err := json.Unmarshal(output, &info); err != nil {
-		return nil, fmt.Errorf("cannot parse lsblk output: %v", err)
+		return blk, fmt.Errorf("cannot parse lsblk output: %v", err)
 	}
 
-	return &info, nil
+	if len(info.BlockDevices) != 1 || strings.ToLower(info.BlockDevices[0].Type) != "part" {
+		return blk, fmt.Errorf("device node %s is not a partition", node)
+	}
+
+	// otherwise the device is indeed a partition, get the information for the
+	// filesystem
+
+	// we only expect a single block device
+	output, err = exec.Command("lsblk", "--fs", "--json", node).CombinedOutput()
+	if err != nil {
+		return blk, osutil.OutputErr(output, err)
+	}
+
+	if err := json.Unmarshal(output, &info); err != nil {
+		return blk, fmt.Errorf("cannot parse lsblk output: %v", err)
+	}
+
+	switch len(info.BlockDevices) {
+	case 1:
+		// ok, expected, make the UUID capitalized for consistency
+		toUpperUUID(&info.BlockDevices[0])
+		return info.BlockDevices[0], nil
+	case 0:
+		// very unexpected, there was previously only one block device just
+		// above but now we somehow don't have one
+		return blk, fmt.Errorf("block device for device %s unexpectedly disappeared", node)
+	default:
+		// we now have more block devices for this partition, which is also
+		// unexpected
+		return blk, fmt.Errorf("block device for device %s unexpectedly multiplied", node)
+	}
+}
+
+func toUpperUUID(bd *lsblkBlockDevice) {
+	bd.UUID = strings.ToUpper(bd.UUID)
 }

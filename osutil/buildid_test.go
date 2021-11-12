@@ -147,6 +147,7 @@ func (s *buildIDSuite) TestReadBuildGo(c *C) {
 	// set custom homedir to ensure tests work in an sbuild environment
 	// that force a non-existing homedir
 	cmd.Env = append(os.Environ(), "HOME="+tmpdir)
+	cmd.Dir = tmpdir
 	output, err := cmd.CombinedOutput()
 	c.Assert(string(output), Equals, "")
 	c.Assert(err, IsNil)

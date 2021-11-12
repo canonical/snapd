@@ -23,8 +23,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -195,9 +197,27 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 // pruneRefreshCandidates removes the given snaps from refresh-candidates map
 // in the state.
 func pruneRefreshCandidates(st *state.State, snaps ...string) error {
+	tr := config.NewTransaction(st)
+	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	// Remove refresh-candidates from state if gate-auto-refresh-hook feature is
+	// not enabled. This acts as a workaround for the case where a snapd from
+	// edge was used and created refresh-candidates in the old format (an array)
+	// with the feature enabled, but the feature was then disabled so the new
+	// map format will never make it into the state.
+	// When the feature is enabled then auto-refresh code will re-initialize
+	// refresh-candidates in the correct format expected here.
+	// See https://forum.snapcraft.io/t/cannot-r-emove-snap-json-cannot-unmarshal-array-into-go-value-of-type-map-string-snapstate-refreshcandidate/27276
+	if !gateAutoRefreshHook {
+		st.Set("refresh-candidates", nil)
+		return nil
+	}
+
 	var candidates map[string]*refreshCandidate
 
-	err := st.Get("refresh-candidates", &candidates)
+	err = st.Get("refresh-candidates", &candidates)
 	if err != nil {
 		if err == state.ErrNoState {
 			return nil

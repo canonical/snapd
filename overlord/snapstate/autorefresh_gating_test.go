@@ -353,12 +353,16 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelper(c *C) {
 
 	mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b", "snap-c", "snap-d", "snap-e", "snap-f")
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
 	// this could be merged with the above HoldRefresh call, but it's fine if
 	// done separately too.
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-e"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-e"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-f", 0, "snap-f"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-e")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-e")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-f", 0, "snap-f")
+	c.Assert(err, IsNil)
 
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
@@ -377,6 +381,65 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelper(c *C) {
 		"snap-f": {
 			// holding self set for maxPostponement minus 1 day due to last refresh.
 			"snap-f": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-07T10:00:00Z"),
+		},
+	})
+}
+
+func (s *autorefreshGatingSuite) TestHoldRefreshReturnsMinimumHoldTime(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	now := "2021-05-10T10:00:00Z"
+	restore := snapstate.MockTimeNow(func() time.Time {
+		t, err := time.Parse(time.RFC3339, now)
+		c.Assert(err, IsNil)
+		return t
+	})
+	defer restore()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+	mockInstalledSnap(c, st, snapCyaml, false)
+	mockInstalledSnap(c, st, snapDyaml, false)
+	mockInstalledSnap(c, st, snapEyaml, false)
+	mockInstalledSnap(c, st, snapFyaml, false)
+
+	mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b", "snap-c", "snap-d", "snap-e", "snap-f")
+
+	// only holding self: max postponement - buffer time returned
+	rem, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "2136h0m0s")
+
+	// holding self and some other snaps, max hold time of holding other snaps returned.
+	rem, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-e")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "48h0m0s")
+
+	// advance time
+	now = "2021-05-11T12:00:00Z"
+	rem, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-e")
+	c.Assert(err, IsNil)
+	// it's now less due to previous hold
+	c.Check(rem.String(), Equals, "22h0m0s")
+
+	var gating map[string]map[string]*snapstate.HoldState
+	c.Assert(st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
+		"snap-b": {
+			// holding of other snaps for maxOtherHoldDuration (48h)
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+		},
+		"snap-c": {
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+		},
+		"snap-e": {
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+		},
+		"snap-a": {
+			// holding self set for maxPostponement minus 1 day due to last refresh.
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-07T10:00:00Z"),
 		},
 	})
 }
@@ -402,7 +465,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 
 	// hold it for just a bit (10h) initially
 	hold := time.Hour * 10
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err := snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "48h0m0s")
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
@@ -413,7 +478,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 
 	// holding for a shorter time is fine too
 	hold = time.Hour * 5
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "48h0m0s")
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
@@ -428,7 +495,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 
 	// default hold time requested
 	hold = 0
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "26h0m0s")
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
@@ -459,7 +528,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperCloseToMaxPostponement(c *
 
 	// request default hold time
 	var hold time.Duration
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	rem, err := snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(rem.String(), Equals, "24h0m0s")
 
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
@@ -485,11 +556,13 @@ func (s *autorefreshGatingSuite) TestHoldRefreshExplicitHoldTime(c *C) {
 
 	hold := time.Hour * 24 * 3
 	// holding self for 3 days
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-a"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", hold, "snap-a")
+	c.Assert(err, IsNil)
 
 	// snap-b holds snap-a for 1 day
 	hold = time.Hour * 24
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-a")
+	c.Assert(err, IsNil)
 
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
@@ -521,11 +594,12 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 
 	// holding itself
 	hold := time.Hour * 24 * 96
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-a"), ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-a" of 2304h0m0s by snap "snap-a" exceeds maximum holding time`)
+	_, err := snapstate.HoldRefresh(st, "snap-a", hold, "snap-a")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-a" of 2304h0m0s by snap "snap-a" exceeds maximum holding time`)
 
 	// holding other snap
 	hold = time.Hour * 49
-	err := snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
+	_, err = snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
 	c.Check(err, ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-b" of 49h0m0s by snap "snap-a" exceeds maximum holding time`)
 	herr, ok := err.(*snapstate.HoldError)
 	c.Assert(ok, Equals, true)
@@ -538,17 +612,21 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 
 	// hold for maximum allowed for other snaps
 	hold = time.Hour * 48
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-b"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
+	c.Assert(err, IsNil)
 	// 2 days passed since it was first held
 	now = "2021-05-12T10:00:00Z"
 	hold = time.Minute * 2
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
+	_, err = snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
 
 	// refreshed long time ago (> maxPostponement)
 	mockLastRefreshed(c, st, "2021-01-01T10:00:00Z", "snap-b")
 	hold = time.Hour * 2
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
+	_, err = snapstate.HoldRefresh(st, "snap-b", hold, "snap-b")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
+	_, err = snapstate.HoldRefresh(st, "snap-b", 0, "snap-b")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
 }
 
 func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
@@ -575,10 +653,13 @@ func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(held, IsNil)
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-c"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-c")
+	c.Assert(err, IsNil)
 	// holding self
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", time.Hour*24*4, "snap-d"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", time.Hour*24*4, "snap-d")
+	c.Assert(err, IsNil)
 
 	held, err = snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -622,16 +703,20 @@ func (s *autorefreshGatingSuite) TestDontHoldSomeSnapsIfSomeFail(c *C) {
 	defer restore()
 
 	// snap-b, base-snap-b get refreshed and affect snap-b (gating snap)
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b")
+	c.Assert(err, IsNil)
 	// unrealted snap-d gets refreshed and holds itself
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-d")
+	c.Assert(err, IsNil)
 
 	// advance time by 49h
 	now = "2021-05-03T11:00:00Z"
 	// snap-b, base-snap-b and snap-c get refreshed and snap-a (gating snap) wants to hold them
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b", "snap-c"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "base-snap-b" anymore, maximum refresh postponement exceeded`)
+	_, err = snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b", "snap-c")
+	c.Assert(err, ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "base-snap-b" anymore, maximum refresh postponement exceeded`)
 	// snap-bb (gating snap) wants to hold base-snap-b as well and succeeds since it didn't exceed its holding time yet
-	c.Assert(snapstate.HoldRefresh(st, "snap-bb", 0, "base-snap-b"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-bb", 0, "base-snap-b")
+	c.Assert(err, IsNil)
 
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -660,8 +745,10 @@ func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
 	mockInstalledSnap(c, st, snapCyaml, false)
 	mockInstalledSnap(c, st, snapDyaml, false)
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c")
+	c.Assert(err, IsNil)
 	// sanity
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -731,8 +818,10 @@ func (s *autorefreshGatingSuite) TestResetGatingForRefreshedHelper(c *C) {
 	mockInstalledSnap(c, st, snapCyaml, false)
 	mockInstalledSnap(c, st, snapDyaml, false)
 
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c")
+	c.Assert(err, IsNil)
 
 	c.Assert(snapstate.ResetGatingForRefreshed(st, "snap-b", "snap-c"), IsNil)
 	var gating map[string]map[string]*snapstate.HoldState
@@ -760,9 +849,11 @@ func (s *autorefreshGatingSuite) TestPruneSnapsHold(c *C) {
 	mockInstalledSnap(c, st, snapDyaml, false)
 
 	// snap-a is holding itself and 3 other snaps
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-d"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-d")
+	c.Assert(err, IsNil)
 	// in addition, snap-c is held by snap-d.
-	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-c"), IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-d", 0, "snap-c")
+	c.Assert(err, IsNil)
 
 	// sanity check
 	held, err := snapstate.HeldSnaps(st)
@@ -1283,7 +1374,8 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	defer restore()
 
 	// pretend some snaps are held
-	c.Assert(snapstate.HoldRefresh(st, "gating-snap", 0, "snap-a", "snap-d"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "gating-snap", 0, "snap-a", "snap-d")
+	c.Assert(err, IsNil)
 	// sanity check
 	heldSnaps, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
@@ -1612,6 +1704,11 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	st.Lock()
 	defer st.Unlock()
 
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
 	s.o.TaskRunner().AddHandler("run-hook", func(t *state.Task, tomb *tomb.Tomb) error {
 		var hsup hookstate.HookSetup
 		t.State().Lock()
@@ -1676,10 +1773,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -1799,7 +1894,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 	chg := s.testAutoRefreshPhase2(c, nil, func(snapName string) {
 		if snapName == "snap-b" {
 			// pretend than snap-b calls snapctl --hold to hold refresh of base-snap-b
-			c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+			_, err := snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b")
+			c.Assert(err, IsNil)
 		}
 	}, expected)
 
@@ -1852,8 +1948,10 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
 
 	s.testAutoRefreshPhase2(c, func() {
 		// pretend that snap-a and base-snap-b are initially held
-		c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
-		c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+		_, err := snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a")
+		c.Assert(err, IsNil)
+		_, err = snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b")
+		c.Assert(err, IsNil)
 	}, func(snapName string) {
 		if snapName == "snap-a" {
 			// pretend than snap-a calls snapctl --proceed
@@ -1883,10 +1981,12 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2AllHeld(c *C) {
 		switch snapName {
 		case "snap-b":
 			// pretend that snap-b calls snapctl --hold to hold refresh of base-snap-b
-			c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+			_, err := snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b")
+			c.Assert(err, IsNil)
 		case "snap-a":
 			// pretend that snap-a calls snapctl --hold to hold itself
-			c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
+			_, err := snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a")
+			c.Assert(err, IsNil)
 		default:
 			c.Fatalf("unexpected snap %q", snapName)
 		}
@@ -1964,10 +2064,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(installSizeCalled, Equals, true)
 	if fail {
@@ -2043,10 +2141,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	conflictChange.AddTask(conflictTask)
 	conflictTask.WaitFor(tss[0].Tasks()[0])
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -2147,6 +2243,11 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
 	restore := snapstate.MockSnapsToRefresh(func(gatingTask *state.Task) ([]*snapstate.RefreshCandidate, error) {
 		c.Assert(gatingTask.Kind(), Equals, "conditional-auto-refresh")
 		var candidates map[string]*snapstate.RefreshCandidate
@@ -2206,10 +2307,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -2309,8 +2408,10 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	defer restore()
 
 	// pretend some snaps are held
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-a"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
+	c.Assert(err, IsNil)
 
 	lastRefreshTime := time.Now().Add(-99 * time.Hour)
 	st.Set("last-refresh", lastRefreshTime)
@@ -2419,7 +2520,8 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapMoreAffectedSnaps(c
 	defer restore()
 
 	// pretend snap-b holds base-snap-b.
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b")
+	c.Assert(err, IsNil)
 
 	// pretend that snap-b triggers auto-refresh (by calling snapctl refresh --proceed)
 	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-b"), IsNil)
@@ -2519,8 +2621,10 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapNoCandidatesAnymore
 	defer restore()
 
 	// pretend some snaps are held
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b"), IsNil)
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-a"), IsNil)
+	_, err := snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b")
+	c.Assert(err, IsNil)
+	_, err = snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
+	c.Assert(err, IsNil)
 
 	// pretend that snap-b triggers auto-refresh (by calling snapctl refresh --proceed)
 	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-b"), IsNil)
@@ -2580,13 +2684,7 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	refreshedDate, err := time.Parse(time.RFC3339, "2021-01-01T10:00:00Z")
-	c.Assert(err, IsNil)
-	restoreRevDate := snapstate.MockRevisionDate(func(sn *snap.Info) time.Time {
-		return refreshedDate
-	})
-	defer restoreRevDate()
-
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 	requiredRevision = "1"
 	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
@@ -2607,19 +2705,19 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 			InstanceName:  "snap-c",
 			SnapID:        "snap-c-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}, {
 			InstanceName:  "some-other-snap",
 			SnapID:        "some-other-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}, {
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}},
 	}, {

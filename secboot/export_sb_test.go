@@ -97,6 +97,14 @@ func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, 
 	}
 }
 
+func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb_tpm2.PolicyAuthKey) error) (restore func()) {
+	old := sbSealedKeyObjectRevokeOldPCRProtectionPolicies
+	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = f
+	return func() {
+		sbSealedKeyObjectRevokeOldPCRProtectionPolicies = old
+	}
+}
+
 func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int) error) (restore func()) {
 	old := sbBlockPCRProtectionPolicies
 	sbBlockPCRProtectionPolicies = f
@@ -111,15 +119,6 @@ func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath str
 	sbActivateVolumeWithRecoveryKey = f
 	return func() {
 		sbActivateVolumeWithRecoveryKey = old
-	}
-}
-
-func MockSbActivateVolumeWithTPMSealedKey(f func(tpm *sb_tpm2.Connection, volumeName, sourceDevicePath, keyPath string,
-	pinReader io.Reader, options *sb.ActivateVolumeOptions) (bool, error)) (restore func()) {
-	old := sbActivateVolumeWithTPMSealedKey
-	sbActivateVolumeWithTPMSealedKey = f
-	return func() {
-		sbActivateVolumeWithTPMSealedKey = old
 	}
 }
 
@@ -205,10 +204,10 @@ func MockSbDeactivateVolume(f func(volumeName string) error) (restore func()) {
 	}
 }
 
-func MockSbReadSealedKeyObject(f func(string) (*sb_tpm2.SealedKeyObject, error)) (restore func()) {
-	old := sbReadSealedKeyObject
-	sbReadSealedKeyObject = f
+func MockSbReadSealedKeyObjectFromFile(f func(string) (*sb_tpm2.SealedKeyObject, error)) (restore func()) {
+	old := sbReadSealedKeyObjectFromFile
+	sbReadSealedKeyObjectFromFile = f
 	return func() {
-		sbReadSealedKeyObject = old
+		sbReadSealedKeyObjectFromFile = old
 	}
 }

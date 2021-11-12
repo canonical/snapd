@@ -150,6 +150,11 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 		if !strings.HasPrefix(info.Name(), canary) {
 			return nil
 		}
+		// snap applications end up inside a cgroup related to a
+		// service, or when ran standalone, a scope
+		if ext := filepath.Ext(info.Name()); ext != ".scope" && ext != ".service" {
+			return nil
+		}
 		// found a group
 		if err := action(name); err != nil && !skipError(err) {
 			return err
