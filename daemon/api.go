@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"fmt"
-	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -163,7 +162,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 	return chg
 }
 
-func isTrue(form *multipart.Form, key string) bool {
+func isTrue(form *Form, key string) bool {
 	value := form.Value[key]
 	if len(value) == 0 {
 		return false
