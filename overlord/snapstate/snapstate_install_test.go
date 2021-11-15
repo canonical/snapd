@@ -21,12 +21,14 @@ package snapstate_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -4275,4 +4277,165 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Sequence, DeepEquals, []*snap.SideInfo{si})
+}
+
+func (s *snapmgrTestSuite) TestInstallPathMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	channels := []string{"something/edge", "other/beta"}
+
+	for i, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Channel:  channels[i],
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+	c.Check([]string{infos[0].RealName, infos[1].RealName}, DeepEquals, snapNames)
+	c.Assert(tss, HasLen, 2)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	for i, name := range snapNames {
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+		c.Check(snapst.NoReRefresh, Equals, true)
+		c.Check(snapst.TrackingChannel, Equals, channels[i])
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyWithOneFailing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		sideInfos = append(sideInfos, &snap.SideInfo{RealName: name})
+	}
+
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+	c.Check([]string{infos[0].RealName, infos[1].RealName}, DeepEquals, snapNames)
+	c.Assert(tss, HasLen, 2)
+
+	// fail installation of 'other-snap' which shouldn't affect 'some-snap'
+	failingTask := s.state.NewTask("fail", "expected failure")
+	snapThreeLanes := tss[1].Tasks()[0].Lanes()
+	for _, lane := range snapThreeLanes {
+		failingTask.JoinLane(lane)
+	}
+	tss[1].AddTask(failingTask)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), NotNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// some-snap is installed
+	err = snapstate.Get(s.state, "some-snap", &snapstate.SnapState{})
+	c.Assert(err, IsNil)
+
+	// other-snap is not
+	err = snapstate.Get(s.state, "other-snap", &snapstate.SnapState{})
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyAsUpdate(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{si},
+			Current:  si.Revision,
+			SnapType: "app",
+		})
+
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+
+		newSi := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("2"),
+		}
+		path, _ := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, newSi)
+
+		paths = append(paths, path)
+		sideInfos = append(sideInfos, newSi)
+	}
+
+	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+	c.Check([]string{infos[0].RealName, infos[1].RealName}, DeepEquals, snapNames)
+	c.Assert(tss, HasLen, 2)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	for _, name := range snapNames {
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+		c.Check(snapst.Current, Equals, snap.R("2"))
+	}
 }

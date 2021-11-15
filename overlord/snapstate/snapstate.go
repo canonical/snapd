@@ -161,6 +161,63 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 	return &snapsup, snapst, nil
 }
 
+type pathInfo struct {
+	*snap.Info
+	path string
+}
+
+func (i pathInfo) DownloadSize() int64 {
+	return i.DownloadInfo.Size
+}
+
+// SnapBase returns the base snap of the snap.
+func (i pathInfo) SnapBase() string {
+	return i.Base
+}
+
+func (i pathInfo) Prereq(st *state.State) []string {
+	return getKeys(defaultProviderContentAttrs(st, i.Info))
+}
+
+func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, gFlags *Flags) (*SnapSetup, *SnapState, error) {
+	update := i.Info
+
+	// TODO: what
+	revnoOpts, flags, snapst := params(update)
+
+	flags, err := earlyChecks(st, snapst, update, *gFlags)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	//snapUserID, err := userIDForSnap(st, snapst, userID)
+	//if err != nil {
+	//	return nil, nil, err
+	//}
+
+	providerContentAttrs := defaultProviderContentAttrs(st, update)
+	snapsup := SnapSetup{
+		Base:               update.Base,
+		SnapPath:           i.path,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		Channel:            revnoOpts.Channel,
+		CohortKey:          revnoOpts.CohortKey,
+		//UserID:             snapUserID,
+		Flags:        flags.ForSnapSetup(),
+		DownloadInfo: &update.DownloadInfo,
+		SideInfo:     &update.SideInfo,
+		Type:         update.Type(),
+		PlugsOnly:    len(update.Slots) == 0,
+		InstanceKey:  update.InstanceKey,
+		auxStoreInfo: auxStoreInfo{
+			Website: update.Website,
+			Media:   update.Media,
+		},
+	}
+	return &snapsup, snapst, nil
+}
+
 // soundness check
 var _ readyUpdateInfo = installSnapInfo{}
 
@@ -1061,6 +1118,106 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+}
+
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, []*snap.Info, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
+
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var updates []minimalInstallInfo
+	var names []string
+	snapInfos := make(map[string]*snap.Info, len(paths))
+	stateByInstanceName := make(map[string]*SnapState, len(paths))
+
+	for i, path := range paths {
+		si := sideInfos[i]
+		name := si.RealName
+
+		// It is ok do open the snap file here because we either
+		// have side info or the user passed --dangerous
+		info, container, err := backend.OpenSnapFile(path, si)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := validateContainer(container, info, logger.Noticef); err != nil {
+			return nil, nil, err
+		}
+		if err := snap.ValidateInstanceName(name); err != nil {
+			return nil, nil, fmt.Errorf("invalid instance name: %v", err)
+		}
+
+		updates = append(updates, pathInfo{Info: info, path: path})
+		names = append(names, name)
+		snapInfos[name] = info
+
+		var snapst SnapState
+		err = Get(st, name, &snapst)
+		if err != nil && err != state.ErrNoState {
+			return nil, nil, err
+		}
+
+		stateByInstanceName[name] = &snapst
+	}
+
+	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
+		snapst := stateByInstanceName[update.InstanceName()]
+		// setting options to what's in state as multi-refresh doesn't let you change these
+		opts := &RevisionOptions{
+			Channel:   snapst.TrackingChannel,
+			CohortKey: snapst.CohortKey,
+		}
+		return opts, snapst.Flags, snapst
+	}
+
+	tr := config.NewTransaction(st)
+	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, nil, err
+	}
+	if checkDiskSpaceRefresh {
+		// check if there is enough disk space for requested snap and its
+		// prerequisites.
+		totalSize, err := installSize(st, updates, userID)
+		if err != nil {
+			return nil, nil, err
+		}
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			snaps := make([]string, len(updates))
+			for i, up := range updates {
+				snaps[i] = up.InstanceName()
+			}
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      snaps,
+					ChangeKind: "install",
+				}
+			}
+			return nil, nil, err
+		}
+	}
+
+	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	updatedInfos := make([]*snap.Info, len(updated))
+	for i, u := range updated {
+		updatedInfos[i] = snapInfos[u]
+	}
+
+	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
+	return tasksets, updatedInfos, nil
 }
 
 // InstallMany installs everything from the given list of names.
