@@ -27,9 +27,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
+	"github.com/snapcore/snapd/bootloader/pibootenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/snap"
 )
 
 // creates a new Androidboot bootloader object
@@ -240,6 +242,41 @@ func MockAddBootloaderToFind(blConstructor func(string, *Options) Bootloader) (r
 	return func() {
 		bootloaders = bootloaders[:oldLen]
 	}
+}
+
+func NewPiboot(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootloader {
+	return newPiboot(rootdir, opts).(ExtractedRecoveryKernelImageBootloader)
+}
+
+func MockPibootFiles(c *C, rootdir string, blOpts *Options) {
+	p := &piboot{rootdir: rootdir}
+	p.setDefaults()
+	p.processBlOpts(blOpts)
+	err := os.MkdirAll(p.dir(), 0755)
+	c.Assert(err, IsNil)
+
+	// ensure that we have a valid piboot.conf
+	env := pibootenv.NewEnv(p.envFile())
+	err = env.Save()
+	c.Assert(err, IsNil)
+
+	// Create template files expected to come from the gadget
+	cmdLineTempl, err := os.Create(filepath.Join(rootdir, "cmdline.templ.txt"))
+	c.Assert(err, IsNil)
+	cmdLineTempl.Close()
+	cfgTempl, err := os.Create(filepath.Join(rootdir, "config.templ.txt"))
+	c.Assert(err, IsNil)
+	cfgTempl.Close()
+}
+
+func PibootConfigFile(b Bootloader) string {
+	p := b.(*piboot)
+	return p.envFile()
+}
+
+func LayoutKernelAssetsToDir(b Bootloader, snapf snap.Container, dstDir string) error {
+	p := b.(*piboot)
+	return p.layoutKernelAssetsToDir(snapf, dstDir)
 }
 
 var (
