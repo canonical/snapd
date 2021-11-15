@@ -19,6 +19,11 @@
 
 package udev
 
+var (
+	GetSystemdVersion = getSystemdVersion
+	MaybeTriggerQuiet = maybeTriggerQuiet
+)
+
 func (b *Backend) ReloadRules(subsystemTriggers []string) error {
 	return b.reloadRules(subsystemTriggers)
 }

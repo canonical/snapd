@@ -22,7 +22,34 @@ package udev
 import (
 	"fmt"
 	"os/exec"
+
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd"
 )
+
+var systemdVersion int
+
+func getSystemdVersion() {
+	var err error
+	systemdVersion, err = systemd.Version()
+	if err != nil {
+		logger.Noticef("%v", err)
+	}
+}
+
+func init() {
+	getSystemdVersion()
+}
+
+func maybeTriggerQuiet(args ...string) []string {
+	args = append([]string{"trigger"}, args...)
+	if systemdVersion >= 248 {
+		// append --quiet flag with new systemd to accomodate to change in error
+		// reporting introduced with ubuntu 21.10; see https://github.com/lxc/lxd/issues/9526
+		args = append(args, "--quiet")
+	}
+	return args
+}
 
 // reloadRules runs three commands that reload udev rule database.
 //
@@ -45,7 +72,7 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 	// By default, trigger for all events except the input subsystem since
 	// it can cause noticeable blocked input on, for example, classic
 	// desktop.
-	output, err = exec.Command("udevadm", "trigger", "--subsystem-nomatch=input").CombinedOutput()
+	output, err = exec.Command("udevadm", maybeTriggerQuiet("--subsystem-nomatch=input")...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
 	}
@@ -63,7 +90,7 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 			// subsystem for joysticks, then trigger the joystick
 			// events in a way that is specific to joysticks to not
 			// block other inputs.
-			output, err = exec.Command("udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1").CombinedOutput()
+			output, err = exec.Command("udevadm", maybeTriggerQuiet("--property-match=ID_INPUT_JOYSTICK=1")...).CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("cannot run udev triggers for joysticks: %s\nudev output:\n%s", err, string(output))
 			}
@@ -73,14 +100,14 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 			// subsystem for input keys, then trigger the keys
 			// events in a way that is specific to input keys
 			// to not block other inputs.
-			output, err = exec.Command("udevadm", "trigger", "--property-match=ID_INPUT_KEY=1", "--property-match=ID_INPUT_KEYBOARD!=1").CombinedOutput()
+			output, err = exec.Command("udevadm", maybeTriggerQuiet("--property-match=ID_INPUT_KEY=1", "--property-match=ID_INPUT_KEYBOARD!=1")...).CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("cannot run udev triggers for keys: %s\nudev output:\n%s", err, string(output))
 			}
 		} else if subsystem != "" {
 			// If one of the interfaces said it uses a subsystem,
 			// then do it too.
-			output, err = exec.Command("udevadm", "trigger", "--subsystem-match="+subsystem).CombinedOutput()
+			output, err = exec.Command("udevadm", maybeTriggerQuiet("--subsystem-match="+subsystem)...).CombinedOutput()
 			if err != nil {
 				return fmt.Errorf("cannot run udev triggers for %s subsystem: %s\nudev output:\n%s", subsystem, err, string(output))
 			}
@@ -97,7 +124,7 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 	// this. Allows joysticks to be removed from the device cgroup on
 	// interface disconnect.
 	if !inputJoystickTriggered {
-		output, err = exec.Command("udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1").CombinedOutput()
+		output, err = exec.Command("udevadm", maybeTriggerQuiet("--property-match=ID_INPUT_JOYSTICK=1")...).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("cannot run udev triggers for joysticks: %s\nudev output:\n%s", err, string(output))
 		}

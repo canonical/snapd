@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,6 +35,7 @@ func Test(t *testing.T) {
 }
 
 type uDevSuite struct {
+	testutil.BaseTest
 	backend *udev.Backend
 }
 
@@ -42,6 +44,11 @@ var _ = Suite(&uDevSuite{})
 // Tests for ReloadRules()
 
 func (s *uDevSuite) SetUpTest(c *C) {
+	// mock old systemd by default
+	restore := systemd.MockSystemdVersion(247, nil)
+	s.AddCleanup(restore)
+	udev.GetSystemdVersion()
+
 	s.backend = &udev.Backend{}
 	c.Assert(s.backend.Initialize(nil), IsNil)
 }
@@ -178,6 +185,24 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
 	})
 }
 
+func (s *uDevSuite) TestReloadUDevRulesNewSystemdRunsUDevAdmQuiet(c *C) {
+	restore := systemd.MockSystemdVersion(248, nil)
+	defer restore()
+	udev.GetSystemdVersion()
+
+	cmd := testutil.MockCommand(c, "udevadm", "")
+	defer cmd.Restore()
+	err := s.backend.ReloadRules([]string{"input", "tty"})
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "trigger", "--subsystem-nomatch=input", "--quiet"},
+		{"udevadm", "trigger", "--subsystem-match=input", "--quiet"},
+		{"udevadm", "trigger", "--subsystem-match=tty", "--quiet"},
+		{"udevadm", "settle", "--timeout=10"},
+	})
+}
+
 func (s *uDevSuite) TestNoReloadWhenPreseeding(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
@@ -189,4 +214,25 @@ func (s *uDevSuite) TestNoReloadWhenPreseeding(c *C) {
 	c.Assert(b.Initialize(opts), IsNil)
 	c.Assert(b.ReloadRules(nil), IsNil)
 	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+func (s *uDevSuite) TestMaybeTriggerQuiet(c *C) {
+	// systemd >= 248
+	restore := systemd.MockSystemdVersion(248, nil)
+	defer restore()
+	udev.GetSystemdVersion()
+
+	args := udev.MaybeTriggerQuiet("foo")
+	c.Check(args, DeepEquals, []string{"trigger", "foo", "--quiet"})
+
+	systemd.MockSystemdVersion(250, nil)
+	udev.GetSystemdVersion()
+	args = udev.MaybeTriggerQuiet("bar")
+	c.Check(args, DeepEquals, []string{"trigger", "bar", "--quiet"})
+
+	// old systemd
+	systemd.MockSystemdVersion(247, nil)
+	udev.GetSystemdVersion()
+	args = udev.MaybeTriggerQuiet("baz")
+	c.Check(args, DeepEquals, []string{"trigger", "baz"})
 }
