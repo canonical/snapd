@@ -19,6 +19,8 @@ prepare: |
 
 debug: |
   jq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
+  snap changes
+  snap refresh --time
 
 execute: |
   LAST_REFRESH_CHANGE_ID=1
