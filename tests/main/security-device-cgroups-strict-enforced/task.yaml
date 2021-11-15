@@ -52,6 +52,12 @@ execute: |
     # and dd correctly fails observing ENOSPC
     MATCH "dd: error writing '/dev/full': No space left on device" < run.log
 
+    if os.query is-trusty; then
+        # next part requires being able to trigger udev event related to
+        # specific device but udevadm 14.04 has no switches for that
+        exit 0
+    fi
+
     rm -f /var/snap/test-strict-cgroup/common/started
     rm -f /var/snap/test-strict-cgroup/common/ready
 
