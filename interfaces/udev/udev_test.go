@@ -79,7 +79,7 @@ fi
 	})
 }
 
-func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromDefaultTrigger(c *C) {
+func (s *uDevSuite) TestReloadUDevRulesIgnoresErrorsFromDefaultTrigger(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", `
 if [ "$1" = "trigger" ]; then
 	echo "failure 2"
@@ -88,13 +88,14 @@ fi
 	`)
 	defer cmd.Restore()
 	err := s.backend.ReloadRules(nil)
-	c.Assert(err.Error(), Equals, ""+
-		"cannot run udev triggers: exit status 2\n"+
-		"udev output:\n"+
-		"failure 2\n")
+	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
+		// FIXME: temporary until spec.TriggerSubsystem() can be
+		// called during disconnect
+		{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }
 
@@ -111,7 +112,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithSubsystem(c *C) {
 	})
 }
 
-func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromSubsystemTrigger(c *C) {
+func (s *uDevSuite) TestReloadUDevRulesIgnoresErrorsFromSubsystemTrigger(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", `
 if [ "$2" = "--subsystem-match=input" ]; then
 	echo "failure 2"
@@ -120,14 +121,12 @@ fi
 	`)
 	defer cmd.Restore()
 	err := s.backend.ReloadRules([]string{"input"})
-	c.Assert(err.Error(), Equals, ""+
-		"cannot run udev triggers for input subsystem: exit status 2\n"+
-		"udev output:\n"+
-		"failure 2\n")
+	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--subsystem-match=input"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }
 
@@ -144,7 +143,7 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithJoystick(c *C) {
 	})
 }
 
-func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromJoystickTrigger(c *C) {
+func (s *uDevSuite) TestReloadUDevRulesIgnoresErrorsFromJoystickTrigger(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", `
 if [ "$2" = "--property-match=ID_INPUT_JOYSTICK=1" ]; then
 	echo "failure 2"
@@ -153,14 +152,12 @@ fi
 	`)
 	defer cmd.Restore()
 	err := s.backend.ReloadRules([]string{"input/joystick"})
-	c.Assert(err.Error(), Equals, ""+
-		"cannot run udev triggers for joysticks: exit status 2\n"+
-		"udev output:\n"+
-		"failure 2\n")
+	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
 		{"udevadm", "trigger", "--subsystem-nomatch=input"},
 		{"udevadm", "trigger", "--property-match=ID_INPUT_JOYSTICK=1"},
+		{"udevadm", "settle", "--timeout=10"},
 	})
 }
 
