@@ -33,12 +33,32 @@ const openvswitchBaseDeclarationSlots = `
 // sockets needed by ovs-vsctl, ovs-ofctl and ovs-appctl commands. ovs-ofctl
 // requires access to per-bridge sockets e.g. for bridge br-data you would need
 // access to /run/openvswitch/br-data.mgmt.
+// Additionally add files and sockets for monitoring and querying OVN.
 const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/db.sock rw,
 /run/openvswitch/*.mgmt rw,
 # ovs-appctl allows sending commands to Open vSwitch daemons at runtime
 /run/openvswitch/ovs-vswitchd.*.ctl rw,
 /run/openvswitch/ovs-vswitchd.pid rw,
+/etc/openvswitch/system-id.conf r,
+# same files in /var/run/ovn and /run/ovn, different apps use different paths
+/var/run/ovn/ovnnb_db.ctl rw,
+/var/run/ovn/ovnnb_db.sock rw,
+/var/run/ovn/ovnsb_db.ctl rw,
+/var/run/ovn/ovnsb_db.sock rw,
+/var/run/openvswitch/ovsdb-server.*.ctl rw,
+/var/run/openvswitch/ovsdb-server.pid r,
+/run/openvswitch/ovsdb-server.*.ctl rw,
+/run/openvswitch/ovsdb-server.pid r,
+/run/ovn/ovn-northd.pid r,
+/run/ovn/ovnsb_db.pid r,
+/run/ovn/ovnsb_db.ctl rw,
+/run/ovn/ovnsb_db.sock rw,
+/run/ovn/ovnnb_db.pid r,
+/run/ovn/ovnnb_db.ctl rw,
+/run/ovn/ovnnb_db.sock rw,
+/run/openvswitch/ovsdb-server.*.ctl rw,
+/run/ovn/ovn-northd.*.ctl rw,
 `
 
 func init() {
