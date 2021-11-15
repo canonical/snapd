@@ -44,7 +44,7 @@ func init() {
 func maybeTriggerQuiet(args ...string) []string {
 	args = append([]string{"trigger"}, args...)
 	if systemdVersion >= 248 {
-		// append --quiet flag with new systemd to accomodate to change in error
+		// append --quiet flag with new systemd to accommodate to change in error
 		// reporting introduced with ubuntu 21.10; see https://github.com/lxc/lxd/issues/9526
 		args = append(args, "--quiet")
 	}
