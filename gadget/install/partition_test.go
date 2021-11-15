@@ -62,6 +62,9 @@ func (s *partitionTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(cmdSfdisk.Restore)
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo "lsblk was not mocked"; exit 1`)
 	s.AddCleanup(cmdLsblk.Restore)
+
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", `echo "udevadm was not mocked"; exit 1`)
+	s.AddCleanup(cmdUdevadm.Restore)
 }
 
 const (
@@ -376,6 +379,9 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
 	defer cmdSfdisk.Restore()
 
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
 
@@ -389,6 +395,10 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 
 	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--no-reread", "--delete", "/dev/updated-node", "3"},
+	})
+
+	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "settle", "--timeout=180"},
 	})
 }
 
@@ -461,8 +471,15 @@ func (s *partitionTestSuite) TestRemovePartitionsDoesNotRemoveError(c *C) {
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
 	err = install.RemoveCreatedPartitions(pv, dl)
 	c.Assert(err, ErrorMatches, "cannot remove partitions: /dev/node3")
+
+	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "settle", "--timeout=180"},
+	})
 }
 
 func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {

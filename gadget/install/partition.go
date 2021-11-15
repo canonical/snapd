@@ -209,6 +209,15 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 		return err
 	}
 
+	// run udevadm settle to wait for udev events that may have been triggered
+	// by reloading the partition table to be processed, as we need the udev
+	// database to be freshly updated and complete before updating the partition
+	// information for the OnDiskVolume
+	// TODO: is 3 minute timeout reasonable for this?
+	if out, err := exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot wait for udev to settle after reloading partition table: %v", osutil.OutputErr(out, err))
+	}
+
 	// Re-read the partition table from the device to update our partition list
 	if err := gadget.UpdatePartitionList(dl); err != nil {
 		return err
