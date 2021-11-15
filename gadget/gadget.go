@@ -238,6 +238,14 @@ type DiskVolumeDeviceTraits struct {
 	// the volume that may be useful in identifying whether a disk matches a
 	// volume or not.
 	Structure []DiskStructureDeviceTraits `json:"structure"`
+
+	// Size is the physical size of the disk, regardless of usable space
+	// considerations.
+	Size quantity.Size `json:"size"`
+
+	// SectorSize is the physical sector size of the disk, typically 512 or
+	// 4096.
+	SectorSize quantity.Size `json:"sector-size"`
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a

@@ -138,6 +138,10 @@ type Partition struct {
 	PartitionLabel string
 	// the partition UUID
 	PartitionUUID string
+
+	// TODO: Major and Minor should be uints, they are required to be uints by
+	// the kernel, so it makes sense to match that here
+
 	// Major is the major number for this partition.
 	Major int
 	// Minor is the minor number for this partition.
@@ -147,6 +151,20 @@ type Partition struct {
 	KernelDevicePath string
 	// KernelDeviceNode is the kernel device node in /dev.
 	KernelDeviceNode string
+	// PartitionType is the type of structure, for example 0C in the case of a
+	// vfat partition on a DOS disk, or 0FC63DAF-8483-4772-8E79-3D69D8477DE4,
+	// which is ext4 on a GPT disk. This is always upper case.
+	PartitionType string
+	// FilesystemType is the type of filesystem i.e. ext4 or vfat, etc.
+	FilesystemType string
+	// StructureIndex is the index of the structure on the disk, where the first
+	// partition/structure has index of 1.
+	StructureIndex uint64
+	// StartInBytes is the beginning of the partition/structure in bytes.
+	StartInBytes uint64
+	// SizeInBytes is the overall size of the partition/structure in bytes.
+	SizeInBytes uint64
+
 	// TODO: also include a Disk field for finding what Disk this partition came
 	// from?
 }
