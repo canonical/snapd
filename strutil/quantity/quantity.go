@@ -227,6 +227,14 @@ const (
 	ShowComp Places = 2
 )
 
+// Space delimit options
+type SpaceMode bool
+
+const (
+	SpaceOff SpaceMode = false
+	SpaceOn  SpaceMode = true
+)
+
 // The minimum Duration parameter allows the rendering to discard the units
 // of time less than the minimum. However, depending on what we are
 // rendering, we either need to peform a ceiling, floor or rounding
@@ -247,7 +255,7 @@ const (
 // less than 'min' will be processed according to RenderMode. RenderMode
 // allows rounding, flooring or ceiling to be applied to place value below
 // 'min'. Durations above the 'max' place value will result in "ages!".
-func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places, mode RenderMode, space bool) string {
+func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places, mode RenderMode, space SpaceMode) string {
 	var units = map[Duration]string{
 		Year: "y",
 		Day:  "d",
@@ -391,7 +399,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 			// Should we generate a fractional second, else
 			// use the generic rendering function.
 			if digits > 0 {
-				if len(render) > 0 && space == true {
+				if len(render) > 0 && space == SpaceOn {
 					render += " "
 				}
 				render += strconv.FormatFloat(frac, 'f', digits, 64)
@@ -405,7 +413,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 		// Generic place value rendering
 		if done == false {
 			// Insert spaced between place values if enabled.
-			if len(render) > 0 && space == true {
+			if len(render) > 0 && space == SpaceOn {
 				render += " "
 			}
 
@@ -425,7 +433,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 // The ceiling() operation is performed on the unrendered least significant
 // place values (+1 on the least significant rendered unit).
 func ProgressBarTimeLeft(dt float64) string {
-	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimeLeft, false)
+	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimeLeft, SpaceOff)
 }
 
 // ProgressBarTimePassed presents duration in a layout suitable for progress
@@ -435,5 +443,5 @@ func ProgressBarTimeLeft(dt float64) string {
 // The floor() operation is performed on the unrendered least significant
 // place values (discarded).
 func ProgressBarTimePassed(dt float64) string {
-	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimePassed, false)
+	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimePassed, SpaceOff)
 }

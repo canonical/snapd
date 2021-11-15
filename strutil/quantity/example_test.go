@@ -201,7 +201,7 @@ func SpaceAllTimeLeftRange1(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange1() {
@@ -247,7 +247,7 @@ func SpaceAllTimeLeftRange2(dt float64) {
 		quantity.Day,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange2() {
@@ -293,7 +293,7 @@ func SpaceAllTimeLeftRange3(dt float64) {
 		quantity.Hour,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange3() {
@@ -339,7 +339,7 @@ func SpaceAllTimeLeftRange4(dt float64) {
 		quantity.Min,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange4() {
@@ -385,7 +385,7 @@ func SpaceAllTimeLeftRange5(dt float64) {
 		quantity.Sec,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange5() {
@@ -431,7 +431,7 @@ func SpaceAllTimeLeftRange6(dt float64) {
 		quantity.NSec,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange6() {
@@ -477,7 +477,7 @@ func SpaceAllTimeLeftRange7(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange7() {
@@ -523,7 +523,7 @@ func SpaceAllTimeLeftRange8(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange8() {
@@ -569,7 +569,7 @@ func SpaceAllTimeLeftRange9(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange9() {
@@ -615,7 +615,7 @@ func SpaceAllTimeLeftRange10(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange10() {
@@ -661,7 +661,7 @@ func SpaceAllTimeLeftRange11(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange11() {
@@ -707,7 +707,7 @@ func SpaceAllTimeLeftRange12(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange12() {
@@ -753,7 +753,7 @@ func SpaceAllTimeLeftRange13(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange13() {
@@ -799,7 +799,7 @@ func SpaceAllTimeLeftRange14(dt float64) {
 		quantity.Hour,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceAllTimeLeftRange14() {
@@ -847,7 +847,7 @@ func SpaceCompTimeLeftRange1(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange1() {
@@ -893,7 +893,7 @@ func SpaceCompTimeLeftRange2(dt float64) {
 		quantity.Day,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange2() {
@@ -939,7 +939,7 @@ func SpaceCompTimeLeftRange3(dt float64) {
 		quantity.Hour,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange3() {
@@ -985,7 +985,7 @@ func SpaceCompTimeLeftRange4(dt float64) {
 		quantity.Min,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange4() {
@@ -1031,7 +1031,7 @@ func SpaceCompTimeLeftRange5(dt float64) {
 		quantity.Sec,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange5() {
@@ -1077,7 +1077,7 @@ func SpaceCompTimeLeftRange6(dt float64) {
 		quantity.NSec,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange6() {
@@ -1123,7 +1123,7 @@ func SpaceCompTimeLeftRange7(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange7() {
@@ -1169,7 +1169,7 @@ func SpaceCompTimeLeftRange8(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange8() {
@@ -1215,7 +1215,7 @@ func SpaceCompTimeLeftRange9(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange9() {
@@ -1261,7 +1261,7 @@ func SpaceCompTimeLeftRange10(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange10() {
@@ -1307,7 +1307,7 @@ func SpaceCompTimeLeftRange11(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange11() {
@@ -1353,7 +1353,7 @@ func SpaceCompTimeLeftRange12(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange12() {
@@ -1399,7 +1399,7 @@ func SpaceCompTimeLeftRange13(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange13() {
@@ -1445,7 +1445,7 @@ func SpaceCompTimeLeftRange14(dt float64) {
 		quantity.Hour,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		true))
+		quantity.SpaceOn))
 }
 
 func ExampleSpaceCompTimeLeftRange14() {
@@ -1493,7 +1493,7 @@ func NoSpaceAllTimeLeftRange1(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange1() {
@@ -1539,7 +1539,7 @@ func NoSpaceAllTimeLeftRange2(dt float64) {
 		quantity.Day,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange2() {
@@ -1585,7 +1585,7 @@ func NoSpaceAllTimeLeftRange3(dt float64) {
 		quantity.Hour,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange3() {
@@ -1631,7 +1631,7 @@ func NoSpaceAllTimeLeftRange4(dt float64) {
 		quantity.Min,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange4() {
@@ -1677,7 +1677,7 @@ func NoSpaceAllTimeLeftRange5(dt float64) {
 		quantity.Sec,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange5() {
@@ -1723,7 +1723,7 @@ func NoSpaceAllTimeLeftRange6(dt float64) {
 		quantity.NSec,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange6() {
@@ -1769,7 +1769,7 @@ func NoSpaceAllTimeLeftRange7(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange7() {
@@ -1815,7 +1815,7 @@ func NoSpaceAllTimeLeftRange8(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange8() {
@@ -1861,7 +1861,7 @@ func NoSpaceAllTimeLeftRange9(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange9() {
@@ -1907,7 +1907,7 @@ func NoSpaceAllTimeLeftRange10(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange10() {
@@ -1953,7 +1953,7 @@ func NoSpaceAllTimeLeftRange11(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange11() {
@@ -1999,7 +1999,7 @@ func NoSpaceAllTimeLeftRange12(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange12() {
@@ -2045,7 +2045,7 @@ func NoSpaceAllTimeLeftRange13(dt float64) {
 		quantity.Year,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange13() {
@@ -2091,7 +2091,7 @@ func NoSpaceAllTimeLeftRange14(dt float64) {
 		quantity.Hour,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceAllTimeLeftRange14() {
@@ -2139,7 +2139,7 @@ func NoSpaceCompTimeLeftRange1(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange1() {
@@ -2185,7 +2185,7 @@ func NoSpaceCompTimeLeftRange2(dt float64) {
 		quantity.Day,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange2() {
@@ -2231,7 +2231,7 @@ func NoSpaceCompTimeLeftRange3(dt float64) {
 		quantity.Hour,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange3() {
@@ -2277,7 +2277,7 @@ func NoSpaceCompTimeLeftRange4(dt float64) {
 		quantity.Min,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange4() {
@@ -2323,7 +2323,7 @@ func NoSpaceCompTimeLeftRange5(dt float64) {
 		quantity.Sec,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange5() {
@@ -2369,7 +2369,7 @@ func NoSpaceCompTimeLeftRange6(dt float64) {
 		quantity.NSec,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange6() {
@@ -2415,7 +2415,7 @@ func NoSpaceCompTimeLeftRange7(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange7() {
@@ -2461,7 +2461,7 @@ func NoSpaceCompTimeLeftRange8(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange8() {
@@ -2507,7 +2507,7 @@ func NoSpaceCompTimeLeftRange9(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange9() {
@@ -2553,7 +2553,7 @@ func NoSpaceCompTimeLeftRange10(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange10() {
@@ -2599,7 +2599,7 @@ func NoSpaceCompTimeLeftRange11(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange11() {
@@ -2645,7 +2645,7 @@ func NoSpaceCompTimeLeftRange12(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange12() {
@@ -2691,7 +2691,7 @@ func NoSpaceCompTimeLeftRange13(dt float64) {
 		quantity.Year,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange13() {
@@ -2737,7 +2737,7 @@ func NoSpaceCompTimeLeftRange14(dt float64) {
 		quantity.Hour,
 		quantity.ShowComp,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleNoSpaceCompTimeLeftRange14() {
@@ -2785,7 +2785,7 @@ func SpaceAllTimeLeft(dt float64) {
 		quantity.Hour,
 		quantity.ShowAll,
 		quantity.TimeLeft,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleSpaceAllTimeLeft() {
@@ -2831,7 +2831,7 @@ func SpaceAllTimePassed(dt float64) {
 		quantity.Hour,
 		quantity.ShowAll,
 		quantity.TimePassed,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleSpaceAllTimePassed() {
@@ -2877,7 +2877,7 @@ func SpaceAllTimeRounded(dt float64) {
 		quantity.Hour,
 		quantity.ShowAll,
 		quantity.TimeRounded,
-		false))
+		quantity.SpaceOff))
 }
 
 func ExampleSpaceAllTimeRounded() {
