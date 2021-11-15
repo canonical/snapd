@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
@@ -48,6 +49,7 @@ var (
 
 	biosBootUdevPropMap = map[string]string{
 		"ID_PART_ENTRY_UUID": "bios-boot-partuuid",
+		"ID_PART_ENTRY_TYPE": "21686148-6449-6e6f-744e-656564454649",
 		// the udev prop for bios-boot has no fs label, which is typical of the
 		// real bios-boot partition on a amd64 pc gadget system, and so we should
 		// safely just ignore and skip this partition in the fs label
@@ -56,39 +58,56 @@ var (
 		// we will however still have a partition label of "BIOS Boot"
 		"ID_PART_ENTRY_NAME": "BIOS\\x20Boot",
 
-		"DEVNAME": "/dev/vda1",
-		"DEVPATH": "/devices/bios-boot-device",
-		"MAJOR":   "42",
-		"MINOR":   "1",
+		"DEVNAME":              "/dev/vda1",
+		"DEVPATH":              "/devices/bios-boot-device",
+		"MAJOR":                "42",
+		"MINOR":                "1",
+		"ID_PART_ENTRY_OFFSET": "2048",
+		"ID_PART_ENTRY_SIZE":   "2048",
+		"ID_PART_ENTRY_NUMBER": "1",
 	}
 
 	// all the ubuntu- partitions have fs labels
 	ubuntuSeedUdevPropMap = map[string]string{
-		"ID_PART_ENTRY_UUID": "ubuntu-seed-partuuid",
-		"ID_FS_LABEL_ENC":    "ubuntu-seed",
-		"ID_PART_ENTRY_NAME": "ubuntu-seed",
-		"DEVNAME":            "/dev/vda2",
-		"DEVPATH":            "/devices/ubuntu-seed-device",
-		"MAJOR":              "42",
-		"MINOR":              "2",
+		"ID_PART_ENTRY_UUID":   "ubuntu-seed-partuuid",
+		"ID_FS_LABEL_ENC":      "ubuntu-seed",
+		"ID_PART_ENTRY_NAME":   "ubuntu-seed",
+		"ID_PART_ENTRY_TYPE":   "c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+		"DEVNAME":              "/dev/vda2",
+		"DEVPATH":              "/devices/ubuntu-seed-device",
+		"MAJOR":                "42",
+		"MINOR":                "2",
+		"ID_PART_ENTRY_OFFSET": "4096",
+		"ID_PART_ENTRY_SIZE":   "2457600",
+		"ID_PART_ENTRY_NUMBER": "2",
 	}
 	ubuntuBootUdevPropMap = map[string]string{
-		"ID_PART_ENTRY_UUID": "ubuntu-boot-partuuid",
-		"ID_FS_LABEL_ENC":    "ubuntu-boot",
-		"ID_PART_ENTRY_NAME": "ubuntu-boot",
-		"DEVNAME":            "/dev/vda3",
-		"DEVPATH":            "/devices/ubuntu-boot-device",
-		"MAJOR":              "42",
-		"MINOR":              "3",
+		"ID_PART_ENTRY_UUID":   "ubuntu-boot-partuuid",
+		"ID_FS_LABEL_ENC":      "ubuntu-boot",
+		"ID_PART_ENTRY_NAME":   "ubuntu-boot",
+		"ID_PART_ENTRY_TYPE":   "0fc63daf-8483-4772-8e79-3d69d8477de4",
+		"DEVNAME":              "/dev/vda3",
+		"DEVPATH":              "/devices/ubuntu-boot-device",
+		"MAJOR":                "42",
+		"MINOR":                "3",
+		"ID_PART_ENTRY_OFFSET": "2461696",
+		"ID_PART_ENTRY_SIZE":   "1536000",
+		"ID_PART_ENTRY_NUMBER": "3",
 	}
 	ubuntuDataUdevPropMap = map[string]string{
 		"ID_PART_ENTRY_UUID": "ubuntu-data-partuuid",
 		"ID_FS_LABEL_ENC":    "ubuntu-data",
 		"ID_PART_ENTRY_NAME": "ubuntu-data",
+		"ID_PART_ENTRY_TYPE": "0fc63daf-8483-4772-8e79-3d69d8477de4",
 		"DEVNAME":            "/dev/vda4",
 		"DEVPATH":            "/devices/ubuntu-data-device",
 		"MAJOR":              "42",
 		"MINOR":              "4",
+		// meh this doesn't line up because I used output from a real uc20 dev
+		// with ubuntu-save too, but none of the tests here assume ubuntu-save
+		"ID_PART_ENTRY_OFFSET": "3997696",
+		"ID_PART_ENTRY_SIZE":   "8552415",
+		"ID_PART_ENTRY_NUMBER": "3",
 	}
 )
 
@@ -161,18 +180,72 @@ func (s *diskSuite) TestDiskFromDeviceNameHappy(c *C) {
 func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	const vdaSysfsPath = "/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb"
 	fullSysPath := filepath.Join("/sys", vdaSysfsPath)
+	n := 0
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
-		c.Assert(typeOpt, Equals, "--path")
-		c.Assert(dev, Equals, fullSysPath)
-		return map[string]string{
-			"MAJOR":              "1",
-			"MINOR":              "2",
-			"DEVTYPE":            "disk",
-			"DEVNAME":            "/dev/vdb",
-			"ID_PART_TABLE_UUID": "bar",
-			"ID_PART_TABLE_TYPE": "dos",
-			"DEVPATH":            vdaSysfsPath,
-		}, nil
+		n++
+		switch n {
+		case 1:
+			// for getting the disk itself the first time
+			c.Assert(typeOpt, Equals, "--path")
+			c.Assert(dev, Equals, fullSysPath)
+			return map[string]string{
+				"MAJOR":              "1",
+				"MINOR":              "2",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/vdb",
+				"ID_PART_TABLE_UUID": "bar",
+				"ID_PART_TABLE_TYPE": "dos",
+				"DEVPATH":            vdaSysfsPath,
+			}, nil
+		case 2:
+			// getting the disk again when there are partitions defined
+			c.Assert(typeOpt, Equals, "--path")
+			c.Assert(dev, Equals, fullSysPath)
+			return map[string]string{
+				"MAJOR":              "1",
+				"MINOR":              "2",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/vdb",
+				"ID_PART_TABLE_UUID": "bar",
+				"ID_PART_TABLE_TYPE": "dos",
+				"DEVPATH":            vdaSysfsPath,
+			}, nil
+		case 3:
+			// getting the first partition
+			c.Assert(typeOpt, Equals, "--name")
+			c.Assert(dev, Equals, "vdb1")
+			return map[string]string{
+				"DEVPATH": vdaSysfsPath + "1",
+				"DEVNAME": "/dev/vdb1",
+				// upper case 0X
+				"ID_PART_ENTRY_TYPE":   "0Xc",
+				"ID_PART_ENTRY_SIZE":   "524288",
+				"ID_PART_ENTRY_NUMBER": "1",
+				"ID_PART_ENTRY_OFFSET": "2048",
+				"ID_PART_ENTRY_UUID":   "1212e868-01",
+				"MAJOR":                "1",
+				"MINOR":                "3",
+			}, nil
+		case 4:
+			// getting the second partition
+			c.Assert(typeOpt, Equals, "--name")
+			c.Assert(dev, Equals, "vdb2")
+			return map[string]string{
+				"DEVPATH": vdaSysfsPath + "2",
+				"DEVNAME": "/dev/vdb2",
+				// lower case 0x
+				"ID_PART_ENTRY_TYPE":   "0x83",
+				"ID_PART_ENTRY_SIZE":   "124473665",
+				"ID_PART_ENTRY_NUMBER": "2",
+				"ID_PART_ENTRY_OFFSET": "526336",
+				"ID_PART_ENTRY_UUID":   "1212e868-02",
+				"MAJOR":                "1",
+				"MINOR":                "4",
+			}, nil
+		default:
+			c.Errorf("test broken unexpected call to udevPropertiesForDevice for type %q on dev %q", typeOpt, dev)
+			return nil, fmt.Errorf("test broken, unexpected call for type %q on dev %q", typeOpt, dev)
+		}
 	})
 	defer restore()
 
@@ -200,6 +273,35 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	c.Assert(d.Dev(), Equals, "1:2")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vdb")
 	c.Assert(d.HasPartitions(), Equals, true)
+
+	parts, err := d.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{
+		{
+			Major:            1,
+			Minor:            4,
+			PartitionUUID:    "1212e868-02",
+			PartitionType:    "83",
+			KernelDevicePath: filepath.Join(dirs.SysfsDir, vdaSysfsPath) + "2",
+			KernelDeviceNode: "/dev/vdb2",
+			SizeInBytes:      124473665 * 512,
+			StartInBytes:     uint64(257 * quantity.SizeMiB),
+			StructureIndex:   2,
+		},
+		{
+			Major:            1,
+			Minor:            3,
+			PartitionUUID:    "1212e868-01",
+			PartitionType:    "0C",
+			KernelDevicePath: filepath.Join(dirs.SysfsDir, vdaSysfsPath) + "1",
+			KernelDeviceNode: "/dev/vdb1",
+			SizeInBytes:      uint64(256 * quantity.SizeMiB),
+			StartInBytes:     uint64(quantity.SizeMiB),
+			StructureIndex:   1,
+		},
+	})
+
+	c.Assert(n, Equals, 4)
 }
 
 func (s *diskSuite) TestDiskFromPartitionDeviceNodeHappy(c *C) {
@@ -280,6 +382,24 @@ func (s *diskSuite) TestDiskFromDeviceNameUnhappyNonPhysicalDisk(c *C) {
 
 	_, err := disks.DiskFromDeviceName("loop1")
 	c.Assert(err, ErrorMatches, "device with name \"loop1\" is not a physical disk")
+}
+
+func (s *diskSuite) TestDiskFromDeviceNameUnhappyUnknownDiskSchema(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "loop1")
+		return map[string]string{
+			// unsupported disk schema
+			"ID_PART_TABLE_TYPE": "foobar",
+			"MAJOR":              "1",
+			"MINOR":              "3",
+			"DEVTYPE":            "disk",
+		}, nil
+	})
+	defer restore()
+
+	_, err := disks.DiskFromDeviceName("loop1")
+	c.Assert(err, ErrorMatches, "unsupported disk schema \"foobar\"")
 }
 
 func (s *diskSuite) TestDiskFromDeviceNameUnhappyBadUdevOutput(c *C) {
@@ -433,7 +553,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 				"DEVPATH":            virtioDiskDevPath,
 				"DEVTYPE":            "disk",
 				"ID_PART_TABLE_UUID": "some-gpt-uuid",
-				"ID_PART_TABLE_TYPE": "foo",
+				"ID_PART_TABLE_TYPE": "gpt",
 			}, nil
 		case 3:
 			c.Assert(dev, Equals, "vda4")
@@ -442,12 +562,16 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			// this is essentially the same as /dev/block/42:1 in actuality, but
 			// we search for it differently
 			return map[string]string{
-				"ID_FS_LABEL_ENC":    "some-label",
-				"ID_PART_ENTRY_UUID": "some-uuid",
-				"DEVPATH":            "/devices/some-device",
-				"DEVNAME":            "/dev/vda4",
-				"MAJOR":              "42",
-				"MINOR":              "4",
+				"ID_FS_LABEL_ENC":      "some-label",
+				"ID_PART_ENTRY_UUID":   "some-uuid",
+				"ID_PART_ENTRY_TYPE":   "some-gpt-uuid-type",
+				"ID_PART_ENTRY_SIZE":   "3000",
+				"ID_PART_ENTRY_OFFSET": "2500",
+				"ID_PART_ENTRY_NUMBER": "4",
+				"DEVPATH":              "/devices/some-device",
+				"DEVNAME":              "/dev/vda4",
+				"MAJOR":                "42",
+				"MINOR":                "4",
 			}, nil
 		default:
 			c.Errorf("unexpected udev device properties requested: %s", dev)
@@ -482,6 +606,10 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			KernelDeviceNode: "/dev/vda4",
 			Major:            42,
 			Minor:            4,
+			PartitionType:    "SOME-GPT-UUID-TYPE",
+			SizeInBytes:      3000 * 512,
+			StructureIndex:   4,
+			StartInBytes:     2500 * 512,
 		},
 	})
 
@@ -511,12 +639,14 @@ elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
 	echo "DEVPATH=%s"
 	echo "DEVTYPE=disk"
 	echo "ID_PART_TABLE_UUID=some-gpt-uuid"
-	echo "ID_PART_TABLE_TYPE=foo-bar-type"
+	# GPT is upper case, it gets turned into lower case
+	echo "ID_PART_TABLE_TYPE=GPT"
 else
 	echo "unexpected arguments $*"
 	exit 1
 fi
 `, virtioDiskDevPath))
+	defer udevadmCmd.Restore()
 
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, IsNil)
@@ -525,6 +655,7 @@ fi
 	c.Assert(d.HasPartitions(), Equals, true)
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/vda")
 	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, virtioDiskDevPath))
+	c.Assert(d.Schema(), Equals, "gpt")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/vda1"},
@@ -576,7 +707,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 				"DEVNAME":            "foo",
 				"DEVPATH":            "/devices/foo",
 				"ID_PART_TABLE_UUID": "foo-uuid",
-				"ID_PART_TABLE_TYPE": "thing",
+				"ID_PART_TABLE_TYPE": "DOS",
 			}, nil
 		default:
 			c.Errorf("unexpected udev device properties requested: %s", dev)
@@ -603,6 +734,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:0")
 	c.Assert(d.HasPartitions(), Equals, true)
+	c.Assert(d.Schema(), Equals, "dos")
 }
 
 func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
@@ -620,6 +752,7 @@ else
 	exit 1
 fi
 `)
+	defer udevadmCmd.Restore()
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
 	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/not-a-disk of /run/mnt/point: unsupported DEVTYPE \"not-a-disk\"")
@@ -627,6 +760,38 @@ fi
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-disk"},
 		{"udevadm", "info", "--query", "property", "--name", "/dev/block/43:0"},
+	})
+}
+
+func (s *diskSuite) TestDiskFromMountPointUnsupportedSchema(c *C) {
+	restore := osutil.MockMountInfo(`130 30 42:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/not-a-supported-schema-disk rw
+`)
+	defer restore()
+
+	udevadmCmd := testutil.MockCommand(c, "udevadm", `
+if [ "$*" = "info --query property --name /dev/not-a-supported-schema-disk" ]; then
+	echo "DEVTYPE=disk"
+	echo "ID_PART_ENTRY_DISK=42:0"
+elif [ "$*" = "info --query property --name /dev/block/42:0" ]; then
+	echo "DEVTYPE=disk"
+	echo "DEVNAME=/dev/foo"
+	echo "DEVPATH=/block/32"
+	echo "ID_PART_TABLE_UUID=something"
+	echo "ID_PART_ENTRY_DISK=42:0"
+	echo "ID_PART_TABLE_TYPE=foo"
+else
+	echo "unexpected arguments $*"
+	exit 1
+fi
+`)
+	defer udevadmCmd.Restore()
+
+	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/not-a-supported-schema-disk of /run/mnt/point: unsupported disk schema \"foo\"")
+
+	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-supported-schema-disk"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/42:0"},
 	})
 }
 
@@ -805,6 +970,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 `)
 	defer restore()
 
+	// the order is reversed so that Find... functions working on the list of
+	// partitions can easily implement the same logic that udev uses when
+	// choosing which partition to use as /dev/disk/by-label when there exist
+	// multiple disks with that label, which is "last seen"
 	partsOnDisk := map[string]disks.Partition{
 		"ubuntu-data-enc": {
 			FilesystemLabel:  "ubuntu-data-enc",
@@ -813,6 +982,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            4,
 			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-data-enc-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda4",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			SizeInBytes:      8552415 * 512,
+			StructureIndex:   4,
+			StartInBytes:     3997696 * 512,
 		},
 		"ubuntu-boot": {
 			FilesystemLabel:  "ubuntu-boot",
@@ -822,6 +995,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            3,
 			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-boot-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda3",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			SizeInBytes:      1536000 * 512,
+			StructureIndex:   3,
+			StartInBytes:     2461696 * 512,
 		},
 		"ubuntu-seed": {
 			FilesystemLabel:  "ubuntu-seed",
@@ -831,6 +1008,10 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            2,
 			KernelDevicePath: fmt.Sprintf("%s/devices/ubuntu-seed-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda2",
+			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			SizeInBytes:      2457600 * 512,
+			StructureIndex:   2,
+			StartInBytes:     4096 * 512,
 		},
 		"bios-boot": {
 			PartitionLabel:   "BIOS\\x20Boot",
@@ -839,16 +1020,24 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			Minor:            1,
 			KernelDevicePath: fmt.Sprintf("%s/devices/bios-boot-device", dirs.SysfsDir),
 			KernelDeviceNode: "/dev/vda1",
+			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+			SizeInBytes:      2048 * 512,
+			StructureIndex:   1,
+			StartInBytes:     2048 * 512,
 		},
 	}
 
 	ubuntuDataEncUdevPropMap := map[string]string{
-		"ID_FS_LABEL_ENC":    "ubuntu-data-enc",
-		"ID_PART_ENTRY_UUID": "ubuntu-data-enc-partuuid",
-		"DEVPATH":            "/devices/ubuntu-data-enc-device",
-		"DEVNAME":            "/dev/vda4",
-		"MAJOR":              "42",
-		"MINOR":              "4",
+		"ID_FS_LABEL_ENC":      "ubuntu-data-enc",
+		"ID_PART_ENTRY_UUID":   "ubuntu-data-enc-partuuid",
+		"DEVPATH":              "/devices/ubuntu-data-enc-device",
+		"ID_PART_ENTRY_TYPE":   "0fc63daf-8483-4772-8e79-3d69d8477de4",
+		"DEVNAME":              "/dev/vda4",
+		"MAJOR":                "42",
+		"MINOR":                "4",
+		"ID_PART_ENTRY_OFFSET": "3997696",
+		"ID_PART_ENTRY_SIZE":   "8552415",
+		"ID_PART_ENTRY_NUMBER": "4",
 	}
 
 	n := 0

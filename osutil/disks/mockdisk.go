@@ -211,10 +211,10 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check major/minors across all structures
-	type majmin struct{ maj, min int }
-	seenMajorMinors := map[majmin]bool{}
+	// check major/minors across each disk
 	for _, disk := range mockedDisks {
+		type majmin struct{ maj, min int }
+		seenMajorMinors := map[majmin]bool{}
 		for _, p := range disk.Structure {
 			if p.Major == 0 && p.Minor == 0 {
 				continue
@@ -228,9 +228,24 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check device paths across all structures
-	seenDevPaths := map[string]bool{}
+	// check StructureIndex across each disk
 	for _, disk := range mockedDisks {
+		seenIndices := map[uint64]bool{}
+		for _, p := range disk.Structure {
+			if p.StructureIndex == 0 {
+				continue
+			}
+
+			if seenIndices[p.StructureIndex] {
+				panic("mock error: duplicated structure indices for partitions in disk mapping")
+			}
+			seenIndices[p.StructureIndex] = true
+		}
+	}
+
+	// check device paths across each disk
+	for _, disk := range mockedDisks {
+		seenDevPaths := map[string]bool{}
 		for _, p := range disk.Structure {
 			if p.KernelDevicePath == "" {
 				continue
@@ -242,18 +257,18 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check device nodes across all structures
-	seendDevNodes := map[string]bool{}
+	// check device nodes across each disk
 	for _, disk := range mockedDisks {
+		sendDevNodes := map[string]bool{}
 		for _, p := range disk.Structure {
 			if p.KernelDevicePath == "" {
 				continue
 			}
 
-			if seendDevNodes[p.KernelDeviceNode] {
+			if sendDevNodes[p.KernelDeviceNode] {
 				panic("mock error: duplicated kernel device nodes for partitions in disk mapping")
 			}
-			seendDevNodes[p.KernelDeviceNode] = true
+			sendDevNodes[p.KernelDeviceNode] = true
 		}
 	}
 
