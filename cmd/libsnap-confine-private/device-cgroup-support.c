@@ -82,6 +82,17 @@ static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
         }
         die("cannot prepare cgroup v1 device hierarchy");
     }
+    /* Only deny devices if we are not using an existing group - 
+     * if we deny devices for an existing group that we just opened,
+     * we risk denying access to a device that a currently running process
+     * is about to access and should legitimately have access to.
+     * A concrete example of this is when this function is used by snap-device-helper
+     * when a new udev device event is triggered and we are adding that device
+     * to the snap's device cgroup. At this point, a running application may be 
+     * accessing other devices which it should have access to (such as /dev/null
+     * or one of the other common, default devices) we would deny access to that
+     * existing device by re-creating the allow list of devices every time.
+     * */
     if (!from_existing) {
         /* starting a device cgroup from scratch, so deny device access by
          * default.
