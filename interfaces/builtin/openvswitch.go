@@ -41,13 +41,6 @@ const openvswitchConnectedPlugAppArmor = `
 /run/openvswitch/ovs-vswitchd.*.ctl rw,
 /run/openvswitch/ovs-vswitchd.pid rw,
 /etc/openvswitch/system-id.conf r,
-# same files in /var/run/ovn and /run/ovn, different apps use different paths
-/var/run/ovn/ovnnb_db.ctl rw,
-/var/run/ovn/ovnnb_db.sock rw,
-/var/run/ovn/ovnsb_db.ctl rw,
-/var/run/ovn/ovnsb_db.sock rw,
-/var/run/openvswitch/ovsdb-server.*.ctl rw,
-/var/run/openvswitch/ovsdb-server.pid r,
 /run/openvswitch/ovsdb-server.*.ctl rw,
 /run/openvswitch/ovsdb-server.pid r,
 /run/ovn/ovn-northd.pid r,
