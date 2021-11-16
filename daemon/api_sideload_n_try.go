@@ -43,8 +43,6 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
-const maxReadBuflen = 1024 * 1024
-
 type Form struct {
 	Value      map[string][]string
 	FileHeader map[string][]*FileHeader
@@ -71,11 +69,18 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 
 	// POSTs to sideload snaps must be a multipart/form-data file upload.
 	mpReader := multipart.NewReader(body, boundary)
-	form, err := readForm(mpReader)
-	if err != nil {
-		return BadRequest("cannot read POST form: %v", err)
+	form, errRsp := readForm(mpReader)
+	if errRsp != nil {
+		return errRsp
 	}
 
+	// we are in charge of the tempfile life cycle until we hand it off to the change
+	changeTriggered := false
+	defer func() {
+		if !changeTriggered {
+			form.RemoveAll()
+		}
+	}()
 	dangerousOK := isTrue(form, "dangerous")
 	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
@@ -112,14 +117,6 @@ out:
 	if tempPath == "" {
 		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
-
-	// we are in charge of the tempfile life cycle until we hand it off to the change
-	changeTriggered := false
-	defer func() {
-		if !changeTriggered {
-			os.Remove(tempPath)
-		}
-	}()
 
 	if len(form.Value["snap-path"]) > 0 {
 		origPath = form.Value["snap-path"][0]
@@ -208,19 +205,23 @@ out:
 	return AsyncResponse(nil, chg.ID())
 }
 
+// maxReadBuflen is the maximum buffer size for reading the non-file parts in the snap upload form
+const maxReadBuflen = 1024 * 1024
+
 // readForm returns a Form populated with values (for non-file parts) and file headers (for file
 // parts). The file headers contain the original file name and a path to the persisted file in
-// dirs.SnapDirBlob. Errors are *apiError.
-func readForm(reader *multipart.Reader) (form *Form, err error) {
+// dirs.SnapDirBlob. If an error occurs and a non-nil Response is returned, an attempt is made
+// to remove temp files.
+func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 	maxMemory := int64(maxReadBuflen)
-	form = &Form{
+	form := &Form{
 		Value:      make(map[string][]string),
 		FileHeader: make(map[string][]*FileHeader),
 	}
 
 	// clean up if we're failing the request
 	defer func() {
-		if err != nil {
+		if apiErr != nil {
 			form.RemoveAll()
 		}
 	}()
@@ -232,7 +233,6 @@ func readForm(reader *multipart.Reader) (form *Form, err error) {
 				break
 			}
 			return nil, BadRequest("cannot read POST form: %v", err)
-
 		}
 
 		name := part.FormName()
@@ -248,12 +248,12 @@ func readForm(reader *multipart.Reader) (form *Form, err error) {
 			// copy one byte more than the max so we know if it exceeds the limit
 			n, err := io.CopyN(buf, part, maxMemory+1)
 			if err != nil && !errors.Is(err, io.EOF) {
-				return nil, InternalError("cannot read form data: %v", err)
+				return nil, BadRequest("cannot read form data: %v", err)
 			}
 
 			maxMemory -= n
 			if maxMemory < 0 {
-				return nil, InternalError("cannot read form data: exceeds memory limit")
+				return nil, BadRequest("cannot read form data: exceeds memory limit")
 			}
 
 			form.Value[name] = append(form.Value[name], buf.String())
@@ -271,6 +271,7 @@ func readForm(reader *multipart.Reader) (form *Form, err error) {
 			}
 		}()
 
+		// TODO: limit the file part size by wrapping it w/ http.MaxBytesReader
 		_, err = io.Copy(tmpf, part)
 		if err != nil {
 			return nil, InternalError("cannot write file part: %v", err)
@@ -284,19 +285,21 @@ func readForm(reader *multipart.Reader) (form *Form, err error) {
 		form.FileHeader[name] = append(form.FileHeader[name], fh)
 	}
 
-	// sync the parent directory where the snap files were written to
-	dir, err := os.Open(dirs.SnapBlobDir)
-	if err != nil {
-		return nil, InternalError("cannot open parent dir for tmp snap files: %v", err)
-	}
-	defer func() {
-		if cerr := dir.Close(); err == nil && cerr != nil {
-			err = InternalError("cannot close parent dir for tmp snap files: %v", cerr)
+	// sync the parent directory where the files were written to
+	if len(form.FileHeader) > 0 {
+		dir, err := os.Open(dirs.SnapBlobDir)
+		if err != nil {
+			return nil, InternalError("cannot open parent dir of temp files: %v", err)
 		}
-	}()
+		defer func() {
+			if cerr := dir.Close(); err == nil && cerr != nil {
+				err = InternalError("cannot close parent dir of temp files: %v", cerr)
+			}
+		}()
 
-	if err := dir.Sync(); err != nil {
-		return nil, InternalError("cannot sync parent dir for tmp snap files: %v", err)
+		if err := dir.Sync(); err != nil {
+			return nil, InternalError("cannot sync parent dir of temp files: %v", err)
+		}
 	}
 
 	return form, nil
