@@ -22,6 +22,7 @@ package daemon_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -531,6 +532,33 @@ func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
 	data, err := ioutil.ReadFile(matches[0])
 	c.Assert(err, check.IsNil)
 	c.Assert(string(data), check.Equals, "xyzzy")
+}
+
+func (s *sideloadSuite) TestSideloadMemoryLimit(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	// check that there's a memory limit for the sum of the parts, not just each
+	bufs := make([][]byte, 2)
+	var body string
+
+	for i := range bufs {
+		bufs[i] = make([]byte, daemon.MaxReadBuflen/2+1)
+		_, err := rand.Read(bufs[i])
+		c.Assert(err, check.IsNil)
+
+		body += "--foo\r\n" +
+			"Content-Disposition: form-data; name=\"stuff\"\r\n" +
+			"\r\n" +
+			string(bufs[i]) +
+			"xyzzy\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=foo")
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.Message, check.Equals, `cannot read form data: exceeds memory limit`)
 }
 
 type trySuite struct {

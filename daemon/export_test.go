@@ -228,4 +228,6 @@ var (
 
 	MakeErrorResponder = makeErrorResponder
 	ErrToResponse      = errToResponse
+
+	MaxReadBuflen = maxReadBuflen
 )
