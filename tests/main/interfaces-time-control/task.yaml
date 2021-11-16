@@ -14,6 +14,13 @@ prepare: |
 
     date +'%m%d%H%M.%y' > now.txt
 
+    # ensure ntp sync is restored if needed
+    case "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" in
+        "b true")
+            tests.cleanup defer busctl call org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 SetNTP bb true false
+            ;;
+    esac
+
 restore: |
     # Restore the initial rtc configuration
     if [ -f rtc.txt ]; then
