@@ -1339,7 +1339,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		reportUpdated[snapName] = true
 	}
 
-	// first snapd, core, bases, then rest
+	// first snapd, core, kernel, bases, then rest
 	sort.Stable(byType(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
@@ -1391,7 +1391,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 				waitPrereq(ts, update.SnapBase())
 			}
 		}
-		// keep track of kernel/gadget updates
+		// keep track of kernel/gadget/base updates
 		switch update.Type() {
 		case snap.TypeKernel:
 			kernelTs = ts
