@@ -22,6 +22,7 @@ package client_test
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -455,5 +456,20 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 		w.Write([]byte(`{"type": "sync"}`))
 	})
 	err := s.cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
+	c.Assert(err, IsNil)
+}
+
+func (s *clientSuite) TestCloseRefreshNotification(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Assert(r.URL.Path, Equals, "/v1/notifications/close")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(string(body), DeepEquals, `{"instance-name":"some-snap"}`)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"type": "sync"}`))
+	})
+	err := s.cli.CloseRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
 	c.Assert(err, IsNil)
 }

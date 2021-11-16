@@ -297,3 +297,19 @@ func (client *Client) PendingRefreshNotification(ctx context.Context, refreshInf
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/pending-refresh", nil, headers, reqBody)
 	return err
 }
+
+// FinishedSnapRefreshInfo holds information about a finished refresh provided to userd.
+type FinishedSnapRefreshInfo struct {
+	InstanceName string `json:"instance-name"`
+}
+
+// CloseRefreshNotification closes notification about a snap refresh.
+func (client *Client) CloseRefreshNotification(ctx context.Context, closeInfo *FinishedSnapRefreshInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(closeInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/close", nil, headers, reqBody)
+	return err
+}
