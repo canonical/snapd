@@ -1828,7 +1828,6 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	c.Check(called, check.Equals, 2)
 
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Assert(notification, check.NotNil)
 	c.Check(notification, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
 		InstanceName:  "some-snap",
 		TimeRemaining: 0,
