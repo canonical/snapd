@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.53.1
+Version:        2.53.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -289,7 +289,7 @@ Provides:      bundled(golang(github.com/juju/ratelimit))
 Provides:      bundled(golang(github.com/kr/pretty))
 Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
-Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
+Provides:      bundled(golang(github.com/seccomp/libseccomp-golang))
 Provides:      bundled(golang(github.com/snapcore/go-gettext))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
@@ -534,8 +534,6 @@ BUILDTAGS="nosecboot"
 %endif
 
 %if ! 0%{?with_bundled}
-# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
 # We don't need the snapcore fork for bolt - it is just a fix on ppc
 sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go errtracker/*.go
 %endif
@@ -978,6 +976,37 @@ fi
 
 
 %changelog
+* Mon Nov 15 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.53.2
+ - interfaces/builtin/block_devices: allow blkid to print block
+   device attributes/run/udev/data/b{major}:{minor}
+ - cmd/libsnap-confine-private: do not deny all devices when reusing
+   the device cgroup
+ - interfaces/builtin/time-control: allow pps access
+ - interfaces/u2f-devices: add Trezor and Trezor v2 keys
+ - interfaces: timezone-control, add permission for ListTimezones
+   DBus call
+ - interfaces/apparmor/template.go: allow udevadm from merged usr
+   systems
+ - interface/modem-manager: allow connecting to the mbim/qmi proxy
+ - interfaces/network-manager-observe: Update for libnm client
+   library
+ - cmd/snap-seccomp/syscalls: update syscalls to match libseccomp
+   abad8a8f4
+ - sandbox/cgroup: freeze and thaw cgroups related to services and
+   scopes only
+ - o/hookstate: print cohort with snapctl refresh --pending
+ - cmd/snap-confine: lazy set up of device cgroup, only when devices
+   were assigned
+ - tests: ensure systemd-timesyncd is installed on debian
+ - tests/lib/pkgdb: install strace on Debian 11 and Sid
+ - tests/main/snapd-sigterm: flush, use retry
+ - tests/main/snapd-sigterm: fix race conditions
+ - release-tools/repack-debian-tarball.sh: fix c-vendor dir
+ - data/selinux: allow snap-confine to read udev's database
+ - interfaces/dsp: add more ambarella things* interfaces/dsp: add
+   more ambarella things
+
 * Thu Oct 21 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.53.1
  - spread: run lxd tests with version from latest/stable

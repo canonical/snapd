@@ -335,6 +335,11 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
+// It is *very intentional* that resealing takes the modeenv and only
+// the modeenv as input. modeenv content is well defined and updated
+// atomically.  In particular we want to avoid resealing against
+// transient/in-memory information with the risk that successive
+// reseals during in-progress operations produce diverging outcomes.
 func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	method, err := sealedKeysMethod(rootdir)
 	if err == errNoSealedKeys {

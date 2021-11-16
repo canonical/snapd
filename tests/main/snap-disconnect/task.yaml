@@ -54,6 +54,10 @@ execute: |
     echo "Disconnecting again using abbreviated form is handled"
     snap disconnect home-consumer:home | MATCH "No connections to disconnect"
 
+    echo "Disconnecting without specifying the slot/plug fails"
+    snap disconnect home-consumer: 2>&1 | MATCH '.*invalid value: "home-consumer:" \(want snap:name or :name\)'
+    snap disconnect home-consumer 2>&1 | MATCH '.*invalid value: "home-consumer" \(want snap:name or :name\)'
+    snap disconnect home-consumer:home core 2>&1 | MATCH '.*invalid value: "core" \(want snap:name or :name\)'
 
     # these checks rely on automatic connection of home on non-core systems
     if ! os.query is-core; then

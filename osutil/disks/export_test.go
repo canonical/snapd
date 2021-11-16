@@ -44,4 +44,4 @@ func MockUdevPropertiesForDevice(new func(string, string) (map[string]string, er
 
 var UnregisterDeviceMapperBackResolver = unregisterDeviceMapperBackResolver
 
-var CryptLuks2DeviceMapperHandler = cryptLuks2DeviceMapperHandler
+var CryptLuks2DeviceMapperBackResolver = cryptLuks2DeviceMapperBackResolver

@@ -21,7 +21,11 @@ package assertstate
 
 // expose for testing
 var (
-	DoFetch = doFetch
+	DoFetch                                   = doFetch
+	ValidationSetAssertionForEnforce          = validationSetAssertionForEnforce
+	ValidationSetAssertionForMonitor          = validationSetAssertionForMonitor
+	AddCurrentTrackingToValidationSetsHistory = addCurrentTrackingToValidationSetsHistory
+	ValidationSetsHistoryTop                  = validationSetsHistoryTop
 )
 
 func MockMaxGroups(n int) (restore func()) {
@@ -29,5 +33,13 @@ func MockMaxGroups(n int) (restore func()) {
 	maxGroups = n
 	return func() {
 		maxGroups = oldMaxGroups
+	}
+}
+
+func MockMaxValidationSetsHistorySize(n int) (restore func()) {
+	oldMaxValidationSetsHistorySize := maxValidationSetsHistorySize
+	maxValidationSetsHistorySize = n
+	return func() {
+		maxValidationSetsHistorySize = oldMaxValidationSetsHistorySize
 	}
 }

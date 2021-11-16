@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -109,13 +110,32 @@ type errNonPhysicalDisk struct {
 
 func (e errNonPhysicalDisk) Error() string { return e.err }
 
+const propNotFoundErrFmt = "property %q not found"
+
+func requiredUDevPropUint(props map[string]string, name string) (uint64, error) {
+	partIndex, ok := props[name]
+	if !ok {
+		return 0, fmt.Errorf(propNotFoundErrFmt, name)
+	}
+	v, err := strconv.ParseUint(partIndex, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("cannot parse %q: %v", partIndex, err)
+	}
+	return v, nil
+}
+
 func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
 	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
 	// the disk, so check for that first and if it's missing then we return a
 	// specific NotAPhysicalDisk error
-	schema := props["ID_PART_TABLE_TYPE"]
+	schema := strings.ToLower(props["ID_PART_TABLE_TYPE"])
 	if schema == "" {
 		return nil, errNonPhysicalDisk{fmt.Sprintf("device with %s %q is not a physical disk", deviceIDType, deviceIdentifier)}
+	}
+
+	// for now we only support DOS and GPT schema disks
+	if schema != "dos" && schema != "gpt" {
+		return nil, fmt.Errorf("unsupported disk schema %q", props["ID_PART_TABLE_TYPE"])
 	}
 
 	major, err := strconv.Atoi(props["MAJOR"])
@@ -456,7 +476,7 @@ func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error
 		}
 
 		if !matchedHandler {
-			return nil, fmt.Errorf("no handler supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
+			return nil, fmt.Errorf("internal error: no back resolver supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
 		}
 	}
 
@@ -515,9 +535,13 @@ func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error
 		return nil, fmt.Errorf("incomplete udev output missing required property \"ID_PART_TABLE_UUID\"")
 	}
 
-	schema := realDiskProps["ID_PART_TABLE_TYPE"]
+	schema := strings.ToLower(realDiskProps["ID_PART_TABLE_TYPE"])
 	if schema == "" {
 		return nil, fmt.Errorf("incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"")
+	}
+
+	if schema != "gpt" && schema != "dos" {
+		return nil, fmt.Errorf("unsupported disk schema %q", realDiskProps["ID_PART_TABLE_TYPE"])
 	}
 
 	d.schema = schema
@@ -618,18 +642,70 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
+			emitUDevPropErr := func(e error) error {
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), e)
+			}
+
 			// the devpath and devname should always be available
 			devpath, ok := udevProps["DEVPATH"]
 			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVPATH\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVPATH"))
 			}
 			part.KernelDevicePath = filepath.Join(dirs.SysfsDir, devpath)
 
 			devname, ok := udevProps["DEVNAME"]
 			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVNAME\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVNAME"))
 			}
 			part.KernelDeviceNode = devname
+
+			// we should always have the partition type
+			partType, ok := udevProps["ID_PART_ENTRY_TYPE"]
+			if !ok {
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "ID_PART_ENTRY_TYPE"))
+			}
+
+			// on dos disks, the type is formatted like "0xc", when we prefer to
+			// always use "0C" so fix the formatting
+			if d.schema == "dos" {
+				partType = strings.TrimPrefix(strings.ToLower(partType), "0x")
+				v, err := strconv.ParseUint(partType, 16, 8)
+				if err != nil {
+					return emitUDevPropErr(fmt.Errorf("cannot convert MBR partition type %q: %v", partType, err))
+				}
+				partType = fmt.Sprintf("%02X", v)
+			} else {
+				// on GPT disks, just capitalize the partition type since it's a
+				// UUID
+				partType = strings.ToUpper(partType)
+			}
+
+			part.PartitionType = partType
+
+			// the partition may not have a filesystem, in which case this might
+			// be the empty string
+			part.FilesystemType = udevProps["ID_FS_TYPE"]
+
+			part.SizeInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_SIZE")
+			if err != nil {
+				return emitUDevPropErr(err)
+			}
+
+			part.StructureIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
+			if err != nil {
+				return emitUDevPropErr(err)
+			}
+
+			part.StartInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_OFFSET")
+			if err != nil {
+				return emitUDevPropErr(err)
+			}
+
+			// udev always reports the size and offset in 512 byte blocks,
+			// regardless of sector size, so multiply the size in 512 byte
+			// blocks by 512 to get the size/offset in bytes
+			part.StartInBytes *= 512
+			part.SizeInBytes *= 512
 
 			// we should always have the partition uuid, and we may not have
 			// either the partition label or the filesystem label, on GPT disks
@@ -639,19 +715,21 @@ func (d *disk) populatePartitions() error {
 			// the partition
 			part.PartitionUUID = udevProps["ID_PART_ENTRY_UUID"]
 			if part.PartitionUUID == "" {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "ID_PART_ENTRY_UUID"))
 			}
 
 			// we should also always have the device major/minor for this device
-			part.Major, err = strconv.Atoi(udevProps["MAJOR"])
+			maj, err := requiredUDevPropUint(udevProps, "MAJOR")
 			if err != nil {
-				return fmt.Errorf("cannot parse device major number format: %v", err)
+				return emitUDevPropErr(err)
 			}
+			part.Major = int(maj)
 
-			part.Minor, err = strconv.Atoi(udevProps["MINOR"])
+			min, err := requiredUDevPropUint(udevProps, "MINOR")
 			if err != nil {
-				return fmt.Errorf("cannot parse device major number format: %v", err)
+				return emitUDevPropErr(err)
 			}
+			part.Minor = int(min)
 
 			// on MBR disks we may not have a partition label, so this may be
 			// the empty string. Note that this value is encoded similarly to
@@ -778,4 +856,37 @@ func (d *disk) HasPartitions() bool {
 	//       could instead populate the partitions here and then return whether
 	//       d.partitions is empty or not
 	return d.hasPartitions
+}
+
+func AllPhysicalDisks() ([]Disk, error) {
+	// get disks for every block device in /sys/block/
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+
+	files, err := ioutil.ReadDir(blockDir)
+	if err != nil {
+		return nil, err
+	}
+
+	disks := make([]Disk, 0, len(files))
+
+	for _, f := range files {
+		if f.IsDir() {
+			// unexpected to have a directory here and not a symlink, but for
+			// now just silently ignore it
+			continue
+		}
+
+		// get a disk by path with the name of the file and /block/
+		fullpath := filepath.Join(blockDir, f.Name())
+
+		disk, err := DiskFromDevicePath(fullpath)
+		if err != nil {
+			if errors.As(err, &errNonPhysicalDisk{}) {
+				continue
+			}
+			return nil, err
+		}
+		disks = append(disks, disk)
+	}
+	return disks, nil
 }

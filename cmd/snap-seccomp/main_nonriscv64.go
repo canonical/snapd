@@ -1,4 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//
+// +build !riscv64
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -17,29 +19,19 @@
  *
  */
 
-package notification
+package main
 
 import (
-	"context"
-	"time"
+	"fmt"
 
-	"github.com/godbus/dbus"
+	"github.com/seccomp/libseccomp-golang"
 )
 
-type NotificationManager interface {
-	SendNotification(id ID, msg *Message) error
-	CloseNotification(id ID) error
-	IdleDuration() time.Duration
-
-	HandleNotifications(ctx context.Context) error
-}
-
-func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {
-	// first try the GTK backend
-	if manager, err := newGtkBackend(conn, desktopID); err == nil {
-		return manager
-	}
-
-	// fallback to the older FDO API
-	return newFdoBackend(conn, desktopID)
+// this extraDpkgArchToScmpArch does not have riscv64 constant, when
+// building on non-riscv64 archtictures with an old seccomp library.
+// once all distros upgrade to the new seccomp library we can drop
+// this and riscv64 specific files and fold things back into
+// DpkgArchToScmpArch() without this function
+func extraDpkgArchToScmpArch(dpkgArch string) seccomp.ScmpArch {
+	panic(fmt.Sprintf("cannot map dpkg arch %q to a seccomp arch", dpkgArch))
 }

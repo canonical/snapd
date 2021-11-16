@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build oldseccomp
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -17,29 +18,13 @@
  *
  */
 
-package notification
+package main
 
-import (
-	"context"
-	"time"
-
-	"github.com/godbus/dbus"
-)
-
-type NotificationManager interface {
-	SendNotification(id ID, msg *Message) error
-	CloseNotification(id ID) error
-	IdleDuration() time.Duration
-
-	HandleNotifications(ctx context.Context) error
-}
-
-func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {
-	// first try the GTK backend
-	if manager, err := newGtkBackend(conn, desktopID); err == nil {
-		return manager
-	}
-
-	// fallback to the older FDO API
-	return newFdoBackend(conn, desktopID)
-}
+// On 14.04 we need to use forked libseccomp-golang, as recent
+// upstream libseccomp-golang does not support building against
+// libseecomp 2.1.1. This is patched in via packaging patch. But to
+// continue vendoring the modules in go.mod any golang file must still
+// reference the old forked libseccomp-golang. Which is here.  This
+// file and import can be safely removed, once 14.04 build support of
+// master is deemed to never be required again.
+import "github.com/mvo5/libseccomp-golang"
