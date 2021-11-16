@@ -1476,11 +1476,16 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			kernelTs = ts
 		case snap.TypeGadget:
 			gadgetTs = ts
-		case snap.TypeBase, snap.TypeOS:
+		case snap.TypeBase:
 			if update.InstanceName() == deviceCtx.Model().Base() {
 				// only the boot base is relevant for reboots
 				bootBaseTs = ts
 			}
+		case snap.TypeOS:
+			// nothing to do, we cannot set up a single reboot with
+			// "core" due to all tasks of other snaps impolitely
+			// waiting for all tasks of "core", what makes us end up
+			// with a task wait loop
 		}
 
 		scheduleUpdate(update.InstanceName(), ts)
