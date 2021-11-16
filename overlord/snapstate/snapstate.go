@@ -1212,23 +1212,11 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 
 	haveBase, haveKernel := bootBaseTs != nil, kernelTs != nil
 	if !haveBase && !haveKernel {
+		// neither base nor kernel update
 		return nil
 	}
 	if haveBase != haveKernel {
 		// have one but not the other
-		var linkSnap *state.Task
-		if haveKernel {
-			// only kernel in this update
-			linkSnap, _ = findTaskOfKind(kernelTs, "link-snap")
-		} else {
-			// only boot base in this update
-			linkSnap, _ = findTaskOfKind(bootBaseTs, "link-snap")
-		}
-		if linkSnap != nil {
-			// we're only updating the base or the kernel, so the link-snap
-			// task can request a reboot
-			linkSnap.Set("can-reboot", true)
-		}
 		return nil
 	}
 
@@ -1278,9 +1266,9 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	// this task already waits for auto-connect of base
 	bootBaseTs.Tasks()[acBaseIdx+1].WaitFor(autoConnectKernel)
 
-	linkSnapBase.Set("can-reboot", false)
-	// kernel link snap can reboot
-	linkSnapKernel.Set("can-reboot", true)
+	// cannot-reboot indicates that a task cannot invoke a reboot
+	linkSnapBase.Set("cannot-reboot", true)
+
 	// first auto connect will wait for reboot, but the restart pending flag
 	// will be cleared for the second one that runs
 	return nil

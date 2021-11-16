@@ -1566,15 +1566,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// so that we switch executing its snapd.
 	var canReboot bool
 	if reboot {
+		var cannotReboot bool
 		// system reboot is required, but can this task request that?
-		if err := t.Get("can-reboot", &canReboot); err != nil && err != state.ErrNoState {
+		if err := t.Get("cannot-reboot", &cannotReboot); err != nil && err != state.ErrNoState {
 			return err
-		} else if err == state.ErrNoState {
-			// err-no-state, implying the the task was created
-			// before those variables were introduced
-			canReboot = true
 		}
-		if !canReboot {
+		if !cannotReboot {
+			// either the task was created before that variable was
+			// introduced or the task can request a reboot
+			canReboot = true
+		} else {
 			t.Logf("reboot postponed to later tasks")
 		}
 	}
