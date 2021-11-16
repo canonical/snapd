@@ -1,4 +1,3 @@
-0001-cmd-snap-seccomp-use-upstream-seccomp-package.patch
 0002-cmd-snap-seccomp-skip-tests-that-fail-on-4.19.patch
 0003-cmd-snap-seccomp-skip-tests-that-use-m32.patch
 0004-cmd-snap-skip-tests-depending-on-text-wrapping.patch

@@ -249,7 +249,7 @@ var (
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
+func MockGadgetUpdate(mock func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
@@ -343,4 +343,16 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
 	return mgr.checkFDEFeatures()
+}
+
+func MockTimeutilIsNTPSynchronized(f func() (bool, error)) (restore func()) {
+	old := timeutilIsNTPSynchronized
+	timeutilIsNTPSynchronized = f
+	return func() {
+		timeutilIsNTPSynchronized = old
+	}
+}
+
+func DeviceManagerNTPSyncedOrWaitedLongerThan(mgr *DeviceManager, maxWait time.Duration) bool {
+	return mgr.ntpSyncedOrWaitedLongerThan(maxWait)
 }

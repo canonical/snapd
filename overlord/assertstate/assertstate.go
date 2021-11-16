@@ -463,11 +463,11 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 			return err
 		}
 
-		snaps, err := snapstate.InstalledSnaps(s)
+		snaps, ignoreValidation, err := snapstate.InstalledSnaps(s)
 		if err != nil {
 			return err
 		}
-		err = vsets.CheckInstalledSnaps(snaps)
+		err = vsets.CheckInstalledSnaps(snaps, ignoreValidation)
 		if verr, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
 			if len(verr.InvalidSnaps) > 0 || len(verr.MissingSnaps) > 0 {
 				return verr
@@ -501,11 +501,11 @@ type ResolveOptions struct {
 	AllowLocalFallback bool
 }
 
-// ValidationSetAssertionForMonitor tries to fetch or refresh the validation
+// validationSetAssertionForMonitor tries to fetch or refresh the validation
 // set assertion with accountID/name/sequence (sequence is optional) using pool.
 // If assertion cannot be fetched but exists locally and opts.AllowLocalFallback
 // is set then the local one is returned
-func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *ResolveOptions) (as *asserts.ValidationSet, local bool, err error) {
+func validationSetAssertionForMonitor(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *ResolveOptions) (as *asserts.ValidationSet, local bool, err error) {
 	if opts == nil {
 		opts = &ResolveOptions{}
 	}
@@ -591,12 +591,12 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	return as, false, err
 }
 
-// ValidationSetAssertionForEnforce tries to fetch the validation set assertion
+// validationSetAssertionForEnforce tries to fetch the validation set assertion
 // with the given accountID/name/sequence (sequence is optional) using pool and
 // checks if it's not in conflict with existing validation sets in enforcing mode
 // (all currently tracked validation set assertions get refreshed), and if they
 // are valid for installed snaps.
-func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (vs *asserts.ValidationSet, err error) {
+func validationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (vs *asserts.ValidationSet, err error) {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, err
@@ -661,7 +661,7 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		if err := valsets.Conflict(); err != nil {
 			return err
 		}
-		if err := valsets.CheckInstalledSnaps(snaps); err != nil {
+		if err := valsets.CheckInstalledSnaps(snaps, ignoreValidation); err != nil {
 			return err
 		}
 		return nil
@@ -724,6 +724,52 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	}
 
 	return vs, err
+}
+
+// EnforceValidationSet tries to fetch the given validation set and enforce it.
+// If all validation sets constrains are satisfied, the current validation sets
+// tracking state is saved in validation sets history.
+func EnforceValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+	vs, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
+	if err != nil {
+		return err
+	}
+
+	tr := ValidationSetTracking{
+		AccountID: accountID,
+		Name:      name,
+		Mode:      Enforce,
+		// note, sequence may be 0, meaning not pinned.
+		PinnedAt: sequence,
+		Current:  vs.Sequence(),
+	}
+
+	UpdateValidationSet(st, &tr)
+	return addCurrentTrackingToValidationSetsHistory(st)
+}
+
+// MonitorValidationSet tries to fetch the given validation set and monitor it.
+// The current validation sets tracking state is saved in validation sets history.
+func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) error {
+	pinned := sequence > 0
+	opts := ResolveOptions{AllowLocalFallback: true}
+	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
+	if err != nil {
+		return fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
+	}
+
+	tr := ValidationSetTracking{
+		AccountID: accountID,
+		Name:      name,
+		Mode:      Monitor,
+		// note, Sequence may be 0, meaning not pinned.
+		PinnedAt:  sequence,
+		Current:   as.Sequence(),
+		LocalOnly: local,
+	}
+
+	UpdateValidationSet(st, &tr)
+	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
 // TemporaryDB returns a temporary database stacked on top of the assertions

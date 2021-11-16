@@ -206,6 +206,56 @@ update_core_snap_for_classic_reexec() {
     done
 }
 
+prepare_memory_limit_override() {
+    # set up memory limits for snapd bu default unless explicit requested not to
+    # or the system is known to be problematic
+    local set_limit=1
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*|ubuntu-core-18-*|ubuntu-16.04-*|ubuntu-18.04-*)
+            # the tests on UC16, UC18 and correspondingly 16.04 and 18.04 have
+            # demonstrated that the memory limit state claimed by systemd may be
+            # out of sync with actual memory controller setting for the
+            # snapd.service cgroup
+            set_limit=0
+            ;;
+        amazon-linux-*)
+            # similar issues have been observed on Amazon Linux 2
+            set_limit=0
+            ;;
+        *)
+            if [ -n "${SNAPD_NO_MEMORY_LIMIT:-}" ]; then
+                set_limit=0
+            fi
+            ;;
+    esac
+
+    if [ "$set_limit" = "0" ]; then
+        # make sure the file does not exist then
+        rm -f /etc/systemd/system/snapd.service.d/memory-max.conf
+    else
+        mkdir -p /etc/systemd/system/snapd.service.d
+        # Use MemoryMax to set the memory limit for snapd.service, that is the
+        # main snapd process and its subprocesses executing within the same
+        # cgroup. If snapd hits the memory limit, it will get killed by
+        # oom-killer which will be caught in restore_project_each in
+        # prepare-restore.sh.
+        #
+        # This ought to set MemoryMax, but on systems with older systemd we need to
+        # use MemoryLimit, which is deprecated and replaced by MemoryMax now, but
+        # systemd is backwards compatible so the limit is still set.
+        cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
+[Service]
+# mvo: disabled because of many failures in restore, e.g. in PR#11014
+#MemoryLimit=100M
+EOF
+    fi
+    # the service setting may have changed in the service so we need
+    # to ensure snapd is reloaded
+    systemctl daemon-reload
+    systemctl restart snapd
+}
+
 prepare_each_classic() {
     mkdir -p /etc/systemd/system/snapd.service.d
     if [ -z "${SNAP_REEXEC:-}" ]; then
@@ -794,7 +844,7 @@ setup_reflash_magic() {
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     # install ubuntu-image
-    snap install --classic --edge ubuntu-image
+    snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
@@ -923,7 +973,8 @@ EOF
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20.snap"
     fi
 
-    /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
+    /snap/bin/ubuntu-image snap \
+                           -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
                            --extra-snaps "${extra_snap[0]}" \

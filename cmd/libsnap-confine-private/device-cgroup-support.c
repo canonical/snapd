@@ -73,20 +73,36 @@ static void sc_cleanup_cgroup_fds(sc_cgroup_fds *fds);
 static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
     self->v1.fds = sc_cgroup_fds_new();
 
+    /* are we creating the group or just using whatever there is? */
+    const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
     /* initialize to something sane */
     if (sc_udev_open_cgroup_v1(self->security_tag, flags, &self->v1.fds) < 0) {
-        if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
+        if (from_existing) {
             return -1;
         }
         die("cannot prepare cgroup v1 device hierarchy");
     }
-    /* Deny device access by default.
-     *
-     * Write 'a' to devices.deny to remove all existing devices that were added
-     * in previous launcher invocations, then add the static and assigned
-     * devices. This ensures that at application launch the cgroup only has
-     * what is currently assigned. */
-    sc_dprintf(self->v1.fds.devices_deny_fd, "a");
+    /* Only deny devices if we are not using an existing group - 
+     * if we deny devices for an existing group that we just opened,
+     * we risk denying access to a device that a currently running process
+     * is about to access and should legitimately have access to.
+     * A concrete example of this is when this function is used by snap-device-helper
+     * when a new udev device event is triggered and we are adding that device
+     * to the snap's device cgroup. At this point, a running application may be 
+     * accessing other devices which it should have access to (such as /dev/null
+     * or one of the other common, default devices) we would deny access to that
+     * existing device by re-creating the allow list of devices every time.
+     * */
+    if (!from_existing) {
+        /* starting a device cgroup from scratch, so deny device access by
+         * default.
+         *
+         * Write 'a' to devices.deny to remove all existing devices that were added
+         * in previous launcher invocations, then add the static and assigned
+         * devices. This ensures that at application launch the cgroup only has
+         * what is currently assigned. */
+        sc_dprintf(self->v1.fds.devices_deny_fd, "a");
+    }
     return 0;
 }
 
@@ -284,6 +300,20 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     return old_limit;
 }
 
+static bool _sc_is_snap_cgroup(const char *group) {
+    /* make a copy as basename may modify its input */
+    char copy[PATH_MAX] = {0};
+    strncpy(copy, group, sizeof(copy) - 1);
+    char *leaf = basename(copy);
+    if (!sc_startswith(leaf, "snap.")) {
+        return false;
+    }
+    if (!sc_endswith(leaf, ".service") && !sc_endswith(leaf, ".scope")) {
+        return false;
+    }
+    return true;
+}
+
 static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     self->v2.devmap_fd = -1;
     self->v2.cgroup_fd = -1;
@@ -291,6 +321,14 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     char *own_group SC_CLEANUP(sc_cleanup_string) = sc_cgroup_v2_own_path_full();
     if (own_group == NULL) {
         die("cannot obtain own group path");
+    }
+    debug("process in cgroup %s", own_group);
+    if (!_sc_is_snap_cgroup(own_group)) {
+        /* we cannot proceed to install a device filtering program when the
+         * process is not in a snap specific cgroup, as we would effectively
+         * lock down the group that can be shared with other processes or even
+         * the whole desktop session */
+        die("%s is not a snap cgroup", own_group);
     }
 
     /* fix the memlock limit if needed, this affects creating maps */

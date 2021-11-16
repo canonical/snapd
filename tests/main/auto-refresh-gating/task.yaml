@@ -19,6 +19,8 @@ prepare: |
 
 debug: |
   jq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
+  snap changes || true
+  snap refresh --time || true
 
 execute: |
   LAST_REFRESH_CHANGE_ID=1
@@ -67,6 +69,11 @@ execute: |
     # available.
     MATCH "pending: none" < "$DEBUG_LOG_FILE"
     NOMATCH "version:" < "$DEBUG_LOG_FILE"
+
+    echo "Check that --hold output contains remaining hold time"
+    # we cannot match precisely, this might be 48h0m0s if we are lucky, or
+    # a tiny bit less depending on timing.
+    MATCH "hold: 4[78]h.*m.*s" < "$DEBUG_LOG_FILE"
 
     echo "Ensure our content snap was held and is still at version 1"
     snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
