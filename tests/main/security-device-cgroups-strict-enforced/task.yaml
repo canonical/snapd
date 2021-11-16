@@ -17,8 +17,12 @@ execute: |
 
     echo "Force a device cgroup to be assigned to a snap"
     # this will assign the /dev/full device to a snap
-    content='KERNEL=="full", TAG+="snap_test-strict-cgroup_sh"'
+    content='KERNEL=="full", TAG+="snap_test-strict-cgroup_sh" '
     echo "$content" > /etc/udev/rules.d/70-snap.test-strict-cgroup.rules
+    libexecdir=$(os.paths libexec-dir)
+    # populate a RUN rule like the one snapd adds for snap apps
+    content="TAG==\"snap_test-strict-cgroup_sh\" RUN+=\"$libexecdir/snapd/snap-device-helper \$env{ACTION} snap_test-strict-cgroup_sh \$devpath \$major:\$minor\""
+    echo "$content" >> /etc/udev/rules.d/70-snap.test-strict-cgroup.rules
     udevadm control --reload-rules
     udevadm settle
     udevadm trigger
@@ -47,3 +51,30 @@ execute: |
     not snap run test-strict-cgroup.sh -c 'dd if=/dev/zero of=/dev/full bs=1 count=1' > run.log 2>&1
     # and dd correctly fails observing ENOSPC
     MATCH "dd: error writing '/dev/full': No space left on device" < run.log
+
+    if os.query is-trusty; then
+        # next part requires being able to trigger udev event related to
+        # specific device but udevadm 14.04 has no switches for that
+        exit 0
+    fi
+
+    rm -f /var/snap/test-strict-cgroup/common/started
+    rm -f /var/snap/test-strict-cgroup/common/ready
+
+    # trigger a change event for /dev/full so that we observe that the device
+    # cgroup settings remain stable and we can still access /dev/zero
+    snap run test-strict-cgroup.sh -c 'touch /var/snap/test-strict-cgroup/common/started; until test -e /var/snap/test-strict-cgroup/common/ready; do sleep 1; done; echo ok > /dev/zero' > run.log 2>&1 &
+    retry -n 5 test -e /var/snap/test-strict-cgroup/common/started
+    # save the dump
+    tests.device-cgroup test-strict-cgroup.sh dump | sort > dump-before-change
+    # trigger a change of /dev/full
+    udevadm trigger --name-match /dev/full
+    udevadm settle
+    tests.device-cgroup test-strict-cgroup.sh dump | sort > dump-after-change
+    # we are ready
+    touch /var/snap/test-strict-cgroup/common/ready
+    wait || true
+    # nothing was logged
+    MATCH "^$" < run.log
+    # dumps are the same
+    diff -up dump-before-change dump-after-change

@@ -303,6 +303,9 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
+          # "pipefail" ensures that a non-zero status from the spread is
+          # propagated; and we use a subshell as this option could trigger
+          # undesired changes elsewhere
           (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
     - name: Cache successful run
       run: |
