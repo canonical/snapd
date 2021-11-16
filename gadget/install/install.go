@@ -33,26 +33,19 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-// deviceFromSystemSeedRole will identify an ondisk device node which is a disk
-// that has the SystemSeed role for the specified gadget volume on it.
-// It could be made to work for more generic roles, but some roles require
-// special handling like ubuntu-data, where on an encrypted system we really
-// need to look for a partition device node for
-// /dev/disk/by-partlabel/ubuntu-data-enc rather than /dev/.../ubuntu-data,
-// which is how this function currently operates and the logic to know whether
-// the device is an encrypted one or a normal one is not yet implemented, so we
-// artificially limit this function to only find the system seed role
-func deviceFromSystemSeedRole(lv *gadget.LaidOutVolume) (device string, err error) {
+// diskWithSystemSeed will locate a disk that has the partition corresponding
+// to a structure with SystemSeed role of the specified gadget volume and return
+// the device node.
+func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
 		if vs.Role == gadget.SystemSeed {
 			device, err = gadget.FindDeviceForStructure(&vs)
 			if err != nil {
-				return "", fmt.Errorf("cannot find device for role %q: %v", gadget.SystemSeed, err)
+				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
 
-			// XXX: some day this may need to use options, see doc-comment
 			disk, err := disks.DiskFromPartitionDeviceNode(device)
 			if err != nil {
 				return "", err
@@ -60,7 +53,7 @@ func deviceFromSystemSeedRole(lv *gadget.LaidOutVolume) (device string, err erro
 			return disk.KernelDeviceNode(), nil
 		}
 	}
-	return "", fmt.Errorf("cannot find role %s in gadget", gadget.SystemSeed)
+	return "", fmt.Errorf("cannot find role system-seed in gadget")
 }
 
 func roleOrLabelOrName(part gadget.OnDiskStructure) string {
@@ -97,7 +90,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	//
 	// auto-detect device if no device is forced
 	if device == "" {
-		device, err = deviceFromSystemSeedRole(lv)
+		device, err = diskWithSystemSeed(lv)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
