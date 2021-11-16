@@ -99,6 +99,25 @@ fi
 	})
 }
 
+func (s *uDevSuite) TestReloadUDevRulesReportsErrorsFromDefaultTriggerSignals(c *C) {
+	cmd := testutil.MockCommand(c, "udevadm", `
+if [ "$1" = "trigger" ]; then
+	echo "failure 2"
+	kill -9 $$
+fi
+	`)
+	defer cmd.Restore()
+	err := s.backend.ReloadRules(nil)
+	c.Assert(err, ErrorMatches, `cannot run udev triggers: signal: killed
+udev output:
+failure 2
+`)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "trigger", "--subsystem-nomatch=input"},
+	})
+}
+
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithSubsystem(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()

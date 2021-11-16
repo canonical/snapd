@@ -31,11 +31,16 @@ import (
 func udevadmTrigger(args ...string) error {
 	args = append([]string{"trigger"}, args...)
 	output, err := exec.Command("udevadm", args...).CombinedOutput()
-	if _, ok := err.(*exec.ExitError); ok {
-		return nil
+	// ignore normal exit code errors
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		// ignore "normal" exit codes but report e.g. segfaults
+		// that are reported as -1
+		if exitErr.ExitCode() > 0 {
+			return nil
+		}
 	}
 	if err != nil {
-		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
+		return fmt.Errorf("%s\nudev output:\n%s", err, string(output))
 	}
 	return nil
 }
@@ -62,7 +67,7 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 	// it can cause noticeable blocked input on, for example, classic
 	// desktop.
 	if err = udevadmTrigger("--subsystem-nomatch=input"); err != nil {
-		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
+		return fmt.Errorf("cannot run udev triggers: %s", err)
 	}
 
 	// FIXME: track if also should trigger the joystick property if it
@@ -79,7 +84,7 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 			// events in a way that is specific to joysticks to not
 			// block other inputs.
 			if err = udevadmTrigger("--property-match=ID_INPUT_JOYSTICK=1"); err != nil {
-				return fmt.Errorf("cannot run udev triggers for joysticks: %s\nudev output:\n%s", err, string(output))
+				return fmt.Errorf("cannot run udev triggers for joysticks: %s", err)
 			}
 			inputJoystickTriggered = true
 		} else if subsystem == "input/key" {
@@ -88,13 +93,13 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 			// events in a way that is specific to input keys
 			// to not block other inputs.
 			if err = udevadmTrigger("--property-match=ID_INPUT_KEY=1", "--property-match=ID_INPUT_KEYBOARD!=1"); err != nil {
-				return fmt.Errorf("cannot run udev triggers for keys: %s\nudev output:\n%s", err, string(output))
+				return fmt.Errorf("cannot run udev triggers for keys: %s", err)
 			}
 		} else if subsystem != "" {
 			// If one of the interfaces said it uses a subsystem,
 			// then do it too.
 			if err := udevadmTrigger("--subsystem-match=" + subsystem); err != nil {
-				return fmt.Errorf("cannot run udev triggers for %s subsystem: %s\nudev output:\n%s", subsystem, err, string(output))
+				return fmt.Errorf("cannot run udev triggers for %s subsystem: %s", subsystem, err)
 			}
 
 			if subsystem == "input" {
@@ -110,7 +115,7 @@ func (b *Backend) reloadRules(subsystemTriggers []string) error {
 	// interface disconnect.
 	if !inputJoystickTriggered {
 		if err := udevadmTrigger("--property-match=ID_INPUT_JOYSTICK=1"); err != nil {
-			return fmt.Errorf("cannot run udev triggers for joysticks: %s\nudev output:\n%s", err, string(output))
+			return fmt.Errorf("cannot run udev triggers for joysticks: %s", err)
 		}
 	}
 
