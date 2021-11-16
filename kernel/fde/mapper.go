@@ -45,5 +45,5 @@ func DeviceUnlockKernelHookDeviceMapperHandler(dmUUID, dmName []byte) (dev strin
 }
 
 func init() {
-	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-hook", DeviceUnlockKernelHookDeviceMapperHandler)
+	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", DeviceUnlockKernelHookDeviceMapperHandler)
 }
