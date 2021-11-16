@@ -16,14 +16,12 @@ prepare: |
 
 restore: |
     # Restore the initial rtc configuration
-    snap connect test-snapd-timedate-control-consumer:netlink-audit
-    snap connect test-snapd-timedate-control-consumer:time-control
     if [ -f rtc.txt ]; then
-        test-snapd-timedate-control-consumer.timedatectl-time set-local-rtc "$(cat rtc.txt)"
+        timedatectl set-local-rtc "$(cat rtc.txt)"
     fi
 
     # TODO: re-enable once the ntp issue is fixed
-    #test-snapd-timedate-control-consumer.date "$(cat now.txt)"
+    #date "$(cat now.txt)"
 
 execute: |
     # hwclock with libaudit (ie, core 16) also needs netlink-audit connected.
@@ -56,8 +54,8 @@ execute: |
     [ "$(test-snapd-timedate-control-consumer.timedatectl-time status | grep -oP 'RTC in local TZ: \K(.*)')" = "no" ]
 
     echo "And direct setting via date"
-    # Ntp syncronization is not done after the date is changed using the date command.
-    # The issue happens even when the syncronization is manually forced.
+    # Ntp synchronization is not done after the date is changed using the date command.
+    # The issue happens even when the synchronization is manually forced.
     # The error displayed in the journal is the following:
     # synchronized.go:72: DEBUG: NTPSynchronized state returned by timedate1: false
 
