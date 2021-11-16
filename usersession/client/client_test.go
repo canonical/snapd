@@ -460,7 +460,9 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 }
 
 func (s *clientSuite) TestCloseRefreshNotification(c *C) {
+	n := 0
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/close")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
@@ -472,4 +474,5 @@ func (s *clientSuite) TestCloseRefreshNotification(c *C) {
 	})
 	err := s.cli.CloseRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
 	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
 }
