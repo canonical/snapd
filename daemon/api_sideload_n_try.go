@@ -60,6 +60,23 @@ func (f *Form) RemoveAll() {
 	}
 }
 
+// SnapFileNameAndPath returns the original file path/name and the path to
+// where the temp file is written.
+func (f *Form) SnapFileNameAndPath() (string, string, *apiError) {
+	if len(f.FileHeader["snap"]) == 0 {
+		return "", "", BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
+	}
+
+	snapFile := f.FileHeader["snap"][0]
+	name, path := snapFile.Filename, snapFile.TmpPath
+
+	if len(f.Value["snap-path"]) > 0 {
+		name = f.Value["snap-path"][0]
+	}
+
+	return name, path, nil
+}
+
 func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -98,31 +115,12 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
 	systemRestartImmediate := isTrue(form, "system-restart-immediate")
 
-	// find the file for the "snap" form field
-	var tempPath string
-	var origPath string
-out:
-	for name, fheaders := range form.FileHeader {
-		if name != "snap" {
-			continue
-		}
-		for _, fheader := range fheaders {
-			tempPath = fheader.TmpPath
-			origPath = fheader.Filename
-			break out
-		}
-	}
-
-	if tempPath == "" {
-		return BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
-	}
-
-	if len(form.Value["snap-path"]) > 0 {
-		origPath = form.Value["snap-path"][0]
+	origPath, tempPath, errRsp := form.SnapFileNameAndPath()
+	if errRsp != nil {
+		return errRsp
 	}
 
 	var instanceName string
-
 	if len(form.Value["name"]) > 0 {
 		// caller has specified desired instance name
 		instanceName = form.Value["name"][0]
