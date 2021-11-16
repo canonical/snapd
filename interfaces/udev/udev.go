@@ -27,11 +27,15 @@ import (
 // udevadmTrigger runs "udevadm trigger" but ignores an non-zero exit codes.
 // udevadm only started reporting errors in systemd 248 and in order to
 // work correctly in LXD these errors need to be ignored. See
-// https://github.com/lxc/lxd/issues/9526 for some more background.
+// https://github.com/systemd/systemd/pull/18684 for some more background
+// (and https://github.com/lxc/lxd/issues/9526)
 func udevadmTrigger(args ...string) error {
 	args = append([]string{"trigger"}, args...)
 	output, err := exec.Command("udevadm", args...).CombinedOutput()
-	// ignore normal exit code errors
+	// can happen when events for some of the devices or all of
+	// them could not be triggered, but we cannot distinguish which of
+	// those happened, in any case snapd invoked udevadm and tried its
+	// best
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		// ignore "normal" exit codes but report e.g. segfaults
 		// that are reported as -1
