@@ -6935,14 +6935,16 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 		restartRequested = append(restartRequested, t)
 	}))
 
-	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]interface{}{
+		"kernel": "kernel-core18",
+		"base":   "core18",
+	}))
 	defer restore()
 
-	// use services-snap here to make sure services would be stopped/started appropriately
 	siKernel := snap.SideInfo{
-		RealName: "kernel",
+		RealName: "kernel-core18",
 		Revision: snap.R(7),
-		SnapID:   "kernel-id",
+		SnapID:   "kernel-core18-id",
 	}
 	siBase := snap.SideInfo{
 		RealName: "core18",
@@ -6966,9 +6968,9 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh kernel and base")
 	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
-		[]string{"kernel", "core18"}, s.user.ID, &snapstate.Flags{})
+		[]string{"kernel-core18", "core18"}, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
-	c.Assert(affected, DeepEquals, []string{"core18", "kernel"})
+	c.Assert(affected, DeepEquals, []string{"core18", "kernel-core18"})
 	snapTasks := make(map[string]*state.Task)
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -6980,7 +6982,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 			case "link-snap", "auto-connect", "setup-profiles", "set-auto-aliases":
 				snapsup, err := snapstate.TaskSnapSetup(tsk)
 				c.Assert(err, IsNil)
-				snapTasks[fmt.Sprintf("%s@%s", tsk.Kind(), snapsup.InstanceName())] = tsk
+				snapTasks[fmt.Sprintf("%s@%s", tsk.Kind(), snapsup.Type)] = tsk
 				if tsk.Kind() == "link-snap" {
 					opts := 0
 					if snapsup.Type == snap.TypeBase {
@@ -6995,11 +6997,11 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	c.Assert(snapTasks, HasLen, 8)
 	linkSnapKernel := snapTasks["link-snap@kernel"]
 	autoConnectKernel := snapTasks["auto-connect@kernel"]
-	linkSnapBase := snapTasks["link-snap@core18"]
-	autoConnectBase := snapTasks["auto-connect@core18"]
+	linkSnapBase := snapTasks["link-snap@base"]
+	autoConnectBase := snapTasks["auto-connect@base"]
 
 	c.Assert(linkSnapBase.WaitTasks(), DeepEquals, []*state.Task{
-		snapTasks["setup-profiles@core18"], snapTasks["setup-profiles@kernel"],
+		snapTasks["setup-profiles@base"], snapTasks["setup-profiles@kernel"],
 	})
 	c.Assert(linkSnapKernel.WaitTasks(), DeepEquals, []*state.Task{
 		snapTasks["setup-profiles@kernel"], linkSnapBase,
@@ -7008,19 +7010,27 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 		snapTasks["link-snap@kernel"], autoConnectBase,
 	})
 	c.Assert(autoConnectBase.WaitTasks(), DeepEquals, []*state.Task{
-		snapTasks["link-snap@core18"], snapTasks["link-snap@kernel"],
+		snapTasks["link-snap@base"], snapTasks["link-snap@kernel"],
 	})
 	c.Assert(snapTasks["set-auto-aliases@kernel"].WaitTasks(), DeepEquals, []*state.Task{
 		autoConnectKernel,
 	})
-	c.Assert(snapTasks["set-auto-aliases@core18"].WaitTasks(), DeepEquals, []*state.Task{
+	c.Assert(snapTasks["set-auto-aliases@base"].WaitTasks(), DeepEquals, []*state.Task{
 		autoConnectBase, autoConnectKernel,
 	})
+
+	var cannotReboot bool
+	// link-snap of base cannot issue a reboot
+	c.Assert(linkSnapBase.Get("cannot-reboot", &cannotReboot), IsNil)
+	c.Assert(cannotReboot, Equals, true)
+	// but the link-snap of the kernel can issue a reboot
+	c.Assert(linkSnapKernel.Get("cannot-reboot", &cannotReboot), Equals, state.ErrNoState)
+
 	// have fake backend indicate a need to reboot for both snaps
 	s.fakeBackend.linkSnapMaybeReboot = true
 	s.fakeBackend.linkSnapRebootFor = map[string]bool{
-		"kernel": true,
-		"core18": true,
+		"kernel-core18": true,
+		"core18":        true,
 	}
 
 	defer s.se.Stop()
@@ -7032,8 +7042,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 		restart.RestartSystem,
 	})
 
-	for _, name := range []string{"kernel", "core18"} {
-		snapID := "kernel-id"
+	for _, name := range []string{"kernel-core18", "core18"} {
+		snapID := "kernel-core18-id"
 		if name == "core18" {
 			snapID = "core18-snap-id"
 		}
@@ -7073,15 +7083,145 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	}
 	c.Assert(ops, HasLen, 8)
 	c.Assert(ops[0:2], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-kernel/11", "setup-profiles:Doing-core18/11",
+		"setup-profiles:Doing-kernel-core18/11", "setup-profiles:Doing-core18/11",
 	})
 	c.Assert(ops[2:6], DeepEquals, []string{
-		"core18/11", "kernel/11",
-		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11",
+		"core18/11", "kernel-core18/11",
+		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel-core18/11",
 	})
 	c.Assert(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-core18", "cleanup-trash-kernel",
+		"cleanup-trash-core18", "cleanup-trash-kernel-core18",
 	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootNotWithCoreHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var restartRequested []restart.RestartType
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+
+	restore = snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	siKernel := snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(7),
+		SnapID:   "kernel-id",
+	}
+	siCore := snap.SideInfo{
+		RealName: "core",
+		Revision: snap.R(7),
+		SnapID:   "core-snap-id",
+	}
+	for _, si := range []*snap.SideInfo{&siKernel, &siCore} {
+		snaptest.MockSnap(c, fmt.Sprintf(`name: %s`, si.RealName), si)
+		typ := "kernel"
+		if si.RealName == "core18" {
+			typ = "base"
+		}
+		snapstate.Set(s.state, si.RealName, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        []*snap.SideInfo{si},
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        typ,
+		})
+	}
+
+	chg := s.state.NewChange("refresh", "refresh kernel and base")
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"kernel", "core"}, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"core", "kernel"})
+	snapTasks := make(map[string]*state.Task)
+	var coreTs *state.TaskSet
+	for _, ts := range tss {
+		chg.AddAll(ts)
+		for _, tsk := range ts.Tasks() {
+			switch tsk.Kind() {
+			// setup-profiles should appear right before link-snap
+			case "link-snap", "auto-connect", "setup-profiles":
+				snapsup, err := snapstate.TaskSnapSetup(tsk)
+				c.Assert(err, IsNil)
+				snapTasks[fmt.Sprintf("%s@%s", tsk.Kind(), snapsup.Type)] = tsk
+				if tsk.Kind() == "link-snap" {
+					opts := 0
+					if snapsup.Type == snap.TypeBase {
+						opts |= noConfigure
+					}
+					verifyUpdateTasks(c, snapsup.Type, opts, 0, ts)
+					if snapsup.Type == snap.TypeOS {
+						coreTs = ts
+					}
+				}
+			}
+		}
+	}
+
+	c.Assert(snapTasks, HasLen, 6)
+	linkSnapKernel := snapTasks["link-snap@kernel"]
+	autoConnectKernel := snapTasks["auto-connect@kernel"]
+	linkSnapBase := snapTasks["link-snap@os"]
+	autoConnectBase := snapTasks["auto-connect@os"]
+
+	c.Assert(coreTs, NotNil)
+
+	c.Assert(linkSnapBase.WaitTasks(), DeepEquals, []*state.Task{
+		snapTasks["setup-profiles@os"],
+	})
+	c.Assert(autoConnectBase.WaitTasks(), DeepEquals, []*state.Task{
+		snapTasks["link-snap@os"],
+	})
+	// kernel tasks have an implicit dependency on all "core" tasks
+	c.Assert(linkSnapKernel.WaitTasks(), DeepEquals, append([]*state.Task{
+		snapTasks["setup-profiles@kernel"],
+	}, coreTs.Tasks()...))
+	c.Assert(autoConnectKernel.WaitTasks(), DeepEquals, append([]*state.Task{
+		snapTasks["link-snap@kernel"],
+	}, coreTs.Tasks()...))
+	// have fake backend indicate a need to reboot for both snaps
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"kernel": true,
+		"core":   true,
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	// when updating both kernel that uses core as base, and "core" we have two reboots
+	c.Check(restartRequested, DeepEquals, []restart.RestartType{
+		restart.RestartSystem,
+		restart.RestartSystem,
+	})
+
+	for _, name := range []string{"kernel", "core"} {
+		snapID := "kernel-id"
+		if name == "core" {
+			snapID = "core-snap-id"
+		}
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+
+		c.Assert(snapst.Active, Equals, true)
+		c.Assert(snapst.Sequence, HasLen, 2)
+		c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+			RealName: name,
+			Channel:  "latest/stable",
+			SnapID:   snapID,
+			Revision: snap.R(11),
+		})
+	}
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
