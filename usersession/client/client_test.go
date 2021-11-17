@@ -474,5 +474,7 @@ func (s *clientSuite) TestCloseRefreshNotification(c *C) {
 	})
 	err := s.cli.CloseRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
 	c.Assert(err, IsNil)
-	c.Check(n, Equals, 1)
+	// two calls because clientSuite simulates two user sessions (two
+	// snapd-session-agent.socket sockets).
+	c.Check(n, Equals, 2)
 }
