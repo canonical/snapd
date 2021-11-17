@@ -240,12 +240,10 @@ func (p *piboot) createCmdline(env *pibootenv.Env, defaultsFile, outFile string)
 		base += " " + env.Get("snapd_extra_cmdline_args")
 	}
 
-	cmdline := base +
-		" snapd_recovery_mode=" + env.Get("snapd_recovery_mode") +
-		" snapd_recovery_system=" + env.Get("snapd_recovery_system")
-	snapKernel := env.Get("snap_kernel")
-	if snapKernel != "" {
-		cmdline += " snap_kernel=" + snapKernel
+	mode := env.Get("snapd_recovery_mode")
+	cmdline := base + " snapd_recovery_mode=" + mode
+	if mode != "run" {
+		cmdline += " snapd_recovery_system=" + env.Get("snapd_recovery_system")
 	}
 	// Signal when we are trying a new kernel
 	kernelStatus := env.Get("kernel_status")
