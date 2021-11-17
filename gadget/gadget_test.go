@@ -2941,6 +2941,8 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb",
 			OriginalKernelPath: "/dev/vdb",
 			DiskID:             "484B4BA1-3EDF-4270-A1A8-378FCBB0E1DE",
+			Size:               10 * quantity.SizeGiB,
+			SectorSize:         quantity.Size(512),
 			Structure: []gadget.DiskStructureDeviceTraits{
 				// first structure is a bare structure with no filesystem
 				{

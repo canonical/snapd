@@ -29,7 +29,6 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,18 +38,6 @@ import (
 )
 
 var _ = Disk(&disk{})
-
-var (
-	// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid
-	// sysfs entry for a luks2 device mapper volume dynamically created by
-	// systemd-cryptsetup when unlocking
-	// the actual value that is returned also has "-some-name" appended to this
-	// pattern, but we delete that from the string before matching with this
-	// regexp to prevent issues like a mapper volume name that has CRYPT-LUKS2-
-	// in the name and thus we might accidentally match it
-	// see also the comments in DiskFromMountPoint about this value
-	luksUUIDPatternRe = regexp.MustCompile(`^CRYPT-LUKS2-([0-9a-f]{32})$`)
-)
 
 // diskFromMountPoint is exposed for mocking from other tests via
 // MockMountPointDisksToPartitionMapping, but we can't just assign
@@ -123,13 +110,32 @@ type errNonPhysicalDisk struct {
 
 func (e errNonPhysicalDisk) Error() string { return e.err }
 
+const propNotFoundErrFmt = "property %q not found"
+
+func requiredUDevPropUint(props map[string]string, name string) (uint64, error) {
+	partIndex, ok := props[name]
+	if !ok {
+		return 0, fmt.Errorf(propNotFoundErrFmt, name)
+	}
+	v, err := strconv.ParseUint(partIndex, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("cannot parse %q: %v", partIndex, err)
+	}
+	return v, nil
+}
+
 func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
 	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
 	// the disk, so check for that first and if it's missing then we return a
 	// specific NotAPhysicalDisk error
-	schema := props["ID_PART_TABLE_TYPE"]
+	schema := strings.ToLower(props["ID_PART_TABLE_TYPE"])
 	if schema == "" {
 		return nil, errNonPhysicalDisk{fmt.Sprintf("device with %s %q is not a physical disk", deviceIDType, deviceIdentifier)}
+	}
+
+	// for now we only support DOS and GPT schema disks
+	if schema != "dos" && schema != "gpt" {
+		return nil, fmt.Errorf("unsupported disk schema %q", props["ID_PART_TABLE_TYPE"])
 	}
 
 	major, err := strconv.Atoi(props["MAJOR"])
@@ -448,52 +454,29 @@ func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, err)
 		}
+		dmUUID = bytes.TrimSpace(dmUUID)
 
 		dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, err)
 		}
+		dmName = bytes.TrimSpace(dmName)
 
-		// trim the suffix of the dm name from the dm uuid to safely match the
-		// regex - the dm uuid contains the dm name, and the dm name is user
-		// controlled, so we want to remove that and just use the luks pattern
-		// to match the device uuid
-		// we are extra safe here since the dm name could be hypothetically user
-		// controlled via an external USB disk with LVM partition names, etc.
-		dmUUIDSafe := bytes.TrimSuffix(
-			bytes.TrimSpace(dmUUID),
-			append([]byte("-"), bytes.TrimSpace(dmName)...),
-		)
-		matches := luksUUIDPatternRe.FindSubmatch(dmUUIDSafe)
-		if len(matches) != 2 {
-			// the format of the uuid is different - different luks version
-			// maybe?
-			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", majmin, dmUUIDSafe)
+		matchedHandler := false
+		for _, resolver := range deviceMapperBackResolvers {
+			if dev, ok := resolver(dmUUID, dmName); ok {
+				props, err = udevPropertiesForName(dev)
+				if err != nil {
+					return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", dev, err)
+				}
+
+				matchedHandler = true
+				break
+			}
 		}
 
-		// the uuid is the first and only submatch, but it is not in the same
-		// format exactly as we want to use, namely it is missing all of the "-"
-		// characters in a typical uuid, i.e. it is of the form:
-		// ae6e79de00a9406f80ee64ba7c1966bb but we want it to be like:
-		// ae6e79de-00a9-406f-80ee-64ba7c1966bb so we need to add in 4 "-"
-		// characters
-		compactUUID := string(matches[1])
-		canonicalUUID := fmt.Sprintf(
-			"%s-%s-%s-%s-%s",
-			compactUUID[0:8],
-			compactUUID[8:12],
-			compactUUID[12:16],
-			compactUUID[16:20],
-			compactUUID[20:],
-		)
-
-		// now finally, we need to use this uuid, which is the device uuid of
-		// the actual physical encrypted partition to get the path, which will
-		// be something like /dev/vda4, etc.
-		byUUIDPath := filepath.Join("/dev/disk/by-uuid", canonicalUUID)
-		props, err = udevPropertiesForName(byUUIDPath)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+		if !matchedHandler {
+			return nil, fmt.Errorf("internal error: no back resolver supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
 		}
 	}
 
@@ -552,9 +535,13 @@ func diskFromPartUDevProps(props map[string]string, opts *Options) (*disk, error
 		return nil, fmt.Errorf("incomplete udev output missing required property \"ID_PART_TABLE_UUID\"")
 	}
 
-	schema := realDiskProps["ID_PART_TABLE_TYPE"]
+	schema := strings.ToLower(realDiskProps["ID_PART_TABLE_TYPE"])
 	if schema == "" {
 		return nil, fmt.Errorf("incomplete udev output missing required property \"ID_PART_TABLE_TYPE\"")
+	}
+
+	if schema != "gpt" && schema != "dos" {
+		return nil, fmt.Errorf("unsupported disk schema %q", realDiskProps["ID_PART_TABLE_TYPE"])
 	}
 
 	d.schema = schema
@@ -655,18 +642,70 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
+			emitUDevPropErr := func(e error) error {
+				return fmt.Errorf("cannot get required udev property for device %s (a partition of %s): %v", partDev, d.Dev(), e)
+			}
+
 			// the devpath and devname should always be available
 			devpath, ok := udevProps["DEVPATH"]
 			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVPATH\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVPATH"))
 			}
 			part.KernelDevicePath = filepath.Join(dirs.SysfsDir, devpath)
 
 			devname, ok := udevProps["DEVNAME"]
 			if !ok {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing required udev property \"DEVNAME\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVNAME"))
 			}
 			part.KernelDeviceNode = devname
+
+			// we should always have the partition type
+			partType, ok := udevProps["ID_PART_ENTRY_TYPE"]
+			if !ok {
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "ID_PART_ENTRY_TYPE"))
+			}
+
+			// on dos disks, the type is formatted like "0xc", when we prefer to
+			// always use "0C" so fix the formatting
+			if d.schema == "dos" {
+				partType = strings.TrimPrefix(strings.ToLower(partType), "0x")
+				v, err := strconv.ParseUint(partType, 16, 8)
+				if err != nil {
+					return emitUDevPropErr(fmt.Errorf("cannot convert MBR partition type %q: %v", partType, err))
+				}
+				partType = fmt.Sprintf("%02X", v)
+			} else {
+				// on GPT disks, just capitalize the partition type since it's a
+				// UUID
+				partType = strings.ToUpper(partType)
+			}
+
+			part.PartitionType = partType
+
+			// the partition may not have a filesystem, in which case this might
+			// be the empty string
+			part.FilesystemType = udevProps["ID_FS_TYPE"]
+
+			part.SizeInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_SIZE")
+			if err != nil {
+				return emitUDevPropErr(err)
+			}
+
+			part.StructureIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
+			if err != nil {
+				return emitUDevPropErr(err)
+			}
+
+			part.StartInBytes, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_OFFSET")
+			if err != nil {
+				return emitUDevPropErr(err)
+			}
+
+			// udev always reports the size and offset in 512 byte blocks,
+			// regardless of sector size, so multiply the size in 512 byte
+			// blocks by 512 to get the size/offset in bytes
+			part.StartInBytes *= 512
+			part.SizeInBytes *= 512
 
 			// we should always have the partition uuid, and we may not have
 			// either the partition label or the filesystem label, on GPT disks
@@ -676,19 +715,21 @@ func (d *disk) populatePartitions() error {
 			// the partition
 			part.PartitionUUID = udevProps["ID_PART_ENTRY_UUID"]
 			if part.PartitionUUID == "" {
-				return fmt.Errorf("cannot get udev properties for device %s (a partition of %s), missing udev property \"ID_PART_ENTRY_UUID\"", partDev, d.Dev())
+				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "ID_PART_ENTRY_UUID"))
 			}
 
 			// we should also always have the device major/minor for this device
-			part.Major, err = strconv.Atoi(udevProps["MAJOR"])
+			maj, err := requiredUDevPropUint(udevProps, "MAJOR")
 			if err != nil {
-				return fmt.Errorf("cannot parse device major number format: %v", err)
+				return emitUDevPropErr(err)
 			}
+			part.Major = int(maj)
 
-			part.Minor, err = strconv.Atoi(udevProps["MINOR"])
+			min, err := requiredUDevPropUint(udevProps, "MINOR")
 			if err != nil {
-				return fmt.Errorf("cannot parse device major number format: %v", err)
+				return emitUDevPropErr(err)
 			}
+			part.Minor = int(min)
 
 			// on MBR disks we may not have a partition label, so this may be
 			// the empty string. Note that this value is encoded similarly to
