@@ -298,26 +298,6 @@ func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 	}
 
 	for _, name := range names {
-		// We are in a successful reboot after an update. Set kernel_status
-		// accordingly.
-		// TODO What happens if we update again before any other reboot??
-		// The kernel command line will not have changed.
-		// -> to solve, create oneshot job to set the variable in initramfs
-		if name == "kernel_status" && env.Get("kernel_status") == "try" {
-			cmdLine, _ := osutil.KernelCommandLine()
-			args := strings.Split(cmdLine, " ")
-			for _, arg := range args {
-				if strings.HasPrefix(arg, "kernel_status=") {
-					keyVal := strings.Split(arg, "=")
-					// Must be "trying"
-					env.Set("kernel_status", keyVal[1])
-				} else {
-					// Error case, need to revert
-					env.Set("kernel_status", "")
-				}
-			}
-		}
-
 		out[name] = env.Get(name)
 	}
 
