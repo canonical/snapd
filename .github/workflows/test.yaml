@@ -323,7 +323,7 @@ jobs:
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
-            ./tests/lib/tools/log-parser spread.log --print-detail error --output spread-results.json --cut 100
+            ./tests/lib/tools/log-parser spread.log --print-detail error-debug --output spread-results.json --cut 100
             while IFS= read -r line; do
                 if [ ! -z "$line" ]; then
                     echo "Reporting spread error..."
