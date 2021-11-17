@@ -448,7 +448,9 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 }
 
 func (s *clientSuite) TestPendingRefreshNotification(c *C) {
+	n := 0
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/pending-refresh")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
@@ -456,4 +458,20 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 	})
 	err := s.cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
 	c.Assert(err, IsNil)
+	c.Check(n, Equals, 2)
+}
+
+func (s *clientSuite) TestPendingRefreshNotificationOneClient(c *C) {
+	cli := client.NewForUids(1000)
+	n := 0
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		c.Assert(r.URL.Path, Equals, "/v1/notifications/pending-refresh")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"type": "sync"}`))
+	})
+	err := cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 1)
 }
