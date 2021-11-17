@@ -54,15 +54,17 @@ func (p *piboot) setDefaults() {
 }
 
 func (p *piboot) processBlOpts(blOpts *Options) {
-	if blOpts != nil {
-		p.prepareImageTime = blOpts.PrepareImageTime
-		switch {
-		case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
-			// RoleRecovery or NoSlashBoot imply we use
-			// the environment file in /piboot/ubuntu as
-			// it exists on the partition directly
-			p.basedir = pibootPartFolder
-		}
+	if blOpts == nil {
+		return
+	}
+
+	p.prepareImageTime = blOpts.PrepareImageTime
+	switch {
+	case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
+		// RoleRecovery or NoSlashBoot imply we use
+		// the environment file in /piboot/ubuntu as
+		// it exists on the partition directly
+		p.basedir = pibootPartFolder
 	}
 }
 
