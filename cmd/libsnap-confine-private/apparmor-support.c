@@ -53,18 +53,24 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 			debug
 			    ("apparmor is available on the system but has been disabled at boot");
 			break;
-		case ENOENT:
-			debug
-			    ("apparmor is available but the interface but the interface is not available");
-			break;
 		case EPERM:
 			// NOTE: fall-through
 		case EACCES:
 			debug
 			    ("insufficient permissions to determine if apparmor is enabled");
-			break;
+			// since snap-confine is setuid root this should
+			// never happen so likely someone is trying to
+			// manipulate our execution environment - fail hard
+
+			// fall-through
+		case ENOENT:
+		case ENOMEM:
 		default:
-			debug("apparmor is not enabled: %s", strerror(errno));
+			// this shouldn't happen under normal usage so it
+			// is possible someone is trying to manipulate our
+			// execution environment - fail hard
+			die("aa_is_enabled() failed unexpectedly (%s)",
+			    strerror(errno));
 			break;
 		}
 		apparmor->is_confined = false;
