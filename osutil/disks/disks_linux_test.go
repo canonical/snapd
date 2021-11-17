@@ -683,7 +683,7 @@ fi
 	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
-func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
+func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C) {
 	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something rw
 `)
 	defer restore()
@@ -730,6 +730,20 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	opts := &disks.Options{IsDecryptedDevice: true}
+
+	// when the handler is not available, we can't handle the mapper
+	disks.UnregisterDeviceMapperBackResolver("crypt-luks2")
+	defer func() {
+		// re-register it at the end, since it's registered by default
+		disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
+	}()
+
+	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-something" and name "something"`)
+
+	// but when it is available it works
+	disks.RegisterDeviceMapperBackResolver("crypt-luks2", disks.CryptLuks2DeviceMapperBackResolver)
+
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
 	c.Assert(err, IsNil)
 	c.Assert(d.Dev(), Equals, "42:0")

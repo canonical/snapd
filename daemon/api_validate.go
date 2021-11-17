@@ -262,8 +262,8 @@ func applyValidationSet(c *Command, r *http.Request, user *auth.UserState) Respo
 	}
 }
 
-var validationSetAssertionForMonitor = assertstate.ValidationSetAssertionForMonitor
-var validationSetAssertionForEnforce = assertstate.ValidationSetAssertionForEnforce
+var assertstateMonitorValidationSet = assertstate.MonitorValidationSet
+var assertstateEnforceValidationSet = assertstate.EnforceValidationSet
 
 // updateValidationSet handles snap validate --monitor and --enforce accountId/name[=sequence].
 func updateValidationSet(st *state.State, accountID, name string, reqMode string, sequence int, user *auth.UserState) Response {
@@ -286,24 +286,10 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 		return enforceValidationSet(st, accountID, name, sequence, userID)
 	}
 
-	tr := assertstate.ValidationSetTracking{
-		AccountID: accountID,
-		Name:      name,
-		Mode:      mode,
-		// note, Sequence may be 0, meaning not pinned.
-		PinnedAt: sequence,
-	}
-
-	pinned := sequence > 0
-	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
-	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
+	err := assertstateMonitorValidationSet(st, accountID, name, sequence, userID)
 	if err != nil {
 		return BadRequest("cannot get validation set assertion for %v: %v", assertstate.ValidationSetKey(accountID, name), err)
 	}
-	tr.Current = as.Sequence()
-	tr.LocalOnly = local
-
-	assertstate.UpdateValidationSet(st, &tr)
 	return SyncResponse(nil)
 }
 
@@ -319,7 +305,9 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	if err != nil {
 		return InternalError("accessing validation sets failed: %v", err)
 	}
-	assertstate.DeleteValidationSet(st, accountID, name)
+	if err := assertstate.ForgetValidationSet(st, accountID, name); err != nil {
+		return BadRequest("cannot forget validation set for %v: %v", assertstate.ValidationSetKey(accountID, name), err)
+	}
 	return SyncResponse(nil)
 }
 
@@ -410,21 +398,11 @@ func enforceValidationSet(st *state.State, accountID, name string, sequence, use
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	vs, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
-	if err != nil {
+	if err := assertstateEnforceValidationSet(st, accountID, name, sequence, userID, snaps, ignoreValidation); err != nil {
 		// XXX: provide more specific error kinds? This would probably require
 		// assertstate.ValidationSetAssertionForEnforce tuning too.
 		return BadRequest("cannot enforce validation set: %v", err)
 	}
 
-	tr := assertstate.ValidationSetTracking{
-		AccountID: accountID,
-		Name:      name,
-		Mode:      assertstate.Enforce,
-		// note, sequence may be 0, meaning not pinned.
-		PinnedAt: sequence,
-		Current:  vs.Sequence(),
-	}
-	assertstate.UpdateValidationSet(st, &tr)
 	return SyncResponse(nil)
 }

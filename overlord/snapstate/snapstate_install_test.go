@@ -4261,7 +4261,6 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 		SnapType:        "app",
 	})
 
-	// the default is also 2 but this makes the test more robust against changes
 	tr := config.NewTransaction(s.state)
 	c.Assert(tr.Set("core", "refresh.retain", 1), IsNil)
 	tr.Commit()

@@ -22,6 +22,8 @@ package assertstate
 // expose for testing
 var (
 	DoFetch                                   = doFetch
+	ValidationSetAssertionForEnforce          = validationSetAssertionForEnforce
+	ValidationSetAssertionForMonitor          = validationSetAssertionForMonitor
 	AddCurrentTrackingToValidationSetsHistory = addCurrentTrackingToValidationSetsHistory
 	ValidationSetsHistoryTop                  = validationSetsHistoryTop
 )

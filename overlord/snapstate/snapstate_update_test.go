@@ -6921,6 +6921,94 @@ func (s *snapmgrTestSuite) TestUpdateDeduplicatesSnapNames(c *C) {
 	c.Check(updated, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 }
 
+func (s *snapmgrTestSuite) TestUndoInstallAfterDeletingRevisions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// 1 and 2 should be deleted, 3 is target revision and 4 is current
+	seq := []*snap.SideInfo{
+		{
+			RealName: "some-snap",
+			SnapID:   "some-snap-id",
+			Revision: snap.R(1),
+		},
+		{
+			RealName: "some-snap",
+			SnapID:   "some-snap-id",
+			Revision: snap.R(2),
+		},
+		{
+			RealName: "some-snap",
+			SnapID:   "some-snap-id",
+			Revision: snap.R(3),
+		},
+		{
+			RealName: "some-snap",
+			SnapID:   "some-snap-id",
+			Revision: snap.R(4),
+		},
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  seq[len(seq)-1].Revision,
+	})
+
+	tr := config.NewTransaction(s.state)
+	// remove the first two revisions so the old-candidate-index+1 (in undoLinkSnap) would be out of bounds if we didn't
+	// account for discarded revisions
+	c.Assert(tr.Set("core", "refresh.retain", 1), IsNil)
+	tr.Commit()
+
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	// install already stored revision
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: seq[len(seq)-2].Revision}, s.user.ID, snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+	chg := s.state.NewChange("refresh", "")
+	chg.AddAll(ts)
+
+	// make update fail after removing old snaps
+	failTask := s.state.NewTask("fail", "expected")
+	disc := findLastTask(chg, "discard-snap")
+	for _, lane := range disc.Lanes() {
+		failTask.JoinLane(lane)
+	}
+	failTask.WaitFor(disc)
+	chg.AddTask(failTask)
+
+	s.settle(c)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Sequence, DeepEquals, seq[2:])
+
+	linkTask := findLastTask(chg, "link-snap")
+	c.Check(linkTask.Status(), Equals, state.UndoneStatus)
+
+	var oldRevsBeforeCand []snap.Revision
+	c.Assert(linkTask.Get("old-revs-before-cand", &oldRevsBeforeCand), IsNil)
+	c.Assert(oldRevsBeforeCand, DeepEquals, []snap.Revision{seq[0].Revision, seq[1].Revision})
+}
+
+func findLastTask(chg *state.Change, kind string) *state.Task {
+	var last *state.Task
+
+	for _, task := range chg.Tasks() {
+		if task.Kind() == kind {
+			last = task
+		}
+	}
+
+	return last
+}
+
 func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
