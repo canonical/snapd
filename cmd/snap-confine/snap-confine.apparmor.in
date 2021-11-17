@@ -400,10 +400,10 @@
     # stacked filesystems generally.
     # encrypted ~/.Private and old-style encrypted $HOME
     @{HOME}/.Private/ r,
-    @{HOME}/.Private/** mrixwlk,
+    @{HOME}/.Private/** mrwlk,
     # new-style encrypted $HOME
     @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
-    @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
+    @{HOMEDIRS}/.ecryptfs/*/.Private/** mrwlk,
 
     # Allow snap-confine to move to the void, creating it if necessary.
     /var/lib/snapd/void/ rw,
