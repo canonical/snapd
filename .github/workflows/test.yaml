@@ -329,7 +329,7 @@ jobs:
                     echo "Reporting spread error..."
                     ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors "$line"
                 fi
-            done <<< $(jq -cr '.[] | select( .type == "info") | select( .info_type == "Error")' spread-results.json)
+            done <<< $(jq -cr '.[] | select( .type == "info") | select( (.info_type == "Error") or (.info_type == "Debug"))' spread-results.json)
         else
             echo "No spread log found, skipping errors reporting"
         fi
