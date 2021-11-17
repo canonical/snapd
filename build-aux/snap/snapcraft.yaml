@@ -32,10 +32,11 @@ parts:
     source: https://git.launchpad.net/snapd
     source-branch: master
     build-snaps:
-      on riscv64: [go/1.16/stable]
-      else: [go/1.13/stable]
+      - on riscv64: [go/1.16/stable]
+      - else: [go/1.13/stable]
     override-pull: |
       snapcraftctl pull
+      [ -e packaging/ubuntu-20.04 ] || ln -s ubuntu-16.04 packaging/ubuntu-20.04
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
       # for build-base:core, etc.
