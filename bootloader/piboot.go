@@ -115,16 +115,23 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 	}
 
 	dirty := false
-	modeChanged := false
+	needsReconfig := false
+	pibootConfigureAllow := true
 	for k, v := range values {
+		// HACK TODO change: Meta-variable used from initramfs
+		if k == "piboot_configure" && v == "false" {
+			pibootConfigureAllow = false
+			continue
+		}
 		// already set to the right value, nothing to do
 		if env.Get(k) == v {
 			continue
 		}
 		env.Set(k, v)
 		dirty = true
-		if k == "snapd_recovery_mode" {
-			modeChanged = true
+		// Cases that change the bootloader configuration
+		if k == "snapd_recovery_mode" || k == "kernel_status" {
+			needsReconfig = true
 		}
 	}
 
@@ -134,9 +141,7 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 		}
 	}
 
-	// Configure the bootloader when recovery mode is changed
-	// (kernel command line changes)
-	if modeChanged {
+	if needsReconfig && pibootConfigureAllow {
 		if err := p.loadAndApplyConfig(); err != nil {
 			return err
 		}
