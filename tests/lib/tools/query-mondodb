@@ -27,8 +27,7 @@ def _make_parser():
     parser.add_argument('--type', help="Find results for a specific type (Error or Debug)")
     parser.add_argument('--phase', help="Find results for a specific phase (preparing, executing, debbugging or restoring)")
     parser.add_argument('--text', help="Text to searh in the details")
-    parser.add_argument('--include', help="Value to include in the output", action="append", default=[])
-    parser.add_argument('--exclude', help="Value to exclude from the output", action="append", default=[])
+    parser.add_argument('--exclude-detail', help="Exclude the error/debug details from the results", action='store_true')
     parser.add_argument('--limit', help="Number of values included in the output. By default the latest 1000 elements are retrieved", default=1000)
 
     return parser
@@ -56,7 +55,7 @@ def _get_json(value):
         return None
 
 
-def find(db, col, after_date, after_time, before_date, before_time, system, backend, task, type, phase, text, include, exclude, limit):
+def find(db, col, after_date, after_time, before_date, before_time, system, backend, task, type, phase, text, exclude_detail, limit):
     if not col in db.list_collection_names():
         print("report-mongodb: invalid db collection, it does not exist in db")
         sys.exit(1)
@@ -76,10 +75,8 @@ def find(db, col, after_date, after_time, before_date, before_time, system, back
 
     # Which fields have to be included and excluded
     project = {}
-    for item in include:
-        project[item] = 1
-    for item in exclude:
-        project[item] = 0
+    if exclude_detail:
+        project['detail'] = 0
     project['_id'] = 0
 
     # Sort by date and time
@@ -115,8 +112,7 @@ def main():
         args.type,
         args.phase,
         args.text,
-        args.include,
-        args.exclude,
+        args.exclude_detail,
         args.limit)
 
 
