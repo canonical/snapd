@@ -1,6 +1,6 @@
 summary: Ensure that basic opengl works with faked nvidia
 
-systems: [ubuntu-14.04-*, ubuntu-16.04-*, ubuntu-18.04-*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-20.04-*]
 
 environment:
     NV_VERSION/stable: "123.456"
@@ -18,7 +18,7 @@ prepare: |
     mkdir -p /usr/share/vulkan/icd.d
     echo "canary-vulkan" > /usr/share/vulkan/icd.d/nvidia_icd.json
 
-    if os.query is-bionic; then
+    if ! os.query is-xenial; then
         # mock GLVND EGL vendor file
         echo "Test GLVND EGL vendor files access"
         mkdir -p /usr/share/glvnd/egl_vendor.d
@@ -26,9 +26,10 @@ prepare: |
     fi
 
     # mock nvidia libraries
-    if os.query is-bionic; then
+    if ! os.query is-xenial; then
         mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
         mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
+        echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so."$NV_VERSION"
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so."$NV_VERSION"
@@ -37,6 +38,7 @@ prepare: |
         if os.query is-pc-amd64; then
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
+            echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so."$NV_VERSION"
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls/libnvidia-tls.so."$NV_VERSION"
@@ -46,6 +48,7 @@ prepare: |
     fi
     mkdir -p /usr/lib/nvidia-123/tls
     mkdir -p /usr/lib/nvidia-123/vdpau
+    echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX.so.0.0.1
     echo "canary-legacy" >> /usr/lib/nvidia-123/libGLX_nvidia.so.0.0.1
     echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-glcore.so."$NV_VERSION"
     echo "canary-legacy" >> /usr/lib/nvidia-123/tls/libnvidia-tls.so."$NV_VERSION"
@@ -65,16 +68,18 @@ restore: |
     umount -t tmpfs /sys/module
     rm -rf /usr/share/vulkan
 
-    if os.query is-bionic; then
+    if ! os.query is-xenial; then
         rm -rf /usr/share/glvnd/egl_vendor.d/10_nvidia.json
         rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls
         rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau
+        rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX.so.0.0.1
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so."$NV_VERSION"
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so."$NV_VERSION"
         if os.query is-pc-amd64; then
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
+            rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX_nvidia.so.0.0.1
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-glcore.so."$NV_VERSION"
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libnvidia-tls.so."$NV_VERSION"
@@ -84,35 +89,35 @@ restore: |
     rm -rf /usr/lib32/nvidia-123
 
 execute: |
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-policy-app-consumer
+    "$TESTSTOOLS"/snaps-state install-local gl-core16
 
     echo "When the interface is connected"
-    snap connect test-snapd-policy-app-consumer:opengl core:opengl
+    snap connect gl-core16:opengl core:opengl
 
     echo "App can access nvidia library files"
-    expected="canary-legacy"
-    if os.query is-bionic; then
-        expected="canary-triplet"
+    expected="canary-triplet"
+    if os.query is-xenial; then
+        expected="canary-legacy"
     fi
-    files="libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.$NV_VERSION tls/libnvidia-tls.so.$NV_VERSION libnvidia-tls.so.$NV_VERSION vdpau/libvdpau_nvidia.so.$NV_VERSION"
+    files="libGLX.so.0.0.1 libGLX_nvidia.so.0.0.1 libnvidia-glcore.so.$NV_VERSION tls/libnvidia-tls.so.$NV_VERSION libnvidia-tls.so.$NV_VERSION vdpau/libvdpau_nvidia.so.$NV_VERSION"
     for f in $files; do
-       snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl/$f" | MATCH "$expected"
+       gl-core16 cat "/var/lib/snapd/lib/gl/$f" | MATCH "$expected"
     done
 
     if os.query is-pc-amd64; then
-        expected32="canary-32-legacy"
-        if os.query is-bionic; then
-            expected32="canary-32-triplet"
+        expected32="canary-32-triplet"
+        if os.query is-xenial; then
+            expected32="canary-32-legacy"
         fi
         for f in $files; do
-            snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl32/$f" | MATCH "$expected32"
+            gl-core16 cat "/var/lib/snapd/lib/gl32/$f" | MATCH "$expected32"
         done
     fi
 
     echo "And vulkan ICD file"
-    snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json" | MATCH canary-vulkan
+    gl-core16 cat /var/lib/snapd/lib/vulkan/icd.d/nvidia_icd.json | MATCH canary-vulkan
 
-    if os.query is-bionic; then
+    if ! os.query is-xenial; then
         echo "And GLVND EGL vendor file"
-        snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/glvnd/egl_vendor.d/10_nvidia.json" | MATCH canary-egl
+        gl-core16 cat /var/lib/snapd/lib/glvnd/egl_vendor.d/10_nvidia.json | MATCH canary-egl
     fi
