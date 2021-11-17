@@ -61,6 +61,7 @@ func (p *pienvTestSuite) TestOpenEnv(c *C) {
 
 	env2 := pibootenv.NewEnv(p.envFile)
 	err = env2.Load()
+	c.Assert(err, IsNil)
 	c.Assert(env2.Get("foo"), Equals, "bar")
 }
 
