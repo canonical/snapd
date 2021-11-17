@@ -268,6 +268,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	}
 
 	// We need to access the map in order using an ordered array
+	// Sort into iteration order: y, d, h, m, s, ...
 	var keys []Duration
 	for k := range units {
 		keys = append(keys, k)
@@ -299,9 +300,15 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	// by moving up the 'min' accuracy.
 	if count == ShowCompact {
 		for i, key := range keys {
-			// Compact mode only renders two places up until seconds
+
+			// The duration is smaller than this place value, skip
+			if delta < key {
+				continue
+			}
+
+			// Compact mode only renders two places, up until seconds
 			// The indexing is safe as places beyond seconds exist
-			if delta >= key && key >= Minute {
+			if key >= Minute {
 				index := i + 1
 				if keys[index] > min {
 					min = keys[index]
@@ -310,7 +317,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 			}
 
 			// Only one place if we are s, ms, us or ns
-			if delta >= key && key < Minute {
+			if key < Minute {
 				if key > min {
 					min = key
 				}
@@ -321,19 +328,26 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 
 	// Apply the rendermode to the least significant place value
 	mod := delta % min
-	switch {
-	case mode == TimeLeft && mod > 0:
+	switch mode {
+	case TimeLeft:
 		// Ceiling
-		delta = delta + min - mod
-	case mode == TimePassed:
+		if mod > 0 {
+			delta += min - mod
+		}
+	case TimePassed:
 		// Floor
-		delta = delta - mod
-	case mode == TimeRounded && mod >= (min/2):
-		// Rounded Up
-		delta = delta + min - mod
-	case mode == TimeRounded && mod < (min/2):
-		// Rounded Down
-		delta = delta - mod
+		delta -= mod
+	case TimeRounded:
+		if mod >= (min / 2) {
+			// Rounded Up
+			delta += min - mod
+		} else {
+			// Rounded Down
+			delta -= mod
+		}
+	default:
+		// Invalid mode
+		return "inv!"
 	}
 
 	// Special case: less than minimum accuracy
@@ -346,25 +360,28 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 		return "ages!"
 	}
 
+	// We now take the delta nanoseconds and render it in terms
+	// of readable units. We subtract the rendered part as we
+	// iterate through the place values (y, d, h, m, s, ...)
+	remainingDelta := delta
+
 	// Iterate through units of time in order from
 	// highest to lowest (years, days, ...)
 	for _, key := range keys {
-		done := false
-
 		// Nothing left to render, do not bother iterating any further
-		if delta <= 0 {
+		if remainingDelta <= 0 {
 			break
 		}
 
 		// No place value left greater than required
 		// accuracy to render.
-		if delta < min && len(render) != 0 {
+		if remainingDelta < min && len(render) != 0 {
 			break
 		}
 
 		// Remainder is less than current place value,
 		// skip to next.
-		if delta < key {
+		if remainingDelta < key {
 			continue
 		}
 
@@ -375,12 +392,12 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 			return "ages!"
 		}
 
-		unit := delta / key
-		remainder := delta % key
+		unit := remainingDelta / key
+		remainder := remainingDelta % key
 
 		// If the accuracy is less than 1s, we support
 		// rendering a fractional second part.
-		if delta < Minute && remainder > 0 && count == ShowVerbose {
+		if remainingDelta < Minute && remainder > 0 && count == ShowVerbose {
 			digits := 0
 
 			// Number of digits required to render
@@ -395,7 +412,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 				digits--
 			}
 
-			frac := float64(delta) / float64(key)
+			frac := float64(remainingDelta) / float64(key)
 
 			// Should we generate a fractional second, else
 			// use the generic rendering function.
@@ -406,22 +423,19 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 				render += strconv.FormatFloat(frac, 'f', digits, 64)
 				render += units[key]
 
-				delta = 0
-				done = true
+				remainingDelta = 0
 			}
 		}
 
 		// Generic place value rendering
-		if done == false {
+		if remainingDelta != 0 {
 			// Insert spaced between place values if enabled.
 			if len(render) > 0 && space == SpaceOn {
 				render += " "
 			}
 
-			render += fmt.Sprintf("%v", unit)
-			render += units[key]
-
-			delta = remainder
+			render += fmt.Sprintf("%v%s", unit, units[key])
+			remainingDelta = remainder
 		}
 	}
 	return render

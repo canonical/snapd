@@ -162,7 +162,16 @@ func ExampleInv() {
 		Inv(dt)
 	}
 
+	// Invalid mode
+	fmt.Printf("%q\n", quantity.FormatDurationGeneric(1,
+		quantity.Second,
+		quantity.Year,
+		quantity.ShowVerbose,
+		5,
+		true))
+
 	// Output:
+	// "inv!"
 	// "inv!"
 	// "inv!"
 	// "inv!"
