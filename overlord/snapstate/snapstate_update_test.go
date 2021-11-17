@@ -6844,6 +6844,104 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
 	})
 }
 
+/*
+func (s *validationSetsSuite) TestUpdateManyValidationSetsPartialFailure(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		snap1 := map[string]interface{}{
+			"id":       "aaqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap1",
+			"presence": "required",
+			"revision": "1",
+		}
+		snap2 := map[string]interface{}{
+			"id":       "bgtKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap2",
+			"presence": "required",
+			"revision": "2",
+		}
+		snap3 := map[string]interface{}{
+			"id":       "abcKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap3",
+			"presence": "required",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "2", snap1, snap2, snap3)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	si1 := &snap.SideInfo{RealName: "some-snap1", SnapID: "some-snap-id1", Revision: snap.R(1)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-snap1`, si1)
+
+	si2 := &snap.SideInfo{RealName: "some-snap2", SnapID: "some-snap-id2", Revision: snap.R(2)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-snap2`, si2)
+
+	si3 := &snap.SideInfo{RealName: "some-snap3", SnapID: "some-snap-id3", Revision: snap.R(3)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si3},
+		Current:  snap.R(3),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-snap3`, si3)
+
+	s.fakeBackend.ops = nil
+	s.fakeStore.refreshRevnos = map[string]snap.Revision{
+		"some-snap-id1": snap.R(12),
+	}
+
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
+	names, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"some-snap"})
+
+	c.Assert(s.fakeBackend.ops, HasLen, 2)
+	expectedOps := fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:     "some-snap",
+			SnapID:           "some-snap-id",
+			Revision:         snap.R(1),
+			Epoch:            snap.E("1*"),
+			RefreshedDate:    refreshedDate,
+			IgnoreValidation: true,
+		}},
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "refresh",
+			InstanceName: "some-snap",
+			SnapID:       "some-snap-id",
+		},
+		revno: snap.R(11),
+	}}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expectedOps)
+}*/
+
 func (s *snapmgrTestSuite) TestUpdatePrerequisiteBackwardsCompat(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
