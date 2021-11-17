@@ -604,7 +604,7 @@ popd
 
 # Build systemd units, dbus services, and env files
 pushd ./data
-make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
@@ -689,7 +689,7 @@ popd
 
 # Install all systemd and dbus units, and env files
 pushd ./data
-%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
@@ -831,6 +831,7 @@ popd
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop
+%{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
@@ -865,6 +866,8 @@ popd
 # this is typically owned by zsh, but we do not want to explicitly require zsh
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
+# similar case for fish
+%dir %{_datadir}/fish/vendor_conf.d
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
