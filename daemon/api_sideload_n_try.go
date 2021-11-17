@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -55,20 +56,22 @@ type FileHeader struct {
 func (f *Form) RemoveAll() {
 	for _, headers := range f.FileHeader {
 		for _, header := range headers {
-			os.Remove(header.TmpPath)
+			if err := os.Remove(header.TmpPath); err != nil {
+				logger.Noticef("cannot remove temporary file: %v", err)
+			}
 		}
 	}
 }
 
 // SnapFileNameAndPath returns the original file path/name and the path to
 // where the temp file is written.
-func (f *Form) SnapFileNameAndPath() (string, string, *apiError) {
+func (f *Form) SnapFileNameAndPath() (name, path string, apiErr *apiError) {
 	if len(f.FileHeader["snap"]) == 0 {
 		return "", "", BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
 	snapFile := f.FileHeader["snap"][0]
-	name, path := snapFile.Filename, snapFile.TmpPath
+	name, path = snapFile.Filename, snapFile.TmpPath
 
 	if len(f.Value["snap-path"]) > 0 {
 		name = f.Value["snap-path"][0]
@@ -269,8 +272,7 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 		}()
 
 		// TODO: limit the file part size by wrapping it w/ http.MaxBytesReader
-		_, err = io.Copy(tmpf, part)
-		if err != nil {
+		if _, err = io.Copy(tmpf, part); err != nil {
 			return nil, InternalError("cannot write file part: %v", err)
 		}
 
