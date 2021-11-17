@@ -153,6 +153,7 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 func (p *piboot) loadAndApplyConfig() error {
 	var prefix, cfgDir, dstDir string
 	env := pibootenv.NewEnv(p.envFile())
+	cfgFile := "config.txt"
 	if p.prepareImageTime {
 		if err := env.Load(); err != nil && !os.IsNotExist(err) {
 			return err
@@ -173,23 +174,25 @@ func (p *piboot) loadAndApplyConfig() error {
 			env.Merge(env2)
 		}
 
-		// snap_try_kernel will be set when installing a new kernel
-		kernelSnap := env.Get("snap_try_kernel")
-		if kernelSnap == "" {
-			kernelSnap = env.Get("snap_kernel")
+		kernelSnap := env.Get("snap_kernel")
+		kernStat := env.Get("kernel_status")
+		if kernStat == "try" {
+			// snap_try_kernel will be set when installing a new kernel
+			kernelSnap = env.Get("snap_try_kernel")
+			cfgFile = "tryboot.txt"
 		}
 		prefix = filepath.Join(pibootPartFolder, kernelSnap)
 		cfgDir = ubuntuSeedDir
 		dstDir = filepath.Join(ubuntuSeedDir, prefix)
 	}
 
-	logger.Debugf("configure piboot with prefix %q, cfgDir %q, dstDir %q",
-		prefix, cfgDir, dstDir)
+	logger.Debugf("configure piboot %s with prefix %q, cfgDir %q, dstDir %q",
+		cfgFile, prefix, cfgDir, dstDir)
 
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
-	return p.applyConfig(env, prefix, cfgDir, dstDir)
+	return p.applyConfig(env, cfgFile, prefix, cfgDir, dstDir)
 }
 
 // Sets os_prefix in RPi config.txt or tryboot.txt
@@ -249,7 +252,7 @@ func (p *piboot) createCmdline(env *pibootenv.Env, defaultsFile, outFile string)
 	}
 	cmdline += "\n"
 
-	logger.Debugf("wrting kernel command line to %s", outFile)
+	logger.Debugf("writing kernel command line to %s", outFile)
 
 	return osutil.AtomicWriteFile(outFile, []byte(cmdline), 0644, 0)
 }
@@ -257,7 +260,9 @@ func (p *piboot) createCmdline(env *pibootenv.Env, defaultsFile, outFile string)
 // Configure pi bootloader with a given os_prefix. cfgDir contains the
 // config files, and dstDir is where we will place the kernel command
 // line.
-func (p *piboot) applyConfig(env *pibootenv.Env, prefix, cfgDir, dstDir string) error {
+func (p *piboot) applyConfig(env *pibootenv.Env,
+	configFile, prefix, cfgDir, dstDir string) error {
+
 	kernStat := env.Get("kernel_status")
 	cmdlineFile := filepath.Join(dstDir, "cmdline.txt")
 	// These two files are part of the gadget
@@ -266,11 +271,6 @@ func (p *piboot) applyConfig(env *pibootenv.Env, prefix, cfgDir, dstDir string) 
 
 	if err := p.createCmdline(env, templCmdlineFile, cmdlineFile); err != nil {
 		return err
-	}
-	configFile := "config.txt"
-	if kernStat == "try" {
-		// We are trying a new kernel so we use a different cofig file
-		configFile = "tryboot.txt"
 	}
 	if err := p.setRPiCfgOsPrefix(prefix, templConfigFile,
 		filepath.Join(cfgDir, configFile)); err != nil {
