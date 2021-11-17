@@ -111,4 +111,10 @@ void write_string_to_file(const char *filepath, const char *buf);
  **/
 __attribute__((warn_unused_result))
 int sc_nonfatal_mkpath(const char *const path, mode_t mode);
+
+/**
+ * Return true if path is a valid path for the snap-confine binary
+ **/
+__attribute__((warn_unused_result))
+bool sc_is_expected_path(const char *path);
 #endif
