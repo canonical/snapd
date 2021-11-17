@@ -978,7 +978,7 @@ EOF
                            --channel "$IMAGE_CHANNEL" \
                            $EXTRA_FUNDAMENTAL \
                            --snap "${extra_snap[0]}" \
-                           --output "$IMAGE_HOME/$IMAGE"
+                           --output-dir "$IMAGE_HOME"
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
 
     if os.query is-core20; then
