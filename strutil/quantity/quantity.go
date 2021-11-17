@@ -206,14 +206,14 @@ func FormatDuration(dt float64) string {
 type Duration uint64
 
 const (
-	NSec Duration = 1
-	USec Duration = 1000
-	MSec Duration = 1000000
-	Sec  Duration = 1000000000
-	Min  Duration = (60 * Sec)
-	Hour Duration = (60 * Min)
-	Day  Duration = (24 * Hour)
-	Year Duration = (1461 * Day / 4)
+	NSecond Duration = 1
+	USecond Duration = 1000
+	MSecond Duration = 1000000
+	Second  Duration = 1000000000
+	Minute  Duration = (60 * Second)
+	Hour    Duration = (60 * Minute)
+	Day     Duration = (24 * Hour)
+	Year    Duration = (1461 * Day / 4)
 )
 
 // Maximum number of places (units of time) to render starting with years.
@@ -223,8 +223,8 @@ const (
 type Places uint32
 
 const (
-	ShowAll  Places = 8
-	ShowComp Places = 2
+	ShowVerbose Places = 8
+	ShowCompact Places = 2
 )
 
 // Space delimit options
@@ -242,9 +242,9 @@ const (
 type RenderMode uint32
 
 const (
-	TimeLeft    RenderMode = 0
-	TimePassed  RenderMode = 1
-	TimeRounded RenderMode = 2
+	TimeLeft RenderMode = iota
+	TimePassed
+	TimeRounded
 )
 
 // FormatDurationGeneric formats time duration similar to systemd
@@ -257,14 +257,14 @@ const (
 // 'min'. Durations above the 'max' place value will result in "ages!".
 func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places, mode RenderMode, space SpaceMode) string {
 	var units = map[Duration]string{
-		Year: "y",
-		Day:  "d",
-		Hour: "h",
-		Min:  "m",
-		Sec:  "s",
-		MSec: "ms",
-		USec: "µs",
-		NSec: "ns",
+		Year:    "y",
+		Day:     "d",
+		Hour:    "h",
+		Minute:  "m",
+		Second:  "s",
+		MSecond: "ms",
+		USecond: "µs",
+		NSecond: "ns",
 	}
 
 	// We need to access the map in order using an ordered array
@@ -292,26 +292,27 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	}
 
 	// Fractional seconds to nanoseconds
-	delta := uint64(dt * float64(Sec))
+	delta := Duration(dt * float64(Second))
 
 	// If we only render a subset of place values, we need to apply
 	// the render mode to the last place value. We do this indirectly
 	// by moving up the 'min' accuracy.
-	if count == ShowComp {
-		for i := 0; i < len(keys); i++ {
-			// Only render places as indicated by count
-			if delta >= uint64(keys[i]) && keys[i] >= Min {
-				index := i + int(count) - 1
+	if count == ShowCompact {
+		for i, key := range keys {
+			// Compact mode only renders two places up until seconds
+			// The indexing is safe as places beyond seconds exist
+			if delta >= key && key >= Minute {
+				index := i + 1
 				if keys[index] > min {
 					min = keys[index]
 				}
 				break
 			}
 
-			// Only one place as we are s, ms, us or ns
-			if delta >= uint64(keys[i]) && keys[i] < Min {
-				if keys[i] > min {
-					min = keys[i]
+			// Only one place if we are s, ms, us or ns
+			if delta >= key && key < Minute {
+				if key > min {
+					min = key
 				}
 				break
 			}
@@ -319,82 +320,82 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	}
 
 	// Apply the rendermode to the least significant place value
-	mod := uint64(delta % uint64(min))
+	mod := delta % min
 	switch {
 	case mode == TimeLeft && mod > 0:
 		// Ceiling
-		delta = delta + uint64(min) - mod
+		delta = delta + min - mod
 	case mode == TimePassed:
 		// Floor
 		delta = delta - mod
-	case mode == TimeRounded && mod >= (uint64(min)/2):
+	case mode == TimeRounded && mod >= (min/2):
 		// Rounded Up
-		delta = delta + uint64(min) - mod
-	case mode == TimeRounded && mod < (uint64(min)/2):
+		delta = delta + min - mod
+	case mode == TimeRounded && mod < (min/2):
 		// Rounded Down
 		delta = delta - mod
 	}
 
 	// Special case: less than minimum accuracy
-	if delta < uint64(min) {
+	if delta < min {
 		return "0" + units[min]
 	}
 
-	// In ShowComp mode only 2-digit days are possible
-	if count == ShowComp && delta >= (100*uint64(Day)) {
+	// In ShowCompact mode only 2-digit days are possible
+	if count == ShowCompact && delta >= (100*Day) {
 		return "ages!"
 	}
 
 	// Iterate through units of time in order from
 	// highest to lowest (years, days, ...)
-	for i := 0; i < len(keys); i++ {
+	for _, key := range keys {
 		done := false
 
-		// No place value left to render
+		// Nothing left to render, do not bother iterating any further
 		if delta <= 0 {
 			break
 		}
 
 		// No place value left greater than required
 		// accuracy to render.
-		if delta < uint64(min) && len(render) != 0 {
+		if delta < min && len(render) != 0 {
 			break
 		}
 
 		// Remainder is less than current place value,
 		// skip to next.
-		if delta < uint64(keys[i]) {
+		if delta < key {
 			continue
 		}
 
 		// If the duration exceeds the maximum place value
 		// (unit if time) we will not render it, just return
 		// "ages!".
-		if uint64(keys[i]) > uint64(max) {
+		if key > max {
 			return "ages!"
 		}
 
-		unit := uint64(delta / uint64(keys[i]))
-		remainder := uint64(delta % uint64(keys[i]))
+		unit := delta / key
+		remainder := delta % key
 
 		// If the accuracy is less than 1s, we support
 		// rendering a fractional second part.
-		if delta < uint64(Min) && remainder > 0 && count == ShowAll {
+		if delta < Minute && remainder > 0 && count == ShowVerbose {
 			digits := 0
 
 			// Number of digits required to render
 			// nano second fractunal accuracy.
-			for cc := uint64(keys[i]); cc > 1; cc /= 10 {
+			for cc := key; cc > 1; cc /= 10 {
 				digits++
 			}
 
 			// Number of digits to render specified
 			// fractunal accuracy.
-			for cc := uint64(min); cc > 1; cc /= 10 {
+			for cc := min; cc > 1; cc /= 10 {
 				digits--
 			}
 
-			frac := float64(delta) / float64(uint64(keys[i]))
+			frac := float64(delta) / float64(key)
 
 			// Should we generate a fractional second, else
 			// use the generic rendering function.
@@ -403,7 +404,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 					render += " "
 				}
 				render += strconv.FormatFloat(frac, 'f', digits, 64)
-				render += units[keys[i]]
+				render += units[key]
 
 				delta = 0
 				done = true
@@ -418,7 +419,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 			}
 
 			render += fmt.Sprintf("%v", unit)
-			render += units[keys[i]]
+			render += units[key]
 
 			delta = remainder
 		}
@@ -433,7 +434,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 // The ceiling() operation is performed on the unrendered least significant
 // place values (+1 on the least significant rendered unit).
 func ProgressBarTimeLeft(dt float64) string {
-	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimeLeft, SpaceOff)
+	return FormatDurationGeneric(dt, Second, Hour, ShowCompact, TimeLeft, SpaceOff)
 }
 
 // ProgressBarTimePassed presents duration in a layout suitable for progress
@@ -443,5 +444,5 @@ func ProgressBarTimeLeft(dt float64) string {
 // The floor() operation is performed on the unrendered least significant
 // place values (discarded).
 func ProgressBarTimePassed(dt float64) string {
-	return FormatDurationGeneric(dt, Sec, Hour, ShowComp, TimePassed, SpaceOff)
+	return FormatDurationGeneric(dt, Second, Hour, ShowCompact, TimePassed, SpaceOff)
 }
