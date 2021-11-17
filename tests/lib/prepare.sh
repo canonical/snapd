@@ -849,6 +849,7 @@ setup_reflash_magic() {
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
     IMAGE_HOME=/home/image
+    IMAGE=pc.img
     mkdir -p "$IMAGE_HOME"
 
     # ensure that ubuntu-image is using our test-build of snapd with the
@@ -862,11 +863,9 @@ setup_reflash_magic() {
         repack_snapd_snap_with_deb_content "$IMAGE_HOME"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
-        IMAGE=core18-amd64.img
     elif os.query is-core20; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
-        IMAGE=core20-amd64.img
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -902,9 +901,6 @@ EOF
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
-
-        # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
-        IMAGE=all-snap-amd64.img
     fi
 
     EXTRA_FUNDAMENTAL=
