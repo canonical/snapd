@@ -24,9 +24,12 @@ def _make_parser():
     parser.add_argument('--system', help="Find results for a specific spread system", default=".*")
     parser.add_argument('--backend', help="Find results for a specific spread backend", default=".*")
     parser.add_argument('--task', help="Find results for a specific spread task (include variant)", default=".*")
+    parser.add_argument('--type', help="Find results for a specific type (Error or Debug)")
+    parser.add_argument('--phase', help="Find results for a specific phase (preparing, executing, debbugging or restoring)")
+    parser.add_argument('--text', help="Text to searh in the details")
     parser.add_argument('--include', help="Value to include in the output", action="append", default=[])
     parser.add_argument('--exclude', help="Value to exclude from the output", action="append", default=[])
-    parser.add_argument('--limit', help="Number of values included in the output", default=1000)
+    parser.add_argument('--limit', help="Number of values included in the output. By default the latest 1000 elements are retrieved", default=1000)
 
     return parser
 
@@ -53,17 +56,23 @@ def _get_json(value):
         return None
 
 
-def find(db, col, after_date, after_time, before_date, before_time, system, backend, task, include, exclude, limit):
+def find(db, col, after_date, after_time, before_date, before_time, system, backend, task, type, phase, text, include, exclude, limit):
     if not col in db.list_collection_names():
         print("report-mongodb: invalid db collection, it does not exist in db")
         sys.exit(1)
 
-    # Filter the results based on some usefull filters
+    # Filter the results based on some useful filters
     filter = {}
     filter["date"] = {'$gt': after_date, '$lt': before_date}
     filter["time"] = {'$gt': after_time, '$lt': before_time}
     task_exp = '{}:{}:.*/{}'.format(backend, system, task)
     filter["task"] = {'$regex': task_exp}
+    if type:
+        filter["info_type"] = type.capitalize()
+    if phase:
+        filter["verb"] = phase.lower()
+    if text:
+        filter["detail.lines"] = {'$regex': text}
 
     # Which fields have to be included and excluded
     project = {}
@@ -73,7 +82,10 @@ def find(db, col, after_date, after_time, before_date, before_time, system, back
         project[item] = 0
     project['_id'] = 0
 
-    elems = db[col].find(filter, project).limit(int(limit))
+    # Sort by date and time
+    sort = [('date', -1),('time', -1)]
+
+    elems = db[col].find(filter, project).limit(int(limit)).sort(sort)
     for elem in elems:
         print(elem)
 
@@ -100,6 +112,9 @@ def main():
         args.system, 
         args.backend, 
         args.task,
+        args.type,
+        args.phase,
+        args.text,
         args.include,
         args.exclude,
         args.limit)
