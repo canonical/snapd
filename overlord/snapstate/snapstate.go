@@ -2283,6 +2283,11 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
+	// make sure that remodel can identify which tasks introduce actual
+	// changes to the system and order them correctly
+	if edgeTask := ts.MaybeEdge(DownloadAndChecksDoneEdge); edgeTask == nil {
+		ts.MarkEdge(allTasks[len(allTasks)-1], DownloadAndChecksDoneEdge)
+	}
 	return ts, nil
 }
 
@@ -2357,6 +2362,11 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, e
 	gadgetCmdline.Set("snap-setup-task", snapSetupTask.ID())
 	gadgetCmdline.WaitFor(gadgetUpdate)
 	ts.AddTask(gadgetCmdline)
+	// make sure that remodel can identify which tasks introduce actual
+	// changes to the system and order them correctly
+	if edgeTask := ts.MaybeEdge(DownloadAndChecksDoneEdge); edgeTask == nil {
+		ts.MarkEdge(allTasks[len(allTasks)-1], DownloadAndChecksDoneEdge)
+	}
 	return ts, nil
 }
 
