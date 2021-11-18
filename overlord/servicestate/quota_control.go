@@ -84,9 +84,8 @@ func memoryCGroupEnabled() error {
 				}
 				if !isMemoryEnabled {
 					return fmt.Errorf("memory cgroup disabled on this system")
-				} else {
-					return nil
-				}
+
+				return nil
 			}
 			// change in size, should investigate the new structure
 			return fmt.Errorf("memory control group configuration couldn't be parsed")
