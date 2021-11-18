@@ -264,15 +264,20 @@ type DiskStructureDeviceTraits struct {
 	OriginalKernelPath string `json:"kernel-path"`
 	// PartitionUUID is the partuuid as defined by i.e. /dev/disk/by-partuuid
 	PartitionUUID string `json:"partition-uuid"`
-	// FilesystemLabel is the label of the filesystem for structures that have
-	// filesystems, i.e. /dev/disk/by-label
-	FilesystemLabel string `json:"filesystem-label"`
 	// PartitionLabel is the label of the partition for GPT disks, i.e.
 	// /dev/disk/by-partlabel
 	PartitionLabel string `json:"partition-label"`
+	// PartitionType is the type of the partition i.e. 0x83 for ext4 on DOS, or
+	// 0FC63DAF-8483-4772-8E79-3D69D8477DE4 for ext4 on GPT.
+	PartitionType string `json:"partition-type"`
 	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
 	// /dev/disk/by-uuid
 	FilesystemUUID string `json:"filesystem-uuid"`
+	// FilesystemLabel is the label of the filesystem for structures that have
+	// filesystems, i.e. /dev/disk/by-label
+	FilesystemLabel string `json:"filesystem-label"`
+	// FilesystemType is the type of the filesystem, i.e. vfat or ext4, etc.
+	FilesystemType string `json:"filesystem-type"`
 	// ID is the partition ID of the partition, i.e. /dev/disk/by-id which is
 	// typically only present for DOS disks.
 	ID string `json:"id"`
