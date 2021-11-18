@@ -2948,6 +2948,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 			DiskID:             "484B4BA1-3EDF-4270-A1A8-378FCBB0E1DE",
 			Size:               10 * quantity.SizeGiB,
 			SectorSize:         quantity.Size(512),
+			Schema:             "gpt",
 			Structure: []gadget.DiskStructureDeviceTraits{
 				// first structure is a bare structure with no filesystem
 				{
@@ -2979,6 +2980,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
 			OriginalKernelPath: "/dev/vda",
 			DiskID:             "46E2573B-7891-4316-B83C-DE0817A7CFB5",
+			Schema:             "gpt",
 			Structure: []gadget.DiskStructureDeviceTraits{
 				{
 					OriginalDevicePath: "/dev/vda1",

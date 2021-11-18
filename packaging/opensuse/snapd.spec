@@ -272,6 +272,7 @@ done
 %make_install -C %{indigo_srcdir}/data \
 		BINDIR=%{_bindir} \
 		LIBEXECDIR=%{_libexecdir} \
+		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		SNAP_MOUNT_DIR=%{snap_mount_dir}
 # Install all the C executables.
@@ -401,6 +402,8 @@ fi
 # this is typically owned by zsh, but we do not want to explicitly require zsh
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
+# similar case for fish
+%dir %{_datadir}/fish/vendor_conf.d
 
 # Ghost entries for things created at runtime
 %ghost %dir %{_localstatedir}/snap
@@ -424,6 +427,7 @@ fi
 %{_datadir}/dbus-1/session.d/snapd.session-services.conf
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
+%{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
