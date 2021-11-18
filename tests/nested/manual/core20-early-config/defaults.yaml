@@ -9,6 +9,7 @@ defaults:
       runtime-timeout: 13m
     system:
       power-key-action: ignore
+      ctrl-alt-del-action: none
       disable-backlight-service: true
       timezone: Europe/Malta
       hostname: foo

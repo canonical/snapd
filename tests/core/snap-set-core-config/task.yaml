@@ -52,6 +52,12 @@ execute: |
         exit 1
     fi
 
+    echo "Check that ctrl-alt-del-action=none works"
+    snap set core system.ctrl-alt-del-action=none
+    systemctl show --property=UnitFileState ctrl-alt-del.target | MATCH "UnitFileState=masked"
+    echo "Check that ctrl-alt-del-action=reboot works"
+    snap set core system.ctrl-alt-del-action=reboot
+    systemctl show --property=UnitFileState ctrl-alt-del.target | MATCH "UnitFileState=disabled"
 
     echo "Check that pi config handline works"
     if [ -e /boot/uboot/config.txt ]; then
