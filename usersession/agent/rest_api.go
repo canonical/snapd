@@ -66,9 +66,9 @@ var (
 		POST: postPendingRefreshNotification,
 	}
 
-	closeRefreshNotificationCmd = &Command{
-		Path: "/v1/notifications/close",
-		POST: closeRefreshNotification,
+	finishRefreshNotificationCmd = &Command{
+		Path: "/v1/notifications/finish-refresh",
+		POST: postRefreshFinishedNotification,
 	}
 )
 
@@ -311,19 +311,19 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
-func closeRefreshNotification(c *Command, r *http.Request) Response {
+func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	if ok, resp := validateJSONRequest(r); !ok {
 		return resp
 	}
 
 	decoder := json.NewDecoder(r.Body)
 
-	type closeRefreshNotificationInfo struct {
+	type finishRefreshNotificationInfo struct {
 		InstanceName string `json:"instance-name"`
 	}
-	var closeInfo closeRefreshNotificationInfo
-	if err := decoder.Decode(&closeInfo); err != nil {
-		return BadRequest("cannot decode request body into close notification info: %v", err)
+	var finishRefresh finishRefreshNotificationInfo
+	if err := decoder.Decode(&finishRefresh); err != nil {
+		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
 	}
 
 	// Note that since the connection is shared, we are not closing it.
@@ -337,7 +337,7 @@ func closeRefreshNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	if err := c.s.notificationMgr.CloseNotification(notification.ID(closeInfo.InstanceName)); err != nil {
+	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
