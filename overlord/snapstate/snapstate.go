@@ -180,21 +180,15 @@ func (i pathInfo) Prereq(st *state.State) []string {
 	return getKeys(defaultProviderContentAttrs(st, i.Info))
 }
 
-func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, gFlags *Flags) (*SnapSetup, *SnapState, error) {
+func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, gFlags *Flags) (*SnapSetup, *SnapState, error) {
 	update := i.Info
 
-	// TODO: what
-	revnoOpts, flags, snapst := params(update)
+	revnoOpts, _, snapst := params(update)
 
 	flags, err := earlyChecks(st, snapst, update, *gFlags)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	//snapUserID, err := userIDForSnap(st, snapst, userID)
-	//if err != nil {
-	//	return nil, nil, err
-	//}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, update)
 	snapsup := SnapSetup{
@@ -208,25 +202,6 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, u
 		Type:               i.Type(),
 		PlugsOnly:          len(i.Slots) == 0,
 		InstanceKey:        i.InstanceKey,
-		// TODO(miguel): what else is necessary?
-		/*
-			Base:               update.Base,
-			SnapPath:           i.path,
-			Prereq:             getKeys(providerContentAttrs),
-			PrereqContentAttrs: providerContentAttrs,
-			Channel:            revnoOpts.Channel,
-			CohortKey:          revnoOpts.CohortKey,
-			//UserID:             snapUserID,
-			Flags:        flags.ForSnapSetup(),
-			DownloadInfo: &update.DownloadInfo,
-			SideInfo:     &update.SideInfo,
-			Type:         update.Type(),
-			PlugsOnly:    len(update.Slots) == 0,
-			InstanceKey:  update.InstanceKey,
-			auxStoreInfo: auxStoreInfo{
-				Website: update.Website,
-				Media:   update.Media,
-			},*/
 	}
 	return &snapsup, snapst, nil
 }
@@ -1133,11 +1108,10 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, []*snap.Info, error) {
-	if flags == nil {
-		flags = &Flags{}
-	}
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string) ([]*state.TaskSet, []*snap.Info, error) {
+	var flags Flags
 
+	// TODO(miguel): unnecessary?
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, nil, err
@@ -1178,41 +1152,11 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
-		snapst := stateByInstanceName[update.InstanceName()]
-		return &RevisionOptions{}, snapst.Flags, snapst
+		return &RevisionOptions{}, flags, stateByInstanceName[update.InstanceName()]
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, nil, err
-	}
-	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snap and its
-		// prerequisites.
-		totalSize, err := installSize(st, updates, userID)
-		if err != nil {
-			return nil, nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			snaps := make([]string, len(updates))
-			for i, up := range updates {
-				snaps[i] = up.InstanceName()
-			}
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      snaps,
-					ChangeKind: "install",
-				}
-			}
-			return nil, nil, err
-		}
-	}
-
-	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	// TODO(miguel): disk space refresh check?
+	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, -1, &flags, deviceCtx, "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1222,7 +1166,6 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		updatedInfos[i] = snapInfos[u]
 	}
 
-	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
 	return tasksets, updatedInfos, nil
 }
 

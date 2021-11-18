@@ -4287,9 +4287,7 @@ func (s *snapmgrTestSuite) TestInstallPathMany(c *C) {
 	var sideInfos []*snap.SideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
-	channels := []string{"something/edge", "other/beta"}
-
-	for i, name := range snapNames {
+	for _, name := range snapNames {
 		yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
@@ -4297,14 +4295,14 @@ epoch: 1
 		paths = append(paths, makeTestSnap(c, yaml))
 		si := &snap.SideInfo{
 			RealName: name,
-			Channel:  channels[i],
+			Revision: snap.R("3"),
 		}
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
 	c.Assert(err, IsNil)
-	c.Check([]string{infos[0].RealName, infos[1].RealName}, DeepEquals, snapNames)
+	c.Check([]string{infos[0].RealName, infos[1].RealName}, testutil.DeepUnsortedMatches, snapNames)
 	c.Assert(tss, HasLen, 2)
 
 	chg := s.state.NewChange("install", "install local snaps")
@@ -4318,12 +4316,11 @@ epoch: 1
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	for i, name := range snapNames {
+	for _, name := range snapNames {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, name, &snapst)
 		c.Assert(err, IsNil)
-		c.Check(snapst.NoReRefresh, Equals, true)
-		c.Check(snapst.TrackingChannel, Equals, channels[i])
+		c.Check(snapst.Current, Equals, snap.R("3"))
 	}
 }
 
@@ -4348,9 +4345,9 @@ epoch: 1
 		return errors.New("expected")
 	}, nil)
 
-	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
 	c.Assert(err, IsNil)
-	c.Check([]string{infos[0].RealName, infos[1].RealName}, DeepEquals, snapNames)
+	c.Check([]string{infos[0].RealName, infos[1].RealName}, testutil.DeepUnsortedMatches, snapNames)
 	c.Assert(tss, HasLen, 2)
 
 	// fail installation of 'other-snap' which shouldn't affect 'some-snap'
@@ -4398,7 +4395,6 @@ func (s *snapmgrTestSuite) TestInstallPathManyAsUpdate(c *C) {
 			Active:   true,
 			Sequence: []*snap.SideInfo{si},
 			Current:  si.Revision,
-			SnapType: "app",
 		})
 
 		yaml := fmt.Sprintf(`name: %s
@@ -4416,9 +4412,9 @@ epoch: 1
 		sideInfos = append(sideInfos, newSi)
 	}
 
-	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
 	c.Assert(err, IsNil)
-	c.Check([]string{infos[0].RealName, infos[1].RealName}, DeepEquals, snapNames)
+	c.Check([]string{infos[0].RealName, infos[1].RealName}, testutil.DeepUnsortedMatches, snapNames)
 	c.Assert(tss, HasLen, 2)
 
 	chg := s.state.NewChange("install", "install local snaps")
