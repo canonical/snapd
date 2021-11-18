@@ -86,15 +86,16 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 	ds := make([]OnDiskStructure, len(parts))
 
 	for _, p := range parts {
-		// use the index of the structure on the disk rather than the order in
+		// Use the index of the structure on the disk rather than the order in
 		// which we iterate over the list of partitions, since the order of the
 		// partitions is returned "last seen first" which matches the behavior
 		// of udev when picking partitions with the same filesystem label and
-		// populating /dev/disk/by-label/ and friends
-		// all that is to say the order that the list of partitions from
+		// populating /dev/disk/by-label/ and friends.
+		// All that is to say the order that the list of partitions from
 		// Partitions() is in is _not_ the same as the order that the structures
 		// actually appear in on disk, but this is why the StructureIndex
-		// property exists
+		// property exists. Also note that StructureIndex starts at 1, as
+		// opposed to gadget.LaidOutVolume.Structure's Index which starts at 0.
 		i := p.StructureIndex - 1
 
 		// the PartitionLabel and FilesystemLabel are encoded, so they must be

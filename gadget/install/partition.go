@@ -92,7 +92,10 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure) {
 	sectorSize := uint64(dl.SectorSize)
 
-	// Keep track what partitions we already have on disk
+	// Keep track what partitions we already have on disk - the keys to this map
+	// is the starting sector of the structure we have seen.
+	// TODO: use quantity.SectorOffset or similar when that is available
+
 	seen := map[uint64]bool{}
 	for _, s := range dl.Structure {
 		start := uint64(s.StartOffset) / sectorSize

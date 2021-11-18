@@ -2615,9 +2615,9 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 	Size:       2 * quantity.SizeGiB,
 	SectorSize: 512,
 
-	// ( 2 GB / 512 B sector size ) - 34 typical GPT header backup sectors +
+	// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
 	// 1 sector to get the exclusive end
-	UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-34) + 1,
+	UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
 }
 
 const mockSimpleGadgetYaml = `volumes:
