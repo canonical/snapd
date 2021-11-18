@@ -121,3 +121,14 @@ execute: |
         echo "And GLVND EGL vendor file"
         gl-core16 cat /var/lib/snapd/lib/glvnd/egl_vendor.d/10_nvidia.json | MATCH canary-egl
     fi
+
+    echo "For host systems using glvnd, the glvnd libraries are not exposed to snaps using newer bases"
+    "$TESTSTOOLS"/snaps-state install-local gl-core20
+    snap connect gl-core20:opengl core:opengl
+
+    if ! os.query is-xenial; then
+        not gl-core20 test -f /var/lib/snapd/lib/gl/libGLX.so.0.1
+        if os.query is-pc-amd64; then
+            not gl-core16 cat /var/lib/snapd/lib/gl32/libGLX.so.0.1
+        fi
+    fi
