@@ -43,8 +43,15 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
+// Form is a multipart form that hold file and non-file parts
 type Form struct {
-	Values   map[string][]string
+	// Values holds non-file parts keyed by their "name" parameter (from the
+	// part's Content-Disposition header).
+	Values map[string][]string
+
+	// FileRefs holds file parts keyed by their "name" parameter (from the
+	// part's Content-Disposition header). Each reference contains a filename
+	// (the "filename" parameter) and the path to a file with the parts contents.
 	FileRefs map[string][]*FileReference
 }
 
@@ -63,21 +70,21 @@ func (f *Form) RemoveAll() {
 	}
 }
 
-// SnapFileNameAndPath returns the original file path/name and the path to
+// SnapFileNameAndTempPath returns the original file path/name and the path to
 // where the temp file is written.
-func (f *Form) SnapFileNameAndPath() (name, path string, apiErr *apiError) {
+func (f *Form) SnapFileNameAndTempPath() (srcFilename, path string, apiErr *apiError) {
 	if len(f.FileRefs["snap"]) == 0 {
 		return "", "", BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
 	snapFile := f.FileRefs["snap"][0]
-	name, path = snapFile.Filename, snapFile.TmpPath
+	srcFilename, path = snapFile.Filename, snapFile.TmpPath
 
 	if len(f.Values["snap-path"]) > 0 {
-		name = f.Values["snap-path"][0]
+		srcFilename = f.Values["snap-path"][0]
 	}
 
-	return name, path, nil
+	return srcFilename, path, nil
 }
 
 func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response {
@@ -118,7 +125,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
 	systemRestartImmediate := isTrue(form, "system-restart-immediate")
 
-	origPath, tempPath, errRsp := form.SnapFileNameAndPath()
+	origPath, tempPath, errRsp := form.SnapFileNameAndTempPath()
 	if errRsp != nil {
 		return errRsp
 	}
