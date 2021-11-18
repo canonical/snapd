@@ -234,11 +234,6 @@ type DiskVolumeDeviceTraits struct {
 	// "0x1212e868".
 	DiskID string `json:"disk-id"`
 
-	// Structure contains trait information about each individual structure in
-	// the volume that may be useful in identifying whether a disk matches a
-	// volume or not.
-	Structure []DiskStructureDeviceTraits `json:"structure"`
-
 	// Size is the physical size of the disk, regardless of usable space
 	// considerations.
 	Size quantity.Size `json:"size"`
@@ -249,6 +244,11 @@ type DiskVolumeDeviceTraits struct {
 
 	// Schema is the disk schema, either dos or gpt in lowercase.
 	Schema string `json:"schema"`
+
+	// Structure contains trait information about each individual structure in
+	// the volume that may be useful in identifying whether a disk matches a
+	// volume or not.
+	Structure []DiskStructureDeviceTraits `json:"structure"`
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
