@@ -128,6 +128,10 @@ package main
 //#define SCMP_ARCH_S390X ARCH_BAD
 //#endif
 //
+//#ifndef SCMP_ARCH_RISCV64
+//#define SCMP_ARCH_RISCV64 ARCH_BAD
+//#endif
+//
 //#ifndef SECCOMP_RET_LOG
 //#define SECCOMP_RET_LOG 0x7ffc0000U
 //#endif
@@ -185,8 +189,7 @@ import (
 	"strings"
 	"syscall"
 
-	// FIXME: we want github.com/seccomp/libseccomp-golang but that will not work with trusty because libseccomp-golang checks for the seccomp version and errors if it find one < 2.2.0
-	"github.com/mvo5/libseccomp-golang"
+	"github.com/seccomp/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
@@ -452,7 +455,7 @@ func DpkgArchToScmpArch(dpkgArch string) seccomp.ScmpArch {
 	case "s390x":
 		return seccomp.ArchS390X
 	}
-	panic(fmt.Sprintf("cannot map dpkg arch %q to a seccomp arch", dpkgArch))
+	return extraDpkgArchToScmpArch(dpkgArch)
 }
 
 // important for unit testing

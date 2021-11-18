@@ -202,6 +202,50 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 	c.Assert(d.HasPartitions(), Equals, true)
 }
 
+func (s *diskSuite) TestDiskFromPartitionDeviceNodeHappy(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		// first is for the partition itself, only relevant info is the
+		// ID_PART_ENTRY_DISK which is the parent disk
+		case "/dev/sda1":
+			return map[string]string{
+				"ID_PART_ENTRY_DISK": "42:0",
+			}, nil
+		// next up is the disk itself identified by the major/minor
+		case "/dev/block/42:0":
+			return map[string]string{
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/sda",
+				"DEVPATH":            "/devices/foo/sda",
+				"ID_PART_TABLE_UUID": "foo-id",
+				"ID_PART_TABLE_TYPE": "gpt",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// create the partition device node too
+	createVirtioDevicesInSysfs(c, "/devices/foo/sda", map[string]bool{
+		"sda1": true,
+	})
+
+	d, err := disks.DiskFromPartitionDeviceNode("/dev/sda1")
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "42:0")
+	c.Assert(d.DiskID(), Equals, "foo-id")
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+	// note that we don't always prepend exactly /sys, we use dirs.SysfsDir
+	c.Assert(d.KernelDevicePath(), Equals, filepath.Join(dirs.SysfsDir, "/devices/foo/sda"))
+
+	// it doesn't have any partitions since we didn't mock any in sysfs
+	c.Assert(d.HasPartitions(), Equals, true)
+}
+
 func (s *diskSuite) TestDiskFromDeviceNameUnhappyPartition(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
@@ -279,7 +323,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyMissingUdevProps(c *C) {
 	defer restore()
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, "cannot find disk for partition /dev/vda4, incomplete udev output")
+	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition(c *C) {
@@ -298,7 +342,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyBadUdevPropsMountpointPartition
 	defer restore()
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, `cannot find disk for partition /dev/vda4, bad udev output: invalid device number format: \(expected <int>:<int>\)`)
+	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: bad udev output: invalid device number format: \(expected <int>:<int>\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(c *C) {
@@ -326,7 +370,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNotDiskDevice(
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, `mountpoint source /dev/vda4 is not a decrypted device: devtype is not disk \(is partition\)`)
+	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/vda4 of /run/mnt/point: not a decrypted device: devtype is not disk \(is partition\)`)
 }
 
 func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) {
@@ -340,6 +384,8 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 		case "/dev/mapper/something":
 			return map[string]string{
 				"DEVTYPE": "disk",
+				"MAJOR":   "252",
+				"MINOR":   "0",
 			}, nil
 		default:
 			c.Errorf("unexpected udev device properties requested: %s", dev)
@@ -352,7 +398,7 @@ func (s *diskSuite) TestDiskFromMountPointUnhappyIsDecryptedDeviceNoSysfs(c *C) 
 
 	opts := &disks.Options{IsDecryptedDevice: true}
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`mountpoint source /dev/mapper/something is not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: not a decrypted device: could not read device mapper metadata: open %s/dev/block/252:0/dm/uuid: no such file or directory`, dirs.SysfsDir))
 }
 
 func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitionsInSysfs(c *C) {
@@ -493,22 +539,17 @@ func (s *diskSuite) TestDiskFromMountPointVolumeUnhappyWithoutPartEntryDisk(c *C
 
 	udevadmCmd := testutil.MockCommand(c, "udevadm", `
 if [ "$*" = "info --query property --name /dev/mapper/something" ]; then
-	# not a partition, so no ID_PART_ENTRY_DISK, but we will have DEVTYPE=disk
+	# no ID_PART_ENTRY_DISK, so not a disk from this mount point
 	echo "DEVTYPE=disk"
 else
 	echo "unexpected arguments $*"
 	exit 1
 fi
 `)
+	defer udevadmCmd.Restore()
 
-	d, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, IsNil)
-	c.Assert(d.Dev(), Equals, "42:1")
-	c.Assert(d.HasPartitions(), Equals, false)
-
-	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
-		{"udevadm", "info", "--query", "property", "--name", "/dev/mapper/something"},
-	})
+	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
+	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/mapper/something of /run/mnt/point: incomplete udev output missing required property \"ID_PART_ENTRY_DISK\"")
 }
 
 func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
@@ -522,10 +563,11 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedDeviceVolumeHappy(c *C) {
 		case "/dev/mapper/something":
 			return map[string]string{
 				"DEVTYPE": "disk",
+				"MAJOR":   "242",
+				"MINOR":   "1",
 			}, nil
 		case "/dev/disk/by-uuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
 			return map[string]string{
-				"DEVTYPE":            "disk",
 				"ID_PART_ENTRY_DISK": "42:0",
 			}, nil
 		case "/dev/block/42:0":
@@ -570,6 +612,8 @@ func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
 
 	udevadmCmd := testutil.MockCommand(c, "udevadm", `
 if [ "$*" = "info --query property --name /dev/not-a-disk" ]; then
+	echo "ID_PART_ENTRY_DISK=43:0"
+elif [ "$*" = "info --query property --name /dev/block/43:0" ]; then
 	echo "DEVTYPE=not-a-disk"
 else
 	echo "unexpected arguments $*"
@@ -578,10 +622,11 @@ fi
 `)
 
 	_, err := disks.DiskFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, "unsupported DEVTYPE \"not-a-disk\" for mount point source /dev/not-a-disk")
+	c.Assert(err, ErrorMatches, "cannot find disk from mountpoint source /dev/not-a-disk of /run/mnt/point: unsupported DEVTYPE \"not-a-disk\"")
 
 	c.Assert(udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/not-a-disk"},
+		{"udevadm", "info", "--query", "property", "--name", "/dev/block/43:0"},
 	})
 }
 
@@ -817,6 +862,8 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			// the mapper device is a disk/volume
 			return map[string]string{
 				"DEVTYPE": "disk",
+				"MAJOR":   "252",
+				"MINOR":   "0",
 			}, nil
 		case 2:
 			// next we find the physical disk by the dm uuid
@@ -878,6 +925,8 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			// the mapper device is a disk/volume
 			return map[string]string{
 				"DEVTYPE": "disk",
+				"MAJOR":   "252",
+				"MINOR":   "0",
 			}, nil
 		case 17:
 			// then we find the physical disk by the dm uuid
@@ -1080,7 +1129,7 @@ func (s *diskSuite) TestMountPointsForPartitionRoot(c *C) {
 	}
 }
 
-func (s *diskSuite) TestDiskSectorSize(c *C) {
+func (s *diskSuite) TestDiskSizeRelatedMethodsGPT(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1096,41 +1145,7 @@ func (s *diskSuite) TestDiskSectorSize(c *C) {
 	})
 	defer restore()
 
-	cmd := testutil.MockCommand(c, "blockdev", `
-echo 512
-`)
-	defer cmd.Restore()
-
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
-	c.Assert(d.Schema(), Equals, "gpt")
-	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
-
-	sz, err := d.SectorSize()
-	c.Assert(err, IsNil)
-	c.Assert(sz, Equals, uint64(512))
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"blockdev", "--getss", "/dev/sda"},
-	})
-}
-
-func (s *diskSuite) TestDiskLastUsableByteGPT(c *C) {
-	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
-		c.Assert(typeOpt, Equals, "--name")
-		c.Assert(dev, Equals, "sda")
-		return map[string]string{
-			"MAJOR":              "1",
-			"MINOR":              "2",
-			"DEVTYPE":            "disk",
-			"DEVNAME":            "/dev/sda",
-			"ID_PART_TABLE_UUID": "foo",
-			"ID_PART_TABLE_TYPE": "gpt",
-			"DEVPATH":            "/devices/foo/sda",
-		}, nil
-	})
-	defer restore()
-
-	cmd := testutil.MockCommand(c, "sfdisk", `
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1138,27 +1153,54 @@ echo '{
 	}
 }'
 `)
-	defer cmd.Restore()
-
-	blockDevCmd := testutil.MockCommand(c, "blockdev", `
-echo 512
-`)
-	defer blockDevCmd.Restore()
+	defer sfdiskCmd.Restore()
 
 	d, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, IsNil)
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.LastUsableByte()
+	endSectors, err := d.UsableSectorsEnd()
 	c.Assert(err, IsNil)
-	c.Assert(sz, Equals, uint64(43*512))
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+	c.Assert(endSectors, Equals, uint64(43))
+	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "/dev/sda"},
 	})
+	sfdiskCmd.ForgetCalls()
+
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getsz" ]; then
+	echo 10000
+elif [ "$1" = "--getss" ]; then
+	echo 512
+else
+	echo "fail, test broken"
+	exit 1
+fi
+`)
+	defer blockDevCmd.Restore()
+
+	sz, err := d.SizeInBytes()
+	c.Assert(err, IsNil)
+	c.Assert(sz, Equals, uint64(10000*512))
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsz", "/dev/sda"},
+	})
+
+	blockDevCmd.ForgetCalls()
+
+	sectorSz, err := d.SectorSize()
+	c.Assert(err, IsNil)
+	c.Assert(sectorSz, Equals, uint64(512))
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/sda"},
+	})
+
+	// we didn't use sfdisk again at all
+	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
 }
 
-func (s *diskSuite) TestDiskLastUsableByteGPTUnexpectedSfdiskUnit(c *C) {
+func (s *diskSuite) TestDiskUsableSectorsEndGPTUnexpectedSfdiskUnit(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1184,24 +1226,20 @@ echo '{
 `)
 	defer cmd.Restore()
 
-	blockDevCmd := testutil.MockCommand(c, "blockdev", `
-echo 512
-`)
-	defer blockDevCmd.Restore()
-
 	d, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, IsNil)
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	_, err = d.LastUsableByte()
+	_, err = d.UsableSectorsEnd()
 	c.Assert(err, ErrorMatches, "cannot get size in sectors, sfdisk reported unknown unit not-sectors")
+
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 }
 
-func (s *diskSuite) TestDiskLastUsableByteGPTSectorSize4K(c *C) {
+func (s *diskSuite) TestDiskSizeRelatedMethodsGPTSectorSize4K(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1217,7 +1255,7 @@ func (s *diskSuite) TestDiskLastUsableByteGPTSectorSize4K(c *C) {
 	})
 	defer restore()
 
-	cmd := testutil.MockCommand(c, "sfdisk", `
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1225,31 +1263,58 @@ echo '{
 	}
 }'
 `)
-	defer cmd.Restore()
-
-	blockDevCmd := testutil.MockCommand(c, "blockdev", `
-echo 4096
-`)
-	defer blockDevCmd.Restore()
+	defer sfdiskCmd.Restore()
 
 	d, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, IsNil)
 	c.Assert(d.Schema(), Equals, "gpt")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.LastUsableByte()
+	endSectors, err := d.UsableSectorsEnd()
 	c.Assert(err, IsNil)
-	c.Assert(sz, Equals, uint64(43*4096))
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+	c.Assert(endSectors, Equals, uint64(43))
+	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 
+	sfdiskCmd.ForgetCalls()
+
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getsz" ]; then
+	echo 10000
+elif [ "$1" = "--getss" ]; then
+	echo 4096
+else
+	echo "fail, test broken"
+	exit 1
+fi
+`)
+	defer blockDevCmd.Restore()
+
+	sz, err := d.SizeInBytes()
+	c.Assert(err, IsNil)
+	// the size is still the result of --getsz * 512, we don't use the native
+	// sector size at all here since blockdev doesn't use the native sector size
+	// at all
+	c.Assert(sz, Equals, uint64(10000*512))
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsz", "/dev/sda"},
+	})
+
+	blockDevCmd.ForgetCalls()
+
+	sectorSz, err := d.SectorSize()
+	c.Assert(err, IsNil)
+	c.Assert(sectorSz, Equals, uint64(4096))
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getss", "/dev/sda"},
 	})
+
+	// we didn't use sfdisk again at all after UsableSectorsEnd
+	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
 }
 
-func (s *diskSuite) TestDiskLastUsableByteGPTNon512MultipleSectorSizeError(c *C) {
+func (s *diskSuite) TestDiskSizeRelatedMethodsGPTNon512MultipleSectorSizeError(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1265,7 +1330,7 @@ func (s *diskSuite) TestDiskLastUsableByteGPTNon512MultipleSectorSizeError(c *C)
 	})
 	defer restore()
 
-	cmd := testutil.MockCommand(c, "sfdisk", `
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1273,30 +1338,37 @@ echo '{
 	}
 }'
 `)
-	defer cmd.Restore()
+	defer sfdiskCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	// the end of sectors end does not query the size of the sectors
+	endSectors, err := d.UsableSectorsEnd()
+	c.Assert(err, IsNil)
+	c.Assert(endSectors, Equals, uint64(43))
+
+	sfdiskCmd.ForgetCalls()
 
 	blockDevCmd := testutil.MockCommand(c, "blockdev", `
 echo 513
 `)
 	defer blockDevCmd.Restore()
 
-	d, err := disks.DiskFromDeviceName("sda")
-	c.Assert(err, IsNil)
-	c.Assert(d.Schema(), Equals, "gpt")
-	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
-
-	_, err = d.LastUsableByte()
-	c.Assert(err, ErrorMatches, `cannot get sector size: cannot calculate structure size: sector size \(513\) is not a multiple of 512`)
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "/dev/sda"},
-	})
+	// but getting the sector size itself fails
+	_, err = d.SectorSize()
+	c.Assert(err, ErrorMatches, `sector size \(513\) is not a multiple of 512`)
 
 	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getss", "/dev/sda"},
 	})
+
+	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
 }
 
-func (s *diskSuite) TestDiskLastUsableByteDOS(c *C) {
+func (s *diskSuite) TestDiskSizeRelatedMethodsDOS(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
 		c.Assert(dev, Equals, "sda")
@@ -1312,20 +1384,185 @@ func (s *diskSuite) TestDiskLastUsableByteDOS(c *C) {
 	})
 	defer restore()
 
-	cmd := testutil.MockCommand(c, "blockdev", `
-echo 10000
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", "echo broken test; exit 1")
+	defer sfdiskCmd.Restore()
+
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getsz" ]; then
+	echo 10000
+elif [ "$1" = "--getss" ]; then
+	echo 512
+else
+	echo "fail, test broken"
+	exit 1
+fi
 `)
-	defer cmd.Restore()
+	defer blockDevCmd.Restore()
 
 	d, err := disks.DiskFromDeviceName("sda")
 	c.Assert(err, IsNil)
 	c.Assert(d.Schema(), Equals, "dos")
 	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
 
-	sz, err := d.LastUsableByte()
+	// the usable sectors ends up being exactly what blockdev gave us, but only
+	// because the sector size is exactly what blockdev naturally assumes
+	endSectors, err := d.UsableSectorsEnd()
+	c.Assert(err, IsNil)
+	c.Assert(endSectors, Equals, uint64(10000))
+
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsz", "/dev/sda"},
+		{"blockdev", "--getss", "/dev/sda"},
+	})
+
+	blockDevCmd.ForgetCalls()
+
+	// the size of the disk does not depend on querying the sector size
+	sz, err := d.SizeInBytes()
 	c.Assert(err, IsNil)
 	c.Assert(sz, Equals, uint64(10000*512))
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
 		{"blockdev", "--getsz", "/dev/sda"},
 	})
+
+	// we never used sfdisk
+	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
+}
+
+func (s *diskSuite) TestDiskSizeRelatedMethodsDOS4096SectorSize(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":              "1",
+			"MINOR":              "2",
+			"DEVTYPE":            "disk",
+			"DEVNAME":            "/dev/sda",
+			"ID_PART_TABLE_UUID": "foo",
+			"ID_PART_TABLE_TYPE": "dos",
+			"DEVPATH":            "/devices/foo/sda",
+		}, nil
+	})
+	defer restore()
+
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", "echo broken test; exit 1")
+	defer sfdiskCmd.Restore()
+
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getsz" ]; then
+	echo 10000
+	elif [ "$1" = "--getss" ]; then
+	echo 4096
+else
+	echo "fail, test broken"
+	exit 1
+fi
+`)
+	defer blockDevCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "dos")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	endSectors, err := d.UsableSectorsEnd()
+	c.Assert(err, IsNil)
+	c.Assert(endSectors, Equals, uint64(10000*512/4096))
+
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsz", "/dev/sda"},
+		{"blockdev", "--getss", "/dev/sda"},
+	})
+
+	blockDevCmd.ForgetCalls()
+
+	// the size of the disk does not depend on querying the sector size
+	sz, err := d.SizeInBytes()
+	c.Assert(err, IsNil)
+	c.Assert(sz, Equals, uint64(10000*512))
+
+	c.Assert(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsz", "/dev/sda"},
+	})
+
+	// we never used sfdisk
+	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
+}
+
+func (s *diskSuite) TestAllPhysicalDisks(c *C) {
+	// mock some devices in /sys/block
+
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+	err := os.MkdirAll(blockDir, 0755)
+	c.Assert(err, IsNil)
+	devsToCreate := []string{"sda", "loop1", "loop2", "sdb", "nvme0n1", "mmcblk0"}
+	for _, dev := range devsToCreate {
+		err := ioutil.WriteFile(filepath.Join(blockDir, dev), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	restore := disks.MockUdevPropertiesForDevice(func(typ, dev string) (map[string]string, error) {
+		c.Assert(typ, Equals, "--path")
+		c.Assert(filepath.Dir(dev), Equals, blockDir)
+		switch filepath.Base(dev) {
+		case "sda":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "42",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/sda",
+				"DEVPATH":            "/devices/foo/sda",
+				"ID_PART_TABLE_UUID": "foo-sda-uuid",
+			}, nil
+		case "loop1":
+			return map[string]string{}, nil
+		case "loop2":
+			return map[string]string{}, nil
+		case "sdb":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "43",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/sdb",
+				"DEVPATH":            "/devices/foo/sdb",
+				"ID_PART_TABLE_UUID": "foo-sdb-uuid",
+			}, nil
+		case "nvme0n1":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "44",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/nvme0n1",
+				"DEVPATH":            "/devices/foo/nvme0n1",
+				"ID_PART_TABLE_UUID": "foo-nvme-uuid",
+			}, nil
+		case "mmcblk0":
+			return map[string]string{
+				"ID_PART_TABLE_TYPE": "gpt",
+				"MAJOR":              "45",
+				"MINOR":              "0",
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/mmcblk0",
+				"DEVPATH":            "/devices/foo/mmcblk0",
+				"ID_PART_TABLE_UUID": "foo-mmc-uuid",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	d, err := disks.AllPhysicalDisks()
+	c.Assert(err, IsNil)
+	c.Assert(d, HasLen, 4)
+
+	c.Assert(d[0].KernelDeviceNode(), Equals, "/dev/mmcblk0")
+	c.Assert(d[1].KernelDeviceNode(), Equals, "/dev/nvme0n1")
+	c.Assert(d[2].KernelDeviceNode(), Equals, "/dev/sda")
+	c.Assert(d[3].KernelDeviceNode(), Equals, "/dev/sdb")
 }

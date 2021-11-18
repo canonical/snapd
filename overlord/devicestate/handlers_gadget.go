@@ -191,7 +191,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// modify modeenv inside, which implicitly is guarded by the state lock;
 	// on top of that we do not expect the update to be moving large amounts
 	// of data
-	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
+	err = gadgetUpdate(model, *currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
 			// no update needed
