@@ -331,12 +331,27 @@ install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_data
 %endif
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
+%if %{with apparmor}
+if [ -x /usr/bin/systemctl ]; then
+    if systemctl is-enabled snapd.service >/dev/null 2>&1 || systemctl is-enabled snapd.socket >/dev/null 2>&1; then
+        # either the snapd.service or the snapd.socket are enabled, meaning snapd is
+        # being actively used
+        if systemctl is-enabled apparmor.service >/dev/null 2>&1 && ! systemctl is-enabled snapd.apparmor.service >/dev/null 2>&1; then
+            # also apparmor appears to be enabled, but loading of apparmor profiles
+            # of the snaps is not, so enable that now so that the snaps continue to
+            # work after the update
+            systemctl enable --now snapd.apparmor.service || :
+        fi
+    fi
+fi
+%endif
+
 case ":$PATH:" in
     *:/snap/bin:*)
         ;;
     *)
         echo "Please reboot, logout/login or source /etc/profile to have /snap/bin added to PATH."
-        echo "On a Tumbleweed system you need to run: systemctl enable snapd.apparmor.service"
+        echo "On a Tumbleweed and Leap 15.3+ systems you need to run: systemctl enable snapd.apparmor.service"
         ;;
 esac
 
