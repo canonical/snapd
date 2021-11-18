@@ -44,19 +44,19 @@ import (
 )
 
 type Form struct {
-	Value      map[string][]string
-	FileHeader map[string][]*FileHeader
+	Values   map[string][]string
+	FileRefs map[string][]*FileReference
 }
 
-type FileHeader struct {
+type FileReference struct {
 	Filename string
 	TmpPath  string
 }
 
 func (f *Form) RemoveAll() {
-	for _, headers := range f.FileHeader {
-		for _, header := range headers {
-			if err := os.Remove(header.TmpPath); err != nil {
+	for _, refs := range f.FileRefs {
+		for _, ref := range refs {
+			if err := os.Remove(ref.TmpPath); err != nil {
 				logger.Noticef("cannot remove temporary file: %v", err)
 			}
 		}
@@ -66,15 +66,15 @@ func (f *Form) RemoveAll() {
 // SnapFileNameAndPath returns the original file path/name and the path to
 // where the temp file is written.
 func (f *Form) SnapFileNameAndPath() (name, path string, apiErr *apiError) {
-	if len(f.FileHeader["snap"]) == 0 {
+	if len(f.FileRefs["snap"]) == 0 {
 		return "", "", BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
-	snapFile := f.FileHeader["snap"][0]
+	snapFile := f.FileRefs["snap"][0]
 	name, path = snapFile.Filename, snapFile.TmpPath
 
-	if len(f.Value["snap-path"]) > 0 {
-		name = f.Value["snap-path"][0]
+	if len(f.Values["snap-path"]) > 0 {
+		name = f.Values["snap-path"][0]
 	}
 
 	return name, path, nil
@@ -106,11 +106,11 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 		return BadRequest(err.Error())
 	}
 
-	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
-		if len(form.Value["snap-path"]) == 0 {
+	if len(form.Values["action"]) > 0 && form.Values["action"][0] == "try" {
+		if len(form.Values["snap-path"]) == 0 {
 			return BadRequest("need 'snap-path' value in form")
 		}
-		return trySnap(c.d.overlord.State(), form.Value["snap-path"][0], flags)
+		return trySnap(c.d.overlord.State(), form.Values["snap-path"][0], flags)
 	}
 	flags.RemoveSnapPath = true
 
@@ -124,9 +124,9 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 	}
 
 	var instanceName string
-	if len(form.Value["name"]) > 0 {
+	if len(form.Values["name"]) > 0 {
 		// caller has specified desired instance name
-		instanceName = form.Value["name"][0]
+		instanceName = form.Values["name"][0]
 		if err := snap.ValidateInstanceName(instanceName); err != nil {
 			return BadRequest(err.Error())
 		}
@@ -215,8 +215,8 @@ const maxReadBuflen = 1024 * 1024
 func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 	maxMemory := int64(maxReadBuflen)
 	form := &Form{
-		Value:      make(map[string][]string),
-		FileHeader: make(map[string][]*FileHeader),
+		Values:   make(map[string][]string),
+		FileRefs: make(map[string][]*FileReference),
 	}
 
 	// clean up if we're failing the request
@@ -256,7 +256,7 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 				return nil, BadRequest("cannot read form data: exceeds memory limit")
 			}
 
-			form.Value[name] = append(form.Value[name], buf.String())
+			form.Values[name] = append(form.Values[name], buf.String())
 			continue
 		}
 
@@ -280,12 +280,12 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 			return nil, InternalError("cannot sync file: %v", err)
 		}
 
-		fh := &FileHeader{TmpPath: tmpf.Name(), Filename: filename}
-		form.FileHeader[name] = append(form.FileHeader[name], fh)
+		fh := &FileReference{TmpPath: tmpf.Name(), Filename: filename}
+		form.FileRefs[name] = append(form.FileRefs[name], fh)
 	}
 
 	// sync the parent directory where the files were written to
-	if len(form.FileHeader) > 0 {
+	if len(form.FileRefs) > 0 {
 		dir, err := os.Open(dirs.SnapBlobDir)
 		if err != nil {
 			return nil, InternalError("cannot open parent dir of temp files: %v", err)
