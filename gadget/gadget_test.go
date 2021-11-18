@@ -2939,7 +2939,6 @@ func (s *gadgetYamlTestSuite) TestIDCompatibility(c *C) {
 
 func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	// example output from a real installed VM
-	// TODO: get example output from a raspi / DOS device too
 	m := map[string]gadget.DiskVolumeDeviceTraits{
 		"foo": {
 			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb",
@@ -3062,4 +3061,145 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, m2)
+
+	// example output from a Raspi - write the JSON out manually so we can catch
+	// regressions between JSON -> go object importing
+	const piJson = `
+{
+  "pi": {
+    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+    "kernel-path": "/dev/mmcblk0",
+    "disk-id": "7c301cbd",
+    "size": 32010928128,
+    "sector-size": 512,
+    "schema": "dos",
+    "structure": [
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+        "kernel-path": "/dev/mmcblk0p1",
+        "partition-uuid": "7c301cbd-01",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-seed",
+        "filesystem-uuid": "0E09-0822",
+        "filesystem-type": "vfat",
+        "id": "",
+        "offset": 1048576,
+        "size": 1258291200
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+        "kernel-path": "/dev/mmcblk0p2",
+        "partition-uuid": "7c301cbd-02",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-boot",
+        "filesystem-uuid": "23F9-881F",
+        "filesystem-type": "vfat",
+        "id": "",
+        "offset": 1259339776,
+        "size": 786432000
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+        "kernel-path": "/dev/mmcblk0p3",
+        "partition-uuid": "7c301cbd-03",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "ubuntu-save",
+        "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710590",
+        "filesystem-type": "ext4",
+        "id": "",
+        "offset": 2045771776,
+        "size": 16777216
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+        "kernel-path": "/dev/mmcblk0p4",
+        "partition-uuid": "7c301cbd-04",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "ubuntu-data",
+        "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
+        "filesystem-type": "ext4",
+        "id": "",
+        "offset": 2062548992,
+        "size": 29948379136
+      }
+    ]
+  }
+}
+`
+
+	const oneMeg = 1024 * 1024
+
+	expPiMap := map[string]gadget.DiskVolumeDeviceTraits{
+		"pi": {
+			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+			OriginalKernelPath: "/dev/mmcblk0",
+			DiskID:             "7c301cbd",
+			Size:               30528 * oneMeg, // ~ 32 GB SD card
+			SectorSize:         512,
+			Schema:             "dos",
+			Structure: []gadget.DiskStructureDeviceTraits{
+				{
+					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+					OriginalKernelPath: "/dev/mmcblk0p1",
+					PartitionUUID:      "7c301cbd-01",
+					PartitionType:      "0C",
+					FilesystemUUID:     "0E09-0822",
+					FilesystemLabel:    "ubuntu-seed",
+					FilesystemType:     "vfat",
+					ID:                 "",
+					Offset:             oneMeg,
+					Size:               (1200) * oneMeg,
+				},
+				{
+					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+					OriginalKernelPath: "/dev/mmcblk0p2",
+					PartitionUUID:      "7c301cbd-02",
+					PartitionType:      "0C",
+					FilesystemUUID:     "23F9-881F",
+					FilesystemLabel:    "ubuntu-boot",
+					FilesystemType:     "vfat",
+					ID:                 "",
+					Offset:             (1 + 1200) * oneMeg,
+					Size:               (750) * oneMeg,
+				},
+				{
+					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+					OriginalKernelPath: "/dev/mmcblk0p3",
+					PartitionUUID:      "7c301cbd-03",
+					PartitionType:      "83",
+					FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
+					FilesystemType:     "ext4",
+					FilesystemLabel:    "ubuntu-save",
+					ID:                 "",
+					Offset:             (1 + 1200 + 750) * oneMeg,
+					Size:               16 * oneMeg,
+				},
+				{
+					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+					OriginalKernelPath: "/dev/mmcblk0p4",
+					PartitionUUID:      "7c301cbd-04",
+					PartitionType:      "83",
+					FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
+					FilesystemLabel:    "ubuntu-data",
+					FilesystemType:     "ext4",
+					ID:                 "",
+					Offset:             (1 + 1200 + 750 + 16) * oneMeg,
+					// total size - offset of last structure
+					Size: (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
+				},
+			},
+		},
+	}
+
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"), []byte(piJson), 0644)
+	c.Assert(err, IsNil)
+
+	m3, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+
+	c.Assert(m3, DeepEquals, expPiMap)
 }
