@@ -63,7 +63,8 @@ var CGroupsFilePath = "/proc/cgroups"
 //	way to identify the status of memory control groups is via /proc/cgroups
 //	"cat /proc/cgroups | grep memory" returns the active status of memory control group
 //	and the 3rd parameter is the status
-//	0 => false => disabled 1 => true => enabled
+//	0 => false => disabled 
+//	1 => true => enabled
 func memoryCGroupEnabled() error {
 	cgroupsFile, err := os.Open(CGroupsFilePath)
 	if err != nil {
