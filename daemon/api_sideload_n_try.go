@@ -285,8 +285,8 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 			return nil, InternalError("cannot open parent dir of temp files: %v", err)
 		}
 		defer func() {
-			if cerr := dir.Close(); err == nil && cerr != nil {
-				err = InternalError("cannot close parent dir of temp files: %v", cerr)
+			if cerr := dir.Close(); apiErr == nil && cerr != nil {
+				apiErr = InternalError("cannot close parent dir of temp files: %v", cerr)
 			}
 		}()
 
