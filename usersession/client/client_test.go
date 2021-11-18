@@ -464,11 +464,11 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 	c.Check(n, Equals, 2)
 }
 
-func (s *clientSuite) TestCloseRefreshNotification(c *C) {
+func (s *clientSuite) TestFinishRefreshNotification(c *C) {
 	n := 0
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n++
-		c.Assert(r.URL.Path, Equals, "/v1/notifications/close")
+		c.Assert(r.URL.Path, Equals, "/v1/notifications/finish-refresh")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(string(body), DeepEquals, `{"instance-name":"some-snap"}`)
@@ -477,7 +477,7 @@ func (s *clientSuite) TestCloseRefreshNotification(c *C) {
 		w.WriteHeader(200)
 		w.Write([]byte(`{"type": "sync"}`))
 	})
-	err := s.cli.CloseRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
+	err := s.cli.FinishRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
 	c.Assert(err, IsNil)
 	// two calls because clientSuite simulates two user sessions (two
 	// snapd-session-agent.socket sockets).

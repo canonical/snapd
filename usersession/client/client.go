@@ -303,13 +303,13 @@ type FinishedSnapRefreshInfo struct {
 	InstanceName string `json:"instance-name"`
 }
 
-// CloseRefreshNotification closes notification about a snap refresh.
-func (client *Client) CloseRefreshNotification(ctx context.Context, closeInfo *FinishedSnapRefreshInfo) error {
+// FinishRefreshNotification closes notification about a snap refresh.
+func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *FinishedSnapRefreshInfo) error {
 	headers := map[string]string{"Content-Type": "application/json"}
 	reqBody, err := json.Marshal(closeInfo)
 	if err != nil {
 		return err
 	}
-	_, err = client.doMany(ctx, "POST", "/v1/notifications/close", nil, headers, reqBody)
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
 }
