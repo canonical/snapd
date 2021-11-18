@@ -260,28 +260,15 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 			continue
 		}
 
-		// file parts are persisted
-		tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
+		tmpPath, err := writeToTempFile(part)
+
+		// add it to the form even if err != nil, so it gets deleted
+		ref := &FileReference{TmpPath: tmpPath, Filename: filename}
+		form.FileRefs[name] = append(form.FileRefs[name], ref)
+
 		if err != nil {
-			return nil, InternalError("cannot create temp file for form data file part: %v", err)
+			return nil, InternalError(err.Error())
 		}
-		defer func() {
-			if cerr := tmpf.Close(); err == nil && cerr != nil {
-				err = InternalError("cannot close temp file: %v", cerr)
-			}
-		}()
-
-		// TODO: limit the file part size by wrapping it w/ http.MaxBytesReader
-		if _, err = io.Copy(tmpf, part); err != nil {
-			return nil, InternalError("cannot write file part: %v", err)
-		}
-
-		if err := tmpf.Sync(); err != nil {
-			return nil, InternalError("cannot sync file: %v", err)
-		}
-
-		fh := &FileReference{TmpPath: tmpf.Name(), Filename: filename}
-		form.FileRefs[name] = append(form.FileRefs[name], fh)
 	}
 
 	// sync the parent directory where the files were written to
@@ -302,6 +289,32 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 	}
 
 	return form, nil
+}
+
+// writeToTempFile writes the contents of reader to a temp file and returns
+// its path. If the path is not empty then a file was written and it's the
+// caller's responsibility to clean it up (even if the error is non-nil).
+func writeToTempFile(reader io.Reader) (path string, err error) {
+	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
+	if err != nil {
+		return "", fmt.Errorf("cannot create temp file for form data file part: %v", err)
+	}
+	defer func() {
+		if cerr := tmpf.Close(); err == nil && cerr != nil {
+			err = fmt.Errorf("cannot close temp file: %v", cerr)
+		}
+	}()
+
+	// TODO: limit the file part size by wrapping it w/ http.MaxBytesReader
+	if _, err = io.Copy(tmpf, reader); err != nil {
+		return tmpf.Name(), fmt.Errorf("cannot write file part: %v", err)
+	}
+
+	if err := tmpf.Sync(); err != nil {
+		return tmpf.Name(), fmt.Errorf("cannot sync file: %v", err)
+	}
+
+	return tmpf.Name(), nil
 }
 
 func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
