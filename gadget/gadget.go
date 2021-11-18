@@ -278,9 +278,6 @@ type DiskStructureDeviceTraits struct {
 	FilesystemLabel string `json:"filesystem-label"`
 	// FilesystemType is the type of the filesystem, i.e. vfat or ext4, etc.
 	FilesystemType string `json:"filesystem-type"`
-	// ID is the partition ID of the partition, i.e. /dev/disk/by-id which is
-	// typically only present for DOS disks.
-	ID string `json:"id"`
 	// Offset is the offset of the structure
 	Offset quantity.Offset `json:"offset"`
 	// Size is the size of the structure

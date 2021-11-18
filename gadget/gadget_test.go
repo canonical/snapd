@@ -3083,7 +3083,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
         "filesystem-label": "ubuntu-seed",
         "filesystem-uuid": "0E09-0822",
         "filesystem-type": "vfat",
-        "id": "",
         "offset": 1048576,
         "size": 1258291200
       },
@@ -3096,7 +3095,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
         "filesystem-label": "ubuntu-boot",
         "filesystem-uuid": "23F9-881F",
         "filesystem-type": "vfat",
-        "id": "",
         "offset": 1259339776,
         "size": 786432000
       },
@@ -3109,7 +3107,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
         "filesystem-label": "ubuntu-save",
         "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710590",
         "filesystem-type": "ext4",
-        "id": "",
         "offset": 2045771776,
         "size": 16777216
       },
@@ -3122,7 +3119,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
         "filesystem-label": "ubuntu-data",
         "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
         "filesystem-type": "ext4",
-        "id": "",
         "offset": 2062548992,
         "size": 29948379136
       }
@@ -3150,7 +3146,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 					FilesystemUUID:     "0E09-0822",
 					FilesystemLabel:    "ubuntu-seed",
 					FilesystemType:     "vfat",
-					ID:                 "",
 					Offset:             oneMeg,
 					Size:               (1200) * oneMeg,
 				},
@@ -3162,7 +3157,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 					FilesystemUUID:     "23F9-881F",
 					FilesystemLabel:    "ubuntu-boot",
 					FilesystemType:     "vfat",
-					ID:                 "",
 					Offset:             (1 + 1200) * oneMeg,
 					Size:               (750) * oneMeg,
 				},
@@ -3174,7 +3168,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 					FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
 					FilesystemType:     "ext4",
 					FilesystemLabel:    "ubuntu-save",
-					ID:                 "",
 					Offset:             (1 + 1200 + 750) * oneMeg,
 					Size:               16 * oneMeg,
 				},
@@ -3186,7 +3179,6 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 					FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
 					FilesystemLabel:    "ubuntu-data",
 					FilesystemType:     "ext4",
-					ID:                 "",
 					Offset:             (1 + 1200 + 750 + 16) * oneMeg,
 					// total size - offset of last structure
 					Size: (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
