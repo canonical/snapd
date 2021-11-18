@@ -563,16 +563,25 @@ func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadClo
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
 type UnitStatus struct {
-	Daemon   string
-	UnitName string
-	Enabled  bool
-	Active   bool
+	Daemon string
+	// This is the real name ('Id') as returned by systemd.
+	Id string
+	// This is the name as used by the status requester (which could
+	// be a name alias). We always return the requester unit name as
+	// the actual unit name, in order to not confuse users.
+	Name string
+	// This is the actual list of unit names returned by systemd. This
+	// list always include the real name ('Id') as well as all the
+	// aliases for the unit.
+	Names   []string
+	Enabled bool
+	Active  bool
 	// Installed is false if the queried unit doesn't exist.
 	Installed bool
 }
 
-var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
-var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type"}
+var baseProperties = []string{"Id", "ActiveState", "UnitFileState", "Names"}
+var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type", "Names"}
 var unitProperties = map[string][]string{
 	".timer":  baseProperties,
 	".socket": baseProperties,
@@ -601,7 +610,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) == 0 {
 			// systemctl separates data pertaining to particular services by an empty line
-			unitType := filepath.Ext(cur.UnitName)
+			unitType := filepath.Ext(cur.Id)
 			expected := unitProperties[unitType]
 			if expected == nil {
 				expected = baseProperties
@@ -614,14 +623,45 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 				}
 			}
 			if len(missing) > 0 {
-				return nil, fmt.Errorf("cannot get unit %q status: missing %s in ‘systemctl show’ output", cur.UnitName, strings.Join(missing, ", "))
+				return nil, fmt.Errorf("cannot get unit %q status: missing %s in ‘systemctl show’ output", cur.Id, strings.Join(missing, ", "))
 			}
 			sts = append(sts, cur)
+
+			// If we received more replies than what we requested, bail.
 			if len(sts) > len(unitNames) {
-				break // wut
+				break
 			}
-			if cur.UnitName != unitNames[len(sts)-1] {
-				return nil, fmt.Errorf("cannot get unit status: queried status of %q but got status of %q", unitNames[len(sts)-1], cur.UnitName)
+
+			// The 'systemctl' command can return the status parameters for a
+			// number of units at the same time. The status output between
+			// units are separated with an empty line. Every parsed status
+			// is appended to the 'sts' array, so the n'th entry matches the
+			// n'th request, as ordered in 'unitNames'. The 'sts' array can
+			// therefore be used as an index to the original request.
+			requestIndex := len(sts) - 1
+
+			// Record which unit 'Name' request produced this status because
+			// if the request was made using an aliased name, we must be
+			// consistent and reply using the same alias. We will check the
+			// validity of the alias below.
+			cur.Name = unitNames[requestIndex]
+
+			// The 'Names' DBUS property of the 'Unit' interface exposes all
+			// the unit name aliases as well as the real name 'Id'. In
+			// order to verify if the request matches the reply, we should compare
+			// the request name 'Name' against the 'Names' list in case the
+			// request was made using a name alias (e.g. ctrl-alt-del.target).
+			// The 'Names' unit property exist for all derived 'Unit' types,
+			// including services, targets, sockets, mounts and timers.
+			validReply := false
+			for _, name := range cur.Names {
+				if cur.Name == name {
+					validReply = true
+					break
+				}
+			}
+			if !validReply {
+				return nil, fmt.Errorf("cannot get unit status: queried status of %q but got status of %q", cur.Name, cur.Id)
 			}
 
 			cur = &UnitStatus{}
@@ -640,7 +680,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 
 		switch k {
 		case "Id":
-			cur.UnitName = v
+			cur.Id = v
 		case "Type":
 			cur.Daemon = v
 		case "ActiveState":
@@ -650,6 +690,9 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
 			cur.Installed = v != ""
+		case "Names":
+			// This list can include Alias names for a unit (but also includes Id)
+			cur.Names = strings.Fields(v)
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
@@ -691,8 +734,8 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	sts := make([]*UnitStatus, len(unitNames))
 	for i, line := range results {
 		sts[i] = &UnitStatus{
-			UnitName: unitNames[i],
-			Enabled:  bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
+			Name:    unitNames[i],
+			Enabled: bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
 		}
 	}
 	return sts, nil
@@ -818,7 +861,7 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 			return nil, err
 		}
 		for _, status := range sts {
-			unitToStatus[status.UnitName] = status
+			unitToStatus[status.Name] = status
 		}
 	}
 

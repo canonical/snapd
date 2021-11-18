@@ -240,87 +240,120 @@ func (s *SystemdTestSuite) TestStatus(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 
 Type=simple
 Id=bar.service
+Names=bar.service
 ActiveState=reloading
 UnitFileState=static
 
 Type=potato
 Id=baz.service
+Names=baz.service
 ActiveState=inactive
 UnitFileState=disabled
 
 Type=
 Id=missing.service
+Names=missing.service
 ActiveState=inactive
 UnitFileState=
 `[1:]),
 		[]byte(`
 Id=some.timer
+Names=some.timer
 ActiveState=active
 UnitFileState=enabled
 
 Id=other.socket
+Names=other.socket
 ActiveState=active
 UnitFileState=disabled
 
 Id=reboot.target
+Names=reboot.target ctrl-alt-del.target
+ActiveState=inactive
+UnitFileState=enabled
+
+Id=reboot.target
+Names=reboot.target ctrl-alt-del.target
 ActiveState=inactive
 UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket", "reboot.target")
+	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket", "reboot.target", "ctrl-alt-del.target")
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
 			Daemon:    "simple",
-			UnitName:  "foo.service",
+			Name:      "foo.service",
+			Names:     []string{"foo.service"},
 			Active:    true,
 			Enabled:   true,
 			Installed: true,
+			Id:        "foo.service",
 		}, {
 			Daemon:    "simple",
-			UnitName:  "bar.service",
+			Name:      "bar.service",
+			Names:     []string{"bar.service"},
 			Active:    true,
 			Enabled:   true,
 			Installed: true,
+			Id:        "bar.service",
 		}, {
 			Daemon:    "potato",
-			UnitName:  "baz.service",
+			Name:      "baz.service",
+			Names:     []string{"baz.service"},
 			Active:    false,
 			Enabled:   false,
 			Installed: true,
+			Id:        "baz.service",
 		}, {
 			Daemon:    "",
-			UnitName:  "missing.service",
+			Name:      "missing.service",
+			Names:     []string{"missing.service"},
 			Active:    false,
 			Enabled:   false,
 			Installed: false,
+			Id:        "missing.service",
 		}, {
-			UnitName:  "some.timer",
+			Name:      "some.timer",
+			Names:     []string{"some.timer"},
 			Active:    true,
 			Enabled:   true,
 			Installed: true,
+			Id:        "some.timer",
 		}, {
-			UnitName:  "other.socket",
+			Name:      "other.socket",
+			Names:     []string{"other.socket"},
 			Active:    true,
 			Enabled:   false,
 			Installed: true,
+			Id:        "other.socket",
 		}, {
-			UnitName:  "reboot.target",
+			Name:      "reboot.target",
+			Names:     []string{"reboot.target", "ctrl-alt-del.target"},
 			Active:    false,
 			Enabled:   true,
 			Installed: true,
+			Id:        "reboot.target",
+		}, {
+			Name:      "ctrl-alt-del.target",
+			Names:     []string{"reboot.target", "ctrl-alt-del.target"},
+			Active:    false,
+			Enabled:   true,
+			Installed: true,
+			Id:        "reboot.target",
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "missing.service"},
-		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket", "reboot.target"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", "foo.service", "bar.service", "baz.service", "missing.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", "some.timer", "other.socket", "reboot.target", "ctrl-alt-del.target"},
 	})
 }
 
@@ -329,11 +362,13 @@ func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 `[1:]),
@@ -350,6 +385,7 @@ func (s *SystemdTestSuite) TestStatusBadLine(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 Potatoes
@@ -366,6 +402,7 @@ func (s *SystemdTestSuite) TestStatusBadId(c *C) {
 		[]byte(`
 Type=simple
 Id=bar.service
+Names=bar.service
 ActiveState=active
 UnitFileState=enabled
 `[1:]),
@@ -381,6 +418,7 @@ func (s *SystemdTestSuite) TestStatusBadField(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 Potatoes=false
@@ -401,7 +439,7 @@ ActiveState=active
 	}
 	s.errors = []error{nil}
 	out, err := New(SystemMode, s.rep).Status("foo.service")
-	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type .*`)
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type.*`)
 	c.Check(out, IsNil)
 }
 
@@ -414,7 +452,7 @@ ActiveState=active
 	}
 	s.errors = []error{nil}
 	out, err := New(SystemMode, s.rep).Status("foo.timer")
-	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
 	c.Check(out, IsNil)
 }
 
@@ -427,7 +465,7 @@ ActiveState=active
 	}
 	s.errors = []error{nil}
 	out, err := New(SystemMode, s.rep).Status("reboot.target")
-	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
 	c.Check(out, IsNil)
 }
 
@@ -436,6 +474,7 @@ func (s *SystemdTestSuite) TestStatusDupeField(c *C) {
 		[]byte(`
 Type=simple
 Id=foo.service
+Names=foo.service
 ActiveState=active
 ActiveState=active
 UnitFileState=enabled
@@ -452,6 +491,7 @@ func (s *SystemdTestSuite) TestStatusEmptyField(c *C) {
 		[]byte(`
 Type=simple
 Id=
+Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 `[1:]),
@@ -1266,9 +1306,9 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	sts, err := sysd.Status("foo", "bar", "baz")
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
-		{UnitName: "foo", Enabled: true},
-		{UnitName: "bar", Enabled: false},
-		{UnitName: "baz", Enabled: true},
+		{Name: "foo", Enabled: true},
+		{Name: "bar", Enabled: false},
+		{Name: "baz", Enabled: true},
 	})
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo", "bar", "baz"})
 
@@ -1276,9 +1316,9 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	sts, err = sysd.Status("one", "two", "three")
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
-		{UnitName: "one", Enabled: true},
-		{UnitName: "two", Enabled: false},
-		{UnitName: "three", Enabled: true},
+		{Name: "one", Enabled: true},
+		{Name: "two", Enabled: false},
+		{Name: "three", Enabled: true},
 	})
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one", "two", "three"})
 
