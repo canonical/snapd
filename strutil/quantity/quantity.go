@@ -296,33 +296,26 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	delta := Duration(dt * float64(Second))
 
 	// If we only render a subset of place values, we need to apply
-	// the render mode to the last place value. We do this indirectly
-	// by moving up the 'min' accuracy.
+	// the render mode to the last rendered place value. We do this
+	// indirectly by moving up the 'min' accuracy.
 	if count == ShowCompact {
+		var compactMin Duration
 		for i, key := range keys {
-
-			// The duration is smaller than this place value, skip
-			if delta < key {
-				continue
-			}
-
-			// Compact mode only renders two places, up until seconds
-			// The indexing is safe as places beyond seconds exist
-			if key >= Minute {
-				index := i + 1
-				if keys[index] > min {
-					min = keys[index]
+			// Only if the duration is applicable to this place value
+			if delta >= key {
+				if key >= Minute {
+					// Compact mode only renders two places, up until seconds
+					// The indexing is safe as places beyond seconds exist
+					compactMin = keys[i+1]
+				} else {
+					// Only one place if we are s, ms, us or ns
+					compactMin = key
 				}
 				break
 			}
-
-			// Only one place if we are s, ms, us or ns
-			if key < Minute {
-				if key > min {
-					min = key
-				}
-				break
-			}
+		}
+		if compactMin > min {
+			min = compactMin
 		}
 	}
 
@@ -395,36 +388,31 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 		unit := remainingDelta / key
 		remainder := remainingDelta % key
 
-		// If the accuracy is less than 1s, we support
-		// rendering a fractional second part.
-		if remainingDelta < Minute && remainder > 0 && count == ShowVerbose {
-			digits := 0
-
-			// Number of digits required to render
-			// nano second fractunal accuracy.
-			for cc := key; cc > 1; cc /= 10 {
-				digits++
+		// If the accuracy is less than 1s, we support rendering a fractional second
+		// part. In order for fractional rendering to be done, the following conditions
+		// must be met, else we fall through to the non-fractional renderer:
+		// 1. We must be working on a second place value or smaller.
+		// 2. The remainder which will form the fractional part must be non-zero
+		// 3. The accuracy (minimum place value) must be smaller than the place value
+		// 4. Verbose rendering mode must be enabled
+		if remainingDelta < Minute && remainder > 0 && min < key && count == ShowVerbose {
+			// In order to determine how many fractional places should we render
+			// we count how many fractional places the accuracy (minimum) allow, but
+			// in relation to the unit type we are rendering here (could be anything
+			// less than a seconds (s, ms, us or ns). If 'key' (current unit) is
+			// MSeconds, and 'min' (accuracy) is USeconds, we should render 3
+			// fractional places. For example: 465.112ms
+			fractionalPlaces := 0
+			for i := key / min; i > 1; i /= 10 {
+				fractionalPlaces++
 			}
 
-			// Number of digits to render specified
-			// fractunal accuracy.
-			for cc := min; cc > 1; cc /= 10 {
-				digits--
+			if len(render) > 0 && space == SpaceOn {
+				render += " "
 			}
-
-			frac := float64(remainingDelta) / float64(key)
-
-			// Should we generate a fractional second, else
-			// use the generic rendering function.
-			if digits > 0 {
-				if len(render) > 0 && space == SpaceOn {
-					render += " "
-				}
-				render += strconv.FormatFloat(frac, 'f', digits, 64)
-				render += units[key]
-
-				remainingDelta = 0
-			}
+			render += strconv.FormatFloat(float64(remainingDelta)/float64(key), 'f', fractionalPlaces, 64)
+			render += units[key]
+			remainingDelta = 0
 		}
 
 		// Generic place value rendering
