@@ -2,7 +2,6 @@ name: gl-core16
 version: 1.0
 summary: Test snap that plugs opengl and uses the core base snap
 confinement: strict
-base: core
 
 apps:
   gl-core16:
