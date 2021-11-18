@@ -163,7 +163,8 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 
 type pathInfo struct {
 	*snap.Info
-	path string
+	path     string
+	sideInfo *snap.SideInfo
 }
 
 func (i pathInfo) DownloadSize() int64 {
@@ -197,23 +198,35 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, u
 
 	providerContentAttrs := defaultProviderContentAttrs(st, update)
 	snapsup := SnapSetup{
-		Base:               update.Base,
-		SnapPath:           i.path,
+		Base:               i.Base,
 		Prereq:             getKeys(providerContentAttrs),
 		PrereqContentAttrs: providerContentAttrs,
+		SideInfo:           i.sideInfo,
+		SnapPath:           i.path,
 		Channel:            revnoOpts.Channel,
-		CohortKey:          revnoOpts.CohortKey,
-		//UserID:             snapUserID,
-		Flags:        flags.ForSnapSetup(),
-		DownloadInfo: &update.DownloadInfo,
-		SideInfo:     &update.SideInfo,
-		Type:         update.Type(),
-		PlugsOnly:    len(update.Slots) == 0,
-		InstanceKey:  update.InstanceKey,
-		auxStoreInfo: auxStoreInfo{
-			Website: update.Website,
-			Media:   update.Media,
-		},
+		Flags:              flags.ForSnapSetup(),
+		Type:               i.Type(),
+		PlugsOnly:          len(i.Slots) == 0,
+		InstanceKey:        i.InstanceKey,
+		// TODO(miguel): what else is necessary?
+		/*
+			Base:               update.Base,
+			SnapPath:           i.path,
+			Prereq:             getKeys(providerContentAttrs),
+			PrereqContentAttrs: providerContentAttrs,
+			Channel:            revnoOpts.Channel,
+			CohortKey:          revnoOpts.CohortKey,
+			//UserID:             snapUserID,
+			Flags:        flags.ForSnapSetup(),
+			DownloadInfo: &update.DownloadInfo,
+			SideInfo:     &update.SideInfo,
+			Type:         update.Type(),
+			PlugsOnly:    len(update.Slots) == 0,
+			InstanceKey:  update.InstanceKey,
+			auxStoreInfo: auxStoreInfo{
+				Website: update.Website,
+				Media:   update.Media,
+			},*/
 	}
 	return &snapsup, snapst, nil
 }
@@ -1153,27 +1166,20 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 			return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 		}
 
-		updates = append(updates, pathInfo{Info: info, path: path})
-		names = append(names, name)
-		snapInfos[name] = info
-
 		var snapst SnapState
-		err = Get(st, name, &snapst)
-		if err != nil && err != state.ErrNoState {
+		if err = Get(st, name, &snapst); err != nil && err != state.ErrNoState {
 			return nil, nil, err
 		}
 
+		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
+		names = append(names, name)
+		snapInfos[name] = info
 		stateByInstanceName[name] = &snapst
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
 		snapst := stateByInstanceName[update.InstanceName()]
-		// setting options to what's in state as multi-refresh doesn't let you change these
-		opts := &RevisionOptions{
-			Channel:   snapst.TrackingChannel,
-			CohortKey: snapst.CohortKey,
-		}
-		return opts, snapst.Flags, snapst
+		return &RevisionOptions{}, snapst.Flags, snapst
 	}
 
 	tr := config.NewTransaction(st)
@@ -1996,6 +2002,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		}
 	}
 
+	// TODO(miguel): why is this necessary
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
 		return opts, flags, &snapst
 	}
