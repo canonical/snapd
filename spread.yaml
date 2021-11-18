@@ -37,7 +37,10 @@ environment:
     MANAGED_DEVICE: "false"
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/edge"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
+    # TODO: as of 2021-11-18 ubuntu-image in candidate and up has a bug which is
+    # fixed in https://github.com/canonical/ubuntu-image/pull/26, revert to
+    # latest/candidate when the fix lands in master and the snap is released
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/stable"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
