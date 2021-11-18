@@ -18,6 +18,13 @@ execute: |
 
     retry -n 50 --wait 0.1 sh -c "test -f /var/snap/$SNAP_NAME/common/proc_self_cgroup"
     CGROUP=$(grep ':devices:' "/var/snap/$SNAP_NAME/common/proc_self_cgroup" | cut -d':' -f3)
-    echo "Service cgroup is $CGROUP"
-
-    MATCH 'a \*:\* rwm' < "/sys/fs/cgroup/devices/$CGROUP/devices.list"
+    if [ -n "$CGROUP" ]; then
+        # cgroup v1
+        echo "Service cgroup v1 is $CGROUP"
+        MATCH 'a \*:\* rwm' < "/sys/fs/cgroup/devices/$CGROUP/devices.list"
+    else
+        # cgroup v2
+        CGROUP=$(grep '^0:' "/var/snap/$SNAP_NAME/common/proc_self_cgroup" | cut -d':' -f3)
+        echo "Service cgroup v2 is $CGROUP"
+        NOMATCH 'device' < "/sys/fs/cgroup/$CGROUP/cgroup.controllers"
+    fi
