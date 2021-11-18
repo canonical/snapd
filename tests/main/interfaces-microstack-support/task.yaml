@@ -14,7 +14,7 @@ execute: |
     echo "When the interface is connected"
     snap connect "$SNAP_NAME":microstack-support
 
-    snap start "$SNAP_NAME"
+    snap restart "$SNAP_NAME"
 
     retry -n 50 --wait 0.1 sh -c "test -f /var/snap/$SNAP_NAME/common/proc_self_cgroup"
     CGROUP=$(grep ':devices:' "/var/snap/$SNAP_NAME/common/proc_self_cgroup" | cut -d':' -f3)
