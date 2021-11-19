@@ -6283,16 +6283,16 @@ var (
 		// use a different fileset, such that the pc snap with this
 		// content will have a different digest than the regular pc snap
 		"pc-rev-33": append(pcGadgetFiles, []string{
-			"this-is-new", "",
+			"this-is-new", "new-in-pc-rev-33",
 		}),
 		"pc-kernel": pcKernelFiles,
 		// similar reasoning as for the pc snap
 		"pc-kernel-rev-33": append(pcKernelFiles, []string{
-			"this-is-new", "",
+			"this-is-new", "new-in-pc-kernel-rev-33",
 		}),
 		// and again
 		"core20-rev-33": {
-			{"this-is-new", ""},
+			{"this-is-new", "new-in-core20-rev-33"},
 		},
 	}
 
@@ -6963,6 +6963,11 @@ func (s *mgrsSuite) TestRemodelUC20DifferentKernelChannel(c *C) {
 		"try_recovery_system":    expectedLabel,
 		"recovery_system_status": "try",
 	})
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	// rev-33 ships a new file
+	verifyModelEssentialSnapHasContent(c, sd, "pc-kernel", "this-is-new", "new-in-pc-kernel-rev-33")
+
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
 	// this would be done by snap-bootstrap in initramfs
@@ -7096,6 +7101,11 @@ func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 		"try_recovery_system":    expectedLabel,
 		"recovery_system_status": "try",
 	})
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	// rev-33 ships a new file
+	verifyModelEssentialSnapHasContent(c, sd, "pc", "this-is-new", "new-in-pc-rev-33")
+
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
 	// this would be done by snap-bootstrap in initramfs
@@ -7136,6 +7146,21 @@ func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all installs in sequential order
 	validateRefreshTasks(c, tasks[i:], "pc", "33", isGadget)
+}
+
+func verifyModelEssentialSnapHasContent(c *C, sd seed.Seed, name string, file, content string) {
+	for _, ms := range sd.EssentialSnaps() {
+		c.Logf("mode snap %q %v", ms.SnapName(), ms.Path)
+		if ms.SnapName() == name {
+			sf, err := snapfile.Open(ms.Path)
+			c.Assert(err, IsNil)
+			d, err := sf.ReadFile(file)
+			c.Assert(err, IsNil)
+			c.Assert(string(d), Equals, content)
+			return
+		}
+	}
+	c.Errorf("expected file %q not found seed snap of name %q", file, name)
 }
 
 func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
@@ -7199,6 +7224,11 @@ func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
 		"try_recovery_system":    expectedLabel,
 		"recovery_system_status": "try",
 	})
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	// rev-33 ships a new file
+	verifyModelEssentialSnapHasContent(c, sd, "core20", "this-is-new", "new-in-core20-rev-33")
+
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
 	// this would be done by snap-bootstrap in initramfs
