@@ -42,17 +42,15 @@ var (
 const (
 	pibootCfgFilename = "piboot.conf"
 	pibootPartFolder  = "/piboot/ubuntu/"
-	// TODO Use boot.InitramfsUbuntuSeedDir, boot.InitramfsUbuntuBootDir
+	// TODO Use boot.InitramfsUbuntuSeedDir
 	// Need to solve circular dependency
 	runMntDir     = "/run/mnt/"
 	ubuntuSeedDir = runMntDir + "ubuntu-seed/"
-	ubuntuBootDir = runMntDir + "ubuntu-boot/"
 )
 
 type piboot struct {
-	rootdir          string
-	basedir          string
-	prepareImageTime bool
+	rootdir string
+	basedir string
 }
 
 func (p *piboot) setDefaults() {
@@ -64,9 +62,11 @@ func (p *piboot) processBlOpts(blOpts *Options) {
 		return
 	}
 
-	p.prepareImageTime = blOpts.PrepareImageTime
 	switch {
 	case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
+		if !blOpts.PrepareImageTime {
+			p.rootdir = ubuntuSeedDir
+		}
 		// RoleRecovery or NoSlashBoot imply we use
 		// the environment file in /piboot/ubuntu as
 		// it exists on the partition directly
@@ -126,20 +126,30 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 	needsReconfig := false
 	pibootConfigureAllow := true
 	for k, v := range values {
-		// HACK TODO change: Meta-variable used from initramfs
-		if k == "piboot_configure" && v == "false" {
-			pibootConfigureAllow = false
-			continue
-		}
 		// already set to the right value, nothing to do
 		if env.Get(k) == v {
 			continue
+		}
+		// "kernel_status" transitions from "try" to "trying"/"" are
+		// coming from the initramfs (simulating what the bootloader
+		// should do) and do not retrigger a configuration.
+		if k == "kernel_status" && env.Get(k) == "try" {
+			pibootConfigureAllow = false
 		}
 		env.Set(k, v)
 		dirty = true
 		// Cases that change the bootloader configuration
 		if k == "snapd_recovery_mode" || k == "kernel_status" {
 			needsReconfig = true
+		}
+		if k == "snap_try_kernel" && v == "" {
+			// refresh (ok or not) finished, remove tryboot.txt
+			// (os_prefix in config.txt will be changed now in
+			// loadAndApplyConfig in the ok case)
+			trybootPath := filepath.Join(ubuntuSeedDir, "tryboot.txt")
+			if err := os.Remove(trybootPath); err != nil {
+				logger.Noticef("cannot remove %s: %v", trybootPath, err)
+			}
 		}
 	}
 
@@ -150,7 +160,7 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 	}
 
 	if needsReconfig && pibootConfigureAllow {
-		if err := p.loadAndApplyConfig(); err != nil {
+		if err := p.loadAndApplyConfig(env); err != nil {
 			return err
 		}
 	}
@@ -158,30 +168,11 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 	return nil
 }
 
-func (p *piboot) loadAndApplyConfig() error {
+func (p *piboot) loadAndApplyConfig(env *pibootenv.Env) error {
 	var prefix, cfgDir, dstDir string
-	env := pibootenv.NewEnv(p.envFile())
-	cfgFile := "config.txt"
-	if p.prepareImageTime {
-		if err := env.Load(); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		prefix = filepath.Join("/systems", env.Get("snapd_recovery_system"),
-			"kernel")
-		cfgDir = p.rootdir
-		dstDir = filepath.Join(p.rootdir, prefix)
-	} else {
-		// Make sure to load all config files
-		mntDirs := []string{ubuntuSeedDir, ubuntuBootDir}
-		for _, dir := range mntDirs {
-			cfgPath := filepath.Join(dir, pibootPartFolder, pibootCfgFilename)
-			env2 := pibootenv.NewEnv(cfgPath)
-			if err := env2.Load(); err != nil {
-				continue
-			}
-			env.Merge(env2)
-		}
 
+	cfgFile := "config.txt"
+	if env.Get("snapd_recovery_mode") == "run" {
 		kernelSnap := env.Get("snap_kernel")
 		kernStat := env.Get("kernel_status")
 		if kernStat == "try" {
@@ -192,6 +183,12 @@ func (p *piboot) loadAndApplyConfig() error {
 		prefix = filepath.Join(pibootPartFolder, kernelSnap)
 		cfgDir = ubuntuSeedDir
 		dstDir = filepath.Join(ubuntuSeedDir, prefix)
+	} else {
+		// install/recovery modes, use recovery kernel
+		prefix = filepath.Join("/systems", env.Get("snapd_recovery_system"),
+			"kernel")
+		cfgDir = p.rootdir
+		dstDir = filepath.Join(p.rootdir, prefix)
 	}
 
 	logger.Debugf("configure piboot %s with prefix %q, cfgDir %q, dstDir %q",
@@ -311,11 +308,6 @@ func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
-	// InstallBootConfig gets called on a piboot that does not
-	// come from newPiboot so we need to apply the defaults here
-	p.setDefaults()
-	p.processBlOpts(blOpts)
-
 	gadgetFile := filepath.Join(gadgetDir, pibootCfgFilename)
 	systemFile := p.envFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
@@ -370,10 +362,7 @@ func (p *piboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pl
 		filepath.Join(p.rootdir, recoverySystemDir, "kernel")
 	logger.Debugf("ExtractRecoveryKernelAssets to %s", recoveryKernelAssetsDir)
 
-	if err := p.layoutKernelAssetsToDir(snapf, recoveryKernelAssetsDir); err != nil {
-		return err
-	}
-	return p.loadAndApplyConfig()
+	return p.layoutKernelAssetsToDir(snapf, recoveryKernelAssetsDir)
 }
 
 func (p *piboot) RemoveKernelAssets(s snap.PlaceInfo) error {
