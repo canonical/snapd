@@ -57,6 +57,7 @@ prepare: |
     if os.query is-pc-amd64; then
         mkdir -p /usr/lib32/nvidia-123/tls
         mkdir -p /usr/lib32/nvidia-123/vdpau
+        echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX.so.0.0.1
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX_nvidia.so.0.0.1
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libnvidia-glcore.so."$NV_VERSION"
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/tls/libnvidia-tls.so."$NV_VERSION"
