@@ -148,7 +148,14 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
-func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume) error {
+type EnsureLayoutCompatibilityOptions struct {
+	AssumeCreatablePartitionsCreated bool
+}
+
+func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
+	if opts == nil {
+		opts = &EnsureLayoutCompatibilityOptions{}
+	}
 	eq := func(ds OnDiskStructure, gs LaidOutStructure) (bool, string) {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
@@ -163,7 +170,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		// then they are equal
 		// otherwise, if they are not created during installation, the
 		// filesystem must be the same
-		check := nameMatch && ds.StartOffset == gs.StartOffset && (isCreatableAtInstall(gv) || dv.Filesystem == gv.Filesystem)
+		check := nameMatch && ds.StartOffset == gs.StartOffset
+		// if we require creatable partitions to already exist, then the
+		// filesystems must also match for creatable partitions
+		if opts.AssumeCreatablePartitionsCreated || !isCreatableAtInstall(gv) {
+			check = check && (dv.Filesystem == gv.Filesystem)
+		}
 		sizeMatches := dv.Size == gv.Size
 		if gv.Role == SystemData {
 			// system-data may have been expanded
@@ -172,6 +184,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		if check && sizeMatches {
 			return true, ""
 		}
+
 		switch {
 		case !nameMatch:
 			// don't return a reason if the names don't match
@@ -179,6 +192,8 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		case ds.StartOffset != gs.StartOffset:
 			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
 				ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+		case opts.AssumeCreatablePartitionsCreated && isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
+			return false, "filesystems do not match"
 		case !isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
 			return false, "filesystems do not match and the partition is not creatable at install"
 		case dv.Size < gv.Size:
@@ -192,10 +207,26 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		}
 	}
 
-	contains := func(haystack []LaidOutStructure, needle OnDiskStructure) (bool, string) {
+	laidOutContains := func(haystack []LaidOutStructure, needle OnDiskStructure) (bool, string) {
 		reasonAbsent := ""
 		for _, h := range haystack {
 			matches, reasonNotMatches := eq(needle, h)
+			if matches {
+				return true, ""
+			}
+			// this has the effect of only returning the last non-empty reason
+			// string
+			if reasonNotMatches != "" {
+				reasonAbsent = reasonNotMatches
+			}
+		}
+		return false, reasonAbsent
+	}
+
+	onDiskContains := func(haystack []OnDiskStructure, needle LaidOutStructure) (bool, string) {
+		reasonAbsent := ""
+		for _, h := range haystack {
+			matches, reasonNotMatches := eq(h, needle)
 			if matches {
 				return true, ""
 			}
@@ -236,7 +267,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
-		present, reasonAbsent := contains(gadgetLayout.LaidOutStructure, ds)
+		present, reasonAbsent := laidOutContains(gadgetLayout.LaidOutStructure, ds)
 		if !present {
 			if reasonAbsent != "" {
 				// use the right format so that it can be
@@ -245,6 +276,35 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			}
 			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
+	}
+
+	// check all structures in the layout are present in the gadget, or have a
+	// valid excuse for absence (i.e. mbr or creatable structures at install)
+	for _, gs := range gadgetLayout.LaidOutStructure {
+		// we ignore reasonAbsent here since if there was an extra on disk
+		// structure that didn't match something in the YAML, we would have
+		// caught it above, this loop can only ever identify structures in the
+		// YAML that are not on disk at all
+		if present, _ := onDiskContains(diskLayout.Structure, gs); present {
+			continue
+		}
+
+		// otherwise not present, figure out if it has a valid excuse
+
+		// allow specifically the mbr structure to be missing from ondisk since
+		// it doesn't show up as a device since it's a "raw" thing
+		// TODO: should this use Type == mbr or Role == mbr or both ?
+		if gs.Type == "mbr" || gs.Role == "mbr" {
+			continue
+		}
+
+		// allow structures that are creatable during install if we don't assume
+		// created partitions to already exist
+		if isCreatableAtInstall(gs.VolumeStructure) && !opts.AssumeCreatablePartitionsCreated {
+			continue
+		}
+
+		return fmt.Errorf("cannot find gadget structure %s on disk", gs.String())
 	}
 
 	return nil
