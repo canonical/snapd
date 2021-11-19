@@ -3,6 +3,10 @@ summary: Test that snapd reexecs itself into core
 # Disable for Fedora, openSUSE and Arch as re-exec is not support there yet
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
+environment:
+    # uploading the core snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
     # Remove the locale revision of core, if we installed one.
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
