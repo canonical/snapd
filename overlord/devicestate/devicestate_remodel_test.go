@@ -2549,12 +2549,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
 	c.Assert(tSwitchChannelBase.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelBase.Summary(), Equals, `Switch core20-new channel to latest/stable`)
-	c.Assert(tSwitchChannelBase.WaitTasks(), HasLen, 0)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
 	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (223) available to the system during remodel`)
 	c.Assert(tSwitchChannelGadget.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelGadget.Summary(), Equals, `Switch pc-new channel to 20/stable`)
-	c.Assert(tSwitchChannelGadget.WaitTasks(), HasLen, 0)
 	c.Assert(tUpdateAssetsFromGadget.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateAssetsFromGadget.Summary(), Equals, `Update assets from gadget "pc-new" (224) for remodel`)
 	c.Assert(tUpdateCmdlineFromGadget.Kind(), Equals, "update-gadget-cmdline")
@@ -2568,19 +2566,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 	// check the ordering, prepare/link are part of download edge and come first
 	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
-	c.Check(tUpdateAssetsFromKernel.WaitTasks(), DeepEquals, []*state.Task{
+	c.Assert(tSwitchChannelBase.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchChannelKernel,
+	})
+	c.Assert(tSwitchChannelGadget.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelBase,
+	})
+	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelGadget,
+	})
+	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// recovery system being created
+		tCreateRecovery,
+		tSwitchChannelGadget,
+	})
+	c.Check(tUpdateAssetsFromKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelKernel, tSwitchChannelGadget,
+		tCreateRecovery, tFinalizeRecovery,
 	})
 	c.Check(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
 		tUpdateAssetsFromKernel,
 	})
 	c.Assert(tLinkBase.WaitTasks(), DeepEquals, []*state.Task{
-		tSwitchChannelBase,
-	})
-	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{})
-	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
-		// recovery system being created
-		tCreateRecovery,
+		tSwitchChannelBase, tLinkKernel,
 	})
 	// setModel waits for everything in the change
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
@@ -2597,7 +2605,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		"label":     expectedLabel,
 		"directory": filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		// none of the tasks are downloads so they were not tracked
-		"snap-setup-tasks": nil,
+		"snap-setup-tasks": []interface{}{"1", "4", "6"},
 	})
 }
 
