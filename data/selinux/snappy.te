@@ -335,6 +335,21 @@ optional_policy(`
 	allow snappy_t journalctl_t:process sigkill;
 ')
 
+# snapd may talk to systemd-timesyncd over dbus
+optional_policy(`
+  gen_require(`
+	  type systemd_timedated_t;
+    class dbus send_msg;
+  ')
+	allow snappy_t systemd_timedated_t:dbus send_msg;
+	allow systemd_timedated_t snappy_t:dbus send_msg;
+')
+# or on some systems same dbus API may be provided by timedatex
+# RHEL7: there is no timedatex.if
+ifndef(`distro_rhel7',`
+  timedatex_dbus_chat(snappy_t)
+')
+
 # only pops up in cloud images where cloud-init.target is incorrectly labeled
 allow snappy_t init_var_run_t:lnk_file read;
 
@@ -591,6 +606,7 @@ init_read_state(snappy_confine_t)
 
 # libudev
 udev_manage_pid_dirs(snappy_confine_t)
+udev_read_db(snappy_confine_t)
 
 # basic access to system info in /proc
 kernel_read_system_state(snappy_confine_t)

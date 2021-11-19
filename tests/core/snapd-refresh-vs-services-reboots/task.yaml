@@ -2,7 +2,8 @@ summary: Check that refreshing snapd in the worst case reboots if things go side
 
 # TODO: move this test to tests/regression/lp-1924805 ?
 
-systems: [ubuntu-core-18-*, ubuntu-core-20-*]
+# temporarily disabled uc18 because of systemd bug LP:1949511
+systems: [ubuntu-core-20-*]
 
 environment:
   # the test needs to start from 2.49.2 to reproduce the bug and demonstrate the

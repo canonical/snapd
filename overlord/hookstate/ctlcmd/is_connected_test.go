@@ -134,7 +134,7 @@ var isConnectedTests = []struct {
 	exitCode: ctlcmd.ClassicSnapCode,
 }}
 
-func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
+func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active: true,
@@ -147,6 +147,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
 		},
 		Current:         info.Revision,
 		TrackingChannel: "stable",
+		CohortKey:       cohortKey,
 	})
 }
 
@@ -165,11 +166,11 @@ slots:
   cc:
     interface: cups-control
   audio-record:
-    interface: audio-record`)
+    interface: audio-record`, "")
 	mockInstalledSnap(c, s.st, `name: snap2
 slots:
   slot2:
-    interface: x11`)
+    interface: x11`, "")
 	mockInstalledSnap(c, s.st, `name: snap3
 plugs:
   plug4:
@@ -178,16 +179,16 @@ plugs:
     interface: cups-control
 slots:
   slot3:
-    interface: x11`)
+    interface: x11`, "")
 	mockInstalledSnap(c, s.st, `name: snap4
 slots:
   slot4:
-    interface: x11`)
+    interface: x11`, "")
 	mockInstalledSnap(c, s.st, `name: snap5
 confinement: classic
 plugs:
   cc:
-    interface: cups-control`)
+    interface: cups-control`, "")
 	restore := ctlcmd.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		switch {
 		case 1000 < pid && pid < 1100:
@@ -269,7 +270,7 @@ func (s *isConnectedSuite) TestGetRegularUser(c *C) {
 	mockInstalledSnap(c, s.st, `name: snap1
 plugs:
   plug1:
-    interface: x11`)
+    interface: x11`, "")
 
 	s.st.Set("conns", map[string]interface{}{
 		"snap1:plug1 snap2:slot2": map[string]interface{}{},

@@ -51,8 +51,10 @@ execute: |
         echo "When the interface is connected"
         snap connect netplan-snap:network-setup-control
 
+        # sometimes the systems becomes unreachable after "netplan apply"
+        # (see LP:1949708), adding --debug might give us clues why
         echo "Running netplan apply now works"
-        if ! netplan-snap.netplan apply; then
+        if ! netplan-snap.netplan --debug apply; then
             echo "Unexpected error running netplan apply"
             exit 1
         fi
