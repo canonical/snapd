@@ -246,6 +246,9 @@ type DiskVolumeDeviceTraits struct {
 	// SectorSize is the physical sector size of the disk, typically 512 or
 	// 4096.
 	SectorSize quantity.Size `json:"sector-size"`
+
+	// Schema is the disk schema, either dos or gpt in lowercase.
+	Schema string `json:"schema"`
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
