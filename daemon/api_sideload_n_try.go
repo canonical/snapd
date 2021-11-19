@@ -220,7 +220,7 @@ const maxReadBuflen = 1024 * 1024
 // dirs.SnapDirBlob. If an error occurs and a non-nil Response is returned, an attempt is made
 // to remove temp files.
 func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
-	maxMemory := int64(maxReadBuflen)
+	availMemory := int64(maxReadBuflen)
 	form := &Form{
 		Values:   make(map[string][]string),
 		FileRefs: make(map[string][]*FileReference),
@@ -253,13 +253,13 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 			buf := &bytes.Buffer{}
 
 			// copy one byte more than the max so we know if it exceeds the limit
-			n, err := io.CopyN(buf, part, maxMemory+1)
-			if err != nil && !errors.Is(err, io.EOF) {
+			n, err := io.CopyN(buf, part, availMemory+1)
+			if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 				return nil, BadRequest("cannot read form data: %v", err)
 			}
 
-			maxMemory -= n
-			if maxMemory < 0 {
+			availMemory -= n
+			if availMemory < 0 {
 				return nil, BadRequest("cannot read form data: exceeds memory limit")
 			}
 
