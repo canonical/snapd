@@ -1108,18 +1108,17 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string) ([]*state.TaskSet, []*snap.Info, error) {
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string) ([]*state.TaskSet, error) {
 	var flags Flags
 
 	// TODO(miguel): unnecessary?
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var updates []minimalInstallInfo
 	var names []string
-	snapInfos := make(map[string]*snap.Info, len(paths))
 	stateByInstanceName := make(map[string]*SnapState, len(paths))
 
 	for i, path := range paths {
@@ -1130,24 +1129,23 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		// have side info or the user passed --dangerous
 		info, container, err := backend.OpenSnapFile(path, si)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		if err := validateContainer(container, info, logger.Noticef); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if err := snap.ValidateInstanceName(name); err != nil {
-			return nil, nil, fmt.Errorf("invalid instance name: %v", err)
+			return nil, fmt.Errorf("invalid instance name: %v", err)
 		}
 
 		var snapst SnapState
 		if err = Get(st, name, &snapst); err != nil && err != state.ErrNoState {
-			return nil, nil, err
+			return nil, err
 		}
 
 		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
 		names = append(names, name)
-		snapInfos[name] = info
 		stateByInstanceName[name] = &snapst
 	}
 
@@ -1156,17 +1154,12 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	}
 
 	// TODO(miguel): disk space refresh check?
-	updated, tasksets, err := doUpdate(ctx, st, names, updates, params, -1, &flags, deviceCtx, "")
+	_, tasksets, err := doUpdate(ctx, st, names, updates, params, -1, &flags, deviceCtx, "")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	updatedInfos := make([]*snap.Info, len(updated))
-	for i, u := range updated {
-		updatedInfos[i] = snapInfos[u]
-	}
-
-	return tasksets, updatedInfos, nil
+	return tasksets, nil
 }
 
 // InstallMany installs everything from the given list of names.

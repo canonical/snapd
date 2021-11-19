@@ -4300,9 +4300,8 @@ epoch: 1
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
 	c.Assert(err, IsNil)
-	c.Check([]string{infos[0].RealName, infos[1].RealName}, testutil.DeepUnsortedMatches, snapNames)
 	c.Assert(tss, HasLen, 2)
 
 	chg := s.state.NewChange("install", "install local snaps")
@@ -4345,9 +4344,8 @@ epoch: 1
 		return errors.New("expected")
 	}, nil)
 
-	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
 	c.Assert(err, IsNil)
-	c.Check([]string{infos[0].RealName, infos[1].RealName}, testutil.DeepUnsortedMatches, snapNames)
 	c.Assert(tss, HasLen, 2)
 
 	// fail installation of 'other-snap' which shouldn't affect 'some-snap'
@@ -4412,9 +4410,8 @@ epoch: 1
 		sideInfos = append(sideInfos, newSi)
 	}
 
-	tss, infos, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
 	c.Assert(err, IsNil)
-	c.Check([]string{infos[0].RealName, infos[1].RealName}, testutil.DeepUnsortedMatches, snapNames)
 	c.Assert(tss, HasLen, 2)
 
 	chg := s.state.NewChange("install", "install local snaps")
