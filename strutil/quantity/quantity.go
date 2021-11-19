@@ -255,7 +255,10 @@ const (
 // less than 'min' will be processed according to RenderMode. RenderMode
 // allows rounding, flooring or ceiling to be applied to place value below
 // 'min'. Durations above the 'max' place value will result in "ages!".
-func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places, mode RenderMode, space SpaceMode) string {
+// This function is private and should not be used directly. If you want
+// a new rendering use case, create a suitable public function which the
+// correct rendering options set for your particular use case.
+func formatDurationGeneric(dt float64, min Duration, max Duration, count Places, mode RenderMode, space SpaceMode) string {
 	var units = map[Duration]string{
 		Year:    "y",
 		Day:     "d",
@@ -436,7 +439,7 @@ func FormatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 // The ceiling() operation is performed on the unrendered least significant
 // place values (+1 on the least significant rendered unit).
 func ProgressBarTimeLeft(dt float64) string {
-	return FormatDurationGeneric(dt, Second, Hour, ShowCompact, TimeLeft, SpaceOff)
+	return formatDurationGeneric(dt, Second, Hour, ShowCompact, TimeLeft, SpaceOff)
 }
 
 // ProgressBarTimePassed presents duration in a layout suitable for progress
@@ -446,5 +449,5 @@ func ProgressBarTimeLeft(dt float64) string {
 // The floor() operation is performed on the unrendered least significant
 // place values (discarded).
 func ProgressBarTimePassed(dt float64) string {
-	return FormatDurationGeneric(dt, Second, Hour, ShowCompact, TimePassed, SpaceOff)
+	return formatDurationGeneric(dt, Second, Hour, ShowCompact, TimePassed, SpaceOff)
 }
