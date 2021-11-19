@@ -28,23 +28,32 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
 
-func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
+// diskWithSystemSeed will locate a disk that has the partition corresponding
+// to a structure with SystemSeed role of the specified gadget volume and return
+// the device node.
+func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
-		if vs.Role == role {
+		if vs.Role == gadget.SystemSeed {
 			device, err = gadget.FindDeviceForStructure(&vs)
 			if err != nil {
-				return "", fmt.Errorf("cannot find device for role %q: %v", role, err)
+				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
-			return gadget.ParentDiskFromMountSource(device)
+
+			disk, err := disks.DiskFromPartitionDeviceNode(device)
+			if err != nil {
+				return "", err
+			}
+			return disk.KernelDeviceNode(), nil
 		}
 	}
-	return "", fmt.Errorf("cannot find role %s in gadget", role)
+	return "", fmt.Errorf("cannot find role system-seed in gadget")
 }
 
 func roleOrLabelOrName(part gadget.OnDiskStructure) string {
@@ -81,7 +90,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	//
 	// auto-detect device if no device is forced
 	if device == "" {
-		device, err = deviceFromRole(lv, gadget.SystemSeed)
+		device, err = diskWithSystemSeed(lv)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
