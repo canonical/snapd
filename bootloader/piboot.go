@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/bootloader/pibootenv"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -117,8 +117,8 @@ func (p *piboot) Present() (bool, error) {
 //   recovery_system_status
 //   try_recovery_system
 func (p *piboot) SetBootVars(values map[string]string) error {
-	env := pibootenv.NewEnv(p.envFile())
-	if err := env.Load(); err != nil && !os.IsNotExist(err) {
+	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
+	if err != nil {
 		return err
 	}
 
@@ -168,7 +168,7 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 	return nil
 }
 
-func (p *piboot) loadAndApplyConfig(env *pibootenv.Env) error {
+func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 	var prefix, cfgDir, dstDir string
 
 	cfgFile := "config.txt"
@@ -227,7 +227,7 @@ func (p *piboot) setRPiCfgOsPrefix(prefix, inFile, outFile string) error {
 	return osutil.AtomicWriteFile(outFile, []byte(output), 0644, 0)
 }
 
-func (p *piboot) createCmdline(env *pibootenv.Env, defaultsFile, outFile string) error {
+func (p *piboot) createCmdline(env *ubootenv.Env, defaultsFile, outFile string) error {
 	var base string
 	fullCmdline := env.Get("snapd_full_cmdline_args")
 	if fullCmdline != "" {
@@ -263,7 +263,7 @@ func (p *piboot) createCmdline(env *pibootenv.Env, defaultsFile, outFile string)
 // Configure pi bootloader with a given os_prefix. cfgDir contains the
 // config files, and dstDir is where we will place the kernel command
 // line.
-func (p *piboot) applyConfig(env *pibootenv.Env,
+func (p *piboot) applyConfig(env *ubootenv.Env,
 	configFile, prefix, cfgDir, dstDir string) error {
 
 	kernStat := env.Get("kernel_status")
@@ -295,8 +295,8 @@ func (p *piboot) applyConfig(env *pibootenv.Env,
 func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string)
 
-	env := pibootenv.NewEnv(p.envFile())
-	if err := env.Load(); err != nil {
+	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
+	if err != nil {
 		return nil, err
 	}
 
@@ -309,6 +309,30 @@ func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 
 func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 	gadgetFile := filepath.Join(gadgetDir, pibootCfgFilename)
+	st, err := os.Stat(gadgetFile)
+	if err != nil {
+		return err
+	}
+	if st.Size() == 0 {
+		// We create a valid env file if the one from gadget is empty
+		err := os.MkdirAll(filepath.Dir(p.envFile()), 0755)
+		if err != nil {
+			return err
+		}
+
+		// TODO: what's a reasonable size for this file?
+		env, err := ubootenv.Create(p.envFile(), 4096)
+		if err != nil {
+			return err
+		}
+
+		if err := env.Save(); err != nil {
+			return nil
+		}
+
+		return nil
+	}
+
 	systemFile := p.envFile()
 	return genericInstallBootConfig(gadgetFile, systemFile)
 }

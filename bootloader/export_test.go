@@ -27,7 +27,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
-	"github.com/snapcore/snapd/bootloader/pibootenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -256,7 +255,8 @@ func MockPibootFiles(c *C, rootdir string, blOpts *Options) {
 	c.Assert(err, IsNil)
 
 	// ensure that we have a valid piboot.conf
-	env := pibootenv.NewEnv(p.envFile())
+	env, err := ubootenv.Create(p.envFile(), 4096)
+	c.Assert(err, IsNil)
 	err = env.Save()
 	c.Assert(err, IsNil)
 

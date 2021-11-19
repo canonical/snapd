@@ -28,7 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/pibootenv"
+	"github.com/snapcore/snapd/bootloader/ubootenv"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -95,10 +95,11 @@ func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 	c.Assert(p, NotNil)
 
 	envFile := bootloader.PibootConfigFile(p)
-	env := pibootenv.NewEnv(envFile)
+	env, err := ubootenv.OpenWithFlags(envFile, ubootenv.OpenBestEffort)
+	c.Assert(err, IsNil)
 	env.Set("snap_ab", "b")
 	env.Set("snap_mode", "")
-	err := env.Save()
+	err = env.Save()
 	c.Assert(err, IsNil)
 
 	st, err := os.Stat(envFile)
@@ -242,8 +243,8 @@ func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
 		// if we set boot vars on the piboot, we can open the config file and
 		// get the same variables
 		c.Assert(p.SetBootVars(map[string]string{"hello": "there"}), IsNil)
-		env := pibootenv.NewEnv(filepath.Join(dir, t.expEnv))
-		err := env.Load()
+		env, err := ubootenv.OpenWithFlags(filepath.Join(dir, t.expEnv),
+			ubootenv.OpenBestEffort)
 		c.Assert(err, IsNil)
 		c.Assert(env.Get("hello"), Equals, "there")
 	}
