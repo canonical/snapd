@@ -36,6 +36,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
 // ValidateNoAppArmorRegexp will check that the given string does not
@@ -117,10 +118,21 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	if !osutil.GetenvBool("SNAPD_DEBUG") {
 		args = append(args, "--quiet")
 	}
-	args = append(args, fnames...)
 
-	output, err := exec.Command("apparmor_parser", args...).CombinedOutput()
-	if err != nil {
+	parser, requiredArgs, internal, err := apparmor_sandbox.FindAppArmorParser()
+	if err != nil || !internal {
+		// if we couldn't find the parser with apparmor_sandbox
+		// then fall-back to trying to find one in the current PATH
+		// - same for if we are not using the internal
+		// apparmor_parser so that we can support a mocked parser
+		// during tests
+		parser = "apparmor_parser"
+	}
+
+	args = append(args, requiredArgs...)
+	args = append(args, fnames...)
+	output, err := exec.Command(parser, args...).CombinedOutput()
+	if err != nil || strings.Contains(string(output), "parser error") {
 		return fmt.Errorf("cannot load apparmor profiles: %s\napparmor_parser output:\n%s", err, string(output))
 	}
 	return nil
