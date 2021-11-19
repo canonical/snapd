@@ -1440,6 +1440,11 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return err
 	}
 
+	// 2.1 Update bootloader variables now that boot/seed are mounted
+	if err := boot.InitramfsRunModeUpdateBootloaderVars(); err != nil {
+		return err
+	}
+
 	// 3.1. measure model
 	err = stampedAction("run-model-measured", func() error {
 		return secbootMeasureSnapModelWhenPossible(mst.UnverifiedBootModel)
