@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -130,8 +132,11 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 }
 
 var (
-	snapstateInstall           = snapstate.Install
-	snapstateInstallPath       = snapstate.InstallPath
+	snapstateInstall         = snapstate.Install
+	snapstateInstallPath     = snapstate.InstallPath
+	snapstateInstallPathMany = func(context.Context, *state.State, []*snap.SideInfo, []string) ([]*state.TaskSet, error) {
+		return nil, nil
+	}
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
