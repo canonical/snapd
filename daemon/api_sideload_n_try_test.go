@@ -534,7 +534,7 @@ func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
 	c.Assert(string(data), check.Equals, "xyzzy")
 }
 
-func (s *sideloadSuite) TestSideloadMemoryLimit(c *check.C) {
+func (s *sideloadSuite) TestSideloadExceedMemoryLimit(c *check.C) {
 	s.daemonWithOverlordMockAndStore()
 
 	// check that there's a memory limit for the sum of the parts, not just each
@@ -550,7 +550,7 @@ func (s *sideloadSuite) TestSideloadMemoryLimit(c *check.C) {
 			"Content-Disposition: form-data; name=\"stuff\"\r\n" +
 			"\r\n" +
 			string(bufs[i]) +
-			"xyzzy\r\n"
+			"\r\n"
 	}
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
@@ -559,6 +559,29 @@ func (s *sideloadSuite) TestSideloadMemoryLimit(c *check.C) {
 
 	apiErr := s.errorReq(c, req, nil)
 	c.Check(apiErr.Message, check.Equals, `cannot read form data: exceeds memory limit`)
+}
+
+func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	buf := make([]byte, daemon.MaxReadBuflen)
+	_, err := rand.Read(buf)
+	c.Assert(err, check.IsNil)
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		string(buf) +
+		"\r\n" +
+		"----hello--\r\n"
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	// using the maximum memory doesn't cause the failure (not having a snap file does)
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.Message, check.Equals, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
 type trySuite struct {
