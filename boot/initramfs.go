@@ -30,39 +30,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func updatePibootKernelStatus(bl bootloader.Bootloader) error {
-	blVars, err := bl.GetBootVars("kernel_status")
-	if err != nil {
-		return err
-	}
-	if blVars["kernel_status"] != "try" {
-		return nil
-	}
-
-	cmdLine, err := osutil.KernelCommandLine()
-	if err != nil {
-		return err
-	}
-	args := strings.Split(cmdLine, " ")
-	// "" would be the value for the error case
-	newStatus := ""
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "kernel_status=") {
-			keyVal := strings.Split(arg, "=")
-			// Must be "trying"
-			newStatus = keyVal[1]
-			break
-		}
-	}
-
-	logger.Debugf("setting piboot's kernel_status to %s", newStatus)
-	// piboot_configure is a meta variable to prevent changing the
-	// bootloader configuration (we just want to inform userspace of
-	// the new status here)
-	return bl.SetBootVars(map[string]string{"kernel_status": newStatus,
-		"piboot_configure": "false"})
-}
-
 // InitramfsRunModeSelectSnapsToMount returns a map of the snap paths to mount
 // for the specified snap types.
 func InitramfsRunModeSelectSnapsToMount(
@@ -88,15 +55,6 @@ func InitramfsRunModeSelectSnapsToMount(
 			bs := &bootState20Kernel{
 				blDir:  blDir,
 				blOpts: blOpts,
-			}
-			// piboot is very limited, so we need to change the kernel
-			// status from the initramfs as we cannot do that from the
-			// bootloader
-			bl, err := bootloader.Find(InitramfsUbuntuBootDir, blOpts)
-			if err == nil && bl.Name() == "piboot" {
-				if err := updatePibootKernelStatus(bl); err != nil {
-					logger.Noticef("cannot update piboot kernel status: %v", err)
-				}
 			}
 			selectSnapFn = bs.selectAndCommitSnapInitramfsMount
 		}
@@ -168,4 +126,56 @@ func MockInitramfsReboot(f func() error) (restore func()) {
 // initramfs.
 func InitramfsReboot() error {
 	return initramfsReboot()
+}
+
+func updatePibootKernelStatus(bl bootloader.Bootloader) error {
+	blVars, err := bl.GetBootVars("kernel_status")
+	if err != nil {
+		return err
+	}
+	if blVars["kernel_status"] != "try" {
+		return nil
+	}
+
+	cmdLine, err := osutil.KernelCommandLine()
+	if err != nil {
+		return err
+	}
+	args := strings.Split(cmdLine, " ")
+	// "" would be the value for the error case
+	newStatus := ""
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "kernel_status=") {
+			keyVal := strings.Split(arg, "=")
+			// Must be "trying"
+			newStatus = keyVal[1]
+			break
+		}
+	}
+
+	logger.Debugf("setting piboot's kernel_status to %s", newStatus)
+	return bl.SetBootVars(map[string]string{"kernel_status": newStatus})
+}
+
+// InitramfsRunModeUpdateBootloaderVars updates bootloader variables
+// from the initramfs. This is necessary only for piboot at the
+// moment.
+func InitramfsRunModeUpdateBootloaderVars() error {
+	// piboot is very limited, so we need to change the kernel
+	// status from the initramfs as we cannot do that from the
+	// bootloader
+	blOpts := &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	}
+
+	bl, err := bootloader.Find(InitramfsUbuntuBootDir, blOpts)
+	if err == nil && bl.Name() == "piboot" {
+		if err := updatePibootKernelStatus(bl); err != nil {
+			logger.Noticef("cannot update piboot kernel status: %v", err)
+			return err
+		}
+	}
+
+	return nil
 }
