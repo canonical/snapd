@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/strace"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
 	"github.com/snapcore/snapd/sandbox/cgroup"
@@ -993,7 +994,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
+			"-e", strace.ExcludedSyscalls,
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -1016,7 +1017,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
+			"-e", strace.ExcludedSyscalls,
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -1063,7 +1064,7 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
+			"-e", strace.ExcludedSyscalls,
 			"-tt",
 			"-o",
 			"file with spaces",
