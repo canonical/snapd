@@ -1,5 +1,7 @@
 summary: Check that health works
 
+tags: [ basic ]
+
 prepare: |
     snap install --edge jq
 

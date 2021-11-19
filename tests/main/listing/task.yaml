@@ -1,5 +1,7 @@
 summary: Check snap listings
 
+tags: [ basic ]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 

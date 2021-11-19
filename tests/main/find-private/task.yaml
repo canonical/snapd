@@ -12,6 +12,8 @@ details: |
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
 systems: [-ubuntu-*-ppc64el]
 
+tags: [ basic ]
+
 restore: |
     snap logout || true
 

@@ -1,5 +1,7 @@
 summary: Check snap remove operations.
 
+tags: [ basic ]
+
 execute: |
     snap_revisions(){
         local snap_name=$1

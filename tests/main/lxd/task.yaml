@@ -11,6 +11,8 @@ backends: [-autopkgtest]
 # "Setup snap "core" (11993) security profiles (cannot run udev triggers: exit status 1"
 systems: [ubuntu-16*, ubuntu-18.04-64, ubuntu-20*, ubuntu-21.04-*, ubuntu-core-*]
 
+tags: [ basic ]
+
 # Start before anything else as it can take a really long time.
 priority: 1000
 

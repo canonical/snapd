@@ -8,6 +8,8 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+tags: [ basic ]
+
 prepare: |
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)

@@ -15,6 +15,8 @@ systems:
   # go-flags panics when showing --help for a hidden command on Fedora 32/33
   - -fedora-*
 
+tags: [ basic ]
+
 environment:
   ACCOUNT_ID: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f
   PUBKEY_SHA: o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy

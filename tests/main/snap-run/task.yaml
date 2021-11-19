@@ -4,6 +4,8 @@ summary: Check that `snap run` runs
 # (https://github.com/strace/strace/issues/57)
 systems: [-*-s390x]
 
+tags: [ basic ]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

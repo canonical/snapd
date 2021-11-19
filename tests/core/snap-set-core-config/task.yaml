@@ -2,6 +2,8 @@ summary: Ensure "snap set core" works
 
 systems: [ubuntu-core-*]
 
+tags: [ basic ]
+
 # TODO: use `snap set system` instead of `snap set core`
 
 prepare: |

@@ -1,5 +1,7 @@
 summary: verify the output of 'snap services' command
 
+tags: [ basic ]
+
 prepare: |
     snap set system experimental.user-daemons=true
 

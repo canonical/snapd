@@ -12,6 +12,8 @@ details: |
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-core-*, -ubuntu-14.04*]
 
+tags: [ basic ]
+
 environment:
     SNAP_NAME/parallel_strict_fake,parallel_strict_remote: test-snapd-tools_instance
     SNAP_NAME/strict_fake,strict_remote: test-snapd-tools

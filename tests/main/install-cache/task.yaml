@@ -1,5 +1,7 @@
 summary: Check that download caching works
 
+tags: [ basic ]
+
 environment:
     # on core systems, the test was seen to misbehave when memory limit is set
     SNAPD_NO_MEMORY_LIMIT: 1

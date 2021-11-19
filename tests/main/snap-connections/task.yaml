@@ -1,5 +1,7 @@
 summary: Check that "snap connections" works as expected
 
+tags: [ basic ]
+
 prepare: |
     snap pack test-snap.v1
     snap pack test-snap.v2

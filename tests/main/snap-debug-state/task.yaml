@@ -1,5 +1,7 @@
 summary: Ensure `snap debug changes|tasks|task` commands work
 
+tags: [ basic ]
+
 prepare: |
     snap install hello-world
     # The debug commands access state.json directly, snapd should be stopped

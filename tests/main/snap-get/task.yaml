@@ -1,5 +1,7 @@
 summary: Check that `snap get` works as expected
 
+tags: [ basic ]
+
 prepare: |
     snap install --devmode jq
 

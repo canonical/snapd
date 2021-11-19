@@ -1,5 +1,7 @@
 summary: Check commands help
 
+tags: [ basic ]
+
 execute: |
     bad=""
     for CMD in $( GO_FLAGS_COMPLETION=1 snap | grep -evFx 'help|blame' ); do

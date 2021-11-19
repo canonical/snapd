@@ -9,6 +9,8 @@ details: |
     correctly (and it doesn't fail) enough that we reach the "not implemented"
     message that is currently in snap-updates-ns
 
+tags: [ basic ]
+
 environment:
     # I made far too many typos when those were literals in the code below.
     PLUG_SNAP: test-snapd-content-plug

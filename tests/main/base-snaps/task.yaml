@@ -2,6 +2,8 @@ summary: Check that base snaps work
 
 systems: [-opensuse-*]
 
+tags: [ basic ]
+
 execute: |
     echo "Ensure a snap that requires a unavailable base snap can not be installed"
     if "$TESTSTOOLS"/snaps-state install-local test-snapd-requires-base; then

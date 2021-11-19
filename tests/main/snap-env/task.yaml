@@ -1,5 +1,7 @@
 summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 
+tags: [ basic ]
+
 environment:
     NAME/regular: test-snapd-tools
     INSTANCE_KEY/regular: ""

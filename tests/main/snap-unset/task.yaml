@@ -1,5 +1,7 @@
 summary: Check that `snap unset` works and removes config options.
 
+tags: [ basic ]
+
 prepare: |
     echo "Build basic test snap"
     "$TESTSTOOLS"/snaps-state install-local basic-hooks

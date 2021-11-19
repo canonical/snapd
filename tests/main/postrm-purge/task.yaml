@@ -2,6 +2,8 @@ summary: Check that package remove and purge removes everything related to snaps
 
 systems: [-ubuntu-core-*]
 
+tags: [ basic ]
+
 prepare: |
     # TODO: unify this with tests/main/snap-mgmt/task.yaml
 

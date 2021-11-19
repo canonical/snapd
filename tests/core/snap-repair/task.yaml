@@ -1,5 +1,7 @@
 summary: Ensure that snap-repair works on Ubuntu Core
 
+tags: [ basic ]
+
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028

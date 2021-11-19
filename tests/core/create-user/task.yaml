@@ -1,6 +1,8 @@
 summary: Ensure that snap create-user works in ubuntu-core
 # FIXME: combine this test with tests/core/create-user-2?
 
+tags: [ basic ]
+
 environment:
     USER_EMAIL: mvo@ubuntu.com
     USER_NAME: mvo

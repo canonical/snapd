@@ -1,5 +1,7 @@
 summary: Check that the basic snapshots functionality is ok
 
+tags: [ basic ]
+
 environment:
     # tar invoked when creating snapshots triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1

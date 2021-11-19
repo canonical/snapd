@@ -4,6 +4,8 @@ details: |
     Verify that snap pack creates squashfs files or fails in a predictable
     manner.
 
+tags: [ basic ]
+
 restore: |
     snap remove test-snapd-sh-lzo
 

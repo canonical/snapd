@@ -5,6 +5,8 @@ summary: Upgrade the core snap and revert a few times
 # possible to get any grub information as it is done with non arm devices.
 systems: [ubuntu-core-16-*, ubuntu-core-18-32*, ubuntu-core-18-64*]
 
+tags: [ basic ]
+
 # Start early as it takes a long time.
 priority: 100
 

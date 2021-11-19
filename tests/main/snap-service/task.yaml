@@ -1,5 +1,7 @@
 summary: Check that `snap run --command=reload` works
 
+tags: [ basic ]
+
 kill-timeout: 10m
 
 execute: |

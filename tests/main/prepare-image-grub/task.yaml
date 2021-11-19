@@ -5,6 +5,8 @@ backends: [-autopkgtest]
 # building images is only supported on classic ubuntu, but ubuntu 14.04 does not have systemd-run to perform the test
 systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*]
 
+tags: [ basic ]
+
 # TODO: use the real stores with proper assertions fully as well once possible
 environment:
     ROOT: /tmp/root

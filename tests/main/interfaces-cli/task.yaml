@@ -1,5 +1,7 @@
 summary: Check the interfaces command
 
+tags: [ basic ]
+
 environment:
     SNAP_NAME: network-consumer
     PLUG: network

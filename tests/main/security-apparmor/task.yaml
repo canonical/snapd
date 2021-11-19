@@ -1,5 +1,7 @@
 summary: Check basic apparmor confinement rules.
 
+tags: [ basic ]
+
 prepare: |
     echo "Given a basic snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

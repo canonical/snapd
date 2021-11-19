@@ -7,6 +7,8 @@ backends: [-autopkgtest]
 # amazon: requires extra gpg-agent setup
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -amazon-*, -centos-*]
 
+tags: [ basic ]
+
 prepare: |
     #shellcheck source=tests/lib/mkpinentry.sh
     . "$TESTSLIB"/mkpinentry.sh

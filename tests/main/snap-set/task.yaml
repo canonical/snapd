@@ -1,5 +1,7 @@
 summary: Check that `snap set` runs configure hook.
 
+tags: [ basic ]
+
 prepare: |
     echo "Build basic test package (without hooks)"
     "$TESTSTOOLS"/snaps-state install-local basic

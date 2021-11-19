@@ -12,6 +12,7 @@ SUPPORTED_KEYS = [
     "details",
     "backends",
     "systems",
+    "tags",
     "manual",
     "priority",
     "warn-timeout",

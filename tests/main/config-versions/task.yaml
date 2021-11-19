@@ -6,6 +6,8 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+tags: [ basic ]
+
 execute: |
     verify_config_value() {
       expected="$1"

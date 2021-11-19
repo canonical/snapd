@@ -7,6 +7,8 @@ details: |
 
 systems: [ubuntu-core-*]
 
+tags: [ basic ]
+
 environment:
     # uploading the core or otherwise large snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1

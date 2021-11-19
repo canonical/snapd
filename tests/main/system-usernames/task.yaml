@@ -1,5 +1,7 @@
 summary: ensure seccomp rules for snap_daemon user work correctly
 
+tags: [ basic ]
+
 environment:
     # This is used to abbreviate some of the paths below.
     P1: /var/snap/test-snapd-sh/common/test.chown

@@ -1,5 +1,7 @@
 summary: Check that snap model works
 
+tags: [ basic ]
+
 execute: |
   knownCmdAssertion=$(snap known model)
   modelCmdAssertion=$(snap model --assertion)

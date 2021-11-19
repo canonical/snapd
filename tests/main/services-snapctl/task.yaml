@@ -3,6 +3,8 @@ summary: Check that own services can be controlled by snapctl
 # takes >1.5min to run
 backends: [-autopkgtest]
 
+tags: [ basic ]
+
 kill-timeout: 10m
 
 environment:

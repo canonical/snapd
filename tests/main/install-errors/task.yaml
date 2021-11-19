@@ -2,6 +2,8 @@ summary: Checks for cli errors installing snaps
 
 systems: [-ubuntu-core-*]
 
+tags: [ basic ]
+
 environment:
     SNAP_NAME: test-snapd-tools
     # Ensure that running purely from the deb (without re-exec) works

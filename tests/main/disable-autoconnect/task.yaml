@@ -6,6 +6,8 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+tags: [ basic ]
+
 execute: |
     CONNECTED_PATTERN=':home .* config-versions'
     DISCONNECTED_PATTERN='\- .* config-versions:home'

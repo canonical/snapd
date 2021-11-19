@@ -17,6 +17,8 @@ systems:
   - -centos-7-*
   - -centos-8-*
 
+tags: [ basic ]
+
 prepare: |
     tests.session -u test prepare
 

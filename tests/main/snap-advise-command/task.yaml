@@ -8,6 +8,8 @@ systems:
     - ubuntu-2*
     - ubuntu-core-16*
 
+tags: [ basic ]
+
 prepare: |
     if ! os.query is-core16 && [ -e /usr/lib/command-not-found ]; then
         mv /usr/lib/command-not-found /usr/lib/command-not-found.orig

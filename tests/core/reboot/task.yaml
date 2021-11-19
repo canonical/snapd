@@ -3,6 +3,8 @@ summary: Ensure that service and apparmor profiles work after a reboot
 # Start early as it takes a long time.
 priority: 100
 
+tags: [ basic ]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service

@@ -8,6 +8,8 @@ details: |
 # GCE backend sets instance data
 backends: [google]
 
+tags: [ basic ]
+
 prepare: |
     if ! command -v jq; then
         snap install --devmode jq

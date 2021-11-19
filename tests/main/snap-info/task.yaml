@@ -4,6 +4,8 @@ summary: Check that snap info works
 # amazon: no PyYAML is not packaged for python3
 systems: [-amazon-*, -centos-*]
 
+tags: [ basic ]
+
 prepare: |
     snap pack "$TESTSLIB"/snaps/basic
     snap install test-snapd-tools

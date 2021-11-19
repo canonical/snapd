@@ -2,6 +2,8 @@ summary: Check basic core20 system functionality
 
 systems: [ubuntu-core-20-*]
 
+tags: [ basic ]
+
 execute: |
     echo "Check that the system snaps are there"
     snap list core20

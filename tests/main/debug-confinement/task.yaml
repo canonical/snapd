@@ -1,5 +1,7 @@
 summary: Verify confinement is correctly reported
 
+tags: [ basic ]
+
 execute: |
     expected=partial
     case "$SPREAD_SYSTEM" in

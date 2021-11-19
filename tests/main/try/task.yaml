@@ -4,6 +4,8 @@ summary: Check that try command works
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -ubuntu-*-s390x, -centos-*, -ubuntu-14.04*]
 
+tags: [ basic ]
+
 environment:
     PORT: 8081
     READABLE_FILE: "/var/snap/test-snapd-tools/x1/file.txt"

@@ -3,6 +3,8 @@ summary: the essential manual pages are installed by the native package
 # core systems don't ship man or manual pages
 systems: [-ubuntu-core-*]
 
+tags: [ basic ]
+
 execute: |
 
     # This check for opensuse is done to avoid an issue on man command where

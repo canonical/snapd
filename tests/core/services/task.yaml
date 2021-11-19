@@ -1,5 +1,7 @@
 summary: Ensure all services on Core are active
 
+tags: [ basic ]
+
 execute: |
     echo "Ensure one-shot services are working"
     for oneshot in snapd.autoimport.service snapd.sshd-keygen.service; do

@@ -1,5 +1,7 @@
 summary: Check that default tracks work
 
+tags: [ basic ]
+
 environment:
     A_SNAP: test-snapd-default-track
     A_TRACK: default

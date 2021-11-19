@@ -7,6 +7,8 @@ summary: |
 #            which we don't have currently
 systems: [ubuntu-core-1*]
 
+tags: [ basic ]
+
 environment:
     SERVICE/rsyslog: rsyslog
     GADGET_FILE/rsyslog: gadget-rsyslog.yaml

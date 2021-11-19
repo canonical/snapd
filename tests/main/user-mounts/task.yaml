@@ -14,6 +14,8 @@ systems:
     - -ubuntu-core-*   # see above
     - -ubuntu-14.04-*  # no tests.session
 
+tags: [ basic ]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop

@@ -1,5 +1,7 @@
 summary: Check that snap connect works
 
+tags: [ basic ]
+
 prepare: |
     echo "Install a test snap"
     "$TESTSTOOLS"/snaps-state install-local home-consumer

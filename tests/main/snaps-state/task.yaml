@@ -1,5 +1,7 @@
 summary: smoke test for the snaps-state tool
 
+tags: [ basic ]
+
 prepare: |
     snap set system experimental.parallel-instances=true
 

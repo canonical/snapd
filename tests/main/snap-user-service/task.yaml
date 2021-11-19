@@ -8,6 +8,8 @@ systems:
     # Centos 7 gives error "Unit user@12345.service not loaded."
     - -centos-7-*
 
+tags: [ basic ]
+
 kill-timeout: 10m
 
 prepare: |

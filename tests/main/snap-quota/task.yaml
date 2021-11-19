@@ -3,6 +3,8 @@ summary: Basic test for quota-related snap commands.
 details: |
   Basic test for snap quota, remove-quota and quotas commands.
 
+tags: [ basic ]
+
 prepare: |
   snap install hello-world go-example-webserver test-snapd-tools
   snap set system experimental.quota-groups=true

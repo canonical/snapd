@@ -4,6 +4,8 @@ summary: Check that prepare-image works for uboot-systems
 # with the distro
 backends: [-autopkgtest]
 
+tags: [ basic ]
+
 environment:
     ROOT: /home/test/tmp/
     IMAGE: /home/test/tmp/image

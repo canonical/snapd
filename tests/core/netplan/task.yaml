@@ -3,6 +3,8 @@ summary: Ensure that netplan works on Ubuntu Core with network-setup-{control,ob
 details: |
     Netplan apply is used to apply network configuration to the system
 
+tags: [ basic ]
+
 environment:
     NETPLAN: io.netplan.Netplan
 

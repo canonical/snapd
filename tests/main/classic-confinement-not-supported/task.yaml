@@ -2,6 +2,8 @@ summary: Ensure that classic confinement works
 
 systems: [ubuntu-core-*, fedora-*]
 
+tags: [ basic ]
+
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 

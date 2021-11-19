@@ -7,6 +7,8 @@ details: |
 
 systems: [fedora-*, centos-*]
 
+tags: [ basic ]
+
 environment:
     CLASSIC_SNAP: test-snapd-classic-service-hooks
 

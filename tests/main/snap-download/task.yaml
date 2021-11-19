@@ -1,5 +1,7 @@
 summary: Check that snap download works
 
+tags: [ basic ]
+
 restore: |
     rm -f ~test/*.snap
     rm -f ~test/*.assert

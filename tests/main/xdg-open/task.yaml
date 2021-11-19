@@ -8,6 +8,8 @@ systems:
     - -ubuntu-14.04-*
     - -ubuntu-core-*
 
+tags: [ basic ]
+
 environment:
     # XXX: why is this here?
     DISPLAY: :0

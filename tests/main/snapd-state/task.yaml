@@ -1,5 +1,7 @@
 summary: smoke test for the snapd-state test tool
 
+tags: [ basic ]
+
 prepare: |
     snap install test-snapd-tools
     snap install --devmode jq

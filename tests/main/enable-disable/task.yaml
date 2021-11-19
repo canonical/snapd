@@ -1,5 +1,7 @@
 summary: Check that enable/disable works
 
+tags: [ basic ]
+
 prepare: |
     echo "Install test-snapd-sh and ensure it runs"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

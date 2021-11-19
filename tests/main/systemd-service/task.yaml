@@ -1,5 +1,7 @@
 summary: Check that a service installed by a snap is reported as active by systemd
 
+tags: [ basic ]
+
 environment:
     SERVICE_NAME: snap.test-snapd-service.test-snapd-service.service
 

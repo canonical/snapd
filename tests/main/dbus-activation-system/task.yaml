@@ -1,5 +1,7 @@
 summary: D-Bus system services support activation
 
+tags: [ basic ]
+
 prepare: |
     snap set system experimental.user-daemons=true
 

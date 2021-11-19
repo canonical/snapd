@@ -1,5 +1,7 @@
 summary: Check that snapd failure handling works
 
+tags: [ basic ]
+
 prepare: |
     # on UC16, we should transition to using the snapd snap before running the 
     # test because it by default uses the core snap

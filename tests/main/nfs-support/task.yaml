@@ -14,6 +14,8 @@ backends: [-autopkgtest]
 #                 labels, labels can only be exported for NFSv4.2+ with security_label option
 systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*]
 
+tags: [ basic ]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 

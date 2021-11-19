@@ -1,5 +1,7 @@
 summary: Check that `snap connect` runs interface hooks
 
+tags: [ basic ]
+
 environment:
     CONSUMER_DATA: /var/snap/basic-iface-hooks-consumer/common
     PRODUCER_DATA: /var/snap/basic-iface-hooks-producer/common

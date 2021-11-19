@@ -1,5 +1,7 @@
 summary: Check that `snap wait` works
 
+tags: [ basic ]
+
 kill-timeout: 10m
 
 prepare: |

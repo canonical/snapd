@@ -6,6 +6,8 @@ details: |
     in the area beyond the $SNAP directory. In addition all applications and
     hooks get permissions to access those areas.
 
+tags: [ basic ]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
 

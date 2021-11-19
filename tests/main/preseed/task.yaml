@@ -7,6 +7,8 @@ details: |
 
 systems: [ubuntu-2*]
 
+tags: [ basic ]
+
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
   LXD_BASE_SNAP: core20

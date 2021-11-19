@@ -1,5 +1,7 @@
 summary: Ensure that core16 works
 
+tags: [ basic ]
+
 execute: |
     echo "Ensure core16 can be installed"
     snap install --edge core16

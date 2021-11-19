@@ -1,5 +1,7 @@
 summary: Ensure that the basic devpts security rules are in place.
 
+tags: [ basic ]
+
 execute: |
     if [ "$(snap debug confinement)" = none ] ; then
         exit 0

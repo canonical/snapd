@@ -5,6 +5,8 @@ details: |
     easily read by snap-confine and snap-update-ns that otherwise don't have
     access to the system state.
 
+tags: [ basic ]
+
 execute: |
     # When a feature that is exported is enabled, a file is created.
     snap set core experimental.per-user-mount-namespace=true

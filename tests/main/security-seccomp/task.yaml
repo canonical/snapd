@@ -22,6 +22,8 @@ details: |
 #
 #systems: [...]
 
+tags: [ basic ]
+
 environment:
     SRC: /var/lib/snapd/seccomp/bpf/snap.test-snapd-setpriority.test-snapd-setpriority.src
     BIN: /var/lib/snapd/seccomp/bpf/snap.test-snapd-setpriority.test-snapd-setpriority.bin
