@@ -248,14 +248,3 @@ func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
 		c.Assert(env.Get("hello"), Equals, "there")
 	}
 }
-
-func (s *pibootTestSuite) TestPibootEnableKernel(c *C) {
-	opts := bootloader.Options{PrepareImageTime: true,
-		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
-	p := bootloader.NewPiboot(s.rootdir, &opts)
-
-	_, ok := p.(bootloader.ExtractedRunKernelImageBootloader)
-	// Check ExtractedRunKernelImageBootloader is implemented
-	c.Assert(ok, Equals, true)
-}
