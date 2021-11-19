@@ -65,6 +65,11 @@ var (
 		Path: "/v1/notifications/pending-refresh",
 		POST: postPendingRefreshNotification,
 	}
+
+	finishRefreshNotificationCmd = &Command{
+		Path: "/v1/notifications/finish-refresh",
+		POST: postRefreshFinishedNotification,
+	}
 )
 
 func sessionInfo(c *Command, r *http.Request) Response {
@@ -300,6 +305,44 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			Status: 500,
 			Result: &errorResult{
 				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	type finishRefreshNotificationInfo struct {
+		InstanceName string `json:"instance-name"`
+	}
+	var finishRefresh finishRefreshNotificationInfo
+	if err := decoder.Decode(&finishRefresh); err != nil {
+		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send close notification message: %v", err),
 			},
 		})
 	}
