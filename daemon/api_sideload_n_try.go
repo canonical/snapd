@@ -254,7 +254,7 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 
 			// copy one byte more than the max so we know if it exceeds the limit
 			n, err := io.CopyN(buf, part, availMemory+1)
-			if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return nil, BadRequest("cannot read form data: %v", err)
 			}
 
