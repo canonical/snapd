@@ -132,7 +132,7 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	args = append(args, requiredArgs...)
 	args = append(args, fnames...)
 	output, err := exec.Command(parser, args...).CombinedOutput()
-	if err != nil {
+	if err != nil || strings.Contains(string(output), "parser error") {
 		return fmt.Errorf("cannot load apparmor profiles: %s\napparmor_parser output:\n%s", err, string(output))
 	}
 	return nil
