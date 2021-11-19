@@ -132,9 +132,16 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local gl-core20
     snap connect gl-core20:opengl core:opengl
 
+    echo "The backend nvidia GL drivers are available"
+    gl-core20 cat /var/lib/snapd/lib/gl/libGLX_nvidia.so.0.0.1 | MATCH canary-triplet
+    if os.query is-pc-amd64; then
+        gl-core20 cat /var/lib/snapd/lib/gl32/libGLX_nvidia.so.0.0.1 | MATCH canary-32-triplet
+    fi
+
+    echo "But the glvnd frontend is not (on systems where we symlink drivers)"
     if ! os.query is-xenial; then
-        not gl-core20 test -f /var/lib/snapd/lib/gl/libGLX.so.0.1
+        not gl-core20 test -f /var/lib/snapd/lib/gl/libGLX.so.0.0.1
         if os.query is-pc-amd64; then
-            not gl-core16 cat /var/lib/snapd/lib/gl32/libGLX.so.0.1
+            not gl-core20 cat /var/lib/snapd/lib/gl32/libGLX.so.0.0.1
         fi
     fi
