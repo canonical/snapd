@@ -217,9 +217,9 @@ const (
 )
 
 // Maximum number of places (units of time) to render starting with years.
-// In the Compact case, only the first two places will be rendered,
-// discarding the rest. This allows for a more predictable width (at the
-// expense of accuracy).
+// In the Compact case, at most the first two places will be rendered,
+// discarding the rest (never exceeding 6 runes). This allows for a more
+// predictable width (at the expense of accuracy).
 type Places uint32
 
 const (
@@ -298,20 +298,28 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	// Fractional seconds to nanoseconds
 	delta := Duration(dt * float64(Second))
 
-	// If we only render a subset of place values, we need to apply
-	// the render mode to the last rendered place value. We do this
-	// indirectly by moving up the 'min' accuracy.
+	// If we only render a subset of place values (i.e. Compact Mode),
+	// apply the render mode to the last rendered place value. We do
+	// this indirectly by moving up the 'min' accuracy.
 	if count == ShowCompact {
+		// Compact mode has a width limit of 6 runes. In the design of this mode
+		// we allocate 3 runes per place value if the place value only has 2
+		// digits (allowing two places to be rendered). Place values which can
+		// be wider (y, d, ms, us and ns) which means we can only render a single
+		// place for some of the cases.
 		var compactMin Duration
 		for i, key := range keys {
-			// Only if the duration is applicable to this place value
+			// Search for the most significant place value we need to render
 			if delta >= key {
-				if key >= Minute {
-					// Compact mode only renders two places, up until seconds
-					// The indexing is safe as places beyond seconds exist
+				if key >= Minute && key <= Day && delta/key <= 99 {
+					// Compact mode renders two places, if:
+					// 1. Most significant place is d, h or m
+					// 2. If days requires less than 2 digits
 					compactMin = keys[i+1]
 				} else {
-					// Only one place if we are s, ms, us or ns
+					// Compact mode renders single places, if:
+					// 1. Most significant place is y, s, ms, us or ns
+					// 2. If days requires more than 2 digits
 					compactMin = key
 				}
 				break
@@ -349,11 +357,6 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	// Special case: less than minimum accuracy
 	if delta < min {
 		return "0" + units[min]
-	}
-
-	// In ShowCompact mode only 2-digit days are possible
-	if count == ShowCompact && delta >= (100*Day) {
-		return "ages!"
 	}
 
 	// We now take the delta nanoseconds and render it in terms
