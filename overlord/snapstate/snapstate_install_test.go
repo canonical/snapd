@@ -4300,7 +4300,7 @@ epoch: 1
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4344,7 +4344,7 @@ epoch: 1
 		return errors.New("expected")
 	}, nil)
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4410,7 +4410,7 @@ epoch: 1
 		sideInfos = append(sideInfos, newSi)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 

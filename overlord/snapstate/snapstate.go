@@ -1108,9 +1108,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string) ([]*state.TaskSet, error) {
-	var flags Flags
-
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, flags Flags) ([]*state.TaskSet, error) {
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, err

@@ -138,9 +138,9 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 
 	var chg *state.Change
 	if len(origPaths) > 1 {
-		chg, errRsp = sideloadManySnaps(st, form, origPaths, tempPaths)
+		chg, errRsp = sideloadManySnaps(st, form, origPaths, tempPaths, flags)
 	} else {
-		chg, errRsp = sideloadSnap(st, form, flags, origPaths[0], tempPaths[0])
+		chg, errRsp = sideloadSnap(st, form, origPaths[0], tempPaths[0], flags)
 	}
 	if errRsp != nil {
 		return errRsp
@@ -160,7 +160,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 	return AsyncResponse(nil, chg.ID())
 }
 
-func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []string) (*state.Change, *apiError) {
+func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []string, flags snapstate.Flags) (*state.Change, *apiError) {
 	var sideInfos []*snap.SideInfo
 	var names []string
 
@@ -174,7 +174,7 @@ func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []strin
 		names = append(names, si.RealName)
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, flags)
 	if err != nil {
 		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
 	}
@@ -188,7 +188,7 @@ func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []strin
 	return chg, nil
 }
 
-func sideloadSnap(st *state.State, form *Form, flags snapstate.Flags, origPath, tempPath string) (*state.Change, *apiError) {
+func sideloadSnap(st *state.State, form *Form, origPath, tempPath string, flags snapstate.Flags) (*state.Change, *apiError) {
 	var instanceName string
 	if len(form.Values["name"]) > 0 {
 		// caller has specified desired instance name
