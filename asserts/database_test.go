@@ -132,7 +132,8 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
-	// too white box? ok at least until we have more functionality
+	// too much "clear box" testing? ok at least until we have
+	// more functionality
 	privKey, err := ioutil.ReadFile(keyPath)
 	c.Assert(err, IsNil)
 
