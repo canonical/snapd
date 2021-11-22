@@ -98,3 +98,11 @@ KERNEL=="sg[0-9]*", TAG+="snap_other_app"`)
 func (s *ScsiGenericInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *ScsiGenericInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allows access to SCSI generic driver devices`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "scsi-generic")
+}

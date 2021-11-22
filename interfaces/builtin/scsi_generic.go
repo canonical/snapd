@@ -28,6 +28,11 @@ const scsiGenericBaseDeclarationSlots = `
         - core
     deny-auto-connection: true
 `
+const scsiGenericBaseDeclarationPlugs = `
+  block-devices:
+    allow-installation: false
+    deny-auto-connection: true
+`
 
 const scsiGenericConnectedPlugAppArmor = `
 # allow read,write access to generic scsi devices
