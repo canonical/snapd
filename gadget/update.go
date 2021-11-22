@@ -293,8 +293,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		// allow specifically the mbr structure to be missing from ondisk since
 		// it doesn't show up as a device since it's a "raw" thing
-		// TODO: should this use Type == mbr or Role == mbr or both ?
-		if gs.Type == "mbr" || gs.Role == "mbr" {
+		if gs.Role == "mbr" {
 			continue
 		}
 
