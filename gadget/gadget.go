@@ -457,7 +457,12 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		switch v.Bootloader {
 		case "":
 			// pass
-		case "grub", "u-boot", "android-boot", "lk", "piboot":
+		case "grub", "u-boot", "android-boot", "lk":
+			bootloadersFound += 1
+		case "piboot":
+			if model.Grade() == asserts.ModelGradeUnset {
+				return nil, errors.New("piboot bootloader valid only for core20 onwards")
+			}
 			bootloadersFound += 1
 		default:
 			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot, piboot or lk")
