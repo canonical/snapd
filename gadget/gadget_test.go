@@ -2885,7 +2885,6 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match`)
 
 	// we are going to manipulate last structure, which has system-data role
-	// fmt.Printf("%#v\n", deviceLayout.Structure)
 	c.Assert(gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role, Equals, gadget.SystemData)
 
 	// change the role for the laid out volume to not be a partition role that
