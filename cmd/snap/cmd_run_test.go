@@ -1845,7 +1845,7 @@ func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
 	})
 
 	info := &snap.Info{SuggestedName: "some-snap"}
-	c.Assert(snaprun.CreateUserDataDirs(info), check.IsNil)
+	c.Assert(snaprun.CreateUserDataDirs(info, nil), check.IsNil)
 
 	fi, err := os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir))
 	c.Assert(err, check.IsNil)
