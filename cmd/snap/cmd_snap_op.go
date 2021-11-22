@@ -553,7 +553,8 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 	case local:
 		changeID, err = x.client.InstallPathMany(names, opts)
 	case store:
-		changeID, err = x.client.InstallMany(names, opts)
+		// install many doesn't support opts
+		changeID, err = x.client.InstallMany(names, nil)
 	default:
 		return fmt.Errorf("nothing to install")
 	}

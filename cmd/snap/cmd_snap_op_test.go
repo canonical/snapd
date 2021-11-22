@@ -1864,7 +1864,7 @@ func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {
 func (s *SnapOpSuite) TestInstallManyMixFileAndStore(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "store-snap", "./local.snap"})
-	c.Assert(err, check.ErrorMatches, `only one snap file can be installed at a time`)
+	c.Assert(err, check.ErrorMatches, `cannot install sideloaded and store snaps at the same time`)
 }
 
 func (s *SnapOpSuite) TestInstallMany(c *check.C) {
