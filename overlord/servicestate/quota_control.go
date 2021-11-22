@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -44,6 +45,10 @@ var (
 	systemdVersionError error
 )
 
+var (
+	cgroupsFilePath = dirs.CGroupsStatusFile
+)
+
 func checkSystemdVersion() {
 	systemdVersionError = systemd.EnsureAtLeast(230)
 }
@@ -57,16 +62,19 @@ func checkMemoryCGroupEnabled() {
 	memoryCGroupError = memoryCGroupEnabled()
 }
 
-var CGroupsFilePath = "/proc/cgroups"
+func setCGroupsFilePath(path string) {
+	cgroupsFilePath = path
+	checkMemoryCGroupEnabled()
+}
 
 //	since the control groups can be enabled/disabled without the kernel config the only
 //	way to identify the status of memory control groups is via /proc/cgroups
 //	"cat /proc/cgroups | grep memory" returns the active status of memory control group
 //	and the 3rd parameter is the status
-//	0 => false => disabled 
+//	0 => false => disabled
 //	1 => true => enabled
 func memoryCGroupEnabled() error {
-	cgroupsFile, err := os.Open(CGroupsFilePath)
+	cgroupsFile, err := os.Open(cgroupsFilePath)
 	if err != nil {
 		return fmt.Errorf("cannot open cgroups file: %v", err)
 	}
@@ -78,29 +86,33 @@ func memoryCGroupEnabled() error {
 		if strings.HasPrefix(line, "memory\t") {
 			memoryCgroupValues := strings.Fields(line)
 			if len(memoryCgroupValues) == 4 { // any change in size should lead to an error for us to update
-				isMemoryEnabled, err := strconv.ParseBool(strings.Fields(line)[3])
+				isMemoryEnabled, err := strconv.ParseBool(memoryCgroupValues[3])
 				if err != nil {
 					return fmt.Errorf("cannot parse memory control group status: %v", err)
 				}
 				if !isMemoryEnabled {
-					return fmt.Errorf("memory cgroup disabled on this system")
-
+					return fmt.Errorf("cannot retrieve quota information, memory cgroup is disabled on this system")
+				}
 				return nil
 			}
 			// change in size, should investigate the new structure
-			return fmt.Errorf("memory control group configuration couldn't be parsed")
+			return fmt.Errorf("cannot parse memory control group configuration")
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("cannot read /proc/cgroup contents: %v", err)
+		return fmt.Errorf("cannot read %v contents: %v", cgroupsFilePath, err)
 	}
 
 	// no errors so far but the only path here is the cgroups file without the memory line
-	return fmt.Errorf("memory controller not available in the kernel config")
+	return fmt.Errorf("cannot retrieve memory cgroup configuration, it is not available in the kernel config")
 }
 
 func quotaGroupsAvailable(st *state.State) error {
+	if memoryCGroupError != nil {
+		return memoryCGroupError
+	}
+
 	// check if the systemd version is too old
 	if systemdVersionError != nil {
 		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
@@ -122,10 +134,6 @@ func quotaGroupsAvailable(st *state.State) error {
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
 func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error) {
-	if memoryCGroupError != nil {
-		return nil, memoryCGroupError
-	}
-
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -253,10 +261,6 @@ type QuotaGroupUpdate struct {
 // parents, removing sub-groups from their parents, and removing snaps from
 // the group.
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*state.TaskSet, error) {
-	if memoryCGroupError != nil {
-		return nil, memoryCGroupError
-	}
-
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}

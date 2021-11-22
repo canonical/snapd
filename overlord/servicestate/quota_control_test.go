@@ -53,10 +53,10 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 
 	// we don't need the EnsureSnapServices ensure loop to run by default
 	servicestate.MockEnsuredSnapServices(s.mgr, true)
-
 	// we enable quota-groups by default
 	s.state.Lock()
 	defer s.state.Unlock()
+
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
@@ -654,7 +654,6 @@ func (s *quotaControlSuite) TestSnapOpRemoveQuotaConflict(c *C) {
 	c.Assert(err, IsNil)
 	chg1 := s.state.NewChange("disable", "...")
 	chg1.AddAll(ts)
-
 	_, err = servicestate.RemoveQuota(st, "foo")
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "disable" change in progress`)
 }
@@ -930,13 +929,14 @@ func (s *quotaControlSuite) TestMemoryCGroupDisabled(c *C) {
 
 	_memoryCGroupFile := servicestate.CGroupsFilePath
 	defer func() {
-		servicestate.CGroupsFilePath = _memoryCGroupFile
+		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
 	}()
 
-	cgroupsPath := "/tmp/cgroups_test"
+	cgroupsPath := dirs.GlobalRootDir + "/cgroups_disabled"
 	cgroupsFile, err := os.Create(cgroupsPath)
 	c.Assert(err, check.IsNil)
-	// memory is disabled & file size is reduced as we only check for memory at this point
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
 cpuset	6	3	1
 cpu	3	133	1
@@ -944,13 +944,11 @@ memory	2	223	0
 devices	10	135	1`)
 	c.Assert(err, check.IsNil)
 	cgroupsFile.Sync()
-
-	// reset memory cgroup status with the disabled file
-	servicestate.CGroupsFilePath = cgroupsPath
-	servicestate.CheckMemoryCGroupEnabled()
+	// reset memory cgroup status with the enabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
 
 	// check if all operations fail with the expected error message
-	errExpected := `memory cgroup disabled on this system`
+	errExpected := `cannot retrieve quota information, memory cgroup is disabled on this system`
 	_, err = servicestate.AllQuotas(s.state)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
@@ -978,12 +976,13 @@ func (s *quotaControlSuite) TestMemoryCGroupEnabled(c *C) {
 
 	_memoryCGroupFile := servicestate.CGroupsFilePath
 	defer func() {
-		servicestate.CGroupsFilePath = _memoryCGroupFile
+		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
 	}()
 
-	cgroupsPath := "/tmp/cgroups_test"
+	cgroupsPath := dirs.GlobalRootDir + "/cgroups_enabled"
 	cgroupsFile, err := os.Create(cgroupsPath)
 	c.Assert(err, check.IsNil)
+	defer cgroupsFile.Close()
 	// memory is enabled & file size is reduced as we only check for memory at this point
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
 cpuset	6	3	1
@@ -994,8 +993,7 @@ devices	10	135	1`)
 	cgroupsFile.Sync()
 
 	// reset memory cgroup status with the enabled file
-	servicestate.CGroupsFilePath = cgroupsPath
-	servicestate.CheckMemoryCGroupEnabled()
+	servicestate.SetCGroupsFilePath(cgroupsPath)
 
 	// check if all operations fail with the expected error message
 	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
@@ -1016,4 +1014,88 @@ devices	10	135	1`)
 	_, err = servicestate.GetQuota(s.state, "foo")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `quota not found`)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
+	}()
+
+	// reset memory cgroup status with the non-existing file
+	cgroupsPath := dirs.GlobalRootDir + "/cgroups_missing_file"
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	// check if all operations fail with the expected error message
+	errExpected := fmt.Sprintf(`cannot open cgroups file: open %v: no such file or directory`, cgroupsPath)
+	_, err := servicestate.AllQuotas(s.state)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupMalformed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
+	}()
+
+	cgroupsPath := dirs.GlobalRootDir + "/cgroups_malformed"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, check.IsNil)
+	defer cgroupsFile.Close()
+	// each configuration has 5 fields instead of 4
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled	extra_field
+cpuset	6	3	1	0
+cpu	3	133	1	0
+memory	2	223	0	0
+devices	10	135	1	0`)
+	c.Assert(err, check.IsNil)
+	cgroupsFile.Sync()
+
+	// reset memory cgroup status with the disabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	// check if all operations fail with the expected error message
+	errExpected := `cannot parse memory control group configuration`
+	_, err = servicestate.AllQuotas(s.state)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
 }
