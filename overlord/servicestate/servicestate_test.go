@@ -75,18 +75,18 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 			if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") || strings.HasSuffix(unit, ".target") {
 				// Units using the baseProperties query
 				return []byte(fmt.Sprintf(`Id=%s
-Names=%s
+Names=%[1]s
 ActiveState=%s
 UnitFileState=%s
-`, args[2], args[2], activeState, unitState)), nil
+`, args[2], activeState, unitState)), nil
 			} else {
 				// Units using the extendedProperties query
 				return []byte(fmt.Sprintf(`Id=%s
-Names=%s
+Names=%[1]s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
-`, args[2], args[2], activeState, unitState)), nil
+`, args[2], activeState, unitState)), nil
 			}
 		case "--user":
 			c.Assert(args[1], Equals, "--global")
