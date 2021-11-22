@@ -226,19 +226,9 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 		SnapOptions: options,
 	}
 
-	pr, pw := io.Pipe()
-	mw := multipart.NewWriter(pw)
-	go sendSnapFiles([]string{path}, []*os.File{f}, pw, mw, &action)
-
-	headers := map[string]string{
-		"Content-Type": mw.FormDataContentType(),
-	}
-
-	_, changeID, err = client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
-	return changeID, err
+	return client.sendLocalSnaps([]string{path}, []*os.File{f}, action)
 }
 
-// TODO(miguel): this can be merged with InstallPath
 // InstallPathMany sideloads the snap with the given path under optional provided name,
 // returning the UUID of the background operation upon success.
 func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (changeID string, err error) {
@@ -261,6 +251,10 @@ func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (cha
 		files = append(files, f)
 	}
 
+	return client.sendLocalSnaps(paths, files, action)
+}
+
+func (client *Client) sendLocalSnaps(paths []string, files []*os.File, action actionData) (string, error) {
 	pr, pw := io.Pipe()
 	mw := multipart.NewWriter(pw)
 	go sendSnapFiles(paths, files, pw, mw, &action)
@@ -269,7 +263,7 @@ func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (cha
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	_, changeID, err = client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
+	_, changeID, err := client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
 	return changeID, err
 }
 
