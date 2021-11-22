@@ -312,14 +312,14 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 			// Search for the most significant place value we need to render
 			if delta >= key {
 				if key >= Minute && key <= Day && delta/key <= 99 {
-					// Compact mode renders two places, if:
+					// Compact mode can render up to two places, if either:
 					// 1. Most significant place is d, h or m
-					// 2. If days requires less than 2 digits
+					// 2. If days require less than 3 digits
 					compactMin = keys[i+1]
 				} else {
-					// Compact mode renders single places, if:
+					// Compact mode renders only a single places, if either:
 					// 1. Most significant place is y, s, ms, us or ns
-					// 2. If days requires more than 2 digits
+					// 2. If days require more than 2 digits
 					compactMin = key
 				}
 				break
