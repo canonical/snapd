@@ -764,7 +764,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c
 	defer func() {
 		// this is registered by default in this file since we import the fde
 		// package so make sure it is re-registered at the end
-		disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperHandler)
+		disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
 	}()
 
 	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
@@ -829,7 +829,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c
 	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something-device-locked of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "5a522809-c87e-4dfa-81a8-8dc5667d1304" and name "something-device-locked"`)
 
 	// next try with the FDE package handler works
-	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperHandler)
+	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
 
 	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
 	c.Assert(err, IsNil)

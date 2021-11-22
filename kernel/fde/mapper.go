@@ -28,14 +28,17 @@ import (
 
 // IsEncryptedDevice returns true when the provided device mapper name indicates
 // that it is encrypted using FDE hooks.
-func IsEncryptedDeviceMapperName(dmName string) bool {
+func IsHardwareEncryptedDeviceMapperName(dmName string) bool {
 	// TODO: is there anything more we can use to limit the prefix of the
 	// dmName?
 	return dmName != "-device-locked" && strings.HasSuffix(dmName, "-device-locked")
 }
 
-func DeviceUnlockKernelHookDeviceMapperHandler(dmUUID, dmName []byte) (dev string, ok bool) {
-	if !IsEncryptedDeviceMapperName(string(dmName)) {
+// DeviceUnlockKernelHookDeviceMapperBackResolver is a back resolver to be used
+// with disks.RegisterDeviceMapperBackResolver for devices that implement full
+// disk encryption via hardware devices with kernel snap hooks.
+func DeviceUnlockKernelHookDeviceMapperBackResolver(dmUUID, dmName []byte) (dev string, ok bool) {
+	if !IsHardwareEncryptedDeviceMapperName(string(dmName)) {
 		return "", false
 	}
 	// this is a device encrypted using FDE hooks
@@ -45,5 +48,5 @@ func DeviceUnlockKernelHookDeviceMapperHandler(dmUUID, dmName []byte) (dev strin
 }
 
 func init() {
-	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", DeviceUnlockKernelHookDeviceMapperHandler)
+	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", DeviceUnlockKernelHookDeviceMapperBackResolver)
 }

@@ -607,7 +607,7 @@ func (s *fdeSuite) TestIsEncryptedDeviceMapperName(c *C) {
 		"device-device-locked",
 		"WE-DON'T-CARE-WHAT-THE-PREFIX-IS-AND-YOU-CAN'T-MAKE-US-device-locked",
 	} {
-		c.Assert(fde.IsEncryptedDeviceMapperName(t), Equals, true)
+		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, true)
 	}
 
 	// doesn't match
@@ -619,6 +619,6 @@ func (s *fdeSuite) TestIsEncryptedDeviceMapperName(c *C) {
 		"some-device",
 		"CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4",
 	} {
-		c.Assert(fde.IsEncryptedDeviceMapperName(t), Equals, false)
+		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, false)
 	}
 }
