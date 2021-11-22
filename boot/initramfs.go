@@ -133,7 +133,8 @@ func updatePibootKernelStatus(bl bootloader.Bootloader) error {
 	if err != nil {
 		return err
 	}
-	if blVars["kernel_status"] != "try" {
+	curKernStatus := blVars["kernel_status"]
+	if curKernStatus == "" {
 		return nil
 	}
 
@@ -145,7 +146,7 @@ func updatePibootKernelStatus(bl bootloader.Bootloader) error {
 	// "" would be the value for the error case
 	newStatus := ""
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "kernel_status=") {
+		if strings.HasPrefix(arg, "kernel_status=") && curKernStatus == "try" {
 			keyVal := strings.Split(arg, "=")
 			// Must be "trying"
 			newStatus = keyVal[1]
@@ -153,7 +154,8 @@ func updatePibootKernelStatus(bl bootloader.Bootloader) error {
 		}
 	}
 
-	logger.Debugf("setting piboot's kernel_status to %s", newStatus)
+	logger.Debugf("setting piboot's kernel_status from %s to %s",
+		curKernStatus, newStatus)
 	return bl.SetBootVars(map[string]string{"kernel_status": newStatus})
 }
 
