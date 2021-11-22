@@ -1111,7 +1111,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string) ([]*state.TaskSet, error) {
 	var flags Flags
 
-	// TODO(miguel): unnecessary?
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, err

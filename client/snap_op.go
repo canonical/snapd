@@ -228,7 +228,42 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 
 	pr, pw := io.Pipe()
 	mw := multipart.NewWriter(pw)
-	go sendSnapFile(path, f, pw, mw, &action)
+	go sendSnapFiles([]string{path}, []*os.File{f}, pw, mw, &action)
+
+	headers := map[string]string{
+		"Content-Type": mw.FormDataContentType(),
+	}
+
+	_, changeID, err = client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
+	return changeID, err
+}
+
+// TODO(miguel): this can be merged with InstallPath
+// InstallPathMany sideloads the snap with the given path under optional provided name,
+// returning the UUID of the background operation upon success.
+func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (changeID string, err error) {
+	action := actionData{
+		Action:      "install",
+		SnapOptions: options,
+	}
+
+	var files []*os.File
+
+	for _, path := range paths {
+		f, err := os.Open(path)
+		if err != nil {
+			for _, openedFile := range files {
+				openedFile.Close()
+			}
+			return "", fmt.Errorf("cannot open: %q", path)
+		}
+
+		files = append(files, f)
+	}
+
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go sendSnapFiles(paths, files, pw, mw, &action)
 
 	headers := map[string]string{
 		"Content-Type": mw.FormDataContentType(),
@@ -261,21 +296,30 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	return client.doAsync("POST", "/v2/snaps", nil, headers, buf)
 }
 
-func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
-	defer snapFile.Close()
+func sendSnapFiles(paths []string, files []*os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
+	defer func() {
+		for _, f := range files {
+			f.Close()
+		}
+	}()
 
 	if action.SnapOptions == nil {
 		action.SnapOptions = &SnapOptions{}
 	}
-	fields := []struct {
+
+	type field struct {
 		name  string
 		value string
-	}{
-		{"action", action.Action},
-		{"name", action.Name},
-		{"snap-path", action.SnapPath},
-		{"channel", action.Channel},
 	}
+
+	fields := []field{{"action", action.Action}}
+	if len(paths) == 1 {
+		fields = append(fields, []field{
+			{"name", action.Name},
+			{"snap-path", action.SnapPath},
+			{"channel", action.Channel}}...)
+	}
+
 	for _, s := range fields {
 		if s.value == "" {
 			continue
@@ -296,16 +340,19 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		return
 	}
 
-	fw, err := mw.CreateFormFile("snap", filepath.Base(snapPath))
-	if err != nil {
-		pw.CloseWithError(err)
-		return
-	}
+	for i, file := range files {
+		path := paths[i]
+		fw, err := mw.CreateFormFile("snap", filepath.Base(path))
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
 
-	_, err = io.Copy(fw, snapFile)
-	if err != nil {
-		pw.CloseWithError(err)
-		return
+		_, err = io.Copy(fw, file)
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
 	}
 
 	mw.Close()

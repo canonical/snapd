@@ -142,7 +142,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 	} else {
 		chg, errRsp = sideloadSnap(st, form, flags, origPaths[0], tempPaths[0])
 	}
-	if err != nil {
+	if errRsp != nil {
 		return errRsp
 	}
 
@@ -183,8 +183,7 @@ func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []strin
 	msg := fmt.Sprintf(i18n.G("Install snaps %q from files %q"), names, origPaths)
 
 	chg := newChange(st, "install-snaps", msg, tss, names)
-	// TODO: what is this used for? can't find it
-	// chg.Set("api-data", map[string]string{"snap-name": instanceName})
+	chg.Set("api-data", map[string][]string{"snap-names": names})
 
 	return chg, nil
 }
@@ -224,7 +223,6 @@ func sideloadSnap(st *state.State, form *Form, flags snapstate.Flags, origPath, 
 	}
 
 	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{instanceName})
-	// TODO(miguel): what's the point of this?
 	chg.Set("api-data", map[string]string{"snap-name": instanceName})
 
 	return chg, nil
@@ -261,7 +259,7 @@ func readSideInfo(st *state.State, form *Form, tempPath string, origPath string)
 		if err != nil {
 			return nil, BadRequest("cannot read snap file: %v", err)
 		}
-		sideInfo = &snap.SideInfo{RealName: info.RealName}
+		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
 	}
 	return sideInfo, nil
 }
