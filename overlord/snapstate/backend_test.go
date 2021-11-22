@@ -278,6 +278,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Symlink: "$SNAP/usr",
 			},
 		}
+	case "channel-for-base/stable":
+		info.Base = "some-base"
 	case "channel-for-user-daemon":
 		info.Apps = map[string]*snap.AppInfo{
 			"user-daemon": {
@@ -329,6 +331,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+
 	switch cand.snapID {
 	case "":
 		panic("store refresh APIs expect snap-ids")
@@ -374,11 +377,20 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "kernel-id":
 		name = "kernel"
 		typ = snap.TypeKernel
+	case "brand-kernel-id":
+		name = "brand-kernel"
+		typ = snap.TypeKernel
 	case "brand-gadget-id":
 		name = "brand-gadget"
 		typ = snap.TypeGadget
 	case "alias-snap-id":
 		name = "snap-id"
+	case "snap-c-id":
+		name = "snap-c"
+	case "outdated-consumer-id":
+		name = "outdated-consumer"
+	case "outdated-producer-id":
+		name = "outdated-producer"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -416,6 +428,28 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 	}
+
+	if name == "outdated-consumer" {
+		info.Plugs = map[string]*snap.PlugInfo{
+			"content-plug": {
+				Snap:      info,
+				Interface: "content",
+				Attrs: map[string]interface{}{
+					"content":          "some-content",
+					"default-provider": "outdated-producer",
+				},
+			},
+		}
+	} else if name == "outdated-producer" {
+		info.Slots = map[string]*snap.SlotInfo{
+			"content-slot": {
+				Snap:      info,
+				Interface: "content",
+				Attrs:     map[string]interface{}{"content": "some-content"},
+			},
+		}
+	}
+
 	switch cand.channel {
 	case "channel-for-layout/stable":
 		info.Layout = map[string]*snap.Layout{
@@ -579,6 +613,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			revno:  hit,
 			userID: userID,
 		})
+
 		if err == store.ErrNoUpdateAvailable {
 			refreshErrors[cur.InstanceName] = err
 			continue
@@ -1079,6 +1114,14 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 		name:           info.InstanceName(),
 		path:           snap.BaseDataDir(info.SnapName()),
 		otherInstances: otherInstances,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-mount-units",
+		name: s.InstanceName(),
 	})
 	return f.maybeErrForLastOp()
 }

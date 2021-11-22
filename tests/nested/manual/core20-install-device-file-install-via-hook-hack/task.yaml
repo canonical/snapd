@@ -49,9 +49,6 @@ prepare: |
     tests.cleanup defer snap remove remarshal
     tests.cleanup defer snap remove jq
 
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
 
@@ -67,7 +64,7 @@ prepare: |
     cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
     cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 
-    KEY_NAME=$(tests.nested get snakeoil-key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -99,12 +96,10 @@ prepare: |
     sed defaults.yaml -e "s/HOLD-TIME/$(date --date="next week" +%Y-%m-%dT%H:%M:%S%:z)/" >> \
       pc-gadget/meta/gadget.yaml
 
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
     # start fake device svc
     systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
-    # stop fake device svc
-    tests.cleanup defer systemctl stop fakedevicesvc
 
     # include the extra snap declaration bits we need to auto-connect the 
     # system-files plugs for the install-device hook
@@ -126,6 +121,9 @@ restore: |
         exit
     fi
 
+    # stop fake device svc
+    systemctl stop fakedevicesvc
+
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
@@ -135,6 +133,9 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    # wait for the initialize device task to be done
+    retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
 
     echo "Check we have the right model from snap model"
     tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-20-amd64"

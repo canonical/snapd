@@ -66,7 +66,7 @@ jobs:
       # to use the go snap automatically. Note that we install go from the
       # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
-      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
       GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
@@ -181,6 +181,10 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+    - name: Reset code coverage data
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          rm -rf ${{ github.workspace }}/.coverage/
     - name: Test Go
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
@@ -201,14 +205,28 @@ jobs:
         # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         # ${{ github.workspace }}/bin/govendor remove +unused
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+    - name: Test Go (faultinject)
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
+    - name: Merge coverage results
+      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        go install github.com/makholm/covertool
+        covertool merge -o .coverage/all.cov .coverage/coverage*.cov
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
-      if: steps.cached-results.outputs.already-ran != 'true'
+      # uploading to codecov occasionally fails, so continue running the test
+      # workflow regardless of the upload
+      continue-on-error: true
+      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
       with:
         fail_ci_if_error: true
         flags: unittests
         name: codecov-umbrella
-        files: .coverage/coverage.out
+        files: .coverage/all.cov
         verbose: true
     - name: Cache successful run
       run: |
@@ -235,6 +253,7 @@ jobs:
         - centos-7-64
         - centos-8-64
         - debian-10-64
+        - debian-11-64
         - debian-sid-64
         - fedora-33-64
         - fedora-34-64
@@ -253,6 +272,11 @@ jobs:
         - ubuntu-core-20-64
         - ubuntu-secboot-20.04-64
     steps:
+    - name: Cleanup job workspace
+      id: cleanup-job-workspace
+      run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
     - name: Checkout code
       uses: actions/checkout@v2
       with:
@@ -279,7 +303,10 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread -abend google:${{ matrix.system }}:tests/...
+          # "pipefail" ensures that a non-zero status from the spread is
+          # propagated; and we use a subshell as this option could trigger
+          # undesired changes elsewhere
+          (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -312,6 +339,11 @@ jobs:
         - ubuntu-20.04-64
         - ubuntu-21.04-64
     steps:
+    - name: Cleanup job workspace
+      id: cleanup-job-workspace
+      run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Cache snapd test results

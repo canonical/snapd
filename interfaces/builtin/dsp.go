@@ -60,8 +60,25 @@ const ambarellaDspConnectedPlugApparmor = `
 # another DSP device node
 /dev/lens rw,
 
-# also needed for interfacing with the DSP
-/proc/ambarella/vin0_idsp rw,
+# various ambarella specific DSP control parameters
+/proc/ambarella/iav rw,
+/proc/ambarella/ambnl rw,
+/proc/ambarella/udc rw,
+/proc/ambarella/clock rw,
+/proc/ambarella/dsp_print rw,
+/proc/ambarella/hdmi_edid rw,
+/proc/ambarella/cma rw,
+/proc/ambarella/ambarella_hwtimer rw,
+/proc/ambarella/ambarella_hwtimer_outfreq rw,
+
+# to match vin0_idsp, vin1_idsp, vin2_idsp, etc.
+/proc/ambarella/vin[0-9]_idsp rw,
+
+# to match e0021000.dma and e0020000.dma
+/proc/ambarella/[0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e][0-9a-e].dma rw,
+
+# needed to control the usb device attached to the DSP
+/proc/ambarella/usbphy0 rw,
 `
 
 var ambarellaDspConnectedPlugUDev = []string{

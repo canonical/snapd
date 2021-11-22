@@ -84,8 +84,12 @@ type SnapSetup struct {
 	//
 	// Prereq is a list of snap-names that need to get installed
 	// together with this snap. Typically used when installing
-	// content-snaps with default-providers.
+	// content-snaps with default-providers. Should be set along
+	// with PrereqContentAttrs (and match its keys) for forward-compatibility.
 	Prereq []string `json:"prereq,omitempty"`
+
+	// PrereqContentAttrs maps default providers snap names to the content they provide.
+	PrereqContentAttrs map[string][]string `json:"prereq-content-attrs,omitempty"`
 
 	Flags
 
@@ -127,11 +131,25 @@ func (snapsup *SnapSetup) MountFile() string {
 	return snap.MountFile(snapsup.InstanceName(), snapsup.Revision())
 }
 
+// RevertStatus is a status of a snap revert; anything other than DefaultStatus
+// denotes a reverted snap revision that needs special handling in terms of
+// refresh blocking.
+type RevertStatus int
+
+const (
+	DefaultStatus RevertStatus = iota
+	NotBlocked
+)
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string           `json:"type"` // Use Type and SetType
 	Sequence []*snap.SideInfo `json:"sequence"`
-	Active   bool             `json:"active,omitempty"`
+
+	// RevertStatus maps revisions to RevertStatus for revisions that
+	// need special handling in Block().
+	RevertStatus map[int]RevertStatus `json:"revert-status,omitempty"`
+	Active       bool                 `json:"active,omitempty"`
 
 	// LastActiveDisabledServices is a list of services that were disabled in
 	// this snap when it was last active - i.e. when it was disabled, before
@@ -260,16 +278,23 @@ func (snapst *SnapState) LastIndex(revision snap.Revision) int {
 }
 
 // Block returns revisions that should be blocked on refreshes,
-// computed from Sequence[currentRevisionIndex+1:].
+// computed from Sequence[currentRevisionIndex+1:] and considering
+// special casing resulting from snapst.RevertStatus map.
 func (snapst *SnapState) Block() []snap.Revision {
-	// return revisions from Sequence[currentIndex:]
+	// return revisions from Sequence[currentIndex:], potentially excluding
+	// some of them based on RevertStatus.
 	currentIndex := snapst.LastIndex(snapst.Current)
 	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence) {
 		return nil
 	}
-	out := make([]snap.Revision, len(snapst.Sequence)-currentIndex-1)
-	for i, si := range snapst.Sequence[currentIndex+1:] {
-		out[i] = si.Revision
+	out := []snap.Revision{}
+	for _, si := range snapst.Sequence[currentIndex+1:] {
+		if status, ok := snapst.RevertStatus[si.Revision.N]; ok {
+			if status == NotBlocked {
+				continue
+			}
+		}
+		out = append(out, si.Revision)
 	}
 	return out
 }

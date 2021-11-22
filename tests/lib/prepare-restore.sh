@@ -75,7 +75,8 @@ build_deb(){
         rm -rf vendor/*/*
     fi
 
-    su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
+    unshare -n -- \
+            su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
 }
@@ -117,7 +118,8 @@ build_rpm() {
     rm -rf "$rpm_dir"/BUILD/*
 
     # Build our source package
-    rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
+    unshare -n -- \
+            rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
 
     # .. and we need all necessary build dependencies available
     deps=()
@@ -131,11 +133,12 @@ build_rpm() {
     distro_install_package "${deps[@]}"
 
     # And now build our binary package
-    rpmbuild \
-        --with testkeys \
-        --nocheck \
-        -ba \
-        "$packaging_path/snapd.spec"
+    unshare -n -- \
+            rpmbuild \
+            --with testkeys \
+            --nocheck \
+            -ba \
+            "$packaging_path/snapd.spec"
 
     find "$rpm_dir"/RPMS -name '*.rpm' -exec cp -v {} "${GOPATH%%:*}" \;
 }
@@ -177,7 +180,8 @@ build_arch_pkg() {
     mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
 
     chown -R test:test /tmp/pkg
-    su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
+    unshare -n -- \
+            su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
     # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
     # the package file name extension, keep it simple and try a glob instead
@@ -643,6 +647,7 @@ prepare_suite_each() {
         if os.query is-classic; then
             prepare_each_classic
         fi
+        prepare_memory_limit_override
     fi
     # Check if journalctl is ready to run the test
     "$TESTSTOOLS"/journal-state check-log-started
@@ -674,13 +679,20 @@ restore_suite_each() {
     # Save all the installed packages and remove the new packages installed 
     if os.query is-classic; then
         tests.pkgs list-installed > installed-final.pkgs
-        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\-" | tail -n+2 | cut -c 2- > removed-in-test.pkgs
 
         # shellcheck disable=SC2002
-        packages="$(cat installed-new.pkgs | tr "\n" " ")"
+        packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
         if [ -n "$packages" ]; then
             # shellcheck disable=SC2086
             tests.pkgs remove $packages
+        fi
+        # shellcheck disable=SC2002
+        packages="$(cat removed-in-test.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs install $packages
         fi
     fi
 
@@ -759,6 +771,8 @@ restore_project_each() {
     # will most likely not function correctly anymore. It looks like this
     # happens with: https://forum.snapcraft.io/t/4101 and is a source of
     # failure in the autopkgtest environment.
+    # Also catch a scenario when snapd service hits the MemoryMax limit set while
+    # preparing the tests.
     if dmesg|grep "oom-killer"; then
         echo "oom-killer got invoked during the tests, this should not happen."
         echo "Dmesg debug output:"

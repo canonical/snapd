@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -63,11 +64,12 @@ import (
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
 var (
-	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+	settleTimeout = testutil.HostScaledTimeout(30 * time.Second)
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -89,7 +91,7 @@ type deviceMgrBaseSuite struct {
 
 	ancillary []asserts.Assertion
 
-	restartRequests []state.RestartType
+	restartRequests []restart.RestartType
 	restartObserve  func()
 
 	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
@@ -157,15 +159,15 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
-	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	s.state.Lock()
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
-	})
-	s.state = s.o.State()
-	s.state.Lock()
-	s.state.VerifyReboot("boot-id-0")
+	}))
 	s.state.Unlock()
 	s.se = s.o.StateEngine()
 
@@ -237,6 +239,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(func() { s.ancillary = nil })
 	s.AddCleanup(func() { s.newFakeStore = nil })
+
+	s.AddCleanup(devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return true, nil
+	}))
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -1778,4 +1784,91 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
 	defer st.Unlock()
 	_, err := mgr.StartOfOperationTime()
 	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
+}
+
+func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// CanAutoRefresh is ready
+	s.state.Set("seeded", true)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+
+	// now check that the ntp-sync information is honored
+	n := 0
+	ntpSynced := false
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
+		return ntpSynced, nil
+	})
+	defer restore()
+
+	// not ntp-synced
+	ok, err := devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, false)
+	c.Check(n, Equals, 1)
+
+	// now ntp-synced
+	ntpSynced = true
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
+
+	// and the result was cached
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return false, nil
+	})
+	defer restore()
+
+	// NTP is not synced yet and the (arbitrary selected) wait
+	// time of 12h since the device manager got started is not
+	// over yet
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, false)
+
+	// NTP is also not synced here but the wait time of 1
+	// Nanosecond since the device manager got started is
+	// certainly over
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1*time.Nanosecond)
+	c.Check(syncedOrWaited, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
+	n := 0
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
+		// no timedate1
+		return false, timeutil.NoTimedate1Error{Err: fmt.Errorf("boom")}
+	})
+	defer restore()
+
+	// There is no timedate1 dbus service, no point in waiting
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+
+	// and the result was cached
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+
 }

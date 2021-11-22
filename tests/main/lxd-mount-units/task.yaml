@@ -5,8 +5,7 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-# TODO: enable for ubuntu-21.10+ once the lxd image is published
-systems: [ubuntu-20*, ubuntu-21.04*]
+systems: [ubuntu-20*, ubuntu-21.04*, ubuntu-21.10*]
 
 restore: |
     lxd.lxc stop ubuntu --force || true
@@ -20,11 +19,8 @@ execute: |
     lxd waitready
     lxd init --auto
 
-    if os.query is-focal; then
-        core_snap=core18
-    else
-        core_snap=core20
-    fi
+    # Define the core snap for the current system
+    core_snap=core20
 
     echo "Setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then

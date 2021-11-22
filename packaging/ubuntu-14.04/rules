@@ -112,24 +112,31 @@ override_dh_clean:
 	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
+	# Switch back to stock seccomp bindings
+	rm -f cmd/snap-seccomp/old_seccomp.go
+	sed -i 's|"github.com/mvo5/libseccomp-golang"|"github.com/seccomp/libseccomp-golang"|' cmd/snap-seccomp/*.go
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
+	# Switch to mvo5 fork of seccomp bindings that work with old libseccomp
+	sed -i 's|"github.com/seccomp/libseccomp-golang"|"github.com/mvo5/libseccomp-golang"|' cmd/snap-seccomp/*.go
+
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	GOINVOKEFLAGS='-mod=vendor'	GO111MODULE=on \
+		dh_auto_build -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
 
 	# Generate static snap-exec, snapctl and snap-udpate-ns - it somehow includes CGO so we must
 	# force a static build here. We need a static snap-{exec,update-ns}/snapctl inside
 	# the core snap because not all bases will have a libc
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod=vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
@@ -144,7 +151,8 @@ override_dh_auto_build:
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	GO111MODULE=on \
+		dh_auto_test -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included

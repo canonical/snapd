@@ -21,7 +21,6 @@ package devicestate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -44,11 +43,13 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -56,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -109,7 +111,8 @@ type DeviceManager struct {
 	registered                   bool
 	reg                          chan struct{}
 
-	preseed bool
+	preseed             bool
+	ntpSyncedOrTimedOut bool
 }
 
 // Manager returns a new device manager.
@@ -1505,7 +1508,7 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	rebootCurrent := func() {
 		logger.Noticef("rebooting system")
-		m.state.RequestRestart(state.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow)
 	}
 
 	// most simple case: just reboot
@@ -1529,7 +1532,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
-		m.state.RequestRestart(state.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow)
 	}
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
@@ -1548,7 +1551,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	nop := func() {}
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-		m.state.RequestRestart(state.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow)
 	}
 	// we do nothing (nop) if the mode and system are the same
 	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)
@@ -1685,6 +1688,27 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
 }
 
+var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
+
+func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
+	if m.ntpSyncedOrTimedOut || time.Now().After(startTime.Add(maxWait)) {
+		return true
+	}
+
+	var err error
+	m.ntpSyncedOrTimedOut, err = timeutilIsNTPSynchronized()
+	if errors.As(err, &timeutil.NoTimedate1Error{}) {
+		// no timedate1 dbus service, no need to wait for it
+		m.ntpSyncedOrTimedOut = true
+		return true
+	}
+	if err != nil {
+		logger.Debugf("cannot check if ntp is syncronized: %v", err)
+	}
+
+	return m.ntpSyncedOrTimedOut
+}
+
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	// state must be locked
 	st := m.state
@@ -1745,33 +1769,22 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	return hookOutput, nil
 }
 
-func (m *DeviceManager) checkFDEFeatures() error {
-	// TODO: move most of this to kernel/fde.Features
+func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error) {
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	req := &fde.SetupRequest{
-		Op: "features",
-	}
-	output, err := m.runFDESetupHook(req)
+	features, err := fde.CheckFeatures(m.runFDESetupHook)
 	if err != nil {
-		return err
+		return et, err
 	}
-	var res struct {
-		Features []string `json:"features"`
-		Error    string   `json:"error"`
+	if strutil.ListContains(features, "device-setup") {
+		et = secboot.EncryptionTypeDeviceSetupHook
+	} else {
+		et = secboot.EncryptionTypeLUKS
 	}
-	if err := json.Unmarshal(output, &res); err != nil {
-		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
-	}
-	if res.Features == nil && res.Error == "" {
-		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
-	}
-	if res.Error != "" {
-		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
-	}
-	return nil
+
+	return et, nil
 }
 
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {

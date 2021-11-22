@@ -99,6 +99,9 @@ capability sys_admin,
 # Allow /sys/block/sdX/device/state to be accessible to accept or reject the request from given the path.
 # To take the path offline will cause any subsequent access to fail immediately, vice versa.
 /sys/devices/**/host*/**/state rw,
+
+# Allow to use blkid to export key=value pairs such as UUID to get block device attributes
+/{,usr/}sbin/blkid ixr,
 `
 
 var blockDevicesConnectedPlugUDev = []string{

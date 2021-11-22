@@ -359,7 +359,7 @@ func (v *ValidationSets) Conflict() error {
 }
 
 // CheckInstalledSnaps checks installed snaps against the validation sets.
-func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
+func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap, ignoreValidation map[string]bool) error {
 	installed := naming.NewSnapSet(nil)
 	for _, sn := range snaps {
 		installed.Add(sn)
@@ -376,6 +376,10 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 			for _, rc := range revCstr {
 				sn := installed.Lookup(rc)
 				isInstalled := sn != nil
+
+				if isInstalled && ignoreValidation[rc.Name] {
+					continue
+				}
 
 				switch {
 				case !isInstalled && (cstrs.presence == asserts.PresenceOptional || cstrs.presence == asserts.PresenceInvalid):
@@ -401,7 +405,11 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 						sets[rc.validationSetKey] = v.sets[rc.validationSetKey]
 					}
 				default:
-					// not installed but required
+					// not installed but required.
+					// note, not checking ignoreValidation here because it's not a viable scenario (it's not
+					// possible to have enforced validation set while not having the required snap at all - it
+					// is only possible to have it with a wrong revision, or installed while invalid, in both
+					// cases through --ignore-validation flag).
 					if missing[rc.Name] == nil {
 						missing[rc.Name] = make(map[string]bool)
 					}
@@ -495,7 +503,11 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 	var keys []string
 	for rev, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
-			keys = append(keys, rc.validationSetKey)
+			vs := v.sets[rc.validationSetKey]
+			if vs == nil {
+				return nil, unspecifiedRevision, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
+			}
+			keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
 			// there may be constraints without revision; only set snapRev if
 			// it wasn't already determined. Note that if revisions are set,
 			// then they are the same, otherwise validation sets would be in
@@ -527,7 +539,11 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 	for _, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
 			if rc.Presence == asserts.PresenceInvalid {
-				keys = append(keys, rc.validationSetKey)
+				vs := v.sets[rc.validationSetKey]
+				if vs == nil {
+					return nil, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
+				}
+				keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
 			}
 		}
 	}

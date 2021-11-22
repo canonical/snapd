@@ -123,6 +123,129 @@ type ContentUpdateObserver interface {
 	Canceled() error
 }
 
+// isCreatableAtInstall returns whether the gadget structure would be created at
+// install - currently that is only ubuntu-save, ubuntu-data, and ubuntu-boot
+func isCreatableAtInstall(gv *VolumeStructure) bool {
+	// a structure is creatable at install if it is one of the roles for
+	// system-save, system-data, or system-boot
+	switch gv.Role {
+	case SystemSave, SystemData, SystemBoot:
+		return true
+	default:
+		return false
+	}
+}
+
+func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
+	switch gadgetSchema {
+	// XXX: "mbr,gpt" is currently unsupported
+	case "", "gpt":
+		return diskSchema == "gpt"
+	case "mbr":
+		return diskSchema == "dos"
+	default:
+		return false
+	}
+}
+
+func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume) error {
+	eq := func(ds OnDiskStructure, gs LaidOutStructure) (bool, string) {
+		dv := ds.VolumeStructure
+		gv := gs.VolumeStructure
+		nameMatch := gv.Name == dv.Name
+		if gadgetLayout.Schema == "mbr" {
+			// partitions have no names in MBR so bypass the name check
+			nameMatch = true
+		}
+		// Previous installation may have failed before filesystem creation or
+		// partition may be encrypted, so if the on disk offset matches the
+		// gadget offset, and the gadget structure is creatable during install,
+		// then they are equal
+		// otherwise, if they are not created during installation, the
+		// filesystem must be the same
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (isCreatableAtInstall(gv) || dv.Filesystem == gv.Filesystem)
+		sizeMatches := dv.Size == gv.Size
+		if gv.Role == SystemData {
+			// system-data may have been expanded
+			sizeMatches = dv.Size >= gv.Size
+		}
+		if check && sizeMatches {
+			return true, ""
+		}
+		switch {
+		case !nameMatch:
+			// don't return a reason if the names don't match
+			return false, ""
+		case ds.StartOffset != gs.StartOffset:
+			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))", ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+		case !isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
+			return false, "filesystems do not match and the partition is not creatable at install"
+		case dv.Size < gv.Size:
+			return false, "on disk size is smaller than gadget size"
+		case gv.Role != SystemData && dv.Size > gv.Size:
+			return false, "on disk size is larger than gadget size (and the role should not be expanded)"
+		default:
+			return false, "some other logic condition (should be impossible?)"
+		}
+	}
+
+	contains := func(haystack []LaidOutStructure, needle OnDiskStructure) (bool, string) {
+		reasonAbsent := ""
+		for _, h := range haystack {
+			matches, reasonNotMatches := eq(needle, h)
+			if matches {
+				return true, ""
+			}
+			// this has the effect of only returning the last non-empty reason
+			// string
+			if reasonNotMatches != "" {
+				reasonAbsent = reasonNotMatches
+			}
+		}
+		return false, reasonAbsent
+	}
+
+	// check size of volumes
+	if gadgetLayout.Size > diskLayout.Size {
+		return fmt.Errorf("device %v (%s) is too small to fit the requested layout (%s)", diskLayout.Device,
+			diskLayout.Size.IECString(), gadgetLayout.Size.IECString())
+	}
+
+	// check that the sizes of all structures in the gadget are multiples of
+	// the disk sector size (unless the structure is the MBR)
+	for _, ls := range gadgetLayout.LaidOutStructure {
+		if !IsRoleMBR(ls) {
+			if ls.Size%diskLayout.SectorSize != 0 {
+				return fmt.Errorf("gadget volume structure %v size is not a multiple of disk sector size %v",
+					ls, diskLayout.SectorSize)
+			}
+		}
+	}
+
+	// Check if top level properties match
+	if !isCompatibleSchema(gadgetLayout.Volume.Schema, diskLayout.Schema) {
+		return fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskLayout.Schema, gadgetLayout.Volume.Schema)
+	}
+	if gadgetLayout.Volume.ID != "" && gadgetLayout.Volume.ID != diskLayout.ID {
+		return fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskLayout.ID, gadgetLayout.Volume.ID)
+	}
+
+	// Check if all existing device partitions are also in gadget
+	for _, ds := range diskLayout.Structure {
+		present, reasonAbsent := contains(gadgetLayout.LaidOutStructure, ds)
+		if !present {
+			if reasonAbsent != "" {
+				// use the right format so that it can be
+				// appended to the error message
+				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
+			}
+			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
+		}
+	}
+
+	return nil
+}
+
 // Update applies the gadget update given the gadget information and data from
 // old and new revisions. It errors out when the update is not possible or
 // illegal, or a failure occurs at any of the steps. When there is no update, a
@@ -158,7 +281,7 @@ type ContentUpdateObserver interface {
 //    new kernel (rule 1)
 // d. After step (c) is completed the kernel refresh will now also
 //    work (no more violation of rule 1)
-func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
+func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// TODO: support multi-volume gadgets. But for now we simply
 	//       do not do any gadget updates on those. We cannot error
 	//       here because this would break refreshes of gadgets even

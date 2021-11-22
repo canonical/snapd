@@ -244,14 +244,10 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot connect to the session bus"),
+				Message: "cannot connect to the session bus",
 			},
 		})
 	}
-
-	// TODO: support desktop-specific notification APIs if they provide a better
-	// experience. For example, the GNOME notification API.
-	notifySrv := notification.New(c.s.bus)
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
@@ -290,7 +286,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	msg := &notification.Message{
 		AppName: refreshInfo.BusyAppName,
-		Summary: summary,
+		Title:   summary,
 		Icon:    icon,
 		Body:    body,
 		Hints:   hints,
@@ -298,7 +294,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// TODO: silently ignore error returned when the notification server does not exist.
 	// TODO: track returned notification ID and respond to actions, if supported.
-	if _, err := notifySrv.SendNotification(msg); err != nil {
+	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,

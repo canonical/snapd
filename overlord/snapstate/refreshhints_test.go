@@ -25,10 +25,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -38,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type recordingStore struct {
@@ -72,19 +75,19 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 }
 
 type refreshHintsTestSuite struct {
+	testutil.BaseTest
 	state *state.State
 
-	store        *recordingStore
-	restoreModel func()
+	store *recordingStore
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
 
 func (s *refreshHintsTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.state = state.New(nil)
-
 	s.store = &recordingStore{}
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -109,14 +112,17 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
-	s.restoreModel = snapstatetest.MockDeviceModel(DefaultModel())
-}
-
-func (s *refreshHintsTestSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("/")
-	snapstate.CanAutoRefresh = nil
-	snapstate.AutoAliases = nil
-	s.restoreModel()
+	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
+	s.AddCleanup(restoreModel)
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restoreEnforcedValidationSets)
+	s.AddCleanup(func() {
+		dirs.SetRootDir("/")
+		snapstate.CanAutoRefresh = nil
+		snapstate.AutoAliases = nil
+	})
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
@@ -310,9 +316,10 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			RealName: "other-snap",
 			Revision: snap.R(2),
 		},
-		Prereq:    []string{"foo-snap"},
-		PlugsOnly: true,
-		Channel:   "devel",
+		Prereq:             []string{"foo-snap"},
+		PrereqContentAttrs: map[string][]string{"foo-snap": {"some-content"}},
+		PlugsOnly:          true,
+		Channel:            "devel",
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},
@@ -327,6 +334,11 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
 
 	// check that calling PruneRefreshCandidates when there is nothing to do is fine.
 	c.Assert(snapstate.PruneRefreshCandidates(st, "some-snap"), IsNil)
@@ -382,6 +394,24 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	c.Check(ok, Equals, false)
 	_, ok = candidates3["snap-c"]
 	c.Check(ok, Equals, true)
+}
+
+func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// bad format - an array
+	candidates := []*snapstate.RefreshCandidate{{
+		SnapSetup: snapstate.SnapSetup{Type: "app", SideInfo: &snap.SideInfo{RealName: "snap-a", Revision: snap.R(1)}},
+	}}
+	st.Set("refresh-candidates", candidates)
+
+	// it doesn't fail as long as experimental.gate-auto-refresh-hook is not enabled
+	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
+	var data interface{}
+	// and refresh-candidates has been removed from the state
+	c.Check(st.Get("refresh-candidates", data), Equals, state.ErrNoState)
 }
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {

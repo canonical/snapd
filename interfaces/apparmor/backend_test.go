@@ -169,6 +169,11 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
 
 	apparmor.MockRuntimeNumCPU(func() int { return 99 })
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	s.AddCleanup(restore)
+
+	restore = apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	s.AddCleanup(restore)
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -1371,6 +1376,28 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS2(c *C) {
 	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, "usr.lib.snapd.snap-confine.real")
 }
 
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSNoProfileFiles(c *C) {
+	// Make it appear as if NFS workaround was needed.
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+	// Set up apparmor profiles directory, but no profile for snap-confine
+	c.Assert(os.MkdirAll(apparmor_sandbox.ConfDir, 0755), IsNil)
+
+	// The apparmor backend should not fail if the apparmor profile of
+	// snap-confine is not present
+	err := (&apparmor.Backend{}).Initialize(nil)
+	c.Assert(err, IsNil)
+	// Since there is no profile file, no call to apparmor were made
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
 // snap-confine policy when NFS is used and snapd has not re-executed.
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileFname string) {
 	// Make it appear as if NFS workaround was needed.
@@ -1696,6 +1723,28 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay2(c *C) {
 	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, "usr.lib.snapd.snap-confine.real")
 }
 
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayNoProfileFiles(c *C) {
+	// Make it appear as if overlay workaround was needed.
+	restore := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "/upper", nil })
+	defer restore()
+	// No NFS workaround
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+	// Set up apparmor profiles directory, but no profile for snap-confine
+	c.Assert(os.MkdirAll(apparmor_sandbox.ConfDir, 0755), IsNil)
+
+	// The apparmor backend should not fail if the apparmor profile of
+	// snap-confine is not present
+	err := (&apparmor.Backend{}).Initialize(nil)
+	c.Assert(err, IsNil)
+	// Since there is no profile file, no call to apparmor were made
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
 // snap-confine policy when overlay is used and snapd has not re-executed.
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, profileFname string) {
 	// Make it appear as if overlay workaround was needed.
@@ -1796,6 +1845,126 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c
 	// The distribution policy was not reloaded because snap-confine executes
 	// from core snap. This is handled separately by per-profile Setup.
 	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithBPFCapability(c *C, reexec bool) {
+	restore := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	// Pretend apparmor_parser supports bpf capability
+	apparmor_sandbox.MockFeatures(nil, nil, []string{"cap-bpf"}, nil)
+
+	// Hijack interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+	if reexec {
+		// Pretend snapd is reexecuted from the core snap
+		err := os.Symlink(filepath.Join(dirs.SnapMountDir, "/core/1234/usr/lib/snapd/snapd"), fakeExe)
+		c.Assert(err, IsNil)
+	} else {
+		// Pretend snapd is executing from the native package
+		err := os.Symlink("/usr/lib/snapd/snapd", fakeExe)
+		c.Assert(err, IsNil)
+	}
+
+	profilePath := filepath.Join(apparmor_sandbox.ConfDir, "usr.lib.snapd.snap-confine")
+	// Create the directory where system apparmor profiles are stored and write
+	// the system apparmor profile of snap-confine.
+	c.Assert(os.MkdirAll(apparmor_sandbox.ConfDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(profilePath, []byte(""), 0644), IsNil)
+
+	// Setup generated policy for snap-confine.
+	err := (&apparmor.Backend{}).Initialize(nil)
+	c.Assert(err, IsNil)
+
+	// Capability bpf is supported by the parser, so an extra policy file
+	// for snap-confine is present
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 1)
+	c.Assert(files[0].Name(), Equals, "cap-bpf")
+	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	c.Assert(files[0].IsDir(), Equals, false)
+
+	c.Assert(filepath.Join(dirs.SnapConfineAppArmorDir, files[0].Name()),
+		testutil.FileContains, "capability bpf,")
+
+	if reexec {
+		// The distribution policy was not reloaded because snap-confine executes
+		// from core snap. This is handled separately by per-profile Setup.
+		c.Assert(cmd.Calls(), HasLen, 0)
+	} else {
+		c.Assert(cmd.Calls(), DeepEquals, [][]string{{
+			"apparmor_parser", "--replace",
+			"--write-cache",
+			"-O", "no-expr-simplify",
+			"--cache-loc=" + apparmor_sandbox.SystemCacheDir,
+			"--skip-read-cache",
+			"--quiet",
+			profilePath,
+		}})
+	}
+}
+
+// snap-confine policy when apparmor_parser supports BPF capability and snapd reexec
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFCapabilityReexec(c *C) {
+	const reexecd = true
+	s.testSetupSnapConfineGeneratedPolicyWithBPFCapability(c, reexecd)
+}
+
+// snap-confine policy when apparmor_parser supports BPF capability but no reexec
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFCapabilityNoReexec(c *C) {
+	const reexecd = false
+	s.testSetupSnapConfineGeneratedPolicyWithBPFCapability(c, reexecd)
+}
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	// Probing for apparmor_parser features failed
+	apparmor_sandbox.MockFeatures(nil, nil, nil, fmt.Errorf("mock probe error"))
+
+	// Hijack interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+
+	fakeExe := filepath.Join(s.RootDir, "fake-proc-self-exe")
+	restore = apparmor.MockProcSelfExe(fakeExe)
+	defer restore()
+	// Pretend snapd is executing from the native package
+	err := os.Symlink("/usr/lib/snapd/snapd", fakeExe)
+	c.Assert(err, IsNil)
+
+	profilePath := filepath.Join(apparmor_sandbox.ConfDir, "usr.lib.snapd.snap-confine")
+	// Create the directory where system apparmor profiles are stored and write
+	// the system apparmor profile of snap-confine.
+	c.Assert(os.MkdirAll(apparmor_sandbox.ConfDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(profilePath, []byte(""), 0644), IsNil)
+
+	// Setup generated policy for snap-confine.
+	err = (&apparmor.Backend{}).Initialize(nil)
+	c.Assert(err, IsNil)
+
+	// Probing apparmor_parser capabilities failed, so nothing gets written
+	// to the snap-confine policy directory
+	files, err := ioutil.ReadDir(dirs.SnapConfineAppArmorDir)
+	c.Assert(err, IsNil)
+	c.Assert(files, HasLen, 0)
+
+	// No calls to apparmor_parser
+	c.Assert(cmd.Calls(), HasLen, 0)
+
+	// But an error was logged
+	c.Assert(log.String(), testutil.Contains, "cannot determine apparmor_parser features: mock probe error")
 }
 
 type nfsAndOverlaySnippetsScenario struct {

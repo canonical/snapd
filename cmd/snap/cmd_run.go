@@ -39,8 +39,9 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/desktop/portal"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -202,6 +203,10 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
 }
 
+func (x *cmdRun) Usage() string {
+	return "[run-OPTIONS] <NAME-OF-SNAP>.<NAME-OF-APP> [<SNAP-APP-ARG>...]"
+}
+
 func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(i18n.G("need the application to run as argument"))
@@ -246,6 +251,16 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 
 	return x.snapRunApp(snapApp, args)
+}
+
+func maybeWaitWhileInhibited(snapName string) error {
+	// If the snap is inhibited from being used then postpone running it until
+	// that condition passes. Inhibition UI can be dismissed by the user, in
+	// which case we don't run the application at all.
+	if features.RefreshAppAwareness.IsEnabled() {
+		return waitWhileInhibited(snapName)
+	}
+	return nil
 }
 
 // antialias changes snapApp and args if snapApp is actually an alias
@@ -372,6 +387,10 @@ func createUserDataDirs(info *snap.Info) error {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
 	}
 
+	snapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	if err := os.MkdirAll(snapDir, 0700); err != nil {
+		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
+	}
 	// see snapenv.User
 	instanceUserData := info.UserDataDir(usr.HomeDir)
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir)
@@ -462,6 +481,12 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	app := info.Apps[appName]
 	if app == nil {
 		return fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
+	}
+
+	if !app.IsService() {
+		if err := maybeWaitWhileInhibited(snapName); err != nil {
+			return err
+		}
 	}
 
 	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)
@@ -693,15 +718,14 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return nil
 	}
 
-	u, err := userCurrent()
+	documentPortal := &portal.Document{}
+	expectedMountPoint, err := documentPortal.GetDefaultMountPoint()
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
+		return err
 	}
-	xdgRuntimeDir := filepath.Join(dirs.XdgRuntimeDirBase, u.Uid)
 
 	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
 	// that the document portal is up and running.
-	expectedMountPoint := filepath.Join(xdgRuntimeDir, "doc")
 	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
 		logger.Noticef("Could not check document portal mount state: %s", err)
 	} else if mounted {
@@ -722,20 +746,18 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	//
 	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
 	// full logout/login or reboot cycles.
+	xdgRuntimeDir, err := documentPortal.GetUserXdgRuntimeDir()
+	if err != nil {
+		return err
+	}
+
 	portalsUnavailableFile := filepath.Join(xdgRuntimeDir, ".portals-unavailable")
 	if osutil.FileExists(portalsUnavailableFile) {
 		return nil
 	}
 
-	conn, err := dbusutil.SessionBus()
+	actualMountPoint, err := documentPortal.GetMountPoint()
 	if err != nil {
-		return err
-	}
-
-	portal := conn.Object("org.freedesktop.portal.Documents",
-		"/org/freedesktop/portal/documents")
-	var mountPoint []byte
-	if err := portal.Call("org.freedesktop.portal.Documents.GetMountPoint", 0).Store(&mountPoint); err != nil {
 		// It is not considered an error if
 		// xdg-document-portal is not available on the system.
 		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
@@ -752,7 +774,6 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 
 	// Sanity check to make sure the document portal is exposed
 	// where we think it is.
-	actualMountPoint := strings.TrimRight(string(mountPoint), "\x00")
 	if actualMountPoint != expectedMountPoint {
 		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
 	}

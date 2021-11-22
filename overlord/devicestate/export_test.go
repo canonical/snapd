@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
@@ -177,6 +178,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func SetBootRevisionsUpdated(m *DeviceManager, b bool) {
+	m.bootRevisionsUpdated = b
+}
+
 func SetInstalledRan(m *DeviceManager, b bool) {
 	m.ensureInstalledRan = b
 }
@@ -244,7 +249,7 @@ var (
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
+func MockGadgetUpdate(mock func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
@@ -332,10 +337,22 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 	return mgr.runFDESetupHook(req)
 }
 
-func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
 	return mgr.checkEncryption(st, deviceCtx)
 }
 
-func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) error {
+func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
 	return mgr.checkFDEFeatures()
+}
+
+func MockTimeutilIsNTPSynchronized(f func() (bool, error)) (restore func()) {
+	old := timeutilIsNTPSynchronized
+	timeutilIsNTPSynchronized = f
+	return func() {
+		timeutilIsNTPSynchronized = old
+	}
+}
+
+func DeviceManagerNTPSyncedOrWaitedLongerThan(mgr *DeviceManager, maxWait time.Duration) bool {
+	return mgr.ntpSyncedOrWaitedLongerThan(maxWait)
 }

@@ -88,12 +88,14 @@ var (
 	SnapCommandsDB      string
 	SnapAuxStoreInfoDir string
 
-	SnapBinariesDir     string
-	SnapServicesDir     string
-	SnapUserServicesDir string
-	SnapSystemdConfDir  string
-	SnapDesktopFilesDir string
-	SnapDesktopIconsDir string
+	SnapBinariesDir        string
+	SnapServicesDir        string
+	SnapRuntimeServicesDir string
+	SnapUserServicesDir    string
+	SnapSystemdConfDir     string
+	SnapDesktopFilesDir    string
+	SnapDesktopIconsDir    string
+	SnapPolkitPolicyDir    string
 
 	SnapDBusSessionPolicyDir   string
 	SnapDBusSystemPolicyDir    string
@@ -376,6 +378,7 @@ func SetRootDir(rootdir string) {
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	SnapRuntimeServicesDir = filepath.Join(rootdir, "/run/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 
@@ -385,6 +388,8 @@ func SetRootDir(rootdir string) {
 	// '/usr/share/dbus-1' hierarchy.
 	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "services")
 	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "system-services")
+
+	SnapPolkitPolicyDir = filepath.Join(rootdir, "/usr/share/polkit-1/actions")
 
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 
