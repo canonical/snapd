@@ -411,7 +411,7 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	// Amend information where the key came from to ensure it can
 	// be update/replaced later
 	for i, k := range v.SSHKeys {
-		v.SSHKeys[i] = fmt.Sprintf(`%s # {"origin":"store","email":%q}`, k, email)
+		v.SSHKeys[i] = fmt.Sprintf(`%s # snapd {"origin":"store","email":%q}`, k, email)
 	}
 
 	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)

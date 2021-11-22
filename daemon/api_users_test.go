@@ -492,8 +492,8 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	defer daemon.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
 		c.Check(username, check.Equals, expectedUsername)
 		c.Check(opts.SSHKeys, check.DeepEquals, []string{
-			`ssh1 # {"origin":"store","email":"popper@lse.ac.uk"}`,
-			`ssh2 # {"origin":"store","email":"popper@lse.ac.uk"}`,
+			`ssh1 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
+			`ssh2 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
 		})
 		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		c.Check(opts.Sudoer, check.Equals, false)
@@ -505,8 +505,8 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	expectedItem := daemon.UserResponseData{
 		Username: expectedUsername,
 		SSHKeys: []string{
-			`ssh1 # {"origin":"store","email":"popper@lse.ac.uk"}`,
-			`ssh2 # {"origin":"store","email":"popper@lse.ac.uk"}`,
+			`ssh1 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
+			`ssh2 # snapd {"origin":"store","email":"popper@lse.ac.uk"}`,
 		},
 	}
 
