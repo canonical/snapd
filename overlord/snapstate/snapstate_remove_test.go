@@ -871,6 +871,55 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	c.Check(snapst.Sequence, HasLen, 2)
 }
 
+func (s *snapmgrTestSuite) TestRemoveOneRevisionDropsRevertStatus(c *C) {
+	si3 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(3),
+	}
+
+	si5 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(5),
+	}
+
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si5, &si3, &si7},
+		Current:  si7.Revision,
+		RevertStatus: map[int]snapstate.RevertStatus{
+			3: snapstate.NotBlocked,
+			5: snapstate.NotBlocked,
+		},
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Sequence, HasLen, 2)
+	// revert status of revision 3 got dropped
+	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
+		5: snapstate.NotBlocked,
+	})
+}
+
 func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -1599,6 +1648,11 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
 
 	for _, sn := range []string{"some-snap", "another-snap", "foo-snap"} {
 		si := snap.SideInfo{

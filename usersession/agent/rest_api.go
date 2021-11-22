@@ -249,10 +249,6 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	// TODO: should be instantiated once on startup as for fdoBackend it keeps
-	// notification mappings.
-	notifySrv := notification.NewNotificationManager(c.s.bus, "io.snapcraft.SessionAgent")
-
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
@@ -298,7 +294,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// TODO: silently ignore error returned when the notification server does not exist.
 	// TODO: track returned notification ID and respond to actions, if supported.
-	if err := notifySrv.SendNotification(notification.ID(fmt.Sprintf("refresh:%s", refreshInfo.InstanceName)), msg); err != nil {
+	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,

@@ -15,7 +15,9 @@ require (
 	github.com/juju/ratelimit v1.0.1
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
 	github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb
-	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb
+	// if below two libseccomp-golang lines are updated, one must also update packaging/ubuntu-14.04/rules
+	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
+	github.com/seccomp/libseccomp-golang v0.9.2-0.20210917151616-9da99da69b1b
 	github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
 	github.com/snapcore/secboot v0.0.0-20211018143212-802bb19ca263
