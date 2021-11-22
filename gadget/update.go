@@ -214,8 +214,24 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			if matches {
 				return true, ""
 			}
-			// this has the effect of only returning the last non-empty reason
-			// string
+			// TODO: handle multiple error cases for DOS disks and fail early
+			// for GPT disks since we should not have multiple non-empty reasons
+			// for not matching for GPT disks, as that would require two YAML
+			// structures with the same name to be considered as candidates for
+			// a given on disk structure, and we do not allow duplicated
+			// structure names in the YAML at all via ValidateVolume.
+			//
+			// For DOS, since we cannot check the partition names, there will
+			// always be a reason if there was not a match, in which case we
+			// only want to return an error after we have finished searching the
+			// full haystack and didn't find any matches whatsoever. Note that
+			// the YAML structure that "should" have matched the on disk one we
+			// are looking for but doesn't because of some problem like wrong
+			// size or wrong filesystem may not be the last one, so returning
+			// only the last error like we do here is wrong. We should include
+			// all reasons why so the user can see which structure was the
+			// "closest" to what we were searching for so they can fix their
+			// gadget.yaml or on disk partitions so that it matches.
 			if reasonNotMatches != "" {
 				reasonAbsent = reasonNotMatches
 			}
