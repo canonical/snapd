@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nomanagers
 // +build !nomanagers
 
 /*
@@ -33,9 +34,9 @@ package configcore
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -43,7 +44,6 @@ import (
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -204,6 +204,9 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return fmt.Errorf("cannot try config")
 	}
 
+	// workaround for LP:1949893
+	time.Sleep(5)
+
 	var storeReachableAfter bool
 	if err := storeReachable(tr.State()); err == nil {
 		storeReachableAfter = true
@@ -230,14 +233,6 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return fmt.Errorf("cannot apply config")
 	}
 	logger.Debugf("netplan config applied correctly")
-
-	// XXX: workaround for
-	//   https://bugs.launchpad.net/netplan/+bug/1949893
-	// Just calling the netplan dbus apply is not enough to really
-	// apply things it seems :(
-	if output, err := exec.Command("netplan", "apply").CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
 
 	return nil
 }
