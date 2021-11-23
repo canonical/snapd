@@ -43,7 +43,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 )
 
-// Form is a multipart form that hold file and non-file parts
+// Form is a multipart form that holds file and non-file parts
 type Form struct {
 	// Values holds non-file parts keyed by their "name" parameter (from the
 	// part's Content-Disposition header).
@@ -51,7 +51,7 @@ type Form struct {
 
 	// FileRefs holds file parts keyed by their "name" parameter (from the
 	// part's Content-Disposition header). Each reference contains a filename
-	// (the "filename" parameter) and the path to a file with the parts contents.
+	// (the "filename" parameter) and the path to a file with the part's contents.
 	FileRefs map[string][]*FileReference
 }
 

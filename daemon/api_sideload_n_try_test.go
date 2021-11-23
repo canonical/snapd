@@ -529,9 +529,8 @@ func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(matches, check.HasLen, 1)
 
-	data, err := ioutil.ReadFile(matches[0])
 	c.Assert(err, check.IsNil)
-	c.Assert(string(data), check.Equals, "xyzzy")
+	c.Assert(matches[0], testutil.FileEquals, "xyzzy")
 }
 
 func (s *sideloadSuite) TestSideloadExceedMemoryLimit(c *check.C) {
@@ -582,6 +581,41 @@ func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
 	// using the maximum memory doesn't cause the failure (not having a snap file does)
 	apiErr := s.errorReq(c, req, nil)
 	c.Check(apiErr.Message, check.Equals, `cannot find "snap" file field in provided multipart/form-data payload`)
+}
+
+func (s *sideloadSuite) TestCleanUpTempFilesIfRequestFailed(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	// write file parts
+	body := "----hello--\r\n"
+	for _, name := range []string{"one", "two"} {
+		body += fmt.Sprintf(
+			"Content-Disposition: form-data; name=\"snap\"; filename=\"%s\"\r\n"+
+				"\r\n"+
+				"xyzzy\r\n", name)
+	}
+
+	// make the request fail
+	buf := make([]byte, daemon.MaxReadBuflen+1)
+	_, err := rand.Read(buf)
+	c.Assert(err, check.IsNil)
+
+	body += "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		string(buf) +
+		"\r\n" +
+		"----hello--\r\n"
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr, check.NotNil)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	c.Assert(err, check.IsNil)
+	c.Check(matches, check.HasLen, 0)
 }
 
 type trySuite struct {
