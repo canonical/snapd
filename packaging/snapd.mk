@@ -53,7 +53,7 @@ snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd)
+go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd snapd-apparmor)
 
 GO_TAGS = nosecboot
 ifeq ($(with_testkeys),1)
@@ -66,7 +66,7 @@ endif
 all: $(go_binaries) 
 
 $(builddir)/snap: GO_TAGS += nomanagers
-$(builddir)/snap $(builddir)/snap-seccomp:
+$(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie -ldflags=-w -mod=vendor \
 		$(import_path)/cmd/$(notdir $@)
@@ -100,7 +100,7 @@ install:: $(builddir)/snap | $(DESTDIR)$(bindir)
 	install -m 755 $^ $|
 
 # Install snapctl snapd, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapctl snapd snap-exec snap-update-ns snap-seccomp) | $(DESTDIR)$(libexecdir)/snapd
+install:: $(addprefix $(builddir)/,snapctl snapd snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
