@@ -133,12 +133,13 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	c.Check(gotSecond, Equals, true)
 }
 
-func (s *validationSetTrackingSuite) TestDelete(c *C) {
+// there is a more extensive test for forget in assertstate_test.go.
+func (s *validationSetTrackingSuite) TestForget(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	// delete non-existing one is fine
-	assertstate.DeleteValidationSet(s.st, "foo", "bar")
+	assertstate.ForgetValidationSet(s.st, "foo", "bar")
 	all, err := assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
@@ -154,8 +155,8 @@ func (s *validationSetTrackingSuite) TestDelete(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 
-	// deletes existing one
-	assertstate.DeleteValidationSet(s.st, "foo", "bar")
+	// forget existing one
+	assertstate.ForgetValidationSet(s.st, "foo", "bar")
 	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)

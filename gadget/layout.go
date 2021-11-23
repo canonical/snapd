@@ -73,7 +73,7 @@ type LaidOutStructure struct {
 	// AbsoluteOffsetWrite is the resolved absolute position of offset-write
 	// for this structure element within the enclosing volume
 	AbsoluteOffsetWrite *quantity.Offset
-	// Index of the structure definition in gadget YAML
+	// Index of the structure definition in gadget YAML, note this starts at 0.
 	Index int
 	// LaidOutContent is a list of raw content inside the structure
 	LaidOutContent []LaidOutContent
