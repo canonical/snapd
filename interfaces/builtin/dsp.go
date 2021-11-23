@@ -70,6 +70,8 @@ const ambarellaDspConnectedPlugApparmor = `
 /proc/ambarella/cma r,
 /proc/ambarella/ambarella_hwtimer rw,
 /proc/ambarella/ambarella_hwtimer_outfreq rw,
+/proc/ambarella/vapi_sync r,
+/proc/ambarella/dsp_state r,
 
 # to match vin0_idsp, vin1_idsp, vin2_idsp, etc.
 /proc/ambarella/vin[0-9]_idsp r,
