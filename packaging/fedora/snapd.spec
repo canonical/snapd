@@ -33,6 +33,11 @@
 %global with_multilib 1
 %endif
 
+# Set if valgrind is to be run
+%ifnarch ppc64le
+%global with_valgrind 1
+%endif
+
 %if ! %{with vendorized}
 %global with_bundled 0
 %else
@@ -206,7 +211,9 @@ BuildRequires:  glibc-static
 %if ! 0%{?rhel}
 BuildRequires:  libseccomp-static
 %endif
+%if 0%{?with_valgrind}
 BuildRequires:  valgrind
+%endif
 BuildRequires:  %{_bindir}/rst2man
 %if 0%{?fedora}
 # ShellCheck in EPEL is too old...
@@ -541,7 +548,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
-%gobuild -o bin/snapd $GOFLAGS ./cmd/snapd
+%gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 BUILDTAGS="${BUILDTAGS} nomanagers"
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
@@ -593,18 +600,21 @@ autoreconf --force --install --verbose
 %if 0%{?with_selinux}
     --enable-selinux \
 %endif
+%if 0%{?rhel} == 7
+    --disable-bpf \
+%endif
     --libexecdir=%{_libexecdir}/snapd/ \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
     --enable-merged-usr
 
-%make_build
+%make_build %{!?with_valgrind:HAVE_VALGRIND=}
 popd
 
 # Build systemd units, dbus services, and env files
 pushd ./data
-make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
@@ -689,7 +699,7 @@ popd
 
 # Install all systemd and dbus units, and env files
 pushd ./data
-%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
@@ -831,6 +841,7 @@ popd
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop
+%{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
@@ -865,6 +876,8 @@ popd
 # this is typically owned by zsh, but we do not want to explicitly require zsh
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
+# similar case for fish
+%dir %{_datadir}/fish/vendor_conf.d
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
