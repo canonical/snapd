@@ -34,6 +34,8 @@ package configcore
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -43,7 +45,9 @@ import (
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -160,10 +164,16 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return err
 	}
 
-	// Use the default config that every Ubuntu Core has. Using
-	// an alternative config hint proved very unstable (caused
-	// netplan crashes)
+	// Use the default config that most Ubuntu Core have
 	originHint := "00-snapd-config"
+	// workaround LP:1949884
+	netplanCfgPath := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("/etc/netplan/%s.yaml", originHint))
+	if !osutil.FileExists(netplanCfgPath) {
+		if err := ioutil.WriteFile(netplanCfgPath, []byte("network:"), 0644); err != nil {
+			return err
+		}
+	}
+
 	// Always starts with a clean config to avoid merging of keys
 	// that got unset.
 	configs := []string{"network=null"}
