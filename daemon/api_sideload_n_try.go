@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // Form is a multipart form that holds file and non-file parts
@@ -60,9 +61,13 @@ type FileReference struct {
 	TmpPath  string
 }
 
-func (f *Form) RemoveAll() {
+func (f *Form) RemoveAllExcept(paths []string) {
 	for _, refs := range f.FileRefs {
 		for _, ref := range refs {
+			if strutil.ListContains(paths, ref.TmpPath) {
+				continue
+			}
+
 			if err := os.Remove(ref.TmpPath); err != nil {
 				logger.Noticef("cannot remove temporary file: %v", err)
 			}
@@ -100,13 +105,12 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 		return errRsp
 	}
 
-	// we are in charge of the tempfile life cycle until we hand it off to the change
-	changeTriggered := false
+	// we are in charge of the temp files, until they're handed off to the change
+	var pathsToNotRemove []string
 	defer func() {
-		if !changeTriggered {
-			form.RemoveAll()
-		}
+		form.RemoveAllExcept(pathsToNotRemove)
 	}()
+
 	dangerousOK := isTrue(form, "dangerous")
 	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"), isTrue(form, "classic"))
 	if err != nil {
@@ -207,7 +211,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 
 	// only when the unlock succeeds (as opposed to panicing) is the handoff done
 	// but this is good enough
-	changeTriggered = true
+	pathsToNotRemove = append(pathsToNotRemove, tempPath)
 
 	return AsyncResponse(nil, chg.ID())
 }
@@ -229,7 +233,7 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 	// clean up if we're failing the request
 	defer func() {
 		if apiErr != nil {
-			form.RemoveAll()
+			form.RemoveAllExcept(nil)
 		}
 	}()
 
