@@ -1,0 +1,38 @@
+summary: Check internal vendored apparmor in snapd snap
+
+manual: true
+
+environment:
+    AAP: /var/lib/snapd/apparmor/profiles/snap.test-snapd-setpriority.test-snapd-setpriority
+
+prepare: |
+    echo "Install a helper snap with default confinement"
+    snap install test-snapd-setpriority
+
+    echo "Install the snapd snap from edge"
+    snap install snapd --edge
+
+    # TODO: the above doesn't actually install the snapd snap from this
+    # branch though... we could repack the snapd deb into the snapd snap
+    # and install that BUT the vendored/internal apparmor parser is only in
+    # the snapd snap build *not* the deb, and so this does not help
+    # either. So at the moment this test fails until this is merged into
+    # master and so the vendored apparmor gets into the edge build of snapd
+
+debug: |
+    snap list snapd
+    snap debug sandbox-features
+
+execute: |
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+    echo "List sandbox-features"
+    snap debug sandbox-features
+
+    echo "Then sandbox-features should show a snapd internal apparmor_parser"
+    snap debug sandbox-features --required apparmor:parser:snapd-internal
+
+    echo "Then we should be able to compile policy using the internal apparmor_parser"
+    /snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0 -r $AAP
+

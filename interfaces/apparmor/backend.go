@@ -869,16 +869,20 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   %[2]s
 `, usrLibSnapdConfineTransitionRule, nonBaseCoreTransitionSnippet)
 
+		case "###INCLUDEIFEXISTSSNAPTUNING###":
+			features, _ := parserFeatures()
+			if strutil.ListContains(features, "include-if-exists") {
+				return `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`
+			}
+			return ""
 		case "###VAR###":
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
 		case "###CHANGEPROFILE_RULE###":
 			features, _ := parserFeatures()
-			for _, f := range features {
-				if f == "unsafe" {
-					return "change_profile unsafe /**,"
-				}
+			if strutil.ListContains(features, "unsafe") {
+				return "change_profile unsafe /**,"
 			}
 			return "change_profile,"
 		case "###SNIPPETS###":

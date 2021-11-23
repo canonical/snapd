@@ -109,6 +109,7 @@ backends:
                   workers: 6
             - ubuntu-18.04-64:
                   workers: 8
+                  storage: 12G
             - ubuntu-20.04-64:
                   storage: 12G
                   workers: 8
