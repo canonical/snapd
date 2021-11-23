@@ -246,7 +246,8 @@ prepare_memory_limit_override() {
         # systemd is backwards compatible so the limit is still set.
         cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
-MemoryLimit=100M
+# mvo: disabled because of many failures in restore, e.g. in PR#11014
+#MemoryLimit=100M
 EOF
     fi
     # the service setting may have changed in the service so we need

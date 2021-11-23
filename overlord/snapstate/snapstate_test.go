@@ -426,7 +426,6 @@ func (s *snapmgrTestSuite) TestUserFromUserID(c *C) {
 const (
 	unlinkBefore = 1 << iota
 	cleanupAfter
-	maybeCore
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
@@ -1526,7 +1525,113 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		Channel:  "",
 		Revision: snap.R(7),
 	})
+	c.Check(snapst.RevertStatus, HasLen, 0)
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
+}
+
+func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	siOld := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: []*snap.SideInfo{&siOld, &si},
+		Current:  si.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{RevertStatus: snapstate.NotBlocked})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// verify that the R(2) version is active now and R(7) is still there
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	// last refresh time shouldn't be modified on revert.
+	c.Check(snapst.LastRefreshTime, IsNil)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(2),
+	})
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
+	})
+	// we have reverted from rev 7 to rev 2, but rev 7 is marked as not blocked
+	// due to revert.
+	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
+		7: snapstate.NotBlocked,
+	})
+	c.Assert(snapst.Block(), HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestRevertRevisionNotBlockedUndo(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  si2.Revision,
+		RevertStatus: map[int]snapstate.RevertStatus{
+			3: snapstate.NotBlocked,
+		},
+	})
+
+	chg := s.state.NewChange("revert", "install a revert")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags{RevertStatus: snapstate.NotBlocked})
+	c.Assert(err, IsNil)
+	tasks := ts.Tasks()
+	last := tasks[len(tasks)-1]
+	terr := s.state.NewTask("error-trigger", "provoking undo")
+	terr.WaitFor(last)
+	chg.AddAll(ts)
+	chg.AddTask(terr)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
+		3: snapstate.NotBlocked,
+	})
 }
 
 func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
@@ -4302,7 +4407,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
-	verifyInstallTasks(c, runCoreConfigure|maybeCore, 0, tsl[0], s.state)
+	verifyInstallTasks(c, snap.TypeOS, runCoreConfigure, 0, tsl[0])
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
@@ -4842,7 +4947,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, HasLen, 1)
 	ts := state.NewTaskSet(chg.Tasks()...)
-	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
 
 	// ensure preferences from the core snap got transferred over
 	var snapst snapstate.SnapState
@@ -6070,7 +6175,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyInstallTasks(c, updatesGadget, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeGadget, 0, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
@@ -6094,7 +6199,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
+	verifyUpdateTasks(c, snap.TypeGadget, doesReRefresh, 0, ts)
 
 }
 
@@ -6119,7 +6224,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnKernelRefresh(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadgetAssets, 0, ts, s.state)
+	verifyUpdateTasks(c, snap.TypeKernel, doesReRefresh, 0, ts)
 
 }
 
@@ -6831,7 +6936,30 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 	})
 }
 
+var nonReLinkKinds = []string{
+	"copy-snap-data",
+	"setup-profiles",
+	"auto-connect",
+	"set-auto-aliases",
+	"setup-aliases",
+	"run-hook[install]",
+	"start-snap-services",
+	"run-hook[configure]",
+	"run-hook[check-health]",
+}
+
+func kindsToSet(kinds []string) map[string]bool {
+	s := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		s[k] = true
+	}
+	return s
+}
+
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6840,6 +6968,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
 	tUpdateGadgetAssets := tasks[1]
@@ -6857,6 +6986,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base")
 	c.Assert(err, IsNil)
 	tasks = ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	c.Assert(tasks, HasLen, 2)
 	tPrepare = tasks[0]
 	tLink = tasks[1]
@@ -6868,6 +6998,9 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6891,6 +7024,9 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6910,6 +7046,7 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + dummy task + update-gadget-assets + link-snap
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]
@@ -6943,6 +7080,7 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks = tsNew.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	// since this is the base, we have our task + link-snap only
 	c.Assert(tasks, HasLen, 2)
 	tLink = tasks[1]
@@ -6960,6 +7098,9 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6968,6 +7109,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 	ts, err := snapstate.SwitchToNewGadget(s.state, "some-gadget")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
 	c.Assert(tasks, HasLen, 3)
 	tPrepare := tasks[0]
 	tUpdateGadgetAssets := tasks[1]
@@ -6984,6 +7126,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadget(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7009,6 +7154,9 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7027,6 +7175,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
 	// since this is the gadget, we have our task + dummy task + update assets + update cmdline
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]

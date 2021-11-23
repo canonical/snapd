@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1105,7 +1105,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
+	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
 	if err != nil {
 		return err
 	}
@@ -1334,9 +1334,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	oldCandidateIndex := snapst.LastIndex(cand.Revision)
 
+	var oldRevsBeforeCand []snap.Revision
 	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
 	} else if !snapsup.Revert {
+		// save the revs before the candidate, so undoLink can account for discarded revs when putting it back
+		for _, si := range snapst.Sequence[:oldCandidateIndex] {
+			oldRevsBeforeCand = append(oldRevsBeforeCand, si.Revision)
+		}
 		// remove the old candidate from the sequence, add it at the end
 		copy(snapst.Sequence[oldCandidateIndex:len(snapst.Sequence)-1], snapst.Sequence[oldCandidateIndex+1:])
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
@@ -1481,6 +1486,21 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
 	t.Set("old-cohort-key", oldCohortKey)
 	t.Set("old-last-refresh-time", oldLastRefreshTime)
+	t.Set("old-revs-before-cand", oldRevsBeforeCand)
+	if snapsup.Revert {
+		t.Set("old-revert-status", snapst.RevertStatus)
+		switch snapsup.RevertStatus {
+		case NotBlocked:
+			if snapst.RevertStatus == nil {
+				snapst.RevertStatus = make(map[int]RevertStatus)
+			}
+			snapst.RevertStatus[oldCurrent.N] = NotBlocked
+		default:
+			delete(snapst.RevertStatus, oldCurrent.N)
+		}
+	} else {
+		delete(snapst.RevertStatus, cand.Revision.N)
+	}
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
@@ -1746,6 +1766,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-cohort-key", &oldCohortKey); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var oldRevsBeforeCand []snap.Revision
+	if err := t.Get("old-revs-before-cand", &oldRevsBeforeCand); err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	if len(snapst.Sequence) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
@@ -1776,6 +1800,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
 	} else if !isRevert {
+		// account for revisions discarded before the install failed
+		discarded := countMissingRevs(oldRevsBeforeCand, snapst.Sequence)
+		oldCandidateIndex -= discarded
+
 		oldCand := snapst.Sequence[currentIndex]
 		copy(snapst.Sequence[oldCandidateIndex+1:], snapst.Sequence[oldCandidateIndex:])
 		snapst.Sequence[oldCandidateIndex] = oldCand
@@ -1791,6 +1819,16 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
 	snapst.LastRefreshTime = oldLastRefreshTime
 	snapst.CohortKey = oldCohortKey
+
+	if isRevert {
+		var oldRevertStatus map[int]RevertStatus
+		err := t.Get("old-revert-status", &oldRevertStatus)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
+		// may be nil if not set (e.g. created by old snapd)
+		snapst.RevertStatus = oldRevertStatus
+	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {
@@ -1876,6 +1914,20 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		restart.Request(st, restart.RestartDaemon)
 	}
 	return nil
+}
+
+// countMissingRevs counts how many of the revisions aren't present in the sequence of sideInfos
+func countMissingRevs(revisions []snap.Revision, sideInfos []*snap.SideInfo) int {
+	var found int
+	for _, rev := range revisions {
+		for _, si := range sideInfos {
+			if si.Revision == rev {
+				found++
+			}
+		}
+	}
+
+	return len(revisions) - found
 }
 
 type doSwitchFlags struct {
@@ -2391,6 +2443,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if snapst.Current == snapsup.Revision() && snapst.Active {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", snapsup.InstanceName())
 	}
+
+	// drop any potential revert status for this revision
+	delete(snapst.RevertStatus, snapsup.Revision().N)
 
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil

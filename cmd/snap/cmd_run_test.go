@@ -1819,3 +1819,20 @@ func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
 	c.Check(meter.Finishes, check.Equals, 1)
 	c.Check(meter.Labels, check.DeepEquals, []string{"please wait..."})
 }
+
+func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
+	usr, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	usr.HomeDir = s.fakeHome
+	snaprun.MockUserCurrent(func() (*user.User, error) {
+		return usr, nil
+	})
+
+	info := &snap.Info{SuggestedName: "some-snap"}
+	c.Assert(snaprun.CreateUserDataDirs(info), check.IsNil)
+
+	fi, err := os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir))
+	c.Assert(err, check.IsNil)
+	c.Assert(fi.Mode()&os.ModePerm, check.Equals, os.FileMode(0700))
+}
