@@ -1417,7 +1417,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		linkCtx.RequireMountedSnapdSnap = true
 	}
-	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
+	needsReboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -1549,7 +1549,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
 	var canReboot bool
-	if reboot {
+	if needsReboot {
 		var cannotReboot bool
 		// system reboot is required, but can this task request that?
 		if err := t.Get("cannot-reboot", &cannotReboot); err != nil && err != state.ErrNoState {
@@ -1563,8 +1563,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			t.Logf("reboot postponed to later tasks")
 		}
 	}
-	if !reboot || canReboot {
-		m.maybeRestart(t, newInfo, reboot)
+	if !needsReboot || canReboot {
+		m.maybeRestart(t, newInfo, needsReboot)
 	}
 
 	return nil
