@@ -2683,6 +2683,71 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityMBRStructureAllowedMissingW
 	c.Assert(err, IsNil)
 }
 
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityTypeBareStructureAllowedMissingWithStruct(c *C) {
+	// we are compatible with the type: bare structure in the YAML not present
+	// in the ondisk structure
+
+	const typeBareYAML = `volumes:
+  foo:
+    bootloader: u-boot
+    structure:
+      - name: barething
+        type: bare
+        size: 4096
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	simpleDeviceLayout := gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that the first ondisk structure we have is not barething,
+			// even though "in reality" the first ondisk structure is MBR, but the MBR
+			// doesn't actually show up in /dev at all, so we don't ever measure it
+			// as existing on the disk - the code and test accounts for the MBR
+			// structure not being present in the OnDiskVolume
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Name:       "some-filesystem",
+						Size:       1 * quantity.SizeGiB,
+						Filesystem: "ext4",
+					},
+					StartOffset: 1*quantity.OffsetMiB + 4096,
+				},
+				Node: "/dev/node1",
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/node",
+		Schema:     "gpt",
+		Size:       2 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+	}
+
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), typeBareYAML, nil)
+	c.Assert(err, IsNil)
+
+	// ensure the first structure is barething in the YAML, but the first
+	// structure in the device layout is some-filesystem
+	c.Assert(gadgetLayout.LaidOutStructure[0].Type, Equals, "bare")
+	c.Assert(simpleDeviceLayout.Structure[0].Name, Equals, "some-filesystem")
+
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &simpleDeviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// still okay even with strict options - the absence of the bare structure
+	// in the ondisk volume is allowed
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &simpleDeviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
 func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	// same contents (the locally created structure should be ignored)
 	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml, nil)

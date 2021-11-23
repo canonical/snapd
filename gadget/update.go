@@ -307,9 +307,10 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		// otherwise not present, figure out if it has a valid excuse
 
-		// allow specifically the mbr structure to be missing from ondisk since
-		// it doesn't show up as a device since it's a "raw" thing
-		if gs.Role == "mbr" {
+		if !gs.IsPartition() {
+			// raw structures like mbr or other "bare" type will not be
+			// identified by linux and thus should be skipped as they will not
+			// show up on the disk
 			continue
 		}
 
