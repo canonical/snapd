@@ -1239,6 +1239,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect for the kernel snap")
 	}
 	kernelLanes := linkSnapKernel.Lanes()
+
 	linkSnapBase, _ := findTaskOfKind(bootBaseTs, "link-snap")
 	autoConnectBase, acBaseIdx := findTaskOfKind(bootBaseTs, "auto-connect")
 	if linkSnapBase == nil || autoConnectBase == nil {
@@ -1254,7 +1255,8 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 		linkSnapKernel.JoinLane(lane)
 		autoConnectKernel.JoinLane(lane)
 	}
-	// make link-snap base wait for the last pre-link-snap-kernel task
+	// make link-snap base wait for the last task directly preceding
+	// link-snap of the kernel
 	linkSnapBase.WaitFor(kernelTs.Tasks()[lsKernelIdx-1])
 	// order: link-snap-base -> link-snap-kernel
 	linkSnapKernel.WaitFor(linkSnapBase)
@@ -1262,8 +1264,8 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	autoConnectBase.WaitFor(linkSnapKernel)
 	// order: auto-connect-base -> auto-connect-kernel
 	autoConnectKernel.WaitFor(autoConnectBase)
-	// make the first post auto-connect base wait for auto-connect kernel,
-	// this task already waits for auto-connect of base
+	// make the first task after auto-connect base wait for auto-connect
+	// kernel, this task already waits for auto-connect of base
 	bootBaseTs.Tasks()[acBaseIdx+1].WaitFor(autoConnectKernel)
 
 	// cannot-reboot indicates that a task cannot invoke a reboot
@@ -1464,9 +1466,19 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
 			// snaps
+
+			// because "core" has type "os" it is ordered before all
+			// other updates, right after snapd, that introduces a
+			// dependency on "core" tasks for all other snaps, and
+			// thus preventing us from reordering them to perform a
+			// single reboot when both kernel and base (core in this
+			// case) are updated
 			waitPrereq(ts, defaultCoreSnapName)
 			waitPrereq(ts, "snapd")
 			if update.SnapBase() != "" {
+				// the kernel snap is ordered before the base,
+				// so its task will not have an implicit
+				// dependency on base update
 				waitPrereq(ts, update.SnapBase())
 			}
 		}
@@ -1501,8 +1513,12 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		kernelTs.WaitAll(gadgetTs)
 	}
 
-	if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
-		return nil, nil, err
+	if deviceCtx.Model().Base() != "" {
+		// reordering of kernel and base tasks is supported only on
+		// UC18+ devices
+		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if len(newAutoAliases) != 0 {
