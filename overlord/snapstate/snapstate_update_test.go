@@ -7060,6 +7060,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core18", "kernel-core18"})
 	snapTasks := make(map[string]*state.Task)
+	var kernelTs, baseTs *state.TaskSet
 	for _, ts := range tss {
 		chg.AddAll(ts)
 		for _, tsk := range ts.Tasks() {
@@ -7075,6 +7076,9 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 					opts := 0
 					if snapsup.Type == snap.TypeBase {
 						opts |= noConfigure
+						baseTs = ts
+					} else if snapsup.Type == snap.TypeKernel {
+						kernelTs = ts
 					}
 					verifyUpdateTasks(c, snapsup.Type, opts, 0, ts)
 				}
@@ -7087,6 +7091,17 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	autoConnectKernel := snapTasks["auto-connect@kernel"]
 	linkSnapBase := snapTasks["link-snap@base"]
 	autoConnectBase := snapTasks["auto-connect@base"]
+	c.Assert(kernelTs, NotNil)
+	c.Assert(baseTs, NotNil)
+	c.Assert(kernelTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@kernel"])
+	c.Assert(kernelTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapKernel)
+	c.Assert(kernelTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectKernel)
+	c.Assert(kernelTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@kernel"])
+
+	c.Assert(baseTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@base"])
+	c.Assert(baseTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapBase)
+	c.Assert(baseTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectBase)
+	c.Assert(baseTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@base"])
 
 	c.Assert(linkSnapBase.WaitTasks(), DeepEquals, []*state.Task{
 		snapTasks["setup-profiles@base"], snapTasks["setup-profiles@kernel"],
@@ -7230,35 +7245,45 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootNotWithCoreHappy(c *C
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core", "kernel"})
 	snapTasks := make(map[string]*state.Task)
-	var coreTs *state.TaskSet
+	var kernelTs, coreTs *state.TaskSet
 	for _, ts := range tss {
 		chg.AddAll(ts)
 		for _, tsk := range ts.Tasks() {
 			switch tsk.Kind() {
 			// setup-profiles should appear right before link-snap
-			case "link-snap", "auto-connect", "setup-profiles":
+			case "link-snap", "auto-connect", "setup-profiles", "set-auto-aliases":
 				snapsup, err := snapstate.TaskSnapSetup(tsk)
 				c.Assert(err, IsNil)
 				snapTasks[fmt.Sprintf("%s@%s", tsk.Kind(), snapsup.Type)] = tsk
 				if tsk.Kind() == "link-snap" {
 					opts := 0
-					if snapsup.Type == snap.TypeBase {
-						opts |= noConfigure
-					}
 					verifyUpdateTasks(c, snapsup.Type, opts, 0, ts)
 					if snapsup.Type == snap.TypeOS {
 						coreTs = ts
+					} else if snapsup.Type == snap.TypeKernel {
+						kernelTs = ts
 					}
 				}
 			}
 		}
 	}
 
-	c.Assert(snapTasks, HasLen, 6)
+	c.Assert(snapTasks, HasLen, 8)
 	linkSnapKernel := snapTasks["link-snap@kernel"]
 	autoConnectKernel := snapTasks["auto-connect@kernel"]
 	linkSnapBase := snapTasks["link-snap@os"]
 	autoConnectBase := snapTasks["auto-connect@os"]
+	c.Assert(kernelTs, NotNil)
+	c.Assert(coreTs, NotNil)
+	c.Assert(kernelTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@kernel"])
+	c.Assert(kernelTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapKernel)
+	c.Assert(kernelTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectKernel)
+	c.Assert(kernelTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@kernel"])
+
+	c.Assert(coreTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge), Equals, snapTasks["setup-profiles@os"])
+	c.Assert(coreTs.MaybeEdge(snapstate.MaybeRebootEdge), Equals, linkSnapBase)
+	c.Assert(coreTs.MaybeEdge(snapstate.MaybeRebootWaitEdge), Equals, autoConnectBase)
+	c.Assert(coreTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge), Equals, snapTasks["set-auto-aliases@os"])
 
 	c.Assert(coreTs, NotNil)
 

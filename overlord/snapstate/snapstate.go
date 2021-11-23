@@ -70,6 +70,10 @@ const (
 	BeginEdge                 = state.TaskSetEdge("begin")
 	BeforeHooksEdge           = state.TaskSetEdge("before-hooks")
 	HooksEdge                 = state.TaskSetEdge("hooks")
+	BeforeMaybeRebootEdge     = state.TaskSetEdge("before-maybe-reboot")
+	MaybeRebootEdge           = state.TaskSetEdge("maybe-reboot")
+	MaybeRebootWaitEdge       = state.TaskSetEdge("maybe-reboot-wait")
+	AfterMaybeRebootWaitEdge  = state.TaskSetEdge("after-maybe-reboot-wait")
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -515,6 +519,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet.WaitAll(ts)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
+	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
+	installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
+	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge)
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
@@ -1201,15 +1209,6 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 type updateFilter func(*snap.Info, *SnapState) bool
 
 func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) error {
-	var findTaskOfKind = func(ts *state.TaskSet, kind string) (*state.Task, int) {
-		for idx, tsk := range ts.Tasks() {
-			if tsk.Kind() == kind {
-				return tsk, idx
-			}
-		}
-		return nil, -1
-	}
-
 	haveBase, haveKernel := bootBaseTs != nil, kernelTs != nil
 	if !haveBase && !haveKernel {
 		// neither base nor kernel update
@@ -1233,17 +1232,20 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	//
 	// where (r) denotes the task that can effectively request a reboot
 
-	linkSnapKernel, lsKernelIdx := findTaskOfKind(kernelTs, "link-snap")
-	autoConnectKernel, _ := findTaskOfKind(kernelTs, "auto-connect")
-	if linkSnapKernel == nil || autoConnectKernel == nil {
-		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect for the kernel snap")
+	beforeLinkSnapKernel := kernelTs.MaybeEdge(BeforeMaybeRebootEdge)
+	linkSnapKernel := kernelTs.MaybeEdge(MaybeRebootEdge)
+	autoConnectKernel := kernelTs.MaybeEdge(MaybeRebootWaitEdge)
+
+	if linkSnapKernel == nil || autoConnectKernel == nil || beforeLinkSnapKernel == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the preceding task for the kernel snap")
 	}
 	kernelLanes := linkSnapKernel.Lanes()
 
-	linkSnapBase, _ := findTaskOfKind(bootBaseTs, "link-snap")
-	autoConnectBase, acBaseIdx := findTaskOfKind(bootBaseTs, "auto-connect")
-	if linkSnapBase == nil || autoConnectBase == nil {
-		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect for the base snap")
+	linkSnapBase := bootBaseTs.MaybeEdge(MaybeRebootEdge)
+	autoConnectBase := bootBaseTs.MaybeEdge(MaybeRebootWaitEdge)
+	afterAutoConnectBase := bootBaseTs.MaybeEdge(AfterMaybeRebootWaitEdge)
+	if linkSnapBase == nil || autoConnectBase == nil || afterAutoConnectBase == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the following task for the base snap")
 	}
 	baseLanes := linkSnapBase.Lanes()
 
@@ -1257,7 +1259,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	}
 	// make link-snap base wait for the last task directly preceding
 	// link-snap of the kernel
-	linkSnapBase.WaitFor(kernelTs.Tasks()[lsKernelIdx-1])
+	linkSnapBase.WaitFor(beforeLinkSnapKernel)
 	// order: link-snap-base -> link-snap-kernel
 	linkSnapKernel.WaitFor(linkSnapBase)
 	// order: link-snap-kernel -> auto-connect-base
@@ -1266,7 +1268,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	autoConnectKernel.WaitFor(autoConnectBase)
 	// make the first task after auto-connect base wait for auto-connect
 	// kernel, this task already waits for auto-connect of base
-	bootBaseTs.Tasks()[acBaseIdx+1].WaitFor(autoConnectKernel)
+	afterAutoConnectBase.WaitFor(autoConnectKernel)
 
 	// cannot-reboot indicates that a task cannot invoke a reboot
 	linkSnapBase.Set("cannot-reboot", true)
