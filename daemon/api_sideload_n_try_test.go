@@ -618,6 +618,33 @@ func (s *sideloadSuite) TestCleanUpTempFilesIfRequestFailed(c *check.C) {
 	c.Check(matches, check.HasLen, 0)
 }
 
+func (s *sideloadSuite) TestCleanUpUnusedTempSnapFiles(c *check.C) {
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"one\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"two\"\r\n" +
+		"\r\n" +
+		// sideloadCheck checks that the snap file passed to the change has contents "xyzzy" so
+		// having a different body here tests that the second file isn't passed to change
+		"bla\r\n" +
+		"----hello--\r\n"
+
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, DevMode: true})
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "one"`)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	c.Assert(err, check.IsNil)
+	// only the file passed into the change remains
+	c.Check(matches, check.HasLen, 1)
+}
+
 type trySuite struct {
 	apiBaseSuite
 }
