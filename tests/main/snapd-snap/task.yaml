@@ -356,3 +356,9 @@ execute: |
             fi
         fi
     done
+
+    # also check that snapd-apparmor service works
+    if ! os.query is-trusty && ! os.query is-xenial; then
+      systemctl status snapd.apparmor.service
+    fi
+
