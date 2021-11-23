@@ -1,9 +1,9 @@
 summary: Check that "snap interface" works as expected
 
-tags: [ basic ]
-
 details: |
     The "snap interface" command displays a listing of used interfaces
+
+tags: [ basic ]
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local network-consumer
