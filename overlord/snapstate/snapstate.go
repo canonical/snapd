@@ -183,7 +183,7 @@ func (i pathInfo) Prereq(st *state.State) []string {
 func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, gFlags *Flags) (*SnapSetup, *SnapState, error) {
 	update := i.Info
 
-	revnoOpts, _, snapst := params(update)
+	_, _, snapst := params(update)
 
 	flags, err := earlyChecks(st, snapst, update, *gFlags)
 	if err != nil {
@@ -197,7 +197,6 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 		PrereqContentAttrs: providerContentAttrs,
 		SideInfo:           i.sideInfo,
 		SnapPath:           i.path,
-		Channel:            revnoOpts.Channel,
 		Flags:              flags.ForSnapSetup(),
 		Type:               i.Type(),
 		PlugsOnly:          len(i.Slots) == 0,
@@ -1122,8 +1121,6 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		si := sideInfos[i]
 		name := si.RealName
 
-		// It is ok do open the snap file here because we either
-		// have side info or the user passed --dangerous
 		info, container, err := backend.OpenSnapFile(path, si)
 		if err != nil {
 			return nil, err
@@ -1147,7 +1144,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
-		return &RevisionOptions{}, flags, stateByInstanceName[update.InstanceName()]
+		return nil, flags, stateByInstanceName[update.InstanceName()]
 	}
 
 	// TODO(miguel): disk space refresh check?
