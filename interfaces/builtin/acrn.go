@@ -50,6 +50,7 @@ const acrnConnectedPlugAppArmor = `
 /sys/devices/system/cpu/cpu[0-9]*/online rw,
 
 `
+
 type acrnInterface struct {
 	commonInterface
 }
