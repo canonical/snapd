@@ -3,6 +3,16 @@ summary: Check that a broken kernel snap automatically rolls itself back
 # TODO:UC20: write equivalent test for base snap failover
 systems: [ubuntu-20.04-64]
 
+environment:
+  PROBLEM_TYPE/crash: crash
+  PROBLEM_TYPE/empty: empty
+  PROBLEM_TYPE/zeros: zeros
+  PROBLEM_TYPE/nolink: nolink
+  # bad-text produces a bad systemd efi stub (.text section in the binary)
+  PROBLEM_TYPE/bad_text: bad-text
+  PROBLEM_TYPE/bad_linux: bad-linux
+  PROBLEM_TYPE/bad_initrd: bad-initrd
+
 prepare: |
   echo "Build a broken kernel snap where the initramfs panic's"
 
@@ -15,7 +25,16 @@ prepare: |
   #            running system, we should look into that, but for now just 
   #            re-download the snap
   snap download pc-kernel --channel=20/edge --basename=pc-kernel
-  uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+  case "$PROBLEM_TYPE" in
+      crash)
+          uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+          ;;
+      nolink)
+          ;;
+      *)
+          uc20_build_corrupt_kernel_snap pc-kernel.snap "$PWD" --"$PROBLEM_TYPE"
+          ;;
+  esac
   mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 
 execute: |
@@ -40,6 +59,9 @@ execute: |
 
   echo "Install it and get the ID for the change"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
+  if [ "$PROBLEM_TYPE" = "nolink" ]; then
+      tests.nested exec sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi
+  fi
 
   # wait for a reboot
   tests.nested wait-for reboot "${boot_id}"
