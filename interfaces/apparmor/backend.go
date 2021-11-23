@@ -204,8 +204,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		aaFlags |= skipKernelLoad
 	}
 
-	// We are not using apparmor.LoadProfiles() because it uses other cache.
-	if err := loadProfiles([]string{profilePath}, apparmor_sandbox.SystemCacheDir, aaFlags); err != nil {
+	if err := LoadProfiles([]string{profilePath}, apparmor_sandbox.SystemCacheDir, aaFlags); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
 		// things work.
@@ -321,7 +320,7 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 	if b.preseed {
 		aaFlags = skipKernelLoad
 	}
-	errReload := loadProfiles(pathnames, cache, aaFlags)
+	errReload := LoadProfiles(pathnames, cache, aaFlags)
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize snap-confine apparmor profile: %s", errEnsure)
@@ -488,7 +487,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		aaFlags |= skipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[changed]", fmt.Sprintf("load changed security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-		errReloadChanged = loadProfiles(prof.changed, apparmor_sandbox.CacheDir, aaFlags)
+		errReloadChanged = LoadProfiles(prof.changed, apparmor_sandbox.CacheDir, aaFlags)
 	})
 
 	// Load all unchanged profiles anyway. This ensures those are correct in
@@ -500,7 +499,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		aaFlags |= skipKernelLoad
 	}
 	timings.Run(tm, "load-profiles[unchanged]", fmt.Sprintf("load unchanged security profiles of snap %q", snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-		errReloadOther = loadProfiles(prof.unchanged, apparmor_sandbox.CacheDir, aaFlags)
+		errReloadOther = LoadProfiles(prof.unchanged, apparmor_sandbox.CacheDir, aaFlags)
 	})
 	errUnload := unloadProfiles(prof.removed, apparmor_sandbox.CacheDir)
 	if errReloadChanged != nil {
@@ -541,7 +540,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 		}
 		var errReloadChanged error
 		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-			errReloadChanged = loadProfiles(allChangedPaths, apparmor_sandbox.CacheDir, aaFlags)
+			errReloadChanged = LoadProfiles(allChangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
 		aaFlags = conserveCPU
@@ -550,7 +549,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 		}
 		var errReloadOther error
 		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
-			errReloadOther = loadProfiles(allUnchangedPaths, apparmor_sandbox.CacheDir, aaFlags)
+			errReloadOther = LoadProfiles(allUnchangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
 		errUnload := unloadProfiles(allRemovedPaths, apparmor_sandbox.CacheDir)

@@ -91,11 +91,11 @@ func maybeSetNumberOfJobs() string {
 	return fmt.Sprintf("-j%d", cpus)
 }
 
-// loadProfiles loads apparmor profiles from the given files.
+// LoadProfiles loads apparmor profiles from the given files.
 //
 // If no such profiles were previously loaded then they are simply added to the kernel.
 // If there were some profiles with the same name before, those profiles are replaced.
-func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
+func LoadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	if len(fnames) == 0 {
 		return nil
 	}

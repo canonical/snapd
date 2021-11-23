@@ -30,7 +30,6 @@ var (
 	NsProfile                       = nsProfile
 	ProfileGlobs                    = profileGlobs
 	SnapConfineFromSnapProfile      = snapConfineFromSnapProfile
-	LoadProfiles                    = loadProfiles
 	UnloadProfiles                  = unloadProfiles
 	MaybeSetNumberOfJobs            = maybeSetNumberOfJobs
 	DefaultCoreRuntimeTemplateRules = defaultCoreRuntimeTemplateRules
