@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -448,9 +449,9 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 }
 
 func (s *clientSuite) TestPendingRefreshNotification(c *C) {
-	n := 0
+	var n int32
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
+		atomic.AddInt32(&n, 1)
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/pending-refresh")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
@@ -458,14 +459,14 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 	})
 	err := s.cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
 	c.Assert(err, IsNil)
-	c.Check(n, Equals, 2)
+	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
 }
 
 func (s *clientSuite) TestPendingRefreshNotificationOneClient(c *C) {
 	cli := client.NewForUids(1000)
-	n := 0
+	var n int32
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
+		atomic.AddInt32(&n, 1)
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/pending-refresh")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
@@ -473,5 +474,5 @@ func (s *clientSuite) TestPendingRefreshNotificationOneClient(c *C) {
 	})
 	err := cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
 	c.Assert(err, IsNil)
-	c.Check(n, Equals, 1)
+	c.Check(atomic.LoadInt32(&n), Equals, int32(1))
 }
