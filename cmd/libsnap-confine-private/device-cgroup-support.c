@@ -512,15 +512,15 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
         die("%s is not a snap cgroup", own_group);
     }
 
-    char own_group_full[PATH_MAX] = {0};
-    sc_must_snprintf(own_group_full, sizeof(own_group_full), "/sys/fs/cgroup/%s", own_group);
+    char own_group_full_path[PATH_MAX] = {0};
+    sc_must_snprintf(own_group_full_path, sizeof(own_group_full_path), "/sys/fs/cgroup/%s", own_group);
 
     int cgroup_fd SC_CLEANUP(sc_cleanup_close) = -1;
-    cgroup_fd = open(own_group_full, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    cgroup_fd = open(own_group_full_path, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (cgroup_fd < 0) {
-        die("cannot open own cgroup directory %s", own_group_full);
+        die("cannot open own cgroup directory %s", own_group_full_path);
     }
-    debug("cgroup %s opened at %d", own_group_full, cgroup_fd);
+    debug("cgroup %s opened at %d", own_group_full_path, cgroup_fd);
 
     /* attach the program to the cgroup */
     sc_identity old = sc_set_effective_identity(sc_root_group_identity());
