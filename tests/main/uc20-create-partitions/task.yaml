@@ -138,7 +138,8 @@ execute: |
     rm ./mnt/EFI/boot/grubx64.efi
     umount ./mnt
 
-    echo "now add a partition"
+    echo "Add a non-creatable partition to see it fail installation"
+    cp gadget-dir/meta/gadget.yaml gadget.yaml.backup
     cat >> gadget-dir/meta/gadget.yaml <<EOF
           - name: Other ext4
             type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
@@ -146,21 +147,24 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
+    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 | MATCH "panic: gadget and ${LOOP} partition table not compatible: cannot find gadget structure #6 \(\"Other ext4\"\) on disk"
+
+    # replace the gadget.yaml without the extra partition
+    cp gadget.yaml.backup gadget-dir/meta/gadget.yaml
+
+    echo "Ensure we can deploy with mounting"
     uc20-create-partitions --mount ./gadget-dir "$kerneldir" "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 1G\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p6 .* 110M\s* Linux filesystem"
 
     echo "check that the filesystems are created and mounted"
     mount | MATCH /run/mnt/ubuntu-boot
     mount | MATCH /run/mnt/ubuntu-save
     mount | MATCH /run/mnt/ubuntu-data
     mount | MATCH /run/mnt/other-ext4
-    df -T "${LOOP}p6" | MATCH ext4
-    file -s "${LOOP}p6" | MATCH 'volume name "other-ext4"'
 
     echo "Make sure the filesystem was redeployed"
     ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi

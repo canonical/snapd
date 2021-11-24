@@ -123,9 +123,9 @@ type ContentUpdateObserver interface {
 	Canceled() error
 }
 
-// isCreatableAtInstall returns whether the gadget structure would be created at
+// IsCreatableAtInstall returns whether the gadget structure would be created at
 // install - currently that is only ubuntu-save, ubuntu-data, and ubuntu-boot
-func isCreatableAtInstall(gv *VolumeStructure) bool {
+func IsCreatableAtInstall(gv *VolumeStructure) bool {
 	// a structure is creatable at install if it is one of the roles for
 	// system-save, system-data, or system-boot
 	switch gv.Role {
@@ -173,7 +173,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		check := nameMatch && ds.StartOffset == gs.StartOffset
 		// if we require creatable partitions to already exist, then the
 		// filesystems must also match for creatable partitions
-		if opts.AssumeCreatablePartitionsCreated || !isCreatableAtInstall(gv) {
+		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gv) {
 			check = check && (dv.Filesystem == gv.Filesystem)
 		}
 		sizeMatches := dv.Size == gv.Size
@@ -192,9 +192,9 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		case ds.StartOffset != gs.StartOffset:
 			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
 				ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
-		case opts.AssumeCreatablePartitionsCreated && isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
+		case opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
 			return false, "filesystems do not match"
-		case !isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
+		case !IsCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
 			return false, "filesystems do not match and the partition is not creatable at install"
 		case dv.Size < gv.Size:
 			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget size %d (%s)",
@@ -316,7 +316,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 		// allow structures that are creatable during install if we don't assume
 		// created partitions to already exist
-		if isCreatableAtInstall(gs.VolumeStructure) && !opts.AssumeCreatablePartitionsCreated {
+		if IsCreatableAtInstall(gs.VolumeStructure) && !opts.AssumeCreatablePartitionsCreated {
 			continue
 		}
 
