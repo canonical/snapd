@@ -1010,30 +1010,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
-	if err != nil && !config.IsNoOption(err) {
+	if err := checkDiskSpace(st, "install", []minimalInstallInfo{installSnapInfo{info}}, userID); err != nil {
 		return nil, err
-	}
-	if checkDiskSpaceInstall {
-		// check if there is enough disk space for requested snap and its
-		// prerequisites.
-		totalSize, err := installSize(st, []minimalInstallInfo{installSnapInfo{info}}, userID)
-		if err != nil {
-			return nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      []string{info.InstanceName()},
-					ChangeKind: "install",
-				}
-			}
-			return nil, err
-		}
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, info)
@@ -1102,35 +1080,13 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, nil, err
+	snapInfos := make([]minimalInstallInfo, len(installs))
+	for i, sar := range installs {
+		snapInfos[i] = installSnapInfo{sar.Info}
 	}
-	if checkDiskSpaceInstall {
-		// check if there is enough disk space for requested snaps and their
-		// prerequisites.
-		snapInfos := make([]minimalInstallInfo, len(installs))
-		for i, sar := range installs {
-			snapInfos[i] = installSnapInfo{sar.Info}
-		}
-		totalSize, err := installSize(st, snapInfos, userID)
-		if err != nil {
-			return nil, nil, err
-		}
 
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      toInstall,
-					ChangeKind: "install",
-				}
-			}
-			return nil, nil, err
-		}
+	if err = checkDiskSpace(st, "install", snapInfos, userID); err != nil {
+		return nil, nil, err
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(installs))
@@ -1261,34 +1217,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		toUpdate[i] = installSnapInfo{up}
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
-	if err != nil && !config.IsNoOption(err) {
+	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
 		return nil, nil, err
-	}
-	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snap and its
-		// prerequisites.
-		totalSize, err := installSize(st, toUpdate, userID)
-		if err != nil {
-			return nil, nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			snaps := make([]string, len(updates))
-			for i, up := range updates {
-				snaps[i] = up.InstanceName()
-			}
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      snaps,
-					ChangeKind: "refresh",
-				}
-			}
-			return nil, nil, err
-		}
 	}
 
 	updated, tasksets, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
@@ -1809,34 +1739,8 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		toUpdate[i] = installSnapInfo{up}
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
-	if err != nil && !config.IsNoOption(err) {
+	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
 		return nil, err
-	}
-	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snap and its
-		// prerequisites.
-		totalSize, err := installSize(st, toUpdate, userID)
-		if err != nil {
-			return nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			snaps := make([]string, len(updates))
-			for i, up := range updates {
-				snaps[i] = up.InstanceName()
-			}
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      snaps,
-					ChangeKind: "refresh",
-				}
-			}
-			return nil, err
-		}
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
@@ -2144,34 +2048,8 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		toUpdate[i] = up
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
-	if err != nil && !config.IsNoOption(err) {
+	if err := checkDiskSpace(st, "refresh", toUpdate, 0); err != nil {
 		return nil, err
-	}
-	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snaps and their
-		// prerequisites.
-		totalSize, err := installSize(st, toUpdate, 0)
-		if err != nil {
-			return nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			snaps := make([]string, len(updates))
-			for i, up := range updates {
-				snaps[i] = up.InstanceName()
-			}
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      snaps,
-					ChangeKind: "refresh",
-				}
-			}
-			return nil, err
-		}
 	}
 
 	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
@@ -2181,6 +2059,52 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 
 	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
 	return tasksets, nil
+}
+
+// checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
+func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallInfo, userID int) error {
+	var featFlag features.SnapdFeature
+
+	switch changeKind {
+	case "install":
+		featFlag = features.CheckDiskSpaceInstall
+	case "refresh":
+		featFlag = features.CheckDiskSpaceRefresh
+	default:
+		panic(fmt.Sprintf("unsupported disk space check for change of kind %q", changeKind))
+	}
+
+	tr := config.NewTransaction(st)
+	enabled, err := features.Flag(tr, featFlag)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	} else if !enabled {
+		return nil
+	}
+
+	totalSize, err := installSize(st, infos, userID)
+	if err != nil {
+		return err
+	}
+
+	requiredSpace := safetyMarginDiskSpace(totalSize)
+	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+		snaps := make([]string, len(infos))
+		for i, up := range infos {
+			snaps[i] = up.InstanceName()
+		}
+		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+			return &InsufficientSpaceError{
+				Path:       path,
+				Snaps:      snaps,
+				ChangeKind: changeKind,
+			}
+		}
+		return err
+	}
+
+	return nil
 }
 
 // LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
