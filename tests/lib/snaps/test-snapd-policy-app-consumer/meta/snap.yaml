@@ -173,6 +173,9 @@ apps:
   hardware-random-observe:
     command: bin/run
     plugs: [ hardware-random-observe ]
+  hardware-udev-control:
+    command: bin/run
+    plugs: [ hardware-udev-control ]
   home:
     command: bin/run
     plugs: [ home ]

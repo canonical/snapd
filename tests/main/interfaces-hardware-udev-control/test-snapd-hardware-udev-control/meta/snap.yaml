@@ -1,0 +1,10 @@
+name: test-snapd-hardware-udev-control
+version: 1.0
+summary: Basic hardware-udev-control snap
+description: A basic snap which uses udevadm
+
+apps:
+  check:
+    command: bin/check
+    plugs: [hardware-udev-control]
+
