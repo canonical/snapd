@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -90,7 +91,7 @@ func (f *Form) SnapFileNameAndTempPath() (srcFilenames, tempPaths []string, apiE
 	return srcFilenames, tempPaths, nil
 }
 
-func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response {
+func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -138,7 +139,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 
 	var chg *state.Change
 	if len(origPaths) > 1 {
-		chg, errRsp = sideloadManySnaps(st, form, origPaths, tempPaths, flags)
+		chg, errRsp = sideloadManySnaps(st, form, origPaths, tempPaths, flags, user)
 	} else {
 		chg, errRsp = sideloadSnap(st, form, origPaths[0], tempPaths[0], flags)
 	}
@@ -160,7 +161,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string) Response
 	return AsyncResponse(nil, chg.ID())
 }
 
-func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []string, flags snapstate.Flags) (*state.Change, *apiError) {
+func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []string, flags snapstate.Flags, user *auth.UserState) (*state.Change, *apiError) {
 	var sideInfos []*snap.SideInfo
 	var names []string
 
@@ -174,7 +175,7 @@ func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []strin
 		names = append(names, si.RealName)
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, flags)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, flags, user.ID)
 	if err != nil {
 		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
 	}

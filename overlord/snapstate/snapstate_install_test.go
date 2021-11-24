@@ -4300,7 +4300,7 @@ epoch: 1
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{})
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{}, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4344,7 +4344,7 @@ epoch: 1
 		return errors.New("expected")
 	}, nil)
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{})
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{}, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4410,7 +4410,7 @@ epoch: 1
 		sideInfos = append(sideInfos, newSi)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{})
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{}, s.user.ID)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4431,4 +4431,38 @@ epoch: 1
 		c.Assert(err, IsNil)
 		c.Check(snapst.Current, Equals, snap.R("2"))
 	}
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyDiskSpaceError(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Commit()
+
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, snapstate.Flags{}, s.user.ID)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap, other-snap`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, snapNames)
 }

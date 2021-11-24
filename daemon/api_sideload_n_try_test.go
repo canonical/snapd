@@ -580,7 +580,7 @@ func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
 	// using the maximum memory doesn't cause the failure (not having a snap file does)
-	apiErr := s.errorReq(c, req, nil)
+	apiErr := s.errorReq(c, req, s.user)
 	c.Check(apiErr.Message, check.Equals, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 

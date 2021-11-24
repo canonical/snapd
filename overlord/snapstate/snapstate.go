@@ -1085,7 +1085,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, flags Flags) ([]*state.TaskSet, error) {
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, flags Flags, userID int) ([]*state.TaskSet, error) {
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
 		return nil, err
@@ -1121,11 +1121,14 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		stateByInstanceName[name] = &snapst
 	}
 
+	if err := checkDiskSpace(st, "install", updates, userID); err != nil {
+		return nil, err
+	}
+
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
 		return nil, flags, stateByInstanceName[update.InstanceName()]
 	}
 
-	// TODO(miguel): disk space refresh check?
 	_, tasksets, err := doUpdate(ctx, st, names, updates, params, -1, &flags, deviceCtx, "")
 	if err != nil {
 		return nil, err
