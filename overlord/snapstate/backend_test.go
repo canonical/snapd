@@ -375,9 +375,6 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "kernel-id":
 		name = "kernel"
 		typ = snap.TypeKernel
-	case "kernel-core18-id":
-		name = "kernel-core18"
-		typ = snap.TypeKernel
 	case "brand-gadget-id":
 		name = "brand-gadget"
 		typ = snap.TypeGadget
@@ -446,8 +443,6 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 				Attrs:     map[string]interface{}{"content": "some-content"},
 			},
 		}
-	} else if name == "kernel-core18" {
-		info.Base = "core18"
 	}
 
 	switch cand.channel {
