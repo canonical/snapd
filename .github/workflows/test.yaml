@@ -318,6 +318,21 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+    - name: report spread errors
+      if: always()
+      run: |
+        if [ -e spread.log ]; then
+            echo "Running spread log analyzer"
+            ./tests/lib/tools/log-parser spread.log --print-detail error-debug --output spread-results.json --cut 100
+            while IFS= read -r line; do
+                if [ ! -z "$line" ]; then
+                    echo "Reporting spread error..."
+                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors "$line"
+                fi
+            done <<< $(jq -cr '.[] | select( .type == "info") | select( (.info_type == "Error") or (.info_type == "Debug"))' spread-results.json)
+        else
+            echo "No spread log found, skipping errors reporting"
+        fi
 
   spread-nested:
     needs: [unit-tests]
@@ -371,7 +386,7 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          spread -abend google-nested:${{ matrix.system }}:tests/nested/...
+          spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -383,3 +398,18 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+    - name: report spread errors
+      if: always()
+      run: |
+        if [ -e spread.log ]; then
+            echo "Running spread log analyzer"
+            ./tests/lib/tools/log-parser spread.log --print-detail error --output spread-results.json --cut 100
+            while IFS= read -r line; do
+                if [ ! -z "$line" ]; then
+                    echo "Reporting spread error..."
+                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors "$line"
+                fi
+            done <<< $(jq -cr '.[] | select( .type == "info") | select( .info_type == "Error")' spread-results.json)
+        else
+            echo "No spread log found, skipping errors reporting"
+        fi

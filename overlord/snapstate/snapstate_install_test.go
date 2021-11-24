@@ -351,7 +351,6 @@ func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	}
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
 	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", nil)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
@@ -535,7 +534,6 @@ func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
 	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0, "", nil)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
 }
 
@@ -622,8 +620,6 @@ func (s *snapmgrTestSuite) TestInstallStrictIgnoresClassic(c *C) {
 
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-strict"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{Classic: true})
-	c.Assert(err, IsNil)
-
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -832,8 +828,6 @@ confinement: strict
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 
-	c.Assert(err, IsNil)
-
 	chg := s.state.NewChange("install", "install snap")
 	chg.AddAll(ts)
 
@@ -871,8 +865,6 @@ epoch: 1
 `)
 
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{})
-	c.Assert(err, IsNil)
-
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -4264,7 +4256,6 @@ func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn install
 		SnapType:        "app",
 	})
 
-	// the default is also 2 but this makes the test more robust against changes
 	tr := config.NewTransaction(s.state)
 	c.Assert(tr.Set("core", "refresh.retain", 1), IsNil)
 	tr.Commit()
