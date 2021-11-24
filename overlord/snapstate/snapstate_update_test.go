@@ -7024,15 +7024,15 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	}))
 
 	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]interface{}{
-		"kernel": "kernel-core18",
+		"kernel": "kernel",
 		"base":   "core18",
 	}))
 	defer restore()
 
 	siKernel := snap.SideInfo{
-		RealName: "kernel-core18",
+		RealName: "kernel",
 		Revision: snap.R(7),
-		SnapID:   "kernel-core18-id",
+		SnapID:   "kernel-id",
 	}
 	siBase := snap.SideInfo{
 		RealName: "core18",
@@ -7056,9 +7056,9 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 
 	chg := s.state.NewChange("refresh", "refresh kernel and base")
 	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
-		[]string{"kernel-core18", "core18"}, s.user.ID, &snapstate.Flags{})
+		[]string{"kernel", "core18"}, s.user.ID, &snapstate.Flags{})
 	c.Assert(err, IsNil)
-	c.Assert(affected, DeepEquals, []string{"core18", "kernel-core18"})
+	c.Assert(affected, DeepEquals, []string{"core18", "kernel"})
 	snapTasks := make(map[string]*state.Task)
 	var kernelTs, baseTs *state.TaskSet
 	for _, ts := range tss {
@@ -7132,8 +7132,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	// have fake backend indicate a need to reboot for both snaps
 	s.fakeBackend.linkSnapMaybeReboot = true
 	s.fakeBackend.linkSnapRebootFor = map[string]bool{
-		"kernel-core18": true,
-		"core18":        true,
+		"kernel": true,
+		"core18": true,
 	}
 
 	defer s.se.Stop()
@@ -7145,8 +7145,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 		restart.RestartSystem,
 	})
 
-	for _, name := range []string{"kernel-core18", "core18"} {
-		snapID := "kernel-core18-id"
+	for _, name := range []string{"kernel", "core18"} {
+		snapID := "kernel-id"
 		if name == "core18" {
 			snapID = "core18-snap-id"
 		}
@@ -7186,14 +7186,14 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	}
 	c.Assert(ops, HasLen, 8)
 	c.Assert(ops[0:2], testutil.DeepUnsortedMatches, []string{
-		"setup-profiles:Doing-kernel-core18/11", "setup-profiles:Doing-core18/11",
+		"setup-profiles:Doing-kernel/11", "setup-profiles:Doing-core18/11",
 	})
 	c.Assert(ops[2:6], DeepEquals, []string{
-		"core18/11", "kernel-core18/11",
-		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel-core18/11",
+		"core18/11", "kernel/11",
+		"auto-connect:Doing-core18/11", "auto-connect:Doing-kernel/11",
 	})
 	c.Assert(ops[6:], testutil.DeepUnsortedMatches, []string{
-		"cleanup-trash-core18", "cleanup-trash-kernel-core18",
+		"cleanup-trash-core18", "cleanup-trash-kernel",
 	})
 }
 
