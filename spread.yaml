@@ -699,6 +699,10 @@ prepare: |
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
 
+    # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
+    # The idea is to have a single directory with all the testing tools
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
+
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
