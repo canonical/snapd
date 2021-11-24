@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -e
+
+udevadm control --reload
+udevadm trigger
