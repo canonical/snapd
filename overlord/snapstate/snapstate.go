@@ -2071,14 +2071,16 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 	case "refresh":
 		featFlag = features.CheckDiskSpaceRefresh
 	default:
-		panic(fmt.Sprintf("unsupported disk space check for change of kind %q", changeKind))
+		return fmt.Errorf("cannot check disk space for invalid change kind %q", changeKind)
 	}
 
 	tr := config.NewTransaction(st)
 	enabled, err := features.Flag(tr, featFlag)
 	if err != nil && !config.IsNoOption(err) {
 		return err
-	} else if !enabled {
+	}
+
+	if !enabled {
 		return nil
 	}
 
