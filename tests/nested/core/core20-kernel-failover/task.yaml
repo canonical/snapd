@@ -30,6 +30,10 @@ prepare: |
           uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
           ;;
       nolink)
+          # Failure will be forced by removing the try-kernel.efi link later,
+          # do not modify the downloaded kernel (just change name so it is picked
+          # up by the move command later)
+          mv pc-kernel.snap pc-kernel_.snap
           ;;
       *)
           uc20_build_corrupt_kernel_snap pc-kernel.snap "$PWD" --"$PROBLEM_TYPE"
@@ -38,6 +42,7 @@ prepare: |
   mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 
 execute: |
+  set -x
   echo "Copy the broken initramfs kernel snap to the UC20 VM"
   tests.nested copy panicking-initramfs-kernel.snap
 
