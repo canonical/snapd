@@ -1416,7 +1416,7 @@ volumes:
 	defer restore()
 
 	gadgetUpdateCalled := false
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore = devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		gadgetUpdateCalled = true
 		c.Check(policy, NotNil)
 		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
@@ -1566,7 +1566,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	defer restore()
 
 	gadgetUpdateCalled := false
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore = devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -2247,8 +2247,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 
 	// check the tasks
 	tPrepareKernel := tl[0]
-	tLinkKernel := tl[1]
-	tUpdateAssetsKernel := tl[2]
+	tUpdateAssetsKernel := tl[1]
+	tLinkKernel := tl[2]
 	tPrepareBase := tl[3]
 	tLinkBase := tl[4]
 	tPrepareGadget := tl[5]
@@ -2290,20 +2290,20 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	// check the ordering, prepare/link are part of download edge and come first
 	c.Assert(tPrepareKernel.WaitTasks(), HasLen, 0)
 	c.Assert(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tUpdateAssetsKernel,
+	})
+	c.Assert(tUpdateAssetsKernel.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel,
 		tPrepareGadget,
 		tCreateRecovery,
 		tFinalizeRecovery,
-	})
-	c.Assert(tUpdateAssetsKernel.WaitTasks(), DeepEquals, []*state.Task{
-		tLinkKernel,
 	})
 	c.Assert(tPrepareBase.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel,
 	})
 	c.Assert(tLinkBase.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareBase,
-		tUpdateAssetsKernel,
+		tLinkKernel,
 	})
 	c.Assert(tPrepareGadget.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareBase,
@@ -2328,7 +2328,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	})
 	// setModel waits for everything in the change
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
-		tPrepareKernel, tLinkKernel, tUpdateAssetsKernel,
+		tPrepareKernel, tUpdateAssetsKernel, tLinkKernel,
 		tPrepareBase, tLinkBase,
 		tPrepareGadget, tUpdateAssets, tUpdateCmdline,
 		tCreateRecovery, tFinalizeRecovery,
@@ -2528,8 +2528,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 
 	// check the tasks
 	tSwitchChannelKernel := tl[0]
-	tLinkKernel := tl[1]
-	tUpdateAssetsFromKernel := tl[2]
+	tUpdateAssetsFromKernel := tl[1]
+	tLinkKernel := tl[2]
 	tSwitchChannelBase := tl[3]
 	tLinkBase := tl[4]
 	tSwitchChannelGadget := tl[5]
@@ -2543,10 +2543,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tSwitchChannelKernel.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelKernel.Summary(), Equals, `Switch pc-kernel-new channel to 20/stable`)
 	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
-	c.Assert(tLinkKernel.Kind(), Equals, "link-snap")
-	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
 	c.Assert(tUpdateAssetsFromKernel.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateAssetsFromKernel.Summary(), Equals, `Update assets from kernel "pc-kernel-new" (222) for remodel`)
+	c.Assert(tLinkKernel.Kind(), Equals, "link-snap")
+	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
 	c.Assert(tSwitchChannelBase.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelBase.Summary(), Equals, `Switch core20-new channel to latest/stable`)
 	c.Assert(tSwitchChannelBase.WaitTasks(), HasLen, 0)
@@ -2568,8 +2568,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 	// check the ordering, prepare/link are part of download edge and come first
 	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
-	c.Check(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
+	c.Check(tUpdateAssetsFromKernel.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchChannelKernel,
+	})
+	c.Check(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tUpdateAssetsFromKernel,
 	})
 	c.Assert(tLinkBase.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchChannelBase,
@@ -2581,7 +2584,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	})
 	// setModel waits for everything in the change
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
-		tSwitchChannelKernel, tLinkKernel, tUpdateAssetsFromKernel,
+		tSwitchChannelKernel, tUpdateAssetsFromKernel, tLinkKernel,
 		tSwitchChannelBase, tLinkBase,
 		tSwitchChannelGadget, tUpdateAssetsFromGadget, tUpdateCmdlineFromGadget,
 		tCreateRecovery, tFinalizeRecovery,
