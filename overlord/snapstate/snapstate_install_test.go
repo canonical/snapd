@@ -351,7 +351,6 @@ func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	}
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}}
 	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", nil)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
@@ -535,7 +534,6 @@ func (s *snapmgrTestSuite) TestInstallFailsOnSystem(c *C) {
 
 	snapsup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "system", SnapID: "some-snap-id", Revision: snap.R(1)}}
 	_, err := snapstate.DoInstall(s.state, nil, snapsup, 0, "", nil)
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot install reserved snap name 'system'`)
 }
 
@@ -622,8 +620,6 @@ func (s *snapmgrTestSuite) TestInstallStrictIgnoresClassic(c *C) {
 
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-strict"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{Classic: true})
-	c.Assert(err, IsNil)
-
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -832,8 +828,6 @@ confinement: strict
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 
-	c.Assert(err, IsNil)
-
 	chg := s.state.NewChange("install", "install snap")
 	chg.AddAll(ts)
 
@@ -871,8 +865,6 @@ epoch: 1
 `)
 
 	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{})
-	c.Assert(err, IsNil)
-
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install snap")
@@ -4225,4 +4217,61 @@ func (s *snapmgrTestSuite) TestInstallDeduplicatesSnapNames(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(installed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 	c.Check(ts, HasLen, 2)
+}
+
+type installFn func(info *snap.SideInfo) (*state.TaskSet, error)
+
+func (s *snapmgrTestSuite) TestCorrectNumRevisionsIfNoneAdded(c *C) {
+	// different paths to install a revision already stored in the state
+	installFuncs := []installFn{
+		func(si *snap.SideInfo) (*state.TaskSet, error) {
+			yaml := "name: some-snap\nversion: 1.0\nepoch: 1*"
+			path := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+			ts, _, err := snapstate.InstallPath(s.state, si, path, "some-snap", "", snapstate.Flags{})
+			return ts, err
+		}, func(si *snap.SideInfo) (*state.TaskSet, error) {
+			return snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: si.Revision}, s.user.ID, snapstate.Flags{})
+		},
+	}
+
+	for _, fn := range installFuncs {
+		s.testRetainCorrectNumRevisions(c, fn)
+	}
+}
+
+func (s *snapmgrTestSuite) testRetainCorrectNumRevisions(c *C, installFn installFn) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/stable",
+		Sequence:        []*snap.SideInfo{si},
+		Current:         si.Revision,
+		SnapType:        "app",
+	})
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.retain", 1), IsNil)
+	tr.Commit()
+
+	// install already stored revision
+	ts, err := installFn(si)
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+	chg := s.state.NewChange("install", "")
+	chg.AddAll(ts)
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Sequence, DeepEquals, []*snap.SideInfo{si})
 }
