@@ -600,6 +600,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	}
 	(void)sc_set_effective_identity(old);
 
+#if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 	/* We include the globs for the glvnd libraries for old snaps
 	 * based on core, Ubuntu 16.04 did not include glvnd itself.
 	 *
@@ -622,6 +623,7 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 		globs = full_globs;
 		globs_len = nvidia_globs_len + glvnd_globs_len;
 	}
+#endif
 
 #ifdef NVIDIA_MULTIARCH
 	sc_mount_nvidia_driver_multiarch(rootfs_dir, globs, globs_len);
