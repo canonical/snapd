@@ -65,6 +65,23 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 	r := systemd.MockSystemdVersion(248, nil)
 	s.AddCleanup(r)
 	servicestate.CheckSystemdVersion()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	if _, err := os.Stat(filepath.Dir(cgroupsPath)); os.IsNotExist(err) {
+		err := os.Mkdir(filepath.Dir(cgroupsPath), 0777)
+		c.Assert(err, check.IsNil)
+	}
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, check.IsNil)
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	1
+devices	10	135	1`)
+	c.Assert(err, check.IsNil)
+	cgroupsFile.Sync()
 }
 
 type quotaGroupState struct {
@@ -932,7 +949,7 @@ func (s *quotaControlSuite) TestMemoryCGroupDisabled(c *C) {
 		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
 	}()
 
-	cgroupsPath := dirs.GlobalRootDir + "/cgroups_disabled"
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err := os.Create(cgroupsPath)
 	c.Assert(err, check.IsNil)
 	defer cgroupsFile.Close()
@@ -979,7 +996,7 @@ func (s *quotaControlSuite) TestMemoryCGroupEnabled(c *C) {
 		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
 	}()
 
-	cgroupsPath := dirs.GlobalRootDir + "/cgroups_enabled"
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err := os.Create(cgroupsPath)
 	c.Assert(err, check.IsNil)
 	defer cgroupsFile.Close()
@@ -1026,7 +1043,7 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
 	}()
 
 	// reset memory cgroup status with the non-existing file
-	cgroupsPath := dirs.GlobalRootDir + "/cgroups_missing_file"
+	cgroupsPath := dirs.GlobalRootDir + "/missing_file"
 	servicestate.SetCGroupsFilePath(cgroupsPath)
 
 	// check if all operations fail with the expected error message
@@ -1061,8 +1078,9 @@ func (s *quotaControlSuite) TestMemoryCGroupMalformed(c *C) {
 		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
 	}()
 
-	cgroupsPath := dirs.GlobalRootDir + "/cgroups_malformed"
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, check.IsNil)
 	c.Assert(err, check.IsNil)
 	defer cgroupsFile.Close()
 	// each configuration has 5 fields instead of 4
