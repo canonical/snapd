@@ -155,6 +155,16 @@ execute: |
         exit 0
     fi
 
+    if [ "$SPREAD_REBOOT" != "0" ]; then
+      snap list | MATCH snapd
+      systemctl status snapd.service
+      if ! os.query is-trusty && ! os.query is-xenial; then
+        systemctl status snapd.apparmor.service
+      fi
+      cat /var/lib/snapd/system-key
+      echo "Rebooted successfully"
+      exit 0
+    fi
     # shellcheck disable=SC2164
     pushd "$PROJECT_PATH"
 
@@ -344,4 +354,12 @@ execute: |
     # also check that snapd-apparmor service works
     if ! os.query is-trusty && ! os.query is-xenial; then
       systemctl status snapd.apparmor.service
+    fi
+
+    # reboot to ensure snapd.apparmor still works then too
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        systemctl stop snapd
+        rm -f /var/lib/snapd/system-key
+        echo "Rebooting to re-generate system-key..."
+        REBOOT
     fi
