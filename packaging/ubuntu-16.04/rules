@@ -43,13 +43,9 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
-BUILDFLAGS+=-ldflags=-w
-# Disable -buildmode=pie mode on all our 32bit platforms
-# (i386 and armhf). For i386 because of LP: #1711052 and for
-# armhf because of LP: #1822738
-ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH_BITS),64)
- BUILDFLAGS+= -buildmode=pie
-endif
+BUILDFLAGS+=-ldflags="-w -s"
+# Note that we do no longer build with "buildmode=pie" because with go-1.13
+# the size of the snapd snap increases by 10Mb in this mode on amd64.
 
 GCCGOFLAGS=
 ifeq ($(GCCGO),yes)
