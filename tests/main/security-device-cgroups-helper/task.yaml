@@ -82,6 +82,8 @@ execute: |
     tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
     # and it should be possible to read a line now
     touch /var/snap/test-strict-cgroup-helper/common/ready
+    # wait for the snap application we started in the background earlier to
+    # finish
     wait
     NOMATCH 'Operation not permitted' < run.log
     test -n "$(cat run.log)"
