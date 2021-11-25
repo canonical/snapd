@@ -19,20 +19,6 @@
 
 package builtin
 
-import (
-	"fmt"
-	"io/ioutil"
-	"regexp"
-	"strings"
-
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/kmod"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/snap"
-)
-
 const acrnSummary = `allows access to the acrn_hsm device`
 
 const acrnBaseDeclarationSlots = `
@@ -56,7 +42,7 @@ type acrnInterface struct {
 }
 
 var acrnConnectedPlugUDev = []string{
-    `KERNEL=="acrn_hsm"`,
+	`KERNEL=="acrn_hsm"`,
 }
 
 func init() {
@@ -65,7 +51,7 @@ func init() {
 		summary:               acrnSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-        connectedPlugUDev:     acrnConnectedPlugUDev,
+		connectedPlugUDev:     acrnConnectedPlugUDev,
 		baseDeclarationSlots:  acrnBaseDeclarationSlots,
 		connectedPlugAppArmor: acrnConnectedPlugAppArmor,
 	}})
