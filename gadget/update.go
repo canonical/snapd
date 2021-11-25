@@ -177,13 +177,16 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// don't return a reason if the names don't match
 			return false, ""
 		case ds.StartOffset != gs.StartOffset:
-			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))", ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
+				ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
 		case !isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
 			return false, "filesystems do not match and the partition is not creatable at install"
 		case dv.Size < gv.Size:
-			return false, "on disk size is smaller than gadget size"
+			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget size %d (%s)",
+				dv.Size, dv.Size.IECString(), gv.Size, gv.Size.IECString())
 		case gv.Role != SystemData && dv.Size > gv.Size:
-			return false, "on disk size is larger than gadget size (and the role should not be expanded)"
+			return false, fmt.Sprintf("on disk size %d (%s) is larger than gadget size %d (%s) (and the role should not be expanded)",
+				dv.Size, dv.Size.IECString(), gv.Size, gv.Size.IECString())
 		default:
 			return false, "some other logic condition (should be impossible?)"
 		}
@@ -206,9 +209,10 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	}
 
 	// check size of volumes
-	if gadgetLayout.Size > diskLayout.Size {
-		return fmt.Errorf("device %v (%s) is too small to fit the requested layout (%s)", diskLayout.Device,
-			diskLayout.Size.IECString(), gadgetLayout.Size.IECString())
+	lastUsableByte := quantity.Size(diskLayout.UsableSectorsEnd) * diskLayout.SectorSize
+	if gadgetLayout.Size > lastUsableByte {
+		return fmt.Errorf("device %v (last usable byte at %s) is too small to fit the requested layout (%s)", diskLayout.Device,
+			lastUsableByte.IECString(), gadgetLayout.Size.IECString())
 	}
 
 	// check that the sizes of all structures in the gadget are multiples of
@@ -281,7 +285,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 //    new kernel (rule 1)
 // d. After step (c) is completed the kernel refresh will now also
 //    work (no more violation of rule 1)
-func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
+func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// TODO: support multi-volume gadgets. But for now we simply
 	//       do not do any gadget updates on those. We cannot error
 	//       here because this would break refreshes of gadgets even

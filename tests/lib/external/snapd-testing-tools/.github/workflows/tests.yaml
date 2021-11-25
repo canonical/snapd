@@ -1,0 +1,30 @@
+name: Jobs
+on:
+  push:
+    branches:
+      - '**'        # matches every branch
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Run shellCheck for tools
+      run: |
+          sudo apt-get remove --purge shellcheck
+          sudo snap install shellcheck
+
+          find tools -type f -exec sh -c "head -n 1 {} | egrep -a 'bin/bash|bin/sh' >/dev/null" \; -print -exec shellcheck {} \;
+
+  test:
+    needs: [unit-tests]
+    runs-on: self-hosted
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Run test
+      run: |
+          spread google:tests/

@@ -35,7 +35,7 @@ import (
 // fallback logic will revert to "os=v1" but on the filesystem snappy
 // still has the "active" version set to "v2" which is
 // misleading. This code will check what kernel/os booted and set
-// those versions active.To do this it creates a Change and kicks
+// those versions active. To do this it creates a Change and kicks
 // start it directly.
 func UpdateBootRevisions(st *state.State) error {
 	const errorPrefix = "cannot update revisions after boot changes: "

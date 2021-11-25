@@ -336,6 +336,12 @@ var templateCommon = `
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
 
+  # Experimental snap folder changes
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/                    r,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/**                  mrkix,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
+
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
@@ -405,7 +411,7 @@ var templateCommon = `
   signal (receive) peer=unconfined,
 
   # for 'udevadm trigger --verbose --dry-run --tag-match=snappy-assign'
-  /{,s}bin/udevadm ixr,
+  /{,usr/}{,s}bin/udevadm ixr,
   /etc/udev/udev.conf r,
   /{,var/}run/udev/tags/snappy-assign/ r,
   @{PROC}/cmdline r,

@@ -258,7 +258,7 @@ func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
 }
 
 // EstimateSnapshotSize calculates estimated size of the snapshot.
-func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
+func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirOptions) (uint64, error) {
 	var total uint64
 	calculateSize := func(path string, finfo os.FileInfo, err error) error {
 		if finfo.Mode().IsRegular() {
@@ -284,15 +284,15 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
 		}
 	}
 
-	users, err := usersForUsernames(usernames)
+	users, err := usersForUsernames(usernames, opts)
 	if err != nil {
 		return 0, err
 	}
 	for _, usr := range users {
-		if err := visitDir(si.UserDataDir(usr.HomeDir)); err != nil {
+		if err := visitDir(si.UserDataDir(usr.HomeDir, opts)); err != nil {
 			return 0, err
 		}
-		if err := visitDir(si.UserCommonDataDir(usr.HomeDir)); err != nil {
+		if err := visitDir(si.UserCommonDataDir(usr.HomeDir, opts)); err != nil {
 			return 0, err
 		}
 	}
@@ -302,7 +302,7 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
 	}
@@ -334,13 +334,13 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		return nil, err
 	}
 
-	users, err := usersForUsernames(usernames)
+	users, err := usersForUsernames(usernames, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, usr := range users {
-		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
+		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir, opts)); err != nil {
 			return nil, err
 		}
 	}
