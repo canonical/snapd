@@ -34,6 +34,7 @@ import (
 	"syscall"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -196,7 +197,7 @@ type Logf func(format string, args ...interface{})
 // If successful this will replace the existing data (for the given revision,
 // or the one in the snapshot) with that contained in the snapshot. It keeps
 // track of the old data in the task so it can be undone (or cleaned up).
-func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames []string, logf Logf) (rs *RestoreState, e error) {
+func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames []string, logf Logf, opts *dirs.SnapDirOptions) (rs *RestoreState, e error) {
 	rs = &RestoreState{}
 	defer func() {
 		if e != nil {
@@ -247,7 +248,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 				continue
 			}
 
-			dest = si.UserDataDir(usr.HomeDir)
+			dest = si.UserDataDir(usr.HomeDir, opts)
 			fi, err := os.Stat(usr.HomeDir)
 			if err != nil {
 				if osutil.IsDirNotExist(err) {

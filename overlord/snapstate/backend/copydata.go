@@ -22,13 +22,14 @@ package backend
 import (
 	"os"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 )
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
-func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error {
+func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
@@ -53,16 +54,16 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter)
 		return nil
 	}
 
-	return copySnapData(oldSnap, newSnap)
+	return copySnapData(oldSnap, newSnap, opts)
 }
 
 // UndoCopySnapData removes the copy that may have been done for newInfo snap of oldInfo snap data and also the data directories that may have been created for newInfo snap.
-func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter progress.Meter) error {
+func (b Backend) UndoCopySnapData(newInfo, oldInfo *snap.Info, _ progress.Meter, opts *dirs.SnapDirOptions) error {
 	if oldInfo != nil && oldInfo.Revision == newInfo.Revision {
 		// nothing to do
 		return nil
 	}
-	err1 := b.RemoveSnapData(newInfo)
+	err1 := b.RemoveSnapData(newInfo, opts)
 	if err1 != nil {
 		logger.Noticef("Cannot remove data directories for %q: %v", newInfo.InstanceName(), err1)
 	}
@@ -70,12 +71,12 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 	var err2 error
 	if oldInfo == nil {
 		// first install, remove created common data dir
-		err2 = b.RemoveSnapCommonData(newInfo)
+		err2 = b.RemoveSnapCommonData(newInfo, opts)
 		if err2 != nil {
 			logger.Noticef("Cannot remove common data directories for %q: %v", newInfo.InstanceName(), err2)
 		}
 	} else {
-		err2 = b.untrashData(newInfo)
+		err2 = b.untrashData(newInfo, opts)
 		if err2 != nil {
 			logger.Noticef("Cannot restore original data for %q while undoing: %v", newInfo.InstanceName(), err2)
 		}
@@ -85,8 +86,8 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 }
 
 // ClearTrashedData removes the trash. It returns no errors on the assumption that it is called very late in the game.
-func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
-	dirs, err := snapDataDirs(oldSnap)
+func (b Backend) ClearTrashedData(oldSnap *snap.Info, opts *dirs.SnapDirOptions) {
+	dirs, err := snapDataDirs(oldSnap, opts)
 	if err != nil {
 		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.InstanceName(), err)
 		return
