@@ -1395,6 +1395,11 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "auto-connect:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:   "discard-namespace",
 			name: "some-snap",
 		},
