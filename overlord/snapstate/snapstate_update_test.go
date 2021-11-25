@@ -7085,7 +7085,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootNotWithCoreHappy(c *C) {
+func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	restore = snapstate.MockRevisionDate(nil)
