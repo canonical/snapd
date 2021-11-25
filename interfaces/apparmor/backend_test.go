@@ -101,6 +101,12 @@ echo "permanent failure"
 exit 1
 `
 
+// apparmor parser which appears to succeed but actually fails
+const fakeParserErrorAppArmorParser = `
+echo "parser error"
+exit 0
+`
+
 // apparmor parser that fails when processing more than 3 profiles, i.e.
 // when reloading profiles in a batch, but succeeds when run for individual
 // runs for snaps with less profiles.
@@ -506,6 +512,41 @@ func (s *backendSuite) checkSetupManyCallsWithFallback(c *C, cmd *testutil.MockC
 		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap1nsProfile, snap1AAprofile},
 		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), "--quiet", snap2nsProfile, snap2AAprofile},
 	})
+}
+
+func (s *backendSuite) TestSetupManyApparmorBatchProcessingParserError(c *C) {
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	for _, opts := range testedConfinementOpts {
+		log.Reset()
+
+		// note, InstallSnap here uses s.parserCmd which mocks happy apparmor_parser
+		snapInfo1 := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo2 := s.InstallSnap(c, opts, "", ifacetest.SomeSnapYamlV1, 1)
+		s.parserCmd.ForgetCalls()
+		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
+		c.Assert(ok, Equals, true)
+
+		// mock apparmor_parser again with one that returns 0 but specifies parser error
+		// in it's output and hence which should be treated as an error
+		// (and restore immediately for the next iteration of the test)
+		failingParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserErrorAppArmorParser)
+		errs := setupManyInterface.SetupMany([]*snap.Info{snapInfo1, snapInfo2}, func(snapName string) interfaces.ConfinementOptions { return opts }, s.Repo, s.meas)
+		failingParserCmd.Restore()
+
+		s.checkSetupManyCallsWithFallback(c, failingParserCmd)
+
+		// two errors expected: SetupMany failure on multiple snaps falls back to one-by-one apparmor invocations. Both fail on apparmor_parser again and we only see
+		// individual failures. Error from batch run is only logged.
+		c.Assert(errs, HasLen, 2)
+		c.Check(errs[0], ErrorMatches, ".*cannot setup profiles for snap \"samba\".*\napparmor_parser output:\nparser error\n")
+		c.Check(errs[1], ErrorMatches, ".*cannot setup profiles for snap \"some-snap\".*\napparmor_parser output:\nparser error\n")
+		c.Check(log.String(), Matches, ".*failed to batch-reload unchanged profiles: cannot load apparmor profiles: exit status 0 with parser error\n.*\n.*\n")
+
+		s.RemoveSnap(c, snapInfo1)
+		s.RemoveSnap(c, snapInfo2)
+	}
 }
 
 func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) {
