@@ -165,6 +165,51 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 	return &snapsup, snapst, nil
 }
 
+// pathInfo holds information about a path install
+type pathInfo struct {
+	*snap.Info
+	path     string
+	sideInfo *snap.SideInfo
+}
+
+func (i pathInfo) DownloadSize() int64 {
+	return i.DownloadInfo.Size
+}
+
+// SnapBase returns the base snap of the snap.
+func (i pathInfo) SnapBase() string {
+	return i.Base
+}
+
+func (i pathInfo) Prereq(st *state.State) []string {
+	return getKeys(defaultProviderContentAttrs(st, i.Info))
+}
+
+func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, gFlags *Flags) (*SnapSetup, *SnapState, error) {
+	update := i.Info
+
+	_, _, snapst := params(update)
+
+	flags, err := earlyChecks(st, snapst, update, *gFlags)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	providerContentAttrs := defaultProviderContentAttrs(st, update)
+	snapsup := SnapSetup{
+		Base:               i.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		SideInfo:           i.sideInfo,
+		SnapPath:           i.path,
+		Flags:              flags.ForSnapSetup(),
+		Type:               i.Type(),
+		PlugsOnly:          len(i.Slots) == 0,
+		InstanceKey:        i.InstanceKey,
+	}
+	return &snapsup, snapst, nil
+}
+
 // soundness check
 var _ readyUpdateInfo = installSnapInfo{}
 
@@ -1047,6 +1092,62 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+}
+
+func InstallPathMany(ctx context.Context, st *state.State, paths []string, sideInfos []*snap.SideInfo, userID int, flags *Flags) ([]*state.TaskSet, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
+
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var updates []minimalInstallInfo
+	var names []string
+	stateByInstanceName := make(map[string]*SnapState, len(paths))
+
+	for i, path := range paths {
+		si := sideInfos[i]
+		name := si.RealName
+
+		info, container, err := backend.OpenSnapFile(path, si)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validateContainer(container, info, logger.Noticef); err != nil {
+			return nil, err
+		}
+		if err := snap.ValidateInstanceName(name); err != nil {
+			return nil, fmt.Errorf("invalid instance name: %v", err)
+		}
+
+		var snapst SnapState
+		if err = Get(st, name, &snapst); err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+
+		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
+		names = append(names, name)
+		stateByInstanceName[name] = &snapst
+	}
+
+	if err := checkDiskSpace(st, "install", updates, userID); err != nil {
+		return nil, err
+	}
+
+	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
+		return nil, Flags{}, stateByInstanceName[update.InstanceName()]
+	}
+
+	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	if err != nil {
+		return nil, err
+	}
+
+	return tasksets, nil
 }
 
 // InstallMany installs everything from the given list of names.
