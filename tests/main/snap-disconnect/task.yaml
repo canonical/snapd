@@ -1,7 +1,6 @@
 summary: Check that snap disconnect works
 
-# temporarily disabled on uc18 because of systemd bug LP:1949514
-systems: [-ubuntu-core-16-64, -ubuntu-core-18-64]
+systems: [-ubuntu-core-16-64]
 
 environment:
     SNAP_FILE: "home-consumer_1.0_all.snap"

@@ -24,13 +24,12 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/usersession/autostart"
@@ -64,14 +63,7 @@ func init() {
 
 var osChmod = os.Chmod
 
-func maybeFixupUsrSnapPermissions() error {
-	usr, err := userCurrent()
-	if err != nil {
-		return err
-	}
-
-	usrSnapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
-
+func maybeFixupUsrSnapPermissions(usrSnapDir string) error {
 	// restrict the user's "snap dir", i.e. /home/$USER/snap, to be private with
 	// permissions o0700 so that other users cannot read the data there, some
 	// snaps such as chromium etc may store secrets inside this directory
@@ -95,13 +87,19 @@ func (x *cmdUserd) Execute(args []string) error {
 	}
 
 	if x.Autostart {
+		// get the user's snap dir ($HOME/snap or $HOME/.snap/data)
+		usrSnapDir, err := getUserSnapDir()
+		if err != nil {
+			return err
+		}
+
 		// autostart is called when starting the graphical session, use that as
 		// an opportunity to fix ~/snap permission bits
-		if err := maybeFixupUsrSnapPermissions(); err != nil {
+		if err := maybeFixupUsrSnapPermissions(usrSnapDir); err != nil {
 			fmt.Fprintf(Stderr, "failure fixing ~/snap permissions: %v\n", err)
 		}
 
-		return x.runAutostart()
+		return x.runAutostart(usrSnapDir)
 	}
 
 	if x.Agent {
@@ -154,8 +152,8 @@ func (x *cmdUserd) runAgent() error {
 	return agent.Stop()
 }
 
-func (x *cmdUserd) runAutostart() error {
-	if err := autostart.AutostartSessionApps(); err != nil {
+func (x *cmdUserd) runAutostart(usrSnapDir string) error {
+	if err := autostart.AutostartSessionApps(usrSnapDir); err != nil {
 		return fmt.Errorf("autostart failed for the following apps:\n%v", err)
 	}
 	return nil
@@ -166,4 +164,14 @@ func signalNotifyImpl(sig ...os.Signal) (ch chan os.Signal, stop func()) {
 	signal.Notify(ch, sig...)
 	stop = func() { signal.Stop(ch) }
 	return ch, stop
+}
+
+func getUserSnapDir() (string, error) {
+	usr, err := userCurrent()
+	if err != nil {
+		return "", err
+	}
+
+	opts := getSnapDirOptions()
+	return snap.SnapDir(usr.HomeDir, opts), nil
 }

@@ -329,9 +329,9 @@ func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err 
 	return info, err
 }
 
-func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
+func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User, opts *dirs.SnapDirOptions) error {
 	// 'current' symlink for user data (SNAP_USER_DATA)
-	userData := info.UserDataDir(usr.HomeDir)
+	userData := info.UserDataDir(usr.HomeDir, opts)
 	wantedSymlinkValue := filepath.Base(userData)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 
@@ -373,7 +373,11 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 	return nil
 }
 
-func createUserDataDirs(info *snap.Info) error {
+func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
 	// Adjust umask so that the created directories have the permissions we
 	// expect and are unaffected by the initial umask. While go runtime creates
 	// threads at will behind the scenes, the setting of umask applies to the
@@ -392,15 +396,15 @@ func createUserDataDirs(info *snap.Info) error {
 		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
 	}
 	// see snapenv.User
-	instanceUserData := info.UserDataDir(usr.HomeDir)
-	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir)
+	instanceUserData := info.UserDataDir(usr.HomeDir, opts)
+	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
 		// namespace, namely /home/joe/snap/foo_bar ->
 		// /home/joe/snap/foo, make sure that the mount point exists and
 		// is owned by the user
-		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
+		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName(), opts)
 		createDirs = append(createDirs, snapUserDir)
 	}
 	for _, d := range createDirs {
@@ -410,17 +414,17 @@ func createUserDataDirs(info *snap.Info) error {
 		}
 	}
 
-	if err := createOrUpdateUserDataSymlink(info, usr); err != nil {
+	if err := createOrUpdateUserDataSymlink(info, usr, opts); err != nil {
 		return err
 	}
 
-	return maybeRestoreSecurityContext(usr)
+	return maybeRestoreSecurityContext(usr, opts)
 }
 
 // maybeRestoreSecurityContext attempts to restore security context of ~/snap on
 // systems where it's applicable
-func maybeRestoreSecurityContext(usr *user.User) error {
-	snapUserHome := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+func maybeRestoreSecurityContext(usr *user.User, opts *dirs.SnapDirOptions) error {
+	snapUserHome := snap.SnapDir(usr.HomeDir, opts)
 	enabled, err := selinuxIsEnabled()
 	if err != nil {
 		return fmt.Errorf("cannot determine SELinux status: %v", err)
@@ -1019,7 +1023,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
-	if err := createUserDataDirs(info); err != nil {
+	opts := getSnapDirOptions()
+	if err := createUserDataDirs(info, opts); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
@@ -1100,7 +1105,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if err != nil {
 		return err
 	}
-	snapenv.ExtendEnvForRun(env, info)
+	snapenv.ExtendEnvForRun(env, info, opts)
 
 	if len(xauthPath) > 0 {
 		// Environment is not nil here because it comes from
@@ -1211,6 +1216,12 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return x.runCmdUnderStrace(cmd, envForExec)
 	} else {
 		return syscallExec(cmd[0], cmd, envForExec(nil))
+	}
+}
+
+func getSnapDirOptions() *dirs.SnapDirOptions {
+	return &dirs.SnapDirOptions{
+		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
 	}
 }
 
