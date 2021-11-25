@@ -613,7 +613,7 @@ func (s *sideloadSuite) TestCleanUpTempFilesIfRequestFailed(c *check.C) {
 
 	apiErr := s.errorReq(c, req, nil)
 	c.Check(apiErr, check.NotNil)
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
 	c.Assert(err, check.IsNil)
 	c.Check(matches, check.HasLen, 0)
 }
@@ -641,7 +641,7 @@ func (s *sideloadSuite) TestCleanUpUnusedTempSnapFiles(c *check.C) {
 
 	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
 	c.Assert(err, check.IsNil)
-	// only the file passed into the change remains
+	// only the file passed into the change (the request's first file) remains
 	c.Check(matches, check.HasLen, 1)
 }
 
