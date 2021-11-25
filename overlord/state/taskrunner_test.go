@@ -342,7 +342,7 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	}
 }
 
-func (ts *taskRunnerSuite) TestAbortAcrossLanes(c *C) {
+func (ts *taskRunnerSuite) TestAbortAcrossLanesDescendantTask(c *C) {
 
 	// <task>(<lane>)
 	//  t11(1) -> t12(1)                                                  => t15(1)
@@ -442,6 +442,101 @@ func (ts *taskRunnerSuite) TestAbortAcrossLanes(c *C) {
 		"t24:undo", "t23:undo", "t14:undo", "t13:undo",
 	})
 	c.Assert(sequence[15:19], testutil.DeepUnsortedMatches, []string{
+		"t21:undo", "t22:undo",
+		"t12:undo", "t11:undo",
+	})
+}
+
+func (ts *taskRunnerSuite) TestAbortAcrossLanesStriclyOrderedTasks(c *C) {
+
+	// <task>(<lane>)
+	//  t11(1) -> t12(1)
+	//                   \
+	//                    => t13(1,2) => t14(1,2) => t23(1,2) => t24(1,2)
+	//                   /
+	//  t21(2) -> t22(2)
+	//
+	names := strings.Fields("t11 t12 t13 t14 t21 t22 t23 t24")
+
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(len(st.Tasks()), Equals, 0)
+
+	chg := st.NewChange("install", "...")
+	tasks := make(map[string]*state.Task)
+	for _, name := range names {
+		tasks[name] = st.NewTask("do", name)
+		chg.AddTask(tasks[name])
+	}
+	tasks["t12"].WaitFor(tasks["t11"])
+	tasks["t13"].WaitFor(tasks["t12"])
+	tasks["t14"].WaitFor(tasks["t13"])
+	for lane, names := range map[int][]string{
+		1: {"t11", "t12", "t13", "t14", "t23", "t24"},
+		2: {"t21", "t22", "t23", "t24", "t13", "t14"},
+	} {
+		for _, name := range names {
+			tasks[name].JoinLane(lane)
+		}
+	}
+
+	tasks["t22"].WaitFor(tasks["t21"])
+	tasks["t23"].WaitFor(tasks["t22"])
+	tasks["t24"].WaitFor(tasks["t23"])
+
+	tasks["t13"].WaitFor(tasks["t22"])
+	tasks["t23"].WaitFor(tasks["t14"])
+
+	ch := make(chan string, 256)
+	do := func(task *state.Task, tomb *tomb.Tomb) error {
+		c.Logf("do %q", task.Summary())
+		label := task.Summary()
+		if label == "t24" {
+			ch <- fmt.Sprintf("t24:error")
+			return fmt.Errorf("mock error")
+		}
+		ch <- fmt.Sprintf("%s:do", label)
+		return nil
+	}
+	undo := func(task *state.Task, tomb *tomb.Tomb) error {
+		c.Logf("undo %q", task.Summary())
+		label := task.Summary()
+		ch <- fmt.Sprintf("%s:undo", label)
+		return nil
+	}
+	r.AddHandler("do", do, undo)
+
+	c.Logf("-----")
+
+	st.Unlock()
+	ensureChange(c, r, sb, chg)
+	st.Lock()
+	close(ch)
+	var sequence []string
+	for event := range ch {
+		sequence = append(sequence, event)
+	}
+	for _, name := range names {
+		task := tasks[name]
+		c.Logf("%5s %5s lanes: %v status: %v", task.ID(), task.Summary(), task.Lanes(), task.Status())
+	}
+	c.Assert(sequence[:4], testutil.DeepUnsortedMatches, []string{
+		"t11:do", "t12:do",
+		"t21:do", "t22:do",
+	})
+	c.Assert(sequence[4:8], DeepEquals, []string{
+		"t13:do", "t14:do", "t23:do", "t24:error",
+	})
+	c.Assert(sequence[8:11], DeepEquals, []string{
+		"t23:undo", "t14:undo", "t13:undo",
+	})
+	c.Assert(sequence[11:], testutil.DeepUnsortedMatches, []string{
 		"t21:undo", "t22:undo",
 		"t12:undo", "t11:undo",
 	})
