@@ -8,13 +8,13 @@ restore: |
 
 debug: |
     echo 'experimental "snapd-snap" feature is enabled:'
-    snap get core experimental.snapd-snap
+    snap get core experimental.snapd-snap || true
 
     echo "snap changes"
-    snap changes
+    snap changes || true
 
     echo "list of installed snaps"
-    snap list
+    snap list || true
 
 execute: |
     if [ "${SNAP_REEXEC:-}" = "0" ]; then
