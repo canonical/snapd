@@ -160,6 +160,10 @@ execute: |
     fi
 
     if [ "$SPREAD_REBOOT" != "0" ]; then
+      if os.query is-trusty; then
+        # seems we have to kick trusty along
+        systemctl restart snapd
+      fi
       snap list | MATCH snapd
       systemctl status snapd.service
       if ! os.query is-trusty && ! os.query is-xenial; then
