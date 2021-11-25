@@ -27,6 +27,10 @@ package builtin
  * as an auxiliary daemon. tun/tap kernel module is used for creating virtual interfaces.
  * Virtual machines rely on KVM for virtualization acceleration and on vhost
  * framework in the kernel (vhost_net, vhost_scsi, vhost_vsock).
+ *
+ * This interface uses the controlsDeviceCgroup flag (which implies
+ * `Delegate=true` on the systemd unit) since the snap already manages the
+ * cgroup configuration of its containers.
  */
 
 const microStackSupportSummary = `allows operating as the MicroStack service`
