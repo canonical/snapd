@@ -17,7 +17,7 @@
  *
  */
 
-package quantity
+package quantity_test
 
 import (
 	"fmt"
@@ -26,6 +26,8 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -66,19 +68,19 @@ var dataset = []float64{
 }
 
 var tests = []struct {
-	min     Duration
-	max     Duration
-	count   Places
-	render  RenderMode
-	space   SpaceMode
+	min     quantity.Duration
+	max     quantity.Duration
+	count   quantity.Places
+	render  quantity.RenderMode
+	space   quantity.SpaceMode
 	results []string
 }{
 	{
-		NSecond,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -111,11 +113,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Day,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Day,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -148,11 +150,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Hour,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Hour,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -185,11 +187,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Minute,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Minute,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -222,11 +224,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Second,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Second,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -259,11 +261,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		NSecond,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.NSecond,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -296,11 +298,11 @@ var tests = []struct {
 		},
 	},
 	{
-		USecond,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.USecond,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0µs",
 			"0µs",
@@ -333,11 +335,11 @@ var tests = []struct {
 		},
 	},
 	{
-		MSecond,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.MSecond,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ms",
 			"0ms",
@@ -370,11 +372,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.Second,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0s",
 			"0s",
@@ -407,11 +409,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Minute,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.Minute,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0m",
 			"0m",
@@ -444,11 +446,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Hour,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.Hour,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0h",
 			"0h",
@@ -481,11 +483,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Day,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.Day,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0d",
 			"0d",
@@ -518,11 +520,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Year,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.Year,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0y",
 			"0y",
@@ -555,11 +557,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Hour,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOn,
+		quantity.Second,
+		quantity.Hour,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0s",
 			"0s",
@@ -592,11 +594,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -629,11 +631,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Day,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Day,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -666,11 +668,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Hour,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Hour,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -703,11 +705,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Minute,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Minute,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -740,11 +742,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Second,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.Second,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -777,11 +779,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		NSecond,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.NSecond,
+		quantity.NSecond,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ns",
 			"0ns",
@@ -814,11 +816,11 @@ var tests = []struct {
 		},
 	},
 	{
-		USecond,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.USecond,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0µs",
 			"0µs",
@@ -851,11 +853,11 @@ var tests = []struct {
 		},
 	},
 	{
-		MSecond,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.MSecond,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0ms",
 			"0ms",
@@ -888,11 +890,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.Second,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0s",
 			"0s",
@@ -925,11 +927,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Minute,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.Minute,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0m",
 			"0m",
@@ -962,11 +964,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Hour,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.Hour,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0h",
 			"0h",
@@ -999,11 +1001,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Day,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.Day,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0d",
 			"0d",
@@ -1036,11 +1038,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Year,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.Year,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0y",
 			"0y",
@@ -1073,11 +1075,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Hour,
-		ShowCompact,
-		TimeLeft,
-		SpaceOn,
+		quantity.Second,
+		quantity.Hour,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOn,
 		[]string{
 			"0s",
 			"0s",
@@ -1110,11 +1112,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1147,11 +1149,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Day,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Day,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1184,11 +1186,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Hour,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Hour,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1221,11 +1223,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Minute,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Minute,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1258,11 +1260,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Second,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Second,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1295,11 +1297,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		NSecond,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.NSecond,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1332,11 +1334,11 @@ var tests = []struct {
 		},
 	},
 	{
-		USecond,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.USecond,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0µs",
 			"0µs",
@@ -1369,11 +1371,11 @@ var tests = []struct {
 		},
 	},
 	{
-		MSecond,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.MSecond,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ms",
 			"0ms",
@@ -1406,11 +1408,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.Second,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0s",
 			"0s",
@@ -1443,11 +1445,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Minute,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.Minute,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0m",
 			"0m",
@@ -1480,11 +1482,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Hour,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.Hour,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0h",
 			"0h",
@@ -1517,11 +1519,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Day,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.Day,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0d",
 			"0d",
@@ -1554,11 +1556,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Year,
-		Year,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.Year,
+		quantity.Year,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0y",
 			"0y",
@@ -1591,11 +1593,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Hour,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.Second,
+		quantity.Hour,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0s",
 			"0s",
@@ -1628,11 +1630,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1665,11 +1667,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Day,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Day,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1702,11 +1704,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Hour,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Hour,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1739,11 +1741,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Minute,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Minute,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1776,11 +1778,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		Second,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.Second,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1813,11 +1815,11 @@ var tests = []struct {
 		},
 	},
 	{
-		NSecond,
-		NSecond,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.NSecond,
+		quantity.NSecond,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ns",
 			"0ns",
@@ -1850,11 +1852,11 @@ var tests = []struct {
 		},
 	},
 	{
-		USecond,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.USecond,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0µs",
 			"0µs",
@@ -1887,11 +1889,11 @@ var tests = []struct {
 		},
 	},
 	{
-		MSecond,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.MSecond,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0ms",
 			"0ms",
@@ -1924,11 +1926,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.Second,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0s",
 			"0s",
@@ -1961,11 +1963,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Minute,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.Minute,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0m",
 			"0m",
@@ -1998,11 +2000,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Hour,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.Hour,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0h",
 			"0h",
@@ -2035,11 +2037,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Day,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.Day,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0d",
 			"0d",
@@ -2072,11 +2074,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Year,
-		Year,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.Year,
+		quantity.Year,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0y",
 			"0y",
@@ -2109,11 +2111,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Second,
-		Hour,
-		ShowCompact,
-		TimeLeft,
-		SpaceOff,
+		quantity.Second,
+		quantity.Hour,
+		quantity.ShowCompact,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0s",
 			"0s",
@@ -2146,11 +2148,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Hour,
-		Hour,
-		ShowVerbose,
-		TimeLeft,
-		SpaceOff,
+		quantity.Hour,
+		quantity.Hour,
+		quantity.ShowVerbose,
+		quantity.TimeLeft,
+		quantity.SpaceOff,
 		[]string{
 			"0h",
 			"0h",
@@ -2183,11 +2185,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Hour,
-		Hour,
-		ShowVerbose,
-		TimePassed,
-		SpaceOff,
+		quantity.Hour,
+		quantity.Hour,
+		quantity.ShowVerbose,
+		quantity.TimePassed,
+		quantity.SpaceOff,
 		[]string{
 			"0h",
 			"0h",
@@ -2220,11 +2222,11 @@ var tests = []struct {
 		},
 	},
 	{
-		Hour,
-		Hour,
-		ShowVerbose,
-		TimeRounded,
-		SpaceOff,
+		quantity.Hour,
+		quantity.Hour,
+		quantity.ShowVerbose,
+		quantity.TimeRounded,
+		quantity.SpaceOff,
 		[]string{
 			"0h",
 			"0h",
@@ -2261,7 +2263,7 @@ var tests = []struct {
 func (s *quantitySuite) TestGeneric(c *C) {
 	for _, t := range tests {
 		for i, dt := range dataset {
-			output := fmt.Sprintf("%s", formatDurationGeneric(dt,
+			output := fmt.Sprintf("%s", quantity.FormatDurationGeneric(dt,
 				t.min,
 				t.max,
 				t.count,
@@ -2274,20 +2276,20 @@ func (s *quantitySuite) TestGeneric(c *C) {
 
 func (s *quantitySuite) TestInv(c *C) {
 	for _, dt := range dataset {
-		output := fmt.Sprintf("%s", formatDurationGeneric(dt,
-			Year,
-			Second,
-			ShowVerbose,
-			TimeLeft,
+		output := fmt.Sprintf("%s", quantity.FormatDurationGeneric(dt,
+			quantity.Year,
+			quantity.Second,
+			quantity.ShowVerbose,
+			quantity.TimeLeft,
 			true))
 
 		c.Check(output, Equals, "inv!")
 	}
 
-	output := fmt.Sprintf("%s", formatDurationGeneric(1,
-		Second,
-		Year,
-		ShowVerbose,
+	output := fmt.Sprintf("%s", quantity.FormatDurationGeneric(1,
+		quantity.Second,
+		quantity.Year,
+		quantity.ShowVerbose,
 		5,
 		true))
 

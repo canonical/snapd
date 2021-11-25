@@ -21,10 +21,11 @@ package quantity
 
 import (
 	"fmt"
-	"github.com/snapcore/snapd/i18n"
 	"math"
 	"sort"
 	"strconv"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 // these are taken from github.com/chipaca/quantity with permission :-)
