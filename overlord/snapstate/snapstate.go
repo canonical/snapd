@@ -185,15 +185,10 @@ func (i pathInfo) Prereq(st *state.State) []string {
 	return getKeys(defaultProviderContentAttrs(st, i.Info))
 }
 
-func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, gFlags *Flags) (*SnapSetup, *SnapState, error) {
+func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, _ *Flags) (*SnapSetup, *SnapState, error) {
 	update := i.Info
 
-	_, _, snapst := params(update)
-
-	flags, err := earlyChecks(st, snapst, update, *gFlags)
-	if err != nil {
-		return nil, nil, err
-	}
+	_, flags, snapst := params(update)
 
 	providerContentAttrs := defaultProviderContentAttrs(st, update)
 	snapsup := SnapSetup{
@@ -1094,7 +1089,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func InstallPathMany(ctx context.Context, st *state.State, paths []string, sideInfos []*snap.SideInfo, userID int, flags *Flags) ([]*state.TaskSet, error) {
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1107,6 +1102,7 @@ func InstallPathMany(ctx context.Context, st *state.State, paths []string, sideI
 	var updates []minimalInstallInfo
 	var names []string
 	stateByInstanceName := make(map[string]*SnapState, len(paths))
+	flagsByInstanceName := make(map[string]Flags, len(paths))
 
 	for i, path := range paths {
 		si := sideInfos[i]
@@ -1129,9 +1125,19 @@ func InstallPathMany(ctx context.Context, st *state.State, paths []string, sideI
 			return nil, err
 		}
 
+		flags, err := earlyChecks(st, &snapst, info, *flags)
+		if err != nil {
+			return nil, err
+		}
+
+		if !(flags.JailMode || flags.DevMode) {
+			flags.Classic = flags.Classic || snapst.Flags.Classic
+		}
+
 		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
 		names = append(names, name)
 		stateByInstanceName[name] = &snapst
+		flagsByInstanceName[name] = flags
 	}
 
 	if err := checkDiskSpace(st, "install", updates, userID); err != nil {
@@ -1139,7 +1145,8 @@ func InstallPathMany(ctx context.Context, st *state.State, paths []string, sideI
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
-		return nil, Flags{}, stateByInstanceName[update.InstanceName()]
+		name := update.InstanceName()
+		return nil, flagsByInstanceName[name], stateByInstanceName[name]
 	}
 
 	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")

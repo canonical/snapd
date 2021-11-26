@@ -4304,7 +4304,7 @@ epoch: 1
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, paths, sideInfos, 0, nil)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4348,7 +4348,7 @@ epoch: 1
 		return errors.New("expected")
 	}, nil)
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, paths, sideInfos, 0, nil)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4415,7 +4415,7 @@ epoch: 1
 		sideInfos = append(sideInfos, newSi)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, paths, sideInfos, 0, nil)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4465,7 +4465,7 @@ epoch: 1
 	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
 	tr.Commit()
 
-	_, err := snapstate.InstallPathMany(context.Background(), s.state, paths, sideInfos, 0, nil)
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
 	diskSpaceErr, ok := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(ok, Equals, true)
 	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap, other-snap`)
@@ -4498,7 +4498,7 @@ confinement: classic
 		sideInfos = append(sideInfos, si)
 	}
 
-	tts, err := snapstate.InstallPathMany(context.Background(), s.state, paths, sideInfos, s.user.ID, &snapstate.Flags{Classic: true})
+	tts, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 
@@ -4531,7 +4531,7 @@ confinement: devmode
 		sideInfos = append(sideInfos, si)
 	}
 
-	tts, err := snapstate.InstallPathMany(context.Background(), s.state, paths, sideInfos, s.user.ID, &snapstate.Flags{DevMode: true})
+	tts, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 
@@ -4564,7 +4564,7 @@ confinement: classic
 		sideInfos = append(sideInfos, si)
 	}
 
-	_, err := snapstate.InstallPathMany(context.Background(), s.state, paths, sideInfos, s.user.ID, nil)
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" requires classic confinement`)
 }
 
@@ -4587,6 +4587,6 @@ epoch: 42
 		Revision: snap.R(-2),
 	}
 
-	_, err := snapstate.InstallPathMany(context.Background(), s.state, []string{path}, []*snap.SideInfo{si}, s.user.ID, nil)
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.SideInfo{si}, []string{path}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, `cannot refresh "some-snap" to local snap with epoch 42, because it can't read the current epoch of 1\*`)
 }
