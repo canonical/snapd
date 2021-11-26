@@ -29,6 +29,9 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+// maximum number of entries kept in validation-sets-history in the state
+var maxValidationSetsHistorySize = 50
+
 // ValidationSetMode reflects the mode of respective validation set, which is
 // either monitoring or enforcing.
 type ValidationSetMode int
@@ -57,6 +60,12 @@ type ValidationSetTracking struct {
 	LocalOnly bool `json:"local-only,omitempty"`
 }
 
+func (vs *ValidationSetTracking) sameAs(tr *ValidationSetTracking) bool {
+	return vs.AccountID == tr.AccountID && vs.Current == tr.Current &&
+		vs.LocalOnly == tr.LocalOnly && vs.Mode == tr.Mode &&
+		vs.Name == tr.Name && vs.PinnedAt == tr.PinnedAt
+}
+
 // ValidationSetKey formats the given account id and name into a validation set key.
 func ValidationSetKey(accountID, name string) string {
 	return fmt.Sprintf("%s/%s", accountID, name)
@@ -83,19 +92,21 @@ func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 	st.Set("validation-sets", vsmap)
 }
 
-// DeleteValidationSet deletes a validation set for the given accoundID and name.
+// ForgetValidationSet deletes a validation set for the given accountID and name.
 // It is not an error to delete a non-existing one.
-func DeleteValidationSet(st *state.State, accountID, name string) {
+func ForgetValidationSet(st *state.State, accountID, name string) error {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
 	if err != nil && err != state.ErrNoState {
 		panic("internal error: cannot unmarshal validation set tracking state: " + err.Error())
 	}
 	if len(vsmap) == 0 {
-		return
+		return nil
 	}
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-sets", vsmap)
+
+	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
 // GetValidationSet retrieves the ValidationSetTracking for the given account and name.
@@ -171,4 +182,82 @@ func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error
 	}
 
 	return sets, err
+}
+
+// addCurrentTrackingToValidationSetsHistory stores the current state of validation-sets
+// tracking on top of the validation sets history.
+func addCurrentTrackingToValidationSetsHistory(st *state.State) error {
+	current, err := ValidationSets(st)
+	if err != nil {
+		return err
+	}
+	return addToValidationSetsHistory(st, current)
+}
+
+func addToValidationSetsHistory(st *state.State, validationSets map[string]*ValidationSetTracking) error {
+	vshist, err := ValidationSetsHistory(st)
+	if err != nil {
+		return err
+	}
+
+	// if nothing is being tracked and history is empty (meaning nothing was
+	// tracked before), then don't store anything.
+	// if nothing is being tracked but history is not empty, then we want to
+	// store empty tracking - this means snap validate --forget was used and
+	// we need to remember such empty state in the history.
+	if len(validationSets) == 0 && len(vshist) == 0 {
+		return nil
+	}
+
+	var matches bool
+	if len(vshist) > 0 {
+		// only add to the history if it's different than topmost entry
+		top := vshist[len(vshist)-1]
+		if len(top) == len(validationSets) {
+			matches = true
+			for vskey, vset := range validationSets {
+				prev, ok := top[vskey]
+				if !ok || !prev.sameAs(vset) {
+					matches = false
+					break
+				}
+			}
+		}
+	}
+	if !matches {
+		vshist = append(vshist, validationSets)
+	}
+	if len(vshist) > maxValidationSetsHistorySize {
+		vshist = vshist[len(vshist)-maxValidationSetsHistorySize:]
+	}
+	st.Set("validation-sets-history", &vshist)
+	return nil
+}
+
+// validationSetsHistoryTop returns the topmost validation sets tracking state from
+// the validations sets tracking history.
+func validationSetsHistoryTop(st *state.State) (map[string]*ValidationSetTracking, error) {
+	var vshist []*json.RawMessage
+	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if len(vshist) == 0 {
+		return nil, nil
+	}
+	// decode just the topmost entry
+	raw := vshist[len(vshist)-1]
+	var top map[string]*ValidationSetTracking
+	if err := json.Unmarshal([]byte(*raw), &top); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal validation set tracking state: %v", err)
+	}
+	return top, nil
+}
+
+// ValidationSetsHistory returns the complete history of validation sets tracking.
+func ValidationSetsHistory(st *state.State) ([]map[string]*ValidationSetTracking, error) {
+	var vshist []map[string]*ValidationSetTracking
+	if err := st.Get("validation-sets-history", &vshist); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	return vshist, nil
 }

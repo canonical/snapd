@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -147,6 +148,9 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
+	if inst.SystemRestartImmediate {
+		chg.Set("system-restart-immediate", true)
+	}
 
 	ensureStateSoon(state)
 
@@ -186,15 +190,16 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	DevMode          bool     `json:"devmode"`
-	JailMode         bool     `json:"jailmode"`
-	Classic          bool     `json:"classic"`
-	IgnoreValidation bool     `json:"ignore-validation"`
-	IgnoreRunning    bool     `json:"ignore-running"`
-	Unaliased        bool     `json:"unaliased"`
-	Purge            bool     `json:"purge,omitempty"`
-	Snaps            []string `json:"snaps"`
-	Users            []string `json:"users"`
+	DevMode                bool     `json:"devmode"`
+	JailMode               bool     `json:"jailmode"`
+	Classic                bool     `json:"classic"`
+	IgnoreValidation       bool     `json:"ignore-validation"`
+	IgnoreRunning          bool     `json:"ignore-running"`
+	Unaliased              bool     `json:"unaliased"`
+	Purge                  bool     `json:"purge,omitempty"`
+	SystemRestartImmediate bool     `json:"system-restart-immediate"`
+	Snaps                  []string `json:"snaps"`
+	Users                  []string `json:"users"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -224,6 +229,9 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	}
 	if inst.IgnoreRunning {
 		flags.IgnoreRunning = true
+	}
+	if inst.IgnoreValidation {
+		flags.IgnoreValidation = true
 	}
 
 	return flags, nil
@@ -333,7 +341,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
-	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	if err = assertstateRefreshSnapAssertions(st, inst.userID, nil); err != nil {
 		return "", nil, err
 	}
 
@@ -479,7 +487,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown content type: %s", contentType)
 	}
 
-	return sideloadOrTrySnap(c, r.Body, params["boundary"], user)
+	return sideloadOrTrySnap(c, r.Body, params["boundary"])
 }
 
 func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -526,6 +534,10 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	} else {
 		chg = newChange(st, inst.Action+"-snap", res.Summary, res.Tasksets, res.Affected)
 		ensureStateSoon(st)
+	}
+
+	if inst.SystemRestartImmediate {
+		chg.Set("system-restart-immediate", true)
 	}
 
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
@@ -581,8 +593,14 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
-	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	// we need refreshed snap-declarations to enforce refresh-control as best as
+	// we can, this also ensures that snap-declarations and their prerequisite
+	// assertions are updated regularly; update validation sets assertions only
+	// if refreshing all snaps (no snap names explicitly requested).
+	opts := &assertstate.RefreshAssertionsOptions{
+		IsRefreshOfAllSnaps: len(inst.Snaps) == 0,
+	}
+	if err := assertstateRefreshSnapAssertions(st, inst.userID, opts); err != nil {
 		return nil, err
 	}
 

@@ -77,7 +77,7 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
-func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
+func generateGroupSliceFile(grp *quota.Group) []byte {
 	buf := bytes.Buffer{}
 
 	template := `[Unit]
@@ -99,7 +99,7 @@ TasksAccounting=true
 
 	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
 
-	return buf.Bytes(), nil
+	return buf.Bytes()
 }
 
 func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
@@ -286,7 +286,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		}
 	}
 
-	disableEnabledServices, err = enableServices(toEnable, inter)
+	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnable), func(nested timings.Measurer) {
+		disableEnabledServices, err = enableServices(toEnable, inter)
+	})
 	if err != nil {
 		return err
 	}
@@ -680,10 +682,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 
 	// now make sure that all of the slice units exist
 	for _, grp := range neededQuotaGrps.AllQuotaGroups() {
-		content, err := generateGroupSliceFile(grp)
-		if err != nil {
-			return err
-		}
+		content := generateGroupSliceFile(grp)
 
 		sliceFileName := grp.SliceFileName()
 		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
@@ -1289,8 +1288,10 @@ func renderListenStream(socket *snap.SocketInfo) string {
 		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
 		listenStream = strings.Replace(listenStream, "$SNAP_COMMON", s.CommonDataDir(), -1)
 	case snap.UserDaemon:
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h"), -1)
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", s.UserCommonDataDir("%h"), -1)
+		// TODO: use SnapDirOpts here. User daemons are also an experimental
+		// feature so, for simplicity, we can not pass opts here for now
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h", nil), -1)
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", s.UserCommonDataDir("%h", nil), -1)
 		// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
 		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", s.InstanceName()), -1)
 	default:

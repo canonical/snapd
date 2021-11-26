@@ -27,7 +27,7 @@ import (
 	"unicode/utf8"
 )
 
-// Convert the given size in btes to a readable string
+// SizeToStr converts the given size in bytes to a readable string
 func SizeToStr(size int64) string {
 	suffixes := []string{"B", "kB", "MB", "GB", "TB", "PB", "EB"}
 	for _, suf := range suffixes {
@@ -245,4 +245,20 @@ func ElliptLeft(str string, n int) string {
 	}
 
 	return "…" + string(rstr[len(rstr)-n+1:])
+}
+
+// Deduplicate returns a newly allocated slice with the same contents
+// as the input, excluding duplicates.
+func Deduplicate(sl []string) []string {
+	dedup := make([]string, 0, len(sl))
+	seen := make(map[string]struct{}, len(sl))
+
+	for _, str := range sl {
+		if _, ok := seen[str]; !ok {
+			seen[str] = struct{}{}
+			dedup = append(dedup, str)
+		}
+	}
+
+	return dedup
 }

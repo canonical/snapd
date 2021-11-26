@@ -93,6 +93,11 @@ capability sys_time,
 /sys/class/rtc/*/ rw,
 /sys/class/rtc/*/** rw,
 
+# Allow access to pps
+# https://www.kernel.org/doc/html/latest/driver-api/pps.html
+/dev/pps[0-9]* rw,
+/sys/devices/virtual/pps/*/** rw,
+
 # As the core snap ships the hwclock utility we can also allow
 # clients to use it now that they have access to the relevant
 # device nodes. Note: some invocations of hwclock will try to
@@ -123,7 +128,10 @@ bind
 socket AF_NETLINK - NETLINK_AUDIT
 `
 
-var timeControlConnectedPlugUDev = []string{`SUBSYSTEM=="rtc"`}
+var timeControlConnectedPlugUDev = []string{
+	`SUBSYSTEM=="rtc"`,
+	`KERNEL=="pps[0-9]*"`,
+}
 
 func init() {
 	registerIface(&commonInterface{

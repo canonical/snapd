@@ -25,6 +25,10 @@ systems:
     # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
     # a separate error occurs on centos 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
     - -centos-*
+    # ubuntu-18.04-32: i386 is not supported by lxd
+    # TODO: enable i386 by using lxd 3.0, currently snapcraft is failing to get the
+    #       lxd image when it is trying to build snapd
+    - -ubuntu-18.04-32
 
 # Start early as it takes a long time.
 priority: 100
@@ -36,9 +40,19 @@ environment:
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
 
 prepare: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
+    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
+        # snapd snap uses core build base (16.04) which cannot be booted
+        # properly on a host using unified hierarchy
+        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 
@@ -115,9 +129,19 @@ prepare: |
     fi
 
 execute: |
+    # shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
+    if is_cgroupv2 && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
+        # snapd snap uses core build base (16.04) which cannot be booted
+        # properly on a host using unified hierarchy
+        echo "Skipping LXD build with unified cgroup hierarchy"
         exit 0
     fi
 

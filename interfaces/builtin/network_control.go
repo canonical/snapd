@@ -66,6 +66,7 @@ dbus send
 capability net_admin,
 capability net_raw,
 capability setuid, # ping
+capability net_broadcast, # openvswitchd
 
 # Allow protocols except those that we blacklist in
 # /etc/modprobe.d/blacklist-rare-network.conf
@@ -141,6 +142,9 @@ network sna,
 /sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/{,**} r,
 /sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/state w,
 
+# For reading the address of a particular ethernet interface
+/sys/devices/{pci[0-9a-f]*,platform,virtual}/**/net/*/address r,
+
 # arp
 network netlink dgram,
 
@@ -199,6 +203,9 @@ capability setuid,
 # We only need to tag /dev/net/tun since the tap[0-9]* and tun[0-9]* devices
 # are virtual and don't show up in /dev
 /dev/net/tun rw,
+
+# Access to sysfs interfaces for tun/tap device settings.
+/sys/devices/virtual/net/tap*/** rw,
 
 # access to bridge sysfs interfaces for bridge settings
 /sys/devices/virtual/net/*/bridge/* rw,
@@ -345,7 +352,10 @@ func init() {
 		connectedPlugMount:            networkControlConnectedPlugMount,
 		connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
 
-		suppressPtraceTrace: true,
-	})
+		suppressPtraceTrace:         true,
+		suppressSysModuleCapability: true,
 
+		// affects the plug snap because of mount backend
+		affectsPlugOnRefresh: true,
+	})
 }

@@ -42,7 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -127,7 +127,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -205,7 +205,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -233,7 +233,7 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
@@ -439,12 +439,12 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		d := s.daemon(c)
 		st := d.Overlord().State()
 		st.Lock()
-		// devicemgr needs boot id to request a reboot
-		st.VerifyReboot("boot-id-0")
+		// make things look like a reboot
+		restart.ReplaceBootID(st, "boot-id-1")
 		// device model
 		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 		assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-		s.mockModel(c, st, model)
+		s.mockModel(st, model)
 		if tc.currentMode == "run" {
 			// only set in run mode
 			st.Set("seeded-systems", currentSystem)
@@ -505,7 +505,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
-				c.Check(d.RequestedRestart(), check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
+				c.Check(d.RequestedRestart(), check.Equals, restart.RestartSystemNow, check.Commentf(tc.comment))
 				// slow reboot schedule
 				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
 					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
@@ -530,7 +530,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -558,7 +558,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 }
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)

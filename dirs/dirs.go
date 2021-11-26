@@ -37,6 +37,8 @@ var (
 
 	DistroLibExecDir string
 
+	HiddenSnapDataHomeGlob string
+
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -88,12 +90,14 @@ var (
 	SnapCommandsDB      string
 	SnapAuxStoreInfoDir string
 
-	SnapBinariesDir     string
-	SnapServicesDir     string
-	SnapUserServicesDir string
-	SnapSystemdConfDir  string
-	SnapDesktopFilesDir string
-	SnapDesktopIconsDir string
+	SnapBinariesDir        string
+	SnapServicesDir        string
+	SnapRuntimeServicesDir string
+	SnapUserServicesDir    string
+	SnapSystemdConfDir     string
+	SnapDesktopFilesDir    string
+	SnapDesktopIconsDir    string
+	SnapPolkitPolicyDir    string
 
 	SnapDBusSessionPolicyDir   string
 	SnapDBusSystemPolicyDir    string
@@ -141,6 +145,9 @@ const (
 	// Directory with snap data inside user's home
 	UserHomeSnapDir = "snap"
 
+	// HiddenSnapDataHomeDir is an experimental hidden directory for snap data
+	HiddenSnapDataHomeDir = ".snap/data"
+
 	// LocalInstallBlobTempPrefix is used by local install code:
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
 	// * in snapstate to auto-cleans them up using the same prefix
@@ -153,6 +160,11 @@ var (
 
 	callbacks = []func(string){}
 )
+
+type SnapDirOptions struct {
+	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead of ~/snap
+	HiddenSnapDataDir bool
+}
 
 func init() {
 	// init the global directories at startup
@@ -316,6 +328,7 @@ func SetRootDir(rootdir string) {
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
+	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataHomeDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
@@ -376,6 +389,7 @@ func SetRootDir(rootdir string) {
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	SnapRuntimeServicesDir = filepath.Join(rootdir, "/run/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 
@@ -385,6 +399,8 @@ func SetRootDir(rootdir string) {
 	// '/usr/share/dbus-1' hierarchy.
 	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "services")
 	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "system-services")
+
+	SnapPolkitPolicyDir = filepath.Join(rootdir, "/usr/share/polkit-1/actions")
 
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 

@@ -64,7 +64,7 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	mockInstalledSnap(c, s.st, mockFdeSetupKernelYaml)
+	mockInstalledSnap(c, s.st, mockFdeSetupKernelYaml, "")
 	s.mockTask = s.st.NewTask("test-task", "my test task")
 	hooksup := &hookstate.HookSetup{
 		Snap:     "pc-kernel",
@@ -165,4 +165,25 @@ func (s *fdeSetupSuite) TestFdeSetupResult(c *C) {
 	s.mockContext.Get("fde-setup-result", &fdeSetupResult)
 	s.mockContext.Unlock()
 	c.Check(fdeSetupResult, DeepEquals, mockStdin)
+}
+
+func (s *fdeSetupSuite) TestFdeSetupRequestOpDeviceSetup(c *C) {
+	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	fdeSetup := &fde.SetupRequest{
+		Op:     "device-setup",
+		Key:    mockKey[:],
+		Device: "/dev/sda1",
+	}
+	s.mockContext.Lock()
+	s.mockContext.Set("fde-setup-request", fdeSetup)
+	s.mockContext.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
+	c.Assert(err, IsNil)
+
+	// the encryption key should be base64 encoded
+	encodedBase64Key := base64.StdEncoding.EncodeToString(mockKey[:])
+
+	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"device-setup","key":%q,"device":"/dev/sda1"}`+"\n", encodedBase64Key))
+	c.Check(string(stderr), Equals, "")
 }

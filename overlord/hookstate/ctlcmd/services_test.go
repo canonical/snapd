@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -200,6 +201,11 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st.Set("seeded", true)
 	s.st.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
@@ -638,4 +644,18 @@ Service                 Startup  Current  Notes
 test-snap.test-service  enabled  active   -
 `[1:])
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesWithoutContext(c *C) {
+	actions := []string{
+		"start",
+		"stop",
+		"restart",
+	}
+
+	for _, action := range actions {
+		_, _, err := ctlcmd.Run(nil, []string{action, "foo"}, 0)
+		expectedError := fmt.Sprintf(`cannot invoke snapctl operation commands \(here "%s"\) from outside of a snap`, action)
+		c.Check(err, ErrorMatches, expectedError)
+	}
 }

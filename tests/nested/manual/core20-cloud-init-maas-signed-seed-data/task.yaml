@@ -1,0 +1,191 @@
+summary: Test that UC20 can use cloud-init config on ubuntu-seed with grade signed.
+
+systems: [ubuntu-20.04-64]
+
+environment:
+  # use tpm + secure boot to get full disk encryption, this is explicitly needed
+  # for grade: secured
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+
+  # use snapd from the spread run so that we have testkeys trusted in the snapd
+  # run
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+  # don't use cloud-init to create the user, we manually use cloud-init via
+  # ubuntu-seed with MAAS style cloud-init config
+  NESTED_USE_CLOUD_INIT: false
+
+  # sign all the snaps we build for the image with fakestore
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+
+  # use the testrootorg auto-import assertion
+  # TODO: commit the Go code used to create this assertion from the json file
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
+
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-signed.model
+  NESTED_IMAGE_ID: grade-signed-cloud-init-maas
+
+  # for the fake store
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+  # unset this otherwise ubuntu-image complains about overriding the channel for
+  # a model with grade higher than dangerous when building the image
+  NESTED_CORE_CHANNEL: ""
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+
+  # setup the fakestore, but don't use it for our snapd here on the host VM, so
+  # tear down the staging_store immediately afterwards so that only the SAS is 
+  # running and our snapd is not pointed at it, ubuntu-image is the only thing 
+  # that actually needs to use the fakestore, and we will manually point it at
+  # the fakestore below using NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL
+  setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+  teardown_staging_store
+
+  echo "Expose the needed assertions through the fakestore"
+  cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+  # Get the snakeoil key and cert for signing gadget assets (shim)
+  KEY_NAME=$(nested_get_snakeoil_key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+  # modify and repack gadget snap to add a defaults section and use our own
+  # prepare-device hook to use the fakedevicesvc
+  snap download --basename=pc --channel="20/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+
+  # delay all refreshes for a week from now, as otherwise refreshes for our
+  # snaps (which are asserted by the testrootorg authority-id) may happen, which
+  # will break things because the signing keys won't match, etc. and 
+  # specifically snap-bootstrap in the kernel snap from the store won't trust
+  # the seed keys to unlock the encrypted data partition in the initramfs
+  sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> \
+    pc-gadget/meta/gadget.yaml
+
+  # copy the prepare-device hook to use our fakedevicesvc
+  mkdir -p pc-gadget/meta/hooks/
+  cp prepare-device pc-gadget/meta/hooks/
+
+  nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack pc-gadget/ extra-snaps/
+  rm -rf pc-gadget/
+
+  rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+
+  #shellcheck disable=SC2148
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  tests.nested build-image core
+
+  # now mount the image and add our cloud-init config to the image, which will
+  # point cloud-init at MAAS, but we don't run MAAS here since that would be
+  # fragile and slow, so instead the test will just check that we copied the 
+  # right files
+  img="$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
+
+  # meh this is inefficient but it is simpler than trying to handle variable 
+  # arguments inside nested_add_file_to_vm
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-cloud-config.cfg
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-datasource.cfg
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-reporting.cfg
+  nested_add_file_to_vm "$img" 50-cloudconfig-maas-ubuntu-sso.cfg
+  nested_add_file_to_vm "$img" 50-curtin-networking.cfg
+
+  # first boot will now copy the cloud-init config we put on ubuntu-seed to 
+  # the run system, filtering it in the process
+  tests.nested create-vm core
+
+restore: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  # stop fake device svc
+  systemctl stop fakedevicesvc
+
+  #shellcheck source=tests/lib/store.sh
+  . "$TESTSLIB"/store.sh
+  teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+debug: |
+  tests.nested exec "snap changes" || true
+  tests.nested exec "snap tasks 1" || true
+  tests.nested exec "snap tasks 2" || true
+
+  tests.nested exec "cloud-init status --long" || true
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs test keys to be trusted"
+      exit
+  fi
+
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  echo "Waiting for snapd to react to cloud-init"
+  seen=0
+  # the first message is about snapd noticing that cloud-init is in error, and
+  # for how long snapd will wait for cloud-init, this message should show up
+  # relatively quickly
+  for i in $(seq 60); do
+      if tests.nested exec "sudo journalctl --no-pager -u snapd" | MATCH "cloud-init reported to be in error state, will disable in 3 minutes"; then
+          seen=1
+          break
+      fi
+      sleep 1
+  done
+  if [ "$seen" = "0" ]; then
+      echo "snapd did not notice cloud-init in error state, test failed"
+      exit 1
+  fi
+  seen=0
+
+  # we now wait for 3 minutes before snapd gives up waiting and disables 
+  # cloud-init
+  for i in $(seq 200); do
+      if tests.nested exec "sudo journalctl --no-pager -u snapd" | MATCH "reported to be in error state after 3 minutes"; then
+          seen=1
+          break
+      fi
+      sleep 1
+  done
+
+  if [ "$seen" = "0" ]; then
+      echo "snapd did not disable cloud-init, test failed"
+      exit 1
+  fi
+
+  echo "Ensuring that cloud-init got disabled"
+  tests.nested exec "cloud-init status" | MATCH "status: error"
+  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
+
+  echo "Relevant files were copied"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-cloud-config.cfg"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-datasource.cfg"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-reporting.cfg"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/90_50-curtin-networking.cfg"
+
+  echo "Filtered files were not copied"
+  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-ubuntu-sso.cfg"
+
+  echo "The datasource_list restriction file was installed"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
+
+  # note that zzzz_snapd.cfg is not installed because cloud-init is in error and
+  # thus we just disable cloud-init

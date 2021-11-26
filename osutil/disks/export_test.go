@@ -21,12 +21,12 @@ package disks
 
 import "fmt"
 
-func MockUdevPropertiesForDevice(new func(string) (map[string]string, error)) (restore func()) {
+func MockUdevPropertiesForDevice(new func(string, string) (map[string]string, error)) (restore func()) {
 	old := udevadmProperties
 	// for better testing we mock the udevadm command output so that we still
 	// test the parsing
-	udevadmProperties = func(dev string) ([]byte, error) {
-		props, err := new(dev)
+	udevadmProperties = func(typeOpt, dev string) ([]byte, error) {
+		props, err := new(typeOpt, dev)
 		if err != nil {
 			return []byte(err.Error()), err
 		}
@@ -41,3 +41,7 @@ func MockUdevPropertiesForDevice(new func(string) (map[string]string, error)) (r
 		udevadmProperties = old
 	}
 }
+
+var UnregisterDeviceMapperBackResolver = unregisterDeviceMapperBackResolver
+
+var CryptLuks2DeviceMapperBackResolver = cryptLuks2DeviceMapperBackResolver

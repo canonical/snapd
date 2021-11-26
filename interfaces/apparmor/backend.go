@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -137,6 +138,18 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		logger.Noticef("snapd enabled root filesystem on overlay support, additional upperdir permissions granted")
 	}
 
+	// Check whether apparmor_parser supports bpf capability. Some older
+	// versions do not, hence the capability cannot be part of the default
+	// profile of snap-confine as loading it would fail.
+	if features, err := apparmor_sandbox.ParserFeatures(); err != nil {
+		logger.Noticef("cannot determine apparmor_parser features: %v", err)
+	} else if strutil.ListContains(features, "cap-bpf") {
+		policy["cap-bpf"] = &osutil.MemoryFileState{
+			Content: []byte(capabilityBPFSnippet),
+			Mode:    0644,
+		}
+	}
+
 	// Ensure that generated policy is what we computed above.
 	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, glob, policy)
 	if err != nil {
@@ -163,18 +176,27 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	// not.  If we do then we prefer the file ending with the name .real as
 	// that is the more recent name we use.
 	var profilePath string
+	// TODO: fix for distros using /usr/libexec/snapd
 	for _, profileFname := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
-		profilePath = filepath.Join(apparmor_sandbox.ConfDir, profileFname)
-		if _, err := os.Stat(profilePath); err != nil {
+		maybeProfilePath := filepath.Join(apparmor_sandbox.ConfDir, profileFname)
+		if _, err := os.Stat(maybeProfilePath); err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
 			return err
 		}
+		profilePath = maybeProfilePath
 		break
 	}
 	if profilePath == "" {
-		return fmt.Errorf("cannot find system apparmor profile for snap-confine")
+		// XXX: is profile mandatory on some distros?
+
+		// There is no AppArmor profile for snap-confine, quite likely
+		// AppArmor support is enabled in the kernel and relevant
+		// userspace tools exist, but snap-confine was built without it,
+		// nothing we need to update then.
+		logger.Noticef("snap-confine apparmor profile is absent, nothing to update")
+		return nil
 	}
 
 	aaFlags := skipReadCache
@@ -196,6 +218,9 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 // snapConfineFromSnapProfile returns the apparmor profile for
 // snap-confine in the given core/snapd snap.
 func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[string]osutil.FileState, err error) {
+	// TODO: fix this for distros using /usr/libexec/snapd when those start
+	// to use reexec
+
 	// Find the vanilla apparmor profile for snap-confine as present in the given core snap.
 
 	// We must test the ".real" suffix first, this is a workaround for
@@ -403,10 +428,8 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	}
 
 	// Get the files that this snap should have
-	content, err := b.deriveContent(spec.(*Specification), snapInfo, opts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
-	}
+	content := b.deriveContent(spec.(*Specification), snapInfo, opts)
+
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapInfo.InstanceName())
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -601,7 +624,7 @@ const (
 	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
 )
 
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	content = make(map[string]osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
 
 	// Add profile for each app.
@@ -619,10 +642,10 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// This applies to, for example, kernel snaps or gadget snaps (unless they have hooks).
 	if len(content) > 0 {
 		snippets := strings.Join(spec.UpdateNS(), "\n")
-		addUpdateNSProfile(snapInfo, opts, snippets, content)
+		addUpdateNSProfile(snapInfo, snippets, content)
 	}
 
-	return content, nil
+	return content
 }
 
 // addUpdateNSProfile adds an apparmor profile for snap-update-ns, tailored to a specific snap.
@@ -630,7 +653,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 // This profile exists so that snap-update-ns doens't need to carry very wide, open permissions
 // that are suitable for poking holes (and writing) in nearly arbitrary places. Instead the profile
 // contains just the permissions needed to poke a hole and write to the layout-specific paths.
-func addUpdateNSProfile(snapInfo *snap.Info, opts interfaces.ConfinementOptions, snippets string, content map[string]osutil.FileState) {
+func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string]osutil.FileState) {
 	// Compute the template by injecting special updateNS snippets.
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
@@ -726,6 +749,12 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 				// interface said it uses them.
 				if spec.SuppressPtraceTrace() && !spec.UsesPtraceTrace() {
 					tagSnippets += ptraceTraceDenySnippet
+				}
+
+				// Deny the sys_module capability unless it has been explicitly
+				// requested
+				if spec.SuppressSysModuleCapability() && !spec.UsesSysModuleCapability() {
+					tagSnippets += sysModuleCapabilityDenySnippet
 				}
 
 				// Use 'ix' rules in the home interface unless an

@@ -35,6 +35,8 @@ type Flags struct {
 
 	// Revert flags the SnapSetup as coming from a revert
 	Revert bool `json:"revert,omitempty"`
+	// If reverting, set this status for the reverted revision.
+	RevertStatus RevertStatus `json:"revert-status,omitempty"`
 
 	// RemoveSnapPath is used via InstallPath to flag that the file passed in is
 	// temporary and should be removed
@@ -55,6 +57,10 @@ type Flags struct {
 	// SkipConfigure is used with InstallPath to flag that creating a task
 	// running the configure hook should be skipped.
 	SkipConfigure bool `json:"skip-configure,omitempty"`
+
+	// SkipKernelExtraction is used with InstallPath to flag that the
+	// kernel extraction should be skipped. This is useful during seeding.
+	SkipKernelExtraction bool `json:"skip-kernel-extraction,omitempty"`
 
 	// Unaliased is set to request that no automatic aliases are created
 	// installing the snap.

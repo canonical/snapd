@@ -22,6 +22,7 @@ package daemon_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -79,8 +80,9 @@ func (s *sideloadSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary, systemRestartImmediate := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
+	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
 func (s *sideloadSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
@@ -90,7 +92,7 @@ func (s *sideloadSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 	flags := snapstate.Flags{RemoveSnapPath: true}
-	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -109,7 +111,7 @@ func (s *sideloadSuite) TestSideloadSnapDevMode(c *check.C) {
 	// try a multipart/form-data upload
 	flags := snapstate.Flags{RemoveSnapPath: true}
 	flags.DevMode = true
-	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
@@ -131,11 +133,11 @@ func (s *sideloadSuite) TestSideloadSnapJailMode(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	flags := snapstate.Flags{JailMode: true, RemoveSnapPath: true}
-	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
-func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedInstanceName string, expectedFlags snapstate.Flags) string {
+func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedInstanceName string, expectedFlags snapstate.Flags) (summary string, systemRestartImmediate bool) {
 	d := s.daemonWithFakeSnapManager(c)
 
 	soon := 0
@@ -214,7 +216,12 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 		"snap-name": expectedInstanceName,
 	})
 
-	return chg.Summary()
+	summary = chg.Summary()
+	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	if err != nil && err != state.ErrNoState {
+		c.Error(err)
+	}
+	return summary, systemRestartImmediate
 }
 
 func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
@@ -232,7 +239,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -253,7 +260,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -267,7 +274,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 }
 
 func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	// add the assertions first
 	st := d.Overlord().State()
 
@@ -345,7 +352,7 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
 	c.Assert(err, check.IsNil)
@@ -394,7 +401,7 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "foo"}, nil
@@ -420,7 +427,7 @@ func (s *sideloadSuite) TestSideloadSnapInstanceName(c *check.C) {
 		"local_instance\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, "local_instance", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local_instance", snapstate.Flags{RemoveSnapPath: true})
 	c.Check(chgSummary, check.Equals, `Install "local_instance" snap from file "a/b/local.snap"`)
 }
 
@@ -432,7 +439,7 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameNoKey(c *check.C) {
 		"local\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	chgSummary := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -475,8 +482,167 @@ func (s *sideloadSuite) TestInstallPathUnaliased(c *check.C) {
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
 	flags := snapstate.Flags{Unaliased: true, RemoveSnapPath: true, DevMode: true}
-	chgSummary := s.sideloadCheck(c, body, head, "local", flags)
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
+}
+
+func (s *sideloadSuite) TestInstallPathSystemRestartImmediate(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"system-restart-immediate\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	// try a multipart/form-data upload
+	flags := snapstate.Flags{RemoveSnapPath: true, DevMode: true}
+	chgSummary, systemRestartImmediate := s.sideloadCheck(c, body, head, "local", flags)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
+	c.Check(systemRestartImmediate, check.Equals, true)
+}
+
+func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
+	oldTempDir := os.Getenv("TMPDIR")
+	defer func() {
+		c.Assert(os.Setenv("TMPDIR", oldTempDir), check.IsNil)
+	}()
+	tmpDir := c.MkDir()
+	c.Assert(os.Setenv("TMPDIR", tmpDir), check.IsNil)
+
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	chgSummary, _ := s.sideloadCheck(c, sideLoadBodyWithoutDevMode, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
+
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Assert(err, check.IsNil)
+	c.Assert(files, check.HasLen, 0)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	c.Assert(err, check.IsNil)
+	c.Assert(matches, check.HasLen, 1)
+
+	c.Assert(err, check.IsNil)
+	c.Assert(matches[0], testutil.FileEquals, "xyzzy")
+}
+
+func (s *sideloadSuite) TestSideloadExceedMemoryLimit(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	// check that there's a memory limit for the sum of the parts, not just each
+	bufs := make([][]byte, 2)
+	var body string
+
+	for i := range bufs {
+		bufs[i] = make([]byte, daemon.MaxReadBuflen/2+1)
+		_, err := rand.Read(bufs[i])
+		c.Assert(err, check.IsNil)
+
+		body += "--foo\r\n" +
+			"Content-Disposition: form-data; name=\"stuff\"\r\n" +
+			"\r\n" +
+			string(bufs[i]) +
+			"\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=foo")
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.Message, check.Equals, `cannot read form data: exceeds memory limit`)
+}
+
+func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	buf := make([]byte, daemon.MaxReadBuflen)
+	_, err := rand.Read(buf)
+	c.Assert(err, check.IsNil)
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		string(buf) +
+		"\r\n" +
+		"----hello--\r\n"
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	// using the maximum memory doesn't cause the failure (not having a snap file does)
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.Message, check.Equals, `cannot find "snap" file field in provided multipart/form-data payload`)
+}
+
+func (s *sideloadSuite) TestCleanUpTempFilesIfRequestFailed(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	// write file parts
+	body := "----hello--\r\n"
+	for _, name := range []string{"one", "two"} {
+		body += fmt.Sprintf(
+			"Content-Disposition: form-data; name=\"snap\"; filename=\"%s\"\r\n"+
+				"\r\n"+
+				"xyzzy\r\n", name)
+	}
+
+	// make the request fail
+	buf := make([]byte, daemon.MaxReadBuflen+1)
+	_, err := rand.Read(buf)
+	c.Assert(err, check.IsNil)
+
+	body += "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		string(buf) +
+		"\r\n" +
+		"----hello--\r\n"
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr, check.NotNil)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, check.IsNil)
+	c.Check(matches, check.HasLen, 0)
+}
+
+func (s *sideloadSuite) TestCleanUpUnusedTempSnapFiles(c *check.C) {
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"one\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"two\"\r\n" +
+		"\r\n" +
+		// sideloadCheck checks that the snap file passed to the change has contents "xyzzy" so
+		// having a different body here tests that the second file isn't passed to change
+		"bla\r\n" +
+		"----hello--\r\n"
+
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, DevMode: true})
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "one"`)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	c.Assert(err, check.IsNil)
+	// only the file passed into the change (the request's first file) remains
+	c.Check(matches, check.HasLen, 1)
 }
 
 type trySuite struct {
@@ -626,7 +792,7 @@ func (s *trySuite) TestTrySnapNotDir(c *check.C) {
 }
 
 func (s *trySuite) TestTryChangeConflict(c *check.C) {
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	st := d.Overlord().State()
 
 	// mock a try dir

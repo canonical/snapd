@@ -3,7 +3,6 @@ summary: Ensure upgrades from snapd 2.15 work
 systems: [ubuntu-16.04-64]
 
 prepare: |
-    "$TESTSTOOLS"/apt-state checkpoint > installed.pkgs
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     distro_purge_package snapd
@@ -17,14 +16,14 @@ restore: |
     fi
     distro_install_build_snapd
 
-    "$TESTSTOOLS"/apt-state restore installed.pkgs
-    rm -f installed.pkgs
-
     # snap-confine, in the old version of snapd, leaves behind junk in
     # /tmp/snap.rootfs_* This is now detected by invariant detector, which uses
     # it as a sign of possible snap-confine crash. To avoid the false positive,
     # remove those leftovers.
     rm -rf /tmp/snap.rootfs_*
+
+    # Remove file with wget history
+    rm -f /root/.wget-hsts
 
 execute: |
     #shellcheck source=tests/lib/systemd.sh

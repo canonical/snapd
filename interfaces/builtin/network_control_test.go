@@ -82,6 +82,8 @@ func (s *NetworkControlInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.SuppressSysModuleCapability(), Equals, true)
+	c.Check(spec.UsesSysModuleCapability(), Equals, false)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
 	c.Assert(spec.UpdateNS(), DeepEquals, []string{`
@@ -131,6 +133,7 @@ func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows configuring networking and network namespaces`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "network-control")
+	c.Assert(si.AffectsPlugOnRefresh, Equals, true)
 }
 
 func (s *NetworkControlInterfaceSuite) TestAutoConnect(c *C) {

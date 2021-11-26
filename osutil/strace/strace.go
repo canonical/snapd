@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -31,7 +32,21 @@ import (
 
 // These syscalls are excluded because they make strace hang on all or
 // some architectures (gettimeofday on arm64).
-var excludedSyscalls = "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep"
+// Furthermore not all syscalls exist on all arches, and for some
+// arches strace has a mapping for some of the non-existent
+// syscalls. Thus there is no universal list of syscalls to exclude.
+func getExcludedSyscalls() string {
+	switch runtime.GOARCH {
+	case "arm", "arm64", "riscv64":
+		return "!pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep"
+	default:
+		return "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep"
+	}
+}
+
+// Export excluded syscalls as used by this package and multiple
+// testsuites
+var ExcludedSyscalls = getExcludedSyscalls()
 
 // Command returns how to run strace in the users context with the
 // right set of excluded system calls.
@@ -73,7 +88,7 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 		stracePath,
 		"-u", current.Username,
 		"-f",
-		"-e", excludedSyscalls,
+		"-e", ExcludedSyscalls,
 	}
 	args = append(args, extraStraceOpts...)
 	args = append(args, traceeCmd...)

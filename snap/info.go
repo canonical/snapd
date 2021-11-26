@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -69,7 +70,7 @@ type PlaceInfo interface {
 	DataDir() string
 
 	// UserDataDir returns the per user data directory of the snap.
-	UserDataDir(home string) string
+	UserDataDir(home string, opts *dirs.SnapDirOptions) string
 
 	// CommonDataDir returns the data directory common across revisions of the
 	// snap.
@@ -77,18 +78,18 @@ type PlaceInfo interface {
 
 	// UserCommonDataDir returns the per user data directory common across
 	// revisions of the snap.
-	UserCommonDataDir(home string) string
+	UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns the a glob that matches all per user data directories
+	// DataHomeDir returns a glob that matches all per user data directories
 	// of a snap.
-	DataHomeDir() string
+	DataHomeDir(opts *dirs.SnapDirOptions) string
 
 	// CommonDataHomeDir returns a glob that matches all per user data
 	// directories common across revisions of the snap.
-	CommonDataHomeDir() string
+	CommonDataHomeDir(opts *dirs.SnapDirOptions) string
 
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
@@ -197,28 +198,45 @@ func HooksDir(name string, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
 }
 
+func snapDataDir(opts *dirs.SnapDirOptions) string {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
+	if opts.HiddenSnapDataDir {
+		return dirs.HiddenSnapDataHomeDir
+	}
+
+	return dirs.UserHomeSnapDir
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
-func UserDataDir(home string, name string, revision Revision) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name, revision.String())
+func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, revision.String())
 }
 
 // UserCommonDataDir returns the user-specific common data directory for given
 // snap name. The name can be either a snap name or snap instance name.
-func UserCommonDataDir(home string, name string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
+func UserCommonDataDir(home string, name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, "common")
 }
 
 // UserSnapDir returns the user-specific directory for given
 // snap name. The name can be either a snap name or snap instance name.
-func UserSnapDir(home string, name string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name)
+func UserSnapDir(home string, name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name)
 }
 
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
 // given snap name. The name can be either a snap name or snap instance name.
 func UserXdgRuntimeDir(euid sys.UserID, name string) string {
 	return filepath.Join(dirs.XdgRuntimeDirBase, fmt.Sprintf("%d/snap.%s", euid, name))
+}
+
+// SnapDir returns the user-specific snap directory.
+func SnapDir(home string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts))
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
@@ -234,16 +252,17 @@ func UserXdgRuntimeDir(euid sys.UserID, name string) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	RealName          string   `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID            string   `yaml:"snap-id" json:"snap-id"`
-	Revision          Revision `yaml:"revision" json:"revision"`
-	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
-	EditedContact     string   `yaml:"contact,omitempty" json:"contact,omitempty"`
-	EditedTitle       string   `yaml:"title,omitempty" json:"title,omitempty"`
-	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
-	Paid              bool     `yaml:"paid,omitempty" json:"paid,omitempty"`
+	RealName          string              `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID            string              `yaml:"snap-id" json:"snap-id"`
+	Revision          Revision            `yaml:"revision" json:"revision"`
+	Channel           string              `yaml:"channel,omitempty" json:"channel,omitempty"`
+	EditedLinks       map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
+	EditedContact     string              `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle       string              `yaml:"title,omitempty" json:"title,omitempty"`
+	EditedSummary     string              `yaml:"summary,omitempty" json:"summary,omitempty"`
+	EditedDescription string              `yaml:"description,omitempty" json:"description,omitempty"`
+	Private           bool                `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid              bool                `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -311,6 +330,9 @@ type Info struct {
 	// List of system users (usernames) this snap may use. The group of the same
 	// name must also exist.
 	SystemUsernames map[string]*SystemUsernameInfo
+
+	// OriginalLinks is a map links keys to link lists
+	OriginalLinks map[string][]string
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -433,10 +455,35 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
+// Links returns the blessed set of snap-related links.
+func (s *Info) Links() map[string][]string {
+	if s.EditedLinks != nil {
+		return s.EditedLinks
+	}
+	return s.OriginalLinks
+}
+
 // Contact returns the blessed contact information for the snap.
 func (s *Info) Contact() string {
-	// TODO: consider links later
-	return s.EditedContact
+	var contact string
+	if s.EditedContact != "" {
+		contact = s.EditedContact
+	} else {
+		contacts := s.Links()["contact"]
+		if len(contacts) > 0 {
+			contact = contacts[0]
+		}
+	}
+	if contact != "" {
+		u, err := url.Parse(contact)
+		if err != nil {
+			return ""
+		}
+		if u.Scheme == "" {
+			contact = "mailto:" + contact
+		}
+	}
+	return contact
 }
 
 // Type returns the type of the snap, including additional snap ID check
@@ -469,14 +516,14 @@ func (s *Info) DataDir() string {
 }
 
 // UserDataDir returns the user-specific data directory of the snap.
-func (s *Info) UserDataDir(home string) string {
-	return UserDataDir(home, s.InstanceName(), s.Revision)
+func (s *Info) UserDataDir(home string, opts *dirs.SnapDirOptions) string {
+	return UserDataDir(home, s.InstanceName(), s.Revision, opts)
 }
 
 // UserCommonDataDir returns the user-specific data directory common across
 // revision of the snap.
-func (s *Info) UserCommonDataDir(home string) string {
-	return UserCommonDataDir(home, s.InstanceName())
+func (s *Info) UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string {
+	return UserCommonDataDir(home, s.InstanceName(), opts)
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -484,15 +531,27 @@ func (s *Info) CommonDataDir() string {
 	return CommonDataDir(s.InstanceName())
 }
 
+func DataHomeGlob(opts *dirs.SnapDirOptions) string {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
+	if opts.HiddenSnapDataDir {
+		return dirs.HiddenSnapDataHomeGlob
+	}
+
+	return dirs.SnapDataHomeGlob
+}
+
 // DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), s.Revision.String())
+func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
+	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), s.Revision.String())
 }
 
 // CommonDataHomeDir returns the per user data directory common across revisions
 // of the snap.
-func (s *Info) CommonDataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), "common")
+func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) string {
+	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), "common")
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a
@@ -1226,10 +1285,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	err = addImplicitHooksFromContainer(info, snapf)
-	if err != nil {
-		return nil, err
-	}
+	addImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
 

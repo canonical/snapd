@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -258,7 +259,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade, gadgetYamlCon
 	return chg, tsk
 }
 
-func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption bool, gadgetYamlCont, gadgetYamlContNext string) {
+func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, encryption, immediate bool, gadgetYamlCont, gadgetYamlContNext string) {
 	var updateCalled bool
 	var passedRollbackDir string
 
@@ -271,7 +272,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 		defer func() { bootloader.Force(nil) }()
 	}
 
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
 		updateCalled = true
 		passedRollbackDir = path
 		st, err := os.Stat(path)
@@ -345,8 +346,13 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 	}
 	devicestate.SetBootOkRan(s.mgr, true)
 
+	expectedRst := restart.RestartSystem
 	s.state.Lock()
 	s.state.Set("seeded", true)
+	if immediate {
+		expectedRst = restart.RestartSystemNow
+		chg.Set("system-restart-immediate", true)
+	}
 	s.state.Unlock()
 
 	s.settle(c)
@@ -361,28 +367,37 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetOnCoreSimple(c *C, grade string, 
 	c.Check(rollbackDir, Equals, passedRollbackDir)
 	// should have been removed right after update
 	c.Check(osutil.IsDirectory(rollbackDir), Equals, false)
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{expectedRst})
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreSimple(c *C) {
 	// unset grade
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption, gadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, immediate, gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleWithEncryption(c *C) {
 	encryption := true
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, uc20gadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, immediate, uc20gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleNoEncryption(c *C) {
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, uc20gadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, immediate, uc20gadgetYaml, "")
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnUC20CoreSimpleSystemRestartImmediate(c *C) {
+	encryption := false
+	immediate := true
+	s.testUpdateGadgetOnCoreSimple(c, "dangerous", encryption, immediate, uc20gadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNoUpdateNeeded(c *C) {
 	var called bool
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		called = true
 		return gadget.ErrNoUpdate
 	})
@@ -409,7 +424,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *
 		c.Skip("this test cannot run as root (permissions are not honored)")
 	}
 
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -436,7 +451,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreRollbackDirCreateFailed(c *
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("gadget exploded")
 	})
 	defer restore()
@@ -460,7 +475,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreUpdateFailed(c *C) {
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -504,7 +519,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -561,7 +576,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -613,7 +628,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore = devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -791,6 +806,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 		Info: &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
 				"pc": {
+					Name:       "pc",
 					Bootloader: "grub",
 					Schema:     "gpt",
 				},
@@ -826,6 +842,7 @@ volumes:
 		Info: &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
 				"pc": {
+					Name:       "pc",
 					Bootloader: "grub",
 					Schema:     "gpt",
 					ID:         "123",
@@ -883,7 +900,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetUpdateBlocksOtherTasks(c *C) {
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridFirstboot(c *C) {
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -928,17 +945,19 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridFirstboot(c *C) {
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridShouldWork(c *C) {
 	encryption := false
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYaml, "")
+	immediate := false
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, immediate, hybridGadgetYaml, "")
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreOldIsInvalidNowButShouldWork(c *C) {
 	encryption := false
+	immediate := false
 	// this is not gadget yaml that we should support, by the UC16/18
 	// rules it actually has two system-boot role partitions,
 	hybridGadgetYamlBroken := hybridGadgetYaml + `
         role: system-boot
 `
-	s.testUpdateGadgetOnCoreSimple(c, "", encryption, hybridGadgetYamlBroken, hybridGadgetYaml)
+	s.testUpdateGadgetOnCoreSimple(c, "", encryption, immediate, hybridGadgetYamlBroken, hybridGadgetYaml)
 }
 
 func (s *deviceMgrGadgetSuite) makeMinimalKernelAssetsUpdateChange(c *C) (chg *state.Change, tsk *state.Task) {
@@ -1006,7 +1025,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernel(c *C) {
 	var updateCalled int
 	var passedRollbackDir string
 
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
 		updateCalled++
 		passedRollbackDir = path
 
@@ -1044,7 +1063,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 	var updateCalled int
 	var passedRollbackDir string
 
-	restore := devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
 		updateCalled++
 		passedRollbackDir = path
 
@@ -1138,7 +1157,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		}
 		if updated {
 			// update was applied, thus a restart was requested
-			c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
@@ -1428,6 +1447,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(tsk)
 	chg.AddTask(terr)
+	chg.Set("system-restart-immediate", true)
 	s.state.Unlock()
 
 	restartCount := 0
@@ -1469,7 +1489,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	c.Check(log[0], Matches, ".* Updated kernel command line")
 	c.Check(log[1], Matches, ".* Reverted kernel command line change")
 	// update was applied and then undone
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem, state.RestartSystem})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
 	c.Check(restartCount, Equals, 2)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
 	c.Assert(err, IsNil)

@@ -98,14 +98,14 @@ func (s *dspSuite) TestApparmorConnectedPlugAmbarella(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/proc/ambarella/vin0_idsp rw,\n")
+	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/proc/ambarella/vin[0-9]_idsp r,\n")
 }
 
 func (s *dspSuite) TestUDevConnectedPlugAmbarella(c *C) {
 	spec := &udev.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 5)
+	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dsp
 KERNEL=="iav", TAG+="snap_my-device_svc"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_my-device_svc", RUN+="%v/snap-device-helper $env{ACTION} snap_my-device_svc $devpath $major:$minor"`, dirs.DistroLibExecDir))

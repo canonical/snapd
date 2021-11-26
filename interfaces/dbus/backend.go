@@ -158,10 +158,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// Get the files that this snap should have
-	content, err := b.deriveContent(spec.(*Specification), snapInfo)
-	if err != nil {
-		return fmt.Errorf("cannot obtain expected DBus configuration files for snap %q: %s", snapName, err)
-	}
+	content := b.deriveContent(spec.(*Specification), snapInfo)
+
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -188,7 +186,7 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState) {
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
 		appSnippets := spec.SnippetForTag(securityTag)
@@ -215,7 +213,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 		addContent(securityTag, hookSnippets, content)
 	}
 
-	return content, nil
+	return content
 }
 
 func addContent(securityTag string, snippet string, content map[string]osutil.FileState) {

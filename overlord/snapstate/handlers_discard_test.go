@@ -38,7 +38,7 @@ type discardSnapSuite struct {
 var _ = Suite(&discardSnapSuite{})
 
 func (s *discardSnapSuite) SetUpTest(c *C) {
-	s.setup(c, nil)
+	s.baseHandlerSuite.SetUpTest(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()

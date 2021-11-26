@@ -29,9 +29,13 @@ parts:
   snapd-deb:
     plugin: nil
     source: .
-    build-snaps: [go/1.10/stable]
+    build-snaps: [go/1.13/stable]
     override-pull: |
       snapcraftctl pull
+      # Ensure that ./debian/ packaging which we are about to use
+      # matches the current `build-base` release. I.e. ubuntu-16.04
+      # for build-base:core, etc.
+      ./generate-packaging-dir
       # install build dependencies
       export DEBIAN_FRONTEND=noninteractive
       export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -90,6 +94,7 @@ parts:
     stage-packages:
       - libc6
       - libc-bin
+      - libgcc1
     stage:
       - lib/*
       - usr/lib/*
