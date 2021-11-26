@@ -100,6 +100,9 @@ func init() {
 	// system.hostname
 	addFSOnlyHandler(validateHostnameSettings, handleHostnameConfiguration, coreOnly)
 
+	// tmpfs.size
+	addFSOnlyHandler(validateTmpfsSettings, handleTmpfsConfiguration, coreOnly)
+
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 
