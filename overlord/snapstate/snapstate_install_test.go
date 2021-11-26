@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -4589,4 +4591,113 @@ epoch: 42
 
 	_, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.SideInfo{si}, []string{path}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, `cannot refresh "some-snap" to local snap with epoch 42, because it can't read the current epoch of 1\*`)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return &snap.Info{SuggestedName: name, Confinement: "classic"}, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{si},
+			Current:  si.Revision,
+			Flags:    snapstate.Flags{Classic: true},
+		})
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+confinement: classic
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+
+		si = &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("2"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	checkClassicInstall := func(tss []*state.TaskSet, err error, expectClassic bool) {
+		c.Assert(err, IsNil)
+		c.Check(tss, HasLen, 2)
+
+		for i := range paths {
+			snapsup, err := snapstate.TaskSnapSetup(tss[i].Tasks()[0])
+			c.Assert(err, IsNil)
+			c.Check(snapsup.Classic, Equals, expectClassic)
+		}
+
+		if c.Failed() {
+			c.FailNow()
+		}
+	}
+
+	// works with --classic
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{Classic: true})
+	checkClassicInstall(tss, err, true)
+
+	// works without --classic
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, nil)
+	checkClassicInstall(tss, err, true)
+
+	// devmode overrides the snapsetup classic flag
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{DevMode: true})
+	checkClassicInstall(tss, err, false)
+
+	// jailmode overrides it too (you need to provide both)
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{JailMode: true})
+	checkClassicInstall(tss, err, false)
+
+	// jailmode and classic together gets you both
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{JailMode: true, Classic: true})
+	checkClassicInstall(tss, err, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyValidateContainer(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	path, si := mkInvalidSnap(c)
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.SideInfo{si}, []string{path}, s.user.ID, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(".*%s.*", snap.ErrBadModes))
+}
+
+func mkInvalidSnap(c *C) (string, *snap.SideInfo) {
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R("1"),
+	}
+	yaml := []byte(`name: some-snap
+version: 1
+`)
+
+	dstDir := c.MkDir()
+	c.Assert(os.Chmod(dstDir, 0700), IsNil)
+
+	c.Assert(os.Mkdir(filepath.Join(dstDir, "meta"), 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dstDir, "meta", "snap.yaml"), yaml, 0700), IsNil)
+
+	// snapdir has /meta/snap.yaml, but / is 0700
+	brokenSnap := filepath.Join(c.MkDir(), "broken.snap")
+	out, err := exec.Command("mksquashfs", dstDir, brokenSnap).CombinedOutput()
+	if err != nil {
+		c.Log(out)
+		c.Error(err)
+		c.FailNow()
+	}
+
+	return brokenSnap, si
 }
