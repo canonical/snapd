@@ -37,7 +37,10 @@ environment:
     MANAGED_DEVICE: "false"
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/edge"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
+    # TODO: as of 2021-11-18 ubuntu-image in candidate and up has a bug which is
+    # fixed in https://github.com/canonical/ubuntu-image/pull/26, revert to
+    # latest/candidate when the fix lands in master and the snap is released
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/stable"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -424,98 +427,102 @@ exclude:
     - "*.img"
 
 debug-each: |
-    if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
-        #shellcheck source=tests/lib/state.sh
-        . "$TESTSLIB/state.sh"
-        #shellcheck source=tests/lib/systems.sh
-        . "$TESTSLIB/systems.sh"
-
-        echo '# System information'
-        cat /etc/os-release || true
-
-        echo '# Kernel information'
-        uname -a
-
-        echo '# Go information'
-        go version || true
-
-        if tests.nested is-nested; then
-            echo '# nested VM status'
-            tests.nested vm status
-            tests.nested get serial-log
-            # add another echo in case the serial log is missing a newline
-            echo
-
-            tests.nested exec "sudo journalctl --no-pager -u snapd" || true
-        fi
-
-        echo "# definition of snapd.service"
-        systemctl cat snapd.service || true
-        echo "# status of snapd service"
-        systemctl status snapd.service || true
-        echo "# memory limits of snapd service that systemd uses"
-        systemctl show snapd.service | grep -e MemoryMax= -e MemoryLimit= || true
-        echo "# memory limits of snapd service that are actually set"
-        cat /sys/fs/cgroup/memory/system.slice/snapd.service/memory.limit_in_bytes || true
-        echo '# journal messages for snapd'
-        "$TESTSTOOLS"/journal-state get-log -u snapd
-
-        echo '# user sessions information'
-        journalctl --user -u snapd.session-agent.service || true
-        systemctl status --user snapd.session-agent  || true
-
-        if ! is_cgroupv2; then
-            # dump any information on device cgroup of current session
-            cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
-            if [ -n "$cgroup_dev" ]; then
-                echo "# device cgroup $cgroup_dev"
-                cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
-            fi
-        else
-            echo "# snap confinement device filtering maps"
-            ls -l /sys/fs/bpf/snap || true
-        fi
-
-        case "$SPREAD_SYSTEM" in
-            fedora-*|centos-*|amazon-*)
-                if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
-                    ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
-                else
-                    ausearch -i -m AVC || true
-                fi
-                (
-                    find /root/snap -printf '%Z\t%H/%P\n' || true
-                    find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
-                ) | grep -v snappy_home_t || true
-                find /var/snap -printf '%Z\t%H/%P\n' | grep -v snappy_var_t || true
-                ;;
-            opensuse-*)
-                echo '# apparmor denials logged by auditd'
-                ausearch -m AVC | grep DENIED || true
-                ;;
-            *)
-                echo '# apparmor denials '
-                dmesg --ctime | grep DENIED || true
-                ;;
-        esac
-        echo '# seccomp denials (kills) '
-        dmesg --ctime | grep type=1326 || true
-        echo '# snap connections --all'
-        snap connections --all || true
-        echo '# tasks executed on system'
-        cat "$RUNTIME_STATE_PATH/runs" || true
-        echo '# free space'
-        df -h || true
-        echo '# mounts'
-        # use ascii output to prevent travis from messing up the encoding
-        findmnt --ascii -o+PROPAGATION || true
-        echo "# processes"
-        ps axl
-        echo "# /var/lib/snapd"
-        find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
-        echo '# system journal messages'
-        journalctl -e
+    if [ "$SPREAD_DEBUG_EACH" != 1 ]; then
+        exit
     fi
+
+    #shellcheck source=tests/lib/state.sh
+    . "$TESTSLIB/state.sh"
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    echo '# System information'
+    cat /etc/os-release || true
+
+    echo '# Kernel information'
+    uname -a
+
+    echo '# Go information'
+    go version || true
+
+    if tests.nested is-nested; then
+        echo '# nested VM status'
+        tests.nested vm status
+        tests.nested get serial-log
+        # add another echo in case the serial log is missing a newline
+        echo
+
+        tests.nested exec "sudo journalctl --no-pager -u snapd" || true
+    fi
+
+    echo "# definition of snapd.service"
+    systemctl cat snapd.service || true
+    echo "# status of snapd service"
+    systemctl status snapd.service || true
+    echo "# memory limits of snapd service that systemd uses"
+    systemctl show snapd.service | grep -e MemoryMax= -e MemoryLimit= || true
+    echo "# memory limits of snapd service that are actually set"
+    cat /sys/fs/cgroup/memory/system.slice/snapd.service/memory.limit_in_bytes || true
+    echo '# journal messages for snapd'
+    "$TESTSTOOLS"/journal-state get-log -u snapd
+
+    echo '# user sessions information'
+    journalctl --user -u snapd.session-agent.service || true
+    systemctl status --user snapd.session-agent  || true
+
+    if ! is_cgroupv2; then
+        # dump any information on device cgroup of current session
+        cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
+        if [ -n "$cgroup_dev" ]; then
+            echo "# device cgroup $cgroup_dev"
+            cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
+        fi
+    else
+        echo "# snap confinement device filtering maps"
+        ls -l /sys/fs/bpf/snap || true
+    fi
+
+    case "$SPREAD_SYSTEM" in
+        fedora-*|centos-*|amazon-*)
+            if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then
+                ausearch -i -m AVC --checkpoint "$RUNTIME_STATE_PATH/audit-stamp" --start checkpoint || true
+            else
+                ausearch -i -m AVC || true
+            fi
+            (
+                find /root/snap -printf '%Z\t%H/%P\n' || true
+                find /home -regex '/home/[^/]*/snap\(/.*\)?' -printf '%Z\t%H/%P\n' || true
+            ) | grep -v snappy_home_t || true
+            find /var/snap -printf '%Z\t%H/%P\n' | grep -v snappy_var_t || true
+            ;;
+        opensuse-*)
+            echo '# apparmor denials logged by auditd'
+            ausearch -m AVC | grep DENIED || true
+            ;;
+        *)
+            echo '# apparmor denials '
+            dmesg --ctime | grep DENIED || true
+            ;;
+    esac
+    echo '# seccomp denials (kills) '
+    dmesg --ctime | grep type=1326 || true
+    echo '# snap connections --all'
+    snap connections --all || true
+    echo '# free space'
+    df -h || true
+    echo '# mounts'
+    # use ascii output to prevent travis from messing up the encoding
+    findmnt --ascii -o+PROPAGATION || true
+    echo "# processes"
+    ps axl
+    echo "# /var/lib/snapd"
+    find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
+    echo '# system journal messages'
+    journalctl -e
+
+    # Keep it as the last step in debug-each
+    echo '# tasks executed on system'
+    cat "$RUNTIME_STATE_PATH/runs" || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
@@ -691,6 +698,10 @@ prepare: |
     unset NOMATCH
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
+
+    # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
+    # The idea is to have a single directory with all the testing tools
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.

@@ -90,12 +90,15 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
 func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure) {
-	sectorSize := dl.SectorSize
+	sectorSize := uint64(dl.SectorSize)
 
-	// Keep track what partitions we already have on disk
-	seen := map[quantity.Offset]bool{}
+	// Keep track what partitions we already have on disk - the keys to this map
+	// is the starting sector of the structure we have seen.
+	// TODO: use quantity.SectorOffset or similar when that is available
+
+	seen := map[uint64]bool{}
 	for _, s := range dl.Structure {
-		start := s.StartOffset / quantity.Offset(sectorSize)
+		start := uint64(s.StartOffset) / sectorSize
 		seen[start] = true
 	}
 
@@ -122,8 +125,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		s := p.VolumeStructure
 
 		// Skip partitions that are already in the volume
-		start := p.StartOffset / quantity.Offset(sectorSize)
-		if seen[start] {
+		startInSectors := uint64(p.StartOffset) / sectorSize
+		if seen[startInSectors] {
 			continue
 		}
 
@@ -136,9 +139,11 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		}
 
 		// Check if the data partition should be expanded
-		size := s.Size
-		if s.Role == gadget.SystemData && canExpandData && quantity.Size(p.StartOffset)+s.Size < dl.Size {
-			size = dl.Size - quantity.Size(p.StartOffset)
+		newSizeInSectors := uint64(s.Size) / sectorSize
+		if s.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
+			// note that if startInSectors + newSizeInSectors == dl.UsableSectorEnd
+			// then we won't hit this branch, but it would be redundant anyways
+			newSizeInSectors = dl.UsableSectorsEnd - startInSectors
 		}
 
 		// Can we use the index here? Get the largest existing partition number and
@@ -146,12 +151,12 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		// (can this actually happen in our images?)
 		node := deviceName(dl.Device, pIndex)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
-			p.StartOffset/quantity.Offset(sectorSize), size/sectorSize, ptype, s.Name)
+			startInSectors, newSizeInSectors, ptype, s.Name)
 
 		toBeCreated = append(toBeCreated, gadget.OnDiskStructure{
 			LaidOutStructure: p,
 			Node:             node,
-			Size:             size,
+			Size:             quantity.Size(newSizeInSectors * sectorSize),
 		})
 	}
 
@@ -205,6 +210,15 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 	// Reload the partition table
 	if err := reloadPartitionTable(dl.Device); err != nil {
 		return err
+	}
+
+	// run udevadm settle to wait for udev events that may have been triggered
+	// by reloading the partition table to be processed, as we need the udev
+	// database to be freshly updated and complete before updating the partition
+	// information for the OnDiskVolume
+	// TODO: is 3 minute timeout reasonable for this?
+	if out, err := exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot wait for udev to settle after reloading partition table: %v", osutil.OutputErr(out, err))
 	}
 
 	// Re-read the partition table from the device to update our partition list
