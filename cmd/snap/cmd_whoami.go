@@ -20,6 +20,9 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,12 +44,26 @@ The whoami command shows the email the user is logged in with.
 type cmdWhoAmI struct {
 	clientMixin
 
-	// XXX: rename to --{resync,overwrite,rewrite} or similar?
 	RefreshSSHKeys bool `long:"refresh-ssh-keys"`
 }
 
 func init() {
 	addCommand("whoami", shortWhoAmIHelp, longWhoAmIHelp, func() flags.Commander { return &cmdWhoAmI{} }, nil, nil)
+}
+
+func fromStoreFor(line, email string) bool {
+	l := strings.SplitN(line, "# snapd ", 2)
+	if len(l) != 2 {
+		return false
+	}
+	lineInfo := struct {
+		Origin string `json:"origin"`
+		Email  string `json:"email"`
+	}{}
+	if err := json.Unmarshal([]byte(l[1]), &lineInfo); err != nil {
+		return false
+	}
+	return lineInfo.Email == email
 }
 
 func refreshSSHKeys(email string) error {
@@ -57,27 +74,69 @@ func refreshSSHKeys(email string) error {
 		return fmt.Errorf("cannot refresh keys: no email")
 	}
 
+	// XXX: move this into DeviceMgr.Ensure() instead ?
+
 	// FIXME: set auth context
 	var storeCtx store.DeviceAndAuthContext
 	sto := storeNew(nil, storeCtx)
 	userInfo, err := sto.UserInfo(email)
+	errPrefix := fmt.Sprintf("cannot refresh keys for %q: ", email)
 	if err != nil {
-		return fmt.Errorf("cannot refresh keys for %q: %s", email, err)
+		return fmt.Errorf(errPrefix+"%s", err)
 	}
 	if len(userInfo.SSHKeys) == 0 {
-		return fmt.Errorf("cannot reresh keys for %q: no ssh keys found", email)
+		return fmt.Errorf(errPrefix + "no ssh keys found")
 	}
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("cannot refresh keys for %q: %s", email, err)
+		return fmt.Errorf(errPrefix+"%s", err)
 	}
 	authKeys := filepath.Join(homeDir, ".ssh/authorized_keys")
-	authKeysContent := strings.Join(userInfo.SSHKeys, "\n")
-	if err := osutil.AtomicWriteFile(authKeys, []byte(authKeysContent), 0600, 0); err != nil {
-		return err
+
+	// update auth-keys
+	buffer := bytes.NewBuffer(nil)
+	fin, err := os.Open(authKeys)
+	if err != nil {
+		return fmt.Errorf(errPrefix+"%s", err)
 	}
-	fmt.Fprintf(Stdout, "Wrote %v keys for %s\n", len(userInfo.SSHKeys), email)
+	defer fin.Close()
+
+	// read old authorized_keys file into a membuffer but skip
+	// anything that came from the store for this email
+	scanner := bufio.NewScanner(fin)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if fromStoreFor(line, email) {
+			continue
+		}
+		if _, err := buffer.WriteString(line + "\n"); err != nil {
+			return fmt.Errorf(errPrefix+"%s", err)
+		}
+	}
+	for _, k := range userInfo.SSHKeys {
+		// FIXME: userInfo.SSHKeys seems to contain "\n"
+		k = strings.TrimSpace(k)
+		line := fmt.Sprintf(`%s # snapd {"origin":"store","email":%q}`, k, email)
+		if _, err := buffer.WriteString(line + "\n"); err != nil {
+			return fmt.Errorf(errPrefix+"%s", err)
+		}
+	}
+	// EnsureFileState will only update if anything changed
+	authFileState := osutil.MemoryFileState{
+		Content: buffer.Bytes(),
+		Mode:    0600,
+	}
+	err = osutil.EnsureFileState(authKeys, &authFileState)
+	if err != nil && err != osutil.ErrSameState {
+		return fmt.Errorf(errPrefix+"%s", err)
+	}
+	if err == osutil.ErrSameState {
+		fmt.Fprintf(Stdout, "No updated ssh keys for %s\n", email)
+	} else {
+		fmt.Fprintf(Stdout, "Updated ssh keys for %s\n", email)
+	}
+
 	return nil
 }
 
