@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "Beware! Unleashing hell..."
+tar -xvf $SNAP_MOUNT_DIR/$SNAP/current/hell/hell.tar

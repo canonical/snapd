@@ -1,0 +1,5 @@
+name: test-snapd-validate-container-happy
+version: 1.0
+apps:
+ app:
+  command: bin/validate-container

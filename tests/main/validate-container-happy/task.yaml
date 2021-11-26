@@ -1,0 +1,14 @@
+summary: check the container validator logs on error
+
+environment:
+    SNAP: test-snapd-validate-container-happy
+
+prepare: |
+
+execute: |
+    snap try "$SNAP"
+    snap list "$SNAP"
+    ls -l "$SNAP_MOUNT_DIR/$SNAP/current/hell | MATCH "bar -> baz -> qux"
+    ls -l "$SNAP_MOUNT_DIR/$SNAP/current/hell | MATCH "foo -> bar -> baz"
+    ls -l "$SNAP_MOUNT_DIR/$SNAP/current/hell | MATCH "foo -> bar -> qux"
+    ls -l "$SNAP_MOUNT_DIR/$SNAP/current/hell | MATCH "foo -> baz -> qux"
