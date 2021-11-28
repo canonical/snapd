@@ -41,7 +41,13 @@ const (
 	unitStateUninstalled
 	unitStateDisabled
 	unitStateEnabled
-	unitStateMasked
+	// Ubuntu Core <= 18 has an earlier version of systemd and the
+	// UnitFileState for a masked unit is returned as 'bad'.
+	// LoadState (unused by us) returns 'masked'.
+	unitStateMaskedv1
+	// Ubuntu Core > 18 has a later version of systemd and the
+	// UnitFileState for a masked unit is returned as 'masked'.
+	unitStateMaskedv2
 )
 
 type ctrlaltdelSuite struct {
@@ -67,7 +73,9 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 				output = []byte(fmt.Sprintf("Id=%s\nActiveState=inactive\nUnitFileState=disabled\nNames=%[1]s\n", args[2]))
 			case unitStateEnabled:
 				output = []byte(fmt.Sprintf("Id=%s\nActiveState=inactive\nUnitFileState=enabled\nNames=%[1]s\n", args[2]))
-			case unitStateMasked:
+			case unitStateMaskedv1:
+				output = []byte(fmt.Sprintf("Id=%s\nActiveState=inactive\nUnitFileState=bad\nNames=%[1]s\n", args[2]))
+			case unitStateMaskedv2:
 				output = []byte(fmt.Sprintf("Id=%s\nActiveState=inactive\nUnitFileState=masked\nNames=%[1]s\n", args[2]))
 			default:
 				// No output returned by systemctl
@@ -147,10 +155,32 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelValidDisabledState(c *C) {
 	c.Assert(err, IsNil)
 }
 
-// The ctrl-alt-del.target unit may be in the masked state (none action)
-func (s *ctrlaltdelSuite) TestCtrlAltDelValidMaskedState(c *C) {
+// The ctrl-alt-del.target unit may be in the masked state (none action). This
+// test represents the UnitFileState as returned for Ubuntu Core 16 and 18
+func (s *ctrlaltdelSuite) TestCtrlAltDelValidMaskedStatev1(c *C) {
 	var err error
-	s.unit = unitStateMasked
+	s.unit = unitStateMaskedv1
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.ctrl-alt-del-action": "reboot",
+		},
+	})
+	c.Assert(err, IsNil)
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.ctrl-alt-del-action": "none",
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+// The ctrl-alt-del.target unit may be in the masked state (none action). This
+// test represents the UnitFileState as returned for Ubuntu Core 20 and later
+func (s *ctrlaltdelSuite) TestCtrlAltDelValidMaskedStatev2(c *C) {
+	var err error
+	s.unit = unitStateMaskedv2
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
