@@ -549,7 +549,7 @@ pkg_dependencies_ubuntu_classic(){
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-                pkg_linux_image_extra
+            pkg_linux_image_extra
             ;;
         ubuntu-16.04-64)
             echo "
