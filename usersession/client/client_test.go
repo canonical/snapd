@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -465,9 +466,9 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 }
 
 func (s *clientSuite) TestFinishRefreshNotification(c *C) {
-	n := 0
+	var n int32
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
+		atomic.AddInt32(&n, 1)
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/finish-refresh")
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
@@ -481,5 +482,5 @@ func (s *clientSuite) TestFinishRefreshNotification(c *C) {
 	c.Assert(err, IsNil)
 	// two calls because clientSuite simulates two user sessions (two
 	// snapd-session-agent.socket sockets).
-	c.Check(n, Equals, 2)
+	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
 }
