@@ -32,6 +32,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -428,6 +429,9 @@ func ValidateLayoutAll(info *Info) error {
 	// Validate that each source path is not a new top-level directory
 	for _, layout := range info.Layout {
 		cleanPathSrc := info.ExpandSnapVariables(filepath.Clean(layout.Path))
+		if err := apparmor.ValidateNoAppArmorRegexp(layout.Path); err != nil {
+			return fmt.Errorf("invalid layout path: %v", err)
+		}
 		elems := strings.SplitN(cleanPathSrc, string(os.PathSeparator), 3)
 		switch len(elems) {
 		// len(1) is either relative path or empty string, will be validated
