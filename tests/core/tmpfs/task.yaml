@@ -1,0 +1,40 @@
+summary: Check that the tmpfs.size settings work
+
+environment:
+  MOUNTCFG_FILE: /etc/systemd/system/tmp.mount.d/override.conf
+
+prepare: |
+  if [ -f "$MOUNTCFG_FILE" ]; then
+      echo "tmpfs configuration file already present, testbed not clean"
+      exit 1
+  fi
+
+restore: |
+    rm -f "$MOUNTCFG_FILE"
+
+execute: |
+  echo "Ensure tmpfs.size is not set initially"
+  test ! -f "$MOUNTCFG_FILE"
+  if snap get system tmpfs.size; then
+      echo "Error: tmpfs.size is unexpectedly set"
+      exit 1
+  fi
+  def_size=$(df --output=size /tmp)
+  
+  echo "Ensure setting tmpfs.size works"
+  for size in 100 200; do
+      snap set system tmpfs.size="$size"m
+      snap get system tmpfs.size | MATCH "$size"m
+      df -h --output=size /tmp | MATCH "$size"M
+      grep '^tmpfs /tmp' /proc/mounts | MATCH nosuid,nodev
+      MATCH "Options=mode=1777,strictatime,nosuid,nodev,size=${size}m" "$MOUNTCFG_FILE"
+  done
+
+  echo "Unsetting gets things back to defaults"
+  snap set system tmpfs.size!
+  if snap get system tmpfs.size; then
+      echo "Error: tmpfs.size is unexpectedly set"
+      exit 1
+  fi
+  test ! -f "$MOUNTCFG_FILE"
+  test "$def_size" = "$(df --output=size /tmp)"
