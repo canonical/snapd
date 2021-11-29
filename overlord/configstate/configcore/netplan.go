@@ -34,20 +34,15 @@ package configcore
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -165,14 +160,7 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	}
 
 	// Use the default config that most Ubuntu Core have
-	originHint := "00-snapd-config"
-	// workaround LP:1949884
-	netplanCfgPath := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("/etc/netplan/%s.yaml", originHint))
-	if !osutil.FileExists(netplanCfgPath) {
-		if err := ioutil.WriteFile(netplanCfgPath, []byte("network:"), 0644); err != nil {
-			return err
-		}
-	}
+	originHint := "90-snapd-config"
 
 	// Always starts with a clean config to avoid merging of keys
 	// that got unset.
@@ -213,9 +201,6 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	if !wasTried {
 		return fmt.Errorf("cannot try config")
 	}
-
-	// workaround for LP:1949893
-	time.Sleep(5)
 
 	var storeReachableAfter bool
 	if err := storeReachable(tr.State()); err == nil {
