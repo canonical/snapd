@@ -38,17 +38,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// ValidateNoAppArmorRegexp will check that the given string does not
-// contain AppArmor regular expressions (AARE), double quotes or \0.
-func ValidateNoAppArmorRegexp(s string) error {
-	const AARE = `?*[]{}^"` + "\x00"
-
-	if strings.ContainsAny(s, AARE) {
-		return fmt.Errorf("%q contains a reserved apparmor char from %s", s, AARE)
-	}
-	return nil
-}
-
 type aaParserFlags int
 
 const (

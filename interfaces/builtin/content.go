@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -71,7 +72,7 @@ func cleanSubPath(path string) bool {
 }
 
 func validatePath(path string) error {
-	if err := apparmor.ValidateNoAppArmorRegexp(path); err != nil {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
 		return fmt.Errorf("content interface path is invalid: %v", err)
 	}
 	if ok := cleanSubPath(path); !ok {
