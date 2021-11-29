@@ -773,8 +773,8 @@ suites:
             # _/dirs: _
             _/hosts: _
             _/hosts_n_dirs: _
-            # twisted fails in travis (but not regular spread).
-            # _/twisted: _
+            # twisted fails in travis (but not regular spread). re-enabling it to see if holds up in github actions
+            _/twisted: _
             _/func: _
             _/funkyfunc: _
             _/funcarg: _
