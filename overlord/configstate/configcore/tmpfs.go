@@ -91,14 +91,6 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter,
 	overrDir = filepath.Join(overrDir, tmpMntServOverrideSubDir)
 
 	// Write service config override if needed
-	// TODO check options
-	// These come from /usr/share/systemd/tmp.mount
-	// But we actually have rw,relatime as default in UC??
-	// stat /tmp/ -> shows 1777
-	// strictatime seems activated
-	// ...but nodev is not -> mknod vda, change permissions, can fdisk with normal user
-	// if nodev is set this should not be possible
-	// and nosuid is not being applied either (checked by copying there sudo command)
 	dirContent := make(map[string]osutil.FileState, 1)
 	if tmpfsSz != "" {
 		if err := os.MkdirAll(overrDir, 0755); err != nil {
@@ -118,6 +110,10 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter,
 	}
 
 	// TODO What happens if we are reducing the size??
+	// XXX THIS FAILS if something is using /tmp ->
+	//  umount: /tmp: target is busy.
+	// It can work by running mount -o remount, but still will
+	// fail if we are reducing to less than the currently used space.
 	if sysd != nil && (len(changed) > 0 || len(removed) > 0) {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
