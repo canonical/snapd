@@ -164,7 +164,6 @@ execute: |
     mount | MATCH /run/mnt/ubuntu-boot
     mount | MATCH /run/mnt/ubuntu-save
     mount | MATCH /run/mnt/ubuntu-data
-    mount | MATCH /run/mnt/other-ext4
 
     echo "Make sure the filesystem was redeployed"
     ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
