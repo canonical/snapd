@@ -1,0 +1,55 @@
+summary: Ensure snapd-apparmor works as expected
+
+environment:
+    CONSUMER_SNAP: test-snapd-policy-app-consumer
+
+debug: |
+    journalctl -u snap.apparmor.service
+
+execute: |
+    if ! systemctl is-active snapd.apparmor.service; then
+      echo "Skipping test since snapd.apparmor.service is not active"
+      exit 0
+    fi
+
+    echo "Ensure snapd.apparmor is enabled"
+    systemctl is-enabled snapd.apparmor.service
+
+    # install a test snap which generates a lot of apparmor policies
+    echo "Given a test snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
+    tests.cleanup defer snap remove --purge "$CONSUMER_SNAP"
+
+    # stop snapd so it does not try and load apparmor policies directly
+    echo "And snapd is stopped"
+    systemctl stop snapd.service
+    tests.cleanup defer systemctl restart snapd.service
+
+    # get the current set of profiles but ignore any which may have gotten
+    # created on-the-fly by apparmor for namespaced commands - these
+    # contain / - as these won't get automatically recreated by
+    # snapd.apparmor
+    grep -v / /sys/kernel/security/apparmor/profiles | sort | cut -f1 -d" " > profiles.txt
+
+    # manually unload all profiles defined by snap apparmor policies
+    echo "If we unload existing snap apparmor policy"
+    for p in /var/lib/snapd/apparmor/profiles/*; do
+      while IFS= read -r profile; do
+        echo "Unloading $profile..."
+        echo -n "$profile" > /sys/kernel/security/apparmor/.remove
+        # check it is now unloaded
+        NOMATCH "^$profile " /sys/kernel/security/apparmor/profiles
+      done < <(grep ^profile < "$p" | cut -f2 -d" " | sed s/'"'//g)
+    done
+
+    # restart snapd.apparmor service to reload profiles
+    echo "And restart snapd.apparmor.service"
+    systemctl restart snapd.apparmor.service
+
+    # get the set of profiles which now exist
+    grep -v / /sys/kernel/security/apparmor/profiles | sort | cut -f1 -d" " > reloaded_profiles.txt
+
+    # and check there is no difference (ie. that snapd-apparmor reloaded
+    # all profiles as expected)
+    echo "Then profiles should have reloaded successfully..."
+    diff -u profiles.txt reloaded_profiles.txt
