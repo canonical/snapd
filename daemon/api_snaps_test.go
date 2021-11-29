@@ -596,6 +596,35 @@ func (s *snapsSuite) TestRefreshAllNoChanges(c *check.C) {
 	c.Check(refreshSnapAssertions, check.Equals, true)
 }
 
+func (s *snapsSuite) TestRefreshAllRestoresValidationSets(c *check.C) {
+	refreshSnapAssertions := false
+	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		refreshAssertionsOpts = opts
+		return nil
+	})()
+
+	defer daemon.MockAssertstateRestoreValidationSetsTracking(func(s *state.State) error {
+		return nil
+	})()
+
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		return nil, nil, fmt.Errorf("boom")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh"}
+	st := d.Overlord().State()
+	st.Lock()
+	_, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.ErrorMatches, "boom")
+	c.Check(refreshSnapAssertions, check.Equals, true)
+	c.Assert(refreshAssertionsOpts, check.NotNil)
+	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, true)
+}
+
 func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	refreshSnapAssertions := false
 	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
