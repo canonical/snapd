@@ -266,10 +266,14 @@ UnitFileState=enabled
 Id=other.socket
 ActiveState=active
 UnitFileState=disabled
+
+Id=reboot.target
+ActiveState=inactive
+UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket")
+	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket", "reboot.target")
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
@@ -306,12 +310,17 @@ UnitFileState=disabled
 			Active:    true,
 			Enabled:   false,
 			Installed: true,
+		}, {
+			UnitName:  "reboot.target",
+			Active:    false,
+			Enabled:   true,
+			Installed: true,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "missing.service"},
-		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
+		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket", "reboot.target"},
 	})
 }
 
@@ -405,6 +414,19 @@ ActiveState=active
 	}
 	s.errors = []error{nil}
 	out, err := New(SystemMode, s.rep).Status("foo.timer")
+	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
+	c.Check(out, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusMissingRequiredFieldTarget(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Id=reboot.target
+ActiveState=active
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New(SystemMode, s.rep).Status("reboot.target")
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState .*`)
 	c.Check(out, IsNil)
 }

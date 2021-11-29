@@ -33,6 +33,11 @@
 %global with_multilib 1
 %endif
 
+# Set if valgrind is to be run
+%ifnarch ppc64le
+%global with_valgrind 1
+%endif
+
 %if ! %{with vendorized}
 %global with_bundled 0
 %else
@@ -97,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.53.1
+Version:        2.53.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -206,7 +211,9 @@ BuildRequires:  glibc-static
 %if ! 0%{?rhel}
 BuildRequires:  libseccomp-static
 %endif
+%if 0%{?with_valgrind}
 BuildRequires:  valgrind
+%endif
 BuildRequires:  %{_bindir}/rst2man
 %if 0%{?fedora}
 # ShellCheck in EPEL is too old...
@@ -289,7 +296,7 @@ Provides:      bundled(golang(github.com/juju/ratelimit))
 Provides:      bundled(golang(github.com/kr/pretty))
 Provides:      bundled(golang(github.com/kr/text))
 Provides:      bundled(golang(github.com/mvo5/goconfigparser))
-Provides:      bundled(golang(github.com/mvo5/libseccomp-golang))
+Provides:      bundled(golang(github.com/seccomp/libseccomp-golang))
 Provides:      bundled(golang(github.com/snapcore/go-gettext))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
@@ -534,8 +541,6 @@ BUILDTAGS="nosecboot"
 %endif
 
 %if ! 0%{?with_bundled}
-# We don't need mvo5 fork for seccomp, as we have seccomp 2.3.x
-sed -e "s:github.com/mvo5/libseccomp-golang:github.com/seccomp/libseccomp-golang:g" -i cmd/snap-seccomp/*.go
 # We don't need the snapcore fork for bolt - it is just a fix on ppc
 sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go errtracker/*.go
 %endif
@@ -543,7 +548,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
-%gobuild -o bin/snapd $GOFLAGS ./cmd/snapd
+%gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
 BUILDTAGS="${BUILDTAGS} nomanagers"
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
@@ -595,18 +600,21 @@ autoreconf --force --install --verbose
 %if 0%{?with_selinux}
     --enable-selinux \
 %endif
+%if 0%{?rhel} == 7
+    --disable-bpf \
+%endif
     --libexecdir=%{_libexecdir}/snapd/ \
     --enable-nvidia-biarch \
     %{?with_multilib:--with-32bit-libdir=%{_prefix}/lib} \
     --with-snap-mount-dir=%{_sharedstatedir}/snapd/snap \
     --enable-merged-usr
 
-%make_build
+%make_build %{!?with_valgrind:HAVE_VALGRIND=}
 popd
 
 # Build systemd units, dbus services, and env files
 pushd ./data
-make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
      SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
@@ -691,7 +699,7 @@ popd
 
 # Install all systemd and dbus units, and env files
 pushd ./data
-%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" \
+%make_install BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
               SYSTEMDSYSTEMUNITDIR="%{_unitdir}" SYSTEMDUSERUNITDIR="%{_userunitdir}" \
               SNAP_MOUNT_DIR="%{_sharedstatedir}/snapd/snap" \
               SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
@@ -833,6 +841,7 @@ popd
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop
+%{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
@@ -867,6 +876,8 @@ popd
 # this is typically owned by zsh, but we do not want to explicitly require zsh
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
+# similar case for fish
+%dir %{_datadir}/fish/vendor_conf.d
 
 %files -n snap-confine
 %doc cmd/snap-confine/PORTING
@@ -978,6 +989,37 @@ fi
 
 
 %changelog
+* Mon Nov 15 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.53.2
+ - interfaces/builtin/block_devices: allow blkid to print block
+   device attributes/run/udev/data/b{major}:{minor}
+ - cmd/libsnap-confine-private: do not deny all devices when reusing
+   the device cgroup
+ - interfaces/builtin/time-control: allow pps access
+ - interfaces/u2f-devices: add Trezor and Trezor v2 keys
+ - interfaces: timezone-control, add permission for ListTimezones
+   DBus call
+ - interfaces/apparmor/template.go: allow udevadm from merged usr
+   systems
+ - interface/modem-manager: allow connecting to the mbim/qmi proxy
+ - interfaces/network-manager-observe: Update for libnm client
+   library
+ - cmd/snap-seccomp/syscalls: update syscalls to match libseccomp
+   abad8a8f4
+ - sandbox/cgroup: freeze and thaw cgroups related to services and
+   scopes only
+ - o/hookstate: print cohort with snapctl refresh --pending
+ - cmd/snap-confine: lazy set up of device cgroup, only when devices
+   were assigned
+ - tests: ensure systemd-timesyncd is installed on debian
+ - tests/lib/pkgdb: install strace on Debian 11 and Sid
+ - tests/main/snapd-sigterm: flush, use retry
+ - tests/main/snapd-sigterm: fix race conditions
+ - release-tools/repack-debian-tarball.sh: fix c-vendor dir
+ - data/selinux: allow snap-confine to read udev's database
+ - interfaces/dsp: add more ambarella things* interfaces/dsp: add
+   more ambarella things
+
 * Thu Oct 21 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.53.1
  - spread: run lxd tests with version from latest/stable

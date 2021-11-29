@@ -22,6 +22,7 @@ package daemon_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -506,6 +507,142 @@ func (s *sideloadSuite) TestInstallPathSystemRestartImmediate(c *check.C) {
 	chgSummary, systemRestartImmediate := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 	c.Check(systemRestartImmediate, check.Equals, true)
+}
+
+func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
+	oldTempDir := os.Getenv("TMPDIR")
+	defer func() {
+		c.Assert(os.Setenv("TMPDIR", oldTempDir), check.IsNil)
+	}()
+	tmpDir := c.MkDir()
+	c.Assert(os.Setenv("TMPDIR", tmpDir), check.IsNil)
+
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	chgSummary, _ := s.sideloadCheck(c, sideLoadBodyWithoutDevMode, head, "local", snapstate.Flags{RemoveSnapPath: true})
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
+
+	files, err := ioutil.ReadDir(tmpDir)
+	c.Assert(err, check.IsNil)
+	c.Assert(files, check.HasLen, 0)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	c.Assert(err, check.IsNil)
+	c.Assert(matches, check.HasLen, 1)
+
+	c.Assert(err, check.IsNil)
+	c.Assert(matches[0], testutil.FileEquals, "xyzzy")
+}
+
+func (s *sideloadSuite) TestSideloadExceedMemoryLimit(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	// check that there's a memory limit for the sum of the parts, not just each
+	bufs := make([][]byte, 2)
+	var body string
+
+	for i := range bufs {
+		bufs[i] = make([]byte, daemon.MaxReadBuflen/2+1)
+		_, err := rand.Read(bufs[i])
+		c.Assert(err, check.IsNil)
+
+		body += "--foo\r\n" +
+			"Content-Disposition: form-data; name=\"stuff\"\r\n" +
+			"\r\n" +
+			string(bufs[i]) +
+			"\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=foo")
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.Message, check.Equals, `cannot read form data: exceeds memory limit`)
+}
+
+func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	buf := make([]byte, daemon.MaxReadBuflen)
+	_, err := rand.Read(buf)
+	c.Assert(err, check.IsNil)
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		string(buf) +
+		"\r\n" +
+		"----hello--\r\n"
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	// using the maximum memory doesn't cause the failure (not having a snap file does)
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr.Message, check.Equals, `cannot find "snap" file field in provided multipart/form-data payload`)
+}
+
+func (s *sideloadSuite) TestCleanUpTempFilesIfRequestFailed(c *check.C) {
+	s.daemonWithOverlordMockAndStore()
+
+	// write file parts
+	body := "----hello--\r\n"
+	for _, name := range []string{"one", "two"} {
+		body += fmt.Sprintf(
+			"Content-Disposition: form-data; name=\"snap\"; filename=\"%s\"\r\n"+
+				"\r\n"+
+				"xyzzy\r\n", name)
+	}
+
+	// make the request fail
+	buf := make([]byte, daemon.MaxReadBuflen+1)
+	_, err := rand.Read(buf)
+	c.Assert(err, check.IsNil)
+
+	body += "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		string(buf) +
+		"\r\n" +
+		"----hello--\r\n"
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	apiErr := s.errorReq(c, req, nil)
+	c.Check(apiErr, check.NotNil)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, check.IsNil)
+	c.Check(matches, check.HasLen, 0)
+}
+
+func (s *sideloadSuite) TestCleanUpUnusedTempSnapFiles(c *check.C) {
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"one\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"two\"\r\n" +
+		"\r\n" +
+		// sideloadCheck checks that the snap file passed to the change has contents "xyzzy" so
+		// having a different body here tests that the second file isn't passed to change
+		"bla\r\n" +
+		"----hello--\r\n"
+
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", snapstate.Flags{RemoveSnapPath: true, DevMode: true})
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "one"`)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+	c.Assert(err, check.IsNil)
+	// only the file passed into the change (the request's first file) remains
+	c.Check(matches, check.HasLen, 1)
 }
 
 type trySuite struct {

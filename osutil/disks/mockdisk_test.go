@@ -107,6 +107,76 @@ func (s *mockDiskSuite) TestMockDeviceNameToDiskMapping(c *C) {
 	c.Assert(res3, DeepEquals, d2)
 }
 
+func (s *mockDiskSuite) TestMockPartitionDeviceNodeToDiskMapping(c *C) {
+	// two disks
+	d1 := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d1",
+		DevNode:           "/dev/vda",
+		DevPath:           "/sys/devices/foo1",
+	}
+
+	d2 := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label2",
+				PartitionUUID:   "part2",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d2",
+		DevNode:           "/dev/vdb",
+		DevPath:           "/sys/devices/foo2",
+	}
+
+	m := map[string]*disks.MockDiskMapping{
+		// two partitions on vda
+		"/dev/vda1": d1,
+		"/dev/vda2": d1,
+		// one partition on vdb
+		"/dev/vdb1": d2,
+	}
+
+	r := disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer r()
+
+	res, err := disks.DiskFromPartitionDeviceNode("/dev/vda1")
+	c.Assert(err, IsNil)
+	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/foo1")
+	parts, err := res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
+	c.Assert(res, DeepEquals, d1)
+
+	res2, err := disks.DiskFromPartitionDeviceNode("/dev/vda2")
+	c.Assert(err, IsNil)
+	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/foo1")
+	parts, err = res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
+	c.Assert(res2, DeepEquals, d1)
+
+	_, err = disks.DiskFromPartitionDeviceNode("/dev/vda3")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("partition device node %q not mocked", "/dev/vda3"))
+
+	res3, err := disks.DiskFromPartitionDeviceNode("/dev/vdb1")
+	c.Assert(err, IsNil)
+	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
+	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
+	parts, err = res3.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label2", PartitionUUID: "part2"}})
+	c.Assert(res3, DeepEquals, d2)
+}
+
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniqueness(c *C) {
 	// two different disks with different DevNum's
 	d1 := &disks.MockDiskMapping{
