@@ -6934,7 +6934,9 @@ func (s *validationSetsSuite) TestUpdateManyValidationSetsPartialFailureNothingT
 	// mockMaybeRestoreValidationSetsAndRevertSnaps was called.
 	c.Check(refreshed, DeepEquals, []string{"some-snap"})
 
-	// validation sets history has been updated
+	// validation sets history update was attempted (could be a no-op if
+	// maybeRestoreValidationSetsAndRevertSnaps restored last tracking
+	// data).
 	c.Check(addCurrentTrackingToValidationSetsStackCalled, Equals, 1)
 }
 

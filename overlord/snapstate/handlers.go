@@ -3274,7 +3274,15 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
-	// update validation sets stack
+	// update validation sets stack: there are two possibilities
+	// - if maybeRestoreValidationSetsAndRevertSnaps restored previous tracking
+	// or refresh succeeded and it hasn't changed then this is a noop
+	// (AddCurrentTrackingToValidationSetsStack ignores tracking if identical
+	// to the topmost stack entry);
+	// - if maybeRestoreValidationSetsAndRevertSnaps kept new tracking
+	// because its constraints were met even after partial failure or
+	// refresh succeeded and tracking got updated, then
+	// this creates a new copy of validation-sets tracking data.
 	if AddCurrentTrackingToValidationSetsStack != nil {
 		if err := AddCurrentTrackingToValidationSetsStack(st); err != nil {
 			return err
