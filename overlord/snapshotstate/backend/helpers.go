@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap"
 )
 
 func zipMember(f *os.File, member string) (r io.ReadCloser, sz int64, err error) {
@@ -94,9 +95,9 @@ var (
 	userLookupId = user.LookupId
 )
 
-func usersForUsernamesImpl(usernames []string) ([]*user.User, error) {
+func usersForUsernamesImpl(usernames []string, opts *dirs.SnapDirOptions) ([]*user.User, error) {
 	if len(usernames) == 0 {
-		return allUsers()
+		return allUsers(opts)
 	}
 	users := make([]*user.User, 0, len(usernames))
 	for _, username := range usernames {
@@ -132,8 +133,8 @@ func usersForUsernamesImpl(usernames []string) ([]*user.User, error) {
 	return users, nil
 }
 
-func allUsers() ([]*user.User, error) {
-	ds, err := filepath.Glob(dirs.SnapDataHomeGlob)
+func allUsers(opts *dirs.SnapDirOptions) ([]*user.User, error) {
+	ds, err := filepath.Glob(snap.DataHomeGlob(opts))
 	if err != nil {
 		// can't happen?
 		return nil, err

@@ -271,7 +271,7 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
 }
 
 func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
@@ -286,12 +286,10 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
+		return tracker.ForeignTask(kind, status, snapsup)
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	runner.AddHandler("auto-connect", fakeHandler, nil)
+	runner.AddHandler("auto-connect", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-disconnect", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
@@ -2024,6 +2022,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:    "auto-connect:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
 		},
 		{
 			op:   "unlink-snap",
