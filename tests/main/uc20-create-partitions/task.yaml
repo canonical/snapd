@@ -155,10 +155,10 @@ execute: |
     echo "Ensure we can deploy with mounting"
     uc20-create-partitions --mount ./gadget-dir "$kerneldir" "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1\.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 1G\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
 
     echo "check that the filesystems are created and mounted"
     mount | MATCH /run/mnt/ubuntu-boot
