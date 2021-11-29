@@ -409,3 +409,73 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistoryRemovesOldEnt
 		},
 	})
 }
+
+func (s *validationSetTrackingSuite) TestRestoreValidationSetsTrackingNoHistory(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), ErrorMatches, `no validation sets state to restore`)
+}
+
+func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tr1 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  1,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr1)
+
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+
+	all, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 1)
+
+	tr3 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "baz",
+		Mode:      assertstate.Enforce,
+		Current:   5,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr3)
+
+	all, err = assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	// two validation sets are now tracked
+	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": {
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			PinnedAt:  1,
+			Current:   2,
+		},
+		"foo/baz": {
+			AccountID: "foo",
+			Name:      "baz",
+			Mode:      assertstate.Enforce,
+			Current:   5,
+		},
+	})
+
+	// restore
+	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), IsNil)
+
+	// and we're back at one validation set being tracked
+	all, err = assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": {
+			AccountID: "foo",
+			Name:      "bar",
+			Mode:      assertstate.Enforce,
+			PinnedAt:  1,
+			Current:   2,
+		},
+	})
+}
