@@ -158,7 +158,13 @@ func makeFakeRefreshForSnap(snap, targetDir, snapBlob string, db *asserts.Databa
 	}
 
 	// fake new version
-	err = exec.Command("sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml")).Run()
+	err = exec.Command("sudo", "sed", "-i",
+		// version can be all numbers thus making it ambiguous and
+		// needing quoting, eg. version: '2021112', but since we're
+		// adding +fake1 suffix, the resulting value will clearly be a
+		// string, so have the regex strip quoting too
+		`s/version:[ ]\+['"]\?\([a-zA-Z0-9-]\+\)['"]\?/version: \1+fake1/`,
+		filepath.Join(fakeUpdateDir, "meta/snap.yaml")).Run()
 	if err != nil {
 		return fmt.Errorf("changing fake snap version: %v", err)
 	}
