@@ -70,6 +70,10 @@ const (
 	BeginEdge                 = state.TaskSetEdge("begin")
 	BeforeHooksEdge           = state.TaskSetEdge("before-hooks")
 	HooksEdge                 = state.TaskSetEdge("hooks")
+	BeforeMaybeRebootEdge     = state.TaskSetEdge("before-maybe-reboot")
+	MaybeRebootEdge           = state.TaskSetEdge("maybe-reboot")
+	MaybeRebootWaitEdge       = state.TaskSetEdge("maybe-reboot-wait")
+	AfterMaybeRebootWaitEdge  = state.TaskSetEdge("after-maybe-reboot-wait")
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -515,6 +519,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet.WaitAll(ts)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
+	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
+	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
+	installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
+	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge)
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
@@ -1010,30 +1018,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
-	if err != nil && !config.IsNoOption(err) {
+	if err := checkDiskSpace(st, "install", []minimalInstallInfo{installSnapInfo{info}}, userID); err != nil {
 		return nil, err
-	}
-	if checkDiskSpaceInstall {
-		// check if there is enough disk space for requested snap and its
-		// prerequisites.
-		totalSize, err := installSize(st, []minimalInstallInfo{installSnapInfo{info}}, userID)
-		if err != nil {
-			return nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      []string{info.InstanceName()},
-					ChangeKind: "install",
-				}
-			}
-			return nil, err
-		}
 	}
 
 	providerContentAttrs := defaultProviderContentAttrs(st, info)
@@ -1102,35 +1088,13 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceInstall, err := features.Flag(tr, features.CheckDiskSpaceInstall)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, nil, err
+	snapInfos := make([]minimalInstallInfo, len(installs))
+	for i, sar := range installs {
+		snapInfos[i] = installSnapInfo{sar.Info}
 	}
-	if checkDiskSpaceInstall {
-		// check if there is enough disk space for requested snaps and their
-		// prerequisites.
-		snapInfos := make([]minimalInstallInfo, len(installs))
-		for i, sar := range installs {
-			snapInfos[i] = installSnapInfo{sar.Info}
-		}
-		totalSize, err := installSize(st, snapInfos, userID)
-		if err != nil {
-			return nil, nil, err
-		}
 
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      toInstall,
-					ChangeKind: "install",
-				}
-			}
-			return nil, nil, err
-		}
+	if err = checkDiskSpace(st, "install", snapInfos, userID); err != nil {
+		return nil, nil, err
 	}
 
 	tasksets := make([]*state.TaskSet, 0, len(installs))
@@ -1200,6 +1164,76 @@ func UpdateMany(ctx context.Context, st *state.State, names []string, userID int
 // consider.
 type updateFilter func(*snap.Info, *SnapState) bool
 
+func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) error {
+	haveBase, haveKernel := bootBaseTs != nil, kernelTs != nil
+	if !haveBase && !haveKernel {
+		// neither base nor kernel update
+		return nil
+	}
+	if haveBase != haveKernel {
+		// have one but not the other
+		return nil
+	}
+
+	// both kernel and boot base are being updated, reorder link-snap and
+	// auto-connect tasks from both snaps such that we end up with the
+	// following ordering:
+	//
+	// tasks of base and kernel ->
+	//     link-snap(base) ->
+	//        link-snap(kernel)(r) ->
+	//            auto-connect(base) ->
+	//                auto-connect(kernel) ->
+	//                    remaining tasks of base and kernel
+	//
+	// where (r) denotes the task that can effectively request a reboot
+
+	beforeLinkSnapKernel := kernelTs.MaybeEdge(BeforeMaybeRebootEdge)
+	linkSnapKernel := kernelTs.MaybeEdge(MaybeRebootEdge)
+	autoConnectKernel := kernelTs.MaybeEdge(MaybeRebootWaitEdge)
+
+	if linkSnapKernel == nil || autoConnectKernel == nil || beforeLinkSnapKernel == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the preceding task for the kernel snap")
+	}
+	kernelLanes := linkSnapKernel.Lanes()
+
+	linkSnapBase := bootBaseTs.MaybeEdge(MaybeRebootEdge)
+	autoConnectBase := bootBaseTs.MaybeEdge(MaybeRebootWaitEdge)
+	afterAutoConnectBase := bootBaseTs.MaybeEdge(AfterMaybeRebootWaitEdge)
+	if linkSnapBase == nil || autoConnectBase == nil || afterAutoConnectBase == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the following task for the base snap")
+	}
+	baseLanes := linkSnapBase.Lanes()
+
+	for _, lane := range kernelLanes {
+		linkSnapBase.JoinLane(lane)
+		autoConnectBase.JoinLane(lane)
+	}
+	for _, lane := range baseLanes {
+		linkSnapKernel.JoinLane(lane)
+		autoConnectKernel.JoinLane(lane)
+	}
+	// make link-snap base wait for the last task directly preceding
+	// link-snap of the kernel
+	linkSnapBase.WaitFor(beforeLinkSnapKernel)
+	// order: link-snap-base -> link-snap-kernel
+	linkSnapKernel.WaitFor(linkSnapBase)
+	// order: link-snap-kernel -> auto-connect-base
+	autoConnectBase.WaitFor(linkSnapKernel)
+	// order: auto-connect-base -> auto-connect-kernel
+	autoConnectKernel.WaitFor(autoConnectBase)
+	// make the first task after auto-connect base wait for auto-connect
+	// kernel, this task already waits for auto-connect of base
+	afterAutoConnectBase.WaitFor(autoConnectKernel)
+
+	// cannot-reboot indicates that a task cannot invoke a reboot
+	linkSnapBase.Set("cannot-reboot", true)
+
+	// first auto connect will wait for reboot, but the restart pending flag
+	// will be cleared for the second one that runs
+	return nil
+}
+
 func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -1261,34 +1295,8 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		toUpdate[i] = installSnapInfo{up}
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
-	if err != nil && !config.IsNoOption(err) {
+	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
 		return nil, nil, err
-	}
-	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snap and its
-		// prerequisites.
-		totalSize, err := installSize(st, toUpdate, userID)
-		if err != nil {
-			return nil, nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			snaps := make([]string, len(updates))
-			for i, up := range updates {
-				snaps[i] = up.InstanceName()
-			}
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      snaps,
-					ChangeKind: "refresh",
-				}
-			}
-			return nil, nil, err
-		}
 	}
 
 	updated, tasksets, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
@@ -1344,7 +1352,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		reportUpdated[snapName] = true
 	}
 
-	// first snapd, core, bases, then rest
+	// first snapd, core, kernel, bases, then rest
 	sort.Stable(byType(updates))
 	prereqs := make(map[string]*state.TaskSet)
 	waitPrereq := func(ts *state.TaskSet, prereqName string) {
@@ -1353,7 +1361,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			ts.WaitAll(preTs)
 		}
 	}
-	var kernelTs, gadgetTs *state.TaskSet
+	var kernelTs, gadgetTs, bootBaseTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1390,18 +1398,38 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
 			// snaps
+
+			// because "core" has type "os" it is ordered before all
+			// other updates, right after snapd, that introduces a
+			// dependency on "core" tasks for all other snaps, and
+			// thus preventing us from reordering them to perform a
+			// single reboot when both kernel and base (core in this
+			// case) are updated
 			waitPrereq(ts, defaultCoreSnapName)
 			waitPrereq(ts, "snapd")
 			if update.SnapBase() != "" {
+				// the kernel snap is ordered before the base,
+				// so its task will not have an implicit
+				// dependency on base update
 				waitPrereq(ts, update.SnapBase())
 			}
 		}
-		// keep track of kernel/gadget udpates
+		// keep track of kernel/gadget/base updates
 		switch update.Type() {
 		case snap.TypeKernel:
 			kernelTs = ts
 		case snap.TypeGadget:
 			gadgetTs = ts
+		case snap.TypeBase:
+			if update.InstanceName() == deviceCtx.Model().Base() {
+				// only the boot base is relevant for reboots
+				bootBaseTs = ts
+			}
+		case snap.TypeOS:
+			// nothing to do, we cannot set up a single reboot with
+			// "core" due to all tasks of other snaps impolitely
+			// waiting for all tasks of "core", what makes us end up
+			// with a task wait loop
 		}
 
 		scheduleUpdate(update.InstanceName(), ts)
@@ -1415,6 +1443,14 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// kernel aborts the wait tasks (the gadget) is put on "Hold".
 	if kernelTs != nil && gadgetTs != nil {
 		kernelTs.WaitAll(gadgetTs)
+	}
+
+	if deviceCtx.Model().Base() != "" {
+		// reordering of kernel and base tasks is supported only on
+		// UC18+ devices
+		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if len(newAutoAliases) != 0 {
@@ -1809,34 +1845,8 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		toUpdate[i] = installSnapInfo{up}
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
-	if err != nil && !config.IsNoOption(err) {
+	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
 		return nil, err
-	}
-	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snap and its
-		// prerequisites.
-		totalSize, err := installSize(st, toUpdate, userID)
-		if err != nil {
-			return nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			snaps := make([]string, len(updates))
-			for i, up := range updates {
-				snaps[i] = up.InstanceName()
-			}
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      snaps,
-					ChangeKind: "refresh",
-				}
-			}
-			return nil, err
-		}
 	}
 
 	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
@@ -2144,34 +2154,8 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		toUpdate[i] = up
 	}
 
-	tr := config.NewTransaction(st)
-	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
-	if err != nil && !config.IsNoOption(err) {
+	if err := checkDiskSpace(st, "refresh", toUpdate, 0); err != nil {
 		return nil, err
-	}
-	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snaps and their
-		// prerequisites.
-		totalSize, err := installSize(st, toUpdate, 0)
-		if err != nil {
-			return nil, err
-		}
-		requiredSpace := safetyMarginDiskSpace(totalSize)
-		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
-			snaps := make([]string, len(updates))
-			for i, up := range updates {
-				snaps[i] = up.InstanceName()
-			}
-			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-				return nil, &InsufficientSpaceError{
-					Path:       path,
-					Snaps:      snaps,
-					ChangeKind: "refresh",
-				}
-			}
-			return nil, err
-		}
 	}
 
 	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
@@ -2181,6 +2165,54 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 
 	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
 	return tasksets, nil
+}
+
+// checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
+func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallInfo, userID int) error {
+	var featFlag features.SnapdFeature
+
+	switch changeKind {
+	case "install":
+		featFlag = features.CheckDiskSpaceInstall
+	case "refresh":
+		featFlag = features.CheckDiskSpaceRefresh
+	default:
+		return fmt.Errorf("cannot check disk space for invalid change kind %q", changeKind)
+	}
+
+	tr := config.NewTransaction(st)
+	enabled, err := features.Flag(tr, featFlag)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+
+	if !enabled {
+		return nil
+	}
+
+	totalSize, err := installSize(st, infos, userID)
+	if err != nil {
+		return err
+	}
+
+	requiredSpace := safetyMarginDiskSpace(totalSize)
+	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+		snaps := make([]string, len(infos))
+		for i, up := range infos {
+			snaps[i] = up.InstanceName()
+		}
+		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+			return &InsufficientSpaceError{
+				Path:       path,
+				Snaps:      snaps,
+				ChangeKind: changeKind,
+			}
+		}
+		return err
+	}
+
+	return nil
 }
 
 // LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and

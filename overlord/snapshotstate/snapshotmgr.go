@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
@@ -220,9 +221,17 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users)
+	st := task.State()
+
+	st.Lock()
+	opts, err := snapstate.GetSnapDirOptions(st)
+	st.Unlock()
 	if err != nil {
-		st := task.State()
+		return err
+	}
+
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, opts)
+	if err != nil {
 		st.Lock()
 		defer st.Unlock()
 		removeSnapshotState(st, snapshot.SetID)
@@ -299,7 +308,14 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 		task.Logf(format, args...)
 	}
 
-	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf)
+	st.Lock()
+	opts, err := snapstate.GetSnapDirOptions(st)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf, opts)
 	if err != nil {
 		return err
 	}
@@ -432,7 +448,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *dirs.SnapDirOptions) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

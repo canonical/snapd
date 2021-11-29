@@ -576,6 +576,7 @@ var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type"}
 var unitProperties = map[string][]string{
 	".timer":  baseProperties,
 	".socket": baseProperties,
+	".target": baseProperties,
 	// in service units, Type is the daemon type
 	".service": extendedProperties,
 	// in mount units, Type is the fs type
@@ -791,9 +792,13 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	var extendedUnits []string
 
 	for _, name := range unitNames {
-		if strings.HasSuffix(name, ".timer") || strings.HasSuffix(name, ".socket") {
+		// Group units with the same query string together to
+		// optimize the number of 'systemctl' invocations.
+		if strings.HasSuffix(name, ".timer") || strings.HasSuffix(name, ".socket") || strings.HasSuffix(name, ".target") {
+			// Units using the baseProperties query
 			limitedUnits = append(limitedUnits, name)
 		} else {
+			// Units using the extendedProperties query
 			extendedUnits = append(extendedUnits, name)
 		}
 	}
