@@ -50,6 +50,12 @@ type MockDiskMapping struct {
 	DevNum  string
 	DevNode string
 	DevPath string
+
+	ID                  string
+	DiskSchema          string
+	SectorSizeBytes     uint64
+	DiskUsableSectorEnd uint64
+	DiskSizeInBytes     uint64
 }
 
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
@@ -147,6 +153,26 @@ func (d *MockDiskMapping) KernelDevicePath() string {
 	return d.DevPath
 }
 
+func (d *MockDiskMapping) DiskID() string {
+	return d.ID
+}
+
+func (d *MockDiskMapping) Schema() string {
+	return d.DiskSchema
+}
+
+func (d *MockDiskMapping) SectorSize() (uint64, error) {
+	return d.SectorSizeBytes, nil
+}
+
+func (d *MockDiskMapping) UsableSectorsEnd() (uint64, error) {
+	return d.DiskUsableSectorEnd, nil
+}
+
+func (d *MockDiskMapping) SizeInBytes() (uint64, error) {
+	return d.DiskSizeInBytes, nil
+}
+
 // Mountpoint is a combination of a mountpoint location and whether that
 // mountpoint is a decrypted device. It is only used in identifying mount points
 // with MountPointIsFromDisk and DiskFromMountPoint with
@@ -185,10 +211,10 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check major/minors across all structures
-	type majmin struct{ maj, min int }
-	seenMajorMinors := map[majmin]bool{}
+	// check major/minors across each disk
 	for _, disk := range mockedDisks {
+		type majmin struct{ maj, min int }
+		seenMajorMinors := map[majmin]bool{}
 		for _, p := range disk.Structure {
 			if p.Major == 0 && p.Minor == 0 {
 				continue
@@ -202,9 +228,24 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check device paths across all structures
-	seenDevPaths := map[string]bool{}
+	// check StructureIndex across each disk
 	for _, disk := range mockedDisks {
+		seenIndices := map[uint64]bool{}
+		for _, p := range disk.Structure {
+			if p.StructureIndex == 0 {
+				continue
+			}
+
+			if seenIndices[p.StructureIndex] {
+				panic("mock error: duplicated structure indices for partitions in disk mapping")
+			}
+			seenIndices[p.StructureIndex] = true
+		}
+	}
+
+	// check device paths across each disk
+	for _, disk := range mockedDisks {
+		seenDevPaths := map[string]bool{}
 		for _, p := range disk.Structure {
 			if p.KernelDevicePath == "" {
 				continue
@@ -216,23 +257,47 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check device nodes across all structures
-	seendDevNodes := map[string]bool{}
+	// check device nodes across each disk
 	for _, disk := range mockedDisks {
+		sendDevNodes := map[string]bool{}
 		for _, p := range disk.Structure {
 			if p.KernelDevicePath == "" {
 				continue
 			}
 
-			if seendDevNodes[p.KernelDeviceNode] {
+			if sendDevNodes[p.KernelDeviceNode] {
 				panic("mock error: duplicated kernel device nodes for partitions in disk mapping")
 			}
-			seendDevNodes[p.KernelDeviceNode] = true
+			sendDevNodes[p.KernelDeviceNode] = true
 		}
 	}
 
 	// no checking of filesystem label/uuid since those could be duplicated as
 	// they exist independent of any other structure
+}
+
+// MockPartitionDeviceNodeToDiskMapping will mock DiskFromPartitionDeviceNode
+// such that the provided map of device names to mock disks is used instead of
+// the actual implementation using udev.
+func MockPartitionDeviceNodeToDiskMapping(mockedDisks map[string]*MockDiskMapping) (restore func()) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	checkMockDiskMappingsForDuplicates(mockedDisks)
+
+	// note that there can be multiple partitions that map to the same disk, so
+	// we don't really validate the keys of the provided mapping
+
+	old := diskFromPartitionDeviceNode
+	diskFromPartitionDeviceNode = func(node string) (Disk, error) {
+		disk, ok := mockedDisks[node]
+		if !ok {
+			return nil, fmt.Errorf("partition device node %q not mocked", node)
+		}
+		return disk, nil
+	}
+	return func() {
+		diskFromPartitionDeviceNode = old
+	}
 }
 
 // MockDeviceNameToDiskMapping will mock DiskFromDeviceName such that the

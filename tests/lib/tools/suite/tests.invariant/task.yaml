@@ -49,10 +49,10 @@ execute: |
     tests.invariant check root-files-in-home | MATCH 'tests.invariant: root-files-in-home ok'
 
     # Invariant tool detects leftovers from crashed snap-confine.
-    mkdir /tmp/snap.rootfs_tests.invariant
+    mkdir "$TESTSTMP"/snap.rootfs_tests.invariant
     tests.invariant check crashed-snap-confine 2>&1 | MATCH 'tests.invariant: crashed-snap-confine not-ok'
     tests.invariant check crashed-snap-confine 2>&1 | MATCH 'tests.invariant: it seems snap-confine has crashed'
-    rmdir /tmp/snap.rootfs_tests.invariant
+    rmdir "$TESTSTMP"/snap.rootfs_tests.invariant
 
     # This filters out 14.04 and ubuntu-core, respectively.
     if [ "$(command -v systemd-run)" != "" ] && [ "$(command -v dbus-launch)" != "" ]; then

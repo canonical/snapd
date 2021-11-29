@@ -2,16 +2,7 @@ summary: tests for the tests.cleanup tool
 
 systems: [ubuntu-18.04-64]
 
-prepare: |
-    apt-get install -y shellcheck
-
-restore: |
-    apt-get remove --purge -y shellcheck
-
 execute: |
-    # The script passes shellcheck.
-    shellcheck "$TESTSTOOLS"/tests.cleanup
-
     # Without any arguments a help message is printed.
     tests.cleanup | MATCH "usage: tests.cleanup defer <cmd> \[args\]"
     tests.cleanup | MATCH "       tests.cleanup pop"
@@ -59,12 +50,8 @@ execute: |
     tests.cleanup restore 2>&1 | MATCH 'tests.cleanup: deferred command "false" failed with exit code 1'
     test -e defer.sh
 
-    # Leftover defer.sh scripts are detected by the invariant checker.
-    # This also detects forgotten tests.cleanup calls.
-    not tests.invariant check leftover-defer-sh
-    tests.invariant check leftover-defer-sh 2>&1 | MATCH "tests.invariant: leftover defer.sh script"
+    # Clean the defer.sh
     rm -f defer.sh
-    tests.invariant check leftover-defer-sh
 
     # Deferred commands can be popped and executed one by one. This is useful
     # to ensure correctness in case of failure while still allowing precise
