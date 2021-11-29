@@ -272,7 +272,7 @@ func RestoreValidationSetsTracking(st *state.State) error {
 	}
 	if len(trackingState) == 0 {
 		// we should never be called when there is nothing in the stack
-		return fmt.Errorf("no validation sets state to restore")
+		return state.ErrNoState
 	}
 	st.Set("validation-sets", trackingState)
 	return nil

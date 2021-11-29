@@ -3395,7 +3395,10 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 	}
 	err = enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation)
 	if err == nil {
-		// XXX: can this really happen?
+		// all fine after restoring validation sets: this can happen if previous
+		// validation sets only required a snap (regardless of its revision), then
+		// after update they require a specific snap revision, so after restoring
+		// we are back with the good state.
 		return nil, nil
 	}
 	verr, ok := err.(*snapasserts.ValidationSetsValidationError)

@@ -414,7 +414,7 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTrackingNoHistory(
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), ErrorMatches, `no validation sets state to restore`)
+	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), Equals, state.ErrNoState)
 }
 
 func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
