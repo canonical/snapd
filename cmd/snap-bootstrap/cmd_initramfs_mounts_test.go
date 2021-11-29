@@ -92,6 +92,9 @@ var (
 	needsNoSuidDiskMountOpts = &main.SystemdMountOptions{
 		NoSuid: true,
 	}
+	snapMountOpts = &main.SystemdMountOptions{
+		ReadOnly: true,
+	}
 
 	seedPart = disks.Partition{
 		FilesystemLabel: "ubuntu-seed",
@@ -501,6 +504,7 @@ func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMo
 	}
 	mnt.what = filepath.Join(s.seedDir, "snaps", name+"_1.snap")
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
+	mnt.opts = snapMountOpts
 
 	return mnt
 }
@@ -519,6 +523,7 @@ func (s *initramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn snap.Pl
 
 	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
+	mnt.opts = snapMountOpts
 
 	return mnt
 }
@@ -1247,6 +1252,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1254,6 +1260,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1261,6 +1268,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1415,6 +1423,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1422,6 +1431,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1429,6 +1439,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1561,6 +1572,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1568,6 +1580,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1575,6 +1588,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1746,6 +1760,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
@@ -1753,6 +1768,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		},
 	})
 }
@@ -1870,6 +1886,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
@@ -1877,6 +1894,7 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
 		},
 	})
 }

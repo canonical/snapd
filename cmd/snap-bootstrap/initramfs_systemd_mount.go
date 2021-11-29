@@ -72,6 +72,8 @@ type systemdMountOptions struct {
 	NoSuid bool
 	// Bind indicates a bind mount
 	Bind bool
+	// Read-only mount
+	ReadOnly bool
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -134,6 +136,9 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.Bind {
 		options = append(options, "bind")
+	}
+	if opts.ReadOnly {
+		options = append(options, "ro")
 	}
 	if len(options) > 0 {
 		args = append(args, "--options="+strings.Join(options, ","))
