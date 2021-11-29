@@ -97,7 +97,7 @@ var (
 
 func usersForUsernamesImpl(usernames []string, opts *dirs.SnapDirOptions) ([]*user.User, error) {
 	if len(usernames) == 0 {
-		return allUsers(opts)
+		return AllUsers(opts)
 	}
 	users := make([]*user.User, 0, len(usernames))
 	for _, username := range usernames {
@@ -133,7 +133,7 @@ func usersForUsernamesImpl(usernames []string, opts *dirs.SnapDirOptions) ([]*us
 	return users, nil
 }
 
-func allUsers(opts *dirs.SnapDirOptions) ([]*user.User, error) {
+func AllUsers(opts *dirs.SnapDirOptions) ([]*user.User, error) {
 	ds, err := filepath.Glob(snap.DataHomeGlob(opts))
 	if err != nil {
 		// can't happen?
