@@ -22,18 +22,18 @@ package configcore
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
-	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
-	"github.com/snapcore/snapd/systemd"
 )
 
 const (
+	mntStaticOptions         = "mode=1777,strictatime,nosuid,nodev"
 	tmpfsService             = "tmp.mount"
 	tmpfsMountPoint          = "/tmp"
 	tmpMntServOverrideSubDir = "tmp.mount.d"
@@ -44,8 +44,6 @@ func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.tmpfs.size"] = true
 }
-
-var debugPrint = fmt.Printf
 
 // Regex matches what is specified by tmpfs(5) for the size option
 var validTmpfsSize = regexp.MustCompile(`^[0-9]+[kmgKMG%]?$`).MatchString
@@ -58,7 +56,6 @@ func validateTmpfsSettings(tr config.ConfGetter) error {
 	if tmpfsSz == "" {
 		return nil
 	}
-	debugPrint("validateTmpfsSettings: %q\n", tmpfsSz)
 	if !validTmpfsSize(tmpfsSz) {
 		return fmt.Errorf("cannot set tmpfs size %q: invalid size", tmpfsSz)
 	}
@@ -73,35 +70,35 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter,
 	if err != nil {
 		return err
 	}
-	debugPrint("handleTmpfsConfiguration: %q\n", tmpfsSz)
 
 	// Create override configuration file for tmp.mount service
 
 	// Create /etc/systemd/system/tmp.mount.d if needed
 	var overrDir string
-	var sysd systemd.Systemd
 	if opts == nil {
 		// runtime system
 		overrDir = dirs.SnapServicesDir
-		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir,
-			systemd.SystemMode, &sysdLogger{})
 	} else {
 		overrDir = dirs.SnapServicesDirUnder(opts.RootDir)
 	}
 	overrDir = filepath.Join(overrDir, tmpMntServOverrideSubDir)
 
 	// Write service config override if needed
+	options := mntStaticOptions
 	dirContent := make(map[string]osutil.FileState, 1)
 	if tmpfsSz != "" {
 		if err := os.MkdirAll(overrDir, 0755); err != nil {
 			return err
 		}
-		content := fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n",
-			tmpfsSz)
+		options = fmt.Sprintf("%s,size=%s", options, tmpfsSz)
+		content := fmt.Sprintf("[Mount]\nOptions=%s\n", options)
 		dirContent[tmpMntServOverrideFile] = &osutil.MemoryFileState{
 			Content: []byte(content),
 			Mode:    0644,
 		}
+	} else {
+		// Use default tmpfs size if empty setting (50%, see tmpfs(5))
+		options = fmt.Sprintf("%s,size=50%%", options)
 	}
 	glob := tmpMntServOverrideFile
 	changed, removed, err := osutil.EnsureDirState(overrDir, glob, dirContent)
@@ -109,16 +106,21 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter,
 		return err
 	}
 
-	// TODO What happens if we are reducing the size??
-	// XXX THIS FAILS if something is using /tmp ->
-	//  umount: /tmp: target is busy.
-	// It can work by running mount -o remount, but still will
-	// fail if we are reducing to less than the currently used space.
-	if sysd != nil && (len(changed) > 0 || len(removed) > 0) {
-		if err := sysd.DaemonReload(); err != nil {
-			return err
+	// Re-starting the tmp.mount service will fail if some process
+	// is using a file in /tmp, so instead of doing that we use
+	// the remount option for the mount command, which will not
+	// fail in that case. There is however the possibility of a
+	// failure in case we are reducing the size to something
+	// smaller than the currently used space in the mount. We
+	// return an error in that case.
+	// XXX if error, the content of override.conf will be different
+	// to the setting seen by snapd. But watchdog.go has the same issue??
+	if opts == nil && (len(changed) > 0 || len(removed) > 0) {
+		output, err := exec.Command("mount", "-o", "remount,"+options, "/tmp").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("cannot remount tmpfs with new size: %s (%s)",
+				err.Error(), output)
 		}
-		return sysd.Restart(tmpfsService, 60*time.Second)
 	}
 
 	return nil
