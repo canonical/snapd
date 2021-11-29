@@ -52,7 +52,9 @@ func (s *tmpfsSuite) SetUpTest(c *C) {
 
 // Configure with different valid values
 func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
-	systemctlArgs := [][]string{}
+	mountCmd := testutil.MockCommand(c, "mount", "")
+	mountCalls := [][]string{}
+
 	for _, size := range []string{"100m", "1g", "512k", "104857600",
 		"2M", "7G", "1024K", "20%"} {
 
@@ -67,14 +69,13 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 		c.Check(s.servOverridePath, testutil.FileEquals,
 			fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n",
 				size))
-		systemctlArgs = append(systemctlArgs,
-			[]string{"daemon-reload"},
-			[]string{"stop", "tmp.mount"},
-			[]string{"show", "--property=ActiveState", "tmp.mount"},
-			[]string{"start", "tmp.mount"})
+		mntOpts := fmt.Sprintf("remount,mode=1777,strictatime,nosuid,nodev,size=%s",
+			size)
+		mountCalls = append(mountCalls, []string{"mount", "-o", mntOpts, "/tmp"})
 	}
 
-	c.Check(s.systemctlArgs, DeepEquals, systemctlArgs)
+	c.Check(s.systemctlArgs, DeepEquals, [][]string(nil))
+	c.Check(mountCmd.Calls(), DeepEquals, mountCalls)
 }
 
 // Configure with different invalid values
@@ -113,12 +114,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsgAllConfDirExistsAlready(c *C) {
 	c.Check(s.servOverridePath, testutil.FileEquals,
 		fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n", size))
 
-	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"daemon-reload"},
-		{"stop", "tmp.mount"},
-		{"show", "--property=ActiveState", "tmp.mount"},
-		{"start", "tmp.mount"},
-	})
+	c.Check(s.systemctlArgs, DeepEquals, [][]string(nil))
 }
 
 // Test cfg file is not updated if we set the same size that is already set
@@ -182,13 +178,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	c.Check(osutil.FileExists(canary), Equals, true)
 
 	// apply defaults
-	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"daemon-reload"},
-		{"stop", "tmp.mount"},
-		{"show", "--property=ActiveState", "tmp.mount"},
-		{"start", "tmp.mount"},
-	})
-
+	c.Check(s.systemctlArgs, DeepEquals, [][]string(nil))
 }
 
 // Test applying on image preparation
