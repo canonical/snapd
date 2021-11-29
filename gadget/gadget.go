@@ -267,8 +267,10 @@ type DiskStructureDeviceTraits struct {
 	// PartitionLabel is the label of the partition for GPT disks, i.e.
 	// /dev/disk/by-partlabel
 	PartitionLabel string `json:"partition-label"`
-	// PartitionType is the type of the partition i.e. 0x83 for ext4 on DOS, or
-	// 0FC63DAF-8483-4772-8E79-3D69D8477DE4 for ext4 on GPT.
+	// PartitionType is the type of the partition i.e. 0x83 for a
+	// Linux native partition on DOS, or
+	// 0FC63DAF-8483-4772-8E79-3D69D8477DE4 for a Linux filesystem
+	// data partition on GPT.
 	PartitionType string `json:"partition-type"`
 	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
 	// /dev/disk/by-uuid
