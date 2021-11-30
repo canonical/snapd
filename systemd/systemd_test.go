@@ -357,7 +357,7 @@ UnitFileState=enabled
 	})
 }
 
-func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
+func (s *SystemdTestSuite) TestStatusTooManyNumberOfValues(c *C) {
 	s.outs = [][]byte{
 		[]byte(`
 Type=simple
@@ -375,7 +375,30 @@ UnitFileState=enabled
 	}
 	s.errors = []error{nil}
 	out, err := New(SystemMode, s.rep).Status("foo.service")
-	c.Check(err, ErrorMatches, "cannot get unit status: expected 1 results, got 2")
+	c.Check(err, ErrorMatches, "cannot get unit status: got more results than expected")
+	c.Check(out, IsNil)
+	c.Check(s.rep.msgs, IsNil)
+}
+
+func (s *SystemdTestSuite) TestStatusTooFewNumberOfValues(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+Names=foo.service
+ActiveState=active
+UnitFileState=enabled
+
+Type=simple
+Id=bar.service
+Names=foo.service
+ActiveState=active
+UnitFileState=enabled
+`[1:]),
+	}
+	s.errors = []error{nil}
+	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "test.service")
+	c.Check(err, ErrorMatches, "cannot get unit status: expected 3 results, got 2")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
 }
