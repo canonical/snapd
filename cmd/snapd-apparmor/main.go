@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // Checks to see if the current container is capable of having internal AppArmor
@@ -129,6 +130,8 @@ func loadAppArmorProfiles() error {
 }
 
 func main() {
+	snapdtool.ExecInSnapdOrCoreSnap()
+
 	if len(os.Args) != 2 || os.Args[1] != "start" {
 		fmt.Fprintln(os.Stderr, "Expected to be called with 'start' argument.")
 		os.Exit(1)
