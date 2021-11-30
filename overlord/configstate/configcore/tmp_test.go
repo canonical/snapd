@@ -62,7 +62,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
-				"tmpfs.size": size,
+				"tmp.size": size,
 			},
 		})
 		c.Assert(err, IsNil)
@@ -84,7 +84,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
-				"tmpfs.size": size,
+				"tmp.size": size,
 			},
 		})
 		c.Assert(err, ErrorMatches, `cannot set tmpfs size.*`)
@@ -102,7 +102,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
-				"tmpfs.size": size,
+				"tmp.size": size,
 			},
 		})
 		c.Assert(err, ErrorMatches, `size is less than 16Mb`)
@@ -127,7 +127,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsgAllConfDirExistsAlready(c *C) {
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"tmpfs.size": size,
+			"tmp.size": size,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -159,7 +159,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"tmpfs.size": size,
+			"tmp.size": size,
 		},
 	})
 	c.Assert(err, IsNil)
@@ -192,7 +192,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
-			"tmpfs.size": "",
+			"tmp.size": "",
 		},
 	})
 	c.Assert(err, IsNil)
@@ -211,7 +211,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 // Test applying on image preparation
 func (s *tmpfsSuite) TestFilesystemOnlyApply(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
-		"tmpfs.size": "16384k",
+		"tmp.size": "16384k",
 	})
 
 	tmpDir := c.MkDir()

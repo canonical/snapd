@@ -1,4 +1,4 @@
-summary: Check that the tmpfs.size settings work
+summary: Check that the tmp.size settings work
 
 environment:
   MOUNTCFG_FILE: /etc/systemd/system/tmp.mount.d/override.conf
@@ -13,28 +13,34 @@ restore: |
     rm -f "$MOUNTCFG_FILE"
 
 execute: |
-  echo "Ensure tmpfs.size is not set initially"
+  echo "Ensure tmp.size is not set initially"
   test ! -f "$MOUNTCFG_FILE"
-  if snap get system tmpfs.size; then
-      echo "Error: tmpfs.size is unexpectedly set"
+  if snap get system tmp.size; then
+      echo "Error: tmp.size is unexpectedly set"
       exit 1
   fi
-  def_size=$(df --output=size /tmp)
+  def_size=$(df --output=size /tmp | tail -1)
   
-  echo "Ensure setting tmpfs.size works"
+  echo "Ensure setting tmp.size works"
   for size in 100 200; do
-      snap set system tmpfs.size="$size"m
-      snap get system tmpfs.size | MATCH "$size"m
+      snap set system tmp.size="$size"m
+      snap get system tmp.size | MATCH "$size"m
       df -h --output=size /tmp | MATCH "$size"M
       grep '^tmpfs /tmp' /proc/mounts | MATCH nosuid,nodev
       MATCH "Options=mode=1777,strictatime,nosuid,nodev,size=${size}m" "$MOUNTCFG_FILE"
+      # Check that systemd is happy with the generated override.conf
+      systemctl daemon-reload
   done
 
   echo "Unsetting gets things back to defaults"
-  snap unset system tmpfs.size
-  if snap get system tmpfs.size; then
-      echo "Error: tmpfs.size is unexpectedly set"
+  snap unset system tmp.size
+  if snap get system tmp.size; then
+      echo "Error: tmp.size is unexpectedly set"
       exit 1
   fi
   test ! -f "$MOUNTCFG_FILE"
-  test "$def_size" = "$(df --output=size /tmp)"
+  cur_size=$(df --output=size /tmp | tail -1)
+  # For some reason, resizing to the default can have a difference with the
+  # old one of one page (4k), at least in GCE, so we take that into account.
+  test "$cur_size" -le $((def_size + 4)) && test "$cur_size" -ge $((def_size - 4))
+  systemctl daemon-reload

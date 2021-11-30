@@ -45,7 +45,7 @@ const (
 
 func init() {
 	// add supported configuration of this module
-	supportedConfigurations["core.tmpfs.size"] = true
+	supportedConfigurations["core.tmp.size"] = true
 }
 
 // Regex matches what is specified by tmpfs(5) for the size option
@@ -97,7 +97,7 @@ func validTmpfsSize(sizeStr string) error {
 }
 
 func validateTmpfsSettings(tr config.ConfGetter) error {
-	tmpfsSz, err := coreCfg(tr, "tmpfs.size")
+	tmpfsSz, err := coreCfg(tr, "tmp.size")
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func validateTmpfsSettings(tr config.ConfGetter) error {
 }
 
 func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	tmpfsSz, err := coreCfg(tr, "tmpfs.size")
+	tmpfsSz, err := coreCfg(tr, "tmp.size")
 	if err != nil {
 		return err
 	}
