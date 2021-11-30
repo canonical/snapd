@@ -52,11 +52,12 @@ func (s *tmpfsSuite) SetUpTest(c *C) {
 
 // Configure with different valid values
 func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
+	expectedMountCalls := [][]string{}
 	mountCmd := testutil.MockCommand(c, "mount", "")
-	mountCalls := [][]string{}
+	defer mountCmd.Restore()
 
-	for _, size := range []string{"100m", "1g", "512k", "104857600",
-		"2M", "7G", "1024K", "20%"} {
+	for _, size := range []string{"100m", "1g", "16384k", "104857600",
+		"16M", "7G", "16384K", "20%", "0"} {
 
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
@@ -67,15 +68,13 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 		c.Assert(err, IsNil)
 
 		c.Check(s.servOverridePath, testutil.FileEquals,
-			fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n",
-				size))
-		mntOpts := fmt.Sprintf("remount,mode=1777,strictatime,nosuid,nodev,size=%s",
-			size)
-		mountCalls = append(mountCalls, []string{"mount", "-o", mntOpts, "/tmp"})
+			fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n", size))
+		mntOpts := fmt.Sprintf("remount,mode=1777,strictatime,nosuid,nodev,size=%s", size)
+		expectedMountCalls = append(expectedMountCalls, []string{"mount", "-o", mntOpts, "/tmp"})
 	}
 
-	c.Check(s.systemctlArgs, DeepEquals, [][]string(nil))
-	c.Check(mountCmd.Calls(), DeepEquals, mountCalls)
+	c.Check(s.systemctlArgs, HasLen, 0)
+	c.Check(mountCmd.Calls(), DeepEquals, expectedMountCalls)
 }
 
 // Configure with different invalid values
@@ -97,8 +96,29 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 	c.Assert(s.systemctlArgs, IsNil)
 }
 
+func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
+	for _, size := range []string{"1", "16383k"} {
+
+		err := configcore.Run(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"tmpfs.size": size,
+			},
+		})
+		c.Assert(err, ErrorMatches, `size is less than 16Mb`)
+
+		_, err = os.Stat(s.servOverridePath)
+		c.Assert(os.IsNotExist(err), Equals, true)
+	}
+
+	c.Assert(s.systemctlArgs, IsNil)
+}
+
 // Ensure things are fine if destination folder already existed
 func (s *tmpfsSuite) TestConfigureTmpfsgAllConfDirExistsAlready(c *C) {
+	mountCmd := testutil.MockCommand(c, "mount", "")
+	defer mountCmd.Restore()
+
 	// make tmp.mount.d directory already
 	err := os.MkdirAll(s.servOverrideDir, 0755)
 	c.Assert(err, IsNil)
@@ -114,7 +134,9 @@ func (s *tmpfsSuite) TestConfigureTmpfsgAllConfDirExistsAlready(c *C) {
 	c.Check(s.servOverridePath, testutil.FileEquals,
 		fmt.Sprintf("[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=%s\n", size))
 
-	c.Check(s.systemctlArgs, DeepEquals, [][]string(nil))
+	c.Check(s.systemctlArgs, HasLen, 0)
+	c.Check(mountCmd.Calls(), DeepEquals,
+		[][]string{{"mount", "-o", "remount,mode=1777,strictatime,nosuid,nodev,size=100m", "/tmp"}})
 }
 
 // Test cfg file is not updated if we set the same size that is already set
@@ -152,6 +174,9 @@ func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 
 // Test that config file is removed when unsetting
 func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
+	mountCmd := testutil.MockCommand(c, "mount", "")
+	defer mountCmd.Restore()
+
 	err := os.MkdirAll(s.servOverrideDir, 0755)
 	c.Assert(err, IsNil)
 
@@ -178,13 +203,15 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	c.Check(osutil.FileExists(canary), Equals, true)
 
 	// apply defaults
-	c.Check(s.systemctlArgs, DeepEquals, [][]string(nil))
+	c.Check(s.systemctlArgs, HasLen, 0)
+	c.Check(mountCmd.Calls(), DeepEquals,
+		[][]string{{"mount", "-o", "remount,mode=1777,strictatime,nosuid,nodev,size=50%", "/tmp"}})
 }
 
 // Test applying on image preparation
 func (s *tmpfsSuite) TestFilesystemOnlyApply(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
-		"tmpfs.size": "4096k",
+		"tmpfs.size": "16384k",
 	})
 
 	tmpDir := c.MkDir()
@@ -193,5 +220,5 @@ func (s *tmpfsSuite) TestFilesystemOnlyApply(c *C) {
 	tmpfsOverrCfg := filepath.Join(tmpDir,
 		"/etc/systemd/system/tmp.mount.d/override.conf")
 	c.Check(tmpfsOverrCfg, testutil.FileEquals,
-		"[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=4096k\n")
+		"[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=16384k\n")
 }
