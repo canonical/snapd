@@ -12,6 +12,7 @@
     "snaps": [
         {
             "default-channel": "20/stable",
+            "id": "bfwFXAeMCr9x5jt0WYhCe3rT5ueri0oE",
             "name": "test-snapd-remodel-pc",
             "type": "gadget"
         },
