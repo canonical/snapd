@@ -77,6 +77,13 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 		return nil, err
 	}
 
+	// run udevadm settle to wait for udev events that may have been triggered
+	// by reloading the partition table to be processed, as we need the udev
+	// database to be freshly updated
+	if out, err := exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("cannot wait for udev to settle after reloading partition table: %v", osutil.OutputErr(out, err))
+	}
+
 	// Make sure the devices for the partitions we created are available
 	if err := ensureNodesExist(created, 5*time.Second); err != nil {
 		return nil, fmt.Errorf("partition not available: %v", err)

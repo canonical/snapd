@@ -237,6 +237,9 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
+	cmdUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer cmdUdevadm.Restore()
+
 	calls := 0
 	restore = install.MockEnsureNodesExist(func(ds []gadget.OnDiskStructure, timeout time.Duration) error {
 		calls++
@@ -266,6 +269,10 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	// Check partition table update
 	c.Assert(s.cmdPartx.Calls(), DeepEquals, [][]string{
 		{"partx", "-u", "/dev/node"},
+	})
+
+	c.Assert(cmdUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "settle", "--timeout=180"},
 	})
 }
 
