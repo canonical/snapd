@@ -42,6 +42,11 @@ execute: |
       done < <(grep ^profile < "$p" | cut -f2 -d" " | sed s/'"'//g)
     done
 
+    # ensure we are actually testing something - ie snapd.apparmor will
+    # actually have to do some work
+    grep -v / /sys/kernel/security/apparmor/profiles | sort | cut -f1 -d" " > unloaded_profiles.txt
+    diff -u profiles.txt unloaded_profiles.txt && exit 1
+
     # restart snapd.apparmor service to reload profiles
     echo "And restart snapd.apparmor.service"
     systemctl restart snapd.apparmor.service
@@ -53,3 +58,16 @@ execute: |
     # all profiles as expected)
     echo "Then profiles should have reloaded successfully..."
     diff -u profiles.txt reloaded_profiles.txt
+
+    # also check that snapd.apparmor.service fails when a profile is invalid
+    sed -i s/profile/profileinvalidnametobereplaced/ /var/lib/snapd/apparmor/profiles/snap.$CONSUMER_SNAP.*
+    tests.cleanup defer sed -i s/profileinvalidnametobereplaced/profile/ /var/lib/snapd/apparmor/profiles/snap.$CONSUMER_SNAP.*
+
+    systemctl restart snapd.apparmor.service && exit 1
+    systemctl status snapd.apparmor.service && exit 1
+
+    # fixup the profiles again
+    sed -i s/profileinvalidnametobereplaced/profile/ /var/lib/snapd/apparmor/profiles/snap.$CONSUMER_SNAP.*
+    # and restart
+    systemctl restart snapd.apparmor.service
+
