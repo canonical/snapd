@@ -134,7 +134,7 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fs
 	dirContent := make(map[string]osutil.FileState, 1)
 	cfgFilePath := filepath.Join(overrDir, tmpMntServOverrideFile)
 	modify := true
-	if tmpfsSz != "" {
+	if tmpfsSz != "" && tmpfsSz != "50%" {
 		if err := os.MkdirAll(overrDir, 0755); err != nil {
 			return err
 		}
