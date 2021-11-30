@@ -14,4 +14,4 @@ type: gadget
 hooks:
   prepare-device:
     environment:
-      MODEL_API_KEY: '.......'
+      MODEL_API_KEY: Ck5wN897kxLYKnFTB3APIZMpXjMqVYOicskfEBZNVBvUh3Fnt8aA
