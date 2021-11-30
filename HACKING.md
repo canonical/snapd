@@ -142,7 +142,7 @@ then introduce a different problem due to one of the tests in the snapd git tree
 which currently has circular symlinks in the tree, which due to a regression in
 snapcraft is no longer usable with remote-build. Removing these files in the 
 snapd git tree is tracked at https://bugs.launchpad.net/snapd/+bug/1948838, but
-in the mean time in order to build remotely with snapcraft, do the following:
+in the meantime in order to build remotely with snapcraft, do the following:
 
 ```
 snap refresh snapcraft --channel=latest/edge
