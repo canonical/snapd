@@ -116,16 +116,16 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		}
 
 		for _, t := range chg.Tasks {
+			nowLog := lastLogStr(t.Log)
+			if lastLog[t.ID] != nowLog {
+				pb.Notify(nowLog)
+				lastLog[t.ID] = nowLog
+			}
 			switch {
 			case t.Status != "Doing":
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
-				nowLog := lastLogStr(t.Log)
-				if lastLog[t.ID] != nowLog {
-					pb.Notify(nowLog)
-					lastLog[t.ID] = nowLog
-				}
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
