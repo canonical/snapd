@@ -44,7 +44,7 @@ execute: |
             exit 1
         fi
 
-        if ! os.query is-core16; then
+        if ! os.query is-core16 && test "$rel" -ne 16; then
             echo "Running netplan generate without network-setup-control fails"
             if netplan-snap.netplan generate; then
                 echo "Expected access denied error for netplan generate"
@@ -69,7 +69,7 @@ execute: |
             exit 1
         fi
 
-        if ! os.query is-core16; then
+        if ! os.query is-core16 && test "$rel" -ne 16; then
             echo "Running netplan generate now works"
             if ! netplan-snap.netplan generate; then
                 echo "Unexpected error running netplan generate"
