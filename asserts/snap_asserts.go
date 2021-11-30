@@ -197,9 +197,6 @@ func snapDeclarationFormatAnalyze(headers map[string]interface{}, body []byte) (
 		if rule.feature(nameConstraintsFeature) {
 			setFormatNum(4)
 		}
-		if rule.feature(nameConstraintsFeature) {
-			setFormatNum(4)
-		}
 		if rule.feature(altAttrMatcherFeature) {
 			setFormatNum(5)
 		}
