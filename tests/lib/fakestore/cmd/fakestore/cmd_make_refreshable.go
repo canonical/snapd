@@ -24,12 +24,16 @@ import (
 )
 
 type cmdMakeRefreshable struct {
-	TopDir string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
+	TopDir     string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
+	SnapBlob   string `long:"snap-blob"`
+	Positional struct {
+		SnapName string
+	} `positional-args:"yes"`
 }
 
 func (x *cmdMakeRefreshable) Execute(args []string) error {
 	// setup fake new revisions of snaps for refresh
-	return refresh.MakeFakeRefreshForSnaps(args, x.TopDir)
+	return refresh.MakeFakeRefreshForSnaps(x.Positional.SnapName, x.TopDir, x.SnapBlob)
 }
 
 var shortMakeRefreshableHelp = "Makes new versions of the given snaps"
