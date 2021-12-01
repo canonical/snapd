@@ -1455,3 +1455,17 @@ nested_build_seed_cdrom() {
     genisoimage -output "$ORIG_DIR/$SEED_NAME" -volid "$LABEL" -joliet -rock "$@"
     popd || return 1 
 }
+
+nested_wait_for_device_initialized_change() {
+    local retry=60
+    local wait=1
+
+    while ! nested_exec "snap changes" | MATCH "Done.*Initialize device"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for device to be fully initialized. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
