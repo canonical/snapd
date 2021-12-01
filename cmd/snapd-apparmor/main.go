@@ -17,17 +17,17 @@
  *
  */
 
-// This script is provided for integration with systemd on distributions where
+// This tool is provided for integration with systemd on distributions where
 // apparmor profiles generated and managed by snapd are not loaded by the
 // system-wide apparmor systemd integration on early boot-up.
 //
 // Only the start operation is provided as all other activity is managed by
 // snapd as a part of the life-cycle of particular snaps.
 //
-// In addition the script assumes that the system-wide apparmor service has
+// In addition this tool assumes that the system-wide apparmor service has
 // already executed, initializing apparmor file-systems as necessary.
 //
-// NOTE: This script ignores failures in some scenarios as the intent is to
+// NOTE: This tool ignores failures in some scenarios as the intent is to
 // simply load application profiles ahead of time, as many as we can (for
 // performance reasons), even if for whatever reason some of those fail.
 
@@ -129,6 +129,10 @@ func loadAppArmorProfiles() error {
 	return nil
 }
 
+func isContainer() error {
+	return exec.Command("systemd-detect-virt", "--quiet", "--container").Run()
+}
+
 func main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
 
@@ -136,7 +140,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Expected to be called with 'start' argument.")
 		os.Exit(1)
 	}
-	if err := exec.Command("systemd-detect-virt", "--quiet", "--container").Run(); err == nil {
+	if err := isContainer(); err == nil {
 		logger.Debugf("inside container environment")
 		// in container environment - see if container has own
 		// policy that we need to manage otherwise get out of the
@@ -152,5 +156,4 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	os.Exit(0)
 }

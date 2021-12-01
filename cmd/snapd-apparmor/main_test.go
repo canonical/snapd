@@ -54,9 +54,8 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
-	if err := os.MkdirAll(appArmorSecurityFSPath, 0755); err != nil {
-		panic(err)
-	}
+	err := os.MkdirAll(appArmorSecurityFSPath, 0755)
+	c.Assert(err, IsNil)
 
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
@@ -65,17 +64,13 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	f, err := os.Create(filepath.Join(appArmorSecurityFSPath, ".ns_stacked"))
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, IsNil)
 	f.WriteString("yes")
 	f.Close()
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
 	f, err = os.Create(filepath.Join(appArmorSecurityFSPath, ".ns_name"))
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, IsNil)
 	defer f.Close()
 	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
 
@@ -88,35 +83,51 @@ func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
 }
 
 func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
-	testutil.MockCommand(c, "apparmor_parser", "")
+	parserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer parserCmd.Restore()
 	err := snapd_apparmor.LoadAppArmorProfiles()
 	c.Assert(err, IsNil)
 
 	// mock a profile
-	if err = os.MkdirAll(dirs.SnapAppArmorDir, 0755); err != nil {
-		panic(err)
-	}
+	err = os.MkdirAll(dirs.SnapAppArmorDir, 0755)
+	c.Assert(err, IsNil)
 
 	profile := filepath.Join(dirs.SnapAppArmorDir, "foo")
 	f, err := os.Create(profile)
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, IsNil)
 	f.Close()
 
 	err = snapd_apparmor.LoadAppArmorProfiles()
 	c.Assert(err, IsNil)
 
-	// catch unexpected changes to apparmor_parser compiler flags etc
-	testutil.MockCommand(c, "apparmor_parser", `echo "$@"; ""exit "$#"`)
+	// check arguments to the parser are as expected
+	c.Assert(parserCmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache",
+			"-O", "no-expr-simplify",
+			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir),
+			"--quiet", profile}})
+
+	// test error case
+	testutil.MockCommand(c, "apparmor_parser", "exit 1")
 	err = snapd_apparmor.LoadAppArmorProfiles()
-	c.Check(err.Error(), Equals, fmt.Sprintf("cannot load apparmor profiles: exit status 7\napparmor_parser output:\n--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor --quiet %s\n", dirs.GlobalRootDir, profile))
+	c.Check(err.Error(), Equals, fmt.Sprintf("cannot load apparmor profiles: exit status 1\napparmor_parser output:\n"))
 
 	// rename so file is ignored
 	err = os.Rename(profile, profile+"~")
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, IsNil)
 	err = snapd_apparmor.LoadAppArmorProfiles()
 	c.Assert(err, IsNil)
+}
+
+func (s *mainSuite) TestIsContainer(c *C) {
+	err := snapd_apparmor.IsContainer()
+	c.Check(err.Error(), Equals, fmt.Sprintf("exit status 1"))
+
+	detectCmd := testutil.MockCommand(c, "systemd-detect-virt", "")
+	defer detectCmd.Restore()
+
+	err = snapd_apparmor.IsContainer()
+	c.Assert(err, IsNil)
+	c.Assert(detectCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-detect-virt", "--quiet", "--container"}})
 }

@@ -20,6 +20,7 @@
 package main
 
 var (
+	IsContainer                   = isContainer
 	IsContainerWithInternalPolicy = isContainerWithInternalPolicy
 	LoadAppArmorProfiles          = loadAppArmorProfiles
 )
