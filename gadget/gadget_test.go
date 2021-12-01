@@ -2588,16 +2588,11 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineArgsFull(c *C) {
 
 var mockDeviceLayout = gadget.OnDiskVolume{
 	Structure: []gadget.OnDiskStructure{
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "mbr",
-					Size: 440,
-				},
-				StartOffset: 0,
-			},
-			Node: "/dev/node1",
-		},
+		// Note that the first ondisk structure we have is BIOS Boot, even
+		// though "in reality" the first ondisk structure is MBR, but the MBR
+		// doesn't actually show up in /dev at all, so we don't ever measure it
+		// as existing on the disk - the code and test accounts for the MBR
+		// structure not being present in the OnDiskVolume
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
@@ -2606,7 +2601,7 @@ var mockDeviceLayout = gadget.OnDiskVolume{
 				},
 				StartOffset: 1 * quantity.OffsetMiB,
 			},
-			Node: "/dev/node2",
+			Node: "/dev/node1",
 		},
 	},
 	ID:         "anything",
@@ -2643,32 +2638,147 @@ const mockExtraStructure = `
         size: 1200M
 `
 
+const mockExtraNonInstallableStructure = `
+      - name: foobar
+        filesystem-label: the-great-foo
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityExtraLaidOutStructureNotOnDisk(c *C) {
+	// with an extra non-installable structure in the YAML that is not present
+	// on disk, we are not compatible
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraNonInstallableStructure, nil)
+	c.Assert(err, IsNil)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout, nil)
+	c.Assert(err, ErrorMatches, `cannot find gadget structure #2 \("foobar"\) on disk`)
+
+	// note we don't test adding a non-matching structure, since that is already
+	// handled in other tests, if we added a non-matching structure the failure
+	// will be handled in the first loop checking that all ondisk structures
+	// belong to something in the YAML and that will fail, it will not get to
+	// the second loop which is what this test is about.
+}
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityMBRStructureAllowedMissingWithStruct(c *C) {
+	// we are compatible with the MBR structure in the YAML not present in the
+	// ondisk structure
+
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml, nil)
+	c.Assert(err, IsNil)
+
+	// ensure the first structure is the MBR in the YAML, but the first
+	// structure in the device layout is BIOS Boot
+	c.Assert(gadgetLayout.LaidOutStructure[0].Role, Equals, "mbr")
+	c.Assert(mockDeviceLayout.Structure[0].Name, Equals, "BIOS Boot")
+
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// still okay even with strict options - the absence of the MBR in the
+	// ondisk volume is allowed
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityTypeBareStructureAllowedMissingWithStruct(c *C) {
+	// we are compatible with the type: bare structure in the YAML not present
+	// in the ondisk structure
+
+	const typeBareYAML = `volumes:
+  foo:
+    bootloader: u-boot
+    structure:
+      - name: barething
+        type: bare
+        size: 4096
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	simpleDeviceLayout := gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that the first ondisk structure we have is not barething,
+			// even though "in reality" the first ondisk structure is MBR, but the MBR
+			// doesn't actually show up in /dev at all, so we don't ever measure it
+			// as existing on the disk - the code and test accounts for the MBR
+			// structure not being present in the OnDiskVolume
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Name:       "some-filesystem",
+						Size:       1 * quantity.SizeGiB,
+						Filesystem: "ext4",
+					},
+					StartOffset: 1*quantity.OffsetMiB + 4096,
+				},
+				Node: "/dev/node1",
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/node",
+		Schema:     "gpt",
+		Size:       2 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+	}
+
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), typeBareYAML, nil)
+	c.Assert(err, IsNil)
+
+	// ensure the first structure is barething in the YAML, but the first
+	// structure in the device layout is some-filesystem
+	c.Assert(gadgetLayout.LaidOutStructure[0].Type, Equals, "bare")
+	c.Assert(simpleDeviceLayout.Structure[0].Name, Equals, "some-filesystem")
+
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &simpleDeviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// still okay even with strict options - the absence of the bare structure
+	// in the ondisk volume is allowed
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &simpleDeviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
 func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	// same contents (the locally created structure should be ignored)
 	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml, nil)
 	c.Assert(err, IsNil)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout, nil)
 	c.Assert(err, IsNil)
 
 	// layout still compatible with a larger disk sector size
 	mockDeviceLayout.SectorSize = 4096
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout, nil)
 	c.Assert(err, IsNil)
 
 	// layout not compatible with a sector size that's not a factor of the
 	// structure sizes
 	mockDeviceLayout.SectorSize = 513
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout, nil)
 	c.Assert(err, ErrorMatches, `gadget volume structure #1 \(\"BIOS Boot\"\) size is not a multiple of disk sector size 513`)
 
-	// rest for the rest of the test
+	// reset for the rest of the test
 	mockDeviceLayout.SectorSize = 512
 
-	// missing structure (that's ok)
+	// missing structure (that's ok with default opts)
 	gadgetLayoutWithExtras, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraStructure, nil)
 	c.Assert(err, IsNil)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockDeviceLayout, nil)
 	c.Assert(err, IsNil)
+
+	// with strict opts, not okay
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockDeviceLayout, opts)
+	c.Assert(err, ErrorMatches, `cannot find gadget structure #2 \("Writable"\) on disk`)
 
 	deviceLayoutWithExtras := mockDeviceLayout
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
@@ -2681,12 +2791,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 				},
 				StartOffset: 2 * quantity.OffsetMiB,
 			},
-			Node: "/dev/node3",
+			Node: "/dev/node2",
 		},
 	)
 	// extra structure (should fail)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayoutWithExtras)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3.* in gadget`)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayoutWithExtras, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2.* in gadget`)
 
 	// layout is not compatible if the device is too small
 	smallDeviceLayout := mockDeviceLayout
@@ -2694,7 +2804,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 
 	// sanity check
 	c.Check(gadgetLayoutWithExtras.Size > quantity.Size(smallDeviceLayout.UsableSectorsEnd*uint64(smallDeviceLayout.SectorSize)), Equals, true)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout, nil)
 	c.Assert(err, ErrorMatches, `device /dev/node \(last usable byte at 100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
 }
 
@@ -2749,12 +2859,12 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 	}
 	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockMBRGadgetYaml, nil)
 	c.Assert(err, IsNil)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout, nil)
 	c.Assert(err, IsNil)
 	// structure is missing from disk
 	gadgetLayoutWithExtras, err := gadgettest.LayoutFromYaml(c.MkDir(), mockMBRGadgetYaml+mockExtraStructure, nil)
 	c.Assert(err, IsNil)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockMBRDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockMBRDeviceLayout, nil)
 	c.Assert(err, IsNil)
 	// add it now
 	deviceLayoutWithExtras := mockMBRDeviceLayout
@@ -2771,22 +2881,22 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 				},
 				StartOffset: 2 * quantity.OffsetMiB,
 			},
-			Node: "/dev/node3",
+			Node: "/dev/node2",
 		},
 	)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras, nil)
 	c.Assert(err, IsNil)
 
 	// test with a larger sector size that is still an even multiple of the
 	// structure sizes in the gadget
 	mockMBRDeviceLayout.SectorSize = 4096
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout, nil)
 	c.Assert(err, IsNil)
 
 	// but with a sector size that is not an even multiple of the structure size
 	// then we have an error
 	mockMBRDeviceLayout.SectorSize = 513
-	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout, nil)
 	c.Assert(err, ErrorMatches, `gadget volume structure #1 \(\"BIOS Boot\"\) size is not a multiple of disk sector size 513`)
 
 	// add another structure that's not part of the gadget
@@ -2803,7 +2913,7 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 			Node: "/dev/node4",
 		},
 	)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras, nil)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node4 \(starting at 1260388352\) in gadget: start offsets do not match \(disk: 1260388352 \(1.17 GiB\) and gadget: 2097152 \(2 MiB\)\)`)
 }
 
@@ -2817,54 +2927,63 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "Writable",
+					Name: "Writable",
+					// Role:       "system-data",
 					Size:       1200 * quantity.SizeMiB,
 					Label:      "writable",
 					Filesystem: "something_else",
 				},
 				StartOffset: 2 * quantity.OffsetMiB,
 			},
-			Node: "/dev/node3",
+			Node: "/dev/node2",
 		},
 	)
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+
+	// with no/default opts, then they are compatible
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
 	c.Assert(err, IsNil)
 
+	// but strict compatibility check, assuming that the creatable partitions
+	// have already been created will fail
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, opts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match`)
+
 	// we are going to manipulate last structure, which has system-data role
-	c.Assert(gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role, Equals, gadget.SystemData)
+	c.Assert(gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role, Equals, gadget.SystemData)
 
 	// change the role for the laid out volume to not be a partition role that
 	// is created at install time (note that the duplicated seed role here is
 	// technically incorrect, you can't have duplicated roles, but this
 	// demonstrates that a structure that otherwise fits the bill but isn't a
 	// role that is created during install will fail the filesystem match check)
-	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemSeed
+	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemSeed
 
-	// now we fail to find the /dev/node3 structure from the gadget on disk
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: filesystems do not match and the partition is not creatable at install`)
+	// now we fail to find the /dev/node2 structure from the gadget on disk
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match and the partition is not creatable at install`)
 
 	// undo the role change
-	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemData
+	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemData
 
 	// change the gadget size to be bigger than the on disk size
-	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Size = 10000000 * quantity.SizeMiB
+	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Size = 10000000 * quantity.SizeMiB
 
-	// now we fail to find the /dev/node3 structure from the gadget on disk because the gadget says it must be bigger
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is smaller than gadget size 10485760000000 \(9.54 TiB\)`)
+	// now we fail to find the /dev/node2 structure from the gadget on disk because the gadget says it must be bigger
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is smaller than gadget size 10485760000000 \(9.54 TiB\)`)
 
 	// change the gadget size to be smaller than the on disk size and the role to be one that is not expanded
-	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Size = 1 * quantity.SizeMiB
-	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemBoot
+	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Size = 1 * quantity.SizeMiB
+	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemBoot
 
 	// now we fail because the gadget says it should be smaller and it can't be expanded
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node3 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is larger than gadget size 1048576 \(1 MiB\) \(and the role should not be expanded\)`)
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is larger than gadget size 1048576 \(1 MiB\) \(and the role should not be expanded\)`)
 
 	// but a smaller partition on disk for SystemData role is okay
-	gadgetLayoutWithExtras.Structure[len(deviceLayout.Structure)-1].Role = gadget.SystemData
-	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout)
+	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemData
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -2897,7 +3016,7 @@ func (s *gadgetYamlTestSuite) TestSchemaCompatibility(c *C) {
 		c.Logf("%d: %q %q\n", i, tc.gs, tc.ds)
 		gadgetLayout.Volume.Schema = tc.gs
 		deviceLayout.Schema = tc.ds
-		err := gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout)
+		err := gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
 		if tc.e == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -2927,7 +3046,7 @@ func (s *gadgetYamlTestSuite) TestIDCompatibility(c *C) {
 		c.Logf("%d: %q %q\n", i, tc.gid, tc.did)
 		gadgetLayout.Volume.ID = tc.gid
 		deviceLayout.ID = tc.did
-		err := gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout)
+		err := gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
 		if tc.e == "" {
 			c.Assert(err, IsNil)
 		} else {
