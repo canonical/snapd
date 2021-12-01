@@ -18,6 +18,8 @@ prepare: |
         # create a flag to indicate the ryslog service is fake
         touch rsyslog.fake
     fi
+    # hostname is modified during the tests
+    hostnamectl status --static > hostname
 
 restore: |
     if [ -f rsyslog.fake ]; then
@@ -29,6 +31,8 @@ restore: |
         systemctl start rsyslog.service
     fi
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
+    # restore hostname
+    hostnamectl set-hostname "$(cat hostname)"
 
 execute: |
     echo "Check that service disable works"
@@ -144,3 +148,5 @@ execute: |
     tests.cleanup defer hostnamectl set-hostname "$(hostname)"
     snap set system system.hostname=foo
     hostname | MATCH foo
+    snap set system system.hostname=F00
+    hostnamectl status | MATCH F00
