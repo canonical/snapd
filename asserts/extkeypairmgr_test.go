@@ -310,6 +310,16 @@ func (s *extKeypairMgrSuite) TestDeleteByNameUnsupported(c *C) {
 
 }
 
+func (s *extKeypairMgrSuite) TestDelete(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+
+	err = kmgr.Delete("key-id")
+	c.Check(err, ErrorMatches, `no support to delete external keypair manager keys`)
+	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
+
+}
+
 func (s *extKeypairMgrSuite) TestGenerateUnsupported(c *C) {
 	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
 	c.Assert(err, IsNil)

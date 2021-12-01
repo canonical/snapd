@@ -236,12 +236,20 @@ func (gkm *GPGKeypairManager) Put(privKey PrivateKey) error {
 	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
+type gpgKeypairInfo struct {
+	privKey     PrivateKey
+	fingerprint string
+}
+
+func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
 	stop := errors.New("stop marker")
-	var hit PrivateKey
+	var hit *gpgKeypairInfo
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if privk.PublicKey().ID() == keyID {
-			hit = privk
+			hit = &gpgKeypairInfo{
+				privKey:     privk,
+				fingerprint: fpr,
+			}
 			return stop
 		}
 		return nil
@@ -254,6 +262,26 @@ func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
 		return nil, err
 	}
 	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
+}
+
+func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
+	keyInfo, err := gkm.findByID(keyID)
+	if err != nil {
+		return nil, err
+	}
+	return keyInfo.privKey, nil
+}
+
+func (gkm *GPGKeypairManager) Delete(keyID string) error {
+	keyInfo, err := gkm.findByID(keyID)
+	if err != nil {
+		return err
+	}
+	_, err = gkm.gpg(nil, "--batch", "--delete-secret-and-public-key", "0x"+keyInfo.fingerprint)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.Signature, error) {
@@ -274,11 +302,6 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.
 	}
 
 	return sig, nil
-}
-
-type gpgKeypairInfo struct {
-	privKey     PrivateKey
-	fingerprint string
 }
 
 func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {

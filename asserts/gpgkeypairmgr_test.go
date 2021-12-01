@@ -338,3 +338,19 @@ func (gkms *gpgKeypairMgrSuite) TestList(c *C) {
 	c.Check(keys[0].ID, Equals, assertstest.DevKeyID)
 	c.Check(keys[0].Name, Not(Equals), "")
 }
+
+func (gkms *gpgKeypairMgrSuite) TestDelete(c *C) {
+	c.Skip("produces a UI prompt")
+	keyID := assertstest.DevKeyID
+	_, err := gkms.keypairMgr.Get(keyID)
+	c.Assert(err, IsNil)
+
+	err = gkms.keypairMgr.Delete(keyID)
+	c.Assert(err, IsNil)
+
+	err = gkms.keypairMgr.Delete(keyID)
+	c.Check(err, ErrorMatches, `cannot find key.*`)
+
+	_, err = gkms.keypairMgr.Get(keyID)
+	c.Check(err, ErrorMatches, `cannot find key.*`)
+}
