@@ -1,10 +1,11 @@
 summary: Exercises a simultaneous kernel and base refresh with a single reboot
 
 # TODO make the test work with ubuntu-core-20
-systems: [ubuntu-core-18-*]
+systems: [ubuntu-core-18-*, ubuntu-core-20-*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
+    PC_KERNEL_SNAP_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -15,12 +16,65 @@ prepare: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
 
+    # install required snaps
+    snap install remarshal jq
+
     setup_fake_store "$BLOB_DIR"
 
     core_snap=core20
     if os.query is-core18; then
         core_snap=core18
     fi
+
+    if os.query is-core20 ; then
+        # we need to convince snapd that pc-kernel which was repacked during
+        # prepare is a valid asserted snap
+        snap ack "$TESTSLIB/assertions/developer1.account"
+        snap ack "$TESTSLIB/assertions/developer1.account-key"
+        # at revision 1
+        echo '{"revision": "1"}' > extra-decl-pc-kernel.json
+        make_snap_installable_with_id --extra-decl-json extra-decl-pc-kernel.json \
+            "$BLOB_DIR" \
+            /var/lib/snapd/snaps/pc-kernel_x1.snap \
+            "$PC_KERNEL_SNAP_ID"
+        # stop snapd
+        systemctl stop snapd.service snapd.socket
+        cp /var/lib/snapd/state.json state.json
+        # fake revision 1 in state
+        jq '.data.snaps["pc-kernel"].current = "1"' < state.json > state.tmp.1
+        # fake sequence
+        jq '.data.snaps["pc-kernel"].sequence[0].revision = "1"' < state.tmp.1 > state.tmp.2
+        # snap-id
+        jq ".data.snaps[\"pc-kernel\"].sequence[0][\"snap-id\"] = \"$PC_KERNEL_SNAP_ID\"" < state.tmp.2 > state.tmp.3
+        # and tracking channel
+        jq '.data.snaps["pc-kernel"].channel = "latest/edge"' < state.tmp.3 > state.tmp.4
+        cp -v state.tmp.4 /var/lib/snapd/state.json
+        # mount point
+        mkdir /snap/pc-kernel/1
+        rm /snap/pc-kernel/current
+        ln -s 1 /snap/pc-kernel/current
+        # move the snap file
+        mv /var/lib/snapd/snaps/pc-kernel_x1.snap /var/lib/snapd/snaps/pc-kernel_1.snap
+        # update mounts and mount units
+        systemctl disable --now snap-pc\\x2dkernel-x1.mount
+        rmdir /snap/pc-kernel/x1
+        # keep a backup copy of the unit
+        cp /etc/systemd/system/snap-pc\\x2dkernel-x1.mount snap-pc\\x2dkernel-x1.mount
+        mv /etc/systemd/system/snap-pc\\x2dkernel-x1.mount /etc/systemd/system/snap-pc\\x2dkernel-1.mount
+        sed -i -e 's#pc-kernel/x1#pc-kernel/1#' \
+               -e 's/revision x1/revision 1/' \
+               -e 's#snaps/pc-kernel_x1.snap#snaps/pc-kernel_1.snap#' \
+               /etc/systemd/system/snap-pc\\x2dkernel-1.mount
+        systemctl daemon-reload
+        systemctl enable --now snap-pc\\x2dkernel-1.mount
+        # make sure the mount is up
+        stat /snap/pc-kernel/1/meta/snap.yaml
+        systemctl start snapd.service
+        # and the revision is 1
+        snap list pc-kernel | awk '/pc-kernel/ { print $3 }' | MATCH '^1$'
+        snap list pc-kernel | NOMATCH broken
+    fi
+
     readlink /snap/pc-kernel/current > pc-kernel.rev
     readlink "/snap/$core_snap/current" > core.rev
 
@@ -32,6 +86,36 @@ restore: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
+
+    if os.query is-core20 ; then
+        systemctl stop snapd.service snapd.socket
+
+        # revert the hacks making pc-kernel look like a legit signed snap
+        systemctl disable --now snap-pc\\x2dkernel-1.mount
+        # remove the unit file
+        rm -f /etc/systemd/system/snap-pc\\x2dkernel-1.mount
+        # restore the old one
+        cp snap-pc\\x2dkernel-x1.mount /etc/systemd/system/snap-pc\\x2dkernel-x1.mount
+        # restore mount directories and the current symlink
+        rmdir /snap/pc-kernel/1
+        mkdir -p /snap/pc-kernel/x1
+        rm /snap/pc-kernel/current
+        ln -s x1 /snap/pc-kernel/current
+        # and the snap file
+        mv /var/lib/snapd/snaps/pc-kernel_1.snap /var/lib/snapd/snaps/pc-kernel_x1.snap
+        systemctl daemon-reload
+        systemctl enable --now snap-pc\\x2dkernel-x1.mount
+        # restore the state
+        mv state.json /var/lib/snapd/state.json
+        # verify that we're good
+        systemctl start snapd.service
+        # and the revision is back to x1
+        snap list pc-kernel | awk '/pc-kernel/ { print $3 }' | MATCH '^x1$'
+        snap list pc-kernel | NOMATCH broken
+    fi
+
+debug: |
+    journalctl --no-pager --no-hostname -u fakestore || true
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -48,7 +132,9 @@ execute: |
     fi
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        init_fake_refreshes "$BLOB_DIR" pc-kernel
+        # pc-kernel may a fake snap declaration signed with test keys, so use
+        # the correct fakestore binary to generate a new revision
+        FAKESTORE=fakestore-testkeys init_fake_refreshes "$BLOB_DIR" pc-kernel
         init_fake_refreshes "$BLOB_DIR" "$core_snap"
 
         # taken from transition_to_recover_mode()
