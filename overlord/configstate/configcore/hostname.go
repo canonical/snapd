@@ -61,6 +61,10 @@ func validateHostnameSettings(tr config.ConfGetter) error {
 }
 
 func handleHostnameConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+	if opts == nil {
+		opts = &fsOnlyContext{}
+	}
+
 	hostname, err := coreCfg(tr, "system.hostname")
 	if err != nil {
 		return nil
@@ -70,7 +74,7 @@ func handleHostnameConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 		return nil
 	}
 	// runtime system
-	if opts == nil {
+	if opts.RootDir == "" {
 		currentHostname, err := getHostnameFromSystem()
 		if err != nil {
 			return err
