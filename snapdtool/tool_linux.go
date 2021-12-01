@@ -77,7 +77,7 @@ func distroSupportsReExec() bool {
 // version of core that do not yet have it.
 func coreSupportsReExec(coreOrSnapdPath string) bool {
 	infoPath := filepath.Join(coreOrSnapdPath, filepath.Join(dirs.CoreLibExecDir, "info"))
-	ver, err := SnapdVersionFromInfoFile(infoPath)
+	ver, _, err := SnapdVersionFromInfoFile(infoPath)
 	if err != nil {
 		logger.Noticef("%v", err)
 		return false
