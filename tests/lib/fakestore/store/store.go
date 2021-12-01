@@ -443,6 +443,7 @@ var someSnapIDtoName = map[string]map[string]string{
 		"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
 		"Wcs8QL2iRQMjsPYQ4qz4V1uOlElZ1ZOb": "test-snapd-python-webserver",
 		"DVvhXhpa9oJjcm0rnxfxftH1oo5vTW1M": "test-snapd-go-webserver",
+		"DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q": "pc-kernel",
 	},
 	"staging": {
 		"xMNMpEm0COPZy7jq9YRwWVLCD9q5peow": "core",
