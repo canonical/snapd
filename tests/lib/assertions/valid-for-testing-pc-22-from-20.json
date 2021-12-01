@@ -29,7 +29,7 @@
             "type": "base"
         },
         {
-            "default-channel": "latest/stable",
+            "default-channel": "latest/edge",
             "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
             "name": "snapd",
             "type": "snapd"
