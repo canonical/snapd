@@ -7756,7 +7756,7 @@ func (s *mgrsSuite) TestRemodelUC20ToUC22(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// gadget update has been applied yet
+	// gadget update has been applied
 	c.Check(updater.updateCalls, Equals, 3)
 
 	dumpTasks(c, "after gadget install", chg.Tasks())
