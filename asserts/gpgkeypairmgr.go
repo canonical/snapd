@@ -353,8 +353,8 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	return EncodePublicKey(keyInfo.privKey.PublicKey())
 }
 
-// Delete removes the named key pair from GnuPG's storage.
-func (gkm *GPGKeypairManager) Delete(name string) error {
+// DeleteByName removes the named key pair from GnuPG's storage.
+func (gkm *GPGKeypairManager) DeleteByName(name string) error {
 	keyInfo, err := gkm.findByName(name)
 	if err != nil {
 		return err

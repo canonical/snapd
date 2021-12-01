@@ -300,11 +300,11 @@ func (s *extKeypairMgrSuite) TestListError(c *C) {
 	c.Check(err, ErrorMatches, `cannot get all external keypair manager key names:.*exit status 1.*`)
 }
 
-func (s *extKeypairMgrSuite) TestDeleteUnsupported(c *C) {
+func (s *extKeypairMgrSuite) TestDeleteByNameUnsupported(c *C) {
 	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
 	c.Assert(err, IsNil)
 
-	err = kmgr.Delete("key")
+	err = kmgr.DeleteByName("key")
 	c.Check(err, ErrorMatches, `no support to delete external keypair manager keys`)
 	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
 
