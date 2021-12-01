@@ -117,6 +117,14 @@ execute: |
         # XXX systemctl exits with non-0 when in degraded state
         (systemctl is-system-running || true) | MATCH '(running|degraded)'
 
+        # fake refreshes generate revision numbers that are n+1
+        expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
+        expecting_core="$(($(cat core.rev) + 1))"
+
+        # verify that current points to new revisions
+        test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
+        test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
+
         # now we need to revert both snaps for restore to behave properly, start
         # with the kernel
         snap revert pc-kernel --revision "$(cat pc-kernel.rev)"
@@ -128,5 +136,10 @@ execute: |
         REBOOT
     elif [ "$SPREAD_REBOOT" = 3 ]; then
         snap watch --last=revert\?
-        # we're done
+        # we're done, verify current symlinks to the right revisions
+        test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
+        test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
+    else
+        echo "unexpected reboot"
+        exit 1
     fi
