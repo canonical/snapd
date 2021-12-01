@@ -599,7 +599,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	// ask for all properties, regardless of unit type
 	cmd[1] = "--property=" + strings.Join(properties, ",")
 	copy(cmd[2:], unitNames)
-	bs, err := s.systemctl(cmd...)
+	multiLineReply, err := s.systemctl(cmd...)
 	if err != nil {
 		return nil, err
 	}
@@ -608,10 +608,17 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	cur := &UnitStatus{}
 	seen := map[string]bool{}
 
-	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
-		if len(bs[0]) == 0 {
+	// systemctl replies with a byte array which includes newlines. The regex
+	// processing the '--property=<...>' request breaks this up into single
+	// line key/value pairs, or an empty line separating properties of
+	// different units in the same request. Each line consists of an array
+	// of byte strings, i.e. [ "match", "key", "value" ].
+	for _, line := range statusregex.FindAllSubmatch(multiLineReply, -1) {
+		if len(line[0]) == 0 {
 			if len(sts) >= len(unitNames) {
-				return nil, fmt.Errorf("cannot get unit status: got more results than expected")
+				return nil, fmt.Errorf("requested: %s\ngot:\n%serror: more results than expected",
+					strings.Join(cmd, " "),
+					strings.Join(statusregex.FindAllString(string(multiLineReply), -1), "\n"))
 			}
 
 			// The 'systemctl' command can return the status parameters for a
@@ -662,11 +669,11 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 			seen = map[string]bool{}
 			continue
 		}
-		if len(bs[3]) > 0 {
-			return nil, fmt.Errorf("cannot get unit status: bad line %q in ‘systemctl show’ output", bs[3])
+		if len(line[3]) > 0 {
+			return nil, fmt.Errorf("cannot get unit status: bad line %q in ‘systemctl show’ output", line[3])
 		}
-		k := string(bs[1])
-		v := string(bs[2])
+		k := string(line[1])
+		v := string(line[2])
 
 		if v == "" && k != "UnitFileState" && k != "Type" {
 			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
@@ -698,7 +705,9 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	}
 
 	if len(sts) != len(unitNames) {
-		return nil, fmt.Errorf("cannot get unit status: expected %d results, got %d", len(unitNames), len(sts))
+		return nil, fmt.Errorf("requested: %s\ngot:\n%serror: fewer results than expected",
+			strings.Join(cmd, " "),
+			strings.Join(statusregex.FindAllString(string(multiLineReply), -1), "\n"))
 	}
 	return sts, nil
 }
@@ -711,16 +720,16 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	if s.rootDir != "" {
 		cmd = append([]string{"--root", s.rootDir}, cmd...)
 	}
-	bs, err := s.systemctl(cmd...)
+	multiLineReply, err := s.systemctl(cmd...)
 	if err != nil {
 		// is-enabled returns non-zero if no units are
 		// enabled.  We still need to examine the output to
 		// track the other units.
 		sysdErr := err.(systemctlError)
-		bs = sysdErr.Msg()
+		multiLineReply = sysdErr.Msg()
 	}
 
-	results := bytes.Split(bytes.Trim(bs, "\n"), []byte("\n"))
+	results := bytes.Split(bytes.Trim(multiLineReply, "\n"), []byte("\n"))
 	if len(results) != len(unitNames) {
 		return nil, fmt.Errorf("cannot get enabled status of services: expected %d results, got %d", len(unitNames), len(results))
 	}
@@ -941,11 +950,11 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := s.systemctl("show", "--property=ActiveState", serviceName)
+			multiLineReply, err := s.systemctl("show", "--property=ActiveState", serviceName)
 			if err != nil {
 				return err
 			}
-			if isStopDone(bs) {
+			if isStopDone(multiLineReply) {
 				return nil
 			}
 			if !firstCheck {

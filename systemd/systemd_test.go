@@ -358,8 +358,7 @@ UnitFileState=enabled
 }
 
 func (s *SystemdTestSuite) TestStatusTooManyNumberOfValues(c *C) {
-	s.outs = [][]byte{
-		[]byte(`
+	input := `
 Type=simple
 Id=foo.service
 Names=foo.service
@@ -371,18 +370,17 @@ Id=foo.service
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
-`[1:]),
-	}
+`[1:]
+	s.outs = [][]byte{[]byte(input)}
 	s.errors = []error{nil}
 	out, err := New(SystemMode, s.rep).Status("foo.service")
-	c.Check(err, ErrorMatches, "cannot get unit status: got more results than expected")
+	c.Check(err, ErrorMatches, "requested: show --property=Id,ActiveState,UnitFileState,Type,Names foo.service\ngot:\n"+input+"error: more results than expected")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
 }
 
 func (s *SystemdTestSuite) TestStatusTooFewNumberOfValues(c *C) {
-	s.outs = [][]byte{
-		[]byte(`
+	input := `
 Type=simple
 Id=foo.service
 Names=foo.service
@@ -394,11 +392,11 @@ Id=bar.service
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
-`[1:]),
-	}
+`[1:]
+	s.outs = [][]byte{[]byte(input)}
 	s.errors = []error{nil}
 	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "test.service")
-	c.Check(err, ErrorMatches, "cannot get unit status: expected 3 results, got 2")
+	c.Check(err, ErrorMatches, "requested: show --property=Id,ActiveState,UnitFileState,Type,Names foo.service bar.service test.service\ngot:\n"+input+"error: fewer results than expected")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
 }

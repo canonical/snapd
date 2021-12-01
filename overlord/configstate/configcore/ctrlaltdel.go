@@ -52,7 +52,6 @@ func (l *sysdCtrlAltDelLogger) Notify(status string) {
 // ctrl-alt-del keyboard sequence. This function supports configuring
 // systemd to trigger a reboot, or ignore the key sequence.
 func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
-	var sysd systemd.Systemd
 	validAction := map[string]bool{
 		ctrlAltDelReboot: true,
 		ctrlAltDelNone:   true,
@@ -69,6 +68,7 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 	// opts == nil: No rootfs path is supplied because we are running with
 	//              rootfs mounted, so we can use systemctl normally. This
 	//              case is used for normal runtime changes.
+	var sysd systemd.Systemd
 	if opts != nil {
 		// Use systemctl for direct unit file manipulations (support a
 		// subset of unit operations such as enable/disable/mark/unmask)
