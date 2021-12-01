@@ -165,6 +165,46 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 	return &snapsup, snapst, nil
 }
 
+// pathInfo holds information about a path install
+type pathInfo struct {
+	*snap.Info
+	path     string
+	sideInfo *snap.SideInfo
+}
+
+func (i pathInfo) DownloadSize() int64 {
+	return i.DownloadInfo.Size
+}
+
+// SnapBase returns the base snap of the snap.
+func (i pathInfo) SnapBase() string {
+	return i.Base
+}
+
+func (i pathInfo) Prereq(st *state.State) []string {
+	return getKeys(defaultProviderContentAttrs(st, i.Info))
+}
+
+func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, _ *Flags) (*SnapSetup, *SnapState, error) {
+	update := i.Info
+
+	_, flags, snapst := params(update)
+
+	providerContentAttrs := defaultProviderContentAttrs(st, update)
+	snapsup := SnapSetup{
+		Base:               i.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		SideInfo:           i.sideInfo,
+		SnapPath:           i.path,
+		Flags:              flags.ForSnapSetup(),
+		Type:               i.Type(),
+		PlugsOnly:          len(i.Slots) == 0,
+		InstanceKey:        i.InstanceKey,
+	}
+	return &snapsup, snapst, nil
+}
+
 // soundness check
 var _ readyUpdateInfo = installSnapInfo{}
 
@@ -892,7 +932,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	channel, err = resolveChannel(st, instanceName, snapst.TrackingChannel, channel, deviceCtx)
+	channel, err = resolveChannel(instanceName, snapst.TrackingChannel, channel, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1047,6 +1087,74 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+}
+
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
+
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var updates []minimalInstallInfo
+	var names []string
+	stateByInstanceName := make(map[string]*SnapState, len(paths))
+	flagsByInstanceName := make(map[string]Flags, len(paths))
+
+	for i, path := range paths {
+		si := sideInfos[i]
+		name := si.RealName
+
+		info, container, err := backend.OpenSnapFile(path, si)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validateContainer(container, info, logger.Noticef); err != nil {
+			return nil, err
+		}
+		if err := snap.ValidateInstanceName(name); err != nil {
+			return nil, fmt.Errorf("invalid instance name: %v", err)
+		}
+
+		var snapst SnapState
+		if err = Get(st, name, &snapst); err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+
+		flags, err := earlyChecks(st, &snapst, info, *flags)
+		if err != nil {
+			return nil, err
+		}
+
+		if !(flags.JailMode || flags.DevMode) {
+			flags.Classic = flags.Classic || snapst.Flags.Classic
+		}
+
+		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
+		names = append(names, name)
+		stateByInstanceName[name] = &snapst
+		flagsByInstanceName[name] = flags
+	}
+
+	if err := checkDiskSpace(st, "install", updates, userID); err != nil {
+		return nil, err
+	}
+
+	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
+		name := update.InstanceName()
+		return nil, flagsByInstanceName[name], stateByInstanceName[name]
+	}
+
+	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	if err != nil {
+		return nil, err
+	}
+
+	return tasksets, nil
 }
 
 // InstallMany installs everything from the given list of names.
@@ -1606,7 +1714,7 @@ func autoAliasesUpdate(st *state.State, names []string, updates []minimalInstall
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(st *state.State, snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
+func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return "", nil
 	}
@@ -1730,7 +1838,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1806,7 +1914,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
