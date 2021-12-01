@@ -117,7 +117,7 @@ func (s *hostnameSuite) TestConfigureHostnameFsOnlyHappy(c *C) {
 	c.Check(s.mockedHostnamectl.Calls(), HasLen, 0)
 }
 
-func (s *hostnameSuite) TestConfigureHostnameWithState(c *C) {
+func (s *hostnameSuite) TestConfigureHostnameWithStateOnlyHostnamectlValidates(c *C) {
 	hostnames := []string{
 		"good",
 		"bäd-hostname-is-only-validated-by-hostnamectl",
@@ -139,11 +139,34 @@ func (s *hostnameSuite) TestConfigureHostnameWithState(c *C) {
 	}
 }
 
-func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+func (s *hostnameSuite) TestConfigureHostnameWithStateOnlyHostnamectlUnhappy(c *C) {
+	script := `
+if [ "$1" = "status" ]; then
+    echo bar;
+else
+    echo "some error"
+    exit 1
+fi`
+	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", script)
+	defer mockedHostnamectl.Restore()
 
-	// and set new hostname to "foo"
+	hostname := "simulated-invalid-hostname"
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"system.hostname": hostname,
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot set hostname: some error")
+	c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
+		{"hostnamectl", "status", "--pretty"},
+		{"hostnamectl", "set-hostname", hostname},
+	})
+}
+
+func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
+	// and set new hostname to "bar" but the "s.mockedHostnamectl" is
+	// already returning "bar"
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
@@ -157,7 +180,33 @@ func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
 	})
 }
 
-func (s *hostnameSuite) TestFilesystemOnlyApply(c *C) {
+func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostnameNoPretty(c *C) {
+	script := `
+if [ "$1" = "status" ] && [ "$2" = "--pretty" ]; then
+    # no pretty hostname, only a static one
+    exit 0;
+elif [ "$1" = "status" ] && [ "$2" = "--static" ]; then
+    echo bar;
+fi`
+	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", script)
+	defer mockedHostnamectl.Restore()
+
+	// and set new hostname to "bar"
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			// hostname is already "bar"
+			"system.hostname": "bar",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
+		{"hostnamectl", "status", "--pretty"},
+		{"hostnamectl", "status", "--static"},
+	})
+}
+
+func (s *hostnameSuite) TestFilesystemOnlyApplyHappy(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"system.hostname": "bar",
 	})
