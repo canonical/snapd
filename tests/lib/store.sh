@@ -33,7 +33,7 @@ init_fake_refreshes(){
     local dir="$1"
     shift
 
-    fakestore make-refreshable --dir "$dir" "$@"
+    ${FAKESTORE-fakestore} make-refreshable --dir "$dir" "$@"
 }
 
 make_snap_installable(){
