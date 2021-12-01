@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
@@ -411,6 +412,7 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		logger.Noticef("found snap %q with file %v", info.SnapName(), fn)
 		snaps[info.SnapName()] = fn
 	}
 
@@ -536,8 +538,8 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	bs := asserts.NewMemoryBackstore()
 
-	add := func(a asserts.Assertion) {
-		bs.Put(a.Type(), a)
+	add := func(a asserts.Assertion) error {
+		return bs.Put(a.Type(), a)
 	}
 
 	for _, t := range sysdb.Trusted() {
@@ -562,8 +564,9 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		add(a)
+		if err := add(a); err != nil {
+			logger.Noticef("cannot add assertion from %v: %v", fn, err)
+		}
 	}
 
 	return bs, nil
