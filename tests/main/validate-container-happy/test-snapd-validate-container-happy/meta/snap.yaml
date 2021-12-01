@@ -1,5 +1,9 @@
 name: test-snapd-validate-container-happy
 version: 1.0
 apps:
- app:
-  command: bin/validate-container
+  validate-container:
+    command: bin/validate-container
+plugs:
+  hell:
+    interface: content
+    target: $SNAP/hell

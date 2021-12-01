@@ -5,18 +5,18 @@ environment:
 
 prepare: |
     snap pack test-snapd-validate-container-happy
-    snap install --dangerous test-snapd-validate-container-happy_1.0_all.snap
 
 execute: |
-
-    echo "Unleashing hell..."
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    tar -xvf $SNAP_MOUNT_DIR/$SNAP/hell/hell.tar
-
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     snap try "$SNAP"
     snap list "$SNAP"
-    ls -l "$SNAP_MOUNT_DIR/$SNAP/hell | MATCH "bar -> baz -> qux"
-    ls -l "$SNAP_MOUNT_DIR/$SNAP/hell | MATCH "foo -> bar -> baz"
-    ls -l "$SNAP_MOUNT_DIR/$SNAP/hell | MATCH "foo -> bar -> qux"
-    ls -l "$SNAP_MOUNT_DIR/$SNAP/hell | MATCH "foo -> baz -> qux"
+    ls -l "$SNAP"
+
+    cd "$SNAP"/hell
+    ls -l
+    echo "Unleashing hell..."
+    tar -xvf hell.tar
+
+    readlink bar | MATCH "foo -> baz -> qux"
+    readlink baz | MATCH "foo -> bar -> qux"
+    readlink foo | MATCH "bar -> baz -> qux"
+    readlink qux | MATCH "foo -> bar -> baz"
