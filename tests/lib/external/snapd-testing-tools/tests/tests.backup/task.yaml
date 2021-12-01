@@ -1,15 +1,5 @@
 summary: tests for the tests.backup tool
 
-prepare: |
-    # It is needed to save the test backup "${PWD}.tar" which is created during
-    # the generic prepare phase.
-    mv "${PWD}.tar" "${PWD}.tar.back"
-
-restore: |
-    # The backup "${PWD}.tar.back" needs to be restored to the initial
-    # "${PWD}.tar" during the test restore phase.
-    mv "${PWD}.tar.back" "${PWD}.tar"
-
 execute: |
     # Without any arguments a help message is printed.
     tests.backup | MATCH "usage: tests.backup prepare"

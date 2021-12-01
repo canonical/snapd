@@ -28,7 +28,16 @@ func DiskFromDeviceName(deviceName string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
-var diskFromDeviceName = func(mountpoint string) (Disk, error) {
+var diskFromDeviceName = func(deviceName string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+// DiskFromDevicePath is not implemented on darwin
+func DiskFromDevicePath(devicePath string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromDevicePath = func(devicePath string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 

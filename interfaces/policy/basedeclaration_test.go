@@ -649,6 +649,7 @@ var (
 		"pwm":                       {"core", "gadget"},
 		"qualcomm-ipc-router":       {"core"},
 		"raw-volume":                {"core", "gadget"},
+		"scsi-generic":              {"core"},
 		"sd-control":                {"core"},
 		"serial-port":               {"core", "gadget"},
 		"spi":                       {"core", "gadget"},

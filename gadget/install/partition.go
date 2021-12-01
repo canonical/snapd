@@ -31,31 +31,20 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
-var createdPartitionGUID = []string{
-	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
-	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
-	"EBD0A0A2-B9E5-4433-87C0-68B6B72699C7", // Windows Basic Data Partition
-}
-
-// creationSupported returns whether we support and expect to create partitions
-// of the given type, it also means we are ready to remove them for re-installation
-// or retried installation if they are appropriately marked with createdPartitionAttr.
-func creationSupported(ptype string) bool {
-	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
-}
-
 // createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
 func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
-	buf, created := buildPartitionList(dl, pv)
+	buf, created, err := buildPartitionList(dl, pv)
+	if err != nil {
+		return nil, err
+	}
 	if len(created) == 0 {
 		return created, nil
 	}
@@ -89,7 +78,7 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure) {
+func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure, err error) {
 	sectorSize := uint64(dl.SectorSize)
 
 	// Keep track what partitions we already have on disk - the keys to this map
@@ -130,12 +119,9 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 			continue
 		}
 
-		// Only allow the creation of partitions with known GUIDs
-		// TODO:UC20: also provide a mechanism for MBR (RPi)
-		ptype := partitionType(dl.Schema, p.Type)
-		if dl.Schema == "gpt" && !creationSupported(ptype) {
-			logger.Noticef("cannot create partition with unsupported type %s", ptype)
-			continue
+		// Only allow creating certain partitions, namely the ubuntu-* roles
+		if !gadget.IsCreatableAtInstall(p.VolumeStructure) {
+			return nil, nil, fmt.Errorf("cannot create partition %s", p)
 		}
 
 		// Check if the data partition should be expanded
@@ -145,6 +131,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 			// then we won't hit this branch, but it would be redundant anyways
 			newSizeInSectors = dl.UsableSectorsEnd - startInSectors
 		}
+
+		ptype := partitionType(dl.Schema, p.Type)
 
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
@@ -160,7 +148,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		})
 	}
 
-	return buf, toBeCreated
+	return buf, toBeCreated, nil
 }
 
 func partitionType(label, ptype string) string {

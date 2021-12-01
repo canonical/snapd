@@ -100,7 +100,7 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-18-64:
-                  image: ubuntu-16.04-64
+                  image: ubuntu-18.04-64
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
@@ -222,7 +222,7 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-18-64:
-                  image: ubuntu-16.04-64
+                  image: ubuntu-18.04-64
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-20-64:
@@ -695,6 +695,10 @@ prepare: |
     unset NOMATCH
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
+
+    # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
+    # The idea is to have a single directory with all the testing tools
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.

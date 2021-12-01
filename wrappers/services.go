@@ -1288,8 +1288,10 @@ func renderListenStream(socket *snap.SocketInfo) string {
 		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
 		listenStream = strings.Replace(listenStream, "$SNAP_COMMON", s.CommonDataDir(), -1)
 	case snap.UserDaemon:
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h"), -1)
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", s.UserCommonDataDir("%h"), -1)
+		// TODO: use SnapDirOpts here. User daemons are also an experimental
+		// feature so, for simplicity, we can not pass opts here for now
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h", nil), -1)
+		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", s.UserCommonDataDir("%h", nil), -1)
 		// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
 		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", s.InstanceName()), -1)
 	default:
@@ -1610,17 +1612,17 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 		// even if it is disabled; otherwise, we only restart units which are
 		// currently running. Reference:
 		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
-		if !unit.Active && !strutil.ListContains(explicitServices, unit.UnitName) {
+		if !unit.Active && !strutil.ListContains(explicitServices, unit.Name) {
 			continue
 		}
 
 		var err error
-		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.UnitName), func(nested timings.Measurer) {
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.Name), func(nested timings.Measurer) {
 			if flags != nil && flags.Reload {
-				err = sysd.ReloadOrRestart(unit.UnitName)
+				err = sysd.ReloadOrRestart(unit.Name)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart(unit.UnitName, 5*time.Second)
+				err = sysd.Restart(unit.Name, 5*time.Second)
 			}
 		})
 		if err != nil {
