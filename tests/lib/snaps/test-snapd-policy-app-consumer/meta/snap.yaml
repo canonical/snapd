@@ -374,6 +374,9 @@ apps:
   screencast-legacy:
     command: bin/run
     plugs: [ screencast-legacy ]
+  scsi-generic:
+    command: bin/run
+    plugs: [ scsi-generic ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
