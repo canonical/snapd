@@ -217,13 +217,40 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	// the expected expanded writable partition size is:
 	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create := install.BuildPartitionList(dl, pv)
+	sfdiskInput, create, err := install.BuildPartitionList(dl, pv)
+	c.Assert(err, IsNil)
 	c.Assert(sfdiskInput.String(), Equals,
 		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
 /dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
 `)
 	c.Check(create, NotNil)
 	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritableAfterSave})
+}
+
+func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C) {
+	// drop the "BIOS Boot" partition from the mock disk so that we only have
+	// ubuntu-seed (at normal location for the second partition, as if the first
+	// partition just vanished from the disk)
+	mockDisk := makeMockDiskMappingIncludingPartitions(scriptPartitionsBiosSeed)
+	mockDisk.Structure = mockDisk.Structure[1:]
+	mockDisk.Structure[0].StructureIndex = 1
+	m := map[string]*disks.MockDiskMapping{
+		"/dev/node": mockDisk,
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(m)
+	defer restore()
+
+	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
+	c.Assert(err, IsNil)
+	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)
+	c.Assert(err, IsNil)
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+
+	_, _, err = install.BuildPartitionList(dl, pv)
+	c.Assert(err, ErrorMatches, `cannot create partition #1 \(\"BIOS Boot\"\)`)
 }
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
@@ -768,11 +795,4 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 
 	list := install.CreatedDuringInstall(pv, dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
-}
-
-func (s *partitionTestSuite) TestCreationSupported(c *C) {
-	winBasic := "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
-
-	c.Check(install.CreationSupported(winBasic), Equals, true)
-	c.Check(install.CreationSupported("invalid-partion-uuid"), Equals, false)
 }

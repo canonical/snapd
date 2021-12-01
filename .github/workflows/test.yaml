@@ -386,7 +386,10 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log
+          # "pipefail" ensures that a non-zero status from the spread is
+          # propagated; and we use a subshell as this option could trigger
+          # undesired changes elsewhere
+          (set -o pipefail; spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log)
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
