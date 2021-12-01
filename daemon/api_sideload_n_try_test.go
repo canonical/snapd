@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -628,10 +629,9 @@ func (s *sideloadSuite) TestCleanUpUnusedTempSnapFiles(c *check.C) {
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap\"; filename=\"two\"\r\n" +
+		// only files with the name 'snap' are used
+		"Content-Disposition: form-data; name=\"not-snap\"; filename=\"two\"\r\n" +
 		"\r\n" +
-		// sideloadCheck checks that the snap file passed to the change has contents "xyzzy" so
-		// having a different body here tests that the second file isn't passed to change
 		"bla\r\n" +
 		"----hello--\r\n"
 
@@ -643,6 +643,128 @@ func (s *sideloadSuite) TestCleanUpUnusedTempSnapFiles(c *check.C) {
 	c.Assert(err, check.IsNil)
 	// only the file passed into the change (the request's first file) remains
 	c.Check(matches, check.HasLen, 1)
+}
+
+func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
+	d := s.daemonWithFakeSnapManager(c)
+	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true}
+
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+		c.Check(flags, check.DeepEquals, expectedFlags)
+		c.Check(userID, check.Not(check.Equals), 0)
+
+		var tss []*state.TaskSet
+		for i, path := range paths {
+			si := infos[i]
+			c.Check(path, testutil.FileEquals, si.RealName)
+
+			ts := state.NewTaskSet(s.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", si.RealName)))
+			tss = append(tss, ts)
+		}
+
+		return tss, nil
+	})
+	defer restore()
+
+	snaps := []string{"one", "two"}
+	var i int
+	readRest := daemon.MockUnsafeReadSnapInfo(func(string) (*snap.Info, error) {
+		info := &snap.Info{SuggestedName: snaps[i]}
+		i++
+		return info, nil
+	})
+	defer readRest()
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	for _, snap := range snaps {
+		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"file-" + snap + "\"\r\n" +
+			"\r\n" +
+			snap + "\r\n" +
+			"----hello--\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	s.asUserAuth(c, req)
+	rsp := s.asyncReq(c, req, s.authUser)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Install snaps %q from files ["file-one" "file-two"]`, snaps))
+
+	var data map[string][]string
+	c.Assert(chg.Get("api-data", &data), check.IsNil)
+	c.Check(data["snap-names"], testutil.DeepUnsortedMatches, snaps)
+}
+
+func (s *sideloadSuite) TestSideloadManyFailInstallPathMany(c *check.C) {
+	s.daemon(c)
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+		return nil, errors.New("expected")
+	})
+	defer restore()
+
+	readRest := daemon.MockUnsafeReadSnapInfo(func(string) (*snap.Info, error) {
+		return &snap.Info{SuggestedName: "name"}, nil
+	})
+	defer readRest()
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	for _, snap := range []string{"one", "two"} {
+		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"file-" + snap + "\"\r\n" +
+			"\r\n" +
+			"xyzzy \r\n" +
+			"----hello--\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	apiErr := s.errorReq(c, req, nil)
+
+	c.Check(apiErr.JSON().Status, check.Equals, 500)
+	c.Check(apiErr.Message, check.Equals, `cannot install snap files: expected`)
+}
+
+func (s *sideloadSuite) TestSideloadManyFailUnsafeReadInfo(c *check.C) {
+	s.daemon(c)
+	restore := daemon.MockUnsafeReadSnapInfo(func(string) (*snap.Info, error) {
+		return nil, errors.New("expected")
+	})
+	defer restore()
+
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	for _, snap := range []string{"one", "two"} {
+		body += "Content-Disposition: form-data; name=\"snap\"; filename=\"file-" + snap + "\"\r\n" +
+			"\r\n" +
+			"xyzzy \r\n" +
+			"----hello--\r\n"
+	}
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+	apiErr := s.errorReq(c, req, nil)
+
+	c.Check(apiErr.JSON().Status, check.Equals, 400)
+	c.Check(apiErr.Message, check.Equals, `cannot read snap file: expected`)
 }
 
 type trySuite struct {
