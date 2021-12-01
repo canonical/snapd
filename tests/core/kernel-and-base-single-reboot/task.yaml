@@ -66,9 +66,10 @@ execute: |
         # error out assuming a rollback across reboot
         systemctl stop snapd.service snapd.socket
 
-        # both link snaps should be done now, we could not use use snap change
-        # as snapd is busy retrying the auto-connect task and does not respond to
-        # API requests, work around that by inspecting the state directly
+        # both link snaps should be done now, snapd was stopped, so we cannot
+        # use 'snap change' and we need to inspect the state directly (even if
+        # snapd was up, it would not respond to API requests as it would be busy
+        # retrying auto-connect)
         snap debug state --change "$change_id" /var/lib/snapd/state.json > tasks.state
         # both link snaps are done
         MATCH ' Done\s+.*Make snap "pc-kernel" .* available' < tasks.state
