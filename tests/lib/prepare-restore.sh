@@ -569,7 +569,10 @@ prepare_project() {
     fi
 
     # eval to prevent expansion errors on opensuse (the variable keeps quotes)
-    eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
+    eval "go build $fakestore_tags -o ${GOPATH%%:*}/bin/fakestore ./tests/lib/fakestore/cmd/fakestore"
+    # build another variant with test keys injected, such that we can setup a
+    # refresh for a snap signed with test keys
+    eval "go build -tags withtestkeys -o ${GOPATH%%:*}/bin/fakestore-testkeys ./tests/lib/fakestore/cmd/fakestore"
 
     # Build additional utilities we need for testing
     go get ./tests/lib/fakedevicesvc
