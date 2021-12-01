@@ -17,18 +17,18 @@ prepare: |
 
     setup_fake_store "$BLOB_DIR"
 
+    core_snap=core20
+    if os.query is-core18; then
+        core_snap=core18
+    fi
+    readlink /snap/pc-kernel/current > pc-kernel.rev
+    readlink "/snap/$core_snap/current" > core.rev
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    core_snap=core20
-    if os.query is-core18; then
-        core_snap=core18
-    fi
-
-    readlink /snap/pc-kernel/current > pc-kernel.rev
-    readlink "/snap/$core_snap/current" > core.rev
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
