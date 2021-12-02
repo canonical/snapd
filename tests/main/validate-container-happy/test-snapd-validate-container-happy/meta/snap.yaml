@@ -7,3 +7,4 @@ plugs:
   hell:
     interface: content
     target: $SNAP/hell
+    

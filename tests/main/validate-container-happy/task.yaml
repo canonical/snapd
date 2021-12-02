@@ -2,21 +2,39 @@ summary: check the symlinks following the right track
 
 environment:
     SNAP: test-snapd-validate-container-happy
+    SNAP_INSTALL_DIR: $(pwd)/snap-install-dir
+    SNAP_MOUNT_DIR: $(os.paths snap-mount-dir)
+
+
+priority: 10000
 
 prepare: |
     snap pack test-snapd-validate-container-happy
 
 execute: |
+
+    # We shouldn't use relative symlinks in Github as they cannot be packed correctly.
+    # So here let's test whether we can still pack such symlinks within a snap and use if needed.
+    # First we "try" to unpack the snap structure and untar the symlinks
+    # Then we pack the snap with these symlinks and then install
+    # Finally we check to see if the symlinks actually support the intervined symlinks
+
     snap try "$SNAP"
     snap list "$SNAP"
-    ls -l "$SNAP"
 
-    cd "$SNAP"/hell
-    ls -l
+    # Untar the symlinks 
     echo "Unleashing hell..."
-    tar -xvf hell.tar
+    tar -xvf "$SNAP"/hell/hell.tar -C "$SNAP"/hell
 
-    readlink bar | MATCH "foo -> baz -> qux"
-    readlink baz | MATCH "foo -> bar -> qux"
-    readlink foo | MATCH "bar -> baz -> qux"
-    readlink qux | MATCH "foo -> bar -> baz"
+    # Create a new snap structure that includes the unpacked symlinks
+    mkdir -p "$SNAP_INSTALL_DIR"
+    cp -ra "$SNAP"/* "$SNAP_INSTALL_DIR"
+    snap pack "$SNAP_INSTALL_DIR"
+    snap install --dangerous test-snapd-validate-container-happy_1.0_all.snap
+    tests.cleanup defer snap remove --purge test-snapd-validate-container-happy
+
+    # Check to see if the symlinks retain their existing paths
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/current/hell/bar | MATCH "foo -> baz -> qux"
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/current/hell/baz | MATCH "foo -> bar -> qux"
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/current/hell/foo | MATCH "bar -> baz -> qux"
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/current/hell/qux | MATCH "foo -> bar -> baz"
