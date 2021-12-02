@@ -127,7 +127,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitMissing(c *C) {
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `could not find any policy files for plug "polkit"`)
+	c.Check(err, ErrorMatches, `cannot find any policy files for plug "polkit"`)
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitNotFile(c *C) {
@@ -136,7 +136,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitNotFile(c *C) {
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `could not read file ".*/meta/polkit.foo.policy": read .*: is a directory`)
+	c.Check(err, ErrorMatches, `cannot read file ".*/meta/polkit.foo.policy": read .*: is a directory`)
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadXML(c *C) {
@@ -146,7 +146,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadXML(c *C) {
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `could not validate policy file ".*/meta/polkit.foo.policy": XML syntax error on line 1: unexpected EOF`)
+	c.Check(err, ErrorMatches, `cannot validate policy file ".*/meta/polkit.foo.policy": XML syntax error on line 1: unexpected EOF`)
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadAction(c *C) {

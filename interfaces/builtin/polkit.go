@@ -90,13 +90,13 @@ func (iface *polkitInterface) getActionPrefix(attribs interfaces.Attrer) (string
 func loadPolkitPolicy(filename, actionPrefix string) (polkit.Policy, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf(`could not read file %q: %v`, filename, err)
+		return nil, fmt.Errorf(`cannot read file %q: %v`, filename, err)
 	}
 
 	// Check that the file content is a valid polkit policy file
 	actionIDs, err := validate.ValidatePolicy(bytes.NewReader(content))
 	if err != nil {
-		return nil, fmt.Errorf(`could not validate policy file %q: %v`, filename, err)
+		return nil, fmt.Errorf(`cannot validate policy file %q: %v`, filename, err)
 	}
 
 	// Check that the action IDs in the policy file match the action prefix
@@ -121,7 +121,7 @@ func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, pl
 		return err
 	}
 	if len(policyFiles) == 0 {
-		return fmt.Errorf("could not find any policy files for plug %q", plug.Name())
+		return fmt.Errorf("cannot find any policy files for plug %q", plug.Name())
 	}
 	for _, filename := range policyFiles {
 		suffix := strings.TrimSuffix(filepath.Base(filename), ".policy")
