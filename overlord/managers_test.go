@@ -8658,9 +8658,9 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 
 	// final steps will are postponed until we are in the restarted snapd
-	ok, rst := restart.Pending(st)
+	ok, rst := st.Restarting()
 	c.Assert(ok, Equals, true)
-	c.Assert(rst, Equals, restart.RestartSystem)
+	c.Assert(rst, Equals, state.RestartSystem)
 
 	// auto connects aren't done yet
 	autoConnects := 0
@@ -8690,7 +8690,7 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootHappy(c *C) {
 	c.Check(m.TryBase, Equals, "core20_2.snap")
 
 	// simulate successful restart happened
-	restart.MockPending(st, restart.RestartUnset)
+	state.MockRestarting(st, state.RestartUnset)
 	err = bloader.SetTryingDuringReboot([]snap.Type{snap.TypeKernel})
 	c.Assert(err, IsNil)
 	m.BaseStatus = boot.TryingStatus
@@ -8722,9 +8722,9 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 
 	// final steps will are postponed until we are in the restarted snapd
-	ok, rst := restart.Pending(st)
+	ok, rst := st.Restarting()
 	c.Assert(ok, Equals, true)
-	c.Assert(rst, Equals, restart.RestartSystem)
+	c.Assert(rst, Equals, state.RestartSystem)
 
 	// auto connects aren't done yet
 	autoConnects := 0
@@ -8754,7 +8754,7 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 	c.Check(m.TryBase, Equals, "core20_2.snap")
 
 	// simulate successful restart happened
-	restart.MockPending(st, restart.RestartUnset)
+	state.MockRestarting(st, state.RestartUnset)
 	// pretend the kernel panics during boot, kernel status gets reset to ""
 	err = bloader.SetRollbackAcrossReboot([]snap.Type{snap.TypeKernel})
 	c.Assert(err, IsNil)

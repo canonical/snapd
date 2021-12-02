@@ -45,7 +45,6 @@ import (
 	_ "github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
-	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -6906,10 +6905,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var restartRequested []restart.RestartType
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
-		restartRequested = append(restartRequested, t)
-	}))
+	err := s.state.VerifyReboot("some-boot-id")
+	c.Assert(err, IsNil)
 
 	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]interface{}{
 		"kernel": "kernel",
@@ -7029,8 +7026,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// a single system restart was requested
-	c.Check(restartRequested, DeepEquals, []restart.RestartType{
-		restart.RestartSystem,
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{
+		state.RestartSystem,
 	})
 
 	for _, name := range []string{"kernel", "core18"} {
@@ -7094,10 +7091,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var restartRequested []restart.RestartType
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
-		restartRequested = append(restartRequested, t)
-	}))
+	err := s.state.VerifyReboot("some-boot-id")
+	c.Assert(err, IsNil)
 
 	restore = snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
@@ -7200,9 +7195,9 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// when updating both kernel that uses core as base, and "core" we have two reboots
-	c.Check(restartRequested, DeepEquals, []restart.RestartType{
-		restart.RestartSystem,
-		restart.RestartSystem,
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{
+		state.RestartSystem,
+		state.RestartSystem,
 	})
 
 	for _, name := range []string{"kernel", "core"} {
@@ -7234,10 +7229,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var restartRequested []restart.RestartType
-	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
-		restartRequested = append(restartRequested, t)
-	}))
+	err := s.state.VerifyReboot("some-boot-id")
+	c.Assert(err, IsNil)
 
 	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
 	defer restore()
@@ -7318,12 +7311,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
-	c.Check(restartRequested, DeepEquals, []restart.RestartType{
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{
 		// do path
-		restart.RestartSystem,
+		state.RestartSystem,
 		// undo
-		restart.RestartSystem,
-		restart.RestartSystem,
+		state.RestartSystem,
+		state.RestartSystem,
 	})
 	c.Check(errInjected, Equals, 1)
 

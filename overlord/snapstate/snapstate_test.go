@@ -82,6 +82,8 @@ type snapmgrTestSuite struct {
 	user  *auth.UserState
 	user2 *auth.UserState
 	user3 *auth.UserState
+
+	restartRequests []state.RestartType
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -97,7 +99,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
-	s.o = overlord.Mock()
+	s.restartRequests = nil
+	s.o = overlord.MockWithStateAndRestartHandler(nil, func(t state.RestartType) {
+		s.restartRequests = append(s.restartRequests, t)
+	})
 	s.state = s.o.State()
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
