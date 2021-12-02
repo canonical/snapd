@@ -404,6 +404,7 @@ const (
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	updatesGadgetAssets
 	updatesBootConfig
 	noConfigure
 )
