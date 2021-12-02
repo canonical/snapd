@@ -109,9 +109,10 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
 </policyconfig>`
 	const samplePolicy2 = `<policyconfig/>`
 
-	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
 	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy1), 0644), IsNil)
-	policyPath = filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.bar.policy")
+	policyPath = filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.bar.policy")
 	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy2), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
@@ -131,22 +132,24 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitMissing(c *C) {
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitNotFile(c *C) {
-	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
 	c.Assert(os.Mkdir(policyPath, 0755), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `cannot read file ".*/meta/polkit.foo.policy": read .*: is a directory`)
+	c.Check(err, ErrorMatches, `cannot read file ".*/meta/polkit/polkit.foo.policy": read .*: is a directory`)
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadXML(c *C) {
 	const samplePolicy = `<malformed`
-	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
 	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `cannot validate policy file ".*/meta/polkit.foo.policy": XML syntax error on line 1: unexpected EOF`)
+	c.Check(err, ErrorMatches, `cannot validate policy file ".*/meta/polkit/polkit.foo.policy": XML syntax error on line 1: unexpected EOF`)
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadAction(c *C) {
@@ -159,12 +162,13 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadAction(c *C) {
     </defaults>
   </action>
 </policyconfig>`
-	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
 	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
+	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadImplies(c *C) {
@@ -178,12 +182,13 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadImplies(c *C) {
     <annotate key="org.freedesktop.policykit.imply">org.freedesktop.systemd1.manage-units</annotate>
   </action>
 </policyconfig>`
-	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
 	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
+	c.Check(err, ErrorMatches, `policy file ".*/meta/polkit/polkit.foo.policy" contains unexpected action ID "org.freedesktop.systemd1.manage-units"`)
 }
 
 func (s *polkitInterfaceSuite) TestSanitizeSlot(c *C) {

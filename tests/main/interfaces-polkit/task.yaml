@@ -38,7 +38,7 @@ execute: |
     echo "Snapd has installed the policy file for the service"
     test -f /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.foo.policy
     echo "The contents match the file provided by the snap"
-    cmp /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.foo.policy ./test-snapd-pk-service/meta/polkit.foo.policy
+    cmp /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.foo.policy ./test-snapd-pk-service/meta/polkit/polkit.foo.policy
 
     echo "Create a non-privileged process, and get its pid"
     tests.session -u test exec systemd-run --user --unit test-snapd-sleep.service sh -c 'touch /home/test/sleep.stamp && exec sleep 1h'

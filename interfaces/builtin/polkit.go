@@ -116,7 +116,7 @@ func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, pl
 	}
 
 	mountDir := plug.Snap().MountDir()
-	policyFiles, err := filepath.Glob(filepath.Join(mountDir, "meta", plug.Name()+".*.policy"))
+	policyFiles, err := filepath.Glob(filepath.Join(mountDir, "meta", "polkit", plug.Name()+".*.policy"))
 	if err != nil {
 		return err
 	}
