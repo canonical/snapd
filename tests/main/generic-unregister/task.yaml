@@ -15,6 +15,7 @@ restore: |
     systemctl stop snapd.service snapd.socket
     cp key/* /var/lib/snapd/device/private-keys-v1/
     cp state.json.bak /var/lib/snapd/state.json
+    rm -f /run/snapd/noregister
     systemctl start snapd.service snapd.socket
 
 execute: |
@@ -46,4 +47,3 @@ execute: |
     snap model --serial 2>&1|MATCH "error: device not registered yet"
     snap find pc
     NOMATCH '"session-macaroon":"[^"]' < /var/lib/snapd/state.json
-
