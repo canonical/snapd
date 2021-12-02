@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func ensureGPGHomeDirectory() (string, error) {
@@ -73,6 +74,8 @@ func findGPGCommand() (string, error) {
 	return path, err
 }
 
+var gpgBatchYes = false
+
 func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	homedir, err := ensureGPGHomeDirectory()
 	if err != nil {
@@ -92,6 +95,9 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	}
 
 	general := []string{"--homedir", homedir, "-q", "--no-auto-check-trustdb"}
+	if gpgBatchYes && strutil.ListContains(args, "--batch") {
+		general = append(general, "--yes")
+	}
 	allArgs := append(general, args...)
 
 	path, err := findGPGCommand()

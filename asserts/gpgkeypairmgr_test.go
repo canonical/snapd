@@ -340,7 +340,8 @@ func (gkms *gpgKeypairMgrSuite) TestList(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestDelete(c *C) {
-	c.Skip("produces a UI prompt")
+	defer asserts.GPGBatchYes()()
+
 	keyID := assertstest.DevKeyID
 	_, err := gkms.keypairMgr.Get(keyID)
 	c.Assert(err, IsNil)
