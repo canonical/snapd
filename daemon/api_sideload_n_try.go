@@ -77,22 +77,50 @@ func (f *Form) RemoveAllExcept(paths []string) {
 	}
 }
 
-// GetSnapFiles returns the original name and temp path for each snap file in the form.
-func (f *Form) GetSnapFiles() (srcFilenames, tempPaths []string, apiErr *apiError) {
+type uploadedSnap struct {
+	// filename is the original name/path of the snap file.
+	filename string
+	// tmpPath is the location where the temp snap file is stored.
+	tmpPath string
+	// instanceName is optional and can only be set if only one snap was uploaded.
+	instanceName string
+}
+
+// GetSnapFiles returns the original name and temp path for each snap file in
+// the form. Optionally, it might include a requested instance name, but only
+// if the was only one file in the form.
+func (f *Form) GetSnapFiles() ([]*uploadedSnap, *apiError) {
 	if len(f.FileRefs["snap"]) == 0 {
-		return nil, nil, BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
+		return nil, BadRequest(`cannot find "snap" file field in provided multipart/form-data payload`)
 	}
 
-	for _, ref := range f.FileRefs["snap"] {
-		srcFilenames = append(srcFilenames, ref.Filename)
-		tempPaths = append(tempPaths, ref.TmpPath)
+	refs := f.FileRefs["snap"]
+	if len(refs) == 1 && len(f.Values["snap-path"]) > 0 {
+		uploaded := &uploadedSnap{
+			filename: f.Values["snap-path"][0],
+			tmpPath:  refs[0].TmpPath,
+		}
+
+		if len(f.Values["name"]) > 0 {
+			uploaded.instanceName = f.Values["name"][0]
+		}
+		return []*uploadedSnap{uploaded}, nil
 	}
 
-	if len(srcFilenames) == 1 && len(f.Values["snap-path"]) > 0 {
-		srcFilenames[0] = f.Values["snap-path"][0]
+	snapFiles := make([]*uploadedSnap, len(refs))
+	for i, ref := range refs {
+		snapFiles[i] = &uploadedSnap{
+			filename: ref.Filename,
+			tmpPath:  ref.TmpPath,
+		}
 	}
 
-	return srcFilenames, tempPaths, nil
+	return snapFiles, nil
+}
+
+type sideloadFlags struct {
+	snapstate.Flags
+	dangerousOK bool
 }
 
 func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
@@ -130,7 +158,12 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
 
-	origPaths, tempPaths, errRsp := form.GetSnapFiles()
+	sideloadFlags := sideloadFlags{
+		Flags:       flags,
+		dangerousOK: isTrue(form, "dangerous"),
+	}
+
+	snapFiles, errRsp := form.GetSnapFiles()
 	if errRsp != nil {
 		return errRsp
 	}
@@ -140,10 +173,10 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	defer st.Unlock()
 
 	var chg *state.Change
-	if len(origPaths) > 1 {
-		chg, errRsp = sideloadManySnaps(st, form, origPaths, tempPaths, flags, user)
+	if len(snapFiles) > 1 {
+		chg, errRsp = sideloadManySnaps(st, form, snapFiles, sideloadFlags, user)
 	} else {
-		chg, errRsp = sideloadSnap(st, form, origPaths[0], tempPaths[0], flags)
+		chg, errRsp = sideloadSnap(st, form, snapFiles[0], sideloadFlags)
 	}
 	if errRsp != nil {
 		return errRsp
@@ -158,23 +191,30 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 
 	// the handoff is only done when the unlock succeeds (instead of panicking)
 	// but this is good enough
-	pathsToNotRemove = tempPaths
+	pathsToNotRemove = make([]string, len(snapFiles))
+	for i, snapFile := range snapFiles {
+		pathsToNotRemove[i] = snapFile.tmpPath
+	}
 
 	return AsyncResponse(nil, chg.ID())
 }
 
-func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []string, flags snapstate.Flags, user *auth.UserState) (*state.Change, *apiError) {
-	var sideInfos []*snap.SideInfo
-	var names []string
+func sideloadManySnaps(st *state.State, form *Form, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+	sideInfos := make([]*snap.SideInfo, len(snapFiles))
+	names := make([]string, len(snapFiles))
+	tempPaths := make([]string, len(snapFiles))
+	origPaths := make([]string, len(snapFiles))
 
-	for i, tempPath := range tempPaths {
-		si, apiError := readSideInfo(st, form, tempPath, origPaths[i])
+	for i, snapFile := range snapFiles {
+		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags)
 		if apiError != nil {
 			return nil, apiError
 		}
 
-		sideInfos = append(sideInfos, si)
-		names = append(names, si.RealName)
+		sideInfos[i] = si
+		names[i] = si.RealName
+		tempPaths[i] = snapFile.tmpPath
+		origPaths[i] = snapFile.filename
 	}
 
 	var userID int
@@ -182,7 +222,7 @@ func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []strin
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags.Flags)
 	if err != nil {
 		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
 	}
@@ -194,17 +234,17 @@ func sideloadManySnaps(st *state.State, form *Form, origPaths, tempPaths []strin
 	return chg, nil
 }
 
-func sideloadSnap(st *state.State, form *Form, origPath, tempPath string, flags snapstate.Flags) (*state.Change, *apiError) {
+func sideloadSnap(st *state.State, form *Form, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
-	if len(form.Values["name"]) > 0 {
+	if snapFile.instanceName != "" {
 		// caller has specified desired instance name
-		instanceName = form.Values["name"][0]
+		instanceName = snapFile.instanceName
 		if err := snap.ValidateInstanceName(instanceName); err != nil {
 			return nil, BadRequest(err.Error())
 		}
 	}
 
-	sideInfo, apiErr := readSideInfo(st, form, tempPath, origPath)
+	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags)
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -218,23 +258,22 @@ func sideloadSnap(st *state.State, form *Form, origPath, tempPath string, flags 
 		instanceName = sideInfo.RealName
 	}
 
-	tset, _, err := snapstateInstallPath(st, sideInfo, tempPath, instanceName, "", flags)
+	tset, _, err := snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags)
 	if err != nil {
 		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install snap file: %v")
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, origPath)
+	msg := fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, snapFile.filename)
 	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{instanceName})
 	chg.Set("api-data", map[string]string{"snap-name": instanceName})
 
 	return chg, nil
 }
 
-func readSideInfo(st *state.State, form *Form, tempPath string, origPath string) (*snap.SideInfo, *apiError) {
+func readSideInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags) (*snap.SideInfo, *apiError) {
 	var sideInfo *snap.SideInfo
 
-	dangerousOK := isTrue(form, "dangerous")
-	if !dangerousOK {
+	if !flags.dangerousOK {
 		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
 		switch {
 		case err == nil:
@@ -242,7 +281,7 @@ func readSideInfo(st *state.State, form *Form, tempPath string, origPath string)
 		case asserts.IsNotFound(err):
 			// with devmode we try to find assertions but it's ok
 			// if they are not there (implies --dangerous)
-			if !isTrue(form, "devmode") {
+			if !flags.DevMode {
 				msg := "cannot find signatures with metadata for snap"
 				if origPath != "" {
 					msg = fmt.Sprintf("%s %q", msg, origPath)
