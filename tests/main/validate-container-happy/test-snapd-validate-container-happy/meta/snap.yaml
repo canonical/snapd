@@ -3,8 +3,4 @@ version: 1.0
 apps:
   validate-container:
     command: bin/validate-container
-plugs:
-  hell:
-    interface: content
-    target: $SNAP/hell
     

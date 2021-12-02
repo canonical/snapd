@@ -17,18 +17,21 @@ execute: |
     # Finally we check to see if the symlinks actually support the intervined symlinks
 
     # Untar the symlinks 
-    tar -xvf "$SNAP"/hell/hell.tar -C "$SNAP"/hell
+    mkdir -p "$SNAP_MOUNT_DIR"/"$SNAP"/hell
+    tar -xvf "$SNAP"/hell/hell.tar -C "$SNAP_MOUNT_DIR"/"$SNAP"/hell
 
     snap try "$SNAP"
     # Check to see if the symlinks exist
-    ls -l "$SNAP"/hell | MATCH "foo -> baz -> qux"
-    ls -l "$SNAP"/hell | MATCH "foo -> bar -> qux"
-    ls -l "$SNAP"/hell | MATCH "bar -> baz -> qux"
-    ls -l "$SNAP"/hell | MATCH "foo -> bar -> baz"
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/hell/bar | MATCH "foo -> baz -> qux"
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/hell/baz | MATCH "foo -> bar -> qux"
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/hell/foo | MATCH "bar -> baz -> qux"
+    readlink "$SNAP_MOUNT_DIR"/"$SNAP"/hell/qux | MATCH "foo -> bar -> baz"
 
     # Create a new snap structure that includes the unpacked symlinks
     mkdir -p "$SNAP_INSTALL_DIR"
     cp -ra "$SNAP"/* "$SNAP_INSTALL_DIR"
+    cp -ra "$SNAP_MOUNT_DIR"/"$SNAP"/hell "$SNAP_INSTALL_DIR"
+
     snap pack "$SNAP_INSTALL_DIR"
     snap install --dangerous test-snapd-validate-container-happy_1.0_all.snap
     tests.cleanup defer snap remove --purge test-snapd-validate-container-happy
