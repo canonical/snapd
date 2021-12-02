@@ -5,9 +5,6 @@ environment:
     SNAP_INSTALL_DIR: $(pwd)/snap-install-dir
     SNAP_MOUNT_DIR: $(os.paths snap-mount-dir)
 
-
-priority: 10000
-
 prepare: |
     snap pack test-snapd-validate-container-happy
 
