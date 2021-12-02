@@ -6806,7 +6806,11 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteBackwardsCompat(c *C) {
 	snapsup.PrereqContentAttrs = nil
 	prereqTask.Set("snap-setup", &snapsup)
 
+	defer s.se.Stop()
+	s.state.Unlock()
+	defer s.se.Stop()
 	s.settle(c)
+	s.state.Lock()
 
 	// the producer wasn't updated since there were no content attributes
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
@@ -6969,7 +6973,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	}
 
 	defer s.se.Stop()
+	s.state.Unlock()
+	defer s.se.Stop()
 	s.settle(c)
+	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// a single system restart was requested
@@ -7138,7 +7145,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 	}
 
 	defer s.se.Stop()
+	s.state.Unlock()
+	defer s.se.Stop()
 	s.settle(c)
+	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// when updating both kernel that uses core as base, and "core" we have two reboots
@@ -7254,7 +7264,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	}
 
 	defer s.se.Stop()
+	s.state.Unlock()
+	defer s.se.Stop()
 	s.settle(c)
+	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
