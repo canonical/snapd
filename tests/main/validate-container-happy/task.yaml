@@ -16,12 +16,15 @@ execute: |
     # Then we pack the snap with these symlinks and then install
     # Finally we check to see if the symlinks actually support the intervined symlinks
 
-    snap try "$SNAP"
-    snap list "$SNAP"
-
     # Untar the symlinks 
-    echo "Unleashing hell..."
     tar -xvf "$SNAP"/hell/hell.tar -C "$SNAP"/hell
+
+    snap try "$SNAP"
+    # Check to see if the symlinks exist
+    ls -l "$SNAP"/hell | MATCH "foo -> baz -> qux"
+    ls -l "$SNAP"/hell | MATCH "foo -> bar -> qux"
+    ls -l "$SNAP"/hell | MATCH "bar -> baz -> qux"
+    ls -l "$SNAP"/hell | MATCH "foo -> bar -> baz"
 
     # Create a new snap structure that includes the unpacked symlinks
     mkdir -p "$SNAP_INSTALL_DIR"
