@@ -62,7 +62,7 @@ func (x *cmdDeleteKey) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	err = keypairMgr.Delete(string(x.Positional.KeyName))
+	err = keypairMgr.DeleteByName(string(x.Positional.KeyName))
 	if _, ok := err.(*asserts.ExternalUnsupportedOpError); ok {
 		return fmt.Errorf(i18n.G("cannot delete external keypair manager key via snap command, use the appropriate external procedure"))
 	}
