@@ -204,7 +204,11 @@ func (em *ExternalKeypairManager) Put(privKey PrivateKey) error {
 	return &ExternalUnsupportedOpError{"cannot import private key into external keypair manager"}
 }
 
-func (em *ExternalKeypairManager) Delete(keyName string) error {
+func (em *ExternalKeypairManager) Delete(keyID string) error {
+	return &ExternalUnsupportedOpError{"no support to delete external keypair manager keys"}
+}
+
+func (em *ExternalKeypairManager) DeleteByName(keyName string) error {
 	return &ExternalUnsupportedOpError{"no support to delete external keypair manager keys"}
 }
 

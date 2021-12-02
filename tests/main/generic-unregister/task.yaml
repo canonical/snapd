@@ -31,15 +31,19 @@ execute: |
        exit 0
     fi
 
+    keyfile=(/var/lib/snapd/device/private-keys-v1/*)
+    test -f "${keyfile[0]}"
+
     curl --data '{"action":"forget","no-registration-until-reboot":true}' --unix-socket /run/snapd.socket http://localhost/v2/model/serial
 
     test -f /run/snapd/noregister
 
     snap model --serial 2>&1|MATCH "error: device not registered yet"
 
+    not test -e "${keyfile[0]}"
+
     systemctl restart snapd.service
 
     snap model --serial 2>&1|MATCH "error: device not registered yet"
     snap find pc
     NOMATCH '"session-macaroon":"[^"]' < /var/lib/snapd/state.json
-
