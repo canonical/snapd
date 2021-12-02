@@ -108,7 +108,7 @@ execute: |
         expecting_kernel="$(cat pc-kernel.rev)"
         expecting_core="$(cat core.rev)"
 
-        # verify that current points to new revisions
+        # verify that current points to old revisions
         test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
         test "$(readlink /snap/core18/current)" = "$expecting_core"
     else
