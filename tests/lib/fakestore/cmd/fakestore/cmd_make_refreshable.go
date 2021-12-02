@@ -25,7 +25,7 @@ import (
 
 type cmdMakeRefreshable struct {
 	TopDir     string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
-	SnapBlob   string `long:"snap-blob"`
+	SnapBlob   string `long:"snap-blob" description:"File or directory with new snap revision contents"`
 	Positional struct {
 		SnapName string
 	} `positional-args:"yes"`
