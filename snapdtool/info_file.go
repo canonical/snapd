@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -35,7 +36,8 @@ import (
 // indicates whether or not the snapd-apparmor binary installed via the
 // traditional linux package of snapd supports re-exec into the version in the
 // snapd or core snaps.
-func SnapdVersionFromInfoFile(infoPath string) (version string, flags map[string]string, err error) {
+func SnapdVersionFromInfoFile(dir string) (version string, flags map[string]string, err error) {
+	infoPath := filepath.Join(dir, "info")
 	f, err := os.Open(infoPath)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot open snapd info file %q: %s", infoPath, err)

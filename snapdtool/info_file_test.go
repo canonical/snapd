@@ -34,8 +34,8 @@ type infoFileSuite struct{}
 var _ = Suite(&infoFileSuite{})
 
 func (s *infoFileSuite) TestNoVersionFile(c *C) {
-	_, _, err := snapdtool.SnapdVersionFromInfoFile("/non-existing-file")
-	c.Assert(err, ErrorMatches, `cannot open snapd info file "/non-existing-file":.*`)
+	_, _, err := snapdtool.SnapdVersionFromInfoFile("/non-existing-dir")
+	c.Assert(err, ErrorMatches, `cannot open snapd info file "/non-existing-dir/info":.*`)
 }
 
 func (s *infoFileSuite) TestNoVersionData(c *C) {
@@ -43,7 +43,7 @@ func (s *infoFileSuite) TestNoVersionData(c *C) {
 	infoFile := filepath.Join(top, "info")
 	c.Assert(ioutil.WriteFile(infoFile, []byte("foo"), 0644), IsNil)
 
-	_, _, err := snapdtool.SnapdVersionFromInfoFile(infoFile)
+	_, _, err := snapdtool.SnapdVersionFromInfoFile(top)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find snapd version information in file %q`, infoFile))
 }
 
@@ -52,7 +52,7 @@ func (s *infoFileSuite) TestVersionHappy(c *C) {
 	infoFile := filepath.Join(top, "info")
 	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=1.2.3"), 0644), IsNil)
 
-	ver, flags, err := snapdtool.SnapdVersionFromInfoFile(infoFile)
+	ver, flags, err := snapdtool.SnapdVersionFromInfoFile(top)
 	c.Assert(err, IsNil)
 	c.Check(ver, Equals, "1.2.3")
 	c.Assert(flags, HasLen, 0)
@@ -63,7 +63,7 @@ func (s *infoFileSuite) TestInfoVersionFlags(c *C) {
 	infoFile := filepath.Join(top, "info")
 	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=1.2.3\nFOO=BAR"), 0644), IsNil)
 
-	ver, flags, err := snapdtool.SnapdVersionFromInfoFile(infoFile)
+	ver, flags, err := snapdtool.SnapdVersionFromInfoFile(top)
 	c.Assert(err, IsNil)
 	c.Check(ver, Equals, "1.2.3")
 	c.Assert(flags, DeepEquals, map[string]string{"FOO": "BAR"})
