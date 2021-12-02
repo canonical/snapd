@@ -584,7 +584,7 @@ func (s *sideloadSuite) TestSideloadUsePreciselyAllMemory(c *check.C) {
 	c.Check(apiErr.Message, check.Equals, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
-func (s *sideloadSuite) TestCleanUpTempFilesIfRequestFailed(c *check.C) {
+func (s *sideloadSuite) TestSideloadCleanUpTempFilesIfRequestFailed(c *check.C) {
 	s.daemonWithOverlordMockAndStore()
 
 	// write file parts
@@ -619,7 +619,7 @@ func (s *sideloadSuite) TestCleanUpTempFilesIfRequestFailed(c *check.C) {
 	c.Check(matches, check.HasLen, 0)
 }
 
-func (s *sideloadSuite) TestCleanUpUnusedTempSnapFiles(c *check.C) {
+func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 	body := "----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
 		"\r\n" +
