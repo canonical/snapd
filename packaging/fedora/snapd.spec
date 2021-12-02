@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.53.3
+Version:        2.53.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -978,6 +978,13 @@ fi
 
 
 %changelog
+* Thu Dec 02 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.53.4
+ - devicestate: mock devicestate.MockTimeutilIsNTPSynchronized to
+   avoid host env leaking into tests
+ - timeutil: return NoTimedate1Error if it can't connect to the
+   system bus
+
 * Thu Dec 02 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.53.3
  - devicestate: Unregister deletes the device key pair as well

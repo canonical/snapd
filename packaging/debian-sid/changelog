@@ -1,3 +1,13 @@
+snapd (2.53.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - devicestate: mock devicestate.MockTimeutilIsNTPSynchronized to
+      avoid host env leaking into tests
+    - timeutil: return NoTimedate1Error if it can't connect to the
+      system bus
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 02 Dec 2021 17:16:48 -0600
+
 snapd (2.53.3-1) unstable; urgency=medium
 
   * New upstream release, LP: #1929842
