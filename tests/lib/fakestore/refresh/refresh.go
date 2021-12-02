@@ -146,7 +146,7 @@ func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asse
 		// needing quoting, eg. version: '2021112', but since we're
 		// adding +fake1 suffix, the resulting value will clearly be a
 		// string, so have the regex strip quoting too
-		`s/version:[ ]\+['"]\?\([a-zA-Z0-9-]\+\)['"]\?/version: \1+fake1/`,
+		`s/version:[ ]\+['"]\?\([-.a-zA-Z0-9]\+\)['"]\?/version: \1+fake1/`,
 		filepath.Join(fakeUpdateDir, "meta/snap.yaml")).Run()
 	if err != nil {
 		return fmt.Errorf("changing fake snap version: %v", err)
