@@ -262,7 +262,7 @@ func ValidationSetsHistory(st *state.State) ([]map[string]*ValidationSetTracking
 	return vshist, nil
 }
 
-// RestoreValidationSets restores validation-sets state to the last state
+// RestoreValidationSetsTracking restores validation-sets state to the last state
 // stored in the validation-sets-stack. It should only be called when the stack
 // is not empty, otherwise an error is returned.
 func RestoreValidationSetsTracking(st *state.State) error {

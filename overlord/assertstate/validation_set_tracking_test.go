@@ -436,31 +436,20 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 
-	tr3 := assertstate.ValidationSetTracking{
+	tr2 := assertstate.ValidationSetTracking{
 		AccountID: "foo",
 		Name:      "baz",
 		Mode:      assertstate.Enforce,
 		Current:   5,
 	}
-	assertstate.UpdateValidationSet(s.st, &tr3)
+	assertstate.UpdateValidationSet(s.st, &tr2)
 
 	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	// two validation sets are now tracked
 	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
-		"foo/bar": {
-			AccountID: "foo",
-			Name:      "bar",
-			Mode:      assertstate.Enforce,
-			PinnedAt:  1,
-			Current:   2,
-		},
-		"foo/baz": {
-			AccountID: "foo",
-			Name:      "baz",
-			Mode:      assertstate.Enforce,
-			Current:   5,
-		},
+		"foo/bar": &tr1,
+		"foo/baz": &tr2,
 	})
 
 	// restore
@@ -470,12 +459,6 @@ func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
 	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
-		"foo/bar": {
-			AccountID: "foo",
-			Name:      "bar",
-			Mode:      assertstate.Enforce,
-			PinnedAt:  1,
-			Current:   2,
-		},
+		"foo/bar": &tr1,
 	})
 }

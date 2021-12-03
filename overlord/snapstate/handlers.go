@@ -3150,7 +3150,8 @@ func changeReadyUpToTask(task *state.Task) bool {
 }
 
 // refreshedSnaps returns the instance names of the snaps successfully refreshed
-// in the last batch of refreshes before the given (re-refresh) task.
+// in the last batch of refreshes before the given (re-refresh) task; failed is
+// true if any of the snaps failed to refresh.
 //
 // It does this by advancing through the given task's change's tasks, keeping
 // track of the instance names from the first SnapSetup in every lane, stopping
@@ -3251,7 +3252,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
-	// if some (or all) snaps failed to refresh, reconsider validation set tracking
+	// if any snap failed to refresh, reconsider validation set tracking
 	if failed {
 		tasksets, err := maybeRestoreValidationSetsAndRevertSnaps(st, snaps)
 		if err != nil {
