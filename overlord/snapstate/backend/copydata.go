@@ -28,12 +28,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	snapshotbackend "github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 )
 
-var allUsers = snapshotbackend.AllUsers
+var allUsers = snap.AllUsers
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
 func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
