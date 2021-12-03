@@ -6,7 +6,7 @@ environment:
 prepare: |
 
 execute: |
-
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     # We shouldn't use relative symlinks in Github as they cannot be packed correctly.
     # So here let's test whether we can still pack such symlinks within a snap and use if needed.
     # First we "try" to unpack the snap structure and untar the symlinks
