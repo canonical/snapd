@@ -1,3 +1,38 @@
+snapd (2.53.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - devicestate: mock devicestate.MockTimeutilIsNTPSynchronized to
+      avoid host env leaking into tests
+    - timeutil: return NoTimedate1Error if it can't connect to the
+      system bus
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 02 Dec 2021 17:16:48 -0600
+
+snapd (2.53.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - devicestate: Unregister deletes the device key pair as well
+    - daemon,tests: support forgetting device serial via API
+    - configcore: relax validation rules for hostname
+    - o/devicestate: introduce DeviceManager.Unregister
+    - packaging/ubuntu, packaging/debian: depend on dbus-session-bus
+      provider
+    - many: wait for up to 10min for NTP synchronization before
+      autorefresh
+    - interfaces/interfaces/scsi_generic: add interface for scsi generic
+      devices
+    - interfaces/microstack-support: set controlsDeviceCgroup to true
+    - interface/builtin/log_observe: allow to access /dev/kmsg
+    - daemon: write formdata file parts to snaps dir
+    - spread: run lxd tests with version from latest/edge
+    - cmd/libsnap-confine-private: fix snap-device-helper device allow
+      list modification on cgroup v2
+    - interfaces/builtin/dsp: add proc files for monitoring Ambarella
+      DSP firmware
+    - interfaces/builtin/dsp: update proc file accordingly
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 02 Dec 2021 11:42:15 -0600
+
 snapd (2.53.2-1) unstable; urgency=medium
 
   * New upstream release, LP: #1946127
