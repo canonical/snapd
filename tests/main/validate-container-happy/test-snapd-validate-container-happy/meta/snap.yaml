@@ -3,4 +3,3 @@ version: 1.0
 apps:
   validate-container:
     command: bin/validate-container
-    
