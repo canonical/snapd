@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -110,6 +111,7 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+	noRegister                   bool
 
 	preseed             bool
 	ntpSyncedOrTimedOut bool
@@ -462,6 +464,11 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
+	if m.noRegister {
+		return nil
+	}
+	// noregister marker file is checked below after mostly in-memory checks
+
 	if m.changeInFlight("become-operational") {
 		return nil
 	}
@@ -489,6 +496,12 @@ func (m *DeviceManager) ensureOperational() error {
 		if n == 0 && !snapstate.Installing(m.state) {
 			return nil
 		}
+	}
+
+	// registration is blocked until reboot
+	if osutil.FileExists(filepath.Join(dirs.SnapRunDir, "noregister")) {
+		m.noRegister = true
+		return nil
 	}
 
 	var hasPrepareDeviceHook bool
@@ -1360,6 +1373,56 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 // Registered returns a channel that is closed when the device is known to have been registered.
 func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
+}
+
+type UnregisterOptions struct {
+	NoRegistrationUntilReboot bool
+}
+
+// Unregister unregisters the device forgetting its serial
+// plus the additional behavior described by the UnregisterOptions
+func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+	if !release.OnClassic || (device.Brand != "generic" && device.Brand != "canonical") {
+		return fmt.Errorf("cannot currently unregister device if not classic or model brand is not generic or canonical")
+	}
+
+	if opts == nil {
+		opts = &UnregisterOptions{}
+	}
+	if opts.NoRegistrationUntilReboot {
+		if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
+			return err
+		}
+	}
+	oldKeyID := device.KeyID
+	device.Serial = ""
+	device.KeyID = ""
+	device.SessionMacaroon = ""
+	if err := m.setDevice(device); err != nil {
+		return err
+	}
+	// commit forgetting serial and key
+	m.state.Unlock()
+	m.state.Lock()
+	// delete the device key
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+		err := keypairMgr.Delete(oldKeyID)
+		if err != nil {
+			return fmt.Errorf("cannot delete device key pair: %v", err)
+		}
+		return nil
+	})
+
+	m.lastBecomeOperationalAttempt = time.Time{}
+	m.becomeOperationalBackoff = 0
+	return err
 }
 
 // device returns current device state.

@@ -3353,7 +3353,7 @@ apps:
 	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", srvFile},
 		{"reload-or-restart", srvFile},
 	})
 
@@ -3361,7 +3361,7 @@ apps:
 	flags.Reload = false
 	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3370,7 +3370,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3424,7 +3424,7 @@ apps:
 	sort.Sort(snap.AppInfoBySnapApp(services))
 	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names",
 			srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},
@@ -3439,7 +3439,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, []string{srvFile2}, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names",
 			srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},

@@ -450,9 +450,9 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 }
 
 func (s *clientSuite) TestPendingRefreshNotification(c *C) {
-	n := 0
+	var n int32
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		n++
+		atomic.AddInt32(&n, 1)
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/pending-refresh")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
@@ -460,9 +460,7 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 	})
 	err := s.cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
 	c.Assert(err, IsNil)
-	// two calls because clientSuite simulates two user sessions (two
-	// snapd-session-agent.socket sockets).
-	c.Check(n, Equals, 2)
+	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
 }
 
 func (s *clientSuite) TestFinishRefreshNotification(c *C) {
@@ -473,14 +471,25 @@ func (s *clientSuite) TestFinishRefreshNotification(c *C) {
 		body, err := ioutil.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(string(body), DeepEquals, `{"instance-name":"some-snap"}`)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
-		w.Write([]byte(`{"type": "sync"}`))
 	})
 	err := s.cli.FinishRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
 	c.Assert(err, IsNil)
 	// two calls because clientSuite simulates two user sessions (two
 	// snapd-session-agent.socket sockets).
 	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
+}
+
+func (s *clientSuite) TestPendingRefreshNotificationOneClient(c *C) {
+	cli := client.NewForUids(1000)
+	var n int32
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&n, 1)
+		c.Assert(r.URL.Path, Equals, "/v1/notifications/pending-refresh")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{"type": "sync"}`))
+	})
+	err := cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
+	c.Assert(err, IsNil)
+	c.Check(atomic.LoadInt32(&n), Equals, int32(1))
 }

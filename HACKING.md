@@ -92,6 +92,141 @@ Package build dependencies for other distributions can be found under the
 
 Go module dependencies are automatically resolved at build time.
 
+### Building the snap with snapcraft
+
+The easiest (though not the most efficient) way to test changes to snapd is to
+build the snapd snap using _snapcraft_ and then install that snapd snap. The
+snapcraft.yaml for the snapd snap is located at ./build-aux/snapcraft.yaml, and
+can be built using snapcraft either in a LXD container or a multipass VM (or
+natively with `--destructive-mode` on a Ubuntu 16.04 host).
+
+Note: Currently, snapcraft's default track of 5.x does not support building the 
+snapd snap, since the snapd snap uses `build-base: core`. Building with a 
+`build-base` of core uses Ubuntu 16.04 as the base operating system (and thus 
+root filesystem) for building and Ubuntu 16.04 is now in Extended Security 
+Maintenance (ESM - see https://ubuntu.com/blog/ubuntu-16-04-lts-transitions-to-extended-security-maintenance-esm), and as such only is buildable using snapcraft's 4.x channel. At some point in the future,
+the snapd snap should be moved to a newer `build-base`, but until then `4.x` 
+needs to be used.
+
+Install snapcraft from the 4.x channel:
+
+```
+sudo snap install snapcraft --channel=4.x
+```
+
+Then run snapcraft:
+
+```
+snapcraft
+```
+
+Now the snapd snap that was just built can be installed with:
+
+```
+snap install --dangerous snapd_*.snap
+```
+
+To go back to using snapd from the store instead of the custom version we 
+installed (since it will not get updates as it was installed dangerously), you
+can either use `snap revert snapd`, or you can refresh directly with 
+`snap refresh snapd --stable --amend`.
+
+Note: It is also sometimes useful to use snapcraft to build the snapd snap for
+other architectures using the `remote-build` feature, however there is currently a
+bug in snapcraft around using the `4.x` track and using `remote-build`, where the
+Launchpad job created for the remote-build will attempt to use the `latest` track instead
+of the `4.x` channel. This was recently fixed in snapcraft in https://github.com/snapcore/snapcraft/pull/3600
+which for now requires using the `latest/edge` channel of snapcraft instead of the
+`4.x` track which is needed to build the snap locally. However, this fix does 
+then introduce a different problem due to one of the tests in the snapd git tree
+which currently has circular symlinks in the tree, which due to a regression in
+snapcraft is no longer usable with remote-build. Removing these files in the 
+snapd git tree is tracked at https://bugs.launchpad.net/snapd/+bug/1948838, but
+in the meantime in order to build remotely with snapcraft, do the following:
+
+```
+snap refresh snapcraft --channel=latest/edge
+```
+
+And then get rid of the symlinks in question:
+
+```
+rm -r tests/main/validate-container-failures/
+```
+
+Now you can use remote-build with snapcraft on the snapd tree for any desired 
+architectures:
+
+```
+snapcraft remote-build --build-on=armhf,s390x,arm64
+```
+
+And to go back to building the snapd snap locally, just revert the channel back
+to 4.x:
+
+```
+snap refresh snapcraft --channel=4.x/stable
+```
+
+
+#### Splicing the snapd snap into the core snap
+
+Sometimes while developing you may need to build a version of the _core_ snap
+with a custom snapd version. The snapcraft.yaml for the core snap currently is
+complex in that it assumes it is built inside Launchpad with the 
+`snappy-dev/image` PPA enabled, so it is difficult to inject a custom version of
+snapd into this by rebuilding the core snap directly, so an easier way is to 
+actually first build the snapd snap and inject the binaries from the snapd snap
+into the core snap. This currently works since both the snapd snap and the core 
+snap have the same `build-base` of Ubuntu 16.04. However, at some point in time
+this trick will stop working when the snapd snap starts using a `build-base` other
+than Ubuntu 16.04, but until then, you can use the following trick to more 
+easily get a custom version of snapd inside a core snap.
+
+First follow the steps above to build a full snapd snap. Then, extract the core
+snap you wish to splice the custom snapd snap into:
+
+```
+sudo unsquashfs -d custom-core core_<rev>.snap
+```
+
+`sudo` is important as the core snap has special permissions on various 
+directories and files that must be preserved as it is a boot base snap.
+
+Now, extract the snapd snap, again with sudo because there are `suid` binaries
+which must retain their permission bits:
+
+```
+sudo unsquashfs -d custom-snapd snapd-custom.snap
+```
+
+Now, copy the meta directory from the core snap outside to keep it and prevent
+it from being lost when we replace the files from the snapd snap:
+
+```
+sudo cp ./custom-core/meta meta-core-backup
+```
+
+Then copy all the files from the snapd snap into the core snap, and delete the
+meta directory so we don't use any of the meta files from the snapd snap:
+
+```
+sudo cp -r ./custom-snapd/* ./custom-core/
+sudo rm -r ./custom-core/meta/
+sudo cp ./meta-core-backup ./custom-core/
+```
+
+Now we can repack the core snap:
+
+```
+sudo snap pack custom-core
+```
+
+Sometimes it is helpful to modify the snap version in 
+`./custom-core/meta/snap.yaml` before repacking with `snap pack` so it is easy
+to identify which snap file is which.
+
+
 ### Building (natively)
 
 To build the `snap` command line client:

@@ -1,4 +1,5 @@
-summary: smoke test for the retry test tool
+summary: smoke test for the retry tool
+
 execute: |
     # Retry runs the command that was passed as argument and returns the exit
     # code of that command.

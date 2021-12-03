@@ -199,7 +199,7 @@ func defaultPrereqSnapsChannel() string {
 	return channel
 }
 
-func findLinkSnapTask(st *state.State, snapName string) (*state.Task, error) {
+func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -306,7 +306,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	}
 
 	// in progress?
-	if linkTask, err := findLinkSnapTask(st, snapName); err != nil {
+	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
 		return nil, err
 	} else if linkTask != nil {
 		return nil, onInFlight
@@ -387,7 +387,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 // Checks for conflicting tasks. Returns true if the operation should be skipped. The error
 // can be a state.Retry if the operation should be retried later.
 func shouldSkipToAvoidConflict(task *state.Task, snapName string) (bool, error) {
-	otherTask, err := findLinkSnapTask(task.State(), snapName)
+	otherTask, err := findLinkSnapTaskForSnap(task.State(), snapName)
 	if err != nil {
 		return false, err
 	}
@@ -1115,8 +1115,15 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	opts, err := GetSnapDirOptions(st)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, opts); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1161,8 +1168,15 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	opts, err := GetSnapDirOptions(st)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, opts); err != nil {
 		return err
 	}
 
@@ -1207,7 +1221,12 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	m.backend.ClearTrashedData(info)
+	opts, err := GetSnapDirOptions(st)
+	if err != nil {
+		return err
+	}
+
+	m.backend.ClearTrashedData(info, opts)
 
 	return nil
 }
@@ -1424,7 +1443,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		linkCtx.RequireMountedSnapdSnap = true
 	}
-	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
+	needsReboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -1570,7 +1589,24 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
-	m.maybeRestart(t, newInfo, reboot)
+	var canReboot bool
+	if needsReboot {
+		var cannotReboot bool
+		// system reboot is required, but can this task request that?
+		if err := t.Get("cannot-reboot", &cannotReboot); err != nil && err != state.ErrNoState {
+			return err
+		}
+		if !cannotReboot {
+			// either the task was created before that variable was
+			// introduced or the task can request a reboot
+			canReboot = true
+		} else {
+			t.Logf("reboot postponed to later tasks")
+		}
+	}
+	if !needsReboot || canReboot {
+		m.maybeRestart(t, newInfo, needsReboot)
+	}
 
 	return nil
 }
@@ -2399,13 +2435,21 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err = m.backend.RemoveSnapData(info); err != nil {
+	st.Lock()
+	opts, err := GetSnapDirOptions(st)
+	st.Unlock()
+
+	if err != nil {
+		return err
+	}
+
+	if err = m.backend.RemoveSnapData(info, opts); err != nil {
 		return err
 	}
 
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
-		if err = m.backend.RemoveSnapCommonData(info); err != nil {
+		if err = m.backend.RemoveSnapCommonData(info, opts); err != nil {
 			return err
 		}
 
@@ -3307,4 +3351,27 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	autoConnect.Set("snap-setup", snapsup)
 	InjectTasks(mainTask, state.NewTaskSet(autoConnect))
 	mainTask.Logf("added auto-connect task")
+}
+
+// GetSnapDirOptions returns *dirs.SnapDirOptions configured according to the
+// enabled experimental features. The state must be locked by the caller.
+var GetSnapDirOptions = getSnapDirOptions
+
+func getSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
+	tr := config.NewTransaction(state)
+
+	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
+	}
+
+	return &dirs.SnapDirOptions{HiddenSnapDataDir: hiddenDir}, nil
+}
+
+func MockGetSnapDirOptions(f func(*state.State) (*dirs.SnapDirOptions, error)) (restore func()) {
+	old := getSnapDirOptions
+	GetSnapDirOptions = f
+	return func() {
+		GetSnapDirOptions = old
+	}
 }
