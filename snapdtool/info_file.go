@@ -27,8 +27,8 @@ import (
 	"strings"
 )
 
-// SnapdVersionFromInfoFile returns snapd version read for the
-// given info" file, pointed by infoPath.
+// SnapdVersionFromInfoFile returns the snapd version read from the info file in
+// the given dir, as well as any other key/value pairs/flags in the file.
 // The format of the "info" file are lines with "KEY=VALUE" with the typical key
 // being just VERSION. The file is produced by mkversion.sh and normally
 // installed along snapd binary in /usr/lib/snapd.
