@@ -608,8 +608,8 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
 	if err != nil {
 		if opts.IsRefreshOfAllSnaps {
-			if restoreErr := assertstateRestoreValidationSetsTracking(st); restoreErr != nil && restoreErr != state.ErrNoState {
-				return nil, restoreErr
+			if err := assertstateRestoreValidationSetsTracking(st); err != nil && !errors.Is(err, state.ErrNoState) {
+				return nil, err
 			}
 		}
 		return nil, err
