@@ -1626,11 +1626,14 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 
 	typ := info.Type()
 
-	// if bp is non-trivial then either we're not on classic, or the snap is
-	// snapd. So daemonRestartReason will always return "" which is what we
-	// want. If that combination stops being true and there's a situation
-	// where a non-trivial bp could return a non-empty reason, use IsTrivial
-	// to check and bail before reaching this far.
+	// If the type of the snap requesting this start is non-trivial that either
+	// means we are on Ubuntu Core and the type is a base/kernel/gadget which
+	// requires a reboot of the system, or that the type is snapd in which case
+	// we just do a restart of snapd itself. In these cases restartReason will
+	// be non-empty and thus we will perform a restart.
+	// If restartReason is empty, then the snap requesting the restart was not
+	// a boot participant and thus we don't need to do any sort of restarts as
+	// a result of updating this snap.
 
 	restartReason := daemonRestartReason(st, typ)
 	if restartReason == "" {
