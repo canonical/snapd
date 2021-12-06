@@ -29,7 +29,7 @@ execute: |
     # created on-the-fly by apparmor for namespaced commands - these
     # contain / - as these won't get automatically recreated by
     # snapd.apparmor
-    grep -v / /sys/kernel/security/apparmor/profiles | sort | cut -f1 -d" " > profiles.txt
+    grep -v / /sys/kernel/security/apparmor/profiles | cut -f1 -d" " | sort > profiles.txt
 
     # manually unload all profiles defined by snap apparmor policies
     echo "If we unload existing snap apparmor policy"
@@ -44,7 +44,7 @@ execute: |
 
     # ensure we are actually testing something - ie snapd.apparmor will
     # actually have to do some work
-    grep -v / /sys/kernel/security/apparmor/profiles | sort | cut -f1 -d" " > unloaded_profiles.txt
+    grep -v / /sys/kernel/security/apparmor/profiles | cut -f1 -d" " | sort > unloaded_profiles.txt
     diff -u profiles.txt unloaded_profiles.txt && exit 1
 
     # restart snapd.apparmor service to reload profiles
@@ -52,7 +52,7 @@ execute: |
     systemctl restart snapd.apparmor.service
 
     # get the set of profiles which now exist
-    grep -v / /sys/kernel/security/apparmor/profiles | sort | cut -f1 -d" " > reloaded_profiles.txt
+    grep -v / /sys/kernel/security/apparmor/profiles | cut -f1 -d" " | sort > reloaded_profiles.txt
 
     # and check there is no difference (ie. that snapd-apparmor reloaded
     # all profiles as expected)
