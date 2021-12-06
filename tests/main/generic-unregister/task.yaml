@@ -4,6 +4,10 @@ summary: |
 # ubuntu-14.04: curl does not have --unix-socket option
 systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 
+environment:
+  UNTIL_REBOOT/rereg: false
+  UNTIL_REBOOT/until_reboot: true
+
 prepare: |
     systemctl stop snapd.service snapd.socket
     cp /var/lib/snapd/state.json state.json.bak
@@ -13,6 +17,7 @@ prepare: |
 
 restore: |
     systemctl stop snapd.service snapd.socket
+    rm -f /var/lib/snapd/device/private-keys-v1/*
     cp key/* /var/lib/snapd/device/private-keys-v1/
     cp state.json.bak /var/lib/snapd/state.json
     rm -f /run/snapd/noregister
@@ -34,16 +39,24 @@ execute: |
     keyfile=(/var/lib/snapd/device/private-keys-v1/*)
     test -f "${keyfile[0]}"
 
-    curl --data '{"action":"forget","no-registration-until-reboot":true}' --unix-socket /run/snapd.socket http://localhost/v2/model/serial
-
-    test -f /run/snapd/noregister
+    curl --data '{"action":"forget","no-registration-until-reboot":'${UNTIL_REBOOT}'}' --unix-socket /run/snapd.socket http://localhost/v2/model/serial
 
     snap model --serial 2>&1|MATCH "error: device not registered yet"
-
     not test -e "${keyfile[0]}"
 
-    systemctl restart snapd.service
+    if [ "${UNTIL_REBOOT}" = "true" ] ; then
+       test -f /run/snapd/noregister
+       systemctl restart snapd.service
+       snap model --serial 2>&1|MATCH "error: device not registered yet"
+    else
+       not test -e /run/snapd/noregister
+       snap debug ensure-state-soon
+       retry --wait 2 -n 120 sh -c 'snap model --serial 2>&1|NOMATCH "error: device not registered yet"'
+    fi
 
-    snap model --serial 2>&1|MATCH "error: device not registered yet"
     snap find pc
-    NOMATCH '"session-macaroon":"[^"]' < /var/lib/snapd/state.json
+    if [ "${UNTIL_REBOOT}" = "true" ] ; then
+       NOMATCH '"session-macaroon":"[^"]' < /var/lib/snapd/state.json
+    else
+       MATCH '"session-macaroon":"[^"]' < /var/lib/snapd/state.json
+    fi
