@@ -9,6 +9,11 @@ environment:
     # and /dev/kmsg has 1:11
     DEVICES_PATH_MEM_KMSG: /devices/virtual/mem/kmsg
 
+debug: |
+    udevadm info /dev/full || true
+    udevadm info /dev/kmsg || true
+    tests.device-cgroup test-strict-cgroup-helper.sh dump || true
+
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
