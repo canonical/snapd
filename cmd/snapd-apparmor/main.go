@@ -129,8 +129,8 @@ func loadAppArmorProfiles() error {
 	return nil
 }
 
-func isContainer() error {
-	return exec.Command("systemd-detect-virt", "--quiet", "--container").Run()
+func isContainer() bool {
+	return (exec.Command("systemd-detect-virt", "--quiet", "--container").Run() == nil)
 }
 
 func main() {
@@ -140,7 +140,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Expected to be called with 'start' argument.")
 		os.Exit(1)
 	}
-	if err := isContainer(); err == nil {
+	if isContainer() {
 		logger.Debugf("inside container environment")
 		// in container environment - see if container has own
 		// policy that we need to manage otherwise get out of the

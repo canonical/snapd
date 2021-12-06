@@ -120,14 +120,12 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 }
 
 func (s *mainSuite) TestIsContainer(c *C) {
-	err := snapd_apparmor.IsContainer()
-	c.Check(err.Error(), Equals, fmt.Sprintf("exit status 1"))
+	c.Check(snapd_apparmor.IsContainer(), Equals, false)
 
 	detectCmd := testutil.MockCommand(c, "systemd-detect-virt", "")
 	defer detectCmd.Restore()
 
-	err = snapd_apparmor.IsContainer()
-	c.Assert(err, IsNil)
+	c.Check(snapd_apparmor.IsContainer(), Equals, true)
 	c.Assert(detectCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-detect-virt", "--quiet", "--container"}})
 }
