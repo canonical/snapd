@@ -174,9 +174,9 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 
 	var chg *state.Change
 	if len(snapFiles) > 1 {
-		chg, errRsp = sideloadManySnaps(st, form, snapFiles, sideloadFlags, user)
+		chg, errRsp = sideloadManySnaps(st, snapFiles, sideloadFlags, user)
 	} else {
-		chg, errRsp = sideloadSnap(st, form, snapFiles[0], sideloadFlags)
+		chg, errRsp = sideloadSnap(st, snapFiles[0], sideloadFlags)
 	}
 	if errRsp != nil {
 		return errRsp
@@ -199,7 +199,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	return AsyncResponse(nil, chg.ID())
 }
 
-func sideloadManySnaps(st *state.State, form *Form, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
 	sideInfos := make([]*snap.SideInfo, len(snapFiles))
 	names := make([]string, len(snapFiles))
 	tempPaths := make([]string, len(snapFiles))
@@ -227,14 +227,14 @@ func sideloadManySnaps(st *state.State, form *Form, snapFiles []*uploadedSnap, f
 		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install snaps %q from files %q"), names, origPaths)
-	chg := newChange(st, "install-snaps", msg, tss, names)
+	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(names), strutil.Quoted(origPaths))
+	chg := newChange(st, "install-snap", msg, tss, names)
 	chg.Set("api-data", map[string][]string{"snap-names": names})
 
 	return chg, nil
 }
 
-func sideloadSnap(st *state.State, form *Form, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
+func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
 	if snapFile.instanceName != "" {
 		// caller has specified desired instance name
