@@ -28,10 +28,6 @@ prepare: |
     wait_for_device_initialized_change
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
