@@ -109,8 +109,7 @@ var storeNew = store.New
 // It can be provided with an optional restart.Handler.
 func New(restartHandler restart.Handler) (*Overlord, error) {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   true,
+		inited: true,
 	}
 
 	backend := &overlordStateBackend{
@@ -385,6 +384,9 @@ func (o *Overlord) Loop() {
 	if preseed {
 		o.runner.OnTaskError(preseedExitWithError)
 	}
+	if o.loopTomb == nil {
+		o.loopTomb = new(tomb.Tomb)
+	}
 	o.loopTomb.Go(func() error {
 		for {
 			// TODO: pass a proper context into Ensure
@@ -432,8 +434,11 @@ func (o *Overlord) CanStandby() bool {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
-	o.loopTomb.Kill(nil)
-	err := o.loopTomb.Wait()
+	var err error
+	if o.loopTomb != nil {
+		o.loopTomb.Kill(nil)
+		err = o.loopTomb.Wait()
+	}
 	o.stateEng.Stop()
 	return err
 }
@@ -603,8 +608,7 @@ func Mock() *Overlord {
 // disk. Managers can be added with AddManager. For testing.
 func MockWithState(s *state.State) *Overlord {
 	o := &Overlord{
-		loopTomb: new(tomb.Tomb),
-		inited:   false,
+		inited: false,
 	}
 	if s == nil {
 		s = state.New(mockBackend{o: o})
