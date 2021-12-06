@@ -72,7 +72,7 @@ func (l *changeIDMixin) GetChangeID() (string, error) {
 		kind = kind[:l]
 	}
 	// our internal change types use "-snap" postfix but let user skip it and use short form.
-	if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
+	if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" || kind == "revert" || kind == "enable" || kind == "disable" || kind == "switch" {
 		kind += "-snap"
 	}
 	changes, err := queryChanges(cli, &client.ChangesOptions{Selector: client.ChangesAll})
