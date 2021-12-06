@@ -85,10 +85,10 @@ execute: |
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
         change_id="$(cat refresh-change-id)"
-        # XXX: is this sufficiently robust?
+        # we expect the change to have failed due to the kernel not booting
+        # properly
         snap watch "$change_id" || true
         snap changes | MATCH "$change_id\s+Error"
-        # we expect re-refresh to fail since the tests uses a fake store
         snap change "$change_id" > tasks.done
         # both link snaps were undone
         MATCH 'Undone\s+.*Make snap "pc-kernel" .* available' < tasks.done
