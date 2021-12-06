@@ -20,7 +20,6 @@
 package systemd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -39,18 +38,24 @@ type emulation struct {
 	rootDir string
 }
 
-var errNotImplemented = errors.New("not implemented in emulation mode")
+type errNotImplemented struct {
+	op string
+}
+
+func (e *errNotImplemented) Error() string {
+	return fmt.Sprintf("%q is not implemented in emulation mode", e.op)
+}
 
 func (s *emulation) Backend() Backend {
 	return EmulationModeBackend
 }
 
 func (s *emulation) DaemonReload() error {
-	return errNotImplemented
+	return &errNotImplemented{"DaemonReload"}
 }
 
 func (s *emulation) DaemonReexec() error {
-	return errNotImplemented
+	return &errNotImplemented{"DaemonReexec"}
 }
 
 func (s *emulation) Enable(service string) error {
@@ -64,59 +69,59 @@ func (s *emulation) Disable(service string) error {
 }
 
 func (s *emulation) Start(service ...string) error {
-	return errNotImplemented
+	return &errNotImplemented{"Start"}
 }
 
 func (s *emulation) StartNoBlock(service ...string) error {
-	return errNotImplemented
+	return &errNotImplemented{"StartNoBlock"}
 }
 
 func (s *emulation) Stop(service string, timeout time.Duration) error {
-	return errNotImplemented
+	return &errNotImplemented{"Stop"}
 }
 
 func (s *emulation) Kill(service, signal, who string) error {
-	return errNotImplemented
+	return &errNotImplemented{"Kill"}
 }
 
 func (s *emulation) Restart(service string, timeout time.Duration) error {
-	return errNotImplemented
+	return &errNotImplemented{"Restart"}
 }
 
 func (s *emulation) ReloadOrRestart(service string) error {
-	return errNotImplemented
+	return &errNotImplemented{"ReloadOrRestart"}
 }
 
 func (s *emulation) RestartAll(service string) error {
-	return errNotImplemented
+	return &errNotImplemented{"RestartAlll"}
 }
 
 func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
-	return nil, errNotImplemented
+	return nil, &errNotImplemented{"Status"}
 }
 
 func (s *emulation) InactiveEnterTimestamp(unit string) (time.Time, error) {
-	return time.Time{}, errNotImplemented
+	return time.Time{}, &errNotImplemented{"InactiveEnterTimestamp"}
 }
 
 func (s *emulation) CurrentMemoryUsage(unit string) (quantity.Size, error) {
-	return 0, errNotImplemented
+	return 0, &errNotImplemented{"CurrentMemoryUsage"}
 }
 
 func (s *emulation) CurrentTasksCount(unit string) (uint64, error) {
-	return 0, errNotImplemented
+	return 0, &errNotImplemented{"CurrentTasksCount"}
 }
 
 func (s *emulation) IsEnabled(service string) (bool, error) {
-	return false, errNotImplemented
+	return false, &errNotImplemented{"IsEnabled"}
 }
 
 func (s *emulation) IsActive(service string) (bool, error) {
-	return false, errNotImplemented
+	return false, &errNotImplemented{"IsActive"}
 }
 
 func (s *emulation) LogReader(services []string, n int, follow bool) (io.ReadCloser, error) {
-	return nil, errNotImplemented
+	return nil, fmt.Errorf("LogReader")
 }
 
 func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
@@ -163,7 +168,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 }
 
 func (s *emulation) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
-	return "", errNotImplemented
+	return "", &errNotImplemented{"AddMountUnitFileWithOptions"}
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
@@ -197,7 +202,7 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 }
 
 func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
-	return nil, errNotImplemented
+	return nil, &errNotImplemented{"ListMountUnits"}
 }
 
 func (s *emulation) Mask(service string) error {
@@ -211,9 +216,9 @@ func (s *emulation) Unmask(service string) error {
 }
 
 func (s *emulation) Mount(what, where string, options ...string) error {
-	return errNotImplemented
+	return &errNotImplemented{"Mount"}
 }
 
 func (s *emulation) Umount(whatOrWhere string) error {
-	return errNotImplemented
+	return &errNotImplemented{"Umount"}
 }
