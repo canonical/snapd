@@ -93,7 +93,7 @@ func (s *emulation) ReloadOrRestart(service string) error {
 }
 
 func (s *emulation) RestartAll(service string) error {
-	return &notImplementedError{"RestartAlll"}
+	return &notImplementedError{"RestartAll"}
 }
 
 func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
