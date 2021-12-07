@@ -20,9 +20,11 @@
 package backend_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -30,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
@@ -325,7 +328,7 @@ func (s *copydataSuite) testCopyDataDoABA(c *C, opts *dirs.SnapDirOptions) {
 	c.Check(s.populatedData("10.old"), Equals, "10\n")
 
 	// but cleanup cleans it up, huzzah
-	s.be.ClearTrashedData(v1, opts)
+	s.be.ClearTrashedData(v1)
 	c.Check(s.populatedData("10.old"), Equals, "")
 }
 
@@ -576,5 +579,270 @@ func (s *copydataSuite) TestUndoCopyDataSameRevision(c *C) {
 	} {
 		c.Check(osutil.FileExists(fn), Equals, true, Commentf(fn))
 	}
+}
 
+func (s *copydataSuite) TestHideSnapData(c *C) {
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// mock user home
+	homedir := filepath.Join(s.tempdir, "home", "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homedir
+
+	restore := backend.MockAllUsers(func(*dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	// writes a file canary.home file to the rev dir of the "hello" snap
+	s.populateHomeData(c, "user", snap.R(10))
+
+	// write file in common
+	err = os.MkdirAll(info.UserCommonDataDir(homedir, nil), 0770)
+	c.Assert(err, IsNil)
+
+	commonFilePath := filepath.Join(info.UserCommonDataDir(homedir, nil), "file.txt")
+	err = ioutil.WriteFile(commonFilePath, []byte("some content"), 0640)
+	c.Assert(err, IsNil)
+
+	// make 'current' symlink
+	revDir := snap.UserDataDir(homedir, "hello", snap.R(10), nil)
+	// path must be relative, otherwise move would make it dangling
+	err = os.Symlink(filepath.Base(revDir), filepath.Join(revDir, "..", "current"))
+	c.Assert(err, IsNil)
+
+	err = s.be.HideSnapData("hello")
+	c.Assert(err, IsNil)
+
+	// check versioned file was moved
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revFile := filepath.Join(info.UserDataDir(homedir, opts), "canary.home")
+	data, err := ioutil.ReadFile(revFile)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, []byte("10\n"))
+
+	// check common file was moved
+	commonFile := filepath.Join(info.UserCommonDataDir(homedir, opts), "file.txt")
+	data, err = ioutil.ReadFile(commonFile)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, []byte("some content"))
+
+	// check 'current' symlink has correct attributes and target
+	link := filepath.Join(homedir, dirs.HiddenSnapDataHomeDir, "hello", "current")
+	linkInfo, err := os.Lstat(link)
+	c.Assert(err, IsNil)
+	c.Assert(linkInfo.Mode()&os.ModeSymlink, Equals, os.ModeSymlink)
+
+	target, err := os.Readlink(link)
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "10")
+
+	// check old '~/snap' folder was removed
+	_, err = os.Stat(snap.SnapDir(homedir, nil))
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
+}
+
+func (s *copydataSuite) TestHideSnapDataSkipNoData(c *C) {
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// mock user home
+	homedir := filepath.Join(s.tempdir, "home", "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homedir
+
+	// create user without snap dir (to be skipped)
+	usrNoSnapDir := &user.User{
+		HomeDir: filepath.Join(s.tempdir, "home", "other-user"),
+		Name:    "other-user",
+		Uid:     "1001",
+		Gid:     "1001",
+	}
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr, usrNoSnapDir}, nil
+	})
+	defer restore()
+
+	s.populateHomeData(c, "user", snap.R(10))
+
+	// make 'current' symlink
+	revDir := info.UserDataDir(homedir, nil)
+	linkPath := filepath.Join(revDir, "..", "current")
+	err = os.Symlink(revDir, linkPath)
+	c.Assert(err, IsNil)
+
+	// empty user dir is skipped
+	err = s.be.HideSnapData("hello")
+	c.Assert(err, IsNil)
+
+	// only the user with snap data was migrated
+	newSnapDir := filepath.Join(homedir, dirs.HiddenSnapDataHomeDir)
+	matches, err := filepath.Glob(dirs.HiddenSnapDataHomeGlob)
+	c.Assert(err, IsNil)
+	c.Assert(matches, HasLen, 1)
+	c.Assert(matches[0], Equals, newSnapDir)
+}
+
+func (s *copydataSuite) TestUndoHideSnapData(c *C) {
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// mock user home dir
+	homedir := filepath.Join(s.tempdir, "home", "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homedir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	// write file in revisioned dir
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	err = os.MkdirAll(info.UserDataDir(homedir, opts), 0770)
+	c.Assert(err, IsNil)
+
+	hiddenRevFile := filepath.Join(info.UserDataDir(homedir, opts), "file.txt")
+	err = ioutil.WriteFile(hiddenRevFile, []byte("some content"), 0640)
+	c.Assert(err, IsNil)
+
+	// write file in common
+	err = os.MkdirAll(info.UserCommonDataDir(homedir, opts), 0770)
+	c.Assert(err, IsNil)
+
+	hiddenCommonFile := filepath.Join(info.UserCommonDataDir(homedir, opts), "file.txt")
+	err = ioutil.WriteFile(hiddenCommonFile, []byte("other content"), 0640)
+	c.Assert(err, IsNil)
+
+	// make 'current' symlink
+	revDir := info.UserDataDir(homedir, opts)
+	// path must be relative otherwise the move would make it dangling
+	err = os.Symlink(filepath.Base(revDir), filepath.Join(revDir, "..", "current"))
+	c.Assert(err, IsNil)
+
+	// undo migration
+	err = s.be.UndoHideSnapData("hello")
+	c.Assert(err, IsNil)
+
+	// check versioned file was restored
+	revFile := filepath.Join(info.UserDataDir(homedir, nil), "file.txt")
+	data, err := ioutil.ReadFile(revFile)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, []byte("some content"))
+
+	// check common file was restored
+	commonFile := filepath.Join(info.UserCommonDataDir(homedir, nil), "file.txt")
+	data, err = ioutil.ReadFile(commonFile)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, []byte("other content"))
+
+	// check symlink points to revisioned dir
+	exposedDir := filepath.Join(homedir, dirs.UserHomeSnapDir)
+	target, err := os.Readlink(filepath.Join(exposedDir, "hello", "current"))
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "10")
+
+	// ~/.snap/data was removed
+	_, err = os.Stat(snap.SnapDir(homedir, opts))
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
+}
+
+func (s *copydataSuite) TestCleanupAfterCopyAndMigration(c *C) {
+	homedir := filepath.Join(s.tempdir, "home", "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homedir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	// add trashed data in exposed dir
+	s.populateHomeData(c, "user", snap.R(10))
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	exposedTrash := filepath.Join(homedir, "snap", "hello", "10.old")
+	c.Assert(os.MkdirAll(exposedTrash, 0770), IsNil)
+
+	// add trashed data in hidden dir
+	s.populateHomeDataWithSnapDir(c, "user", dirs.HiddenSnapDataHomeDir, snap.R(10))
+	hiddenTrash := filepath.Join(homedir, ".snap", "data", "hello", "10.old")
+	c.Assert(os.MkdirAll(exposedTrash, 0770), IsNil)
+
+	s.be.ClearTrashedData(v1)
+
+	// clear should remove both
+	exists, _, err := osutil.DirExists(exposedTrash)
+	c.Assert(err, IsNil)
+	c.Assert(exists, Equals, false)
+
+	exists, _, err = osutil.DirExists(hiddenTrash)
+	c.Assert(err, IsNil)
+	c.Assert(exists, Equals, false)
+}
+
+func (s *copydataSuite) TestRemoveIfEmpty(c *C) {
+	file := filepath.Join(s.tempdir, "random")
+	c.Assert(ioutil.WriteFile(file, []byte("stuff"), 0664), IsNil)
+
+	// dir contains a file, shouldn't do anything
+	c.Assert(backend.RemoveIfEmpty(s.tempdir), IsNil)
+	files, err := ioutil.ReadDir(s.tempdir)
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	c.Check(filepath.Join(s.tempdir, files[0].Name()), testutil.FileEquals, "stuff")
+
+	c.Assert(os.Remove(file), IsNil)
+
+	// dir is empty, should be removed
+	c.Assert(backend.RemoveIfEmpty(s.tempdir), IsNil)
+	c.Assert(osutil.FileExists(file), Equals, false)
+}
+
+func (s *copydataSuite) TestUndoHideKeepGoingPreserveFirstErr(c *C) {
+	firstTime := true
+	restore := backend.MockRemoveIfEmpty(func(dir string) error {
+		var err error
+		if firstTime {
+			err = errors.New("first error")
+			firstTime = false
+		} else {
+			err = errors.New("other error")
+		}
+
+		return err
+	})
+	defer restore()
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// mock two users so that the undo is done twice
+	var usrs []*user.User
+	for _, usrName := range []string{"usr1", "usr2"} {
+		homedir := filepath.Join(s.tempdir, "home", usrName)
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = homedir
+
+		opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+		err = os.MkdirAll(info.UserDataDir(homedir, opts), 0770)
+		c.Assert(err, IsNil)
+
+		usrs = append(usrs, usr)
+	}
+
+	restUsers := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return usrs, nil
+	})
+	defer restUsers()
+
+	buf, restLogger := logger.MockLogger()
+	defer restLogger()
+
+	err := s.be.UndoHideSnapData("hello")
+	// the first error is returned
+	c.Assert(err, ErrorMatches, `cannot remove dir ".*": first error`)
+	// the undo keeps going and logs the next error
+	c.Assert(buf, Matches, `.*cannot remove dir ".*": other error\n`)
 }
