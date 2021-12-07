@@ -45,7 +45,10 @@ purge() {
     # Undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
     # installs or LP:#1668659
     for mp in "$SNAP_MOUNT_DIR" /var/snap; do
-        if grep -q " $mp $mp" /proc/self/mountinfo; then
+        # btrfs bind mounts actually include subvolume in the filesystem-path
+        # https://www.mail-archive.com/linux-btrfs@vger.kernel.org/msg51810.html
+        if grep -q " $mp $mp " /proc/self/mountinfo ||
+                grep -q -e "\(/.*\)$mp $mp .* btrfs .*\(subvol=\1\)\(,.*\)\?\$" /proc/self/mountinfo ; then
             umount -l "$mp" || true
         fi
     done
