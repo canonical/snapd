@@ -530,7 +530,7 @@ pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
         cups
-        dbus-x11
+        dbus-user-session
         fontconfig
         gnome-keyring
         jq
@@ -553,7 +553,6 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-64)
             echo "
-                dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-6
