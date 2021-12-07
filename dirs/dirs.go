@@ -51,6 +51,7 @@ var (
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
 	SnapKModModulesDir        string
+	SnapKModModprobeDir       string
 	LocaleDir                 string
 	SnapMetaDir               string
 	SnapdSocket               string
@@ -407,6 +408,7 @@ func SetRootDir(rootdir string) {
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
 
 	SnapKModModulesDir = filepath.Join(rootdir, "/etc/modules-load.d/")
+	SnapKModModprobeDir = filepath.Join(rootdir, "/etc/modprobe.d/")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
