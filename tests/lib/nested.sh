@@ -745,11 +745,12 @@ EOF
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
             # ubuntu-image creates sparse image files
+            # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
-                "$UBUNTU_IMAGE_CHANNEL_ARG" \
+                $UBUNTU_IMAGE_CHANNEL_ARG \
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
-                "$EXTRA_FUNDAMENTAL" \
-                "$EXTRA_SNAPS"
+                $EXTRA_FUNDAMENTAL \
+                $EXTRA_SNAPS
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
