@@ -748,9 +748,19 @@ EOF
             # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
-                --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
+                --output-dir "$NESTED_IMAGES_DIR" \
                 $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
+            # ubuntu-image dropped the --output parameter, so we have to rename
+            # the image ourselves, the images are named after volumes listed in
+            # gadget.yaml
+            find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
+                if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+                    echo "Image $IMAGE_NAME file already present"
+                    exit 1
+                fi
+                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            done
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
