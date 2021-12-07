@@ -182,10 +182,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 		return errRsp
 	}
 
-	systemRestartImmediate := isTrue(form, "system-restart-immediate")
-	if systemRestartImmediate {
-		chg.Set("system-restart-immediate", true)
-	}
+	chg.Set("system-restart-immediate", isTrue(form, "system-restart-immediate"))
 
 	ensureStateSoon(st)
 
