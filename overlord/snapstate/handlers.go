@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -3149,13 +3150,14 @@ func changeReadyUpToTask(task *state.Task) bool {
 }
 
 // refreshedSnaps returns the instance names of the snaps successfully refreshed
-// in the last batch of refreshes before the given (re-refresh) task.
+// in the last batch of refreshes before the given (re-refresh) task; failed is
+// true if any of the snaps failed to refresh.
 //
 // It does this by advancing through the given task's change's tasks, keeping
 // track of the instance names from the first SnapSetup in every lane, stopping
 // when finding the given task, and resetting things when finding a different
 // re-refresh task (that indicates the end of a batch that isn't the given one).
-func refreshedSnaps(reTask *state.Task) []string {
+func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool) {
 	// NOTE nothing requires reTask to be a check-rerefresh task, nor even to be in
 	// a refresh-ish change, but it doesn't make much sense to call this otherwise.
 	tid := reTask.ID()
@@ -3197,15 +3199,16 @@ func refreshedSnaps(reTask *state.Task) []string {
 		laneSnaps[lane] = snapsup.InstanceName()
 	}
 
-	snapNames := make([]string, 0, len(laneSnaps))
+	snapNames = make([]string, 0, len(laneSnaps))
 	for _, name := range laneSnaps {
 		if name == "" {
 			// the lane was unsuccessful
+			failed = true
 			continue
 		}
 		snapNames = append(snapNames, name)
 	}
-	return snapNames
+	return snapNames, failed
 }
 
 // reRefreshSetup holds the necessary details to re-refresh snaps that need it
@@ -3241,14 +3244,50 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	if !changeReadyUpToTask(t) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
-	snaps := refreshedSnaps(t)
+
+	snaps, failed := refreshedSnaps(t)
+	if len(snaps) > 0 {
+		if err := pruneRefreshCandidates(st, snaps...); err != nil {
+			return err
+		}
+	}
+
+	// if any snap failed to refresh, reconsider validation set tracking
+	if failed {
+		tasksets, err := maybeRestoreValidationSetsAndRevertSnaps(st, snaps)
+		if err != nil {
+			return err
+		}
+		if len(tasksets) > 0 {
+			chg := t.Change()
+			for _, taskset := range tasksets {
+				chg.AddAll(taskset)
+			}
+			st.EnsureBefore(0)
+			t.SetStatus(state.DoneStatus)
+			return nil
+		}
+		// else - validation sets tracking got restored or wasn't affected, carry on
+	}
+
 	if len(snaps) == 0 {
 		// nothing to do (maybe everything failed)
 		return nil
 	}
 
-	if err := pruneRefreshCandidates(st, snaps...); err != nil {
-		return err
+	// update validation sets stack: there are two possibilities
+	// - if maybeRestoreValidationSetsAndRevertSnaps restored previous tracking
+	// or refresh succeeded and it hasn't changed then this is a noop
+	// (AddCurrentTrackingToValidationSetsStack ignores tracking if identical
+	// to the topmost stack entry);
+	// - if maybeRestoreValidationSetsAndRevertSnaps kept new tracking
+	// because its constraints were met even after partial failure or
+	// refresh succeeded and tracking got updated, then
+	// this creates a new copy of validation-sets tracking data.
+	if AddCurrentTrackingToValidationSetsStack != nil {
+		if err := AddCurrentTrackingToValidationSetsStack(st); err != nil {
+			return err
+		}
 	}
 
 	var re reRefreshSetup
@@ -3315,6 +3354,86 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 
 	st.EnsureBefore(0)
 	return nil
+}
+
+// maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their
+// previous state using validation sets stack if there are any enforced
+// validation sets and - if necessary - creates tasksets to revert some or all
+// of the refreshed snaps to their previous revisions to satisfy the restored
+// validation sets tracking.
+var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error) {
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	if enforcedSets == nil {
+		// no enforced validation sets, nothing to do
+		return nil, nil
+	}
+
+	installedSnaps, ignoreValidation, err := InstalledSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+	if err := enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation); err == nil {
+		// validation sets are still correct, nothing to do
+		return nil, nil
+	}
+
+	// restore previous validation sets tracking state
+	if err := RestoreValidationSetsTracking(st); err != nil {
+		return nil, fmt.Errorf("cannot restore validation sets: %v", err)
+	}
+
+	// no snaps were refreshed, after restoring validation sets tracking
+	// there is nothing else to do
+	if len(refreshedSnaps) == 0 {
+		return nil, nil
+	}
+
+	// check installed snaps again against restored validation-sets.
+	// this may fail which is fine, but it tells us which snaps are
+	// at invalid revisions and need reverting.
+	// note: we need to fetch enforced sets again because of RestoreValidationSetsTracking.
+	enforcedSets, err = EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	if enforcedSets == nil {
+		return nil, fmt.Errorf("internal error: no enforced validation sets after restoring from the stack")
+	}
+	err = enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation)
+	if err == nil {
+		// all fine after restoring validation sets: this can happen if previous
+		// validation sets only required a snap (regardless of its revision), then
+		// after update they require a specific snap revision, so after restoring
+		// we are back with the good state.
+		return nil, nil
+	}
+	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+	if !ok {
+		return nil, err
+	}
+	if len(verr.WrongRevisionSnaps) == 0 {
+		// if we hit ValidationSetsValidationError but it's not about wrong revisions,
+		// then something is really broken (we shouldn't have invalid or missing required
+		// snaps at this point).
+		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccesfull refresh: %v", verr)
+	}
+	// revert some or all snaps
+	var tss []*state.TaskSet
+	for _, snapName := range refreshedSnaps {
+		if verr.WrongRevisionSnaps[snapName] != nil {
+			// XXX: should we be extra paranoid and use RevertToRevision with
+			// the specific revision from verr.WrongRevisionSnaps?
+			ts, err := Revert(st, snapName, Flags{RevertStatus: NotBlocked})
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+		}
+	}
+	return tss, nil
 }
 
 // InjectTasks makes all the halt tasks of the mainTask wait for extraTasks;

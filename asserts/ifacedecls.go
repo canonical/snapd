@@ -44,6 +44,8 @@ const (
 	deviceScopeConstraintsFeature = "device-scope-constraints"
 	// feature label for plug-names/slot-names constraints
 	nameConstraintsFeature = "name-constraints"
+	// feature label for alt attribute matcher usage
+	altAttrMatcherFeature = "alt-attr-matcher"
 )
 
 type attrMatcher interface {
@@ -293,6 +295,9 @@ func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, err
 }
 
 func (matcher altAttrMatcher) feature(flabel string) bool {
+	if flabel == altAttrMatcherFeature {
+		return true
+	}
 	for _, alt := range matcher.alts {
 		if alt.feature(flabel) {
 			return true
@@ -302,6 +307,14 @@ func (matcher altAttrMatcher) feature(flabel string) bool {
 }
 
 func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+	// if the value is a list apply the alternative matcher to each element
+	// like we do for other matchers
+	switch x := v.(type) {
+	case []interface{}:
+		return matchList(apath, matcher, x, ctx)
+	default:
+	}
+
 	var firstErr error
 	for _, alt := range matcher.alts {
 		err := alt.match(apath, v, ctx)

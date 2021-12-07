@@ -782,7 +782,7 @@ suites:
             _/hosts: _
             _/hosts_n_dirs: _
             # twisted fails in travis (but not regular spread).
-            # _/twisted: _
+            #_/twisted: _
             _/func: _
             _/funkyfunc: _
             _/funcarg: _

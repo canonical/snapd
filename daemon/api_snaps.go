@@ -607,6 +607,11 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	// TODO: use a per-request context
 	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
 	if err != nil {
+		if opts.IsRefreshOfAllSnaps {
+			if err := assertstateRestoreValidationSetsTracking(st); err != nil && !errors.Is(err, state.ErrNoState) {
+				return nil, err
+			}
+		}
 		return nil, err
 	}
 
