@@ -212,6 +212,9 @@ apps:
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
+  kernel-module-load:
+    command: bin/run
+    plugs: [ kernel-module-load ]
   kernel-module-observe:
     command: bin/run
     plugs: [ kernel-module-observe ]
@@ -374,6 +377,9 @@ apps:
   screencast-legacy:
     command: bin/run
     plugs: [ screencast-legacy ]
+  scsi-generic:
+    command: bin/run
+    plugs: [ scsi-generic ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
@@ -493,6 +499,11 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  kernel-module-load:
+    interface: kernel-module-load
+    modules:
+      - name: mymodule
+        load: denied
   system-files:
     interface: system-files
     read: [/file1]

@@ -103,7 +103,7 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-18-64:
-                  image: ubuntu-16.04-64
+                  image: ubuntu-18.04-64
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
@@ -228,7 +228,7 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-18-64:
-                  image: ubuntu-16.04-64
+                  image: ubuntu-18.04-64
                   username: ubuntu
                   password: ubuntu
             - ubuntu-core-20-64:
@@ -788,7 +788,7 @@ suites:
             _/hosts: _
             _/hosts_n_dirs: _
             # twisted fails in travis (but not regular spread).
-            # _/twisted: _
+            #_/twisted: _
             _/func: _
             _/funkyfunc: _
             _/funcarg: _

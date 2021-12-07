@@ -93,7 +93,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 }
 
 // installSize returns total download size of snaps and their prerequisites
-// (bases and default content providers), querying the store as neccessarry,
+// (bases and default content providers), querying the store as necessary,
 // potentially more than once. It assumes the initial list of snaps already has
 // download infos set.
 // The state must be locked by the caller.
