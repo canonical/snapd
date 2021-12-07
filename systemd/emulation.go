@@ -38,11 +38,11 @@ type emulation struct {
 	rootDir string
 }
 
-type errNotImplemented struct {
+type notImplementedError struct {
 	op string
 }
 
-func (e *errNotImplemented) Error() string {
+func (e *notImplementedError) Error() string {
 	return fmt.Sprintf("%q is not implemented in emulation mode", e.op)
 }
 
@@ -51,11 +51,11 @@ func (s *emulation) Backend() Backend {
 }
 
 func (s *emulation) DaemonReload() error {
-	return &errNotImplemented{"DaemonReload"}
+	return &notImplementedError{"DaemonReload"}
 }
 
 func (s *emulation) DaemonReexec() error {
-	return &errNotImplemented{"DaemonReexec"}
+	return &notImplementedError{"DaemonReexec"}
 }
 
 func (s *emulation) Enable(service string) error {
@@ -69,55 +69,55 @@ func (s *emulation) Disable(service string) error {
 }
 
 func (s *emulation) Start(service ...string) error {
-	return &errNotImplemented{"Start"}
+	return &notImplementedError{"Start"}
 }
 
 func (s *emulation) StartNoBlock(service ...string) error {
-	return &errNotImplemented{"StartNoBlock"}
+	return &notImplementedError{"StartNoBlock"}
 }
 
 func (s *emulation) Stop(service string, timeout time.Duration) error {
-	return &errNotImplemented{"Stop"}
+	return &notImplementedError{"Stop"}
 }
 
 func (s *emulation) Kill(service, signal, who string) error {
-	return &errNotImplemented{"Kill"}
+	return &notImplementedError{"Kill"}
 }
 
 func (s *emulation) Restart(service string, timeout time.Duration) error {
-	return &errNotImplemented{"Restart"}
+	return &notImplementedError{"Restart"}
 }
 
 func (s *emulation) ReloadOrRestart(service string) error {
-	return &errNotImplemented{"ReloadOrRestart"}
+	return &notImplementedError{"ReloadOrRestart"}
 }
 
 func (s *emulation) RestartAll(service string) error {
-	return &errNotImplemented{"RestartAlll"}
+	return &notImplementedError{"RestartAlll"}
 }
 
 func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
-	return nil, &errNotImplemented{"Status"}
+	return nil, &notImplementedError{"Status"}
 }
 
 func (s *emulation) InactiveEnterTimestamp(unit string) (time.Time, error) {
-	return time.Time{}, &errNotImplemented{"InactiveEnterTimestamp"}
+	return time.Time{}, &notImplementedError{"InactiveEnterTimestamp"}
 }
 
 func (s *emulation) CurrentMemoryUsage(unit string) (quantity.Size, error) {
-	return 0, &errNotImplemented{"CurrentMemoryUsage"}
+	return 0, &notImplementedError{"CurrentMemoryUsage"}
 }
 
 func (s *emulation) CurrentTasksCount(unit string) (uint64, error) {
-	return 0, &errNotImplemented{"CurrentTasksCount"}
+	return 0, &notImplementedError{"CurrentTasksCount"}
 }
 
 func (s *emulation) IsEnabled(service string) (bool, error) {
-	return false, &errNotImplemented{"IsEnabled"}
+	return false, &notImplementedError{"IsEnabled"}
 }
 
 func (s *emulation) IsActive(service string) (bool, error) {
-	return false, &errNotImplemented{"IsActive"}
+	return false, &notImplementedError{"IsActive"}
 }
 
 func (s *emulation) LogReader(services []string, n int, follow bool) (io.ReadCloser, error) {
@@ -168,7 +168,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 }
 
 func (s *emulation) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
-	return "", &errNotImplemented{"AddMountUnitFileWithOptions"}
+	return "", &notImplementedError{"AddMountUnitFileWithOptions"}
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
@@ -202,7 +202,7 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 }
 
 func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
-	return nil, &errNotImplemented{"ListMountUnits"}
+	return nil, &notImplementedError{"ListMountUnits"}
 }
 
 func (s *emulation) Mask(service string) error {
@@ -216,9 +216,9 @@ func (s *emulation) Unmask(service string) error {
 }
 
 func (s *emulation) Mount(what, where string, options ...string) error {
-	return &errNotImplemented{"Mount"}
+	return &notImplementedError{"Mount"}
 }
 
 func (s *emulation) Umount(whatOrWhere string) error {
-	return &errNotImplemented{"Umount"}
+	return &notImplementedError{"Umount"}
 }
