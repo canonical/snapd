@@ -220,14 +220,7 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 	// the physical partition table on the disk.
 	newStructure := make([]gadget.OnDiskStructure, 0, len(dl.Structure)-len(deletedIndexes))
 	for i, structure := range dl.Structure {
-		deleted := false
-		for deletedIndex := range deletedIndexes {
-			if i == deletedIndex {
-				deleted = true
-				break
-			}
-		}
-		if !deleted {
+		if !deletedIndexes[i] {
 			newStructure = append(newStructure, structure)
 		}
 	}
