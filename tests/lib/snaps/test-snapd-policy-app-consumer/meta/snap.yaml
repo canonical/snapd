@@ -269,6 +269,9 @@ apps:
   modem-manager:
     command: bin/run
     plugs: [ modem-manager ]
+  mount-control:
+    command: bin/run
+    plugs: [ mount-control ]
   mount-observe:
     command: bin/run
     plugs: [ mount-observe ]
@@ -504,6 +507,12 @@ plugs:
     modules:
       - name: mymodule
         load: denied
+  mount-control:
+    interface: mount-control
+    mount:
+      - what: /dev/sda1
+        where: /media/myfiles
+        options: [rw]
   system-files:
     interface: system-files
     read: [/file1]
