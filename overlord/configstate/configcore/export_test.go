@@ -62,5 +62,4 @@ func MockSnapstateStore(f func(st *state.State, deviceCtx snapstate.DeviceContex
 	return func() {
 		snapstateStore = old
 	}
-
 }

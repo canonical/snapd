@@ -73,16 +73,16 @@ func storeReachable(st *state.State) error {
 		return err
 	}
 
-	var unreachable []string
+	var unreachableHost []string
 	for host, reachable := range status {
 		if !reachable {
-			unreachable = append(unreachable, host)
+			unreachableHost = append(unreachableHost, host)
 		}
 	}
-	if len(unreachable) > 0 {
-		sort.Strings(unreachable)
-		logger.Debugf("unreachable hosts: %v", unreachable)
-		return fmt.Errorf("cannot connect to %q", strings.Join(unreachable, ","))
+	if len(unreachableHost) > 0 {
+		sort.Strings(unreachableHost)
+		logger.Debugf("unreachable hosts: %v", unreachableHost)
+		return fmt.Errorf("cannot connect to %q", strings.Join(unreachableHost, ","))
 	}
 
 	return nil
