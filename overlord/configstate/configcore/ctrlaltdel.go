@@ -46,7 +46,7 @@ func init() {
 type sysdCtrlAltDelLogger struct{}
 
 func (l *sysdCtrlAltDelLogger) Notify(status string) {
-	logger.Noticef("sysd: %s", status)
+	logger.Noticef("CtrlAltDel handler: %s", status)
 }
 
 // switchCtrlAltDelAction configures the systemd handling of the special
