@@ -20,6 +20,8 @@
 package configcore_test
 
 import (
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -31,6 +33,11 @@ import (
 
 type certsSuite struct {
 	configcoreSuite
+
+	certsBasePath    string
+	certsAddedPath   string
+	certsMergedPath  string
+	certsBlockedPath string
 }
 
 var _ = Suite(&certsSuite{})
@@ -144,4 +151,159 @@ func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
+}
+
+func (s *certsSuite) setupCertificatesTest(c *C) {
+	// Create the folder structure that we need
+	s.certsBasePath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "base")
+	s.certsAddedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "added")
+	s.certsMergedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "merged")
+	s.certsBlockedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "blocked")
+
+	c.Assert(os.MkdirAll(s.certsBasePath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsAddedPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsMergedPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsBlockedPath, 0755), IsNil)
+}
+
+func (s *certsSuite) writeMockCertificates(c *C, outputPath string, names []string) {
+	mockCertData := []byte(mockCert)
+	for _, name := range names {
+		c.Assert(ioutil.WriteFile(filepath.Join(outputPath, name), mockCertData, 0644), IsNil)
+	}
+}
+
+func (s *certsSuite) TestCombineAndInstallCerts(c *C) {
+	// Tests the full scenario with 'safe' data.
+	// It combines the base-certs with the user-certs, excludes one based on
+	// the blocked lists, and then verifies the output is correct.
+	s.setupCertificatesTest(c)
+
+	// Write some certs to the added path, and the base path
+	s.writeMockCertificates(c, s.certsBasePath, []string{"cert0.crt", "cert1.crt", "ca-certificates.crt"})
+	s.writeMockCertificates(c, s.certsAddedPath, []string{"cert2.crt", "cert3.crt", "ca-certificates.crt"})
+
+	// exclude one of the certs
+	blockedCerts := []string{"cert1.crt"}
+
+	// Generate the expected ca-certificates.crt data that we would expect
+	// to be in the merged path
+	mockCertData := []byte(mockCert)
+	expectedCACdata := []byte{}
+	for i := 0; i < 3; i++ {
+		expectedCACdata = append(expectedCACdata, mockCertData...)
+	}
+
+	// Perform the actual combine of the certifiation configurations
+	configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsBasePath, s.certsAddedPath}, blockedCerts)
+
+	// Verify output in folder
+	c.Assert(filepath.Join(s.certsMergedPath, "cert0.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileAbsent)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert2.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert3.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+}
+
+func (s *certsSuite) TestVerifyExclusionOfExtensions(c *C) {
+	// Test verifies that extensions are excluded if the real path of
+	// certificate does not end with .crt
+	s.setupCertificatesTest(c)
+
+	// Write some certs to the added path, and the base path
+	s.writeMockCertificates(c, s.certsBasePath, []string{"cert0.xe", "cert1.crt", "ca-certificates.crt"})
+	s.writeMockCertificates(c, s.certsAddedPath, []string{"cert2", "cert3.lasd", "ca-certificates.crt"})
+
+	// Generate the expected ca-certificates.crt data that we would expect
+	// to be in the merged path
+	expectedCACdata := []byte(mockCert)
+
+	// Perform the actual combine of the certifiation configurations, this will write
+	// it's own ca-certificates.crt, which means we expect it to be in the output
+	configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsBasePath, s.certsAddedPath}, []string{})
+
+	// Verify output in folder
+	c.Assert(filepath.Join(s.certsMergedPath, "cert0.xe"), testutil.FileAbsent)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert2"), testutil.FileAbsent)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert3.lasd"), testutil.FileAbsent)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+}
+
+func (s *certsSuite) TestEmptyDirsNoErrors(c *C) {
+	// Test verifies that nothing bad happens if no input data is provided. We want
+	// to make sure nothing happens in this case, and an empty ca-certificates.crt is
+	// generated
+	s.setupCertificatesTest(c)
+
+	// Generate the expected ca-certificates.crt data that we would expect
+	// to be in the merged path
+	expectedCACdata := []byte{}
+
+	// Perform the actual combine of the certifiation configurations, this will write
+	// it's own ca-certificates.crt, which means we expect it to be in the output
+	configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsBasePath, s.certsAddedPath}, []string{})
+
+	// Verify output in folder
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+}
+
+func (s *certsSuite) TestUpdateCertificates(c *C) {
+	// Test verifies the update functionality of the combination code. Make sure that
+	// no valid certificates are removed, and that it handles the case where a cert
+	// with same name already exists. (In which case it should get overwritten)
+	s.setupCertificatesTest(c)
+
+	// Write some certs to the added path, and the base path
+	s.writeMockCertificates(c, s.certsMergedPath, []string{"cert0.crt", "cert1.crt", "ca-certificates.crt"})
+	s.writeMockCertificates(c, s.certsAddedPath, []string{"cert2.crt", "cert1.crt", "ca-certificates.crt"})
+
+	// Generate the expected ca-certificates.crt data that we would expect
+	// to be in the merged path
+	mockCertData := []byte(mockCert)
+	expectedCACdata := []byte{}
+	for i := 0; i < 3; i++ {
+		expectedCACdata = append(expectedCACdata, mockCertData...)
+	}
+
+	// Perform the actual combine of the certifiation configurations, this will write
+	// it's own ca-certificates.crt, which means we expect it to be in the output
+	configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsAddedPath}, []string{})
+
+	// Verify output in folder, and verify that cert1.crt is now point to the new cert
+	c.Assert(filepath.Join(s.certsMergedPath, "cert0.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.SymlinkTargetEquals, filepath.Join(s.certsAddedPath, "cert1.crt"))
+	c.Assert(filepath.Join(s.certsMergedPath, "cert2.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+}
+
+func (s *certsSuite) TestUpdateCertificatesWithOutputInInput(c *C) {
+	// Test verifies the update functionality of the combination code, as before, except
+	// this time the output directory is also in the input directories. This should
+	// not make a difference.
+	s.setupCertificatesTest(c)
+
+	// Write some certs to the added path, and the base path
+	s.writeMockCertificates(c, s.certsMergedPath, []string{"cert0.crt", "cert1.crt", "ca-certificates.crt"})
+	s.writeMockCertificates(c, s.certsAddedPath, []string{"cert2.crt", "cert1.crt", "ca-certificates.crt"})
+
+	// Generate the expected ca-certificates.crt data that we would expect
+	// to be in the merged path
+	mockCertData := []byte(mockCert)
+	expectedCACdata := []byte{}
+	for i := 0; i < 3; i++ {
+		expectedCACdata = append(expectedCACdata, mockCertData...)
+	}
+
+	// Perform the actual combine of the certifiation configurations, this will write
+	// it's own ca-certificates.crt, which means we expect it to be in the output
+	configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsMergedPath, s.certsAddedPath}, []string{})
+
+	// Verify output in folder, and verify that cert1.crt is now point to the new cert
+	c.Assert(filepath.Join(s.certsMergedPath, "cert0.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.SymlinkTargetEquals, filepath.Join(s.certsAddedPath, "cert1.crt"))
+	c.Assert(filepath.Join(s.certsMergedPath, "cert2.crt"), testutil.FileEquals, mockCert)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
 }
