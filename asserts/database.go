@@ -102,6 +102,8 @@ type KeypairManager interface {
 	Put(privKey PrivateKey) error
 	// Get returns the private/public key pair with the given key id.
 	Get(keyID string) (PrivateKey, error)
+	// Delete deletes the private/public key pair with the given key id.
+	Delete(keyID string) error
 }
 
 // DatabaseConfig for an assertion database.

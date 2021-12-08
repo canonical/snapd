@@ -596,6 +596,35 @@ func (s *snapsSuite) TestRefreshAllNoChanges(c *check.C) {
 	c.Check(refreshSnapAssertions, check.Equals, true)
 }
 
+func (s *snapsSuite) TestRefreshAllRestoresValidationSets(c *check.C) {
+	refreshSnapAssertions := false
+	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		refreshSnapAssertions = true
+		refreshAssertionsOpts = opts
+		return nil
+	})()
+
+	defer daemon.MockAssertstateRestoreValidationSetsTracking(func(s *state.State) error {
+		return nil
+	})()
+
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		return nil, nil, fmt.Errorf("boom")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "refresh"}
+	st := d.Overlord().State()
+	st.Lock()
+	_, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.ErrorMatches, "boom")
+	c.Check(refreshSnapAssertions, check.Equals, true)
+	c.Assert(refreshAssertionsOpts, check.NotNil)
+	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, true)
+}
+
 func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	refreshSnapAssertions := false
 	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
@@ -752,48 +781,58 @@ apps:
 	s.SysctlBufs = [][]byte{
 		[]byte(`Type=simple
 Id=snap.foo.svc1.service
+Names=snap.foo.svc1.service
 ActiveState=fumbling
 UnitFileState=enabled
 `),
 		[]byte(`Type=forking
 Id=snap.foo.svc2.service
+Names=snap.foo.svc2.service
 ActiveState=active
 UnitFileState=disabled
 `),
 		[]byte(`Type=oneshot
 Id=snap.foo.svc3.service
+Names=snap.foo.svc3.service
 ActiveState=reloading
 UnitFileState=static
 `),
 		[]byte(`Type=notify
 Id=snap.foo.svc4.service
+Names=snap.foo.svc4.service
 ActiveState=inactive
 UnitFileState=potatoes
 `),
 		[]byte(`Type=simple
 Id=snap.foo.svc5.service
+Names=snap.foo.svc5.service
 ActiveState=inactive
 UnitFileState=static
 `),
 		[]byte(`Id=snap.foo.svc5.timer
+Names=snap.foo.svc5.timer
 ActiveState=active
 UnitFileState=enabled
 `),
 		[]byte(`Type=simple
 Id=snap.foo.svc6.service
+Names=snap.foo.svc6.service
 ActiveState=inactive
 UnitFileState=static
 `),
 		[]byte(`Id=snap.foo.svc6.sock.socket
+Names=snap.foo.svc6.sock.socket
 ActiveState=active
 UnitFileState=enabled
 `),
 		[]byte(`Type=simple
 Id=snap.foo.svc7.service
+Names=snap.foo.svc7.service
 ActiveState=inactive
 UnitFileState=static
 `),
 		[]byte(`Id=snap.foo.svc7.other-sock.socket
+Names=snap.foo.svc7.other-sock.socket
 ActiveState=inactive
 UnitFileState=enabled
 `),

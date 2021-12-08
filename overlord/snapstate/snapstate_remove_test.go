@@ -1400,20 +1400,20 @@ type snapdBackend struct {
 	fakeSnappyBackend
 }
 
-func (f *snapdBackend) RemoveSnapData(info *snap.Info) error {
+func (f *snapdBackend) RemoveSnapData(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	dir := snap.DataDir(info.SnapName(), info.Revision)
 	if err := os.Remove(dir); err != nil {
 		return fmt.Errorf("unexpected error: %v", err)
 	}
-	return f.fakeSnappyBackend.RemoveSnapData(info)
+	return f.fakeSnappyBackend.RemoveSnapData(info, nil)
 }
 
-func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info) error {
+func (f *snapdBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	dir := snap.CommonDataDir(info.SnapName())
 	if err := os.Remove(dir); err != nil {
 		return fmt.Errorf("unexpected error: %v", err)
 	}
-	return f.fakeSnappyBackend.RemoveSnapCommonData(info)
+	return f.fakeSnappyBackend.RemoveSnapCommonData(info, nil)
 }
 
 func isUndone(c *C, tasks []*state.Task, kind string, numExpected int) {
