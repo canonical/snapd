@@ -178,12 +178,12 @@ func deviceName(name string, index int) string {
 // removeCreatedPartitions removes partitions added during a previous install.
 func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
 	sfDiskindexes := make([]string, 0, len(dl.Structure))
-	deletedIndexes := make([]int, 0, len(dl.Structure))
+	deletedIndexes := make(map[int]bool, 4)
 	for i, s := range dl.Structure {
 		if wasCreatedDuringInstall(lv, s) {
 			logger.Noticef("partition %s was created during previous install", s.Node)
 			sfDiskindexes = append(sfDiskindexes, strconv.Itoa(i+1))
-			deletedIndexes = append(deletedIndexes, i)
+			deletedIndexes[i] = true
 		}
 	}
 	if len(sfDiskindexes) == 0 {
@@ -221,7 +221,7 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 	newStructure := make([]gadget.OnDiskStructure, 0, len(dl.Structure)-len(deletedIndexes))
 	for i, structure := range dl.Structure {
 		deleted := false
-		for _, deletedIndex := range deletedIndexes {
+		for deletedIndex := range deletedIndexes {
 			if i == deletedIndex {
 				deleted = true
 				break
