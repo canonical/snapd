@@ -808,7 +808,7 @@ func (s *sideloadSuite) errReadInfo(c *check.C, body string) {
 	rsp := s.errorReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 400)
-	// tries to read file to get sideinfo
+	// gets as far as reading the file to get the SideInfo
 	c.Assert(rsp.Message, check.Matches, "cannot read snap file:.*")
 }
 
