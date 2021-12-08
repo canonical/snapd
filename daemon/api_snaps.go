@@ -487,7 +487,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown content type: %s", contentType)
 	}
 
-	return sideloadOrTrySnap(c, r.Body, params["boundary"])
+	return sideloadOrTrySnap(c, r.Body, params["boundary"], user)
 }
 
 func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
