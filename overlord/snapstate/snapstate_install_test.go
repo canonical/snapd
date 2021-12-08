@@ -4701,3 +4701,296 @@ version: 1
 
 	return brokenSnap, si
 }
+
+func (s *snapmgrTestSuite) TestInstallPathManyDiskSpaceCheckIsLocal(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	tr.Commit()
+
+	restore := snapstate.MockInstallSize(snapstate.InstallSize)
+	defer restore()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap", "core"}
+	yamls := []string{
+		`name: some-snap
+version: 1.0
+epoch: 1
+base: core
+plugs:
+  myplug:
+    interface: content
+    content: mycontent
+    default-provider: other-snap`,
+		`name: other-snap
+version: 1.0
+epoch: 1
+base: core
+slots:
+  myslot:
+    interface: content
+    content: mycontent`,
+		`name: core
+version: 1.0
+epoch: 1
+type: base`,
+	}
+
+	for i, name := range snapNames {
+		yaml := yamls[i]
+		paths = append(paths, makeTestSnap(c, yaml))
+
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	c.Assert(err, IsNil)
+
+	op := s.fakeBackend.ops.First("storesvc-snap-action")
+	c.Assert(op, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyDiskSpaceCheckIsLocalWithCoreInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core", Revision: snap.R(1), SnapID: "core"},
+		},
+		Current:  snap.R(1),
+		SnapType: "os",
+	})
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	tr.Commit()
+
+	restore := snapstate.MockInstallSize(snapstate.InstallSize)
+	defer restore()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	yamls := []string{
+		`name: some-snap
+version: 1.0
+epoch: 1
+base: core
+plugs:
+  myplug:
+    interface: content
+    content: mycontent
+    default-provider: other-snap`,
+		`name: other-snap
+version: 1.0
+epoch: 1
+base: core
+slots:
+  myslot:
+    interface: content
+    content: mycontent`,
+	}
+
+	for i, name := range snapNames {
+		yaml := yamls[i]
+		paths = append(paths, makeTestSnap(c, yaml))
+
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	c.Assert(err, IsNil)
+
+	op := s.fakeBackend.ops.First("storesvc-snap-action")
+	c.Assert(op, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyLocalDiskSpaceCheckExceeding(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	tr.Commit()
+
+	restore := snapstate.MockInstallSize(snapstate.InstallSize)
+	defer restore()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap", "core"}
+	yamls := []string{
+		`name: some-snap
+version: 1.0
+epoch: 1
+base: core
+plugs:
+  myplug:
+    interface: content
+    content: mycontent
+    default-provider: other-snap`,
+		`name: other-snap
+version: 1.0
+epoch: 1
+base: core
+slots:
+  myslot:
+    interface: content
+    content: mycontent`,
+		`name: core
+version: 1.0
+epoch: 1
+type: base`,
+	}
+
+	var totalSize uint64
+	for i, name := range snapNames {
+		yaml := yamls[i]
+		path := makeTestSnap(c, yaml)
+		paths = append(paths, path)
+
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		sideInfos = append(sideInfos, si)
+
+		fi, err := os.Stat(path)
+		c.Assert(err, IsNil)
+		totalSize += uint64(fi.Size())
+	}
+
+	restore = snapstate.MockOsutilCheckFreeSpace(func(path string, minSize uint64) error {
+		c.Assert(minSize, Equals, snapstate.SafetyMarginDiskSpace(totalSize))
+		return &osutil.NotEnoughDiskSpaceError{}
+	})
+	defer restore()
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	c.Assert(err, FitsTypeOf, &snapstate.InsufficientSpaceError{})
+	c.Check(tss, HasLen, 0)
+
+	op := s.fakeBackend.ops.First("storesvc-snap-action")
+	c.Assert(op, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyWithLocalBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// no core, we'll install it as well
+	snapstate.Set(s.state, "core", nil)
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "core"}
+	yamls := []string{
+		`name: some-snap
+version: 1.0
+type: app
+base: core
+`,
+		`name: core
+version: 1.0
+type: base
+`,
+	}
+
+	for i, name := range snapNames {
+		paths = append(paths, makeTestSnap(c, yamls[i]))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	op := s.fakeBackend.ops.First("storesvc-snap-action")
+	c.Assert(op, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyWithLocalPrerequisite(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "prereq-snap"}
+	yamls := []string{
+		`name: some-snap
+version: 1.0
+plugs:
+  myplug:
+    interface: content
+    content: mycontent
+    default-provider: prereq-snap`,
+		`name: prereq-snap
+version: 1.0
+slots:
+  myslot:
+    interface: content
+    content: mycontent
+`,
+	}
+
+	for i, name := range snapNames {
+		paths = append(paths, makeTestSnap(c, yamls[i]))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	op := s.fakeBackend.ops.First("storesvc-snap-action")
+	c.Assert(op, IsNil)
+}

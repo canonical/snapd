@@ -113,6 +113,11 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 		accountedSnaps[snap.InstanceName] = true
 	}
 
+	// if prerequisites are included in the install, don't download them again
+	for _, snap := range snaps {
+		accountedSnaps[snap.InstanceName()] = true
+	}
+
 	var prereqs []string
 
 	resolveBaseAndContentProviders := func(inst minimalInstallInfo) {
