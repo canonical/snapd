@@ -82,6 +82,8 @@ type snapmgrTestSuite struct {
 	user  *auth.UserState
 	user2 *auth.UserState
 	user3 *auth.UserState
+
+	restartRequests []state.RestartType
 }
 
 func (s *snapmgrTestSuite) settle(c *C) {
@@ -97,7 +99,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
-	s.o = overlord.Mock()
+	s.restartRequests = nil
+	s.o = overlord.MockWithStateAndRestartHandler(nil, func(t state.RestartType) {
+		s.restartRequests = append(s.restartRequests, t)
+	})
 	s.state = s.o.State()
 
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -249,7 +254,7 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
 }
 
 func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
@@ -264,12 +269,10 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
+		return tracker.ForeignTask(kind, status, snapsup)
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	runner.AddHandler("auto-connect", fakeHandler, nil)
+	runner.AddHandler("auto-connect", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-disconnect", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
@@ -398,10 +401,10 @@ func (s *snapmgrTestSuite) TestUserFromUserID(c *C) {
 const (
 	unlinkBefore = 1 << iota
 	cleanupAfter
-	maybeCore
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	updatesGadgetAssets
 	updatesBootConfig
 	noConfigure
 )
@@ -1924,6 +1927,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:    "auto-connect:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
 		},
 		{
 			op:   "unlink-snap",
@@ -4327,7 +4335,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
-	verifyInstallTasks(c, runCoreConfigure|maybeCore, 0, tsl[0], s.state)
+	verifyInstallTasks(c, snap.TypeOS, runCoreConfigure, 0, tsl[0])
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
@@ -4890,7 +4898,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, HasLen, 1)
 	ts := state.NewTaskSet(chg.Tasks()...)
-	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
 
 	// ensure preferences from the core snap got transferred over
 	var snapst snapstate.SnapState
@@ -6126,7 +6134,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyInstallTasks(c, updatesGadget, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeGadget, 0, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
@@ -6150,7 +6158,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, unlinkBefore|cleanupAfter|doesReRefresh|updatesGadget, 0, ts, s.state)
+	verifyUpdateTasks(c, snap.TypeGadget, doesReRefresh, 0, ts)
 
 }
 

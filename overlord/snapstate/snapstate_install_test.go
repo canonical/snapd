@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -60,9 +60,17 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
-	kinds := taskKinds(ts.Tasks())
-
+func expectedDoInstallTasks(typ snap.Type, opts, discards int) []string {
+	if !release.OnClassic {
+		switch typ {
+		case snap.TypeGadget:
+			opts |= updatesGadget
+		case snap.TypeKernel:
+			opts |= updatesGadgetAssets
+		case snap.TypeSnapd:
+			opts |= updatesBootConfig
+		}
+	}
 	expected := []string{
 		"prerequisites",
 		"download-snap",
@@ -71,15 +79,17 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	}
 	if opts&unlinkBefore != 0 {
 		expected = append(expected,
+			"run-hook[pre-refresh]",
 			"stop-snap-services",
 			"remove-aliases",
 			"unlink-current-snap",
 		)
 	}
+	if opts&(updatesGadget|updatesGadgetAssets) != 0 {
+		expected = append(expected, "update-gadget-assets")
+	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected,
-			"update-gadget-assets",
-			"update-gadget-cmdline")
+		expected = append(expected, "update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -93,9 +103,12 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	if opts&updatesBootConfig != 0 {
 		expected = append(expected, "update-managed-boot-config")
 	}
-	expected = append(expected,
-		"run-hook[install]",
-		"start-snap-services")
+	if opts&unlinkBefore != 0 {
+		expected = append(expected, "run-hook[post-refresh]")
+	} else {
+		expected = append(expected, "run-hook[install]")
+	}
+	expected = append(expected, "start-snap-services")
 	for i := 0; i < discards; i++ {
 		expected = append(expected,
 			"clear-snap",
@@ -115,6 +128,14 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	expected = append(expected,
 		"run-hook[check-health]",
 	)
+
+	return expected
+}
+
+func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSet) {
+	kinds := taskKinds(ts.Tasks())
+
+	expected := expectedDoInstallTasks(typ, opts, discards)
 
 	c.Assert(kinds, DeepEquals, expected)
 }
@@ -181,7 +202,7 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, 0, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -224,7 +245,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnClassic(c *C) {
 	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -242,7 +263,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnCore(c *C) {
 	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, noConfigure|updatesBootConfig, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -260,7 +281,7 @@ func (s *snapmgrTestSuite) TestInstallCohortTasks(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapsup.CohortKey, Equals, "what")
 
-	verifyInstallTasks(c, 0, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -277,7 +298,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 
-	verifyInstallTasks(c, 0, 0, ts, s.state)
+	verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 }
 
@@ -1392,6 +1413,11 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:    "auto-connect:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op:   "discard-namespace",
@@ -3314,7 +3340,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
 
 	for i, ts := range tts {
-		verifyInstallTasks(c, 0, 0, ts, s.state)
+		verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})

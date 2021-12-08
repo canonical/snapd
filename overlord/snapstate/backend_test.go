@@ -712,6 +712,7 @@ type fakeSnappyBackend struct {
 	linkSnapWaitTrigger string
 	linkSnapFailTrigger string
 	linkSnapMaybeReboot bool
+	linkSnapRebootFor   map[string]bool
 
 	copySnapDataFailTrigger string
 	emptyContainer          snap.Container
@@ -963,7 +964,8 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 
 	reboot := false
 	if f.linkSnapMaybeReboot {
-		reboot = info.InstanceName() == dev.Base()
+		reboot = info.InstanceName() == dev.Base() ||
+			(f.linkSnapRebootFor != nil && f.linkSnapRebootFor[info.InstanceName()])
 	}
 
 	return reboot, nil
@@ -1169,12 +1171,13 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) {
+func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error {
 	f.appendOp(&fakeOp{
 		op:    kind + ":" + status.String(),
 		name:  snapsup.InstanceName(),
 		revno: snapsup.Revision(),
 	})
+	return f.maybeErrForLastOp()
 }
 
 type byAlias []*backend.Alias
