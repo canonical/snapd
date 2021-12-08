@@ -61,9 +61,19 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 	s.systemctlOutput = func(args ...string) []byte {
 		var output []byte
+		// 'args' represents the arguments passed in for the systemctl Status call.
+		// The test context is specific to the ctrlaltdel handler, which only uses
+		// the Status call on the 'ctrl-alt-del.target' unit.
+		// args[0]: The systemctl command 'show'
+		// args[1]: The list of properties '--properties=Id,ActiveState,...'
+		// args[2]: The requested unit ctrl-alt-del.target
 		if args[0] == "show" {
 			switch s.unit {
 			case unitStateMulti:
+				// This test is a little artificial, as we know the ctrl-alt-del handler
+				// only requests a single unit. The check error does not depend on the unit
+				// name requested, but only on the fact that the units requested and the
+				// number of replies do not match.
 				output = []byte("Id=ctrl-alt-del.target\nActiveState=inactive\nUnitFileState=enabled\nNames=ctrl-alt-del.target\n" +
 					"\n" +
 					fmt.Sprintf("Id=%s\nActiveState=inactive\nUnitFileState=enabled\nNames=%[1]s\n", args[2]))

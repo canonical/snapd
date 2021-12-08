@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package configcore
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -45,7 +46,7 @@ func init() {
 type sysdCtrlAltDelLogger struct{}
 
 func (l *sysdCtrlAltDelLogger) Notify(status string) {
-	fmt.Fprintf(Stderr, "sysd: %s\n", status)
+	logger.Noticef("sysd: %s", status)
 }
 
 // switchCtrlAltDelAction configures the systemd handling of the special
