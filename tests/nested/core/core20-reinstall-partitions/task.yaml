@@ -1,0 +1,38 @@
+summary: Run a smoke test on UC20 with encryption enabled
+
+details: |
+    This test checks that UC20 can be reinstalled
+
+systems: [ubuntu-20.04-64]
+
+environment:
+    # TODO: figure out a way to do this test where we reset the swtpm after the
+    # shutdown to go into install mode, but before we actually reboot into the
+    # install mode
+    # these are disabled for now, since to do a reinstall we have to reset the
+    # tpm too
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_ENABLE_TPM: false
+
+execute: |
+    echo "Wait for the system to be seeded first"
+    tests.nested exec "sudo snap wait system seed.loaded"
+
+    INITIAL_SERIAL=$(tests.nested exec snap model --serial | grep -Po 'serial:\s+\K.*')
+
+    echo "Reinstall the system"
+    boot_id=$(tests.nested boot-id)
+    # add || true in case the SSH connection is broken while executing this 
+    # since this command causes an immediate reboot
+    tests.nested exec "sudo snap reboot --install" || true
+
+    tests.nested wait-for reboot "${boot_id}"
+
+    # check that we are back in run mode
+    tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+
+    END_SERIAL=$(tests.nested exec snap model --serial | grep -Po 'serial:\s+\K.*')
+    if [ "$INITIAL_SERIAL" = "$END_SERIAL" ]; then
+        echo "test failed, same serial assertion after reinstallation"
+        exit 1
+    fi
