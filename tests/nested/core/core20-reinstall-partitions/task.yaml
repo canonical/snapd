@@ -9,8 +9,6 @@ environment:
     # TODO: figure out a way to do this test where we reset the swtpm after the
     # shutdown to go into install mode, but before we actually reboot into the
     # install mode
-    # these are disabled for now, since to do a reinstall we have to reset the
-    # tpm too
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_ENABLE_TPM: false
 
@@ -30,6 +28,10 @@ execute: |
 
     # check that we are back in run mode
     tests.nested exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+
+    # wait for the system to get setup and finish seeding
+    tests.nested wait-for snap-command
+    tests.nested exec "sudo snap wait system seed.loaded"
 
     END_SERIAL=$(tests.nested exec snap model --serial | grep -Po 'serial:\s+\K.*')
     if [ "$INITIAL_SERIAL" = "$END_SERIAL" ]; then
