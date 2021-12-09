@@ -1222,12 +1222,7 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	opts, err := GetSnapDirOptions(st)
-	if err != nil {
-		return err
-	}
-
-	m.backend.ClearTrashedData(info, opts)
+	m.backend.ClearTrashedData(info)
 
 	return nil
 }
