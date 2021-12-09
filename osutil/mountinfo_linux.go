@@ -91,22 +91,17 @@ func (mi *MountInfoEntry) String() string {
 		flattenMap(mi.SuperOptions))
 }
 
-var mountInfoMustMockInTests = true
+var openMountInfoFile = func() (io.ReadCloser, error) {
+	CheckScopeIsNotTestExecution("/proc/self/mountinfo must be mocked in tests")
+	const selfMountInfoPathname = "/proc/self/mountinfo"
+	return os.Open(selfMountInfoPathname)
+}
 
 // LoadMountInfo loads list of mounted entries from /proc/self/mountinfo. This
 // can be mocked by using osutil.MockMountInfo to hard-code a specific mountinfo
 // file content to be loaded by this function
 func LoadMountInfo() ([]*MountInfoEntry, error) {
-	if mockedMountInfo != nil {
-		return ReadMountInfo(bytes.NewBufferString(*mockedMountInfo))
-	}
-	if IsTestBinary() && mountInfoMustMockInTests {
-		// if we are in testing and we didn't mock a mountinfo panic, since the
-		// mountinfo is used in many places and really should be mocked for tests
-		panic("/proc/self/mountinfo must be mocked in tests")
-	}
-
-	f, err := os.Open(procSelfMountInfo)
+	f, err := openMountInfoFile()
 	if err != nil {
 		return nil, err
 	}

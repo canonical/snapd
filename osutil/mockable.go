@@ -20,17 +20,23 @@
 package osutil
 
 import (
-	"os"
-	"os/user"
-	"syscall"
+	"bytes"
+	"io"
 )
 
-// MockMountInfo is meant for tests to mock the content of /proc/self/mountinfo.
+type mountInfoMockFile struct{ *bytes.Buffer }
+
+func (f *mountInfoMockFile) Close() error {
+	return nil
+}
+
 func MockMountInfo(content string) (restore func()) {
-	old := mockedMountInfo
-	mockedMountInfo = &content
+	old := openMountInfoFile
+	openMountInfoFile = func() (io.ReadCloser, error) {
+		return &mountInfoMockFile{bytes.NewBufferString(content)}, nil
+	}
 	return func() {
-		mockedMountInfo = old
+		openMountInfoFile = old
 	}
 }
 
@@ -49,20 +55,3 @@ func MockFindGid(f func(string) (uint64, error)) (restore func()) {
 		FindGid = old
 	}
 }
-
-var (
-	mockedMountInfo *string
-
-	userLookup  = user.Lookup
-	userCurrent = user.Current
-
-	osReadlink = os.Readlink
-
-	syscallKill    = syscall.Kill
-	syscallGetpgid = syscall.Getpgid
-
-	etcFstab    = "/etc/fstab"
-	sudoersDotD = "/etc/sudoers.d"
-
-	procSelfMountInfo = "/proc/self/mountinfo"
-)

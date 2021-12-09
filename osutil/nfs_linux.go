@@ -24,6 +24,9 @@ import (
 	"strings"
 )
 
+// Substitutable attributes
+var etcFstab = "/etc/fstab"
+
 // IsHomeUsingNFS returns true if NFS mounts are defined or mounted under /home.
 //
 // Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current

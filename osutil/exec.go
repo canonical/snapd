@@ -32,6 +32,12 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// Substitutable imported dependencies
+var (
+	syscallKill    = syscall.Kill
+	syscallGetpgid = syscall.Getpgid
+)
+
 var cmdWaitTimeout = 5 * time.Second
 
 // KillProcessGroup kills the process group associated with the given command.
