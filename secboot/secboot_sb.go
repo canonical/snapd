@@ -66,6 +66,12 @@ func LockSealedKeys() error {
 // robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 
+	// TODO: this branch here is too early for devices where the disk is
+	// unencrypted due to i.e. storage-safety: prefer-unencrypted but the kernel
+	// still has the relevant hooks - in this case we should ignore the hooks,
+	// but it's unclear the right way currently to determine if a device has
+	// the fde-device-unlock hook whether or not encryption should be attempted
+
 	// systems that need the "fde-device-unlock" are special
 	if fde.HasDeviceUnlock() {
 		return unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk, name, sealedEncryptionKeyFile, opts)
