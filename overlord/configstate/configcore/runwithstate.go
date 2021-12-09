@@ -120,7 +120,7 @@ func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandl
 			if !validCertOption(k) {
 				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", k)
 			}
-		case k == "core.system.network.netplan" || strings.HasPrefix(k, "core.system.network.netplan."):
+		case isNetplanChange(k):
 			if release.OnClassic {
 				return fmt.Errorf("cannot set netplan configuration on classic")
 			}

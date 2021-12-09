@@ -130,9 +130,13 @@ func validateNetplanSettings(tr config.Conf) error {
 	return nil
 }
 
+func isNetplanChange(chg string) bool {
+	return chg == "core.system.network.netplan" || strings.HasPrefix(chg, "core.system.network.netplan.")
+}
+
 func hasNetplanChanges(tr config.Conf) bool {
 	for _, chg := range tr.Changes() {
-		if chg == "core.system.network.netplan" || strings.HasPrefix(chg, "core.system.network.netplan.") {
+		if isNetplanChange(chg) {
 			return true
 		}
 	}
