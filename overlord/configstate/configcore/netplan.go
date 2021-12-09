@@ -81,7 +81,7 @@ func storeReachable(st *state.State) error {
 	}
 	if len(unreachableHost) > 0 {
 		sort.Strings(unreachableHost)
-		logger.Debugf("unreachable hosts: %v", unreachableHost)
+		logger.Debugf("unreachable store hosts: %v", unreachableHost)
 		return fmt.Errorf("cannot connect to %q", strings.Join(unreachableHost, ","))
 	}
 
@@ -119,7 +119,7 @@ func getNetplanCfgSnapshot() (dbus.BusObject, error) {
 	if err := netplan.Call("io.netplan.Netplan.Config", 0).Store(&netplanConfigSnapshotBusAddr); err != nil {
 		return nil, err
 	}
-	logger.Debugf("using netplan config %v", netplanConfigSnapshotBusAddr)
+	logger.Debugf("using netplan config snapshot %v", netplanConfigSnapshotBusAddr)
 
 	netplanCfgSnapshot := conn.Object("io.netplan.Netplan", dbus.ObjectPath(netplanConfigSnapshotBusAddr))
 	return netplanCfgSnapshot, nil
