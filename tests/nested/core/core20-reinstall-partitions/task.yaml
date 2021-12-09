@@ -33,6 +33,9 @@ execute: |
     tests.nested wait-for snap-command
     tests.nested exec "sudo snap wait system seed.loaded"
 
+    # wait up to two minutes for serial registration
+    retry -n 60 --wait 2 tests.nested exec snap model --serial
+
     END_SERIAL=$(tests.nested exec snap model --serial | grep -Po 'serial:\s+\K.*')
     if [ "$INITIAL_SERIAL" = "$END_SERIAL" ]; then
         echo "test failed, same serial assertion after reinstallation"
