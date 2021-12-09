@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	DeviceFromRole                  = deviceFromRole
+	DiskWithSystemSeed              = diskWithSystemSeed
 	NewEncryptedDeviceLUKS          = newEncryptedDeviceLUKS
 	NewEncryptedDeviceWithSetupHook = newEncryptedDeviceWithSetupHook
 )

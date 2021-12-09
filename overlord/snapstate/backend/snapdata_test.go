@@ -58,7 +58,7 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 	c.Assert(err, IsNil)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	err = s.be.RemoveSnapData(info)
+	err = s.be.RemoveSnapData(info, nil)
 
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(homeData), Equals, false)
@@ -78,7 +78,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
-	err = s.be.RemoveSnapCommonData(info)
+	err = s.be.RemoveSnapCommonData(info, nil)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(homeCommonData), Equals, false)
 	c.Assert(osutil.FileExists(filepath.Dir(homeCommonData)), Equals, true)

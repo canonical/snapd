@@ -68,6 +68,49 @@ nested_wait_for_snap_command() {
     done
 }
 
+nested_check_unit_stays_active() {
+    local nested_unit="${1:-$NESTED_VM}"
+    local retry=${2:-5}
+    local wait=${3:-1}
+
+    while [ "$retry" -ge 0 ]; do
+        retry=$(( retry - 1 ))
+
+        if ! systemctl is-active "$nested_unit"; then
+            echo "Unit $nested_unit is not active. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
+}
+
+nested_check_boot_errors() {
+    # Check if the service started and it is running without errors
+    if nested_is_core_20_system && ! nested_check_unit_stays_active "$NESTED_VM" 15 1; then
+        # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
+        # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
+        # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
+        if nested_status_vm | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
+            return 1
+        fi
+    fi
+}
+
+nested_retry_start_with_boot_errors() {
+    local retry=3
+    while [ "$retry" -ge 0 ]; do
+        retry=$(( retry - 1 ))
+        if ! nested_check_boot_errors; then
+            nested_restart
+        else
+            return 0
+        fi
+    done
+
+    echo "VM failing to boot, aborting!"
+    return 1
+}
+
 nested_get_boot_id() {
     nested_exec "cat /proc/sys/kernel/random/boot_id"
 }
@@ -563,11 +606,17 @@ nested_create_core_vm() {
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
-                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
-                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
-
-                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                    # allow tests to provide their own core18 snap
+                    local CORE18_SNAP
+                    CORE18_SNAP=""
+                    if [ -d "$(nested_get_extra_snaps_path)" ]; then
+                        CORE18_SNAP=$(find extra-snaps -name 'core18*.snap')
+                    fi
+                    if [ -z "$CORE18_SNAP" ]; then
+                        snap download --channel="$CORE_CHANNEL" --basename=core18 core18
+                        repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+                    fi
 
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
                         make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
@@ -1035,6 +1084,9 @@ nested_start_core_vm_unit() {
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
 
+    # make sure the service started and it is running
+    nested_retry_start_with_boot_errors
+
     local EXPECT_SHUTDOWN
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
 
@@ -1140,6 +1192,12 @@ nested_start() {
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
     nested_prepare_tools
+}
+
+nested_restart() {
+    nested_force_stop_vm
+    nested_force_start_vm
+    wait_for_service "$NESTED_VM" active
 }
 
 nested_create_classic_vm() {
@@ -1379,7 +1437,7 @@ nested_fetch_spread() {
         mkdir -p "$NESTED_WORK_DIR"
         curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
         # make sure spread really exists
-        test -x "$NESTED_WORK_DIR/spread"        
+        test -x "$NESTED_WORK_DIR/spread"
     fi
     echo "$NESTED_WORK_DIR/spread"
 }
@@ -1393,7 +1451,21 @@ nested_build_seed_cdrom() {
 
     local ORIG_DIR=$PWD
 
-    pushd "$SEED_DIR" || return 1 
+    pushd "$SEED_DIR" || return 1
     genisoimage -output "$ORIG_DIR/$SEED_NAME" -volid "$LABEL" -joliet -rock "$@"
-    popd || return 1 
+    popd || return 1
+}
+
+nested_wait_for_device_initialized_change() {
+    local retry=60
+    local wait=1
+
+    while ! nested_exec "snap changes" | MATCH "Done.*Initialize device"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for device to be fully initialized. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }

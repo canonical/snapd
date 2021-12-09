@@ -181,7 +181,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	})
 
 	s.automaticSnapshots = nil
-	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames})
 		return nil, nil
 	})
@@ -6198,6 +6198,13 @@ type: gadget
 base: core20
 `
 
+const pcGadget22SnapYaml = `
+version: 1.0
+name: pc
+type: gadget
+base: core22
+`
+
 const oldPcGadgetSnapYaml = `
 version: 1.0
 name: pc
@@ -6211,9 +6218,22 @@ name: pc-kernel
 type: kernel
 `
 
+const pcKernel22SnapYaml = `
+version: 1.0
+name: pc-kernel
+type: kernel
+base: core22
+`
+
 const core20SnapYaml = `
 version: 1.0
 name: core20
+type: base
+`
+
+const core22SnapYaml = `
+version: 1.0
+name: core22
 type: base
 `
 
@@ -6269,11 +6289,15 @@ var (
 	pcKernelFiles = [][]string{
 		{"kernel.efi", "kernel-efi"},
 	}
+	pcKernel22Files = [][]string{
+		{"kernel.efi", "kernel-efi"},
+	}
 	snapYamlsForRemodel = map[string]string{
 		"old-pc":    oldPcGadgetSnapYaml,
 		"pc":        pcGadgetSnapYaml,
 		"pc-kernel": pcKernelSnapYaml,
 		"core20":    core20SnapYaml,
+		"core22":    core22SnapYaml,
 		"snapd":     snapdSnapYaml,
 		"baz":       "version: 1.0\nname: baz\nbase: core20",
 	}
@@ -6283,17 +6307,21 @@ var (
 		// use a different fileset, such that the pc snap with this
 		// content will have a different digest than the regular pc snap
 		"pc-rev-33": append(pcGadgetFiles, []string{
-			"this-is-new", "",
+			"this-is-new", "new-in-pc-rev-33",
 		}),
 		"pc-kernel": pcKernelFiles,
 		// similar reasoning as for the pc snap
 		"pc-kernel-rev-33": append(pcKernelFiles, []string{
-			"this-is-new", "",
+			"this-is-new", "new-in-pc-kernel-rev-33",
 		}),
 		// and again
 		"core20-rev-33": {
-			{"this-is-new", ""},
+			{"this-is-new", "new-in-core20-rev-33"},
 		},
+		"pc-kernel-track-22": pcKernel22Files,
+		"pc-track-22": append(pcGadgetFiles, []string{
+			"cmdline.extra", "uc22",
+		}),
 	}
 
 	// headers of a regular UC20 model assertion
@@ -6963,6 +6991,11 @@ func (s *mgrsSuite) TestRemodelUC20DifferentKernelChannel(c *C) {
 		"try_recovery_system":    expectedLabel,
 		"recovery_system_status": "try",
 	})
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	// rev-33 ships a new file
+	verifyModelEssentialSnapHasContent(c, sd, "pc-kernel", "this-is-new", "new-in-pc-kernel-rev-33")
+
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
 	// this would be done by snap-bootstrap in initramfs
@@ -7096,6 +7129,11 @@ func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 		"try_recovery_system":    expectedLabel,
 		"recovery_system_status": "try",
 	})
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	// rev-33 ships a new file
+	verifyModelEssentialSnapHasContent(c, sd, "pc", "this-is-new", "new-in-pc-rev-33")
+
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
 	// this would be done by snap-bootstrap in initramfs
@@ -7136,6 +7174,21 @@ func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all installs in sequential order
 	validateRefreshTasks(c, tasks[i:], "pc", "33", isGadget)
+}
+
+func verifyModelEssentialSnapHasContent(c *C, sd seed.Seed, name string, file, content string) {
+	for _, ms := range sd.EssentialSnaps() {
+		c.Logf("mode snap %q %v", ms.SnapName(), ms.Path)
+		if ms.SnapName() == name {
+			sf, err := snapfile.Open(ms.Path)
+			c.Assert(err, IsNil)
+			d, err := sf.ReadFile(file)
+			c.Assert(err, IsNil)
+			c.Assert(string(d), Equals, content)
+			return
+		}
+	}
+	c.Errorf("expected file %q not found seed snap of name %q", file, name)
 }
 
 func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
@@ -7199,6 +7252,11 @@ func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
 		"try_recovery_system":    expectedLabel,
 		"recovery_system_status": "try",
 	})
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	// rev-33 ships a new file
+	verifyModelEssentialSnapHasContent(c, sd, "core20", "this-is-new", "new-in-core20-rev-33")
+
 	// simulate successful reboot to recovery and back
 	restart.MockPending(st, restart.RestartUnset)
 	// this would be done by snap-bootstrap in initramfs
@@ -7514,6 +7572,263 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	// the remove change succeeded
 	c.Check(chg2.Err(), IsNil)
 	c.Check(chg2.Status(), Equals, state.DoneStatus)
+}
+
+func dumpTasks(c *C, when string, tasks []*state.Task) {
+	c.Logf("--- tasks dump %s", when)
+	for _, tsk := range tasks {
+		c.Logf("  -- %4s %10s %15s %s", tsk.ID(), tsk.Status(), tsk.Kind(), tsk.Summary())
+	}
+}
+
+func (s *mgrsSuite) TestRemodelUC20ToUC22(c *C) {
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
+	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// make core22 a thing
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "core22",
+		"snap-id":      fakeSnapID("core22"),
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a11), IsNil)
+	c.Assert(s.storeSigning.Add(a11), IsNil)
+
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["core22"], "1", nil)
+	s.serveSnap(snapPath, "1")
+	snapPath, _ = s.makeStoreTestSnapWithFiles(c, pcKernel22SnapYaml, "33", snapFilesForRemodel["pc-kernel-track-22"])
+	s.serveSnap(snapPath, "33")
+	snapPath, _ = s.makeStoreTestSnapWithFiles(c, pcGadget22SnapYaml, "34", snapFilesForRemodel["pc-track-22"])
+	s.serveSnap(snapPath, "34")
+
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		// replace the base
+		"base": "core22",
+		"snaps": []interface{}{
+			// kernel and gadget snaps with new tracks
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "22",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		},
+		"revision": "1",
+	})
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	c.Assert(err, IsNil)
+
+	// remodel updates a gadget, setup a mock updater that pretends an
+	// update was applied
+	updater := &mockUpdater{}
+	restore = gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		// use a mock updater pretends an update was applied
+		return updater, nil
+	})
+	defer restore()
+
+	now := time.Now()
+	expectedLabel := now.Format("20060102")
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+	dumpTasks(c, "at the beginning", chg.Tasks())
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	// gadget update has been not been applied yet
+	c.Check(updater.updateCalls, Equals, 0)
+
+	dumpTasks(c, "after recovery system", chg.Tasks())
+
+	// first comes a reboot to the new recovery system
+	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
+	c.Check(devicestate.RemodelingChange(st), NotNil)
+	restarting, kind := restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystemNow)
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
+	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "try",
+	})
+	// simulate successful reboot to recovery and back
+	restart.MockPending(st, restart.RestartUnset)
+	// this would be done by snap-bootstrap in initramfs
+	err = bl.SetBootVars(map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	// reset, so that after-reboot handling of tried system is executed
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// next we'll observe kernel getting installed
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after kernel install", chg.Tasks())
+	// gadget update has been not been applied yet
+	c.Check(updater.updateCalls, Equals, 0)
+
+	restarting, kind = restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystem)
+	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
+	// and we've rebooted
+	restart.MockPending(st, restart.RestartUnset)
+	// pretend the kernel has booted
+	rbl, err := bootloader.Find(dirs.GlobalRootDir, &bootloader.Options{Role: bootloader.RoleRunMode})
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"kernel_status": "try",
+	})
+	err = rbl.SetBootVars(map[string]string{
+		"kernel_status": "trying",
+	})
+	c.Assert(err, IsNil)
+
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// next the base
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after base install", chg.Tasks())
+	// gadget update has been not been applied yet
+	c.Check(updater.updateCalls, Equals, 0)
+
+	// restarting to a new base
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m.TryBase, Equals, "core22_1.snap")
+	c.Assert(m.BaseStatus, Equals, "try")
+	// we've rebooted
+	restart.MockPending(st, restart.RestartUnset)
+	// and pretend we boot the base
+	m.BaseStatus = "trying"
+	c.Assert(m.Write(), IsNil)
+
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// next the gadget which updates the command line
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// gadget update has been applied
+	c.Check(updater.updateCalls, Equals, 3)
+
+	dumpTasks(c, "after gadget install", chg.Tasks())
+
+	// the gadget has updated the kernel command line
+	restarting, kind = restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystem)
+	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 uc22",
+	})
+	// we've rebooted
+	restart.MockPending(st, restart.RestartUnset)
+	// pretend we have the right command line
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"),
+		[]byte("snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 uc22"), 0444),
+		IsNil)
+
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
+
+	dumpTasks(c, "after set-model", chg.Tasks())
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "core22", &snapst)
+	c.Assert(err, IsNil)
+
+	// ensure sorting is correct
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	var i int
+	// first all downloads/checks in sequential order
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "33", "22/stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "core22", "1", "latest/stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc", "34", "22/stable")
+	// then create recovery
+	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
+	// then all refreshes and install in sequential order (no configure hooks for bases though)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
+	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
+	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
+	// finally new model assertion
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	i++
+	c.Check(i, Equals, len(tasks))
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 uc22",
+	})
+	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{
+		"1234", expectedLabel,
+	})
+	c.Check(m.GoodRecoverySystems, DeepEquals, []string{
+		"1234", expectedLabel,
+	})
+	c.Check(m.Base, Equals, "core22_1.snap")
 }
 
 func (s *mgrsSuite) TestInstallKernelSnapRollbackUpdatesBootloaderEnv(c *C) {
@@ -8768,6 +9083,240 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineTransitionExtraToFull(c *C) {
 		"snapd_extra_cmdline_args": "",
 		"snapd_full_cmdline_args":  "full args",
 	})
+}
+
+func (s *mgrsSuite) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.RunBootenv20, *state.Change) {
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+
+	// a revision which is assumed to be installed
+	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
+	c.Assert(err, IsNil)
+	restore := bloader.SetEnabledKernel(kernel)
+	s.AddCleanup(restore)
+
+	restore = release.MockOnClassic(false)
+	s.AddCleanup(restore)
+
+	mockServer := s.mockStore(c)
+	s.AddCleanup(func() { mockServer.Close() })
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	model := s.brands.Model("can0nical", "my-model", uc20ModelDefaults)
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// mock the modeenv file
+	m := &boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_1.snap",
+		CurrentKernels:         []string{"pc-kernel_1.snap"},
+		CurrentRecoverySystems: []string{"1234"},
+		GoodRecoverySystems:    []string{"1234"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
+
+	pcKernelYaml := "name: pc-kernel\nversion: 1.0\ntype: kernel"
+	baseYaml := "name: core20\nversion: 1.0\ntype: base"
+	siKernel := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
+	snaptest.MockSnap(c, pcKernelYaml, siKernel)
+	siBase := &snap.SideInfo{RealName: "core20", SnapID: fakeSnapID("core20"), Revision: snap.R(1)}
+	snaptest.MockSnap(c, baseYaml, siBase)
+
+	// test setup adds core, get rid of it
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siKernel},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+	snapstate.Set(st, "core20", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siBase},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	p, _ := s.makeStoreTestSnap(c, pcKernelYaml, "2")
+	s.serveSnap(p, "2")
+	p, _ = s.makeStoreTestSnap(c, baseYaml, "2")
+	s.serveSnap(p, "2")
+
+	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel"})
+	chg := st.NewChange("update-many", "...")
+	for _, ts := range tss {
+		// skip the taskset of UpdateMany that does the
+		// check-rerefresh, see tsWithoutReRefresh for details
+		if ts.Tasks()[0].Kind() == "check-rerefresh" {
+			c.Logf("skipping rerefresh")
+			continue
+		}
+		chg.AddAll(ts)
+	}
+	return bloader, chg
+}
+
+func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootHappy(c *C) {
+	bloader, chg := s.testUpdateKernelBaseSingleRebootSetup(c)
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	err := s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+
+	// final steps will are postponed until we are in the restarted snapd
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartSystem)
+
+	// auto connects aren't done yet
+	autoConnects := 0
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "auto-connect" {
+			expectedStatus := state.DoStatus
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.InstanceName() == "core20" {
+				expectedStatus = state.DoingStatus
+			}
+			c.Assert(tsk.Status(), Equals, expectedStatus,
+				Commentf("%q has status other than %s", tsk.Summary(), expectedStatus))
+			autoConnects++
+		}
+	}
+	// one for kernel, one for base
+	c.Check(autoConnects, Equals, 2)
+
+	// try snaps are set
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, "pc-kernel_2.snap")
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.BaseStatus, Equals, boot.TryStatus)
+	c.Check(m.TryBase, Equals, "core20_2.snap")
+
+	// simulate successful restart happened
+	restart.MockPending(st, restart.RestartUnset)
+	err = bloader.SetTryingDuringReboot([]snap.Type{snap.TypeKernel})
+	c.Assert(err, IsNil)
+	m.BaseStatus = boot.TryingStatus
+	c.Assert(m.Write(), IsNil)
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// go on
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("change failed with: %v", chg.Err()))
+}
+
+func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
+	bloader, chg := s.testUpdateKernelBaseSingleRebootSetup(c)
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	err := s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+
+	// final steps will are postponed until we are in the restarted snapd
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartSystem)
+
+	// auto connects aren't done yet
+	autoConnects := 0
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "auto-connect" {
+			expectedStatus := state.DoStatus
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.InstanceName() == "core20" {
+				expectedStatus = state.DoingStatus
+			}
+			c.Assert(tsk.Status(), Equals, expectedStatus,
+				Commentf("%q has status other than %s", tsk.Summary(), expectedStatus))
+			autoConnects++
+		}
+	}
+	// one for kernel, one for base
+	c.Check(autoConnects, Equals, 2)
+
+	// try snaps are set
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, "pc-kernel_2.snap")
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.BaseStatus, Equals, boot.TryStatus)
+	c.Check(m.TryBase, Equals, "core20_2.snap")
+
+	// simulate successful restart happened
+	restart.MockPending(st, restart.RestartUnset)
+	// pretend the kernel panics during boot, kernel status gets reset to ""
+	err = bloader.SetRollbackAcrossReboot([]snap.Type{snap.TypeKernel})
+	c.Assert(err, IsNil)
+	s.o.DeviceManager().ResetToPostBootState()
+
+	// go on
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	// devicemgr's ensure boot ok tries to launch a revert
+	c.Check(err, ErrorMatches, `.*snap "pc-kernel" has "update-many" change in progress.*snap "core20" has "update-many" change in progress.*`)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("change failed with: %v", chg.Err()))
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*cannot finish core20 installation, there was a rollback across reboot\)`)
+	// there is no try kernel, bootloader references only the old one
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
+	kpi, err := bloader.Kernel()
+	c.Assert(err, IsNil)
+	c.Assert(kpi.Filename(), Equals, "pc-kernel_1.snap")
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m.BaseStatus, Equals, "")
+	c.Assert(m.TryBase, Equals, "")
+	c.Assert(m.Base, Equals, "core20_1.snap")
+
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "link-snap" {
+			c.Assert(tsk.Status(), Equals, state.UndoneStatus,
+				Commentf("%q has status other than undone", tsk.Summary()))
+		}
+	}
 }
 
 type gadgetUpdatesSuite struct {

@@ -2,9 +2,9 @@ summary: smoke test for the system-state tool
 
 execute: |
     # Check help
-    os.query | MATCH "usage: is-core, is-classic"
-    os.query -h | MATCH "usage: is-core, is-classic"
-    os.query --help | MATCH "usage: is-core, is-classic"
+    os.query | MATCH "usage: os.query is-core, is-classic"
+    os.query -h | MATCH "usage: os.query is-core, is-classic"
+    os.query --help | MATCH "usage: os.query is-core, is-classic"
 
     # Validate the ubuntu systems
     case "$SPREAD_SYSTEM" in

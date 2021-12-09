@@ -90,3 +90,17 @@ func (fskm *filesystemKeypairManager) Get(keyID string) (PrivateKey, error) {
 	}
 	return privKey, nil
 }
+
+func (fskm *filesystemKeypairManager) Delete(keyID string) error {
+	fskm.mu.RLock()
+	defer fskm.mu.RUnlock()
+
+	err := removeEntry(fskm.top, keyID)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return errKeypairNotFound
+		}
+		return err
+	}
+	return nil
+}

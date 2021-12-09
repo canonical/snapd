@@ -652,3 +652,27 @@ cat - > %s
 	})
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/mapper/data-device-locked","partition-name":"data"}`, base64.StdEncoding.EncodeToString(key)))
 }
+
+func (s *fdeSuite) TestIsEncryptedDeviceMapperName(c *C) {
+	// matches
+	for _, t := range []string{
+		"something-device-locked",
+		"foo23-device-locked",
+		"device-device-locked",
+		"WE-DON'T-CARE-WHAT-THE-PREFIX-IS-AND-YOU-CAN'T-MAKE-US-device-locked",
+	} {
+		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, true)
+	}
+
+	// doesn't match
+	for _, t := range []string{
+		"",
+		"-device-locked",
+		"device-locked",
+		"-device-locked-foo",
+		"some-device",
+		"CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4",
+	} {
+		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, false)
+	}
+}

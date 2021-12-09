@@ -1,0 +1,11 @@
+# Expand $PATH to include the directory where snappy applications go.
+set -u snap_bin_path "@SNAP_MOUNT_DIR@/bin"
+fish_add_path -aP $snap_bin_path
+
+# Desktop files (used by desktop environments within both X11 and Wayland) are
+# looked for in XDG_DATA_DIRS; make sure it includes the relevant directory for
+# snappy applications' desktop files.
+set -u snap_xdg_path /var/lib/snapd/desktop
+if ! contains $snap_xdg_path $XDG_DATA_DIRS
+    set XDG_DATA_DIRS $XDG_DATA_DIRS $snap_xdg_path
+end

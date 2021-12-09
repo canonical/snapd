@@ -1704,6 +1704,11 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	st.Lock()
 	defer st.Unlock()
 
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
 	s.o.TaskRunner().AddHandler("run-hook", func(t *state.Task, tomb *tomb.Tomb) error {
 		var hsup hookstate.HookSetup
 		t.State().Lock()
@@ -1768,10 +1773,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -2061,10 +2064,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Check(installSizeCalled, Equals, true)
 	if fail {
@@ -2140,10 +2141,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	conflictChange.AddTask(conflictTask)
 	conflictTask.WaitFor(tss[0].Tasks()[0])
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -2244,6 +2243,11 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
 	restore := snapstate.MockSnapsToRefresh(func(gatingTask *state.Task) ([]*snapstate.RefreshCandidate, error) {
 		c.Assert(gatingTask.Kind(), Equals, "conditional-auto-refresh")
 		var candidates map[string]*snapstate.RefreshCandidate
@@ -2303,10 +2307,8 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
-	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
@@ -2682,13 +2684,7 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	refreshedDate, err := time.Parse(time.RFC3339, "2021-01-01T10:00:00Z")
-	c.Assert(err, IsNil)
-	restoreRevDate := snapstate.MockRevisionDate(func(sn *snap.Info) time.Time {
-		return refreshedDate
-	})
-	defer restoreRevDate()
-
+	refreshedDate := fakeRevDateEpoch.AddDate(0, 0, 1)
 	requiredRevision = "1"
 	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
@@ -2709,19 +2705,19 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 			InstanceName:  "snap-c",
 			SnapID:        "snap-c-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}, {
 			InstanceName:  "some-other-snap",
 			SnapID:        "some-other-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}, {
 			InstanceName:  "some-snap",
 			SnapID:        "some-snap-id",
 			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
+			Epoch:         snap.E("1*"),
 			RefreshedDate: refreshedDate,
 		}},
 	}, {

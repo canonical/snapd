@@ -67,7 +67,7 @@ network netlink raw,
 capability sys_admin,
 
 # For {mbim,qmi}-proxy
-unix (bind, listen, accept) type=stream addr="@{mbim,qmi}-proxy",
+unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
 /sys/devices/**/usb**/{descriptors,manufacturer,product,bInterfaceClass,bInterfaceSubClass,bInterfaceProtocol,bInterfaceNumber} r,
 # See https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-net-qmi
 /sys/devices/**/net/*/qmi/* rw,
@@ -154,6 +154,12 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# allow communicating with the mbim and qmi proxy servers, which provide
+# support for talking to WWAN modems and devices which speak the Mobile
+# Interface Broadband Model (MBIM) and Qualcomm MSM Interface (QMI)
+# protocols respectively
+unix (accept, receive, send) type=stream peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const modemManagerConnectedPlugAppArmor = `
