@@ -20,7 +20,7 @@
 package main
 
 var (
-	IsContainer                   = isContainer
-	IsContainerWithInternalPolicy = isContainerWithInternalPolicy
-	LoadAppArmorProfiles          = loadAppArmorProfiles
+	IsContainer                      = isContainer
+	IsContainerWithInternalLXDPolicy = isContainerWithInternalLXDPolicy
+	LoadAppArmorProfiles             = loadAppArmorProfiles
 )

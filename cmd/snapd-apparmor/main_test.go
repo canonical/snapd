@@ -51,35 +51,35 @@ func (s *mainSuite) TearDownTest(c *C) {
 }
 
 func (s *mainSuite) TestIsContainerWithInternalPolicy(c *C) {
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+	c.Assert(snapd_apparmor.IsContainerWithInternalLXDPolicy(), Equals, false)
 
 	appArmorSecurityFSPath := filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor/")
 	err := os.MkdirAll(appArmorSecurityFSPath, 0755)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+	c.Assert(snapd_apparmor.IsContainerWithInternalLXDPolicy(), Equals, false)
 
 	// simulate being inside a container environment
 	testutil.MockCommand(c, "systemd-detect-virt", "")
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+	c.Assert(snapd_apparmor.IsContainerWithInternalLXDPolicy(), Equals, false)
 
 	f, err := os.Create(filepath.Join(appArmorSecurityFSPath, ".ns_stacked"))
 	c.Assert(err, IsNil)
 	f.WriteString("yes")
 	f.Close()
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+	c.Assert(snapd_apparmor.IsContainerWithInternalLXDPolicy(), Equals, false)
 
 	f, err = os.Create(filepath.Join(appArmorSecurityFSPath, ".ns_name"))
 	c.Assert(err, IsNil)
 	defer f.Close()
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+	c.Assert(snapd_apparmor.IsContainerWithInternalLXDPolicy(), Equals, false)
 
 	f.WriteString("foo")
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, false)
+	c.Assert(snapd_apparmor.IsContainerWithInternalLXDPolicy(), Equals, false)
 	// lxc/lxd name should result in a container with internal policy
 	f.Seek(0, 0)
 	f.WriteString("lxc-foo")
-	c.Assert(snapd_apparmor.IsContainerWithInternalPolicy(), Equals, true)
+	c.Assert(snapd_apparmor.IsContainerWithInternalLXDPolicy(), Equals, true)
 }
 
 func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {

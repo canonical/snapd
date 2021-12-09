@@ -67,7 +67,7 @@ import (
 // process should continue without any loss of functionality. This is an
 // unsupported configuration that cannot be properly handled by this function.
 //
-func isContainerWithInternalPolicy() bool {
+func isContainerWithInternalLXDPolicy() bool {
 	var appArmorSecurityFSPath = filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor")
 	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
 	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
@@ -145,7 +145,7 @@ func main() {
 		// in container environment - see if container has own
 		// policy that we need to manage otherwise get out of the
 		// way
-		if !isContainerWithInternalPolicy() {
+		if !isContainerWithInternalLXDPolicy() {
 			logger.Noticef("Inside container environment without internal policy")
 			os.Exit(0)
 		}
