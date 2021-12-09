@@ -340,7 +340,7 @@ func DiskVolumeDeviceTraitsForDevice(laidOutVolume *LaidOutVolume, dev string) (
 		return res, fmt.Errorf("cannot read %v partitions for candidate volume %s: %v", dev, vol.Name, err)
 	}
 
-	// ensure that the on disk and the laid out version are actually compatbile
+	// ensure that the on disk and the laid out version are actually compatible
 	opts := &EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
 	}
@@ -370,15 +370,11 @@ func DiskVolumeDeviceTraitsForDevice(laidOutVolume *LaidOutVolume, dev string) (
 	for _, structure := range diskLayout.Structure {
 		part, ok := diskPartitionsByDeviceNode[structure.Node]
 		if !ok {
-			// Somehow this structure in the laid out disk does not exist in
-			// the same physical disk we built for it using udev and
-			// disks.DiskFromDeviceName.
-			// This is unexpected as even `type: bare` i.e. raw structures will
-			// show up in the partition table and thus have a device node
-			// associated with it - this is also true of the "BIOS Boot"
-			// structure for example too, so it's unclear how this case could be
-			// triggered in practice.
-			return res, fmt.Errorf("internal error: inconsistent disk structures from LaidOutDisk and disks.Disk, diskLayout: %#v disks.Partitions: %#v, partition for device node %s missing from udev-derived disk partitions", diskLayout, diskPartitions, structure.Node)
+			// unexpected error - somehow this structure in the OnDiskVolume
+			// does not exist in the same physical disk we built for it using
+			// udev and disks.DiskFromDeviceName (which internally uses the same
+			// code as OnDiskVolumeFromDevice).
+			return res, fmt.Errorf("internal error: inconsistent disk structures from OnDiskVolume and disks.Disk: partition for device node %s missing", structure.Node)
 		}
 		ms := DiskStructureDeviceTraits{
 			Size:               quantity.Size(part.SizeInBytes),
