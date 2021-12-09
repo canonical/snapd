@@ -350,6 +350,11 @@ ifndef(`distro_rhel7',`
   timedatex_dbus_chat(snappy_t)
 ')
 
+# kernel-module-load interface may inspect or write files under /etc/modprobe.d
+optional_policy(`
+  modutils_manage_module_config(snappy_t)
+')
+
 # only pops up in cloud images where cloud-init.target is incorrectly labeled
 allow snappy_t init_var_run_t:lnk_file read;
 
