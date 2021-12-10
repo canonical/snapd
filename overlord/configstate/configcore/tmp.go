@@ -26,11 +26,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
-	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
@@ -48,48 +46,19 @@ func init() {
 	supportedConfigurations["core.tmp.size"] = true
 }
 
-// Regex matches what is specified by tmpfs(5) for the size option
-var validTmpfsSizeRe = regexp.MustCompile(`^[0-9]+[kmgKMG%]?$`).MatchString
-
 func validTmpfsSize(sizeStr string) error {
-	if !validTmpfsSizeRe(sizeStr) {
-		return fmt.Errorf("cannot set tmpfs size %q: invalid size", sizeStr)
+	if sizeStr == "" {
+		return nil
 	}
 
-	postfix := sizeStr[len(sizeStr)-1:]
-	mult := uint64(1)
-	isPercentage := false
-	numberLen := len(sizeStr) - 1
-	switch postfix {
-	case "k", "K":
-		mult = 1024
-	case "m", "M":
-		mult = 1024 * 1024
-	case "g", "G":
-		mult = 1024 * 1024 * 1024 * 1024
-	case "%":
-		isPercentage = true
-	default:
-		numberLen += 1
-	}
-
-	size, err := strconv.ParseUint(sizeStr[0:numberLen], 10, 64)
+	size, err := quantity.ParseSize(sizeStr)
 	if err != nil {
 		return err
-	}
-	if isPercentage {
-		sysinfo := &syscall.Sysinfo_t{}
-		if err := syscall.Sysinfo(sysinfo); err != nil {
-			return err
-		}
-		size = (sysinfo.Totalram * uint64(sysinfo.Unit) * size) / 100
-	} else {
-		size *= mult
 	}
 
 	// Do not allow less than 16mb
 	// 0 is special and means unlimited
-	if size > 0 && size < 16*1024*1024 {
+	if size > 0 && size < 16*quantity.SizeMiB {
 		return fmt.Errorf("size is less than 16Mb")
 	}
 
@@ -101,14 +70,8 @@ func validateTmpfsSettings(tr config.ConfGetter) error {
 	if err != nil {
 		return err
 	}
-	if tmpfsSz == "" {
-		return nil
-	}
-	if err := validTmpfsSize(tmpfsSz); err != nil {
-		return err
-	}
 
-	return nil
+	return validTmpfsSize(tmpfsSz)
 }
 
 func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
@@ -134,7 +97,7 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fs
 	dirContent := make(map[string]osutil.FileState, 1)
 	cfgFilePath := filepath.Join(overrDir, tmpMntServOverrideFile)
 	modify := true
-	if tmpfsSz != "" && tmpfsSz != "50%" {
+	if tmpfsSz != "" {
 		if err := os.MkdirAll(overrDir, 0755); err != nil {
 			return err
 		}

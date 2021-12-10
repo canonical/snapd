@@ -56,8 +56,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 	mountCmd := testutil.MockCommand(c, "mount", "")
 	defer mountCmd.Restore()
 
-	for _, size := range []string{"100m", "1g", "16384k", "104857600",
-		"16M", "7G", "16384K", "20%", "0"} {
+	for _, size := range []string{"104857600", "16M", "7G", "0"} {
 
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
@@ -79,7 +78,8 @@ func (s *tmpfsSuite) TestConfigureTmpfsGoodVals(c *C) {
 
 // Configure with different invalid values
 func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
-	for _, size := range []string{"100p", "0x123", "10485f7600", "20%%"} {
+	for _, size := range []string{"100p", "0x123", "10485f7600", "20%%",
+		"20%", "100m", "10k", "10K", "10g"} {
 
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
@@ -87,7 +87,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 				"tmp.size": size,
 			},
 		})
-		c.Assert(err, ErrorMatches, `cannot set tmpfs size.*`)
+		c.Assert(err, ErrorMatches, `invalid suffix .*`)
 
 		_, err = os.Stat(s.servOverridePath)
 		c.Assert(os.IsNotExist(err), Equals, true)
@@ -97,7 +97,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsBadVals(c *C) {
 }
 
 func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
-	for _, size := range []string{"1", "16383k"} {
+	for _, size := range []string{"1", "16777215"} {
 
 		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
@@ -123,7 +123,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsgAllConfDirExistsAlready(c *C) {
 	err := os.MkdirAll(s.servOverrideDir, 0755)
 	c.Assert(err, IsNil)
 
-	size := "100m"
+	size := "100M"
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
@@ -136,14 +136,14 @@ func (s *tmpfsSuite) TestConfigureTmpfsgAllConfDirExistsAlready(c *C) {
 
 	c.Check(s.systemctlArgs, HasLen, 0)
 	c.Check(mountCmd.Calls(), DeepEquals,
-		[][]string{{"mount", "-o", "remount,mode=1777,strictatime,nosuid,nodev,size=100m", "/tmp"}})
+		[][]string{{"mount", "-o", "remount,mode=1777,strictatime,nosuid,nodev,size=100M", "/tmp"}})
 }
 
 // Test cfg file is not updated if we set the same size that is already set
 func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 	err := os.MkdirAll(s.servOverrideDir, 0755)
 	c.Assert(err, IsNil)
-	size := "100m"
+	size := "100M"
 	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=" + size + "\n"
 	err = ioutil.WriteFile(s.servOverridePath, []byte(content), 0644)
 	c.Assert(err, IsNil)
@@ -185,7 +185,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	err = ioutil.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
-	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=1g\n"
+	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=1G\n"
 	err = ioutil.WriteFile(s.servOverridePath, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
@@ -211,7 +211,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 // Test applying on image preparation
 func (s *tmpfsSuite) TestFilesystemOnlyApply(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
-		"tmp.size": "16384k",
+		"tmp.size": "16777216",
 	})
 
 	tmpDir := c.MkDir()
@@ -220,5 +220,5 @@ func (s *tmpfsSuite) TestFilesystemOnlyApply(c *C) {
 	tmpfsOverrCfg := filepath.Join(tmpDir,
 		"/etc/systemd/system/tmp.mount.d/override.conf")
 	c.Check(tmpfsOverrCfg, testutil.FileEquals,
-		"[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=16384k\n")
+		"[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=16777216\n")
 }
