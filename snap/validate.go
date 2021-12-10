@@ -1015,6 +1015,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(mountSource, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid bind mount source %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, mountSource)
 		}
+		// Ensure that the path does not express an AppArmor pattern
+		if err := apparmor.ValidateNoAppArmorRegexp(mountSource); err != nil {
+			return fmt.Errorf("layout %q uses invalid mount source: %s", layout.Path, err)
+		}
 	}
 
 	switch layout.Type {
@@ -1041,6 +1045,10 @@ func ValidateLayout(layout *Layout, constraints []LayoutConstraint) error {
 			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_DATA")) &&
 			!strings.HasPrefix(oldname, si.ExpandSnapVariables("$SNAP_COMMON")) {
 			return fmt.Errorf("layout %q uses invalid symlink old name %q: must start with $SNAP, $SNAP_DATA or $SNAP_COMMON", layout.Path, oldname)
+		}
+		// Ensure that the path does not express an AppArmor pattern
+		if err := apparmor.ValidateNoAppArmorRegexp(oldname); err != nil {
+			return fmt.Errorf("layout %q uses invalid symlink: %s", layout.Path, err)
 		}
 	}
 

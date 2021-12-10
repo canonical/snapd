@@ -962,6 +962,16 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/tmp" in an off-limits area`)
 
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "$SNAP/dev/sda[0123]"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/dev/sda\[0123\]" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "$SNAP/*"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/\*" contains a reserved apparmor char.*`)
+
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/{here,there}"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink: "/snap/foo/unset/{here,there}" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/**"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink: "/snap/foo/unset/\*\*" contains a reserved apparmor char.*`)
+
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/usr", Bind: "$SNAP/usr"}, nil), IsNil)
