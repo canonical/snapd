@@ -1246,6 +1246,7 @@ layout:
     symlink: $SNAP/existent-dir
 `
 
+	// TODO: merge with the block below
 	for _, testCase := range []struct {
 		str         string
 		topLevelDir string
@@ -1264,6 +1265,24 @@ layout:
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`layout %q defines a new top-level directory %q`, testCase.str, testCase.topLevelDir))
 	}
 
+	for _, testCase := range []struct {
+		str           string
+		expectedError string
+	}{
+		{"$SNAP/with\"quote", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/myDir[0123]", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/here{a,b}", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/anywhere*", "invalid layout path: .* contains a reserved apparmor char.*"},
+	} {
+		// Layout adding a new top-level directory
+		strk = NewScopedTracker()
+		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
+		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 1)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, testCase.expectedError, Commentf("path: %s", testCase.str))
+	}
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {
