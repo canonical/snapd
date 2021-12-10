@@ -4594,7 +4594,12 @@ epoch: 42
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	// this needs doing because dirs depends on the release info
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	restore = snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: name, Confinement: "classic"}, nil
 	})
 	defer restore()
