@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -31,3 +32,11 @@ func MakeAboutSnap(info *snap.Info, snapst *snapstate.SnapState) aboutSnap {
 var (
 	MapLocal = mapLocal
 )
+
+func MockAssertstateRestoreValidationSetsTracking(f func(*state.State) error) (restore func()) {
+	old := assertstateRestoreValidationSetsTracking
+	assertstateRestoreValidationSetsTracking = f
+	return func() {
+		assertstateRestoreValidationSetsTracking = old
+	}
+}

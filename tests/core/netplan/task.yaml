@@ -44,6 +44,16 @@ execute: |
             exit 1
         fi
 
+        if ! os.query is-core16 && test "$rel" -ne 16; then
+            echo "Running netplan generate without network-setup-control fails"
+            if netplan-snap.netplan generate; then
+                echo "Expected access denied error for netplan generate"
+                exit 1
+            fi
+        else
+            echo "Skipping netplan generate on UC16"
+        fi
+
         echo "Count how many network service restarts happened before calling netplan apply"
         stopped_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
         started_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
@@ -57,6 +67,16 @@ execute: |
         if ! netplan-snap.netplan --debug apply; then
             echo "Unexpected error running netplan apply"
             exit 1
+        fi
+
+        if ! os.query is-core16 && test "$rel" -ne 16; then
+            echo "Running netplan generate now works"
+            if ! netplan-snap.netplan generate; then
+                echo "Unexpected error running netplan generate"
+                exit 1
+            fi
+        else
+            echo "Skipping netplan generate on UC16"
         fi
 
         echo "Ensure that network config was stopped and restarted from netplan"

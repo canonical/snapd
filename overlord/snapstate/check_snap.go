@@ -447,7 +447,7 @@ func checkEpochs(_ *state.State, snapInfo, curInfo *snap.Info, _ snap.Container,
 }
 
 // check that the snap installed in the system (via snapst) can be
-// upgraded to info (i.e. that info's epoch can read sanpst's epoch)
+// upgraded to info (i.e. that info's epoch can read snapst's epoch)
 func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	if snapst == nil {
 		// no snapst, no problem

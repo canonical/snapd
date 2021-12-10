@@ -41,6 +41,16 @@
 void sc_cleanup_string(char **ptr);
 
 /**
+ * Shallow free a dynamically allocated string vector.
+ *
+ * The strings in the vector will not be freed.
+ * This function is designed to be used with SC_CLEANUP() macro.
+ * The variable MUST be initialized for correct operation.
+ * The safe initialisation value is NULL.
+ */
+void sc_cleanup_shallow_strv(const char ***ptr);
+
+/**
  * Close an open file.
  *
  * This function is designed to be used with SC_CLEANUP() macro.

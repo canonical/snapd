@@ -72,28 +72,3 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 	// length of 1
 	panic("impossible logic error")
 }
-
-// MockLsblkCommand returns a string suitable for use with MockCommand for lsblk
-// with the expected input/output pairing. The input keys are expected to be a
-// full string of the lsblk arguments and options, while the output values are
-// expected to be a string of the bash quoted JSON to be output for that input.
-func MockLsblkCommand(expIO map[string]string) string {
-	templ := `
-case "$*" in 
-	%s
-	*)
-		echo "unexpected args $*"
-		exit 1
-		;;
-esac`
-
-	insert := ""
-	for inArgs, outJSON := range expIO {
-		insert += fmt.Sprintf(`
-	%q)
-		echo %s
-		;;
-`, inArgs, outJSON)
-	}
-	return fmt.Sprintf(templ, insert)
-}

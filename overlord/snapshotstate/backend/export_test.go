@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 )
@@ -44,14 +45,6 @@ func MockIsTesting(newIsTesting bool) func() {
 	isTesting = newIsTesting
 	return func() {
 		isTesting = oldIsTesting
-	}
-}
-
-func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
-	oldLookupId := userLookupId
-	userLookupId = newLookupId
-	return func() {
-		userLookupId = oldLookupId
 	}
 }
 
@@ -103,7 +96,7 @@ func SetUserWrapper(newUserWrapper string) (restore func()) {
 	}
 }
 
-func MockUsersForUsernames(f func(usernames []string) ([]*user.User, error)) (restore func()) {
+func MockUsersForUsernames(f func(usernames []string, opts *dirs.SnapDirOptions) ([]*user.User, error)) (restore func()) {
 	old := usersForUsernames
 	usersForUsernames = f
 	return func() {

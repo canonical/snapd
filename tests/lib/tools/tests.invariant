@@ -81,7 +81,7 @@ check_stray_dbus_daemon() {
 	(
 		skipped_system=0
 		skipped_root_session=0
-		for pid in $(pgrep dbus-daemon); do
+		for pid in $(pgrep -x dbus-daemon); do
 			cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
 			# Ignore one dbus-daemon responsible for the system bus.
 			if echo "$cmdline" | grep -q 'dbus-daemon --system' && [ "$skipped_system" -eq 0 ]; then
