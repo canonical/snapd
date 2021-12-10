@@ -23,11 +23,11 @@ execute: |
   
   echo "Ensure setting tmp.size works"
   for size in 100 200; do
-      snap set system tmp.size="$size"m
-      snap get system tmp.size | MATCH "$size"m
+      snap set system tmp.size="$size"M
+      snap get system tmp.size | MATCH "$size"M
       df -h --output=size /tmp | MATCH "$size"M
       grep '^tmpfs /tmp' /proc/mounts | MATCH nosuid,nodev
-      MATCH "Options=mode=1777,strictatime,nosuid,nodev,size=${size}m" "$MOUNTCFG_FILE"
+      MATCH "Options=mode=1777,strictatime,nosuid,nodev,size=${size}M" "$MOUNTCFG_FILE"
       # Check that systemd is happy with the generated override.conf
       systemctl daemon-reload
   done
@@ -40,7 +40,7 @@ execute: |
   fi
   test ! -f "$MOUNTCFG_FILE"
   cur_size=$(df --output=size /tmp | tail -1)
-  # For some reason, resizing to the default can have a difference with the
+  # For some odd reason, resizing to the default can have a difference with the
   # old one of one page (4k), at least in GCE, so we take that into account.
   test "$cur_size" -le $((def_size + 4)) && test "$cur_size" -ge $((def_size - 4))
   systemctl daemon-reload
