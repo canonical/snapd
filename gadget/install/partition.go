@@ -177,22 +177,24 @@ func deviceName(name string, index int) string {
 
 // removeCreatedPartitions removes partitions added during a previous install.
 func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
-	sfDiskindexes := make([]string, 0, len(dl.Structure))
-	deletedIndexes := make(map[int]bool, 4)
+	sfdiskIndexes := make([]string, 0, len(dl.Structure))
+	// up to 3 possible partitions are creatable and thus removable:
+	// ubuntu-data, ubuntu-boot, and ubuntu-save
+	deletedIndexes := make(map[int]bool, 3)
 	for i, s := range dl.Structure {
 		if wasCreatedDuringInstall(lv, s) {
 			logger.Noticef("partition %s was created during previous install", s.Node)
-			sfDiskindexes = append(sfDiskindexes, strconv.Itoa(i+1))
+			sfdiskIndexes = append(sfdiskIndexes, strconv.Itoa(i+1))
 			deletedIndexes[i] = true
 		}
 	}
-	if len(sfDiskindexes) == 0 {
+	if len(sfdiskIndexes) == 0 {
 		return nil
 	}
 
 	// Delete disk partitions
-	logger.Debugf("delete disk partitions %v", sfDiskindexes)
-	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, sfDiskindexes...)...)
+	logger.Debugf("delete disk partitions %v", sfdiskIndexes)
+	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, sfdiskIndexes...)...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
@@ -207,7 +209,7 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 	// Remove the partitions we deleted from the OnDiskVolume - note that we
 	// specifically don't try to just re-build the OnDiskVolume since doing
 	// so correctly requires using only information from the partition table
-	// we just updated with sfdisk (since we used --no-read above, and we can't
+	// we just updated with sfdisk (since we used --no-reread above, and we can't
 	// really tell the kernel to re-read the partition table without hitting
 	// EBUSY as the disk is still mounted even though the deleted partitions
 	// were deleted), but to do so would essentially just be testing that sfdisk
