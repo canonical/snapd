@@ -42,6 +42,19 @@ type certsSuite struct {
 
 var _ = Suite(&certsSuite{})
 
+func (s *certsSuite) SetUpTest(c *C) {
+	// Create the folder structure that we need
+	s.certsBasePath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "base")
+	s.certsAddedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "added")
+	s.certsMergedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "merged")
+	s.certsBlockedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "blocked")
+
+	c.Assert(os.MkdirAll(s.certsBasePath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsAddedPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsMergedPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsBlockedPath, 0755), IsNil)
+}
+
 func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
@@ -151,19 +164,6 @@ func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
-}
-
-func (s *certsSuite) setupCertificatesTest(c *C) {
-	// Create the folder structure that we need
-	s.certsBasePath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "base")
-	s.certsAddedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "added")
-	s.certsMergedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "merged")
-	s.certsBlockedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "blocked")
-
-	c.Assert(os.MkdirAll(s.certsBasePath, 0755), IsNil)
-	c.Assert(os.MkdirAll(s.certsAddedPath, 0755), IsNil)
-	c.Assert(os.MkdirAll(s.certsMergedPath, 0755), IsNil)
-	c.Assert(os.MkdirAll(s.certsBlockedPath, 0755), IsNil)
 }
 
 func (s *certsSuite) writeMockCertificates(c *C, outputPath string, names []string) {
