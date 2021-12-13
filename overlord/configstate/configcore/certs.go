@@ -154,10 +154,10 @@ func installCerts(outputPath string, certs []certificate) error {
 	return nil
 }
 
-// generateCACertificate Generate the ca-certificates.crt to the output path
+// generateCACertificates Generate the ca-certificates.crt to the output path
 // The ca-certificates.crt is a concatenation of all the certs in the
 // output path.
-func generateCACertificate(outputPath string) error {
+func generateCACertificates(outputPath string) error {
 	certificates, err := getCertObjects(outputPath)
 	if err != nil {
 		return err
@@ -238,7 +238,7 @@ func CombineCertConfigurations(outputPath string, certDirectoryPaths []string, b
 		return fmt.Errorf("failed to copy base certs: %v", err)
 	}
 
-	if err := generateCACertificate(outputPath); err != nil {
+	if err := generateCACertificates(outputPath); err != nil {
 		return fmt.Errorf("failed to generate ca-certificates.crt: %v", err)
 	}
 	return nil
@@ -252,6 +252,7 @@ func handleCertConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	// XXX: remove this code once we have a general way to handle
 	//      "snap revert" and config updates
 	//
+
 	// TODO: add ways to detect cleanly if tr is a patch, skip the sync code if it is
 	storeCerts, err := filepath.Glob(filepath.Join(dirs.SnapdStoreSSLCertsDir, "*.pem"))
 	if err != nil {
