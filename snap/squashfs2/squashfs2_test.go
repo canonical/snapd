@@ -112,6 +112,7 @@ func (s *squashfsSuite) TestCanReadFromSquashFS(c *C) {
 	sfs, err := squashfs2.SquashFsOpen(sn.Path())
 	c.Assert(err, IsNil)
 	c.Assert(sfs, NotNil)
-	sfs.ReadFile("meta/snap.yaml")
+	_, err = sfs.ReadFile("meta/snap.yaml")
+	c.Assert(err, IsNil)
 	defer sfs.Close()
 }
