@@ -967,6 +967,11 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "$SNAP/*"}, nil),
 		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/\*" contains a reserved apparmor char.*`)
 
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", BindFile: "$SNAP/a\"quote"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/a\\"quote" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", BindFile: "$SNAP/^invalid"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/\^invalid" contains a reserved apparmor char.*`)
+
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/{here,there}"}, nil),
 		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink: "/snap/foo/unset/{here,there}" contains a reserved apparmor char.*`)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/**"}, nil),
