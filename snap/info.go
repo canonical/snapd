@@ -303,7 +303,7 @@ type Info struct {
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the
-	// store.
+	// store or when read from a snap file.
 	DownloadInfo
 
 	Prices  map[string]float64
