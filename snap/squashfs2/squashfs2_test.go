@@ -108,11 +108,13 @@ func (s *squashfsSuite) SetUpTest(c *C) {
 }
 
 func (s *squashfsSuite) TestCanReadFromSquashFS(c *C) {
-	sn := makeSnap(c, "name: test", "")
+	manifest := "name: test"
+	sn := makeSnap(c, manifest, "")
 	sfs, err := squashfs2.SquashFsOpen(sn.Path())
 	c.Assert(err, IsNil)
 	c.Assert(sfs, NotNil)
-	_, err = sfs.ReadFile("meta/snap.yaml")
+	data, err := sfs.ReadFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
+	c.Assert(string(data), Equals, manifest)
 	defer sfs.Close()
 }

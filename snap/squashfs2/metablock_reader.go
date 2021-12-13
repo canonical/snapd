@@ -72,7 +72,6 @@ func (m *metaBlockReader) seekToRef(ref metadataRef) error {
 	return nil
 }
 
-
 func (m *metaBlockReader) seek(block int64, offset int) error {
 	if offset < 0 || offset >= metadataBlockSize {
 		return fmt.Errorf("squashfs: invalid metadata offset %d", offset)

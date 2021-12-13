@@ -23,6 +23,7 @@ package squashfs2
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 const (
@@ -30,6 +31,9 @@ const (
 	superblockSize         = 96
 	metadataBlockSize      = 8192
 	directoryMaxEntryCount = 256
+
+	superBlockUncompressedInodes = 0x1
+	superBlockUncompressedData   = 0x2
 
 	// Inode types supported by squashfs
 	inodeTypeDirectory         = 1
@@ -102,6 +106,7 @@ type squashfs_inode_reg struct {
 	fragment   uint32
 	offset     uint32
 	size       uint32
+	blockSizes []uint32
 }
 
 type squashfs_inode_symlink struct {
@@ -117,11 +122,12 @@ type squashfs_dir_header struct {
 }
 
 type squashfs_dir_entry struct {
-	offset uint16
-	ino    int16
-	itype  uint16
-	size   uint16
-	name   string
+	startBlock uint32
+	offset     uint16
+	ino        int16
+	itype      uint16
+	size       uint16
+	name       string
 }
 
 type metadataRef struct {
@@ -333,6 +339,14 @@ func SquashFsOpen(path string) (*SquashFileSystem, error) {
 	return sfs, nil
 }
 
+func (sfs *SquashFileSystem) directoryCreate(node *squashfs_inode_dir) *directory {
+	return &directory{
+		node:   node,
+		reader: sfs.directoryReader,
+		loaded: false,
+	}
+}
+
 func (sfs *SquashFileSystem) readInodeData() ([]byte, error) {
 	typeBuffer := make([]byte, 2)
 	err := sfs.inodeReader.read(typeBuffer)
@@ -341,18 +355,27 @@ func (sfs *SquashFileSystem) readInodeData() ([]byte, error) {
 	}
 
 	inodeType := readUint16(typeBuffer)
-	inodeSize := getInodeSize(inodeType)
-	if inodeSize == 0 {
-		return nil, fmt.Errorf("squashfs: invalid inode type %d", inodeType)
-	}
+	switch inodeType {
+	case inodeTypeFile:
+		inodeBuffer, err := inodeRegularRead(sfs.inodeReader)
+		if err != nil {
+			return nil, err
+		}
+		return append(typeBuffer, inodeBuffer...), nil
+	default:
+		inodeSize := getDefaultInodeSize(inodeType)
+		if inodeSize == 0 {
+			return nil, fmt.Errorf("squashfs: invalid inode type %d", inodeType)
+		}
 
-	inodeBuffer := make([]byte, inodeSize+2)
-	copy(inodeBuffer, typeBuffer)
-	err = sfs.inodeReader.read(inodeBuffer[2:])
-	if err != nil {
-		return nil, err
+		inodeBuffer := make([]byte, inodeSize+2)
+		copy(inodeBuffer, typeBuffer)
+		err = sfs.inodeReader.read(inodeBuffer[2:])
+		if err != nil {
+			return nil, err
+		}
+		return inodeBuffer, nil
 	}
-	return inodeBuffer, nil
 }
 
 func (sfs *SquashFileSystem) loadRootDirectory() error {
@@ -372,96 +395,82 @@ func (sfs *SquashFileSystem) Close() error {
 	return sfs.stream.Close()
 }
 
+func (sfs *SquashFileSystem) readDirectoryEntryInode(entry *squashfs_dir_entry) ([]byte, error) {
+	if err := sfs.inodeReader.seek(int64(entry.startBlock), int(entry.offset)); err != nil {
+		return nil, err
+	}
+	return sfs.readInodeData()
+}
+
+func (sfs *SquashFileSystem) createDirectoryFromDirectoryEntry(entry *squashfs_dir_entry) (*directory, error) {
+	if !entry.isDirectory() {
+		return nil, fmt.Errorf("squashfs: %s is not a directory", entry.name)
+	}
+
+	inodeBuffer, err := sfs.readDirectoryEntryInode(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	inode := &squashfs_inode_dir{}
+	inode.parse(inodeBuffer)
+	return sfs.directoryCreate(inode), nil
+}
+
+func (sfs *SquashFileSystem) readFileFromDirectoryEntry(entry *squashfs_dir_entry) ([]byte, error) {
+	if entry.isDirectory() {
+		return nil, fmt.Errorf("squashfs: %s is must not be a directory", entry.name)
+	}
+
+	if entry.isSymlink() {
+		return nil, fmt.Errorf("squashfs: %s is a symlink, and we do not support this yet", entry.name)
+	}
+
+	inodeBuffer, err := sfs.readDirectoryEntryInode(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	if entry.isRegularFile() {
+		inode := &squashfs_inode_reg{}
+		inode.parse(inodeBuffer)
+		return inode.read_data(sfs)
+	} else {
+		return nil, fmt.Errorf("squashfs: %s is not a regular file", entry.name)
+	}
+}
+
 func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
+	currentDirectory := sfs.rootDirectory
 
-	return sfs.rootDirectory.readFile(path)
-}
-
-func (sfs *SquashFileSystem) directoryCreate(node *squashfs_inode_dir) *directory {
-	return &directory{
-		node:   node,
-		reader: sfs.directoryReader,
-		loaded: false,
-	}
-}
-
-func (d *directory) readDirectoryHeader() squashfs_dir_header {
-	header := make([]byte, 12)
-	d.reader.read(header)
-
-	return squashfs_dir_header{
-		count:      readUint32(header[0:]),
-		startBlock: readUint32(header[4:]),
-		ino:        readUint32(header[8:]),
-	}
-}
-
-func (d *directory) readDirectoryEntry() (squashfs_dir_entry, int) {
-	buffer := make([]byte, 8)
-	d.reader.read(buffer)
-
-	entry := squashfs_dir_entry{
-		offset: readUint16(buffer[0:]),
-		ino:    readInt16(buffer[2:]),
-		itype:  readUint16(buffer[4:]),
-		size:   readUint16(buffer[6:]),
-		name:   "",
-	}
-
-	name := make([]byte, entry.size+1)
-	d.reader.read(name)
-	entry.name = string(name)
-	return entry, int(entry.size) + 8 + 1
-}
-
-func (d *directory) loadEntries() error {
-	d.reader.seek(int64(d.node.startBlock), int(d.node.offset))
-	println("loading directory entries", d.node.size)
-
-	if d.node.size == 3 {
-		// directory is empty
-		return nil
-	}
-
-	bytesRead := 0
-	for bytesRead < int(d.node.size) - 3 {
-		dirHeader := d.readDirectoryHeader()
-		bytesRead += 12
-
-		println("squashfs: directory header:", dirHeader.count, dirHeader.startBlock, dirHeader.ino)
-		if dirHeader.count > directoryMaxEntryCount {
-			return fmt.Errorf("squashfs: invalid number of directory entries: %d", dirHeader.count)
+	// split the provided path into tokens based on '/'
+	tokens := strings.Split(path, "/")
+	for i, token := range tokens {
+		println("squashfs: token", i, "/", len(tokens), token)
+		entry, err := currentDirectory.lookupDirectoryEntry(token)
+		if err != nil {
+			return nil, err
 		}
-		
-		// squashfs is littered with magic arethmetics, count is
-		// actually one less than specified in count
-		for i := 0; i < int(dirHeader.count) + 1; i++ {
-			entry, size := d.readDirectoryEntry()
-			println("squashfs: directory entry:", entry.name)
-			d.entries = append(d.entries, entry)
-			bytesRead += size
+
+		if i == len(tokens)-1 {
+			// last token, entry shall not be a directory
+			if entry.isDirectory() {
+				return nil, fmt.Errorf("squashfs: %s is a directory", path)
+			}
+			return sfs.readFileFromDirectoryEntry(entry)
 		}
-	}
 
-	d.loaded = true
-	return nil
-}
-
-func (d *directory) readFile(path string) ([]byte, error) {
-	println("squashfs: reading file:", path)
-	if !d.loaded {
-		err := d.loadEntries()
+		// otherwise we have to descend into the directory
+		// make sure that is a directory
+		if !entry.isDirectory() {
+			return nil, fmt.Errorf("squashfs: %s is not a directory", path)
+		}
+		currentDirectory, err = sfs.createDirectoryFromDirectoryEntry(entry)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	// find entry
-	for _, entry := d.entries {
-		entry
-	}
-
-	return nil, nil
+	return nil, fmt.Errorf("squashfs: %s not found", path)
 }
 
 func parseInode(data []byte) squashfs_inode {
@@ -484,15 +493,7 @@ func (n *squashfs_inode_dir) parse(data []byte) {
 	n.parent_ino = readUint32(data[28:])
 }
 
-func (n *squashfs_inode_reg) parse(data []byte) {
-	n.base = parseInode(data)
-	n.startBlock = readUint32(data[16:])
-	n.fragment = readUint32(data[20:])
-	n.offset = readUint32(data[24:])
-	n.size = readUint32(data[28:])
-}
-
-func getInodeSize(inoType uint16) int {
+func getDefaultInodeSize(inoType uint16) int {
 	switch inoType {
 	case inodeTypeDirectory:
 		return 32
@@ -507,4 +508,16 @@ func getInodeSize(inoType uint16) int {
 	default:
 		return 0
 	}
+}
+
+func (de *squashfs_dir_entry) isDirectory() bool {
+	return de.itype == inodeTypeDirectory || de.itype == inodeTypeExtendedDirectory
+}
+
+func (de *squashfs_dir_entry) isSymlink() bool {
+	return de.itype == inodeTypeSymlink || de.itype == inodeTypeExtendedSymlink
+}
+
+func (de *squashfs_dir_entry) isRegularFile() bool {
+	return de.itype == inodeTypeFile
 }
