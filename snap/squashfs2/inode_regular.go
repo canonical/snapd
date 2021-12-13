@@ -96,7 +96,6 @@ func (n *squashfs_inode_reg) read_data(sfs *SquashFileSystem) ([]byte, error) {
 
 	decompressedBuffer := make([]byte, n.size)
 	for _, block := range n.blockSizes {
-		println("block size:", block)
 		if block&0x1000000 == 0 {
 			// compressed block
 			compressedBuffer := make([]byte, block&0xFEFFFFFF)

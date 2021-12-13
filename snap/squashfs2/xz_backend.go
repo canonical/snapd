@@ -39,8 +39,6 @@ func createXzBackend(m *metaBlockReader) (xzBackend, error) {
 		executableFilters = filters
 	}
 
-	println("XZ dictionary size:", dictionarySize)
-	println("XZ executable filters:", executableFilters)
 	return xzBackend{
 		DictionarySize:    dictionarySize,
 		ExecutableFilters: executableFilters,

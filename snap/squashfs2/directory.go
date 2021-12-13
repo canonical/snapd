@@ -53,20 +53,17 @@ func (d *directory) readDirectoryEntry(header *squashfs_dir_header) (squashfs_di
 }
 
 func (d *directory) loadEntries() error {
-	d.reader.seek(int64(d.node.startBlock), int(d.node.offset))
-	println("loading directory entries", d.node.size)
-
 	if d.node.size == 3 {
 		// directory is empty
 		return nil
 	}
+	d.reader.seek(int64(d.node.startBlock), int(d.node.offset))
 
 	bytesRead := 0
 	for bytesRead < int(d.node.size)-3 {
 		dirHeader := d.readDirectoryHeader()
 		bytesRead += 12
 
-		println("squashfs: directory header:", dirHeader.count, dirHeader.startBlock, dirHeader.ino)
 		if dirHeader.count > directoryMaxEntryCount {
 			return fmt.Errorf("squashfs: invalid number of directory entries: %d", dirHeader.count)
 		}
@@ -75,7 +72,6 @@ func (d *directory) loadEntries() error {
 		// actually one less than specified in count
 		for i := 0; i < int(dirHeader.count)+1; i++ {
 			entry, size := d.readDirectoryEntry(&dirHeader)
-			println("squashfs: directory entry:", entry.name)
 			d.entries = append(d.entries, entry)
 			bytesRead += size
 		}
@@ -86,7 +82,6 @@ func (d *directory) loadEntries() error {
 }
 
 func (d *directory) lookupDirectoryEntry(name string) (*squashfs_dir_entry, error) {
-	println("squashfs: looking up:", name)
 	if !d.loaded {
 		err := d.loadEntries()
 		if err != nil {
@@ -96,7 +91,6 @@ func (d *directory) lookupDirectoryEntry(name string) (*squashfs_dir_entry, erro
 
 	for _, entry := range d.entries {
 		if entry.name == name {
-			println("squashfs: found entry:", name)
 			return &entry, nil
 		}
 	}

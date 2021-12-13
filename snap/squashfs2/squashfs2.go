@@ -32,8 +32,17 @@ const (
 	metadataBlockSize      = 8192
 	directoryMaxEntryCount = 256
 
-	superBlockUncompressedInodes = 0x1
-	superBlockUncompressedData   = 0x2
+	superBlockUncompressedInodes    = 0x1
+	superBlockUncompressedData      = 0x2
+	superBlockUncompressedFragments = 0x8
+	superBlockNoFragments           = 0x10
+	superBlockAlwaysFragments       = 0x20
+	superBlockDublicates            = 0x40
+	superBlockExportable            = 0x80
+	superBlockUncompressedXattrs    = 0x100
+	superBlockNoXattrs              = 0x200
+	superBlockCompressorOptions     = 0x400
+	superBlockUncompressedIds       = 0x800
 
 	// Inode types supported by squashfs
 	inodeTypeDirectory         = 1
@@ -264,7 +273,7 @@ func readSuperBlock(stream *os.File) (*squashfs_superblock, error) {
 func createCompressionBackend(stream *os.File, sb *squashfs_superblock) (CompressionBackend, error) {
 	println("squashfs: compression type", sb.compressionType)
 	var optionsBlock *metaBlockReader = nil
-	if sb.flags&0x400 != 0 {
+	if sb.flags&superBlockCompressorOptions != 0 {
 		optionsBlock = metablockReaderCreate(stream, nil, superblockSize)
 	}
 
@@ -446,7 +455,6 @@ func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
 	// split the provided path into tokens based on '/'
 	tokens := strings.Split(path, "/")
 	for i, token := range tokens {
-		println("squashfs: token", i, "/", len(tokens), token)
 		entry, err := currentDirectory.lookupDirectoryEntry(token)
 		if err != nil {
 			return nil, err
