@@ -301,8 +301,8 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 }
 
 func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
-	restore := snapstate.MockGetSnapDirOptions(func(*state.State) (*dirs.SnapDirOptions, error) {
-		return &dirs.SnapDirOptions{HiddenSnapDataDir: true}, nil
+	restore := snapstate.MockGetSnapDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error) {
+		return &dirs.SnapDirOptions{HideSnapDir: true}, nil
 	})
 	defer restore()
 
@@ -320,7 +320,7 @@ func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
 
 	var checkOpts bool
 	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
-		c.Check(opts.HiddenSnapDataDir, check.Equals, true)
+		c.Check(opts.HideSnapDir, check.Equals, true)
 		checkOpts = true
 		return nil, nil
 	})()

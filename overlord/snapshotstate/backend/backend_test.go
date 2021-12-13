@@ -1073,8 +1073,9 @@ func (s *snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		opts    *dirs.SnapDirOptions
 	}{
 		{dirs.UserHomeSnapDir, nil},
-		{dirs.UserHomeSnapDir, &dirs.SnapDirOptions{HiddenSnapDataDir: false}},
-		{dirs.HiddenSnapDataHomeDir, &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
+		{dirs.UserHomeSnapDir, &dirs.SnapDirOptions{HideSnapDir: false}},
+		{dirs.UserHomeSnapDir, &dirs.SnapDirOptions{HideSnapDir: true}},
+		{dirs.HiddenSnapDataHomeDir, &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}}} {
 		s.testEstimateSnapshotSize(c, t.snapDir, t.opts)
 	}
 }

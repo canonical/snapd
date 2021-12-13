@@ -99,7 +99,7 @@ func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
 		return
 	}
 
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	opts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
 	hiddenDirs, err := snapDataDirs(oldSnap, opts)
 	if err != nil {
 		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.InstanceName(), err)
@@ -115,8 +115,10 @@ func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
 	}
 }
 
+// HideSnapData moves the snap's data directory in ~/snap into the corresponding
+// ~/.snap/data directory, for each user using the snap.
 func (b Backend) HideSnapData(snapName string) error {
-	postMigrationOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	postMigrationOpts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
 
 	users, err := allUsers(nil)
 	if err != nil {
@@ -158,8 +160,10 @@ func (b Backend) HideSnapData(snapName string) error {
 	return nil
 }
 
+// UndoHideSnapData moves the snap's data directory in ~/.snap/data into ~/snap,
+// for each user using the snap.
 func (b Backend) UndoHideSnapData(snapName string) error {
-	postMigrationOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	postMigrationOpts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
 
 	users, err := allUsers(postMigrationOpts)
 	if err != nil {

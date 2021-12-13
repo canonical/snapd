@@ -931,7 +931,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 		op.old = oldInfo.MountDir()
 	}
 
-	if opts != nil && opts.HiddenSnapDataDir {
+	if opts != nil && opts.HideSnapDir {
 		op.dirOpts = opts
 	}
 

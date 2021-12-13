@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2014-2018 Canonical Ltd
  *
@@ -1221,7 +1220,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 
 func getSnapDirOptions() *dirs.SnapDirOptions {
 	return &dirs.SnapDirOptions{
-		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
+		HideSnapDir: features.HiddenSnapDataHomeDir.IsEnabled(),
 	}
 }
 

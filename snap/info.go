@@ -203,7 +203,7 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 		opts = &dirs.SnapDirOptions{}
 	}
 
-	if opts.HiddenSnapDataDir {
+	if opts.HideSnapDir && opts.MigratedHidden {
 		return dirs.HiddenSnapDataHomeDir
 	}
 
@@ -536,7 +536,7 @@ func DataHomeGlob(opts *dirs.SnapDirOptions) string {
 		opts = &dirs.SnapDirOptions{}
 	}
 
-	if opts.HiddenSnapDataDir {
+	if opts.HideSnapDir && opts.MigratedHidden {
 		return dirs.HiddenSnapDataHomeGlob
 	}
 

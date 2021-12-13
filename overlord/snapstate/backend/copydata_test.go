@@ -73,7 +73,8 @@ func (s *copydataSuite) TestCopyData(c *C) {
 	}{
 		{snapDir: dirs.UserHomeSnapDir, opts: nil},
 		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
-		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{HideSnapDir: true}},
+		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}}} {
 		s.testCopyData(c, t.snapDir, t.opts)
 		c.Assert(os.RemoveAll(s.tempdir), IsNil)
 		s.tempdir = c.MkDir()
@@ -215,7 +216,8 @@ func (s *copydataSuite) TestCopyDataDoUndo(c *C) {
 	}{
 		{snapDir: dirs.UserHomeSnapDir},
 		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
-		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{HideSnapDir: true}},
+		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}},
 	} {
 		s.testCopyDataUndo(c, t.snapDir, t.opts)
 		c.Assert(os.RemoveAll(s.tempdir), IsNil)
@@ -302,7 +304,7 @@ func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataDoABA(c *C) {
-	for _, opts := range []*dirs.SnapDirOptions{nil, {}, {HiddenSnapDataDir: true}} {
+	for _, opts := range []*dirs.SnapDirOptions{nil, {}, {HideSnapDir: true, MigratedHidden: true}} {
 		s.testCopyDataDoABA(c, opts)
 	}
 }
@@ -616,7 +618,7 @@ func (s *copydataSuite) TestHideSnapData(c *C) {
 	c.Assert(err, IsNil)
 
 	// check versioned file was moved
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	opts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
 	revFile := filepath.Join(info.UserDataDir(homedir, opts), "canary.home")
 	data, err := ioutil.ReadFile(revFile)
 	c.Assert(err, IsNil)
@@ -699,7 +701,7 @@ func (s *copydataSuite) TestUndoHideSnapData(c *C) {
 	defer restore()
 
 	// write file in revisioned dir
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	opts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
 	err = os.MkdirAll(info.UserDataDir(homedir, opts), 0770)
 	c.Assert(err, IsNil)
 
@@ -825,7 +827,7 @@ func (s *copydataSuite) TestUndoHideKeepGoingPreserveFirstErr(c *C) {
 		c.Assert(err, IsNil)
 		usr.HomeDir = homedir
 
-		opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+		opts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
 		err = os.MkdirAll(info.UserDataDir(homedir, opts), 0770)
 		c.Assert(err, IsNil)
 

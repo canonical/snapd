@@ -300,12 +300,21 @@ func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 	})
 	defer restore()
 
-	env := osutil.Environment{}
-	ExtendEnvForRun(env, mockSnapInfo, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	for _, t := range []struct {
+		dir  string
+		opts *dirs.SnapDirOptions
+	}{
+		{dir: dirs.UserHomeSnapDir, opts: nil},
+		{dir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{HideSnapDir: true}},
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}},
+	} {
+		env := osutil.Environment{}
+		ExtendEnvForRun(env, mockSnapInfo, t.opts)
 
-	c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, "common"))
-	c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
-	c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, dirs.HiddenSnapDataHomeDir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+		c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, "common"))
+		c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+		c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+	}
 }
 
 func MockUserCurrent(f func() (*user.User, error)) func() {

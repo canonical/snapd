@@ -224,7 +224,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 
 	st.Lock()
-	opts, err := snapstate.GetSnapDirOptions(st)
+	opts, err := snapstate.GetSnapDirOptions(st, nil, snapshot.Snap)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -309,7 +309,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := snapstate.GetSnapDirOptions(st)
+	opts, err := snapstate.GetSnapDirOptions(st, nil, snapshot.Snap)
 	st.Unlock()
 	if err != nil {
 		return err
