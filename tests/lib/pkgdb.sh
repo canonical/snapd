@@ -627,7 +627,6 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 sbuild
                 schroot
-                systemd-timesyncd
                 "
             ;;
     esac
@@ -636,6 +635,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                  bpftool
                  strace
+                 systemd-timesyncd
                  "
             ;;
     esac
