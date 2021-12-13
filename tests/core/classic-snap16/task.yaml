@@ -4,6 +4,8 @@ summary: Ensure classic dimension works correctly
 # recommended instead of the classic snap
 systems: [ubuntu-core-16-*]
 
+tags: [ basic ]
+
 environment:
     # We need to set the SUDO_USER here to simulate the real
     # behavior. I.e. when entering classic it happens via

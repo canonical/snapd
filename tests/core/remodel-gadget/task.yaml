@@ -3,6 +3,8 @@ summary: Test a remodel that switches to a new gadget
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-18-64]
 
+tags: [ basic ]
+
 environment:
     OLD_GADGET: pc
     NEW_GADGET: test-snapd-pc

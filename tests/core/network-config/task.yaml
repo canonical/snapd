@@ -1,5 +1,7 @@
 summary: Check that `snap set {system,core} network.disable-ipv6` works
 
+tags: [ basic ]
+
 environment:
     snap_nick/system: system
     snap_nick/core: core

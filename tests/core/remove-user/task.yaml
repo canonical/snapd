@@ -2,6 +2,8 @@ summary: Ensure remove-user functionality
 
 systems: [ubuntu-core-*]
 
+tags: [ basic ]
+
 environment:
     # Note that any valid sso account will work for this test
     USER_EMAIL: mvo@ubuntu.com

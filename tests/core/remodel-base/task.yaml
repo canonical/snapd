@@ -3,6 +3,8 @@ summary: Test a remodel that switches to a new base
 # TODO:UC20: enable on UC20
 systems: [ubuntu-core-18-64]
 
+tags: [ basic ]
+
 environment:
     OLD_BASE: core18
     NEW_BASE: test-snapd-core18

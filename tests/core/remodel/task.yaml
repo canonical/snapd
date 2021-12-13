@@ -4,6 +4,8 @@ summary: |
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-1*-64]
 
+tags: [ basic ]
+
 prepare: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh

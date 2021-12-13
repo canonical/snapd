@@ -548,6 +548,15 @@ The nested suites use some environment variables to configure the suite and the 
     NESTED_CUSTOM_IMAGE_URL: Download and use an custom image from this url
 
 
+### Tagging spread tests
+
+Tags are used to categorize spread tests independently of the test suite where it is located.
+
+This is the list of tags and the tagging criteria:
+
+    . basic: is used to identify the basic functionalities of snapd. Tests tagged as basic are the main scenarios for each feature.
+
+
 # Quick intro to hacking on snap-confine
 
 Hey, welcome to the nice, low-level world of snap-confine

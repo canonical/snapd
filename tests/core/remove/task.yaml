@@ -3,6 +3,8 @@ summary: Check that removal of essential snaps does not work
 # UC16 does not seed the snapd snap (yet)
 systems: [-ubuntu-core-16-*]
 
+tags: [ basic ]
+
 execute: |
     echo "Ensure snapd cannot be removed"
     if snap remove --purge snapd; then

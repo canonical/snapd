@@ -5,6 +5,8 @@ summary: |
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-16-64]
 
+tags: [ basic ]
+
 environment:
     OLD_KERNEL: pc-kernel
     NEW_KERNEL: test-snapd-pc-kernel
