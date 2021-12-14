@@ -2031,7 +2031,7 @@ type: os
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// final steps will are postponed until we are in the restarted snapd
+	// final steps will be postponed until we are in the restarted snapd
 	ok, rst := restart.Pending(st)
 	c.Assert(ok, Equals, true)
 	c.Assert(rst, Equals, restart.RestartSystem)
