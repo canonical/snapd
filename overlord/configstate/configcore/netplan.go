@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -143,6 +144,8 @@ func hasNetplanChanges(tr config.Conf) bool {
 	return false
 }
 
+var storeReachableRetryWait = 1 * time.Second
+
 func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	if !hasNetplanChanges(tr) {
 		return nil
@@ -207,10 +210,14 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	}
 
 	var storeReachableAfter bool
-	if err := storeReachable(tr.State()); err == nil {
-		storeReachableAfter = true
+	for i := 0; i < 5; i++ {
+		if err := storeReachable(tr.State()); err == nil {
+			storeReachableAfter = true
+			break
+		}
+		logger.Debugf("store reachable after %v seconds: %v", i, storeReachableAfter)
+		time.Sleep(storeReachableRetryWait)
 	}
-	logger.Debugf("store reachable after netplan %v", storeReachableAfter)
 
 	if storeReachableBefore && !storeReachableAfter {
 		var wasCancelled bool

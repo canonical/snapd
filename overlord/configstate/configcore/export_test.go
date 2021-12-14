@@ -20,6 +20,8 @@
 package configcore
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -61,5 +63,13 @@ func MockSnapstateStore(f func(st *state.State, deviceCtx snapstate.DeviceContex
 	snapstateStore = f
 	return func() {
 		snapstateStore = old
+	}
+}
+
+func MockStoreReachableRetryWait(d time.Duration) func() {
+	old := storeReachableRetryWait
+	storeReachableRetryWait = d
+	return func() {
+		storeReachableRetryWait = old
 	}
 }

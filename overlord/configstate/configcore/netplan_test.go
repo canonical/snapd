@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -87,6 +88,9 @@ func (s *netplanSuite) SetUpTest(c *C) {
 	restore := configcore.MockSnapstateStore(func(st *state.State, deviceCtx snapstate.DeviceContext) configcore.ConnectivityCheckStore {
 		return s.fakestore
 	})
+	s.AddCleanup(restore)
+
+	restore = configcore.MockStoreReachableRetryWait(1 * time.Millisecond)
 	s.AddCleanup(restore)
 
 	// We mock the system bus with a private session bus, that is
@@ -277,6 +281,11 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	// we have connectivity but it stops
 	s.fakestore.statusSeq = []map[string]bool{
 		{"host1": true},
+		// and is retried 10 times
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
 		{"host1": false},
 	}
 	s.backend.ConfigApiTryRet = true
@@ -294,6 +303,8 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	// one cancel for the initial "Get()" and one after the Try failed
 	c.Check(s.backend.ConfigApiCancelCalls, Equals, 2)
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
+	// 1 initial call and 10 retries
+	c.Check(s.fakestore.seq, Equals, 6)
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigCanUnset(c *C) {
