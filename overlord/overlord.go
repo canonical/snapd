@@ -231,6 +231,9 @@ func lockWithTimeout(l *osutil.FileLock, timeout time.Duration) error {
 	for {
 		err := l.TryLock()
 		if err != osutil.ErrAlreadyLocked {
+			// We return nil if err is nil (that is, if we got the lock); we
+			// also return for any error except for ErrAlreadyLocked, because
+			// in that case we want to continue trying.
 			return err
 		}
 
