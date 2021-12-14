@@ -115,7 +115,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsTooSmall(c *C) {
 }
 
 // Ensure things are fine if destination folder already existed
-func (s *tmpfsSuite) TestConfigureTmpfsgAllConfDirExistsAlready(c *C) {
+func (s *tmpfsSuite) TestConfigureTmpfsAllConfDirExistsAlready(c *C) {
 	mountCmd := testutil.MockCommand(c, "mount", "")
 	defer mountCmd.Restore()
 
@@ -153,7 +153,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 
 	fileModTime := info.ModTime()
 
-	// To make sure the times will defer if the file is newly written
+	// To make sure the times will differ if the file is newly written
 	time.Sleep(100 * time.Millisecond)
 
 	err = configcore.Run(coreDev, &mockConf{
@@ -202,7 +202,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 	// but the canary is still here
 	c.Check(osutil.FileExists(canary), Equals, true)
 
-	// apply defaults
+	// the default was applied
 	c.Check(s.systemctlArgs, HasLen, 0)
 	c.Check(mountCmd.Calls(), DeepEquals,
 		[][]string{{"mount", "-o", "remount,mode=1777,strictatime,nosuid,nodev,size=50%", "/tmp"}})
