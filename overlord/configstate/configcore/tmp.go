@@ -51,6 +51,8 @@ func validTmpfsSize(sizeStr string) error {
 		return nil
 	}
 
+	// TODO allow also percentages. That is allowed for CPU quotas so
+	// it is probably fine to allow that for tmp.size too.
 	size, err := quantity.ParseSize(sizeStr)
 	if err != nil {
 		return err
