@@ -1825,7 +1825,7 @@ assets:
 	c.Assert(muo.beforeWriteCalled, Equals, 0)
 }
 
-func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceGPTSingleVolume(c *C) {
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTSingleVolume(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
 		"/dev/foo": {
 			DevNode: "/dev/foo",
@@ -1886,7 +1886,7 @@ volumes:
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo")
 	c.Assert(err, IsNil)
 	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
 		OriginalDevicePath: "/sys/block/foo",
@@ -1919,7 +1919,7 @@ volumes:
 	})
 }
 
-func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceGPTExtraOnDiskStructure(c *C) {
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraOnDiskStructure(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
 		"/dev/foo": {
 			DevNode: "/dev/foo",
@@ -1976,11 +1976,11 @@ volumes:
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo")
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget`)
 }
 
-func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceGPTExtraLaidOutStructure(c *C) {
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraLaidOutStructure(c *C) {
 
 	mockDisk := &disks.MockDiskMapping{
 		DevNode: "/dev/foo",
@@ -2034,9 +2034,9 @@ volumes:
 	// we can't build the device traits because the two are not compatible, even
 	// though the last structure is system-data which may not exist before
 	// install mode and thus be "compatible" in some contexts, but
-	// DiskVolumeDeviceTraitsForDevice is more strict and requires all
+	// DiskTraitsFromDeviceAndValidate is more strict and requires all
 	// structures to exist and to match
-	_, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo")
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure #1 \("ubuntu-data"\) on disk`)
 
 	// if we add a structure to the mock disk which is smaller than the ondisk
@@ -2060,7 +2060,7 @@ volumes:
 	})
 	defer restore()
 
-	_, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo")
 	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget size 1572864000 \(1.46 GiB\)`)
 
 	// same size is okay though
@@ -2070,7 +2070,7 @@ volumes:
 	})
 	defer restore()
 
-	traits, err := gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo")
 	c.Assert(err, IsNil)
 
 	// it has the right size
@@ -2083,14 +2083,14 @@ volumes:
 	})
 	defer restore()
 
-	traits, err = gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/foo")
+	traits, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo")
 	c.Assert(err, IsNil)
 
 	// and it has the on disk size
 	c.Assert(traits.Structure[1].Size, Equals, 3200*quantity.SizeMiB)
 }
 
-func (u *updateTestSuite) TestDiskVolumeDeviceTraitsForDeviceDOSSingleVolume(c *C) {
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *C) {
 	// from a rpi without the kernel assets though for simplicity's sake since
 	// we don't care about the kernel assets for this function at all
 	const yaml = `
@@ -2203,7 +2203,7 @@ volumes:
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskVolumeDeviceTraitsForDevice(lvol, "/dev/mmcblk0")
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0")
 	c.Assert(err, IsNil)
 	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
 		OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",

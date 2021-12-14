@@ -327,11 +327,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
-// DiskVolumeDeviceTraitsForDevice takes a gadget volume and an expected
-// disk device path and builds up the traits for that device. It validates that
-// the specified volume can be laid out exactly to the disk device, returning an
-// error if the two are not compatible.
-func DiskVolumeDeviceTraitsForDevice(laidOutVolume *LaidOutVolume, dev string) (res DiskVolumeDeviceTraits, err error) {
+// DiskTraitsFromDeviceAndValidate takes a laid out gadget volume and an
+// expected disk device path and confirms that they are compatible, and then
+// builds up the disk volume traits for that device. If the laid out volume is
+// not compatible with the disk structure for the specified device an error is
+// returned.
+func DiskTraitsFromDeviceAndValidate(laidOutVolume *LaidOutVolume, dev string) (res DiskVolumeDeviceTraits, err error) {
 	vol := laidOutVolume.Volume
 
 	// get the disk layout for this device
@@ -340,8 +341,10 @@ func DiskVolumeDeviceTraitsForDevice(laidOutVolume *LaidOutVolume, dev string) (
 		return res, fmt.Errorf("cannot read %v partitions for candidate volume %s: %v", dev, vol.Name, err)
 	}
 
-	// ensure that the on disk and the laid out version are actually compatible
+	// ensure that the on disk volume and the laid out volume are actually
+	// compatible
 	opts := &EnsureLayoutCompatibilityOptions{
+		// at this point all partitions should be created
 		AssumeCreatablePartitionsCreated: true,
 	}
 	if err := EnsureLayoutCompatibility(laidOutVolume, diskLayout, opts); err != nil {
@@ -361,20 +364,23 @@ func DiskVolumeDeviceTraitsForDevice(laidOutVolume *LaidOutVolume, dev string) (
 		return res, fmt.Errorf("cannot get partitions for disk device %s: %v", dev, err)
 	}
 
-	// make an easy map of device nodes to partitions for lookup
-	diskPartitionsByDeviceNode := map[string]disks.Partition{}
+	// make an easy map of start offsets to to partitions for lookup
+	diskPartitionsByOffset := map[uint64]disks.Partition{}
 	for _, p := range diskPartitions {
-		diskPartitionsByDeviceNode[p.KernelDeviceNode] = p
+		diskPartitionsByOffset[p.StartInBytes] = p
 	}
 
-	for _, structure := range diskLayout.Structure {
-		part, ok := diskPartitionsByDeviceNode[structure.Node]
+	// create the traits for each structure looping over the laid out structure
+	// to ensure that extra partitions don't sneak in - we double check things
+	// again below this loop
+	for _, structure := range laidOutVolume.LaidOutStructure {
+		part, ok := diskPartitionsByOffset[uint64(structure.StartOffset)]
 		if !ok {
-			// unexpected error - somehow this structure in the OnDiskVolume
-			// does not exist in the same physical disk we built for it using
-			// udev and disks.DiskFromDeviceName (which internally uses the same
-			// code as OnDiskVolumeFromDevice).
-			return res, fmt.Errorf("internal error: inconsistent disk structures from OnDiskVolume and disks.Disk: partition for device node %s missing", structure.Node)
+			// unexpected error - somehow this structure's start offset is not
+			// present in the OnDiskVolume, which is unexpected because we
+			// validated that the laid out volume structure matches the on disk
+			// volume
+			return res, fmt.Errorf("internal error: inconsistent disk structures from LaidOutVolume and disks.Disk: structure starting at %d missing on disk", *structure.Offset)
 		}
 		ms := DiskStructureDeviceTraits{
 			Size:               quantity.Size(part.SizeInBytes),
@@ -392,17 +398,18 @@ func DiskVolumeDeviceTraitsForDevice(laidOutVolume *LaidOutVolume, dev string) (
 		mappedStructures = append(mappedStructures, ms)
 
 		// delete this partition from the map
-		delete(diskPartitionsByDeviceNode, structure.Node)
+		delete(diskPartitionsByOffset, uint64(structure.StartOffset))
 	}
 
 	// check that we don't have any extra partitions on the disk that are not
-	// accounted for in the layout
-	if len(mappedStructures) != len(diskPartitions) {
+	// accounted for in the layout - again this is unexpected since we confirmed
+	// above that the laid out volume was compatible with the on disk volume
+	if len(diskPartitions) != len(mappedStructures) {
 		leftovers := []string{}
-		for _, part := range diskPartitionsByDeviceNode {
+		for _, part := range diskPartitionsByOffset {
 			leftovers = append(leftovers, part.KernelDeviceNode)
 		}
-		return res, fmt.Errorf("unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
+		return res, fmt.Errorf("internal error: unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
 	}
 
 	return DiskVolumeDeviceTraits{
