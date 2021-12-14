@@ -313,7 +313,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 		return fmt.Errorf("cannot get status of services of app %q: expected %d results, got %d", appInfo.Name, len(serviceNames), len(sts))
 	}
 	for _, st := range sts {
-		switch filepath.Ext(st.UnitName) {
+		switch filepath.Ext(st.Name) {
 		case ".service":
 			appInfo.Enabled = st.Enabled
 			appInfo.Active = st.Active
@@ -326,7 +326,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			})
 		case ".socket":
 			appInfo.Activators = append(appInfo.Activators, client.AppActivator{
-				Name:    sockSvcFileToName[st.UnitName],
+				Name:    sockSvcFileToName[st.Name],
 				Enabled: st.Enabled,
 				Active:  st.Active,
 				Type:    "socket",

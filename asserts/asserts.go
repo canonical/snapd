@@ -150,7 +150,8 @@ func init() {
 	// 2: support for $SLOT()/$PLUG()/$MISSING
 	// 3: support for on-store/on-brand/on-model device scope constraints
 	// 4: support for plug-names/slot-names constraints
-	maxSupportedFormat[SnapDeclarationType.Name] = 4
+	// 5: alt attr matcher usage (was unused before, has new behavior now)
+	maxSupportedFormat[SnapDeclarationType.Name] = 5
 
 	// 1: support to limit to device serials
 	maxSupportedFormat[SystemUserType.Name] = 1

@@ -181,6 +181,7 @@ func (s *appsSuite) TestGetAppsInfo(c *check.C) {
 	for _, name := range svcNames {
 		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
 Id=snap.%s.service
+Names=snap.%[1]s.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled
@@ -269,6 +270,7 @@ func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
 	for _, name := range svcNames {
 		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
 Id=snap.%s.service
+Names=snap.%[1]s.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled

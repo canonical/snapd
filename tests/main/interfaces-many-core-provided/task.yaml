@@ -90,6 +90,12 @@ execute: |
             continue
         fi
 
+        if [ "$plug_iface" = "$CONSUMER_SNAP:mount-control" ] && os.query is-trusty ; then
+            # systemd version is too old, skipping
+            snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "systemd version 204 is too old \\(expected at least 209\\)"
+            continue
+        fi
+
         # The netlink-audit interface adds the `audit_read` capability to the
         # AppArmor profile, but that's not supported on some older systems
         if [ "$plug_iface" = "$CONSUMER_SNAP:netlink-audit" ] && os.query is-trusty; then

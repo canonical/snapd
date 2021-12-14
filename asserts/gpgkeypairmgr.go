@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 func ensureGPGHomeDirectory() (string, error) {
@@ -73,6 +74,8 @@ func findGPGCommand() (string, error) {
 	return path, err
 }
 
+var gpgBatchYes = false
+
 func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	homedir, err := ensureGPGHomeDirectory()
 	if err != nil {
@@ -92,6 +95,9 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	}
 
 	general := []string{"--homedir", homedir, "-q", "--no-auto-check-trustdb"}
+	if gpgBatchYes && strutil.ListContains(args, "--batch") {
+		general = append(general, "--yes")
+	}
 	allArgs := append(general, args...)
 
 	path, err := findGPGCommand()
@@ -236,12 +242,20 @@ func (gkm *GPGKeypairManager) Put(privKey PrivateKey) error {
 	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
+type gpgKeypairInfo struct {
+	privKey     PrivateKey
+	fingerprint string
+}
+
+func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
 	stop := errors.New("stop marker")
-	var hit PrivateKey
+	var hit *gpgKeypairInfo
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if privk.PublicKey().ID() == keyID {
-			hit = privk
+			hit = &gpgKeypairInfo{
+				privKey:     privk,
+				fingerprint: fpr,
+			}
 			return stop
 		}
 		return nil
@@ -254,6 +268,26 @@ func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
 		return nil, err
 	}
 	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
+}
+
+func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
+	keyInfo, err := gkm.findByID(keyID)
+	if err != nil {
+		return nil, err
+	}
+	return keyInfo.privKey, nil
+}
+
+func (gkm *GPGKeypairManager) Delete(keyID string) error {
+	keyInfo, err := gkm.findByID(keyID)
+	if err != nil {
+		return err
+	}
+	_, err = gkm.gpg(nil, "--batch", "--delete-secret-and-public-key", "0x"+keyInfo.fingerprint)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.Signature, error) {
@@ -274,11 +308,6 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.
 	}
 
 	return sig, nil
-}
-
-type gpgKeypairInfo struct {
-	privKey     PrivateKey
-	fingerprint string
 }
 
 func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
@@ -353,8 +382,8 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	return EncodePublicKey(keyInfo.privKey.PublicKey())
 }
 
-// Delete removes the named key pair from GnuPG's storage.
-func (gkm *GPGKeypairManager) Delete(name string) error {
+// DeleteByName removes the named key pair from GnuPG's storage.
+func (gkm *GPGKeypairManager) DeleteByName(name string) error {
 	keyInfo, err := gkm.findByName(name)
 	if err != nil {
 		return err
