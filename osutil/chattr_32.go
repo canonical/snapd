@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build arm || 386 || ppc
 // +build arm 386 ppc
 
 /*

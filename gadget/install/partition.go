@@ -177,42 +177,57 @@ func deviceName(name string, index int) string {
 
 // removeCreatedPartitions removes partitions added during a previous install.
 func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
-	indexes := make([]string, 0, len(dl.Structure))
+	sfdiskIndexes := make([]string, 0, len(dl.Structure))
+	// up to 3 possible partitions are creatable and thus removable:
+	// ubuntu-data, ubuntu-boot, and ubuntu-save
+	deletedIndexes := make(map[int]bool, 3)
 	for i, s := range dl.Structure {
 		if wasCreatedDuringInstall(lv, s) {
 			logger.Noticef("partition %s was created during previous install", s.Node)
-			indexes = append(indexes, strconv.Itoa(i+1))
+			sfdiskIndexes = append(sfdiskIndexes, strconv.Itoa(i+1))
+			deletedIndexes[i] = true
 		}
 	}
-	if len(indexes) == 0 {
+	if len(sfdiskIndexes) == 0 {
 		return nil
 	}
 
 	// Delete disk partitions
-	logger.Debugf("delete disk partitions %v", indexes)
-	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, indexes...)...)
+	logger.Debugf("delete disk partitions %v", sfdiskIndexes)
+	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, sfdiskIndexes...)...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 
-	// Reload the partition table
+	// Reload the partition table - note that this specifically does not trigger
+	// udev events to remove the deleted devices, see the doc-comment in
+	// reloadPartitionTable for more details
 	if err := reloadPartitionTable(dl.Device); err != nil {
 		return err
 	}
 
-	// run udevadm settle to wait for udev events that may have been triggered
-	// by reloading the partition table to be processed, as we need the udev
-	// database to be freshly updated and complete before updating the partition
-	// information for the OnDiskVolume
-	// TODO: is 3 minute timeout reasonable for this?
-	if out, err := exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot wait for udev to settle after reloading partition table: %v", osutil.OutputErr(out, err))
+	// Remove the partitions we deleted from the OnDiskVolume - note that we
+	// specifically don't try to just re-build the OnDiskVolume since doing
+	// so correctly requires using only information from the partition table
+	// we just updated with sfdisk (since we used --no-reread above, and we can't
+	// really tell the kernel to re-read the partition table without hitting
+	// EBUSY as the disk is still mounted even though the deleted partitions
+	// were deleted), but to do so would essentially just be testing that sfdisk
+	// updated the partition table in a way we expect. The partition parsing
+	// code we use to build the OnDiskVolume also must not be reliant on using
+	// sfdisk (since it has to work in the initrd where we don't have sfdisk),
+	// so either that code would just be a duplication of what sfdisk is doing
+	// or that code would fail to update the deleted partitions anyways since
+	// at this point the only thing that knows about the deleted partitions is
+	// the physical partition table on the disk.
+	newStructure := make([]gadget.OnDiskStructure, 0, len(dl.Structure)-len(deletedIndexes))
+	for i, structure := range dl.Structure {
+		if !deletedIndexes[i] {
+			newStructure = append(newStructure, structure)
+		}
 	}
 
-	// Re-read the partition table from the device to update our partition list
-	if err := gadget.UpdatePartitionList(dl); err != nil {
-		return err
-	}
+	dl.Structure = newStructure
 
 	// Ensure all created partitions were removed
 	if remaining := createdDuringInstall(lv, dl); len(remaining) > 0 {
