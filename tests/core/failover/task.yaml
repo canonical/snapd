@@ -10,8 +10,8 @@ details: |
     reboots, one for trying the upgrade and another for rolling back) the installed
     fundamental snap is the good one and the boot environment variables are correctly set.
 
-# TODO: enable for UC18 ?
-systems: [ubuntu-core-16-*]
+# TODO: enable for UC20 ?
+systems: [ubuntu-core-16-*, ubuntu-core-18-*]
 
 # Start early as it takes a long time.
 priority: 100
@@ -66,10 +66,17 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
+    core_name="core"
+    if os.query is-core18; then
+        core_name="core18"
+    elif os.query is-core20; then
+        core_name="core20"
+    fi
+
     if [ "$TARGET_SNAP" = kernel ]; then
         TARGET_SNAP_NAME=$kernel_name
     else
-        TARGET_SNAP_NAME=core
+        TARGET_SNAP_NAME="$core_name"
     fi
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
@@ -109,7 +116,7 @@ execute: |
         fi
 
         # check boot env vars
-        readlink /snap/core/current > failBoot
+        readlink "/snap/$core_name/current" > failBoot
         test "$("$TESTSTOOLS"/boot-state bootenv show snap_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
         test "$("$TESTSTOOLS"/boot-state bootenv show snap_try_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat failBoot).snap"
 
@@ -122,15 +129,19 @@ execute: |
     retry -n 60 --wait 1 --env TARGET_SNAP_NAME="$TARGET_SNAP_NAME" sh -c 'test $(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}") = $(cat prevBoot)'
 
     # ensure the last install change failed as expected
-    snap change --last=install | MATCH "cannot finish core installation, there was a rollback across reboot"
+    snap change --last=install | MATCH "cannot finish $TARGET_SNAP_NAME installation, there was a rollback across reboot"
     snap change --last=install | MATCH "^Error.*Automatically connect"
 
     # and the boot env vars are correctly set
     echo "Waiting for snapd to clean snap_mode"
     #shellcheck disable=SC2148
     #shellcheck disable=SC2016
-    retry -n 200 --wait 1 sh -c 'test -z "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)"'
+    retry -n 200 --wait 1 sh -c 'snap debug boot-vars | MATCH "snap_mode=\$"'
 
-    test "$("$TESTSTOOLS"/boot-state bootenv show snap_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
-    # FIXME: reenable the last check when we reset properly snap_try_{core,kernel} on rollback
-    # test "$("$TESTSTOOLS"/boot-state bootenv show snap_try_${TARGET_SNAP})" = ""
+    if [ "$TARGET_SNAP" = kernel ]; then
+        snap debug boot-vars | MATCH 'snap_try_kernel=$'
+        snap debug boot-vars | MATCH "snap_kernel=${TARGET_SNAP_NAME}_$(cat prevBoot).snap\$"
+    else
+        snap debug boot-vars | MATCH 'snap_try_core=$'
+        snap debug boot-vars | MATCH "snap_core=${TARGET_SNAP_NAME}_$(cat prevBoot).snap\$"
+    fi
