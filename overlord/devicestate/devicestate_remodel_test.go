@@ -2604,8 +2604,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":     expectedLabel,
 		"directory": filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		// none of the tasks are downloads so they were not tracked
-		"snap-setup-tasks": []interface{}{"1", "4", "6"},
+		// tasks carrying snap-setup are tracked
+		"snap-setup-tasks": []interface{}{
+			tSwitchChannelKernel.ID(),
+			tSwitchChannelBase.ID(),
+			tSwitchChannelGadget.ID(),
+		},
 	})
 }
 
