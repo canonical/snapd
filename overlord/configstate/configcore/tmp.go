@@ -131,15 +131,13 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fs
 	// smaller than the currently used space in the mount. We
 	// return an error in that case.
 	if opts == nil && modify {
-		output, err := exec.Command("mount", "-o", "remount,"+options, tmpfsMountPoint).CombinedOutput()
-		if err != nil {
+		if output, err := exec.Command("mount", "-o", "remount,"+options, tmpfsMountPoint).CombinedOutput(); err != nil {
 			return fmt.Errorf("cannot remount tmpfs with new size: %s (%s)", err.Error(), output)
 		}
 	}
 
 	glob := tmpMntServOverrideFile
-	_, _, err = osutil.EnsureDirState(overrDir, glob, dirContent)
-	if err != nil {
+	if _, _, err = osutil.EnsureDirState(overrDir, glob, dirContent); err != nil {
 		return err
 	}
 
