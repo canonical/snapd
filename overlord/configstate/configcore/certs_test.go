@@ -42,6 +42,21 @@ type certsSuite struct {
 
 var _ = Suite(&certsSuite{})
 
+func (s *certsSuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
+
+	// Create the folder structure that we need
+	s.certsBasePath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "base")
+	s.certsAddedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "added")
+	s.certsMergedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "merged")
+	s.certsBlockedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "blocked")
+
+	c.Assert(os.MkdirAll(s.certsBasePath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsAddedPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsMergedPath, 0755), IsNil)
+	c.Assert(os.MkdirAll(s.certsBlockedPath, 0755), IsNil)
+}
+
 func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
 	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
@@ -153,19 +168,6 @@ func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
 	c.Assert(err, ErrorMatches, `cannot decode pem certificate "cert-bad"`)
 }
 
-func (s *certsSuite) setupCertificatesTest(c *C) {
-	// Create the folder structure that we need
-	s.certsBasePath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "base")
-	s.certsAddedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "added")
-	s.certsMergedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "merged")
-	s.certsBlockedPath = filepath.Join(dirs.SnapdStoreSSLCertsDir, "blocked")
-
-	c.Assert(os.MkdirAll(s.certsBasePath, 0755), IsNil)
-	c.Assert(os.MkdirAll(s.certsAddedPath, 0755), IsNil)
-	c.Assert(os.MkdirAll(s.certsMergedPath, 0755), IsNil)
-	c.Assert(os.MkdirAll(s.certsBlockedPath, 0755), IsNil)
-}
-
 func (s *certsSuite) writeMockCertificates(c *C, outputPath string, names []string) {
 	mockCertData := []byte(mockCert)
 	for _, name := range names {
@@ -177,7 +179,6 @@ func (s *certsSuite) TestCombineAndInstallCerts(c *C) {
 	// Tests the full scenario with 'safe' data.
 	// It combines the base-certs with the user-certs, excludes one based on
 	// the blocked lists, and then verifies the output is correct.
-	s.setupCertificatesTest(c)
 
 	// Write some certs to the added path, and the base path
 	s.writeMockCertificates(c, s.certsBasePath, []string{"cert0.crt", "cert1.crt", "ca-certificates.crt"})
@@ -208,7 +209,6 @@ func (s *certsSuite) TestCombineAndInstallCerts(c *C) {
 func (s *certsSuite) TestVerifyExclusionOfExtensions(c *C) {
 	// Test verifies that extensions are excluded if the real path of
 	// certificate does not end with .crt
-	s.setupCertificatesTest(c)
 
 	// Write some certs to the added path, and the base path
 	s.writeMockCertificates(c, s.certsBasePath, []string{"cert0.xe", "cert1.crt", "ca-certificates.crt"})
@@ -234,7 +234,6 @@ func (s *certsSuite) TestEmptyDirsNoErrors(c *C) {
 	// Test verifies that nothing bad happens if no input data is provided. We want
 	// to make sure nothing happens in this case, and an empty ca-certificates.crt is
 	// generated
-	s.setupCertificatesTest(c)
 
 	// Generate the expected ca-certificates.crt data that we would expect
 	// to be in the merged path
@@ -252,7 +251,6 @@ func (s *certsSuite) TestUpdateCertificates(c *C) {
 	// Test verifies the update functionality of the combination code. Make sure that
 	// no valid certificates are removed, and that it handles the case where a cert
 	// with same name already exists. (In which case it should get overwritten)
-	s.setupCertificatesTest(c)
 
 	// Write some certs to the added path, and the base path
 	s.writeMockCertificates(c, s.certsMergedPath, []string{"cert0.crt", "cert1.crt", "ca-certificates.crt"})
@@ -282,7 +280,6 @@ func (s *certsSuite) TestUpdateCertificatesWithOutputInInput(c *C) {
 	// Test verifies the update functionality of the combination code, as before, except
 	// this time the output directory is also in the input directories. This should
 	// not make a difference.
-	s.setupCertificatesTest(c)
 
 	// Write some certs to the added path, and the base path
 	s.writeMockCertificates(c, s.certsMergedPath, []string{"cert0.crt", "cert1.crt", "ca-certificates.crt"})
