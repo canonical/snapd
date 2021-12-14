@@ -61,6 +61,12 @@ execute: |
         truncate -s 0 "$BUILD_DIR/unpack/initrd.img"
     }
 
+    if os.query is-core18 && [[ "$SPREAD_VARIANT" = "rclocalcrash" ]]; then
+        # there is no /etc/rc.local on core18
+        echo "scenario isn't supported on core18"
+        exit 0
+    fi
+
     #shellcheck source=tests/lib/names.sh
     . "$TESTSLIB"/names.sh
     #shellcheck source=tests/lib/snaps.sh
