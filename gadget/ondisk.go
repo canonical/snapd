@@ -157,18 +157,3 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 
 	return dl, nil
 }
-
-// UpdatePartitionList re-reads the partitioning data from the device and
-// updates the volume structures in the specified volume.
-func UpdatePartitionList(dl *OnDiskVolume) error {
-	layout, err := OnDiskVolumeFromDevice(dl.Device)
-	if err != nil {
-		return fmt.Errorf("cannot read disk layout: %v", err)
-	}
-	if dl.ID != layout.ID {
-		return fmt.Errorf("partition table IDs don't match")
-	}
-
-	dl.Structure = layout.Structure
-	return nil
-}
