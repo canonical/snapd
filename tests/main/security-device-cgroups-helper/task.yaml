@@ -8,6 +8,8 @@ environment:
     DEVICES_PATH_MEM_FULL: /devices/virtual/mem/full
     # and /dev/kmsg has 1:11
     DEVICES_PATH_MEM_KMSG: /devices/virtual/mem/kmsg
+    # enable debugs from s-c
+    SNAPD_DEBUG: "1"
 
 debug: |
     udevadm info /dev/full || true
