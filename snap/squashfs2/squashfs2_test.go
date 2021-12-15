@@ -44,9 +44,9 @@ type squashfsSuite struct {
 
 var _ = Suite(&squashfsSuite{})
 
-func makeSnap(c *C, manifest, data string) *squashfs.Snap {
+func makeSnap(c *C, name, manifest, data string) *squashfs.Snap {
 	cur, _ := os.Getwd()
-	return makeSnapInDir(c, cur, manifest, data)
+	return makeSnapInDir(c, filepath.Join(cur, name), manifest, data)
 }
 
 func makeSnapContents(c *C, manifest, data string) string {
@@ -79,7 +79,7 @@ func makeSnapContents(c *C, manifest, data string) string {
 	return tmp
 }
 
-func makeSnapInDir(c *C, dir, manifest, data string) *squashfs.Snap {
+func makeSnapInDir(c *C, path, manifest, data string) *squashfs.Snap {
 	snapType := "app"
 	var m struct {
 		Type string `yaml:"type"`
@@ -90,7 +90,7 @@ func makeSnapInDir(c *C, dir, manifest, data string) *squashfs.Snap {
 
 	tmp := makeSnapContents(c, manifest, data)
 	// build it
-	sn := squashfs.New(filepath.Join(dir, "foo.snap"))
+	sn := squashfs.New(path)
 	err := sn.Build(tmp, &squashfs.BuildOpts{SnapType: snapType})
 	c.Assert(err, IsNil)
 
@@ -109,7 +109,7 @@ func (s *squashfsSuite) SetUpTest(c *C) {
 
 func (s *squashfsSuite) TestCanReadFromSquashFS(c *C) {
 	manifest := "name: test"
-	sn := makeSnap(c, manifest, "")
+	sn := makeSnap(c, "foo.snap", manifest, "")
 	sfs, err := squashfs2.Open(sn.Path())
 	c.Assert(err, IsNil)
 	c.Assert(sfs, NotNil)

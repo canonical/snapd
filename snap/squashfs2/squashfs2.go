@@ -82,6 +82,10 @@ func createCompressionBackend(stream *os.File, sb *internal.SuperBlock) (Compres
 	switch sb.CompressionType {
 	case internal.CompressionXz:
 		return createXzBackend(optionsBlock)
+	case internal.CompressionLzma:
+		return createLzmaBackend() // lzma does not support the options block
+	case internal.CompressionLzo:
+		return createLzoBackend(optionsBlock)
 	default:
 		return nil, fmt.Errorf("squashfs: unsupported compression type %d", sb.CompressionType)
 	}
