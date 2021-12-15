@@ -32,6 +32,7 @@ const libvirtBaseDeclarationSlots = `
 const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock rw,
 /etc/libvirt/* r,
+deny ptrace read peer=snap.@{SNAP_INSTANCE_NAME}.*,
 `
 
 const libvirtConnectedPlugSecComp = `
