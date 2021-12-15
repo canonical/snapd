@@ -127,7 +127,8 @@ func getNetplanCfgSnapshot() (dbus.BusObject, error) {
 }
 
 func validateNetplanSettings(tr config.Conf) error {
-	// XXX: validate somehow once we support writing?
+	// validation is done by netplan itself on apply, there is no
+	// way to dry-run this
 	return nil
 }
 
@@ -271,7 +272,7 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 	// and discard the config snapshot
 	var wasCancelled bool
 	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
-		logger.Noticef("cannot Cancel config: %v", err)
+		logger.Noticef("cannot Cancel() config: %v", err)
 	}
 	if !wasCancelled {
 		logger.Noticef("config was not cancelled")
