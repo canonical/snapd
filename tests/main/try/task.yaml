@@ -21,8 +21,7 @@ restore: |
 execute: |
     echo "Given a buildable snap in a known directory"
     echo "When try is executed on that directory"
-    cp -r "$TESTSLIB"/snaps/test-snapd-tools test-snapd-tools
-    snap try test-snapd-tools
+    snap try "$TESTSLIB"/snaps/test-snapd-tools
 
     echo "Then the snap is listed as installed with try in the notes"
     snap list | MATCH '^test-snapd-tools .* try'
@@ -33,16 +32,6 @@ execute: |
     echo "And commands from the snap-try binary can read in a readable dir"
     echo -n "Hello World" > "$READABLE_FILE"
     test-snapd-tools.cat "$READABLE_FILE" | MATCH "Hello World"
-
-    # intentionally break the try snap by removing the meta directory so that
-    # snapd cannot read the snap.yaml
-    rm -r test-snapd-tools
-
-    systemctl restart snapd
-
-    # exit early so that the tests.invariant catches out purposefully broken 
-    # snap (hopefully...)
-    exit 0
 
     echo "Given a buildable snap which access confinement-protected resources in a known directory"
     echo "When try is executed on that directory"
