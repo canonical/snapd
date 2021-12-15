@@ -190,7 +190,7 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 
 	_, flags, snapst := params(update)
 
-	opts, err := GetSnapDirOptions(st, nil, update.InstanceName())
+	opts, err := GetHiddenDirOpts(st, nil, update.InstanceName())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -206,7 +206,7 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 		Type:               i.Type(),
 		PlugsOnly:          len(i.Slots) == 0,
 		InstanceKey:        i.InstanceKey,
-		MigratedHidden:     opts.HideSnapDir,
+		MigratedHidden:     opts.UseHidden,
 	}
 	return &snapsup, snapst, nil
 }
@@ -979,7 +979,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
-	opts, err := GetSnapDirOptions(st, nil, instanceName)
+	opts, err := GetHiddenDirOpts(st, nil, instanceName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -996,7 +996,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		Type:               info.Type(),
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
-		MigratedHidden:     opts.HideSnapDir,
+		MigratedHidden:     opts.UseHidden,
 	}
 
 	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
@@ -1074,7 +1074,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	snapDirOpts, err := GetSnapDirOptions(st, nil, info.InstanceName())
+	hideOpts, err := GetHiddenDirOpts(st, nil, info.InstanceName())
 	if err != nil {
 		return nil, err
 	}
@@ -1097,7 +1097,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 			Website: info.Website,
 		},
 		CohortKey:      opts.CohortKey,
-		MigratedHidden: snapDirOpts.HideSnapDir,
+		MigratedHidden: hideOpts.UseHidden,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1239,7 +1239,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			channel = sar.RedirectChannel
 		}
 
-		opts, err := GetSnapDirOptions(st, nil, info.InstanceName())
+		opts, err := GetHiddenDirOpts(st, nil, info.InstanceName())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1257,7 +1257,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Type:               info.Type(),
 			PlugsOnly:          len(info.Slots) == 0,
 			InstanceKey:        info.InstanceKey,
-			MigratedHidden:     opts.HideSnapDir,
+			MigratedHidden:     opts.UseHidden,
 		}
 
 		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))

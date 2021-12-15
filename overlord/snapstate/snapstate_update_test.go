@@ -7165,7 +7165,7 @@ func (s *snapmgrTestSuite) TestUpdateAfterMigration(c *C) {
 	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
 	c.Assert(s.fakeBackend.ops.First("undo-hide-snap-data"), IsNil)
 
-	opts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 	c.Assert(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, opts)
 
 	// check state and seq file still have correct migration state

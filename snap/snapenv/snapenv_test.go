@@ -305,9 +305,7 @@ func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 		opts *dirs.SnapDirOptions
 	}{
 		{dir: dirs.UserHomeSnapDir, opts: nil},
-		{dir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{HideSnapDir: true}},
-		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}},
-	} {
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
 		env := osutil.Environment{}
 		ExtendEnvForRun(env, mockSnapInfo, t.opts)
 

@@ -1852,7 +1852,7 @@ func (s *infoSuite) TestSortAppInfoBySnapApp(c *C) {
 
 func (s *infoSuite) TestHelpersWithHiddenSnapFolder(c *C) {
 	dirs.SetRootDir("")
-	opts := &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true}
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
 	c.Check(snap.UserDataDir("/home/bob", "name", snap.R(1), opts), Equals, "/home/bob/.snap/data/name/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name", opts), Equals, "/home/bob/.snap/data/name/common")

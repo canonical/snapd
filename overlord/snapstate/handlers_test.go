@@ -24,7 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -285,7 +284,7 @@ func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
 	c.Check(logs[0], testutil.Contains, "ERROR something failed")
 }
 
-func (s *handlersSuite) TestGetSnapDirOptionsFromSnapState(c *C) {
+func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -303,12 +302,12 @@ func (s *handlersSuite) TestGetSnapDirOptionsFromSnapState(c *C) {
 	})
 
 	// check options reflect flag
-	opts, err := snapstate.GetSnapDirOptions(s.state, nil, "some-snap")
+	opts, err := snapstate.GetHiddenDirOpts(s.state, nil, "some-snap")
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true})
+	c.Check(opts, DeepEquals, &snapstate.HiddenDirOptions{UseHidden: true, MigratedToHidden: true})
 }
 
-func (s *handlersSuite) TestGetSnapDirOptionsFromSnapSetup(c *C) {
+func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapSetup(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -323,12 +322,12 @@ func (s *handlersSuite) TestGetSnapDirOptionsFromSnapSetup(c *C) {
 	snapsup := &snapstate.SnapSetup{MigratedHidden: true}
 
 	// check options reflect flag
-	opts, err := snapstate.GetSnapDirOptions(s.state, snapsup, "some-snap")
+	opts, err := snapstate.GetHiddenDirOpts(s.state, snapsup, "some-snap")
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: true})
+	c.Check(opts, DeepEquals, &snapstate.HiddenDirOptions{UseHidden: true, MigratedToHidden: true})
 }
 
-func (s *handlersSuite) TestGetSnapDirOptionsNoState(c *C) {
+func (s *handlersSuite) TestGetHiddenDirOptionsNoState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -341,7 +340,7 @@ func (s *handlersSuite) TestGetSnapDirOptionsNoState(c *C) {
 	tr.Commit()
 
 	// check options reflect flag
-	opts, err := snapstate.GetSnapDirOptions(s.state, nil, "some-snap")
+	opts, err := snapstate.GetHiddenDirOpts(s.state, nil, "some-snap")
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HideSnapDir: true, MigratedHidden: false})
+	c.Check(opts, DeepEquals, &snapstate.HiddenDirOptions{UseHidden: true})
 }

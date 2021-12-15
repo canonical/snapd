@@ -1117,14 +1117,15 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := GetSnapDirOptions(st, snapsup, snapsup.InstanceName())
+	opts, err := GetHiddenDirOpts(st, snapsup, snapsup.InstanceName())
 	st.Unlock()
 	if err != nil {
 		return err
 	}
 
+	dirOpts := opts.GetSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, opts); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, dirOpts); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1149,7 +1150,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// the migration hasn't been done - do it now
-	if opts.HideSnapDir && !opts.MigratedHidden {
+	if opts.UseHidden && !opts.MigratedToHidden {
 		if err := m.migrateToHiddenDir(t); err != nil {
 			return err
 		}
@@ -1219,14 +1220,15 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := GetSnapDirOptions(st, snapsup, snapsup.InstanceName())
+	opts, err := GetHiddenDirOpts(st, snapsup, snapsup.InstanceName())
 	st.Unlock()
 	if err != nil {
 		return fmt.Errorf("failed to get snap dir options: %w", err)
 	}
 
+	dirOpts := opts.GetSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, opts); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
 		return err
 	}
 
@@ -2492,20 +2494,21 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := GetSnapDirOptions(st, snapsup, snapsup.InstanceName())
+	opts, err := GetHiddenDirOpts(st, snapsup, snapsup.InstanceName())
 	st.Unlock()
 
 	if err != nil {
 		return err
 	}
 
-	if err = m.backend.RemoveSnapData(info, opts); err != nil {
+	dirOpts := opts.GetSnapDirOpts()
+	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err
 	}
 
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
-		if err = m.backend.RemoveSnapCommonData(info, opts); err != nil {
+		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
 			return err
 		}
 
@@ -3527,21 +3530,37 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	mainTask.Logf("added auto-connect task")
 }
 
-// GetSnapDirOptions checks if the feature flag is set and if the snap data
+type HiddenDirOptions struct {
+	// UseHidden states whether the user has requested that the hidden data dir be used
+	UseHidden bool
+
+	// MigratedToHidden states whether the data has been migrated to the hidden dir
+	MigratedToHidden bool
+}
+
+// GetSnapDirOpts return the options required to get the correct snap
+// data dir, based on the state's options.
+func (o *HiddenDirOptions) GetSnapDirOpts() *dirs.SnapDirOptions {
+	return &dirs.SnapDirOptions{
+		HiddenSnapDataDir: o.MigratedToHidden,
+	}
+}
+
+// GetHiddenDirOpts checks if the feature flag is set and if the snap data
 // has been migrated, first checking the SnapSetup (if not nil) and then
 // the SnapState. The state must be locked by the caller.
-var GetSnapDirOptions = func(st *state.State, snapsup *SnapSetup, name string) (*dirs.SnapDirOptions, error) {
+var GetHiddenDirOpts = func(st *state.State, snapsup *SnapSetup, name string) (*HiddenDirOptions, error) {
 	tr := config.NewTransaction(st)
 	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
 	}
 
-	opts := &dirs.SnapDirOptions{HideSnapDir: hiddenDir}
+	opts := &HiddenDirOptions{UseHidden: hiddenDir}
 
 	// it was migrated during this install (might not be in the state yet)
 	if snapsup != nil && snapsup.MigratedHidden {
-		opts.MigratedHidden = true
+		opts.MigratedToHidden = true
 		return opts, nil
 	}
 
@@ -3554,14 +3573,14 @@ var GetSnapDirOptions = func(st *state.State, snapsup *SnapSetup, name string) (
 		return nil, err
 	}
 
-	opts.MigratedHidden = snapst.MigratedHidden
+	opts.MigratedToHidden = snapst.MigratedHidden
 	return opts, nil
 }
 
-func MockGetSnapDirOptions(f func(*state.State, *SnapSetup, string) (*dirs.SnapDirOptions, error)) (restore func()) {
-	old := GetSnapDirOptions
-	GetSnapDirOptions = f
+func MockGetHiddenDirOptions(f func(*state.State, *SnapSetup, string) (*HiddenDirOptions, error)) (restore func()) {
+	old := GetHiddenDirOpts
+	GetHiddenDirOpts = f
 	return func() {
-		GetSnapDirOptions = old
+		GetHiddenDirOpts = old
 	}
 }

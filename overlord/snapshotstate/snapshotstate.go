@@ -110,12 +110,13 @@ func EstimateSnapshotSize(st *state.State, instanceName string, users []string) 
 		return 0, err
 	}
 
-	opts, err := snapstate.GetSnapDirOptions(st, nil, cur.InstanceName())
+	opts, err := snapstate.GetHiddenDirOpts(st, nil, cur.InstanceName())
 	if err != nil {
 		return 0, err
 	}
 
-	sz, err := backendEstimateSnapshotSize(cur, users, opts)
+	dirOpts := opts.GetSnapDirOpts()
+	sz, err := backendEstimateSnapshotSize(cur, users, dirOpts)
 	if err != nil {
 		return 0, err
 	}

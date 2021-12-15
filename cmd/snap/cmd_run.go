@@ -1220,7 +1220,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 
 func getSnapDirOptions() *dirs.SnapDirOptions {
 	return &dirs.SnapDirOptions{
-		HideSnapDir: features.HiddenSnapDataHomeDir.IsEnabled(),
+		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
 	}
 }
 
