@@ -28,11 +28,6 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs2/internal"
 )
 
-const (
-	metadataBlockSize      = 8192
-	directoryMaxEntryCount = 256
-)
-
 type CompressionBackend interface {
 	Decompress(in []byte, out []byte) (int, error)
 }

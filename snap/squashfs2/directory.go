@@ -29,7 +29,8 @@ import (
 const (
 	// directories when empty has the size 3 to include virtual entries
 	// like '.' and '..'
-	directoryEmptySize = 3
+	directoryEmptySize     = 3
+	directoryMaxEntryCount = 256
 
 	directoryHeaderSize = 12
 	directoryEntrySize  = 8

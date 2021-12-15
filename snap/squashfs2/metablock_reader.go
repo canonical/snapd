@@ -27,6 +27,10 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs2/internal"
 )
 
+const (
+	metadataBlockSize = 8192
+)
+
 type metablock struct {
 	position  int64
 	length    int

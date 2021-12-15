@@ -51,9 +51,9 @@ type Inode struct {
 }
 
 type InodeBlkDev struct {
-	base   Inode
-	nlinks uint32
-	devid  uint32
+	Base   Inode
+	Nlinks uint32
+	DevId  uint32
 }
 
 type InodeDir struct {
@@ -66,14 +66,14 @@ type InodeDir struct {
 }
 
 type InodeDirExt struct {
-	base         Inode
-	nlinks       uint32
-	size         uint32
-	startBlock   uint32
-	parent_inode uint32
-	indices      uint16
-	offset       uint16
-	xattribs     uint32
+	Base        Inode
+	Nlinks      uint32
+	Size        uint32
+	StartBlock  uint32
+	ParentInode uint32
+	Indices     uint16
+	Offset      uint16
+	Xattribs    uint32
 }
 
 type InodeReg struct {
@@ -86,9 +86,10 @@ type InodeReg struct {
 }
 
 type InodeSymlink struct {
-	base   Inode
-	nlinks uint32
-	size   uint32
+	Base    Inode
+	Nlinks  uint32
+	Size    uint32
+	Symlink string
 }
 
 func parseInode(data []byte) Inode {
