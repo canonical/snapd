@@ -283,10 +283,10 @@ func (s *specSuite) TestApparmorSnippetsFromLayout(c *C) {
 	s.spec.AddLayout(snapInfo)
 	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.vanguard.vanguard": {
-			"# Layout path: /etc/foo.conf\n/etc/foo.conf mrwklix,",
-			"# Layout path: /usr/foo\n/usr/foo{,/**} mrwklix,",
+			"# Layout path: /etc/foo.conf\n\"/etc/foo.conf\" mrwklix,",
+			"# Layout path: /usr/foo\n\"/usr/foo{,/**}\" mrwklix,",
 			"# Layout path: /var/cache/mylink\n# (no extra permissions required for symlink)",
-			"# Layout path: /var/tmp\n/var/tmp{,/**} mrwklix,",
+			"# Layout path: /var/tmp\n\"/var/tmp{,/**}\" mrwklix,",
 		},
 	})
 	updateNS := s.spec.UpdateNS()
