@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,8 @@ package squashfs2
 import (
 	"fmt"
 	"os"
+
+	"github.com/snapcore/snapd/snap/squashfs2/internal"
 )
 
 type metablock struct {
@@ -45,7 +47,7 @@ func min(a, b int) int {
 // overlap compressed blocks. Inodes are identified by a 48-bit number which encodes the location of the
 // compressed metadata block containing the inode, and the byte offset into
 // that block where the inode is placed (<block, offset>).
-func metablockReaderCreate(stream *os.File, compression CompressionBackend, offset int64, ref ...metadataRef) *metaBlockReader {
+func metablockReaderCreate(stream *os.File, compression CompressionBackend, offset int64, ref ...internal.MetadataRef) *metaBlockReader {
 	m := &metaBlockReader{
 		stream:        stream,
 		streamOffset:  offset,
@@ -63,12 +65,12 @@ func metablockReaderCreate(stream *os.File, compression CompressionBackend, offs
 	return m
 }
 
-func (m *metaBlockReader) seekToRef(ref metadataRef) error {
-	if ref.offset < 0 || ref.offset >= metadataBlockSize {
-		return fmt.Errorf("squashfs: invalid metadata offset %d", ref.offset)
+func (m *metaBlockReader) seekToRef(ref internal.MetadataRef) error {
+	if ref.Offset < 0 || ref.Offset >= metadataBlockSize {
+		return fmt.Errorf("squashfs: invalid metadata offset %d", ref.Offset)
 	}
-	m.currentBlock = ref.block
-	m.currentOffset = ref.offset
+	m.currentBlock = ref.Block
+	m.currentOffset = ref.Offset
 	return nil
 }
 
@@ -82,7 +84,7 @@ func (m *metaBlockReader) seek(block int64, offset int) error {
 }
 
 func parseMetablockLength(data []byte) (int, bool) {
-	length := readUint16(data)
+	length := internal.ReadUint16(data)
 	isCompressed := (length & 0x8000) == 0
 	length &= 0x7fff
 	return int(length), isCompressed
@@ -118,11 +120,9 @@ func (m *metaBlockReader) readMetablock(position int64) (*metablock, error) {
 		return nil, err
 	}
 
-	if isCompressed {
-		if m.compression == nil {
-			return nil, fmt.Errorf("squashfs: no compression backend available")
-		}
-
+	// If the compression backend is set to nil, then the metadata has been
+	// marked as uncompressed in the superblock. And that takes precendence.
+	if isCompressed && m.compression != nil {
 		// Decompressed data is always less or equal to 8KiB
 		decompressedBuffer := make([]byte, metadataBlockSize)
 		bytesDecompressed, err := m.compression.Decompress(buffer, decompressedBuffer)

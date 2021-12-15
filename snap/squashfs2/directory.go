@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,58 +20,92 @@
 
 package squashfs2
 
-import "fmt"
+import (
+	"fmt"
 
-func (d *directory) readDirectoryHeader() squashfs_dir_header {
-	header := make([]byte, 12)
-	d.reader.read(header)
+	"github.com/snapcore/snapd/snap/squashfs2/internal"
+)
 
-	return squashfs_dir_header{
-		count:      readUint32(header[0:]),
-		startBlock: readUint32(header[4:]),
-		ino:        readUint32(header[8:]),
+const (
+	// directories when empty has the size 3 to include virtual entries
+	// like '.' and '..'
+	directoryEmptySize = 3
+
+	directoryHeaderSize = 12
+	directoryEntrySize  = 8
+)
+
+func (d *directory) readHeader() (internal.DirectoryHeader, error) {
+	data := make([]byte, directoryHeaderSize)
+	if err := d.reader.read(data); err != nil {
+		return internal.DirectoryHeader{}, err
 	}
+
+	header := internal.DirectoryHeader{}
+	if err := header.Parse(data); err != nil {
+		return internal.DirectoryHeader{}, err
+	}
+	return header, nil
 }
 
-func (d *directory) readDirectoryEntry(header *squashfs_dir_header) (squashfs_dir_entry, int) {
-	buffer := make([]byte, 8)
-	d.reader.read(buffer)
-
-	entry := squashfs_dir_entry{
-		startBlock: header.startBlock,
-		offset:     readUint16(buffer[0:]),
-		ino:        readInt16(buffer[2:]),
-		itype:      readUint16(buffer[4:]),
-		size:       readUint16(buffer[6:]),
-		name:       "",
+func (d *directory) readEntry(header *internal.DirectoryHeader) (internal.DirectoryEntry, int, error) {
+	buffer := make([]byte, directoryEntrySize)
+	if err := d.reader.read(buffer); err != nil {
+		return internal.DirectoryEntry{}, 0, err
 	}
 
-	name := make([]byte, entry.size+1)
-	d.reader.read(name)
-	entry.name = string(name)
-	return entry, int(entry.size) + 8 + 1
+	// the parser does not parse the name, so we have to do it here, as
+	// we need to know the size of the name before reading it
+	entry := internal.DirectoryEntry{}
+	if err := entry.Parse(buffer); err != nil {
+		return internal.DirectoryEntry{}, 0, err
+	}
+
+	name := make([]byte, entry.Size+1)
+	if err := d.reader.read(name); err != nil {
+		return internal.DirectoryEntry{}, 0, err
+	}
+
+	entry.StartBlock = header.StartBlock
+	entry.Name = string(name)
+
+	// We've read the name length, 8 bytes for the directory entry
+	// and 1 extra byte for the null terminator
+	bytesRead := int(entry.Size) + directoryEntrySize + 1
+	return entry, bytesRead, nil
 }
 
 func (d *directory) loadEntries() error {
-	if d.node.size == 3 {
+	if d.node.Size == directoryEmptySize {
 		// directory is empty
 		return nil
 	}
-	d.reader.seek(int64(d.node.startBlock), int(d.node.offset))
+
+	if err := d.reader.seek(int64(d.node.StartBlock), int(d.node.Offset)); err != nil {
+		return err
+	}
 
 	bytesRead := 0
-	for bytesRead < int(d.node.size)-3 {
-		dirHeader := d.readDirectoryHeader()
-		bytesRead += 12
+	for bytesRead < int(d.node.Size)-directoryEmptySize {
+		dirHeader, err := d.readHeader()
+		if err != nil {
+			return err
+		}
 
-		if dirHeader.count > directoryMaxEntryCount {
-			return fmt.Errorf("squashfs: invalid number of directory entries: %d", dirHeader.count)
+		bytesRead += directoryHeaderSize
+
+		if dirHeader.Count > directoryMaxEntryCount {
+			return fmt.Errorf("squashfs: invalid number of directory entries: %d", dirHeader.Count)
 		}
 
 		// squashfs is littered with magic arethmetics, count is
 		// actually one less than specified in count
-		for i := 0; i < int(dirHeader.count)+1; i++ {
-			entry, size := d.readDirectoryEntry(&dirHeader)
+		for i := 0; i < int(dirHeader.Count)+1; i++ {
+			entry, size, err := d.readEntry(&dirHeader)
+			if err != nil {
+				return err
+			}
+
 			d.entries = append(d.entries, entry)
 			bytesRead += size
 		}
@@ -81,7 +115,7 @@ func (d *directory) loadEntries() error {
 	return nil
 }
 
-func (d *directory) lookupDirectoryEntry(name string) (*squashfs_dir_entry, error) {
+func (d *directory) lookupDirectoryEntry(name string) (*internal.DirectoryEntry, error) {
 	if !d.loaded {
 		err := d.loadEntries()
 		if err != nil {
@@ -90,7 +124,7 @@ func (d *directory) lookupDirectoryEntry(name string) (*squashfs_dir_entry, erro
 	}
 
 	for _, entry := range d.entries {
-		if entry.name == name {
+		if entry.Name == name {
 			return &entry, nil
 		}
 	}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,147 +24,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/snapcore/snapd/snap/squashfs2/internal"
 )
 
 const (
-	// https://github.com/plougher/squashfs-tools/blob/master/squashfs-tools/squashfs_fs.h#L289
-	superblockSize         = 96
 	metadataBlockSize      = 8192
 	directoryMaxEntryCount = 256
-
-	superBlockUncompressedInodes    = 0x1
-	superBlockUncompressedData      = 0x2
-	superBlockUncompressedFragments = 0x8
-	superBlockNoFragments           = 0x10
-	superBlockAlwaysFragments       = 0x20
-	superBlockDublicates            = 0x40
-	superBlockExportable            = 0x80
-	superBlockUncompressedXattrs    = 0x100
-	superBlockNoXattrs              = 0x200
-	superBlockCompressorOptions     = 0x400
-	superBlockUncompressedIds       = 0x800
-
-	// Inode types supported by squashfs
-	inodeTypeDirectory         = 1
-	inodeTypeFile              = 2
-	inodeTypeSymlink           = 3
-	inodeTypeBlockDev          = 4
-	inodeTypeCharDev           = 5
-	inodeTypeFifo              = 6
-	inodeTypeSocket            = 7
-	inodeTypeExtendedDirectory = 8
-	inodeTypeExtendedFile      = 9
-	inodeTypeExtendedSymlink   = 10
-	inodeTypeExtendedBlockDev  = 11
-	inodeTypeExtendedCharDev   = 12
-	inodeTypeExtendedFifo      = 13
-	inodeTypeExtendedSocket    = 14
-
-	// Compression types supported by squashfs
-	compressionZlib = 1
-	compressionLzma = 2
-	compressionLzo  = 3
-	compressionXz   = 4
-	compressionLz4  = 5
-	compressionZstd = 6
 )
-
-var (
-	// magic is the magic prefix of squashfs snap files.
-	magic = [4]byte{'h', 's', 'q', 's'}
-)
-
-type squashfs_inode struct {
-	itype uint16
-	mode  uint16
-	uid   uint16
-	gid   uint16
-	mtime uint32
-	ino   uint32
-}
-
-type squashfs_inode_blkdev struct {
-	base   squashfs_inode
-	nlinks uint32
-	devid  uint32
-}
-
-type squashfs_inode_dir struct {
-	base       squashfs_inode
-	startBlock uint32
-	nlinks     uint32
-	size       uint16
-	offset     uint16
-	parent_ino uint32
-}
-
-type squashfs_inode_dir_ext struct {
-	base         squashfs_inode
-	nlinks       uint32
-	size         uint32
-	startBlock   uint32
-	parent_inode uint32
-	indices      uint16
-	offset       uint16
-	xattribs     uint32
-}
-
-type squashfs_inode_reg struct {
-	base       squashfs_inode
-	startBlock uint32
-	fragment   uint32
-	offset     uint32
-	size       uint32
-	blockSizes []uint32
-}
-
-type squashfs_inode_symlink struct {
-	base   squashfs_inode
-	nlinks uint32
-	size   uint32
-}
-
-type squashfs_dir_header struct {
-	count      uint32
-	startBlock uint32
-	ino        uint32
-}
-
-type squashfs_dir_entry struct {
-	startBlock uint32
-	offset     uint16
-	ino        int16
-	itype      uint16
-	size       uint16
-	name       string
-}
-
-type metadataRef struct {
-	offset int
-	block  int64
-}
-
-type squashfs_superblock struct {
-	magic           [4]byte
-	inodes          uint32
-	mkfsTime        uint32
-	blockSize       uint32
-	fragments       uint32
-	compressionType uint16
-	blockSizeLog2   uint16
-	flags           uint16
-	noIDs           uint16
-	s_major         uint16
-	s_minor         uint16
-	rootIno         metadataRef
-	bytesUsed       int64
-	idTableStart    int64
-	xattrIdTableSz  int64
-	inodeTable      int64
-	directoryTable  int64
-	fragmentTable   int64
-	lookupTable     int64
-}
 
 type CompressionBackend interface {
 	Decompress(in []byte, out []byte) (int, error)
@@ -181,111 +48,69 @@ type metaBlockReader struct {
 }
 
 type directory struct {
-	node    *squashfs_inode_dir
+	node    *internal.InodeDir
 	reader  *metaBlockReader
 	loaded  bool
-	entries []squashfs_dir_entry
+	entries []internal.DirectoryEntry
 }
 
 type SquashFileSystem struct {
 	stream          *os.File
-	superBlock      *squashfs_superblock
+	superBlock      *internal.SuperBlock
 	compression     CompressionBackend
 	inodeReader     *metaBlockReader
 	directoryReader *metaBlockReader
 	rootDirectory   *directory
 }
 
-func readUint16(data []byte) uint16 {
-	return uint16(data[0]) | uint16(data[1])<<8
-}
-
-func readInt16(data []byte) int16 {
-	return int16(readUint16(data))
-}
-
-func readUint32(data []byte) uint32 {
-	return uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16 | uint32(data[3])<<24
-}
-
-func readInt32(data []byte) int32 {
-	return int32(readUint32(data))
-}
-
-func readUint64(data []byte) uint64 {
-	return uint64(data[0]) | uint64(data[1])<<8 | uint64(data[2])<<16 | uint64(data[3])<<24 |
-		uint64(data[4])<<32 | uint64(data[5])<<40 | uint64(data[6])<<48 | uint64(data[7])<<56
-}
-
-func readInt64(data []byte) int64 {
-	return int64(readUint64(data))
-}
-
-func readInodeRef(data []byte) metadataRef {
-	value := readInt64(data)
-	return metadataRef{
-		offset: int(value & 0xffff),
-		block:  value >> 16,
-	}
-}
-
-func parseSuperBlock(data []byte) (*squashfs_superblock, error) {
-	if len(data) < superblockSize {
-		return nil, fmt.Errorf("squashfs: superblock too small")
-	}
-
-	sb := &squashfs_superblock{}
-	copy(sb.magic[:], data[:4])
-	if sb.magic != magic {
-		return nil, fmt.Errorf("squashfs: invalid magic")
-	}
-
-	sb.inodes = readUint32(data[4:])
-	sb.mkfsTime = readUint32(data[8:])
-	sb.blockSize = readUint32(data[12:])
-	sb.fragments = readUint32(data[16:])
-	sb.compressionType = readUint16(data[20:])
-	sb.blockSizeLog2 = readUint16(data[22:])
-	sb.flags = readUint16(data[24:])
-	sb.noIDs = readUint16(data[26:])
-	sb.s_major = readUint16(data[28:])
-	sb.s_minor = readUint16(data[30:])
-	sb.rootIno = readInodeRef(data[32:])
-	sb.bytesUsed = readInt64(data[40:])
-	sb.idTableStart = readInt64(data[48:])
-	sb.xattrIdTableSz = readInt64(data[56:])
-	sb.inodeTable = readInt64(data[64:])
-	sb.directoryTable = readInt64(data[72:])
-	sb.fragmentTable = readInt64(data[80:])
-	sb.lookupTable = readInt64(data[88:])
-	return sb, nil
-}
-
-func readSuperBlock(stream *os.File) (*squashfs_superblock, error) {
-	buffer := make([]byte, superblockSize)
+func readSuperBlock(stream *os.File) (*internal.SuperBlock, error) {
+	buffer := make([]byte, internal.SuperBlockSize)
 	_, err := stream.Read(buffer)
 	if err != nil {
 		return nil, err
 	}
-	return parseSuperBlock(buffer)
+
+	sb := &internal.SuperBlock{}
+	if err := sb.Parse(buffer); err != nil {
+		return nil, err
+	}
+	return sb, nil
 }
 
-func createCompressionBackend(stream *os.File, sb *squashfs_superblock) (CompressionBackend, error) {
-	println("squashfs: compression type", sb.compressionType)
+func createCompressionBackend(stream *os.File, sb *internal.SuperBlock) (CompressionBackend, error) {
+	println("squashfs: compression type", sb.CompressionType)
 	var optionsBlock *metaBlockReader = nil
-	if sb.flags&superBlockCompressorOptions != 0 {
-		optionsBlock = metablockReaderCreate(stream, nil, superblockSize)
+	if sb.Flags&internal.SuperBlockCompressorOptions != 0 {
+		optionsBlock = metablockReaderCreate(stream, nil, internal.SuperBlockSize)
 	}
 
-	switch sb.compressionType {
-	case compressionXz:
+	switch sb.CompressionType {
+	case internal.CompressionXz:
 		return createXzBackend(optionsBlock)
 	default:
-		return nil, fmt.Errorf("squashfs: unsupported compression type %d", sb.compressionType)
+		return nil, fmt.Errorf("squashfs: unsupported compression type %d", sb.CompressionType)
+	}
+}
+
+// createInodeReader Instantiates a new inode metadata reader with the appropriate compression support
+func createInodeReader(stream *os.File, cb CompressionBackend, sb *internal.SuperBlock) (*metaBlockReader, error) {
+	if sb.Flags&internal.SuperBlockUncompressedInodes != 0 {
+		inodeReader := metablockReaderCreate(stream, nil, sb.InodeTable, sb.RootIno)
+		if inodeReader == nil {
+			return nil, fmt.Errorf("squashfs: failed to create inode reader")
+		}
+		return inodeReader, nil
+	} else {
+		inodeReader := metablockReaderCreate(stream, cb, sb.InodeTable, sb.RootIno)
+		if inodeReader == nil {
+			return nil, fmt.Errorf("squashfs: failed to create inode reader")
+		}
+		return inodeReader, nil
 	}
 }
 
 // SquashFS layout
+// from: https://dr-emann.github.io/squashfs/
 // ---------------
 // |  superblock   |
 // |---------------|
@@ -312,11 +137,19 @@ func createCompressionBackend(stream *os.File, sb *squashfs_superblock) (Compres
 // |     xattr     |
 // |     table     |
 // |---------------|
-func SquashFsOpen(path string) (*SquashFileSystem, error) {
+func Open(path string) (*SquashFileSystem, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
+
+	// Remember to close the file when we're done if any
+	// errors happens.
+	defer func() {
+		if err != nil {
+			f.Close()
+		}
+	}()
 
 	sb, err := readSuperBlock(f)
 	if err != nil {
@@ -329,12 +162,24 @@ func SquashFsOpen(path string) (*SquashFileSystem, error) {
 		return nil, err
 	}
 
+	// create inode reader
+	inodeReader, err := createInodeReader(f, cb, sb)
+	if err != nil {
+		return nil, err
+	}
+
+	// create directory reader
+	directoryReader := metablockReaderCreate(f, cb, sb.DirectoryTable)
+	if directoryReader == nil {
+		return nil, fmt.Errorf("squashfs: failed to create directory reader")
+	}
+
 	sfs := &SquashFileSystem{
 		stream:          f,
 		superBlock:      sb,
 		compression:     cb,
-		inodeReader:     metablockReaderCreate(f, cb, sb.inodeTable, sb.rootIno),
-		directoryReader: metablockReaderCreate(f, cb, sb.directoryTable),
+		inodeReader:     inodeReader,
+		directoryReader: directoryReader,
 	}
 
 	// initialize root directory right away so we can start
@@ -348,7 +193,7 @@ func SquashFsOpen(path string) (*SquashFileSystem, error) {
 	return sfs, nil
 }
 
-func (sfs *SquashFileSystem) directoryCreate(node *squashfs_inode_dir) *directory {
+func (sfs *SquashFileSystem) directoryCreate(node *internal.InodeDir) *directory {
 	return &directory{
 		node:   node,
 		reader: sfs.directoryReader,
@@ -363,9 +208,9 @@ func (sfs *SquashFileSystem) readInodeData() ([]byte, error) {
 		return nil, err
 	}
 
-	inodeType := readUint16(typeBuffer)
+	inodeType := internal.ReadUint16(typeBuffer)
 	switch inodeType {
-	case inodeTypeFile:
+	case internal.InodeTypeFile:
 		inodeBuffer, err := inodeRegularRead(sfs.inodeReader)
 		if err != nil {
 			return nil, err
@@ -393,8 +238,8 @@ func (sfs *SquashFileSystem) loadRootDirectory() error {
 		return err
 	}
 
-	inode := &squashfs_inode_dir{}
-	inode.parse(inodeBuffer)
+	inode := &internal.InodeDir{}
+	inode.Parse(inodeBuffer)
 
 	sfs.rootDirectory = sfs.directoryCreate(inode)
 	return nil
@@ -404,16 +249,16 @@ func (sfs *SquashFileSystem) Close() error {
 	return sfs.stream.Close()
 }
 
-func (sfs *SquashFileSystem) readDirectoryEntryInode(entry *squashfs_dir_entry) ([]byte, error) {
-	if err := sfs.inodeReader.seek(int64(entry.startBlock), int(entry.offset)); err != nil {
+func (sfs *SquashFileSystem) readDirectoryEntryInode(entry *internal.DirectoryEntry) ([]byte, error) {
+	if err := sfs.inodeReader.seek(int64(entry.StartBlock), int(entry.Offset)); err != nil {
 		return nil, err
 	}
 	return sfs.readInodeData()
 }
 
-func (sfs *SquashFileSystem) createDirectoryFromDirectoryEntry(entry *squashfs_dir_entry) (*directory, error) {
-	if !entry.isDirectory() {
-		return nil, fmt.Errorf("squashfs: %s is not a directory", entry.name)
+func (sfs *SquashFileSystem) createDirectoryFromDirectoryEntry(entry *internal.DirectoryEntry) (*directory, error) {
+	if !entry.IsDirectory() {
+		return nil, fmt.Errorf("squashfs: %s is not a directory", entry.Name)
 	}
 
 	inodeBuffer, err := sfs.readDirectoryEntryInode(entry)
@@ -421,18 +266,18 @@ func (sfs *SquashFileSystem) createDirectoryFromDirectoryEntry(entry *squashfs_d
 		return nil, err
 	}
 
-	inode := &squashfs_inode_dir{}
-	inode.parse(inodeBuffer)
+	inode := &internal.InodeDir{}
+	inode.Parse(inodeBuffer)
 	return sfs.directoryCreate(inode), nil
 }
 
-func (sfs *SquashFileSystem) readFileFromDirectoryEntry(entry *squashfs_dir_entry) ([]byte, error) {
-	if entry.isDirectory() {
-		return nil, fmt.Errorf("squashfs: %s is must not be a directory", entry.name)
+func (sfs *SquashFileSystem) readFileFromDirectoryEntry(entry *internal.DirectoryEntry) ([]byte, error) {
+	if entry.IsDirectory() {
+		return nil, fmt.Errorf("squashfs: %s is must not be a directory", entry.Name)
 	}
 
-	if entry.isSymlink() {
-		return nil, fmt.Errorf("squashfs: %s is a symlink, and we do not support this yet", entry.name)
+	if entry.IsSymlink() {
+		return nil, fmt.Errorf("squashfs: %s is a symlink, and we do not support this yet", entry.Name)
 	}
 
 	inodeBuffer, err := sfs.readDirectoryEntryInode(entry)
@@ -440,13 +285,13 @@ func (sfs *SquashFileSystem) readFileFromDirectoryEntry(entry *squashfs_dir_entr
 		return nil, err
 	}
 
-	if entry.isRegularFile() {
-		inode := &squashfs_inode_reg{}
-		inode.parse(inodeBuffer)
-		return inode.read_data(sfs)
-	} else {
-		return nil, fmt.Errorf("squashfs: %s is not a regular file", entry.name)
+	if !entry.IsRegularFile() {
+		return nil, fmt.Errorf("squashfs: %s is not a regular file", entry.Name)
 	}
+
+	inode := &internal.InodeReg{}
+	inode.Parse(inodeBuffer)
+	return sfs.readInodeFileData(inode)
 }
 
 func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
@@ -462,7 +307,7 @@ func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
 
 		if i == len(tokens)-1 {
 			// last token, entry shall not be a directory
-			if entry.isDirectory() {
+			if entry.IsDirectory() {
 				return nil, fmt.Errorf("squashfs: %s is a directory", path)
 			}
 			return sfs.readFileFromDirectoryEntry(entry)
@@ -470,7 +315,7 @@ func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
 
 		// otherwise we have to descend into the directory
 		// make sure that is a directory
-		if !entry.isDirectory() {
+		if !entry.IsDirectory() {
 			return nil, fmt.Errorf("squashfs: %s is not a directory", path)
 		}
 		currentDirectory, err = sfs.createDirectoryFromDirectoryEntry(entry)
@@ -481,51 +326,19 @@ func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
 	return nil, fmt.Errorf("squashfs: %s not found", path)
 }
 
-func parseInode(data []byte) squashfs_inode {
-	node := squashfs_inode{}
-	node.itype = readUint16(data[0:])
-	node.mode = readUint16(data[2:])
-	node.uid = readUint16(data[4:])
-	node.gid = readUint16(data[6:])
-	node.mtime = readUint32(data[8:])
-	node.ino = readUint32(data[12:])
-	return node
-}
-
-func (n *squashfs_inode_dir) parse(data []byte) {
-	n.base = parseInode(data)
-	n.startBlock = readUint32(data[16:])
-	n.nlinks = readUint32(data[20:])
-	n.size = readUint16(data[24:])
-	n.offset = readUint16(data[26:])
-	n.parent_ino = readUint32(data[28:])
-}
-
 func getDefaultInodeSize(inoType uint16) int {
 	switch inoType {
-	case inodeTypeDirectory:
+	case internal.InodeTypeDirectory:
 		return 32
-	case inodeTypeFile:
+	case internal.InodeTypeFile:
 		return 32
-	case inodeTypeSymlink:
+	case internal.InodeTypeSymlink:
 		return 24
-	case inodeTypeBlockDev:
+	case internal.InodeTypeBlockDev:
 		return 24
-	case inodeTypeExtendedDirectory:
+	case internal.InodeTypeExtendedDirectory:
 		return 40
 	default:
 		return 0
 	}
-}
-
-func (de *squashfs_dir_entry) isDirectory() bool {
-	return de.itype == inodeTypeDirectory || de.itype == inodeTypeExtendedDirectory
-}
-
-func (de *squashfs_dir_entry) isSymlink() bool {
-	return de.itype == inodeTypeSymlink || de.itype == inodeTypeExtendedSymlink
-}
-
-func (de *squashfs_dir_entry) isRegularFile() bool {
-	return de.itype == inodeTypeFile
 }

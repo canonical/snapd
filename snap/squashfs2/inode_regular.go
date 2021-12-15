@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,7 +19,11 @@
  */
 package squashfs2
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/snap/squashfs2/internal"
+)
 
 func inodeRegularRead(reader *metaBlockReader) ([]byte, error) {
 	// Read the rest of the base inode
@@ -30,7 +34,7 @@ func inodeRegularRead(reader *metaBlockReader) ([]byte, error) {
 
 	// Get size of file, usually offset 28, but the type flags
 	// are already read, so it offsets us 2 bytes into the structure
-	size := readUint32(baseData[26:])
+	size := internal.ReadUint32(baseData[26:])
 
 	// Read the blocksize table, the blocksizes vary in their meaning
 	// based on whether or not the fragment table are used. Currently we
@@ -49,53 +53,42 @@ func inodeRegularRead(reader *metaBlockReader) ([]byte, error) {
 		blockData = append(blockData, data...)
 
 		// ... but parse it already as we need to know the size
-		blockSize := readUint32(data)
+		blockSize := internal.ReadUint32(data)
 		i += (blockSize & 0xFEFFFFFF)
 	}
 	return append(baseData, blockData...), nil
 }
 
-func (n *squashfs_inode_reg) parse(data []byte) {
-	n.base = parseInode(data)
-	n.startBlock = readUint32(data[16:])
-	n.fragment = readUint32(data[20:])
-	n.offset = readUint32(data[24:])
-	n.size = readUint32(data[28:])
-
-	// read the blocksize table into the struct
-	for i := 32; i < len(data); i += 4 {
-		blockSize := readUint32(data[i:])
-		n.blockSizes = append(n.blockSizes, blockSize)
-	}
-}
-
-func (n *squashfs_inode_reg) read_data(sfs *SquashFileSystem) ([]byte, error) {
+func (sfs *SquashFileSystem) readInodeFileData(n *internal.InodeReg) ([]byte, error) {
 	// seek to the start of the file
-	if n.fragment != 0xFFFFFFFF {
+	if n.Fragment != 0xFFFFFFFF {
 		return nil, fmt.Errorf("squashfs: inode uses the fragment table, and we do not support this yet")
 	}
 
 	// we should read in block chunks, so allocate a buffer that can hold
 	// the number of blocks that cover the entire file size
-	blockCount := n.size / sfs.superBlock.blockSize
-	if n.size%sfs.superBlock.blockSize != 0 {
+	blockCount := n.Size / sfs.superBlock.BlockSize
+	if n.Size%sfs.superBlock.BlockSize != 0 {
 		blockCount++
 	}
-	buffer := make([]byte, blockCount*sfs.superBlock.blockSize)
+	buffer := make([]byte, blockCount*sfs.superBlock.BlockSize)
 
-	sfs.stream.Seek(int64(n.startBlock), 0)
+	_, err := sfs.stream.Seek(int64(n.StartBlock), 0)
+	if err != nil {
+		return nil, err
+	}
 
 	// Handle the case where compression is turned off for data
-	if sfs.superBlock.flags&superBlockUncompressedData != 0 {
+	if sfs.superBlock.Flags&internal.SuperBlockUncompressedData != 0 {
 		_, err := sfs.stream.Read(buffer)
 		if err != nil {
 			return nil, err
 		}
-		return buffer[:n.size], nil
+		return buffer[:n.Size], nil
 	}
 
-	decompressedBuffer := make([]byte, n.size)
-	for _, block := range n.blockSizes {
+	decompressedBuffer := make([]byte, n.Size)
+	for _, block := range n.BlockSizes {
 		if block&0x1000000 == 0 {
 			// compressed block
 			compressedBuffer := make([]byte, block&0xFEFFFFFF)

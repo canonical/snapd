@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -110,7 +110,7 @@ func (s *squashfsSuite) SetUpTest(c *C) {
 func (s *squashfsSuite) TestCanReadFromSquashFS(c *C) {
 	manifest := "name: test"
 	sn := makeSnap(c, manifest, "")
-	sfs, err := squashfs2.SquashFsOpen(sn.Path())
+	sfs, err := squashfs2.Open(sn.Path())
 	c.Assert(err, IsNil)
 	c.Assert(sfs, NotNil)
 	data, err := sfs.ReadFile("meta/snap.yaml")
