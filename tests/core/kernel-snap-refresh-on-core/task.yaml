@@ -8,6 +8,8 @@ details: |
 # TODO:UC20 enable for UC20/UC18
 systems: [ubuntu-core-16-64]
 
+tags: [ basic ]
+
 manual: true
 
 environment:

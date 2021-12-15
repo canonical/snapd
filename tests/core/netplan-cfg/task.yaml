@@ -4,6 +4,8 @@ summary: Ensure that netplan config integration works
 #       into the older versions of ubuntu
 systems: [ubuntu-core-20-*]
 
+tags: [ basic ]
+
 prepare: |
     snap install jq
 

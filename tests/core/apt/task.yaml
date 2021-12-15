@@ -2,8 +2,6 @@ summary: Ensure that the core systems have a special apt placeholder
 
 systems: [ubuntu-core-*]
 
-tags: [ basic ]
-
 execute: |
   case "$SPREAD_SYSTEM" in
     ubuntu-core-16-*|ubuntu-core-18-*)

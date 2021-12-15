@@ -550,7 +550,7 @@ The nested suites use some environment variables to configure the suite and the 
 
 ### Tagging spread tests
 
-Tags are used to categorize spread tests independently of the test suite where it is located.
+Tags are used to categorize spread tests independently of the test suite where they are located.
 
 This is the list of tags and the tagging criteria:
 

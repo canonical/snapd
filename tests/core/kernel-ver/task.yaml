@@ -3,6 +3,8 @@ summary: Ensure that we have the right kernel
 # TODO: enable for arm?
 systems: [ubuntu-core-*-64]
 
+tags: [ basic ]
+
 execute: |
     echo "Check kernel version"
     if os.query is-core16; then

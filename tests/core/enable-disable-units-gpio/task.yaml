@@ -12,6 +12,8 @@ details: |
 
 systems: [ubuntu-core-*-64]
 
+tags: [ basic ]
+
 prepare: |
     # Core image that were created using spread will have a fake "gpio-pin".
     # Other (e.g. official) images will not have that and there we can't use
