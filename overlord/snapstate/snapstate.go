@@ -173,7 +173,7 @@ type pathInfo struct {
 }
 
 func (i pathInfo) DownloadSize() int64 {
-	return i.DownloadInfo.Size
+	return i.Size
 }
 
 // SnapBase returns the base snap of the snap.
