@@ -488,7 +488,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var snapName string
 	var path string
 
-	if strings.Contains(nameOrPath, "/") || strings.HasSuffix(nameOrPath, ".snap") || strings.Contains(nameOrPath, ".snap.") {
+	if isLocalSnap(nameOrPath) {
 		path = nameOrPath
 		changeID, err = x.client.InstallPath(path, x.Name, opts)
 	} else {
@@ -526,15 +526,32 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	return showDone(x.client, []string{snapName}, "install", opts, x.getEscapes())
 }
 
+func isLocalSnap(name string) bool {
+	return strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.")
+}
+
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
-	// sanity check
+	isLocal := isLocalSnap(names[0])
 	for _, name := range names {
-		if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-			return fmt.Errorf("only one snap file can be installed at a time")
+		if isLocalSnap(name) != isLocal {
+			return fmt.Errorf(i18n.G("cannot install local and store snaps at the same time"))
 		}
 	}
 
-	changeID, err := x.client.InstallMany(names, opts)
+	var changeID string
+	var err error
+
+	if isLocal {
+		changeID, err = x.client.InstallPathMany(names, opts)
+	} else {
+		if x.asksForMode() {
+			return errors.New(i18n.G("cannot specify mode for multiple store snaps (only for one store snap or several local ones)"))
+		}
+
+		// install many doesn't support opts
+		changeID, err = x.client.InstallMany(names, nil)
+	}
+
 	if err != nil {
 		var snapName string
 		if err, ok := err.(*client.Error); ok {
@@ -565,6 +582,11 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		if err := showDone(x.client, installed, "install", opts, x.getEscapes()); err != nil {
 			return err
 		}
+	}
+
+	// local installs aren't skipped if the snap is installed
+	if isLocal {
+		return nil
 	}
 
 	// show skipped
@@ -617,8 +639,8 @@ func (x *cmdInstall) Execute([]string) error {
 		return x.installOne(names[0], x.Name, opts)
 	}
 
-	if x.asksForMode() || x.asksForChannel() {
-		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	if x.asksForChannel() {
+		return errors.New(i18n.G("a single snap name is needed to specify channel flags"))
 	}
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
@@ -627,7 +649,7 @@ func (x *cmdInstall) Execute([]string) error {
 	if x.Name != "" {
 		return errors.New(i18n.G("cannot use instance name when installing multiple snaps"))
 	}
-	return x.installMany(names, nil)
+	return x.installMany(names, opts)
 }
 
 type cmdRefresh struct {
