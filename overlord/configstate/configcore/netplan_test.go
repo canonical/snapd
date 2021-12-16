@@ -376,6 +376,44 @@ func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
 }
 
+func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
+	s.fakestore.status = map[string]bool{"host1": true}
+	s.backend.ConfigApiSetRet = true
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiApplyRet = false
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, "cannot apply netplan config: no reason returned from netplan")
+}
+
+func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
+	s.fakestore.status = map[string]bool{"host1": true}
+	s.backend.ConfigApiSetRet = true
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiApplyErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, "cannot apply netplan config: netplan failed with some error")
+}
+
 func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	// export the V2 api, things work with that
 	s.backend.ExportApiV2()
