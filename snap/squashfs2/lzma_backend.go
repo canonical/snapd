@@ -87,6 +87,11 @@ const (
 	lzmaErrProg        = 11 // compression program is corrupt
 )
 
+const (
+	lzmaDictionarySizeDefault = 32768
+	lzmaDefaultFilters        = -1
+)
+
 type xzBackend struct {
 	dictionarySize    int
 	executableFilters int
@@ -116,8 +121,8 @@ func xzParseOptions(m *metaBlockReader) (int, int, error) {
 }
 
 func createXzBackend(m *metaBlockReader) (xzBackend, error) {
-	dictionarySize := -1
-	executableFilters := -1
+	dictionarySize := lzmaDictionarySizeDefault
+	executableFilters := lzmaDefaultFilters
 	if m != nil {
 		size, filters, err := xzParseOptions(m)
 		if err != nil {

@@ -22,6 +22,7 @@ package squashfs2
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -73,7 +74,6 @@ func readSuperBlock(stream *os.File) (*internal.SuperBlock, error) {
 }
 
 func createCompressionBackend(stream *os.File, sb *internal.SuperBlock) (CompressionBackend, error) {
-	println("squashfs: compression type", sb.CompressionType)
 	var optionsBlock *metaBlockReader = nil
 	if sb.Flags&internal.SuperBlockCompressorOptions != 0 {
 		optionsBlock = metablockReaderCreate(stream, nil, internal.SuperBlockSize)
@@ -201,33 +201,38 @@ func (sfs *SquashFileSystem) directoryCreate(node *internal.InodeDir) *directory
 }
 
 func (sfs *SquashFileSystem) readInodeData() ([]byte, error) {
-	typeBuffer := make([]byte, 2)
-	err := sfs.inodeReader.read(typeBuffer)
-	if err != nil {
+	inodeBaseData := make([]byte, internal.InodeSize)
+	if err := sfs.inodeReader.read(inodeBaseData); err != nil {
 		return nil, err
 	}
 
-	inodeType := internal.ReadUint16(typeBuffer)
-	switch inodeType {
-	case internal.InodeTypeFile:
-		inodeBuffer, err := inodeRegularRead(sfs.inodeReader)
-		if err != nil {
-			return nil, err
-		}
-		return append(typeBuffer, inodeBuffer...), nil
-	default:
-		inodeSize := getDefaultInodeSize(inodeType)
-		if inodeSize == 0 {
-			return nil, fmt.Errorf("squashfs: invalid inode type %d", inodeType)
-		}
+	inode := &internal.Inode{}
+	if err := inode.Parse(inodeBaseData); err != nil {
+		return nil, err
+	}
 
-		inodeBuffer := make([]byte, inodeSize+2)
-		copy(inodeBuffer, typeBuffer)
-		err = sfs.inodeReader.read(inodeBuffer[2:])
+	inodeSize := getDefaultInodeSize(inode.Itype)
+	if inodeSize == 0 {
+		return nil, fmt.Errorf("squashfs: invalid inode type %d", inode.Itype)
+	}
+
+	// Read the remaining inode data
+	inodeFullData := make([]byte, inodeSize)
+	copy(inodeFullData, inodeBaseData)
+	if err := sfs.inodeReader.read(inodeFullData[internal.InodeSize:]); err != nil {
+		return nil, err
+	}
+
+	switch inode.Itype {
+	case internal.InodeTypeFile:
+		// Regular inodes need additional parsing as they have a block table
+		inodeExtData, err := inodeRegularRead(inodeFullData, sfs.inodeReader)
 		if err != nil {
 			return nil, err
 		}
-		return inodeBuffer, nil
+		return append(inodeFullData, inodeExtData...), nil
+	default:
+		return inodeFullData, nil
 	}
 }
 
@@ -238,7 +243,9 @@ func (sfs *SquashFileSystem) loadRootDirectory() error {
 	}
 
 	inode := &internal.InodeDir{}
-	inode.Parse(inodeBuffer)
+	if err := inode.Parse(inodeBuffer); err != nil {
+		return err
+	}
 
 	sfs.rootDirectory = sfs.directoryCreate(inode)
 	return nil
@@ -266,34 +273,13 @@ func (sfs *SquashFileSystem) createDirectoryFromDirectoryEntry(entry *internal.D
 	}
 
 	inode := &internal.InodeDir{}
-	inode.Parse(inodeBuffer)
+	if err := inode.Parse(inodeBuffer); err != nil {
+		return nil, err
+	}
 	return sfs.directoryCreate(inode), nil
 }
 
-func (sfs *SquashFileSystem) readFileFromDirectoryEntry(entry *internal.DirectoryEntry) ([]byte, error) {
-	if entry.IsDirectory() {
-		return nil, fmt.Errorf("squashfs: %s is must not be a directory", entry.Name)
-	}
-
-	if entry.IsSymlink() {
-		return nil, fmt.Errorf("squashfs: %s is a symlink, and we do not support this yet", entry.Name)
-	}
-
-	inodeBuffer, err := sfs.readDirectoryEntryInode(entry)
-	if err != nil {
-		return nil, err
-	}
-
-	if !entry.IsRegularFile() {
-		return nil, fmt.Errorf("squashfs: %s is not a regular file", entry.Name)
-	}
-
-	inode := &internal.InodeReg{}
-	inode.Parse(inodeBuffer)
-	return sfs.readInodeFileData(inode)
-}
-
-func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
+func (sfs *SquashFileSystem) OpenFile(path string) (io.Reader, error) {
 	currentDirectory := sfs.rootDirectory
 
 	// split the provided path into tokens based on '/'
@@ -309,7 +295,7 @@ func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
 			if entry.IsDirectory() {
 				return nil, fmt.Errorf("squashfs: %s is a directory", path)
 			}
-			return sfs.readFileFromDirectoryEntry(entry)
+			return createFileReader(sfs, entry)
 		}
 
 		// otherwise we have to descend into the directory
@@ -328,15 +314,15 @@ func (sfs *SquashFileSystem) ReadFile(path string) ([]byte, error) {
 func getDefaultInodeSize(inoType uint16) int {
 	switch inoType {
 	case internal.InodeTypeDirectory:
-		return 32
+		return internal.InodeDirectorySize
 	case internal.InodeTypeFile:
-		return 32
+		return internal.InodeRegularFileSize
 	case internal.InodeTypeSymlink:
-		return 24
+		return internal.InodeSymlinkSize
 	case internal.InodeTypeBlockDev:
-		return 24
+		return internal.InodeBlockDeviceSize
 	case internal.InodeTypeExtendedDirectory:
-		return 40
+		return internal.InodeExtendedDirectorySize
 	default:
 		return 0
 	}

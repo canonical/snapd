@@ -20,6 +20,8 @@
 package squashfs2_test
 
 import (
+	"bytes"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -113,8 +115,11 @@ func (s *squashfsSuite) TestCanReadFromSquashFS(c *C) {
 	sfs, err := squashfs2.Open(sn.Path())
 	c.Assert(err, IsNil)
 	c.Assert(sfs, NotNil)
-	data, err := sfs.ReadFile("meta/snap.yaml")
+	reader, err := sfs.OpenFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, manifest)
+	data := &bytes.Buffer{}
+	_, err = io.Copy(data, reader)
+	c.Assert(err, IsNil)
+	c.Assert(data.String(), Equals, manifest)
 	defer sfs.Close()
 }

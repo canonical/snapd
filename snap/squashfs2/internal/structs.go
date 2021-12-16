@@ -23,6 +23,13 @@ package internal
 import "errors"
 
 const (
+	InodeSize                  = 16
+	InodeRegularFileSize       = 32
+	InodeDirectorySize         = 32
+	InodeSymlinkSize           = 24
+	InodeBlockDeviceSize       = 24
+	InodeExtendedDirectorySize = 40
+
 	// Inode types supported by squashfs
 	InodeTypeDirectory         = 1
 	InodeTypeFile              = 2
@@ -42,12 +49,12 @@ const (
 
 // https://github.com/plougher/squashfs-tools/blob/master/squashfs-tools/squashfs_fs.h#L289
 type Inode struct {
-	itype uint16
-	mode  uint16
-	uid   uint16
-	gid   uint16
-	mtime uint32
-	ino   uint32
+	Itype uint16
+	Mode  uint16
+	Uid   uint16
+	Gid   uint16
+	Mtime uint32
+	Ino   uint32
 }
 
 type InodeBlkDev struct {
@@ -92,28 +99,55 @@ type InodeSymlink struct {
 	Symlink string
 }
 
-func parseInode(data []byte) Inode {
-	node := Inode{}
-	node.itype = ReadUint16(data[0:])
-	node.mode = ReadUint16(data[2:])
-	node.uid = ReadUint16(data[4:])
-	node.gid = ReadUint16(data[6:])
-	node.mtime = ReadUint32(data[8:])
-	node.ino = ReadUint32(data[12:])
-	return node
+func (n *Inode) Parse(data []byte) error {
+	if len(data) < InodeSize {
+		return &ParseError{
+			Stype: "inode",
+			Err:   errors.New("squashfs: inode data too short"),
+		}
+	}
+
+	n.Itype = ReadUint16(data[0:])
+	n.Mode = ReadUint16(data[2:])
+	n.Uid = ReadUint16(data[4:])
+	n.Gid = ReadUint16(data[6:])
+	n.Mtime = ReadUint32(data[8:])
+	n.Ino = ReadUint32(data[12:])
+	return nil
 }
 
-func (n *InodeDir) Parse(data []byte) {
-	n.Base = parseInode(data)
+func (n *InodeDir) Parse(data []byte) error {
+	if len(data) < InodeDirectorySize {
+		return &ParseError{
+			Stype: "inode_directory",
+			Err:   errors.New("squashfs: inode data too short"),
+		}
+	}
+
+	if err := n.Base.Parse(data[0:InodeSize]); err != nil {
+		return err
+	}
+
 	n.StartBlock = ReadUint32(data[16:])
 	n.Nlinks = ReadUint32(data[20:])
 	n.Size = ReadUint16(data[24:])
 	n.Offset = ReadUint16(data[26:])
 	n.ParentIno = ReadUint32(data[28:])
+	return nil
 }
 
-func (n *InodeReg) Parse(data []byte) {
-	n.Base = parseInode(data)
+func (n *InodeReg) Parse(data []byte) error {
+	if len(data) < InodeRegularFileSize {
+		return &ParseError{
+			Stype: "inode_regular",
+			Err:   errors.New("squashfs: inode data too short"),
+		}
+	}
+
+	if err := n.Base.Parse(data[0:InodeSize]); err != nil {
+		return err
+	}
+
 	n.StartBlock = ReadUint32(data[16:])
 	n.Fragment = ReadUint32(data[20:])
 	n.Offset = ReadUint32(data[24:])
@@ -124,6 +158,7 @@ func (n *InodeReg) Parse(data []byte) {
 		blockSize := ReadUint32(data[i:])
 		n.BlockSizes = append(n.BlockSizes, blockSize)
 	}
+	return nil
 }
 
 type DirectoryHeader struct {
