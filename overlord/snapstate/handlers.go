@@ -1123,7 +1123,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	dirOpts := opts.GetSnapDirOpts()
+	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, dirOpts); copyDataErr != nil {
 		if oldInfo != nil {
@@ -1226,7 +1226,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("failed to get snap dir options: %w", err)
 	}
 
-	dirOpts := opts.GetSnapDirOpts()
+	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
 		return err
@@ -2501,7 +2501,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	dirOpts := opts.GetSnapDirOpts()
+	dirOpts := opts.getSnapDirOpts()
 	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err
 	}
@@ -3530,7 +3530,7 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	mainTask.Logf("added auto-connect task")
 }
 
-type DirMigrationOptions struct {
+type dirMigrationOptions struct {
 	// UseHidden states whether the user has requested that the hidden data dir be used
 	UseHidden bool
 
@@ -3539,7 +3539,7 @@ type DirMigrationOptions struct {
 }
 
 // GetSnapDirOpts returns the snap dir options based on the current the migration status
-func (o *DirMigrationOptions) GetSnapDirOpts() *dirs.SnapDirOptions {
+func (o *dirMigrationOptions) getSnapDirOpts() *dirs.SnapDirOptions {
 	return &dirs.SnapDirOptions{HiddenSnapDataDir: o.MigratedToHidden}
 }
 
@@ -3550,20 +3550,20 @@ var GetSnapDirOpts = func(st *state.State, snapsup *SnapSetup, name string) (*di
 		return nil, err
 	}
 
-	return hiddenOpts.GetSnapDirOpts(), nil
+	return hiddenOpts.getSnapDirOpts(), nil
 }
 
 // getDirMigrationOpts checks if the feature flag is set and if the snap data
 // has been migrated, first checking the SnapSetup (if not nil) and then
 // the SnapState. The state must be locked by the caller.
-var getDirMigrationOpts = func(st *state.State, snapsup *SnapSetup, name string) (*DirMigrationOptions, error) {
+var getDirMigrationOpts = func(st *state.State, snapsup *SnapSetup, name string) (*dirMigrationOptions, error) {
 	tr := config.NewTransaction(st)
 	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
 	}
 
-	opts := &DirMigrationOptions{UseHidden: hiddenDir}
+	opts := &dirMigrationOptions{UseHidden: hiddenDir}
 
 	// it was migrated during this install (might not be in the state yet)
 	if snapsup != nil && snapsup.MigratedHidden {

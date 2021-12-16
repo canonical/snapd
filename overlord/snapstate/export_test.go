@@ -34,6 +34,7 @@ type ManagerBackend managerBackend
 type MinimalInstallInfo = minimalInstallInfo
 type InstallSnapInfo = installSnapInfo
 type ByType = byType
+type DirMigrationOptions = dirMigrationOptions
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
@@ -395,7 +396,7 @@ func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refres
 	}
 }
 
-func MockGetHiddenDirOptions(f func(*state.State, *SnapSetup, string) (*DirMigrationOptions, error)) (restore func()) {
+func MockGetHiddenDirOptions(f func(*state.State, *SnapSetup, string) (*dirMigrationOptions, error)) (restore func()) {
 	old := getDirMigrationOpts
 	getDirMigrationOpts = f
 	return func() {
