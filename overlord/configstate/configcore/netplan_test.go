@@ -21,10 +21,13 @@ package configcore_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/godbus/dbus"
 
 	. "gopkg.in/check.v1"
 
@@ -243,12 +246,67 @@ func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
 	}
 }
 
+func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
+	s.backend.ExportApiV2()
+	s.backend.ConfigApiSetRet = false
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, "cannot set netplan config: no reason returned from netplan")
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
+	s.backend.ExportApiV2()
+	s.backend.ConfigApiSetErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, "cannot set netplan config: netplan failed with some error")
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
+	s.backend.ExportApiV2()
+	s.backend.ConfigApiSetRet = true
+	s.backend.ConfigApiTryRet = false
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, "cannot try netplan config: no reason returned from netplan")
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
+	s.backend.ExportApiV2()
+	s.backend.ConfigApiSetRet = true
+	s.backend.ConfigApiTryErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, "cannot try netplan config: netplan failed with some error")
+}
+
 func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
 	// export the V2 api, things work with that
 	s.backend.ExportApiV2()
 
 	// and everything is fine
 	s.fakestore.status = map[string]bool{"host1": true}
+	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
 
@@ -276,15 +334,17 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	// we have connectivity but it stops
 	s.fakestore.statusSeq = []map[string]bool{
 		{"host1": true},
-		// and is retried 10 times
+		// and is retried 5 times
 		{"host1": false},
 		{"host1": false},
 		{"host1": false},
 		{"host1": false},
 		{"host1": false},
 	}
+	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
+	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
 	tr := config.NewTransaction(s.state)
@@ -300,6 +360,54 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
 	// 1 initial call and 10 retries
 	c.Check(s.fakestore.seq, Equals, 6)
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
+	s.backend.ExportApiV2()
+	s.fakestore.statusSeq = []map[string]bool{
+		{"host1": true},
+		// and is retried 5 times
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
+	}
+	s.backend.ConfigApiSetRet = true
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiCancelRet = false
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: no reason returned from netplan`)
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {
+	s.backend.ExportApiV2()
+	s.fakestore.statusSeq = []map[string]bool{
+		{"host1": true},
+		// and is retried 5 times
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
+		{"host1": false},
+	}
+	s.backend.ConfigApiSetRet = true
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiCancelErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
+	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: netplan failed with some error`)
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigCanUnset(c *C) {
@@ -323,6 +431,7 @@ network:
 
 	// we have connectivity
 	s.fakestore.status = map[string]bool{"host1": true}
+	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
 

@@ -43,21 +43,29 @@ const (
 
 type NetplanServer struct {
 	conn *dbus.Conn
-	err  *dbus.Error
 
 	MockNetplanConfigYaml string
 
+	ConfigErr *dbus.Error
+
+	ConfigApiGetCalls int
+	ConfigApiGetErr   *dbus.Error
+
 	ConfigApiSetCalls []string
 	ConfigApiSetRet   bool
+	ConfigApiSetErr   *dbus.Error
 
 	ConfigApiApplyCalls int
 	ConfigApiApplyRet   bool
+	ConfigApiApplyErr   *dbus.Error
 
 	ConfigApiTryCalls int
 	ConfigApiTryRet   bool
+	ConfigApiTryErr   *dbus.Error
 
 	ConfigApiCancelCalls int
 	ConfigApiCancelRet   bool
+	ConfigApiCancelErr   *dbus.Error
 }
 
 func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
@@ -104,14 +112,6 @@ func (server *NetplanServer) Stop() error {
 	return server.conn.Close()
 }
 
-// SetError sets an error to be returned by the D-Bus interface.
-//
-// If not nil, all the netplanApi methods will return the provided error
-// in place of performing their usual task.
-func (server *NetplanServer) SetError(err *dbus.Error) {
-	server.err = err
-}
-
 // netplanApiV1 implements the original netplan DBus API that is found
 // in netplan 0.98. It can only do a global "Apply".
 type netplanApiV1 struct {
@@ -119,11 +119,7 @@ type netplanApiV1 struct {
 }
 
 func (a netplanApiV1) Apply() (bool, *dbus.Error) {
-	if a.server.err != nil {
-		return false, a.server.err
-	}
-
-	return true, nil
+	return true, a.server.ConfigApiApplyErr
 }
 
 // netplanApiV2 implements the "Config/Get/Set/Try" API that is found
@@ -133,13 +129,10 @@ type netplanApiV2 struct {
 }
 
 func (a netplanApiV2) Config() (dbus.ObjectPath, *dbus.Error) {
-	if a.server.err != nil {
-		return dbus.ObjectPath(""), a.server.err
-	}
 	path := dbus.ObjectPath("/io/netplan/Netplan/config/WFIU80")
 	a.server.conn.Export(netplanConfigApi{a.server, path}, path, netplanConfigInterface)
 
-	return path, nil
+	return path, a.server.ConfigErr
 }
 
 type netplanConfigApi struct {
@@ -149,25 +142,26 @@ type netplanConfigApi struct {
 }
 
 func (c netplanConfigApi) Get() (string, *dbus.Error) {
-	return c.server.MockNetplanConfigYaml, nil
+	c.server.ConfigApiGetCalls++
+	return c.server.MockNetplanConfigYaml, c.server.ConfigApiGetErr
 }
 
 func (c netplanConfigApi) Set(value, originHint string) (bool, *dbus.Error) {
 	c.server.ConfigApiSetCalls = append(c.server.ConfigApiSetCalls, fmt.Sprintf("%s/%s", value, originHint))
-	return c.server.ConfigApiSetRet, nil
+	return c.server.ConfigApiSetRet, c.server.ConfigApiSetErr
 }
 
 func (c netplanConfigApi) Apply() (bool, *dbus.Error) {
 	c.server.ConfigApiApplyCalls++
-	return c.server.ConfigApiApplyRet, nil
+	return c.server.ConfigApiApplyRet, c.server.ConfigApiApplyErr
 }
 
 func (c netplanConfigApi) Cancel() (bool, *dbus.Error) {
 	c.server.ConfigApiCancelCalls++
-	return c.server.ConfigApiCancelRet, nil
+	return c.server.ConfigApiCancelRet, c.server.ConfigApiCancelErr
 }
 
 func (c netplanConfigApi) Try(timeout int) (bool, *dbus.Error) {
 	c.server.ConfigApiTryCalls++
-	return c.server.ConfigApiTryRet, nil
+	return c.server.ConfigApiTryRet, c.server.ConfigApiTryErr
 }

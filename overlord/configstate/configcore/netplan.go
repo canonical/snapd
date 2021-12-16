@@ -154,7 +154,7 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 
 	var cfg map[string]interface{}
 	if err := tr.Get("core", "system.network.netplan", &cfg); err != nil && !config.IsNoOption(err) {
-		return err
+		return fmt.Errorf("cannot get netpan config: %v", err)
 	}
 
 	netplanCfgSnapshot, err := getNetplanCfgSnapshot()
@@ -180,18 +180,19 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		// see https://github.com/canonical/netplan/pull/210
 		jsonNetplanConfigRaw, err := json.Marshal(cfg[key])
 		if err != nil {
-			return fmt.Errorf("cannot netplan config: %v", err)
+			return fmt.Errorf("cannot marshal netplan config: %v", err)
 		}
 		configs = append(configs, fmt.Sprintf("%s=%s", key, string(jsonNetplanConfigRaw)))
 	}
 
 	// now apply
 	for _, jsonNetplanConfig := range configs {
-		logger.Debugf("calling netplan.Set: %v", jsonNetplanConfig)
-
 		var wasSet bool
 		if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Set", 0, jsonNetplanConfig, originHint).Store(&wasSet); err != nil {
-			return fmt.Errorf("cannot Set() config: %v", err)
+			return fmt.Errorf("cannot set netplan config: %v", err)
+		}
+		if !wasSet {
+			return fmt.Errorf("cannot set netplan config: no reason returned from netplan")
 		}
 	}
 
@@ -204,10 +205,10 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	var wasTried bool
 	timeoutInSeconds := 30
 	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Try", 0, uint32(timeoutInSeconds)).Store(&wasTried); err != nil {
-		return fmt.Errorf("cannot Try() config: %v", err)
+		return fmt.Errorf("cannot try netplan config: %v", err)
 	}
 	if !wasTried {
-		return fmt.Errorf("cannot try config")
+		return fmt.Errorf("cannot try netplan config: no reason returned from netplan")
 	}
 
 	var storeReachableAfter bool
@@ -223,10 +224,10 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	if storeReachableBefore && !storeReachableAfter {
 		var wasCancelled bool
 		if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
-			logger.Noticef("cannot Cancel config: %v", err)
+			return fmt.Errorf("cannot set netplan config: store no longer reachable and cannot cancel netplan config: %v", err)
 		}
 		if !wasCancelled {
-			logger.Noticef("config was not cancelled")
+			return fmt.Errorf("cannot set netplan config: store no longer reachable and cannot cancel netplan config: no reason returned from netplan")
 		}
 
 		return fmt.Errorf("cannot set netplan config: store no longer reachable")
@@ -234,10 +235,10 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 
 	var wasApplied bool
 	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Apply", 0).Store(&wasApplied); err != nil {
-		return fmt.Errorf("cannot Apply() config: %v", err)
+		return fmt.Errorf("cannot apply netplan config: %v", err)
 	}
 	if !wasApplied {
-		return fmt.Errorf("cannot apply config")
+		return fmt.Errorf("cannot apply netplan config: no reason returned from netplan")
 	}
 	logger.Debugf("netplan config applied correctly")
 
