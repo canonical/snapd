@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dbusutil/netplantest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -201,6 +202,54 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 	// but nothing was applied
 	c.Check(s.backend.ConfigApiTryCalls, Equals, 0)
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
+}
+
+func (s *netplanSuite) TestNetplanGetFromDBusCancelFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+	s.backend.ConfigApiCancelRet = false
+
+	tr := config.NewTransaction(s.state)
+	netplanCfg := make(map[string]interface{})
+	err := tr.Get("core", "system.network.netplan", &netplanCfg)
+	c.Assert(err, IsNil)
+	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
+		"network": map[string]interface{}{
+			"renderer": "NetworkManager",
+			"version":  json.Number("2"),
+		},
+	})
+	c.Check(logbuf.String(), testutil.Contains, "cannot cancel netplan config: no reason returned from netplan")
+}
+
+func (s *netplanSuite) TestNetplanGetFromDBusCancelErr(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+	s.backend.ConfigApiCancelErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+
+	tr := config.NewTransaction(s.state)
+	netplanCfg := make(map[string]interface{})
+	err := tr.Get("core", "system.network.netplan", &netplanCfg)
+	c.Assert(err, IsNil)
+	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
+		"network": map[string]interface{}{
+			"renderer": "NetworkManager",
+			"version":  json.Number("2"),
+		},
+	})
+	c.Check(logbuf.String(), testutil.Contains, "cannot cancel netplan config: netplan failed with some error")
 }
 
 func (s *netplanSuite) TestNetplanGetFromDBusNoSuchConfigError(c *C) {

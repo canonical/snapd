@@ -273,10 +273,10 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 	// and discard the config snapshot
 	var wasCancelled bool
 	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
-		logger.Noticef("cannot Cancel() config: %v", err)
+		logger.Noticef("cannot cancel netplan config: %v", err)
 	}
 	if !wasCancelled {
-		logger.Noticef("config was not cancelled")
+		logger.Noticef("cannot cancel netplan config: no reason returned from netplan")
 	}
 
 	return cfg, nil
