@@ -185,12 +185,12 @@ static void setup_private_mount(const char *snap_name)
 	if (tmp_dir_fd < 0) {
 		die("cannot open private tmp directory %s/tmp", base_dir);
 	}
-	if (fchmod(tmp_dir_fd, 01777) < 0) {
-		die("cannot chmod private tmp directory %s/tmp to 01777",
-		    base_dir);
-	}
 	if (fchown(tmp_dir_fd, 0, 0) < 0) {
 		die("cannot chown private tmp directory %s/tmp to root.root",
+		    base_dir);
+	}
+	if (fchmod(tmp_dir_fd, 01777) < 0) {
+		die("cannot chmod private tmp directory %s/tmp to 01777",
 		    base_dir);
 	}
 	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
