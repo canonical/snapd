@@ -54,6 +54,8 @@ var (
 	backendCleanupAbandondedImports = backend.CleanupAbandondedImports
 
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
+
+	getSnapDirOpts = snapstate.GetSnapDirOpts
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -224,14 +226,13 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 
 	st.Lock()
-	opts, err := snapstate.GetHiddenDirOpts(st, nil, snapshot.Snap)
+	opts, err := getSnapDirOpts(st, nil, snapshot.Snap)
 	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	dirOpts := opts.GetSnapDirOpts()
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, dirOpts)
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, opts)
 	if err != nil {
 		st.Lock()
 		defer st.Unlock()
@@ -310,14 +311,13 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := snapstate.GetHiddenDirOpts(st, nil, snapshot.Snap)
+	opts, err := getSnapDirOpts(st, nil, snapshot.Snap)
 	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	dirOpts := opts.GetSnapDirOpts()
-	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf, dirOpts)
+	restoreState, err := backendRestore(reader, tomb.Context(nil), snapshot.Current, snapshot.Users, logf, opts)
 	if err != nil {
 		return err
 	}

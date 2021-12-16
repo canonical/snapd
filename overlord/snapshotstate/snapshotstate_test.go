@@ -1150,12 +1150,12 @@ func (snapshotSuite) TestRestore(c *check.C) {
 }
 
 func (snapshotSuite) TestRestoreIntegration(c *check.C) {
-	testRestoreIntegration(c, dirs.UserHomeSnapDir, &snapstate.HiddenDirOptions{})
+	testRestoreIntegration(c, dirs.UserHomeSnapDir, nil)
 }
 
 func (snapshotSuite) TestRestoreIntegrationHiddenSnapDir(c *check.C) {
-	opts := &snapstate.HiddenDirOptions{UseHidden: true, MigratedToHidden: true}
-	restore := snapstate.MockGetHiddenDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*snapstate.HiddenDirOptions, error) {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	restore := snapshotstate.MockGetSnapDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error) {
 		return opts, nil
 	})
 	defer restore()
@@ -1163,7 +1163,7 @@ func (snapshotSuite) TestRestoreIntegrationHiddenSnapDir(c *check.C) {
 	testRestoreIntegration(c, dirs.HiddenSnapDataHomeDir, opts)
 }
 
-func testRestoreIntegration(c *check.C, snapDataDir string, opts *snapstate.HiddenDirOptions) {
+func testRestoreIntegration(c *check.C, snapDataDir string, opts *dirs.SnapDirOptions) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
@@ -1212,8 +1212,7 @@ func testRestoreIntegration(c *check.C, snapDataDir string, opts *snapstate.Hidd
 			c.Assert(os.MkdirAll(filepath.Join(home, snapDataDir, name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		dirOpts := opts.GetSnapDirOpts()
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, dirOpts)
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, opts)
 		c.Assert(err, check.IsNil)
 	}
 

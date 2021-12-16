@@ -105,6 +105,8 @@ var (
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
 
 	AffectedByRefresh = affectedByRefresh
+
+	GetDirMigrationOpts = getDirMigrationOpts
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -390,5 +392,13 @@ func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refres
 	maybeRestoreValidationSetsAndRevertSnaps = f
 	return func() {
 		maybeRestoreValidationSetsAndRevertSnaps = old
+	}
+}
+
+func MockGetHiddenDirOptions(f func(*state.State, *SnapSetup, string) (*DirMigrationOptions, error)) (restore func()) {
+	old := getDirMigrationOpts
+	getDirMigrationOpts = f
+	return func() {
+		getDirMigrationOpts = old
 	}
 }

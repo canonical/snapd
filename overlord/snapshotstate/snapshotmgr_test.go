@@ -301,8 +301,8 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 }
 
 func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
-	restore := snapstate.MockGetHiddenDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*snapstate.HiddenDirOptions, error) {
-		return &snapstate.HiddenDirOptions{MigratedToHidden: true}, nil
+	restore := snapshotstate.MockGetSnapDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error) {
+		return &dirs.SnapDirOptions{HiddenSnapDataDir: true}, nil
 	})
 	defer restore()
 

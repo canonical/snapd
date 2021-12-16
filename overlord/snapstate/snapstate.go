@@ -190,7 +190,7 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 
 	_, flags, snapst := params(update)
 
-	opts, err := GetHiddenDirOpts(st, nil, update.InstanceName())
+	opts, err := getDirMigrationOpts(st, nil, update.InstanceName())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -979,7 +979,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
-	opts, err := GetHiddenDirOpts(st, nil, instanceName)
+	opts, err := getDirMigrationOpts(st, nil, instanceName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1074,7 +1074,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	hideOpts, err := GetHiddenDirOpts(st, nil, info.InstanceName())
+	hideOpts, err := getDirMigrationOpts(st, nil, info.InstanceName())
 	if err != nil {
 		return nil, err
 	}
@@ -1239,7 +1239,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			channel = sar.RedirectChannel
 		}
 
-		opts, err := GetHiddenDirOpts(st, nil, info.InstanceName())
+		opts, err := getDirMigrationOpts(st, nil, info.InstanceName())
 		if err != nil {
 			return nil, nil, err
 		}
