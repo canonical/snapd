@@ -1206,15 +1206,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	// we migrated the data in this run - undo that
 	if snapsup.MigratedHidden {
-		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-			return err
-		}
-
-		snapsup.MigratedHidden = false
-		st.Lock()
-		err := SetTaskSnapSetup(t, snapsup)
-		st.Unlock()
-		if err != nil {
+		if err := m.undoMigration(t, st, snapsup); err != nil {
 			return err
 		}
 	}
@@ -1251,6 +1243,19 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	return nil
+}
+
+func (m *SnapManager) undoMigration(t *state.Task, st *state.State, snapsup *SnapSetup) error {
+	if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+		return err
+	}
+
+	snapsup.MigratedHidden = false
+	st.Lock()
+	err := SetTaskSnapSetup(t, snapsup)
+	st.Unlock()
+
+	return err
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
