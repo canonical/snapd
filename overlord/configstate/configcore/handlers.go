@@ -97,8 +97,9 @@ func init() {
 	// system.timezone
 	addFSOnlyHandler(validateTimezoneSettings, handleTimezoneConfiguration, coreOnly)
 
-	// system.hostname
-	addFSOnlyHandler(validateHostnameSettings, handleHostnameConfiguration, coreOnly)
+	// system.hostname - note that the validation is done via hostnamectl
+	// when applying so there is no validation handler, see LP:1952740
+	addFSOnlyHandler(nil, handleHostnameConfiguration, coreOnly)
 
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }

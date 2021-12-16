@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type changeIDMixin struct {
@@ -72,7 +73,17 @@ func (l *changeIDMixin) GetChangeID() (string, error) {
 		kind = kind[:l]
 	}
 	// our internal change types use "-snap" postfix but let user skip it and use short form.
-	if kind == "refresh" || kind == "install" || kind == "remove" || kind == "connect" || kind == "disconnect" || kind == "configure" || kind == "try" {
+	shortForms := []string{
+		// see api_snaps.go:snapInstructionDispTable
+		"install", "refresh", "remove", "revert", "enable", "disable", "switch",
+		// see api_interfaces.go:changeInterfaces
+		"connect", "disconnect",
+		// see api_snap_conf.go:setSnapConf
+		"configure",
+		// see api_sideload_n_try.go:trySnap
+		"try",
+	}
+	if strutil.ListContains(shortForms, kind) {
 		kind += "-snap"
 	}
 	changes, err := queryChanges(cli, &client.ChangesOptions{Selector: client.ChangesAll})

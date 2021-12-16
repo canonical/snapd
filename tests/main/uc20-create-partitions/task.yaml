@@ -3,6 +3,9 @@ summary: Integration tests for the bootstrap.Run
 # use the same system and tooling as uc20
 systems: [ubuntu-20.04-64]
 
+environment:
+    SNAPD_DEBUG: "1"
+
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=20GB fake.img
@@ -54,6 +57,13 @@ restore: |
 
 debug: |
     cat /proc/partitions
+    LOOP="$(cat loop.txt)"
+    udevadm info --query property "${LOOP}" || true
+    udevadm info --query property "${LOOP}p1" || true
+    udevadm info --query property "${LOOP}p2" || true
+    udevadm info --query property "${LOOP}p3" || true
+    udevadm info --query property "${LOOP}p4" || true
+    udevadm info --query property "${LOOP}p5" || true
 
 execute: |
     LOOP="$(cat loop.txt)"
@@ -80,11 +90,13 @@ execute: |
 
     # we used "lsblk --fs" here but it was unreliable
     mkdir -p ./mnt
+
+    echo "Mount ubuntu-seed and check it is vfat"
     mount "${LOOP}p2" ./mnt
     df -T "${LOOP}p2" | MATCH vfat
     umount ./mnt
 
-    mkdir -p ./mnt
+    echo "Mount ubuntu-boot and check it is ext4 with metadata_csum"
     mount "${LOOP}p3" ./mnt
     df -T "${LOOP}p3" | MATCH ext4
     umount ./mnt
@@ -92,7 +104,7 @@ execute: |
     # check metadata_csum
     tune2fs -l "${LOOP}p3" | MATCH '^Filesystem features:.*metadata_csum'
 
-    mkdir -p ./mnt
+    echo "Mount ubuntu-save and check it is ext4 with metadata_csum"
     mount "${LOOP}p4" ./mnt
     df -T "${LOOP}p4" | MATCH ext4
     umount ./mnt
@@ -100,14 +112,16 @@ execute: |
     # check metadata_csum
     tune2fs -l "${LOOP}p4" | MATCH '^Filesystem features:.*metadata_csum'
 
-    mkdir -p ./mnt
+    echo "Mount ubuntu-data and check it is ext4 with metadata_csum"
     mount "${LOOP}p5" ./mnt
     df -T "${LOOP}p5" | MATCH ext4
     umount ./mnt
     file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
     # check metadata_csum
     tune2fs -l "${LOOP}p5" | MATCH '^Filesystem features:.*metadata_csum'
+
     # size is reported in 512 blocks
+    echo "Check ubuntu-data size is expanded"
     sz="$(udevadm info -q property "${LOOP}p5" |grep "^ID_PART_ENTRY_SIZE=" | cut -f2 -d=)"
     # the disk size is 20GB, 1GB in 512 blocks is 2097152, with auto grow, the
     # partition can be safely assumed to be > 10GB
@@ -117,7 +131,6 @@ execute: |
     fi
 
     echo "Check that the filesystem content was deployed"
-    mkdir -p ./mnt
     mount "${LOOP}p3" ./mnt
     ls ./mnt/EFI/boot/grubx64.efi
     ls ./mnt/EFI/boot/bootx64.efi
@@ -125,7 +138,8 @@ execute: |
     rm ./mnt/EFI/boot/grubx64.efi
     umount ./mnt
 
-    echo "now add a partition"
+    echo "Add a non-creatable partition to see it fail installation"
+    cp gadget-dir/meta/gadget.yaml gadget.yaml.backup
     cat >> gadget-dir/meta/gadget.yaml <<EOF
           - name: Other ext4
             type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
@@ -133,23 +147,23 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
+    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 | MATCH "panic: gadget and ${LOOP} partition table not compatible: cannot find gadget structure #6 \(\"Other ext4\"\) on disk"
+
+    # replace the gadget.yaml without the extra partition
+    cp gadget.yaml.backup gadget-dir/meta/gadget.yaml
+
+    echo "Ensure we can deploy with mounting"
     uc20-create-partitions --mount ./gadget-dir "$kerneldir" "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1\.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p4 .* 16M\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 1G\s* Linux filesystem"
-    sfdisk -l "$LOOP" | MATCH "${LOOP}p6 .* 110M\s* Linux filesystem"
+    sfdisk -l "$LOOP" | MATCH "${LOOP}p5 .* 16\.7G\s* Linux filesystem"
 
     echo "check that the filesystems are created and mounted"
-    mount
-
     mount | MATCH /run/mnt/ubuntu-boot
     mount | MATCH /run/mnt/ubuntu-save
     mount | MATCH /run/mnt/ubuntu-data
-    mount | MATCH /run/mnt/other-ext4
-    df -T "${LOOP}p6" | MATCH ext4
-    file -s "${LOOP}p6" | MATCH 'volume name "other-ext4"'
 
     echo "Make sure the filesystem was redeployed"
     ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi

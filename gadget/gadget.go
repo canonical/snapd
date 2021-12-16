@@ -234,11 +234,6 @@ type DiskVolumeDeviceTraits struct {
 	// "0x1212e868".
 	DiskID string `json:"disk-id"`
 
-	// Structure contains trait information about each individual structure in
-	// the volume that may be useful in identifying whether a disk matches a
-	// volume or not.
-	Structure []DiskStructureDeviceTraits `json:"structure"`
-
 	// Size is the physical size of the disk, regardless of usable space
 	// considerations.
 	Size quantity.Size `json:"size"`
@@ -246,6 +241,14 @@ type DiskVolumeDeviceTraits struct {
 	// SectorSize is the physical sector size of the disk, typically 512 or
 	// 4096.
 	SectorSize quantity.Size `json:"sector-size"`
+
+	// Schema is the disk schema, either dos or gpt in lowercase.
+	Schema string `json:"schema"`
+
+	// Structure contains trait information about each individual structure in
+	// the volume that may be useful in identifying whether a disk matches a
+	// volume or not.
+	Structure []DiskStructureDeviceTraits `json:"structure"`
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
@@ -261,18 +264,22 @@ type DiskStructureDeviceTraits struct {
 	OriginalKernelPath string `json:"kernel-path"`
 	// PartitionUUID is the partuuid as defined by i.e. /dev/disk/by-partuuid
 	PartitionUUID string `json:"partition-uuid"`
-	// FilesystemLabel is the label of the filesystem for structures that have
-	// filesystems, i.e. /dev/disk/by-label
-	FilesystemLabel string `json:"filesystem-label"`
 	// PartitionLabel is the label of the partition for GPT disks, i.e.
 	// /dev/disk/by-partlabel
 	PartitionLabel string `json:"partition-label"`
+	// PartitionType is the type of the partition i.e. 0x83 for a
+	// Linux native partition on DOS, or
+	// 0FC63DAF-8483-4772-8E79-3D69D8477DE4 for a Linux filesystem
+	// data partition on GPT.
+	PartitionType string `json:"partition-type"`
 	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
 	// /dev/disk/by-uuid
 	FilesystemUUID string `json:"filesystem-uuid"`
-	// ID is the partition ID of the partition, i.e. /dev/disk/by-id which is
-	// typically only present for DOS disks.
-	ID string `json:"id"`
+	// FilesystemLabel is the label of the filesystem for structures that have
+	// filesystems, i.e. /dev/disk/by-label
+	FilesystemLabel string `json:"filesystem-label"`
+	// FilesystemType is the type of the filesystem, i.e. vfat or ext4, etc.
+	FilesystemType string `json:"filesystem-type"`
 	// Offset is the offset of the structure
 	Offset quantity.Offset `json:"offset"`
 	// Size is the size of the structure

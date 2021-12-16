@@ -31,31 +31,20 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
-var createdPartitionGUID = []string{
-	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
-	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
-	"EBD0A0A2-B9E5-4433-87C0-68B6B72699C7", // Windows Basic Data Partition
-}
-
-// creationSupported returns whether we support and expect to create partitions
-// of the given type, it also means we are ready to remove them for re-installation
-// or retried installation if they are appropriately marked with createdPartitionAttr.
-func creationSupported(ptype string) bool {
-	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
-}
-
 // createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
 func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
-	buf, created := buildPartitionList(dl, pv)
+	buf, created, err := buildPartitionList(dl, pv)
+	if err != nil {
+		return nil, err
+	}
 	if len(created) == 0 {
 		return created, nil
 	}
@@ -89,13 +78,16 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 // device contents and gadget structure list, in sfdisk dump format, and
 // returns a partitioning description suitable for sfdisk input and a
 // list of the partitions to be created.
-func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure) {
-	sectorSize := dl.SectorSize
+func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []gadget.OnDiskStructure, err error) {
+	sectorSize := uint64(dl.SectorSize)
 
-	// Keep track what partitions we already have on disk
-	seen := map[quantity.Offset]bool{}
+	// Keep track what partitions we already have on disk - the keys to this map
+	// is the starting sector of the structure we have seen.
+	// TODO: use quantity.SectorOffset or similar when that is available
+
+	seen := map[uint64]bool{}
 	for _, s := range dl.Structure {
-		start := s.StartOffset / quantity.Offset(sectorSize)
+		start := uint64(s.StartOffset) / sectorSize
 		seen[start] = true
 	}
 
@@ -122,40 +114,41 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		s := p.VolumeStructure
 
 		// Skip partitions that are already in the volume
-		start := p.StartOffset / quantity.Offset(sectorSize)
-		if seen[start] {
+		startInSectors := uint64(p.StartOffset) / sectorSize
+		if seen[startInSectors] {
 			continue
 		}
 
-		// Only allow the creation of partitions with known GUIDs
-		// TODO:UC20: also provide a mechanism for MBR (RPi)
-		ptype := partitionType(dl.Schema, p.Type)
-		if dl.Schema == "gpt" && !creationSupported(ptype) {
-			logger.Noticef("cannot create partition with unsupported type %s", ptype)
-			continue
+		// Only allow creating certain partitions, namely the ubuntu-* roles
+		if !gadget.IsCreatableAtInstall(p.VolumeStructure) {
+			return nil, nil, fmt.Errorf("cannot create partition %s", p)
 		}
 
 		// Check if the data partition should be expanded
-		size := s.Size
-		if s.Role == gadget.SystemData && canExpandData && quantity.Size(p.StartOffset)+s.Size < dl.Size {
-			size = dl.Size - quantity.Size(p.StartOffset)
+		newSizeInSectors := uint64(s.Size) / sectorSize
+		if s.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
+			// note that if startInSectors + newSizeInSectors == dl.UsableSectorEnd
+			// then we won't hit this branch, but it would be redundant anyways
+			newSizeInSectors = dl.UsableSectorsEnd - startInSectors
 		}
+
+		ptype := partitionType(dl.Schema, p.Type)
 
 		// Can we use the index here? Get the largest existing partition number and
 		// build from there could be safer if the disk partitions are not consecutive
 		// (can this actually happen in our images?)
 		node := deviceName(dl.Device, pIndex)
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
-			p.StartOffset/quantity.Offset(sectorSize), size/sectorSize, ptype, s.Name)
+			startInSectors, newSizeInSectors, ptype, s.Name)
 
 		toBeCreated = append(toBeCreated, gadget.OnDiskStructure{
 			LaidOutStructure: p,
 			Node:             node,
-			Size:             size,
+			Size:             quantity.Size(newSizeInSectors * sectorSize),
 		})
 	}
 
-	return buf, toBeCreated
+	return buf, toBeCreated, nil
 }
 
 func partitionType(label, ptype string) string {
@@ -184,33 +177,57 @@ func deviceName(name string, index int) string {
 
 // removeCreatedPartitions removes partitions added during a previous install.
 func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
-	indexes := make([]string, 0, len(dl.Structure))
+	sfdiskIndexes := make([]string, 0, len(dl.Structure))
+	// up to 3 possible partitions are creatable and thus removable:
+	// ubuntu-data, ubuntu-boot, and ubuntu-save
+	deletedIndexes := make(map[int]bool, 3)
 	for i, s := range dl.Structure {
 		if wasCreatedDuringInstall(lv, s) {
 			logger.Noticef("partition %s was created during previous install", s.Node)
-			indexes = append(indexes, strconv.Itoa(i+1))
+			sfdiskIndexes = append(sfdiskIndexes, strconv.Itoa(i+1))
+			deletedIndexes[i] = true
 		}
 	}
-	if len(indexes) == 0 {
+	if len(sfdiskIndexes) == 0 {
 		return nil
 	}
 
 	// Delete disk partitions
-	logger.Debugf("delete disk partitions %v", indexes)
-	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, indexes...)...)
+	logger.Debugf("delete disk partitions %v", sfdiskIndexes)
+	cmd := exec.Command("sfdisk", append([]string{"--no-reread", "--delete", dl.Device}, sfdiskIndexes...)...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 
-	// Reload the partition table
+	// Reload the partition table - note that this specifically does not trigger
+	// udev events to remove the deleted devices, see the doc-comment in
+	// reloadPartitionTable for more details
 	if err := reloadPartitionTable(dl.Device); err != nil {
 		return err
 	}
 
-	// Re-read the partition table from the device to update our partition list
-	if err := gadget.UpdatePartitionList(dl); err != nil {
-		return err
+	// Remove the partitions we deleted from the OnDiskVolume - note that we
+	// specifically don't try to just re-build the OnDiskVolume since doing
+	// so correctly requires using only information from the partition table
+	// we just updated with sfdisk (since we used --no-reread above, and we can't
+	// really tell the kernel to re-read the partition table without hitting
+	// EBUSY as the disk is still mounted even though the deleted partitions
+	// were deleted), but to do so would essentially just be testing that sfdisk
+	// updated the partition table in a way we expect. The partition parsing
+	// code we use to build the OnDiskVolume also must not be reliant on using
+	// sfdisk (since it has to work in the initrd where we don't have sfdisk),
+	// so either that code would just be a duplication of what sfdisk is doing
+	// or that code would fail to update the deleted partitions anyways since
+	// at this point the only thing that knows about the deleted partitions is
+	// the physical partition table on the disk.
+	newStructure := make([]gadget.OnDiskStructure, 0, len(dl.Structure)-len(deletedIndexes))
+	for i, structure := range dl.Structure {
+		if !deletedIndexes[i] {
+			newStructure = append(newStructure, structure)
+		}
 	}
+
+	dl.Structure = newStructure
 
 	// Ensure all created partitions were removed
 	if remaining := createdDuringInstall(lv, dl); len(remaining) > 0 {

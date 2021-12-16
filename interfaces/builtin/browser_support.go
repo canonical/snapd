@@ -61,6 +61,7 @@ owner /var/tmp/etilqs_* rw,
 # the snap packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
+owner /{dev,run}/shm/{,.}com.microsoft.Edge.* mrw,
 owner /{dev,run}/shm/.io.nwjs.* mrw,
 
 # Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
@@ -69,6 +70,7 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 # parallel-installs: $XDG_RUNTIME_DIR is not remapped, need to use SNAP_INSTANCE_NAME
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}org.chromium.*/SS r,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.google.Chrome.*/SS r,
+/run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.microsoft.Edge.*/SS r,
 
 # Allow reading platform files
 /run/udev/data/+platform:* r,
