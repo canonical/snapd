@@ -196,11 +196,16 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		}
 	}
 
+	// re-try reaching the store to guard against flaky networks
 	var storeReachableBefore bool
-	if err := storeReachable(tr.State()); err == nil {
-		storeReachableBefore = true
+	for i := 0; i < 5; i++ {
+		if err := storeReachable(tr.State()); err == nil {
+			storeReachableBefore = true
+			break
+		}
+		logger.Debugf("store reachable before netplan %v (retry %v)", storeReachableBefore, i)
+		time.Sleep(storeReachableRetryWait)
 	}
-	logger.Debugf("store reachable before netplan %v", storeReachableBefore)
 
 	var wasTried bool
 	timeoutInSeconds := 30
