@@ -225,7 +225,7 @@ func (s *netplanSuite) TestNetplanGetFromDBusCancelFails(c *C) {
 			"version":  json.Number("2"),
 		},
 	})
-	c.Check(logbuf.String(), testutil.Contains, "cannot cancel netplan config: no reason returned from netplan")
+	c.Check(logbuf.String(), testutil.Contains, "cannot cancel netplan config: no specific reason returned from netplan")
 }
 
 func (s *netplanSuite) TestNetplanGetFromDBusCancelErr(c *C) {
@@ -305,7 +305,7 @@ func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
 	err := configcore.Run(coreDev, tr)
-	c.Assert(err, ErrorMatches, "cannot set netplan config: no reason returned from netplan")
+	c.Assert(err, ErrorMatches, "cannot set netplan config: no specific reason returned from netplan")
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
@@ -332,7 +332,7 @@ func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
 	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
 	err := configcore.Run(coreDev, tr)
-	c.Assert(err, ErrorMatches, "cannot try netplan config: no reason returned from netplan")
+	c.Assert(err, ErrorMatches, "cannot try netplan config: no specific reason returned from netplan")
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
@@ -392,7 +392,7 @@ func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
 	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
 
 	err := configcore.Run(coreDev, tr)
-	c.Assert(err, ErrorMatches, "cannot apply netplan config: no reason returned from netplan")
+	c.Assert(err, ErrorMatches, "cannot apply netplan config: no specific reason returned from netplan")
 }
 
 func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
@@ -470,7 +470,7 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
 	tr.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
 
 	err := configcore.Run(coreDev, tr)
-	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: no reason returned from netplan`)
+	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable and cannot cancel netplan config: no specific reason returned from netplan`)
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {

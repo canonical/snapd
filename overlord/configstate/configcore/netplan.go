@@ -192,7 +192,7 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			return fmt.Errorf("cannot set netplan config: %v", err)
 		}
 		if !wasSet {
-			return fmt.Errorf("cannot set netplan config: no reason returned from netplan")
+			return fmt.Errorf("cannot set netplan config: no specific reason returned from netplan")
 		}
 	}
 
@@ -213,7 +213,7 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return fmt.Errorf("cannot try netplan config: %v", err)
 	}
 	if !wasTried {
-		return fmt.Errorf("cannot try netplan config: no reason returned from netplan")
+		return fmt.Errorf("cannot try netplan config: no specific reason returned from netplan")
 	}
 
 	var storeReachableAfter bool
@@ -232,7 +232,7 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			return fmt.Errorf("cannot set netplan config: store no longer reachable and cannot cancel netplan config: %v", err)
 		}
 		if !wasCancelled {
-			return fmt.Errorf("cannot set netplan config: store no longer reachable and cannot cancel netplan config: no reason returned from netplan")
+			return fmt.Errorf("cannot set netplan config: store no longer reachable and cannot cancel netplan config: no specific reason returned from netplan")
 		}
 
 		return fmt.Errorf("cannot set netplan config: store no longer reachable")
@@ -243,7 +243,7 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return fmt.Errorf("cannot apply netplan config: %v", err)
 	}
 	if !wasApplied {
-		return fmt.Errorf("cannot apply netplan config: no reason returned from netplan")
+		return fmt.Errorf("cannot apply netplan config: no specific reason returned from netplan")
 	}
 	logger.Debugf("netplan config applied correctly")
 
@@ -281,7 +281,7 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 		logger.Noticef("cannot cancel netplan config: %v", err)
 	}
 	if !wasCancelled {
-		logger.Noticef("cannot cancel netplan config: no reason returned from netplan")
+		logger.Noticef("cannot cancel netplan config: no specific reason returned from netplan")
 	}
 
 	return cfg, nil
