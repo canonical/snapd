@@ -190,11 +190,6 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 
 	_, flags, snapst := params(update)
 
-	opts, err := getDirMigrationOpts(st, nil, update.InstanceName())
-	if err != nil {
-		return nil, nil, err
-	}
-
 	providerContentAttrs := defaultProviderContentAttrs(st, update)
 	snapsup := SnapSetup{
 		Base:               i.Base,
@@ -206,7 +201,6 @@ func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _
 		Type:               i.Type(),
 		PlugsOnly:          len(i.Slots) == 0,
 		InstanceKey:        i.InstanceKey,
-		MigratedHidden:     opts.UseHidden,
 	}
 	return &snapsup, snapst, nil
 }
@@ -979,11 +973,6 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
-	opts, err := getDirMigrationOpts(st, nil, instanceName)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	providerContentAttrs := defaultProviderContentAttrs(st, info)
 	snapsup := &SnapSetup{
 		Base:               info.Base,
@@ -996,7 +985,6 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		Type:               info.Type(),
 		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
-		MigratedHidden:     opts.UseHidden,
 	}
 
 	ts, err := doInstall(st, &snapst, snapsup, instFlags, "", inUseFor(deviceCtx))
@@ -1074,11 +1062,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	hideOpts, err := getDirMigrationOpts(st, nil, info.InstanceName())
-	if err != nil {
-		return nil, err
-	}
-
 	providerContentAttrs := defaultProviderContentAttrs(st, info)
 	snapsup := &SnapSetup{
 		Channel:            opts.Channel,
@@ -1096,8 +1079,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 			Media:   info.Media,
 			Website: info.Website,
 		},
-		CohortKey:      opts.CohortKey,
-		MigratedHidden: hideOpts.UseHidden,
+		CohortKey: opts.CohortKey,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1239,11 +1221,6 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			channel = sar.RedirectChannel
 		}
 
-		opts, err := getDirMigrationOpts(st, nil, info.InstanceName())
-		if err != nil {
-			return nil, nil, err
-		}
-
 		providerContentAttrs := defaultProviderContentAttrs(st, info)
 		snapsup := &SnapSetup{
 			Channel:            channel,
@@ -1257,7 +1234,6 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Type:               info.Type(),
 			PlugsOnly:          len(info.Slots) == 0,
 			InstanceKey:        info.InstanceKey,
-			MigratedHidden:     opts.UseHidden,
 		}
 
 		ts, err := doInstall(st, &snapst, snapsup, 0, "", inUseFor(deviceCtx))

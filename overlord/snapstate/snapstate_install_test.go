@@ -4237,9 +4237,7 @@ func (s *snapmgrTestSuite) TestInstallMigrateData(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
-	// didn't hide data, started already "migrated"
-	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
-	c.Assert(s.fakeBackend.ops.First("undo-hide-snap-data"), IsNil)
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
 	assertMigrationState(c, s.state, "some-snap", true)
 }
 
@@ -4261,9 +4259,7 @@ func (s *snapmgrTestSuite) TestInstallMigrateFails(c *C) {
 
 	s.settle(c)
 
-	// didn't hide data, started already "migrated"
-	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
-	// tries to undo the "migration" which won't find anything to remove
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
 	var snapst snapstate.SnapState
