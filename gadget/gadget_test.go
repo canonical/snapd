@@ -621,6 +621,19 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	})
 }
 
+var mockGadgetWithEmptyVolumes = `device-tree-origin: kernel
+volumes:
+  lun-0:
+`
+
+func (s *gadgetYamlTestSuite) TestRegressionGadgetWithEmptyVolume(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(mockGadgetWithEmptyVolumes), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
+}
+
 func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
