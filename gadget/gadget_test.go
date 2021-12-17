@@ -631,7 +631,7 @@ func (s *gadgetYamlTestSuite) TestRegressionGadgetWithEmptyVolume(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
+	c.Assert(err, ErrorMatches, `cannot use empty volume "lun-0"`)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {

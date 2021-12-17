@@ -465,10 +465,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	for name := range gi.Volumes {
 		v := gi.Volumes[name]
 		if v == nil {
-			// XXX: we could also error here, it seems strange
-			// (probably a user error) if a volume is entirely
-			// empty
-			v = &Volume{}
+			return nil, fmt.Errorf("cannot use empty volume %q", name)
 		}
 		// set the VolumeName for the volume
 		v.Name = name
