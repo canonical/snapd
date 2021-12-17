@@ -1072,6 +1072,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
+
 	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
@@ -1206,7 +1207,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	// we migrated the data in this run - undo that
 	if snapsup.MigratedHidden {
-		if err := m.undoMigration(t, st, snapsup); err != nil {
+		if err := m.undoMigration(t, st, snapst, snapsup); err != nil {
 			return err
 		}
 	}
@@ -1245,7 +1246,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) undoMigration(t *state.Task, st *state.State, snapsup *SnapSetup) error {
+func (m *SnapManager) undoMigration(t *state.Task, st *state.State, snapst *SnapState, snapsup *SnapSetup) error {
 	if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 		return err
 	}
@@ -1254,8 +1255,12 @@ func (m *SnapManager) undoMigration(t *state.Task, st *state.State, snapsup *Sna
 	st.Lock()
 	err := SetTaskSnapSetup(t, snapsup)
 	st.Unlock()
+	if err != nil {
+		return err
+	}
 
-	return err
+	// persist the undone migration status before allowing the snap to be run
+	return writeSeqFile(snapsup.InstanceName(), snapst)
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -1506,6 +1511,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		linkCtx.RequireMountedSnapdSnap = true
 	}
+
+	// write sequence file for failover helpers
+	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
+		return err
+	}
+
 	needsReboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -1609,11 +1620,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 				}
 			}()
 		}
-	}
-
-	// write sequence file for failover helpers
-	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
-		return err
 	}
 
 	// Compatibility with old snapd: check if we have auto-connect task and
