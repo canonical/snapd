@@ -195,7 +195,7 @@ snapd (2.54-1) unstable; urgency=medium
       doInstall and rework the verify*Tasks helpers
     - tests/main/mount-ns: make the test run early
     - tests: add `--debug` to netplan apply
-    - many: wait for up to 10min for NTP syncronization before
+    - many: wait for up to 10min for NTP synchronization before
       autorefresh
     - tests: initialize CHANGE_ID in _wait_autorefresh
     - sandbox/cgroup: freeze and thaw cgroups related to services and
