@@ -579,18 +579,17 @@ uc20_build_initramfs_kernel_snap() {
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         # also save the time before snap-bootstrap runs
         sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
-        {
-            echo "" 
-            echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
-            # also copy the time for the clock-epoch to system-data, this is 
-            # used by a specific test but doesn't hurt anything to do this for 
-            # all tests
-            echo "mode=\$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
-            echo "mode=\${mode##snapd_recovery_mode=}"
-            echo "stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/\${mode}-clock-epoch"
-            echo "echo \"\$beforeDate\" > /run/mnt/ubuntu-seed/\${mode}-before-snap-bootstrap-date"
-            echo "date --utc '+%s' > /run/mnt/ubuntu-seed/\${mode}-after-snap-bootstrap-date"
-        } >> "$skeletondir/main/usr/lib/the-tool"
+        cat >> "$skeletondir/main/usr/lib/the-tool" <<'EOF'
+        if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi
+        # also copy the time for the clock-epoch to system-data, this is
+        # used by a specific test but doesn't hurt anything to do this for
+        # all tests
+        mode=$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)
+        mode=${mode##snapd_recovery_mode=}
+        stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/${mode}-clock-epoch
+        echo "$beforeDate" > /run/mnt/ubuntu-seed/${mode}-before-snap-bootstrap-date
+        date --utc '+%s' > /run/mnt/ubuntu-seed/${mode}-after-snap-bootstrap-date
+EOF
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
