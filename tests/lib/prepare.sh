@@ -586,9 +586,10 @@ uc20_build_initramfs_kernel_snap() {
         # all tests
         mode=$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)
         mode=${mode##snapd_recovery_mode=}
-        stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/${mode}-clock-epoch
-        echo "$beforeDate" > /run/mnt/ubuntu-seed/${mode}-before-snap-bootstrap-date
-        date --utc '+%s' > /run/mnt/ubuntu-seed/${mode}-after-snap-bootstrap-date
+        mkdir -p /run/mnt/ubuntu-seed/test
+        stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
+        echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
+        date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
 EOF
 
         if [ "$injectKernelPanic" = "true" ]; then
