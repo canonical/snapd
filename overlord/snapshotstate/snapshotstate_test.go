@@ -1155,7 +1155,7 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 
 func (snapshotSuite) TestRestoreIntegrationHiddenSnapDir(c *check.C) {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	restore := snapshotstate.MockGetSnapDirOptions(func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error) {
+	restore := snapshotstate.MockGetSnapDirOptions(func(*state.State, string) (*dirs.SnapDirOptions, error) {
 		return opts, nil
 	})
 	defer restore()

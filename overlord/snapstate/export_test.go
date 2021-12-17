@@ -396,7 +396,7 @@ func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refres
 	}
 }
 
-func MockGetHiddenDirOptions(f func(*state.State, *SnapSetup, string) (*dirMigrationOptions, error)) (restore func()) {
+func MockGetHiddenDirOptions(f func(*state.State, *SnapState, *SnapSetup) (*dirMigrationOptions, error)) (restore func()) {
 	old := getDirMigrationOpts
 	getDirMigrationOpts = f
 	return func() {

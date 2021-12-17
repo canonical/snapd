@@ -290,19 +290,15 @@ func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapState(c *C) {
 
 	tr := config.NewTransaction(s.state)
 
-	// set feature flag
 	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
 	err := tr.Set("core", confKey, "true")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		MigratedHidden: true,
-		Sequence:       []*snap.SideInfo{{RealName: "some-snap"}},
-	})
+	// check options reflect flag and SnapState
+	snapst := &snapstate.SnapState{MigratedHidden: true}
+	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, nil)
 
-	// check options reflect flag
-	opts, err := snapstate.GetDirMigrationOpts(s.state, nil, "some-snap")
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: true})
 }
@@ -319,10 +315,11 @@ func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapSetup(c *C) {
 	c.Assert(err, IsNil)
 	tr.Commit()
 
+	// check options reflect flag and SnapSetup override
 	snapsup := &snapstate.SnapSetup{MigratedHidden: true}
+	snapst := &snapstate.SnapState{MigratedHidden: false}
+	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, snapsup)
 
-	// check options reflect flag
-	opts, err := snapstate.GetDirMigrationOpts(s.state, snapsup, "some-snap")
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: true})
 }
@@ -339,8 +336,9 @@ func (s *handlersSuite) TestGetHiddenDirOptionsNoState(c *C) {
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	// check options reflect flag
-	opts, err := snapstate.GetDirMigrationOpts(s.state, nil, "some-snap")
+	// check options reflect flag and no SnapState
+	opts, err := snapstate.GetDirMigrationOpts(s.state, nil, nil)
+
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true})
 }

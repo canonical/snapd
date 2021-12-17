@@ -1117,7 +1117,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := getDirMigrationOpts(st, snapsup, snapsup.InstanceName())
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -1212,7 +1212,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := getDirMigrationOpts(st, snapsup, snapsup.InstanceName())
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
 	if err != nil {
 		return fmt.Errorf("failed to get snap dir options: %w", err)
@@ -2499,7 +2499,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := getDirMigrationOpts(st, snapsup, snapsup.InstanceName())
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
 
 	if err != nil {
@@ -3549,8 +3549,13 @@ func (o *dirMigrationOptions) getSnapDirOpts() *dirs.SnapDirOptions {
 }
 
 // GetSnapDirOpts returns the options required to get the correct snap dir.
-var GetSnapDirOpts = func(st *state.State, snapsup *SnapSetup, name string) (*dirs.SnapDirOptions, error) {
-	hiddenOpts, err := getDirMigrationOpts(st, snapsup, name)
+var GetSnapDirOpts = func(st *state.State, name string) (*dirs.SnapDirOptions, error) {
+	var snapst SnapState
+	if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	hiddenOpts, err := getDirMigrationOpts(st, &snapst, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -3561,7 +3566,7 @@ var GetSnapDirOpts = func(st *state.State, snapsup *SnapSetup, name string) (*di
 // getDirMigrationOpts checks if the feature flag is set and if the snap data
 // has been migrated, first checking the SnapSetup (if not nil) and then
 // the SnapState. The state must be locked by the caller.
-var getDirMigrationOpts = func(st *state.State, snapsup *SnapSetup, name string) (*dirMigrationOptions, error) {
+var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*dirMigrationOptions, error) {
 	tr := config.NewTransaction(st)
 	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
 	if err != nil {
@@ -3570,21 +3575,14 @@ var getDirMigrationOpts = func(st *state.State, snapsup *SnapSetup, name string)
 
 	opts := &dirMigrationOptions{UseHidden: hiddenDir}
 
+	if snapst != nil {
+		opts.MigratedToHidden = snapst.MigratedHidden
+	}
+
 	// it was migrated during this install (might not be in the state yet)
 	if snapsup != nil && snapsup.MigratedHidden {
 		opts.MigratedToHidden = true
-		return opts, nil
 	}
 
-	var snapst SnapState
-	if err := Get(st, name, &snapst); err != nil {
-		if err == state.ErrNoState {
-			return opts, nil
-		}
-
-		return nil, err
-	}
-
-	opts.MigratedToHidden = snapst.MigratedHidden
 	return opts, nil
 }

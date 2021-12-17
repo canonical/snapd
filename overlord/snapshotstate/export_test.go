@@ -208,7 +208,7 @@ func SetLastForgetExpiredSnapshotTime(mgr *SnapshotManager, t time.Time) {
 	mgr.lastForgetExpiredSnapshotTime = t
 }
 
-func MockGetSnapDirOptions(f func(*state.State, *snapstate.SnapSetup, string) (*dirs.SnapDirOptions, error)) (restore func()) {
+func MockGetSnapDirOptions(f func(*state.State, string) (*dirs.SnapDirOptions, error)) (restore func()) {
 	old := getSnapDirOpts
 	getSnapDirOpts = f
 	return func() {
