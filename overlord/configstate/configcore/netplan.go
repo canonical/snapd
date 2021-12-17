@@ -177,8 +177,10 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return err
 	}
 
-	// Use the default config that most Ubuntu Core have
-	originHint := "90-snapd-config"
+	// Use a origin hint that is sorted before the console-conf
+	// "00-snapd-config.yaml" so that console-conf can override
+	// our settings when it runs.
+	originHint := "0-snap-set"
 
 	// Always starts with a clean config to avoid merging of keys
 	// that got unset.

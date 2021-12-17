@@ -369,8 +369,8 @@ func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
-		`network=null/90-snapd-config`,
-		`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/90-snapd-config`,
+		`network=null/0-snap-set`,
+		`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/0-snap-set`,
 	})
 	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
@@ -533,8 +533,8 @@ network:
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
-		`network=null/90-snapd-config`,
-		`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/90-snapd-config`,
+		`network=null/0-snap-set`,
+		`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/0-snap-set`,
 	})
 }
 
