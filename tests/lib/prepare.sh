@@ -1022,13 +1022,13 @@ EOF
     # mount it so we can use it now
     mount "/dev/mapper/${dev}p${LOOP_PARTITION}" /mnt
 
-    mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
     # - VCS files
     # - built debs
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
     if os.query is-core16 || os.query is-core18; then
+        mkdir -p /mnt/user-data/
         # we need to include "core" here because -C option says to ignore 
         # files the way CVS(?!) does, so it ignores files named "core" which
         # are core dumps, but we have a test suite named "core", so including 
