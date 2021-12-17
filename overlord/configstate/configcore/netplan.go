@@ -147,6 +147,16 @@ func hasNetplanChanges(tr config.Conf) bool {
 
 var storeReachableRetryWait = 1 * time.Second
 
+func testStoreReachableWithRetry(state *state.State, n int, wait time.Duration) (int, bool) {
+	for i := 0; i < n; i++ {
+		if err := storeReachable(state); err == nil {
+			return i, true
+		}
+		time.Sleep(wait)
+	}
+	return n, false
+}
+
 func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	if !hasNetplanChanges(tr) {
 		return nil
@@ -197,15 +207,8 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	}
 
 	// re-try reaching the store to guard against flaky networks
-	var storeReachableBefore bool
-	for i := 0; i < 5; i++ {
-		if err := storeReachable(tr.State()); err == nil {
-			storeReachableBefore = true
-			break
-		}
-		logger.Debugf("store reachable before netplan %v (retry %v)", storeReachableBefore, i)
-		time.Sleep(storeReachableRetryWait)
-	}
+	tries, storeReachableBefore := testStoreReachableWithRetry(tr.State(), 5, storeReachableRetryWait)
+	logger.Debugf("store reachable before netplan changes: %v (tried %v times)", storeReachableBefore, tries)
 
 	var wasTried bool
 	timeoutInSeconds := 30
@@ -216,15 +219,8 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return fmt.Errorf("cannot try netplan config: no specific reason returned from netplan")
 	}
 
-	var storeReachableAfter bool
-	for i := 0; i < 5; i++ {
-		if err := storeReachable(tr.State()); err == nil {
-			storeReachableAfter = true
-			break
-		}
-		logger.Debugf("store reachable after %v seconds: %v", i, storeReachableAfter)
-		time.Sleep(storeReachableRetryWait)
-	}
+	tries, storeReachableAfter := testStoreReachableWithRetry(tr.State(), 5, storeReachableRetryWait)
+	logger.Debugf("store reachable after netplan changes: %v (tried %v times)", storeReachableAfter, tries)
 
 	if storeReachableBefore && !storeReachableAfter {
 		var wasCancelled bool
