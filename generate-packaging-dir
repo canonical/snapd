@@ -13,5 +13,5 @@ set -eu
 
 # update symlink
 rm -f debian
-ln -s "packaging/${ID}-${VERSION_ID}" debian
+ln -s "packaging/${ID}-${VERSION_ID}/" debian
 
