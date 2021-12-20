@@ -32,6 +32,15 @@ parts:
     build-snaps: [go/1.13/stable]
     override-pull: |
       snapcraftctl pull
+      # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
+      sudo -E apt-get install -y dpkg-dev git
+      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
+          echo "dirty git tree during build detected:"
+          git status
+          git diff
+          exit 1
+      fi
+      snapcraftctl set-version "$(./mkversion.sh --output-only)"
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
       # for build-base:core, etc.
@@ -41,8 +50,6 @@ parts:
       export DEBCONF_NONINTERACTIVE_SEEN=true
       sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
-      # set version after installing dependencies so we have all the tools here
-      snapcraftctl set-version "$(./mkversion.sh --output-only)"
     override-build: |
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
       # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
