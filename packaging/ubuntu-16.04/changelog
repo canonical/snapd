@@ -1,3 +1,11 @@
+snapd (2.54.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1955137
+    - buid-aux: set version before calling ./generate-packaging-dir
+      This fixes the "dirty" suffix in the auto-generated version
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 20 Dec 2021 10:06:09 +0100
+
 snapd (2.54) xenial; urgency=medium
 
   * New upstream release, LP: #1955137

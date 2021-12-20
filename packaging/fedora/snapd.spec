@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.54
+Version:        2.54.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -989,6 +989,11 @@ fi
 
 
 %changelog
+* Mon Dec 20 2021 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.54.1
+ - buid-aux: set version before calling ./generate-packaging-dir
+   This fixes the "dirty" suffix in the auto-generated version
+
 * Fri Dec 17 2021 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.54
  - interfaces/builtin/opengl.go: add boot_vga sys/devices file
