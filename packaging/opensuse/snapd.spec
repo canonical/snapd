@@ -125,6 +125,7 @@ BuildRequires:  ca-certificates-mozilla
 %if %{with apparmor}
 BuildRequires:  libapparmor-devel
 BuildRequires:  apparmor-rpm-macros
+BuildRequires:  apparmor-parser
 %endif
 
 PreReq:         permissions
