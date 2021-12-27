@@ -419,6 +419,7 @@ fi
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
 # similar case for fish
+%dir %{_datadir}/fish
 %dir %{_datadir}/fish/vendor_conf.d
 
 # Ghost entries for things created at runtime
