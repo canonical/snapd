@@ -631,7 +631,7 @@ func (s *gadgetYamlTestSuite) TestRegressionGadgetWithEmptyVolume(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, ErrorMatches, `cannot use empty volume "lun-0"`)
+	c.Assert(err, ErrorMatches, `volume "lun-0" stanza is empty`)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
