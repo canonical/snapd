@@ -80,7 +80,7 @@ static void sdh_test_tear_down(sdh_test_fixture *fixture, gconstpointer user_dat
 }
 
 static struct mocks {
-    size_t cgorup_new_calls;
+    size_t cgroup_new_calls;
     void *new_ret;
     char *new_tag;
     int new_flags;
@@ -104,7 +104,7 @@ static void mocks_reset(void) {
 /* mocked in test */
 sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags) {
     g_debug("cgroup new called");
-    mocks.cgorup_new_calls++;
+    mocks.cgroup_new_calls++;
     mocks.new_tag = g_strdup(security_tag);
     mocks.new_flags = flags;
     return (sc_device_cgroup *)mocks.new_ret;
@@ -153,7 +153,7 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
 
     int ret = snap_device_helper_run(&inv_block);
     g_assert_cmpint(ret, ==, 0);
-    g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+    g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
     if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0) {
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
@@ -184,7 +184,7 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
     symlink_in_sysroot(fixture, "/sys/devices/foo/tty/ttyS0/subsystem", "../../../../class/other");
     ret = snap_device_helper_run(&inv_serial);
     g_assert_cmpint(ret, ==, 0);
-    g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+    g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
     if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0) {
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
@@ -271,7 +271,7 @@ static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_d
         };
         int ret = snap_device_helper_run(&inv_block);
         g_assert_cmpint(ret, ==, 0);
-        g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
         g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
@@ -359,7 +359,7 @@ static void test_sdh_action_remove_fallback_devtype(sdh_test_fixture *fixture, g
         };
         int ret = snap_device_helper_run(&inv_block);
         g_assert_cmpint(ret, ==, 0);
-        g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+        g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 1);
         g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
