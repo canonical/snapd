@@ -30,16 +30,14 @@ parts:
     plugin: nil
     source: .
     build-snaps: [go/1.13/stable]
+    # these packages are needed to call mkversion.sh in override-pull, all other
+    # dependencies are installed using apt-get build-dep
+    build-packages:
+      - git
+      - dpkg-dev
     override-pull: |
       snapcraftctl pull
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
-      sudo -E apt-get install -y dpkg-dev git
-      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
-          echo "dirty git tree during build detected:"
-          git status
-          git diff
-          exit 1
-      fi
       snapcraftctl set-version "$(./mkversion.sh --output-only)"
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
@@ -51,6 +49,17 @@ parts:
       sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
     override-build: |
+      # unfortunately we do not have something like "snapcraftctl get-version"
+      # so we have to re-run mkversion.sh to check if the version number was set
+      # as "dirty" from the override-pull step
+      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
+        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
+        ( 
+          echo "dirty git tree during build detected:"
+          git status
+          git diff
+        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
+      fi
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
       # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
       # contain things like libc and friends that confuse the debian package
