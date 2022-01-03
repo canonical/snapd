@@ -18,7 +18,7 @@ prepare: |
     # Save the revision of the pc-kernel snap.
     readlink /snap/"$OLD_KERNEL"/current > original-revision.txt
     # Save the original tracking channel
-    snap list "$OLD_KERNEL" | grep -v ^Name | tr -s ' ' | cut -f4 -d' ' > original-channel.txt
+    snap info "$OLD_KERNEL" | awk '/^tracking:/ {print $2}' > original-channel.txt
 
     systemctl stop snapd.service snapd.socket
 
