@@ -76,7 +76,7 @@ func readSuperBlock(stream *os.File) (*internal.SuperBlock, error) {
 func createCompressionBackend(stream *os.File, sb *internal.SuperBlock) (CompressionBackend, error) {
 	var optionsBlock *metaBlockReader = nil
 	if sb.Flags&internal.SuperBlockCompressorOptions != 0 {
-		optionsBlock = metablockReaderCreate(stream, nil, internal.SuperBlockSize)
+		optionsBlock = metablockReaderCreate(stream, nil, internal.SuperBlockSize, internal.MetadataRef{})
 	}
 
 	switch sb.CompressionType {
@@ -168,7 +168,7 @@ func Open(path string) (*SquashFileSystem, error) {
 	}
 
 	// create directory reader
-	directoryReader := metablockReaderCreate(f, cb, sb.DirectoryTable)
+	directoryReader := metablockReaderCreate(f, cb, sb.DirectoryTable, internal.MetadataRef{})
 	if directoryReader == nil {
 		return nil, fmt.Errorf("squashfs: failed to create directory reader")
 	}

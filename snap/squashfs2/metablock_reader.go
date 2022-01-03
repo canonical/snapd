@@ -51,7 +51,7 @@ func min(a, b int) int {
 // overlap compressed blocks. Inodes are identified by a 48-bit number which encodes the location of the
 // compressed metadata block containing the inode, and the byte offset into
 // that block where the inode is placed (<block, offset>).
-func metablockReaderCreate(stream *os.File, compression CompressionBackend, offset int64, ref ...internal.MetadataRef) *metaBlockReader {
+func metablockReaderCreate(stream *os.File, compression CompressionBackend, offset int64, ref internal.MetadataRef) *metaBlockReader {
 	m := &metaBlockReader{
 		stream:        stream,
 		streamOffset:  offset,
@@ -60,11 +60,9 @@ func metablockReaderCreate(stream *os.File, compression CompressionBackend, offs
 		currentOffset: 0,
 	}
 
-	if len(ref) != 0 {
-		err := m.seekToRef(ref[0])
-		if err != nil {
-			return nil
-		}
+	err := m.seekToRef(ref)
+	if err != nil {
+		return nil
 	}
 	return m
 }
