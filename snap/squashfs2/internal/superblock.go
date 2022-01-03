@@ -24,6 +24,18 @@ import (
 	"fmt"
 )
 
+type CompressionType uint16
+
+// Compression types supported by squashfs
+const (
+	CompressionZlib CompressionType = 1
+	CompressionLzma                 = 2
+	CompressionLzo                  = 3
+	CompressionXz                   = 4
+	CompressionLz4                  = 5
+	CompressionZstd                 = 6
+)
+
 const (
 	SuperBlockSize = 96
 
@@ -38,14 +50,6 @@ const (
 	SuperBlockNoXattrs              = 0x200
 	SuperBlockCompressorOptions     = 0x400
 	SuperBlockUncompressedIds       = 0x800
-
-	// Compression types supported by squashfs
-	CompressionZlib = 1
-	CompressionLzma = 2
-	CompressionLzo  = 3
-	CompressionXz   = 4
-	CompressionLz4  = 5
-	CompressionZstd = 6
 )
 
 var (
@@ -63,7 +67,7 @@ type SuperBlock struct {
 	MkfsTime        uint32
 	BlockSize       uint32
 	Fragments       uint32
-	CompressionType uint16
+	CompressionType CompressionType
 	BlockSizeLog2   uint16
 	Flags           uint16
 	NoIDs           uint16
@@ -101,7 +105,7 @@ func (sb *SuperBlock) Parse(data []byte) error {
 	sb.MkfsTime = ReadUint32(data[8:])
 	sb.BlockSize = ReadUint32(data[12:])
 	sb.Fragments = ReadUint32(data[16:])
-	sb.CompressionType = ReadUint16(data[20:])
+	sb.CompressionType = CompressionType(ReadUint16(data[20:]))
 	sb.BlockSizeLog2 = ReadUint16(data[22:])
 	sb.Flags = ReadUint16(data[24:])
 	sb.NoIDs = ReadUint16(data[26:])

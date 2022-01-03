@@ -99,7 +99,7 @@ func (d *directory) loadEntries() error {
 			return fmt.Errorf("squashfs: invalid number of directory entries: %d", dirHeader.Count)
 		}
 
-		// squashfs is littered with magic arethmetics, count is
+		// squashfs is littered with magic arithmetics, count is
 		// actually one less than specified in count
 		for i := 0; i < int(dirHeader.Count)+1; i++ {
 			entry, size, err := d.readEntry(&dirHeader)

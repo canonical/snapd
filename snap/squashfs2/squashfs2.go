@@ -311,8 +311,8 @@ func (sfs *SquashFileSystem) OpenFile(path string) (io.Reader, error) {
 	return nil, fmt.Errorf("squashfs: %s not found", path)
 }
 
-func getDefaultInodeSize(inoType uint16) int {
-	switch inoType {
+func getDefaultInodeSize(inodeType internal.InodeType) int {
+	switch inodeType {
 	case internal.InodeTypeDirectory:
 		return internal.InodeDirectorySize
 	case internal.InodeTypeFile:

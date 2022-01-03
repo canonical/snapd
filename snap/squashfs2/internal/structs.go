@@ -22,6 +22,26 @@ package internal
 
 import "errors"
 
+type InodeType uint16
+
+// Inode types supported by squashfs
+const (
+	InodeTypeDirectory         InodeType = 1
+	InodeTypeFile                        = 2
+	InodeTypeSymlink                     = 3
+	InodeTypeBlockDev                    = 4
+	InodeTypeCharDev                     = 5
+	InodeTypeFifo                        = 6
+	InodeTypeSocket                      = 7
+	InodeTypeExtendedDirectory           = 8
+	InodeTypeExtendedFile                = 9
+	InodeTypeExtendedSymlink             = 10
+	InodeTypeExtendedBlockDev            = 11
+	InodeTypeExtendedCharDev             = 12
+	InodeTypeExtendedFifo                = 13
+	InodeTypeExtendedSocket              = 14
+)
+
 const (
 	InodeSize                  = 16
 	InodeRegularFileSize       = 32
@@ -29,27 +49,11 @@ const (
 	InodeSymlinkSize           = 24
 	InodeBlockDeviceSize       = 24
 	InodeExtendedDirectorySize = 40
-
-	// Inode types supported by squashfs
-	InodeTypeDirectory         = 1
-	InodeTypeFile              = 2
-	InodeTypeSymlink           = 3
-	InodeTypeBlockDev          = 4
-	InodeTypeCharDev           = 5
-	InodeTypeFifo              = 6
-	InodeTypeSocket            = 7
-	InodeTypeExtendedDirectory = 8
-	InodeTypeExtendedFile      = 9
-	InodeTypeExtendedSymlink   = 10
-	InodeTypeExtendedBlockDev  = 11
-	InodeTypeExtendedCharDev   = 12
-	InodeTypeExtendedFifo      = 13
-	InodeTypeExtendedSocket    = 14
 )
 
 // https://github.com/plougher/squashfs-tools/blob/master/squashfs-tools/squashfs_fs.h#L289
 type Inode struct {
-	Itype uint16
+	Itype InodeType
 	Mode  uint16
 	Uid   uint16
 	Gid   uint16
@@ -107,7 +111,7 @@ func (n *Inode) Parse(data []byte) error {
 		}
 	}
 
-	n.Itype = ReadUint16(data[0:])
+	n.Itype = InodeType(ReadUint16(data[0:]))
 	n.Mode = ReadUint16(data[2:])
 	n.Uid = ReadUint16(data[4:])
 	n.Gid = ReadUint16(data[6:])
@@ -164,14 +168,14 @@ func (n *InodeReg) Parse(data []byte) error {
 type DirectoryHeader struct {
 	Count      uint32
 	StartBlock uint32
-	Ino        uint32
+	Inode      uint32
 }
 
 type DirectoryEntry struct {
 	StartBlock uint32
 	Offset     uint16
 	Ino        int16
-	Itype      uint16
+	Itype      InodeType
 	Size       uint16
 	Name       string
 }
@@ -186,7 +190,7 @@ func (dh *DirectoryHeader) Parse(data []byte) error {
 
 	dh.Count = ReadUint32(data[0:])
 	dh.StartBlock = ReadUint32(data[4:])
-	dh.Ino = ReadUint32(data[8:])
+	dh.Inode = ReadUint32(data[8:])
 	return nil
 }
 
@@ -200,7 +204,7 @@ func (de *DirectoryEntry) Parse(data []byte) error {
 
 	de.Offset = ReadUint16(data[0:])
 	de.Ino = ReadInt16(data[2:])
-	de.Itype = ReadUint16(data[4:])
+	de.Itype = InodeType(ReadUint16(data[4:]))
 	de.Size = ReadUint16(data[6:])
 	return nil
 }

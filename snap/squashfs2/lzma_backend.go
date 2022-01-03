@@ -142,11 +142,11 @@ func createLzmaBackend() (lzmaBackend, error) {
 	return lzmaBackend{}, nil
 }
 
-func (xb xzBackend) createXzReader() (*lzmaReader, error) {
+func createLzmaReader() (*lzmaReader, error) {
 	// create the lzma stream
 	stream := (*C.lzma_stream)(C.calloc(1, (C.size_t)(unsafe.Sizeof(C.lzma_stream{}))))
 	if stream == nil {
-		return &lzmaReader{}, fmt.Errorf("failed to allocate lzma stream")
+		return nil, fmt.Errorf("failed to allocate lzma stream")
 	}
 
 	// Initialize decoder
@@ -156,6 +156,24 @@ func (xb xzBackend) createXzReader() (*lzmaReader, error) {
 	}
 
 	return &lzmaReader{stream: stream}, nil
+}
+
+func (r *lzmaReader) Decompress(compressedData []byte, decompressedData []byte) (int, error) {
+	r.stream.avail_in = C.size_t(len(compressedData))
+	r.stream.avail_out = C.size_t(len(decompressedData))
+
+	// actually do the uncompression
+	ret := C.wrapper_lzma_code(r.stream,
+		unsafe.Pointer(&compressedData[0]),
+		unsafe.Pointer(&decompressedData[0]),
+		C.lzma_action(actionRun),
+	)
+	if ret != lzmaErrOk && ret != lzmaErrEndOfStream {
+		return 0, fmt.Errorf("failed to uncompress data")
+	}
+
+	bytesRead := len(decompressedData) - int(r.stream.avail_out)
+	return bytesRead, nil
 }
 
 func (r *lzmaReader) Close() {
@@ -166,65 +184,19 @@ func (r *lzmaReader) Close() {
 }
 
 func (xb xzBackend) Decompress(compressedData []byte, decompressedData []byte) (int, error) {
-	reader, err := xb.createXzReader()
+	reader, err := createLzmaReader()
 	if err != nil {
 		return 0, err
 	}
 	defer reader.Close()
-
-	reader.stream.avail_in = C.size_t(len(compressedData))
-	reader.stream.avail_out = C.size_t(len(decompressedData))
-
-	// actually do the uncompression
-	ret := C.wrapper_lzma_code(reader.stream,
-		unsafe.Pointer(&compressedData[0]),
-		unsafe.Pointer(&decompressedData[0]),
-		C.lzma_action(actionRun),
-	)
-	if ret != lzmaErrOk && ret != lzmaErrEndOfStream {
-		return 0, fmt.Errorf("failed to uncompress data")
-	}
-
-	bytesRead := len(decompressedData) - int(reader.stream.avail_out)
-	return bytesRead, nil
-}
-
-func (xb lzmaBackend) createLzmaReader() (*lzmaReader, error) {
-	// create the lzma stream
-	stream := (*C.lzma_stream)(C.calloc(1, (C.size_t)(unsafe.Sizeof(C.lzma_stream{}))))
-	if stream == nil {
-		return &lzmaReader{}, fmt.Errorf("failed to allocate lzma stream")
-	}
-
-	// Initialize decoder
-	ret := C.lzma_auto_decoder(stream, C.uint64_t(math.MaxUint64), C.uint32_t(concatenated))
-	if ret != 0 {
-		return nil, fmt.Errorf("failed to initialize lzma decoder: %d", ret)
-	}
-
-	return &lzmaReader{stream: stream}, nil
+	return reader.Decompress(compressedData, decompressedData)
 }
 
 func (xb lzmaBackend) Decompress(compressedData []byte, decompressedData []byte) (int, error) {
-	reader, err := xb.createLzmaReader()
+	reader, err := createLzmaReader()
 	if err != nil {
 		return 0, err
 	}
 	defer reader.Close()
-
-	reader.stream.avail_in = C.size_t(len(compressedData))
-	reader.stream.avail_out = C.size_t(len(decompressedData))
-
-	// actually do the uncompression
-	ret := C.wrapper_lzma_code(reader.stream,
-		unsafe.Pointer(&compressedData[0]),
-		unsafe.Pointer(&decompressedData[0]),
-		C.lzma_action(actionRun),
-	)
-	if ret != lzmaErrOk && ret != lzmaErrEndOfStream {
-		return 0, fmt.Errorf("failed to uncompress data")
-	}
-
-	bytesRead := len(decompressedData) - int(reader.stream.avail_out)
-	return bytesRead, nil
+	return reader.Decompress(compressedData, decompressedData)
 }

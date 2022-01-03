@@ -190,10 +190,6 @@ func (fr *FileReader) Read(p []byte) (int, error) {
 }
 
 func (fr *FileReader) Copy(dst io.Writer, src io.Reader) (written int64, err error) {
-	if fr.inode.Fragment != 0xFFFFFFFF {
-		return 0, fmt.Errorf("squashfs: inode uses the fragment table, and we do not support this yet")
-	}
-
 	buffer := make([]byte, fr.fileSystem.superBlock.BlockSize)
 	for written < int64(fr.inode.Size) {
 		bytesRead, err := fr.Read(buffer)
