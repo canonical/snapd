@@ -56,12 +56,15 @@ func isBlocked(cert certificate, blockedCerts []string) bool {
 	return strutil.ListContains(blockedCerts, cert.Name)
 }
 
-// getCertObjects
+// getCertObjects Helper function to retrieve a list of files in the directory path and returns
+// them as objects with their name and real path (any symlinks will be evaluated). Each file object
+// contains both the path of file, and the evaluated real path, which are identical if the file is
+// not a symlink.
 // TODO Should we support recursive directories inside the certs dir?
-func getCertObjects(basePath string) ([]certificate, error) {
-	certFiles, err := ioutil.ReadDir(basePath)
+func getCertObjects(certsPath string) ([]certificate, error) {
+	certFiles, err := ioutil.ReadDir(certsPath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read base certs: %v", err)
+		return nil, fmt.Errorf("cannot read certs directory: %v", err)
 	}
 
 	var certsObjects []certificate
@@ -75,7 +78,7 @@ func getCertObjects(basePath string) ([]certificate, error) {
 		// correctly we evaluate the symbolic links and get the real path of the certificate, because
 		// we are not going to 'copy' or link to the symbolic link, instead we will recreate the symbolic
 		// link to the real path of the certificate.
-		certRealPath := filepath.Join(basePath, cert.Name())
+		certRealPath := filepath.Join(certsPath, cert.Name())
 		if cert.Mode()&os.ModeSymlink != 0 {
 			resolvedPath, err := filepath.EvalSymlinks(certRealPath)
 			if err != nil {
@@ -87,7 +90,7 @@ func getCertObjects(basePath string) ([]certificate, error) {
 		// If the file is not a symbolic link then Path and RealPath will be identical.
 		certObject := certificate{
 			Name:     cert.Name(),
-			Path:     filepath.Join(basePath, cert.Name()),
+			Path:     filepath.Join(certsPath, cert.Name()),
 			RealPath: certRealPath,
 		}
 		certsObjects = append(certsObjects, certObject)
@@ -126,7 +129,9 @@ func filterCertsInDirectory(dirPath string, blockedCerts []string) error {
 }
 
 // installCerts Populates symbolic links in the output directory, to each certificate
-// provided.
+// provided. There may need to be some provide apparmor rules for the source directories
+// and not just the merged (output) directory.
+// TODO apparmor rules for the source directories?
 func installCerts(outputPath string, certs []certificate) error {
 	for _, cert := range certs {
 		// When updating existing certifications we want to make sure we don't
@@ -235,11 +240,11 @@ func CombineCertConfigurations(outputPath string, certDirectoryPaths []string, b
 	}
 
 	if err := installCerts(outputPath, filteredCerts); err != nil {
-		return fmt.Errorf("failed to copy base certs: %v", err)
+		return fmt.Errorf("cannot copy certs to output: %v", err)
 	}
 
 	if err := generateCACertificates(outputPath); err != nil {
-		return fmt.Errorf("failed to generate ca-certificates.crt: %v", err)
+		return fmt.Errorf("cannot generate ca-certificates.crt: %v", err)
 	}
 	return nil
 }
