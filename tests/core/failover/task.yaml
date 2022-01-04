@@ -33,9 +33,15 @@ environment:
     SNAP_ID_core20: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
     SNAP_ID_core18: CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6
     SNAP_ID_core: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    # pc-kernel snap is specific to i386/x86-64
     SNAP_ID_pc_kernel: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
 
 prepare: |
+    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
+        echo "variant not supported on ARM architectures"
+        exit 0
+    fi
+
     mkdir -p "$BUILD_DIR"
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -53,6 +59,11 @@ prepare: |
     setup_fake_store "$BLOB_DIR"
 
 restore: |
+    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
+        echo "variant not supported on ARM architectures"
+        exit 0
+    fi
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -68,6 +79,11 @@ debug: |
     snap changes
 
 execute: |
+    if [ "$TARGET_SNAP" = "kernel" ] && os.query is-arm; then
+        echo "variant not supported on ARM architectures"
+        exit 0
+    fi
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
@@ -89,7 +105,7 @@ execute: |
         truncate -s 0 "$BUILD_DIR/unpack/initrd.img"
     }
 
-    if os.query is-core18 && [[ "$SPREAD_VARIANT" = "rclocalcrash" ]]; then
+    if os.query is-core18 && [ "$SPREAD_VARIANT" = "rclocalcrash" ]; then
         # there is no /etc/rc.local on core18
         echo "scenario isn't supported on core18"
         exit 0
@@ -111,19 +127,25 @@ execute: |
         core_name="core20"
         core_snap_id="$SNAP_ID_core20"
     fi
+    TARGET_SNAP_NAME="$core_name"
+    SNAP_ID="$core_snap_id"
 
     if [ "$TARGET_SNAP" = kernel ]; then
         TARGET_SNAP_NAME=pc-kernel
         SNAP_ID="$SNAP_ID_pc_kernel"
-    else
-        TARGET_SNAP_NAME="$core_name"
-        SNAP_ID="$core_snap_id"
     fi
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # first pass, save current target snap revision
         snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}" > prevBoot
-        START_REVISION=$(($(cat prevBoot) + 1))
+        # it is possible that the previous revision of the snap was unasserted
+        START_REVISION=9999
+        PREV_REV="$(cat prevBoot)"
+        if [ "${PREV_REV##x}" = "$PREV_REV" ]; then
+            # the previous revision has no x prefix, meaning the snap was
+            # asserted, so just bump the revision number
+            START_REVISION=$((PREV_REV + 1))
+        fi
         # unpack current target snap
         unsquashfs -no-progress -d "$BUILD_DIR/unpack" "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
 
@@ -133,7 +155,7 @@ execute: |
         # repack new target snap
         mksnap_fast "$BUILD_DIR/unpack" failing.snap
         cat <<EOF > decl-headers.json
-    {"snap-id": "$SNAP_ID"}
+    {"snap-id": "$SNAP_ID", "snap-name": "$TARGET_SNAP_NAME"}
     EOF
         cat <<EOF > rev-headers.json
     {"snap-id": "$SNAP_ID", "snap-revision": "$START_REVISION"}
