@@ -58,9 +58,9 @@ prepare: |
     cat <<EOF > rev-headers.json
     {"snap-id": "$PC_KERNEL_ID", "snap-revision": "$START_REVISION"}
     EOF
-    p=$(new_snap_declaration "$BLOB_DIR" pc-kernel --snap-decl-json decl-headers.json)
+    p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" pc-kernel --snap-decl-json decl-headers.json)
     snap ack "$p"
-    p=$(new_snap_revision "$BLOB_DIR" pc-kernel_x1.snap --snap-rev-json rev-headers.json)
+    p=$(fakestore new-snap-revision --dir "$BLOB_DIR" pc-kernel_x1.snap --snap-rev-json rev-headers.json)
     snap ack "$p"
     # new gadget
     cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
@@ -80,9 +80,9 @@ prepare: |
     cat <<EOF > rev-headers.json
     {"snap-id": "$PC_SNAP_ID", "snap-revision": "$START_REVISION"}
     EOF
-    p=$(new_snap_declaration "$BLOB_DIR" pc --snap-decl-json decl-headers.json)
+    p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" pc --snap-decl-json decl-headers.json)
     snap ack "$p"
-    p=$(new_snap_revision "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
+    p=$(fakestore new-snap-revision --dir "$BLOB_DIR" pc_x1.snap --snap-rev-json rev-headers.json)
     snap ack "$p"
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
