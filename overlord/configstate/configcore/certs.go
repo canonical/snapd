@@ -234,7 +234,7 @@ func CombineCertConfigurations(outputPath string, certDirectoryPaths []string, b
 	}
 
 	if err := os.MkdirAll(outputPath, 0755); err != nil {
-		return fmt.Errorf("cannot create store ssl certs dir: %v", err)
+		return fmt.Errorf("cannot create output ssl certs dir: %v", err)
 	}
 
 	// Filter out the certs that are not allowed to be merged, in the output
