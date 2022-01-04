@@ -148,6 +148,12 @@ func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskS
 	expected := expectedDoInstallTasks(typ, opts, discards, nil, nil)
 
 	c.Assert(kinds, DeepEquals, expected)
+
+	if opts&noLastBeforeModificationsEdge == 0 {
+		te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+		c.Assert(te, NotNil)
+		c.Assert(te.Kind(), Equals, "validate-snap")
+	}
 }
 
 func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
