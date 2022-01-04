@@ -177,10 +177,19 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return err
 	}
 
-	// Use a origin hint that is sorted before the console-conf
-	// "00-snapd-config.yaml" so that console-conf can override
-	// our settings when it runs.
-	originHint := "0-snap-set"
+	seeded, err := alreadySeeded(tr)
+	if err != nil {
+		return err
+	}
+
+	originHint := "90-snapd-config"
+	if !seeded {
+		// Use a different origin hint when seeding that sorts
+		// before the console-conf "00-snapd-config.yaml" so
+		// that console-conf can override our settings when it
+		// runs.
+		originHint = "0-snapd-defaults"
+	}
 
 	// Always starts with a clean config to avoid merging of keys
 	// that got unset.
