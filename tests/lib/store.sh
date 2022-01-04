@@ -46,9 +46,10 @@ make_snap_installable(){
     done
 
     local dir="$1"
-    local snap_path="$2"
+    local snap_name="$2"
+    local snap_path="$3"
 
-    p_decl=$(new_snap_declaration "$dir" "$snap_path")
+    p_decl=$(new_snap_declaration "$dir" "$snap_name")
     p_rev=$(new_snap_revision "$dir" "$snap_path")
     if [ $ACK = true ]; then
         snap ack "$p_decl"
@@ -100,7 +101,6 @@ make_snap_installable_with_id(){
     "type": "snap-declaration",
     "snap-id": "${snap_id}",
     "publisher-id": "developer1",
-    "snap-name": "${snap_name}"
 }
 EOF
 
@@ -118,7 +118,7 @@ EOF
 }
 EOF
 
-    p_decl=$(new_snap_declaration "$dir" "$snap_path" --snap-decl-json=/tmp/snap-decl.json)
+    p_decl=$(new_snap_declaration "$dir" "$snap_name" --snap-decl-json=/tmp/snap-decl.json)
     p_rev=$(new_snap_revision "$dir" "$snap_path" --snap-rev-json=/tmp/snap-rev.json)
     if [ $ACK = true ]; then
         snap ack "$p_decl"
@@ -131,11 +131,10 @@ EOF
 
 new_snap_declaration(){
     local dir="$1"
-    local snap_path="$2"
+    local snap_name="$2"
     shift 2
 
-    cp -a "$snap_path" "$dir"
-    fakestore new-snap-declaration --dir "$dir" "$@" "${snap_path}"
+    fakestore new-snap-declaration "${snap_name}" --dir "$dir" "$@"
 }
 
 new_snap_revision(){
@@ -143,7 +142,8 @@ new_snap_revision(){
     local snap_path="$2"
     shift 2
 
-    fakestore new-snap-revision --dir "$dir" "$@" "${snap_path}"
+    cp -a "$snap_path" "$dir"
+    fakestore new-snap-revision "${snap_path}" --dir "$dir" "$@"
 }
 
 new_repair(){

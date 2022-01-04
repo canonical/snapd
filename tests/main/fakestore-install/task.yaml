@@ -33,7 +33,7 @@ execute: |
     setup_fake_store "$BLOB_DIR"
 
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local basic)
-    make_snap_installable "$BLOB_DIR" "${snap_path}"
+    make_snap_installable "$BLOB_DIR" basic "${snap_path}"
 
     snap install basic
     snap info basic | MATCH "snap-id:[ ]+basic-id"

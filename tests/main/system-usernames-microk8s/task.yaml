@@ -43,7 +43,7 @@ prepare: |
 
     sed "snap/meta/snap.yaml.in" -e "s/SNAPNAME/test-microk8s-username/" > "snap/meta/snap.yaml"
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local snap)
-    make_snap_installable "$STORE_DIR" "${snap_path}"
+    make_snap_installable "$STORE_DIR" test-microk8s-username "${snap_path}"
 
     # Then create a snap which is entitled to use the microk8s user
 
