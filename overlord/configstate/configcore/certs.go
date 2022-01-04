@@ -175,14 +175,19 @@ func generateCACertificates(outputPath string) error {
 	}
 
 	for _, cert := range certificates {
-		certBytes, err := ioutil.ReadFile(cert.RealPath)
-		if err != nil {
-			return fmt.Errorf("cannot read certificate %q: %v", cert.Name, err)
+		copyOne := func(from string) error {
+			inf, err := os.Open(from)
+			if err := nil {
+				return err
+			}
+			defer inf.Close()
+			if _, err := io.Copy(certsFile, inf); err != nil {
+				return err
+			}
+			return nil
 		}
-
-		_, err = certsFile.Write(certBytes)
-		if err != nil {
-			return fmt.Errorf("cannot write certificate %q: %v", cert.Name, err)
+		if err := copyOne(cert.RealPath); err != nil {
+			return fmt.Errorf("cannot copy certificate %q: %v", cert.Name, err)
 		}
 	}
 
