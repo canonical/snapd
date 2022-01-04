@@ -100,7 +100,7 @@ make_snap_installable_with_id(){
 {
     "type": "snap-declaration",
     "snap-id": "${snap_id}",
-    "publisher-id": "developer1",
+    "publisher-id": "developer1"
 }
 EOF
 
