@@ -12,3 +12,8 @@ defaults:
       disable-backlight-service: true
       timezone: Europe/Malta
       hostname: foo
+      network:
+        netplan:
+          bridges:
+            br54:
+              dhcp4: true

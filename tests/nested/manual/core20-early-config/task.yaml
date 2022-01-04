@@ -30,6 +30,10 @@ prepare: |
     tests.nested build-image core
     tests.nested create-vm core
 
+debug: |
+    # show if anything went wrong during seeding
+    tests.nested exec "snap change 1"
+
 execute: |
     check_core20_early_config(){
         # sanity - check that defaults were applied; note this doesn't guarantee
@@ -64,6 +68,9 @@ execute: |
         tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "hostname: foo"
         tests.nested exec "cat /etc/hostname" | MATCH "foo"
         tests.nested exec "hostname" | MATCH "foo"
+
+        # netplan config
+        tests.nested exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
     }
 
     check_core20_early_config
