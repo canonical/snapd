@@ -119,8 +119,7 @@ func filterCertsInDirectory(dirPath string, blockedCerts []string) error {
 	// Remove the certs that are marked blocked.
 	for _, cert := range existingCerts {
 		if isBlocked(cert, blockedCerts) {
-			err := os.Remove(cert.Path)
-			if err != nil {
+			if err := os.Remove(cert.Path); err != nil {
 				return fmt.Errorf("cannot remove blocked certificate: %v", err)
 			}
 		}
