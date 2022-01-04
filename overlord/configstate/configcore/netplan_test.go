@@ -22,7 +22,6 @@ package configcore_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -509,13 +508,6 @@ network:
       dhcp6: true`
 	s.backend.ExportApiV2()
 
-	// see https://bugs.launchpad.net/netplan/+bug/1946957 why needed
-	mockNetplanFile := filepath.Join(dirs.GlobalRootDir, "/etc/netplan/90-snapd-conf.yaml")
-	err := os.MkdirAll(filepath.Dir(mockNetplanFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockNetplanFile, nil, 0644)
-	c.Assert(err, IsNil)
-
 	// we have connectivity
 	s.fakestore.status = map[string]bool{"host1": true}
 	s.backend.ConfigApiSetRet = true
@@ -529,7 +521,7 @@ network:
 	s.state.Unlock()
 	tr.Set("core", "system.network.netplan.network.bridges.br54.dhcp4", nil)
 
-	err = configcore.Run(coreDev, tr)
+	err := configcore.Run(coreDev, tr)
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
