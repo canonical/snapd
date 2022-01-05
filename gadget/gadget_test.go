@@ -2999,6 +2999,43 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	c.Assert(err, IsNil)
 }
 
+const mockExtraNonInstallableStructureWithoutFilesystem = `
+      - name: foobar
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesystemOnDiskHasFilesystem(c *C) {
+	gadgetLayoutWithNonInstallableStructureWithoutFs, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraNonInstallableStructureWithoutFilesystem, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockDeviceLayout
+
+	// device matches, but it has a filesystem
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		gadget.OnDiskStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "foobar",
+					Size:       1200 * quantity.SizeMiB,
+					Label:      "whatever",
+					Filesystem: "something",
+				},
+				StartOffset: 2 * quantity.OffsetMiB,
+			},
+			Node: "/dev/node2",
+		},
+	)
+
+	// with no/default opts, then they are compatible
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithNonInstallableStructureWithoutFs, &deviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// still compatible with strict opts
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithNonInstallableStructureWithoutFs, &deviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
 func (s *gadgetYamlTestSuite) TestSchemaCompatibility(c *C) {
 	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml, nil)
 	c.Assert(err, IsNil)
