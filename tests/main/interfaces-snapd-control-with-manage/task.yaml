@@ -26,7 +26,7 @@ prepare: |
     setup_fake_store "$BLOB_DIR"
 
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local test-snapd-control-consumer)
-    make_snap_installable "$BLOB_DIR" test-snapd-control-consumer "${snap_path}"
+    make_snap_installable "$BLOB_DIR" "${snap_path}"
     cat > snap-decl.json <<'EOF'
     {
       "format": "1",

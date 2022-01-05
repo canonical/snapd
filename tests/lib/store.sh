@@ -46,10 +46,10 @@ make_snap_installable(){
     done
 
     local dir="$1"
-    local snap_name="$2"
-    local snap_path="$3"
+    local snap_path="$2"
 
-    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_name")
+    # NOTE: snap id and snap name are derived from snap file name
+    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_path")
     p_rev=$(fakestore new-snap-revision --dir "$dir" "$snap_path")
     if [ $ACK = true ]; then
         snap ack "$p_decl"
@@ -100,7 +100,8 @@ make_snap_installable_with_id(){
 {
     "type": "snap-declaration",
     "snap-id": "${snap_id}",
-    "publisher-id": "developer1"
+    "publisher-id": "developer1",
+    "snap-name": "${snap_name}"
 }
 EOF
 
@@ -118,7 +119,7 @@ EOF
 }
 EOF
 
-    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_name" --snap-decl-json=/tmp/snap-decl.json)
+    p_decl=$(fakestore new-snap-declaration --dir "$dir" "$snap_path" --snap-decl-json=/tmp/snap-decl.json)
     p_rev=$(fakestore new-snap-revision --dir "$dir" "$snap_path" --snap-rev-json=/tmp/snap-rev.json)
     if [ $ACK = true ]; then
         snap ack "$p_decl"
