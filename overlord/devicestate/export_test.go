@@ -38,6 +38,8 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var SystemForPreseeding = systemForPreseeding
+
 func MockKeyLength(n int) (restore func()) {
 	if n < 1024 {
 		panic("key length must be >= 1024")

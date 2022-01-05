@@ -730,6 +730,18 @@ func (m *DeviceManager) ensureSeeded() error {
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
+		if !release.OnClassic {
+			// XXX: needed by loadDeviceSeed(), otherwise Ensure fails with:
+			// "devicemgr: cannot seed: internal error: requested inconsistent device seed: 20220105 (was )"
+			unloadDeviceSeed(m.state)
+			systemLabel, err := systemForPreseeding()
+			if err != nil {
+				logger.Noticef("%v", err)
+				return err
+			}
+			opts.Mode = "install"
+			opts.Label = systemLabel
+		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {

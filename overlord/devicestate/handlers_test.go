@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -565,6 +567,9 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 }
 
 func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
+	restoreOnClassic := release.MockOnClassic(true)
+	defer restoreOnClassic()
+
 	now := time.Now()
 	restoreTimeNow := devicestate.MockTimeNow(func() time.Time {
 		return now
@@ -589,6 +594,41 @@ func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
 	var preseedStartTime time.Time
 	c.Assert(s.state.Get("preseed-start-time", &preseedStartTime), IsNil)
 	c.Check(preseedStartTime.Equal(now), Equals, true)
+}
+
+func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
+	restoreOnClassic := release.MockOnClassic(false)
+	defer restoreOnClassic()
+
+	called := false
+	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
+		called = true
+		c.Check(opts.Preseed, Equals, true)
+		c.Check(opts.Label, Equals, "20220105")
+		c.Check(opts.Mode, Equals, "install")
+		return nil, nil
+	})
+	defer restore()
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
+
+	err := devicestate.EnsureSeeded(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *preseedModeSuite) TestSystemForPreseeding(c *C) {
+	_, err := devicestate.SystemForPreseeding()
+	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 0`)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
+	systemLabel, err := devicestate.SystemForPreseeding()
+	c.Assert(err, IsNil)
+	c.Check(systemLabel, Equals, "20220105")
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
+	_, err = devicestate.SystemForPreseeding()
+	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
 }
 
 type preseedDoneSuite struct {
