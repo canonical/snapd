@@ -1,0 +1,22 @@
+commit 41aaf41186bec45107c34ff4719e37b98d27ccb4
+Author: Valentin David <valentin.david@canonical.com>
+Date:   Wed Jan 12 13:50:55 2022 +0100
+
+    snapd.recovery-chooser-trigger.service: Survive switch root
+
+diff --git a/factory/usr/lib/systemd/system/initrd-switch-root.target.wants/snapd.recovery-chooser-trigger.service b/factory/usr/lib/systemd/system/initrd-switch-root.target.wants/snapd.recovery-chooser-trigger.service
+new file mode 120000
+index 0000000..b417254
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/initrd-switch-root.target.wants/snapd.recovery-chooser-trigger.service
+@@ -0,0 +1 @@
++../snapd.recovery-chooser-trigger.service
+\ No newline at end of file
+diff --git a/factory/usr/lib/systemd/system/snapd.recovery-chooser-trigger.service.d/survive-switch-root.conf b/factory/usr/lib/systemd/system/snapd.recovery-chooser-trigger.service.d/survive-switch-root.conf
+new file mode 100644
+index 0000000..85aac3c
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/snapd.recovery-chooser-trigger.service.d/survive-switch-root.conf
+@@ -0,0 +1,2 @@
++[Service]
++ExecStart=@/usr/lib/snapd/snap-bootstrap @snap-bootstrap recovery-chooser-trigger

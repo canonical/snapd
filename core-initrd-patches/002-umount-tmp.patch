@@ -1,0 +1,22 @@
+commit ce5180c5d9e7a8f7de3eaa7d6f611f1c73294b63
+Author: Valentin David <valentin.david@canonical.com>
+Date:   Wed Dec 1 16:49:49 2021 +0100
+
+    Make sure tmp.mount is stopped before switch
+    
+    Otherwise with stateful re-execution, systemd will think for a short
+    time that it is mounted. It will start `systemd-tmpfiles-setup` and
+    `systemd-timesyncd` too early.
+
+diff --git a/factory/usr/lib/systemd/system/tmp.mount.d/umount.conf b/factory/usr/lib/systemd/system/tmp.mount.d/umount.conf
+new file mode 100644
+index 0000000..22cded6
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/tmp.mount.d/umount.conf
+@@ -0,0 +1,6 @@
++# Mounts do not seem to be stopped when isolating, so we need to force
++# a conflict to umount tmp.mount so that main boot does not think it
++# is already mounted from the state.
++[Unit]
++Conflicts=initrd-switch-root.target
++Before=initrd-switch-root.target

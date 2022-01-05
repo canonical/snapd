@@ -574,6 +574,11 @@ uc20_build_initramfs_kernel_snap() {
         # all the skeleton edits go to a local copy of distro directory
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+
+        for patch in "${PROJECT_PATH}/core-initrd-patches"/*.patch; do
+            git apply --unsafe-paths --directory="${skeletondir}/main" -p2 <"${patch}"
+        done
+
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
