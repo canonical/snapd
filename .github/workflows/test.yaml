@@ -47,6 +47,12 @@ jobs:
     - name: Cache built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        if ls snapd*dirty*.snap > /dev/null 2>&1; then
+          echo "PR produces dirty snapd snap version"
+          unsquashfs snapd*dirty*.snap
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        fi
         cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
