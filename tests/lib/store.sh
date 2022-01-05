@@ -55,6 +55,7 @@ make_snap_installable(){
         snap ack "$p_decl"
         snap ack "$p_rev"
     fi
+    cp -av "$snap_path" "$dir/"
 }
 
 make_snap_installable_with_id(){
@@ -125,6 +126,7 @@ EOF
         snap ack "$p_decl"
         snap ack "$p_rev"
     fi
+    cp -av "$snap_path" "$dir/"
 
     rm -rf /tmp/snap-decl.json
     rm -rf /tmp/snap-rev.json
