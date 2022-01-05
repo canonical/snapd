@@ -843,8 +843,8 @@ setup_reflash_magic() {
     UNPACK_DIR="/tmp/$core_name-snap"
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    # install ubuntu-image
-    snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
+    # build a custom version ubuntu-image with test keys
+    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
@@ -969,7 +969,7 @@ EOF
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20.snap"
     fi
     # shellcheck disable=SC2086
-    /snap/bin/ubuntu-image snap \
+    "$GOHOME"/bin/ubuntu-image snap \
                            -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            $EXTRA_FUNDAMENTAL \
