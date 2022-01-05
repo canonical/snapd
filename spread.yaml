@@ -921,7 +921,12 @@ suites:
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools
             # build a custom version ubuntu-image with test keys
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            (
+                export GO111MODULE=off
+                # use go get so that ubuntu-image is built with current snapd sources
+                go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            )
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -957,7 +962,12 @@ suites:
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools
             # build a custom version ubuntu-image with test keys
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            (
+                export GO111MODULE=off
+                # use go get so that ubuntu-image is built with current snapd sources
+                go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            )
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -997,7 +1007,12 @@ suites:
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools
             # build a custom version ubuntu-image with test keys
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            (
+                export GO111MODULE=off
+                # use go get so that ubuntu-image is built with current snapd sources
+                go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            )
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb

@@ -844,7 +844,12 @@ setup_reflash_magic() {
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     # build a custom version ubuntu-image with test keys
-    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+    (
+        export GO111MODULE=off
+        # use go get so that ubuntu-image is built with current snapd sources
+        go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+        go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+    )
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
