@@ -1,0 +1,366 @@
+commit 0cad468549ef584cadb3062fe9af76fc781949e4
+Author: Valentin David <valentin.david@canonical.com>
+Date:   Tue Nov 30 14:54:53 2021 +0100
+
+    Rework unit dependencies
+    
+    We should avoid "requiring" or "wanting" units not part of
+    `initrd-switch-root.target` dependencies. Otherwise they stay when
+    `initrd-cleanup.service` "isolates" to that target.
+    
+    Having dependencies like `local-fs.target` in
+    `initrd-switch-root.target` makes "isolate" not stop it. That means
+    that upon start of the main boot, `local-fs.target` is already active,
+    making some services to start even though entries in `/etc/fstab` have
+    not yet been mounted.
+    
+    All our units that stay alive through the switch root should be
+    "Before" and "WantedBy", directly or indirectly, to any of these
+    targets: `initrd-root-device.target`, `initrd-root-fs.target`,
+    `initrd-fs.target`, `initrd.target`.
+    
+    Those units should also have `DefaultDependencies=no` so that they do
+    not add a "want" or "require" dependency to `sysinit.target`,
+    `basic.target` or anything those targets depend on. However, they
+    should probably have `After=sysinit.target` or `After=basic.target`,
+    directly or indirectly.
+    
+    We avoid dependencies to `initrd-cleanup.service`,
+    `initrd-switch-root.target` or `initrd-switch-root.service` unless it
+    is a for a clean up service that needs to run last, like for example
+    `systemd-bootchart-quit.service`.
+
+diff --git a/factory/usr/lib/systemd/system/initrd-fs.target.wants/populate-writable.service b/factory/usr/lib/systemd/system/initrd-fs.target.wants/populate-writable.service
+new file mode 120000
+index 0000000..841c4f4
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/initrd-fs.target.wants/populate-writable.service
+@@ -0,0 +1 @@
++../populate-writable.service
+\ No newline at end of file
+diff --git a/factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-usr-lib-firmware.mount b/factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-usr-lib-firmware.mount
+new file mode 120000
+index 0000000..1e939ab
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-usr-lib-firmware.mount
+@@ -0,0 +1 @@
++../sysroot-usr-lib-firmware.mount
+\ No newline at end of file
+diff --git a/factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-usr-lib-modules.mount b/factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-usr-lib-modules.mount
+new file mode 120000
+index 0000000..5dbf7f0
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-usr-lib-modules.mount
+@@ -0,0 +1 @@
++../sysroot-usr-lib-modules.mount
+\ No newline at end of file
+diff --git a/factory/usr/lib/systemd/system/run-mnt-data.mount.wants/sysroot-writable.mount b/factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-writable.mount
+similarity index 100%
+rename from factory/usr/lib/systemd/system/run-mnt-data.mount.wants/sysroot-writable.mount
+rename to factory/usr/lib/systemd/system/initrd-fs.target.wants/sysroot-writable.mount
+diff --git a/factory/usr/lib/systemd/system/initrd-root-device.target.d/41-base.conf b/factory/usr/lib/systemd/system/initrd-root-device.target.d/41-base.conf
+deleted file mode 100644
+index 333df4f..0000000
+--- a/factory/usr/lib/systemd/system/initrd-root-device.target.d/41-base.conf
++++ /dev/null
+@@ -1,4 +0,0 @@
+-[Unit]
+-Requires=sysroot.mount
+-After=sysroot.mount
+-
+diff --git a/factory/usr/lib/systemd/system/initrd-root-device.target.d/42-kernel.conf b/factory/usr/lib/systemd/system/initrd-root-device.target.d/42-kernel.conf
+deleted file mode 100644
+index 85f3800..0000000
+--- a/factory/usr/lib/systemd/system/initrd-root-device.target.d/42-kernel.conf
++++ /dev/null
+@@ -1,4 +0,0 @@
+-[Unit]
+-Requires=run-mnt-kernel.mount
+-After=run-mnt-kernel.mount
+-
+diff --git a/factory/usr/lib/systemd/system/initrd-root-device.target.d/43-writable.conf b/factory/usr/lib/systemd/system/initrd-root-device.target.d/43-writable.conf
+deleted file mode 100644
+index 42ff7ee..0000000
+--- a/factory/usr/lib/systemd/system/initrd-root-device.target.d/43-writable.conf
++++ /dev/null
+@@ -1,5 +0,0 @@
+-[Unit]
+-Requires=sysroot-writable.mount
+-After=sysroot-writable.mount
+-
+-
+diff --git a/factory/usr/lib/systemd/system/basic.target.wants/the-tool.service b/factory/usr/lib/systemd/system/initrd-root-device.target.wants/the-tool.service
+similarity index 100%
+rename from factory/usr/lib/systemd/system/basic.target.wants/the-tool.service
+rename to factory/usr/lib/systemd/system/initrd-root-device.target.wants/the-tool.service
+diff --git a/factory/usr/lib/systemd/system/initrd-root-fs.target.d/41-base.conf b/factory/usr/lib/systemd/system/initrd-root-fs.target.d/41-base.conf
+deleted file mode 100644
+index 333df4f..0000000
+--- a/factory/usr/lib/systemd/system/initrd-root-fs.target.d/41-base.conf
++++ /dev/null
+@@ -1,4 +0,0 @@
+-[Unit]
+-Requires=sysroot.mount
+-After=sysroot.mount
+-
+diff --git a/factory/usr/lib/systemd/system/initrd-root-fs.target.d/42-kernel.conf b/factory/usr/lib/systemd/system/initrd-root-fs.target.d/42-kernel.conf
+deleted file mode 100644
+index 40f37ed..0000000
+--- a/factory/usr/lib/systemd/system/initrd-root-fs.target.d/42-kernel.conf
++++ /dev/null
+@@ -1,7 +0,0 @@
+-[Unit]
+-Requires=run-mnt-kernel.mount
+-After=run-mnt-kernel.mount
+-Requires=sysroot-usr-lib-modules.mount
+-After=sysroot-usr-lib-modules.mount
+-Requires=sysroot-usr-lib-firmware.mount
+-After=sysroot-usr-lib-firmware.mount
+diff --git a/factory/usr/lib/systemd/system/initrd-root-fs.target.d/43-writable.conf b/factory/usr/lib/systemd/system/initrd-root-fs.target.d/43-writable.conf
+deleted file mode 100644
+index 938ecb0..0000000
+--- a/factory/usr/lib/systemd/system/initrd-root-fs.target.d/43-writable.conf
++++ /dev/null
+@@ -1,8 +0,0 @@
+-[Unit]
+-Requires=sysroot-writable.mount
+-After=sysroot-writable.mount
+-Requires=populate-writable.service
+-After=populate-writable.service
+-
+-
+-
+diff --git a/factory/usr/lib/systemd/system/run-mnt-base.mount.wants/sysroot.mount b/factory/usr/lib/systemd/system/initrd-root-fs.target.wants/sysroot.mount
+similarity index 100%
+rename from factory/usr/lib/systemd/system/run-mnt-base.mount.wants/sysroot.mount
+rename to factory/usr/lib/systemd/system/initrd-root-fs.target.wants/sysroot.mount
+diff --git a/factory/usr/lib/systemd/system/populate-writable.service b/factory/usr/lib/systemd/system/populate-writable.service
+index d234fcc..b03bcbe 100644
+--- a/factory/usr/lib/systemd/system/populate-writable.service
++++ b/factory/usr/lib/systemd/system/populate-writable.service
+@@ -1,7 +1,10 @@
+ [Unit]
+ OnFailure=emergency.target
+ OnFailureJobMode=replace-irreversibly
+-Before=initrd-cleanup.target
++
++DefaultDependencies=no
++Before=initrd-fs.target
++
+ After=run-mnt-data.mount
+ After=run-mnt-base.mount
+ After=sysroot.mount
+@@ -10,6 +13,7 @@ Requires=run-mnt-data.mount
+ Requires=run-mnt-base.mount
+ Requires=sysroot.mount
+ Requires=sysroot-writable.mount
++
+ Wants=the-tool.service
+ After=the-tool.service
+ 
+diff --git a/factory/usr/lib/systemd/system/run-mnt-base.mount.d/fix-dependencies.conf b/factory/usr/lib/systemd/system/run-mnt-base.mount.d/fix-dependencies.conf
+new file mode 100644
+index 0000000..f83f86e
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/run-mnt-base.mount.d/fix-dependencies.conf
+@@ -0,0 +1,4 @@
++# TODO, this should probably be generated by `snap-bootstrap
++# initramfs-mounts`.
++[Unit]
++DefaultDependencies=no
+diff --git a/factory/usr/lib/systemd/system/run-mnt-data.mount.d/fix-dependencies.conf b/factory/usr/lib/systemd/system/run-mnt-data.mount.d/fix-dependencies.conf
+new file mode 100644
+index 0000000..f83f86e
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/run-mnt-data.mount.d/fix-dependencies.conf
+@@ -0,0 +1,4 @@
++# TODO, this should probably be generated by `snap-bootstrap
++# initramfs-mounts`.
++[Unit]
++DefaultDependencies=no
+diff --git a/factory/usr/lib/systemd/system/run-mnt-kernel.mount.d/fix-dependencies.conf b/factory/usr/lib/systemd/system/run-mnt-kernel.mount.d/fix-dependencies.conf
+new file mode 100644
+index 0000000..f83f86e
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/run-mnt-kernel.mount.d/fix-dependencies.conf
+@@ -0,0 +1,4 @@
++# TODO, this should probably be generated by `snap-bootstrap
++# initramfs-mounts`.
++[Unit]
++DefaultDependencies=no
+diff --git a/factory/usr/lib/systemd/system/run-mnt-kernel.mount.d/override.conf b/factory/usr/lib/systemd/system/run-mnt-kernel.mount.d/override.conf
+deleted file mode 100644
+index 449bfd3..0000000
+--- a/factory/usr/lib/systemd/system/run-mnt-kernel.mount.d/override.conf
++++ /dev/null
+@@ -1,3 +0,0 @@
+-[Unit]
+-Before=initrd-cleanup.target
+-
+diff --git a/factory/usr/lib/systemd/system/run-mnt-snapd.mount.d/fix-dependencies.conf b/factory/usr/lib/systemd/system/run-mnt-snapd.mount.d/fix-dependencies.conf
+new file mode 100644
+index 0000000..f83f86e
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/run-mnt-snapd.mount.d/fix-dependencies.conf
+@@ -0,0 +1,4 @@
++# TODO, this should probably be generated by `snap-bootstrap
++# initramfs-mounts`.
++[Unit]
++DefaultDependencies=no
+diff --git "a/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dboot.mount.d/fix-dependencies.conf" "b/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dboot.mount.d/fix-dependencies.conf"
+new file mode 100644
+index 0000000..f83f86e
+--- /dev/null
++++ "b/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dboot.mount.d/fix-dependencies.conf"
+@@ -0,0 +1,4 @@
++# TODO, this should probably be generated by `snap-bootstrap
++# initramfs-mounts`.
++[Unit]
++DefaultDependencies=no
+diff --git "a/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dsave.mount.d/fix-dependencies.conf" "b/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dsave.mount.d/fix-dependencies.conf"
+new file mode 100644
+index 0000000..f83f86e
+--- /dev/null
++++ "b/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dsave.mount.d/fix-dependencies.conf"
+@@ -0,0 +1,4 @@
++# TODO, this should probably be generated by `snap-bootstrap
++# initramfs-mounts`.
++[Unit]
++DefaultDependencies=no
+diff --git "a/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dseed.mount.d/fix-dependencies.conf" "b/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dseed.mount.d/fix-dependencies.conf"
+new file mode 100644
+index 0000000..f83f86e
+--- /dev/null
++++ "b/factory/usr/lib/systemd/system/run-mnt-ubuntu\\x2dseed.mount.d/fix-dependencies.conf"
+@@ -0,0 +1,4 @@
++# TODO, this should probably be generated by `snap-bootstrap
++# initramfs-mounts`.
++[Unit]
++DefaultDependencies=no
+diff --git a/factory/usr/lib/systemd/system/sysroot-usr-lib-firmware.mount b/factory/usr/lib/systemd/system/sysroot-usr-lib-firmware.mount
+index 79ce17b..0a07da8 100644
+--- a/factory/usr/lib/systemd/system/sysroot-usr-lib-firmware.mount
++++ b/factory/usr/lib/systemd/system/sysroot-usr-lib-firmware.mount
+@@ -1,4 +1,7 @@
+ [Unit]
++DefaultDependencies=no
++Before=initrd-fs.target
++
+ After=sysroot.mount
+ After=run-mnt-kernel.mount
+ Requires=sysroot.mount
+diff --git a/factory/usr/lib/systemd/system/sysroot-usr-lib-modules.mount b/factory/usr/lib/systemd/system/sysroot-usr-lib-modules.mount
+index c9f1726..5e33099 100644
+--- a/factory/usr/lib/systemd/system/sysroot-usr-lib-modules.mount
++++ b/factory/usr/lib/systemd/system/sysroot-usr-lib-modules.mount
+@@ -1,4 +1,7 @@
+ [Unit]
++DefaultDependencies=no
++Before=initrd-fs.target
++
+ After=sysroot.mount
+ After=run-mnt-kernel.mount
+ Requires=sysroot.mount
+diff --git a/factory/usr/lib/systemd/system/sysroot-writable.mount b/factory/usr/lib/systemd/system/sysroot-writable.mount
+index 1006ff7..1c6a33e 100644
+--- a/factory/usr/lib/systemd/system/sysroot-writable.mount
++++ b/factory/usr/lib/systemd/system/sysroot-writable.mount
+@@ -1,5 +1,7 @@
+ [Unit]
+-Before=initrd-cleanup.target
++DefaultDependencies=no
++Before=initrd-fs.target
++
+ After=run-mnt-data.mount
+ After=run-mnt-base.mount
+ After=sysroot.mount
+@@ -8,7 +10,7 @@ Requires=run-mnt-data.mount
+ Requires=run-mnt-base.mount
+ Requires=sysroot.mount
+ Requires=the-tool.service
+-Wants=populate-writable.service
++
+ [Mount]
+ What=/run/mnt/data
+ Type=none
+diff --git a/factory/usr/lib/systemd/system/sysroot.mount b/factory/usr/lib/systemd/system/sysroot.mount
+index 477626c..611a870 100644
+--- a/factory/usr/lib/systemd/system/sysroot.mount
++++ b/factory/usr/lib/systemd/system/sysroot.mount
+@@ -1,5 +1,12 @@
+ [Unit]
+-Before=initrd-cleanup.target
++DefaultDependencies=no
++Before=initrd-root-fs.target
++
++Requires=run-mnt-base.mount
++After=run-mnt-base.mount
++Requires=the-tool.service
++After=the-tool.service
++
+ [Mount]
+ What=/run/mnt/base
+ Type=none
+diff --git a/factory/usr/lib/systemd/system/systemd-bootchart-quit.service b/factory/usr/lib/systemd/system/systemd-bootchart-quit.service
+index 8688864..4b2c1d2 100644
+--- a/factory/usr/lib/systemd/system/systemd-bootchart-quit.service
++++ b/factory/usr/lib/systemd/system/systemd-bootchart-quit.service
+@@ -2,6 +2,7 @@
+ Description=Stop Boot Process Profiler
+ DefaultDependencies=no
+ Before=initrd-switch-root.service
++After=initrd.target
+ ConditionKernelCommandLine=core.bootchart
+ 
+ [Service]
+diff --git a/factory/usr/lib/systemd/system/systemd-bootchart.service b/factory/usr/lib/systemd/system/systemd-bootchart.service
+index 446b8d4..4383e0c 100644
+--- a/factory/usr/lib/systemd/system/systemd-bootchart.service
++++ b/factory/usr/lib/systemd/system/systemd-bootchart.service
+@@ -2,6 +2,7 @@
+ Description=Boot Process Profiler
+ Documentation=man:systemd-bootchart.service(1) man:bootchart.conf(5)
+ DefaultDependencies=no
++Before=sysinit.target
+ ConditionKernelCommandLine=core.bootchart
+ 
+ [Service]
+diff --git a/factory/usr/lib/systemd/system/the-tool.service b/factory/usr/lib/systemd/system/the-tool.service
+index 036548d..f0c474a 100644
+--- a/factory/usr/lib/systemd/system/the-tool.service
++++ b/factory/usr/lib/systemd/system/the-tool.service
+@@ -1,12 +1,10 @@
+ [Unit]
+ OnFailure=emergency.target
+ OnFailureJobMode=replace-irreversibly
++
+ DefaultDependencies=no
+-After=systemd-tmpfiles-setup.service
+-After=systemd-modules-load.service
+-Wants=systemd-modules-load.service
+-After=systemd-udev-settle.service
+-Wants=systemd-udev-settle.service
++After=sysinit.target
++Before=initrd-root-device.target
+ 
+ [Service]
+ Type=oneshot
+diff --git a/factory/usr/lib/the-tool b/factory/usr/lib/the-tool
+index 8390cfa..295f929 100755
+--- a/factory/usr/lib/the-tool
++++ b/factory/usr/lib/the-tool
+@@ -4,14 +4,3 @@ set -e
+ # Run snap-bootstrap
+ /usr/lib/snapd/snap-bootstrap initramfs-mounts
+ 
+-# TODO:UC20: move this code into snap-bootstrap proper so this script _just_ 
+-# calls snap-bootstrap
+-mkdir -p /run/systemd/system/initrd-fs.target.d
+-cat >/run/systemd/system/initrd-fs.target.d/core.conf <<EOF
+-[Unit]
+-Requires=populate-writable.service
+-After=populate-writable.service
+-EOF
+-cp -r /run/systemd/system/initrd-fs.target.d /run/systemd/system/initrd.target.d
+-cp -r /run/systemd/system/initrd-fs.target.d /run/systemd/system/initrd-switch-root.target.d
+-

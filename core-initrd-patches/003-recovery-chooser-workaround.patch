@@ -1,0 +1,30 @@
+commit 3d8d70911b159748841d57988a5a342ef8313497
+Author: Valentin David <valentin.david@canonical.com>
+Date:   Wed Dec 1 14:10:49 2021 +0100
+
+    Kill recovery-chooser-trigger "gracefully" so it can restart
+    
+    `recovery-chooser-trigger` will be stopped when isolating to target
+    `initrd-switch-root.target`. The problem is that the exit status of
+    the process will be considered a failure. During main boot,
+    `recovery-chooser-trigger` will not be restarted because the stateful
+    reexecution will remember the failure.
+    
+    The long term solution will be the make `recovery-chooser-trigger`
+    survive the switch root instead.
+
+diff --git a/factory/usr/lib/systemd/system/snapd.recovery-chooser-trigger.service.d/fake-clean-stop.conf b/factory/usr/lib/systemd/system/snapd.recovery-chooser-trigger.service.d/fake-clean-stop.conf
+new file mode 100644
+index 0000000..14d42c6
+--- /dev/null
++++ b/factory/usr/lib/systemd/system/snapd.recovery-chooser-trigger.service.d/fake-clean-stop.conf
+@@ -0,0 +1,9 @@
++# TODO: We need to make `snap-bootstrap recovery-chooser-trigger` to
++# survive the switch root. That means receive a signal so it chroots
++# and chdirs as well as setting argv[0]'s first character to '@'.  For
++# the moment we make kill a proper termination status so that the
++# service does not go in "failed" state which prevents main boot to
++# start it properly.
++
++[Service]
++SuccessExitStatus=SIGTERM 0

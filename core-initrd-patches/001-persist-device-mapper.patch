@@ -1,0 +1,70 @@
+commit b84cc6cb45b8c57750d4b7617575c9a05023f176
+Author: Valentin David <valentin.david@canonical.com>
+Date:   Fri Nov 19 11:22:28 2021 +0100
+
+    Persist device mapper devices in udev database
+    
+    55-dm.rules will disable cold plugged device mapper block devices.  In
+    order for it not to disable them we need to keep the state from initrd
+    to main boot. That is we need to mark the devices as `persist_db` so
+    that initrd-udevadm-cleanup-db.service does not remove it.
+    
+    When a device mapper device gets disabled, then all systemd mounts
+    with BindsTo to the device will get unmounted, as well as all bind
+    mounts that depend on it. Which causes a catastrophic failure of
+    Ubuntu Core.
+    
+    As a work-around for this issue we have used a stateless reexecution
+    of systemd. This was making systemd forget about encrypted mount units
+    and thus did not trigger unmount when devices were taken down.
+    
+    Now that we mark the device mapper devices as `persist_db`, this
+    work-around is not needed anymore.
+    
+    Tested on:
+     - qemu x86_64 without secure boot
+     - qemu x86_64 with secure boot
+     - intel nuc with secure boot
+     - raspberry pi 4
+    
+    The mounts in `/proc/mounts` are the same as before the fix, except
+    than now `systemd-mount --list` properly lists device mapper mounts.
+
+diff --git a/factory/usr/lib/systemd/system/initrd-switch-root.service.d/core-override.conf b/factory/usr/lib/systemd/system/initrd-switch-root.service.d/core-override.conf
+deleted file mode 100644
+index cb55864..0000000
+--- a/factory/usr/lib/systemd/system/initrd-switch-root.service.d/core-override.conf
++++ /dev/null
+@@ -1,18 +0,0 @@
+-[Service]
+-# This empty "ExecStart" does override the original ExecStat from the
+-# "real" initrd-switch-root.service that would do a stateful re-exec.
+-ExecStart=
+-# Currently doing a stateful re-exec will fail. The reasons are a bit
+-# unclear, it seems to be related to the fact that systemd is confused
+-# by the mount units in the initrd that are not there in the new pivot
+-# root. So this systemctl call to "/sbin/init" is a workaround to prevent
+-# systemd from doing a stateful re-exec (there is no other way to
+-# prevent this).
+-#
+-# Using "/sbin/init" here directly also ensures that the kernel commandline
+-# "init=" parameter is ignored as it would allow to bypass our protections.
+-#
+-# XXX: we should fix this eventually (this may involve upstream work)
+-# because this also prevents "systemd-analyze time" from displaying
+-# the time spend in the initrd.
+-ExecStart=/bin/systemctl --no-block switch-root /sysroot /sbin/init
+diff --git a/factory/usr/lib/udev/rules.d/56-persist-device-mapper.rules b/factory/usr/lib/udev/rules.d/56-persist-device-mapper.rules
+new file mode 100644
+index 0000000..95f3a7b
+--- /dev/null
++++ b/factory/usr/lib/udev/rules.d/56-persist-device-mapper.rules
+@@ -0,0 +1,8 @@
++# 55-dm.rules will disable in the main boot, all device mapper block
++# devices that are cold plugged. This rule file states that to keep a
++# dm device that was initialized in initrd, we are required to keep
++# its database. To prevent initrd-udevadm-cleanup-db.service from
++# removing the device from the database, we have to make all device
++# mapper block device as "db_persist".
++
++SUBSYSTEM=="block", KERNEL=="dm-[0-9]*", ACTION=="add|change", OPTIONS+="db_persist"
