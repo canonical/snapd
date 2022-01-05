@@ -205,7 +205,7 @@ __DEFINES__
 
 # Set the version that is compiled into the various executables/
 pushd %{indigo_srcdir}
-./mkversion.sh %{version}-%{release}
+./mkversion.sh --set-version %{version}-%{release}
 popd
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.

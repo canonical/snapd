@@ -170,10 +170,10 @@ override_dh_clean:
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
-	./mkversion.sh
+	./mkversion.sh --ignore-debian-rules-changes
 	# ensure auto-generated version is also in the build-tree
 	# XXX: do we need this?
-	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
+	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh --ignore-debian-rules-changes)
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/

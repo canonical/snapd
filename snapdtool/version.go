@@ -22,7 +22,7 @@
 // tools.
 package snapdtool
 
-//go:generate mkversion.sh
+//go:generate mkversion.sh --ignore-debian-rules-changes
 
 // Version will be overwritten at build-time via mkversion.sh
 var Version = "unknown"

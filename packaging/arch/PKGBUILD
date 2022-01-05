@@ -65,7 +65,7 @@ build() {
   export CGO_CXXFLAGS="${CXXFLAGS}"
   export CGO_LDFLAGS="${LDFLAGS}"
 
-  ./mkversion.sh $pkgver-$pkgrel
+  ./mkversion.sh --set-version $pkgver-$pkgrel
 
   # because argument expansion with quoting in bash is hard, and -ldflags=-extldflags='-foo'
   # is not exactly the same as -ldflags "-extldflags '-foo'" use the array trick

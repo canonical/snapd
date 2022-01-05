@@ -517,7 +517,7 @@ rm -rf vendor/*
 
 %build
 # Generate version files
-./mkversion.sh "%{version}-%{release}"
+./mkversion.sh --set-version "%{version}-%{release}"
 
 # Build snapd
 mkdir -p src/github.com/snapcore
