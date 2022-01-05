@@ -81,3 +81,11 @@ execute: |
 
     # check that we have a boot-flags file
     test -f /run/snapd/boot-flags
+
+    # make sure that loop devices created by snap-bootstrap initramfs-mounts for snaps are readonly
+    for mount in /run/mnt/base /run/mnt/kernel; do
+        mountpoint "${mount}"
+        loop="$(findmnt -o source "${mount}" -n)"
+        echo "${loop}" | MATCH "/dev/loop[0-9]+"
+        losetup -O ro -n --raw "${loop}" | MATCH "1"
+    done
