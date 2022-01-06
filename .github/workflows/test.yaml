@@ -44,13 +44,17 @@ jobs:
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 4.x/candidate
-    - name: Cache built artifact
+    - name: Cache and check built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        if ls snapd*dirty*.snap > /dev/null 2>&1; then
+        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/info
+        if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
           echo "PR produces dirty snapd snap version"
-          unsquashfs snapd*dirty*.snap
           cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
+          echo "PR produces dirty internal snapd info version"
+          cat squashfs-root/usr/lib/snapd/info
           exit 1
         fi
         cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
