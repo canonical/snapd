@@ -1401,16 +1401,28 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 			return err
 		}
 	}
+	oldKeyID := device.KeyID
 	device.Serial = ""
 	device.KeyID = ""
 	device.SessionMacaroon = ""
 	if err := m.setDevice(device); err != nil {
 		return err
 	}
-	// TODO: delete device keypair
+	// commit forgetting serial and key
+	m.state.Unlock()
+	m.state.Lock()
+	// delete the device key
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+		err := keypairMgr.Delete(oldKeyID)
+		if err != nil {
+			return fmt.Errorf("cannot delete device key pair: %v", err)
+		}
+		return nil
+	})
+
 	m.lastBecomeOperationalAttempt = time.Time{}
 	m.becomeOperationalBackoff = 0
-	return nil
+	return err
 }
 
 // device returns current device state.
@@ -1742,7 +1754,12 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
 
 func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
-	if m.ntpSyncedOrTimedOut || time.Now().After(startTime.Add(maxWait)) {
+	if m.ntpSyncedOrTimedOut {
+		return true
+	}
+	if time.Now().After(startTime.Add(maxWait)) {
+		logger.Noticef("no NTP sync after %v, trying auto-refresh anyway", maxWait)
+		m.ntpSyncedOrTimedOut = true
 		return true
 	}
 

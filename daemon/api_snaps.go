@@ -487,7 +487,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown content type: %s", contentType)
 	}
 
-	return sideloadOrTrySnap(c, r.Body, params["boundary"])
+	return sideloadOrTrySnap(c, r.Body, params["boundary"], user)
 }
 
 func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -607,6 +607,11 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	// TODO: use a per-request context
 	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
 	if err != nil {
+		if opts.IsRefreshOfAllSnaps {
+			if err := assertstateRestoreValidationSetsTracking(st); err != nil && !errors.Is(err, state.ErrNoState) {
+				return nil, err
+			}
+		}
 		return nil, err
 	}
 

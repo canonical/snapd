@@ -212,6 +212,8 @@ func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Cl
 var (
 	RefreshedSnaps  = refreshedSnaps
 	ReRefreshFilter = reRefreshFilter
+
+	MaybeRestoreValidationSetsAndRevertSnaps = maybeRestoreValidationSetsAndRevertSnaps
 )
 
 type UpdateFilter = updateFilter
@@ -364,5 +366,29 @@ func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, err
 	snapsToRefresh = f
 	return func() {
 		snapsToRefresh = old
+	}
+}
+
+func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) (restore func()) {
+	old := AddCurrentTrackingToValidationSetsStack
+	AddCurrentTrackingToValidationSetsStack = f
+	return func() {
+		AddCurrentTrackingToValidationSetsStack = old
+	}
+}
+
+func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func()) {
+	old := RestoreValidationSetsTracking
+	RestoreValidationSetsTracking = f
+	return func() {
+		RestoreValidationSetsTracking = old
+	}
+}
+
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error)) (restore func()) {
+	old := maybeRestoreValidationSetsAndRevertSnaps
+	maybeRestoreValidationSetsAndRevertSnaps = f
+	return func() {
+		maybeRestoreValidationSetsAndRevertSnaps = old
 	}
 }

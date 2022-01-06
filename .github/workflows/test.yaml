@@ -47,6 +47,12 @@ jobs:
     - name: Cache built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        if ls snapd*dirty*.snap > /dev/null 2>&1; then
+          echo "PR produces dirty snapd snap version"
+          unsquashfs snapd*dirty*.snap
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        fi
         cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
@@ -255,9 +261,8 @@ jobs:
         - debian-10-64
         - debian-11-64
         - debian-sid-64
-        - fedora-33-64
         - fedora-34-64
-        - opensuse-15.2-64
+        - fedora-35-64
         - opensuse-15.3-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
@@ -386,7 +391,10 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log
+          # "pipefail" ensures that a non-zero status from the spread is
+          # propagated; and we use a subshell as this option could trigger
+          # undesired changes elsewhere
+          (set -o pipefail; spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log)
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")

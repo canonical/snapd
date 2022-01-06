@@ -71,3 +71,22 @@ func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "cannot find key pair")
 }
+
+func (mkms *memKeypairMgtSuite) TestDelete(c *C) {
+	pk1 := testPrivKey1
+	keyID := pk1.PublicKey().ID()
+	err := mkms.keypairMgr.Put(pk1)
+	c.Assert(err, IsNil)
+
+	_, err = mkms.keypairMgr.Get(keyID)
+	c.Assert(err, IsNil)
+
+	err = mkms.keypairMgr.Delete(keyID)
+	c.Assert(err, IsNil)
+
+	err = mkms.keypairMgr.Delete(keyID)
+	c.Check(err, ErrorMatches, "cannot find key pair")
+
+	_, err = mkms.keypairMgr.Get(keyID)
+	c.Check(err, ErrorMatches, "cannot find key pair")
+}

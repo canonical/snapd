@@ -905,7 +905,7 @@ apps:
 	return info, nil
 }
 
-func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info, opts *dirs.SnapDirOptions) {
+func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
 	f.appendOp(&fakeOp{
 		op:    "cleanup-trash",
 		name:  si.InstanceName(),
@@ -1237,6 +1237,16 @@ func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinh
 	}
 	// XXX: returning a real lock is somewhat annoying
 	return osutil.NewFileLock(filepath.Join(f.lockDir, info.InstanceName()+".lock"))
+}
+
+func (f *fakeSnappyBackend) HideSnapData(snapName string) error {
+	f.appendOp(&fakeOp{op: "hide-snap-data", name: snapName})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
+	f.appendOp(&fakeOp{op: "undo-hide-snap-data", name: snapName})
+	return f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {

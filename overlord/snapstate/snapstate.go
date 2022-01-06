@@ -66,14 +66,14 @@ const (
 )
 
 const (
-	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
-	BeginEdge                 = state.TaskSetEdge("begin")
-	BeforeHooksEdge           = state.TaskSetEdge("before-hooks")
-	HooksEdge                 = state.TaskSetEdge("hooks")
-	BeforeMaybeRebootEdge     = state.TaskSetEdge("before-maybe-reboot")
-	MaybeRebootEdge           = state.TaskSetEdge("maybe-reboot")
-	MaybeRebootWaitEdge       = state.TaskSetEdge("maybe-reboot-wait")
-	AfterMaybeRebootWaitEdge  = state.TaskSetEdge("after-maybe-reboot-wait")
+	BeginEdge                        = state.TaskSetEdge("begin")
+	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
+	HooksEdge                        = state.TaskSetEdge("hooks")
+	BeforeMaybeRebootEdge            = state.TaskSetEdge("before-maybe-reboot")
+	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
+	MaybeRebootWaitEdge              = state.TaskSetEdge("maybe-reboot-wait")
+	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
+	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 )
 
 var ErrNothingToDo = errors.New("nothing to do")
@@ -161,6 +161,46 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Website: update.Website,
 			Media:   update.Media,
 		},
+	}
+	return &snapsup, snapst, nil
+}
+
+// pathInfo holds information about a path install
+type pathInfo struct {
+	*snap.Info
+	path     string
+	sideInfo *snap.SideInfo
+}
+
+func (i pathInfo) DownloadSize() int64 {
+	return i.Size
+}
+
+// SnapBase returns the base snap of the snap.
+func (i pathInfo) SnapBase() string {
+	return i.Base
+}
+
+func (i pathInfo) Prereq(st *state.State) []string {
+	return getKeys(defaultProviderContentAttrs(st, i.Info))
+}
+
+func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, _ *Flags) (*SnapSetup, *SnapState, error) {
+	update := i.Info
+
+	_, flags, snapst := params(update)
+
+	providerContentAttrs := defaultProviderContentAttrs(st, update)
+	snapsup := SnapSetup{
+		Base:               i.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		SideInfo:           i.sideInfo,
+		SnapPath:           i.path,
+		Flags:              flags.ForSnapSetup(),
+		Type:               i.Type(),
+		PlugsOnly:          len(i.Slots) == 0,
+		InstanceKey:        i.InstanceKey,
 	}
 	return &snapsup, snapst, nil
 }
@@ -526,14 +566,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
-	ts.AddAllWithEdges(installSet)
+	// if snap is being installed from the store, then the last task before
+	// any system modifications are done is check validate-snap, otherwise
+	// it's the prepare-snap
 	if checkAsserts != nil {
-		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
+		installSet.MarkEdge(checkAsserts, LastBeforeLocalModificationsEdge)
+	} else {
+		installSet.MarkEdge(prepare, LastBeforeLocalModificationsEdge)
 	}
-
 	if flags&skipConfigure != 0 {
 		return installSet, nil
 	}
+
+	ts.AddAllWithEdges(installSet)
 
 	// we do not support configuration for bases or the "snapd" snap yet
 	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
@@ -892,7 +937,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		}
 	}
 
-	channel, err = resolveChannel(st, instanceName, snapst.TrackingChannel, channel, deviceCtx)
+	channel, err = resolveChannel(instanceName, snapst.TrackingChannel, channel, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -963,7 +1008,9 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 // Install returns a set of tasks for installing a snap.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications.
 func Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
 	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, "")
 }
@@ -972,7 +1019,9 @@ func Install(ctx context.Context, st *state.State, name string, opts *RevisionOp
 // It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications.
 func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
@@ -1047,6 +1096,74 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+}
+
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
+
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var updates []minimalInstallInfo
+	var names []string
+	stateByInstanceName := make(map[string]*SnapState, len(paths))
+	flagsByInstanceName := make(map[string]Flags, len(paths))
+
+	for i, path := range paths {
+		si := sideInfos[i]
+		name := si.RealName
+
+		info, container, err := backend.OpenSnapFile(path, si)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := validateContainer(container, info, logger.Noticef); err != nil {
+			return nil, err
+		}
+		if err := snap.ValidateInstanceName(name); err != nil {
+			return nil, fmt.Errorf("invalid instance name: %v", err)
+		}
+
+		var snapst SnapState
+		if err = Get(st, name, &snapst); err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+
+		flags, err := earlyChecks(st, &snapst, info, *flags)
+		if err != nil {
+			return nil, err
+		}
+
+		if !(flags.JailMode || flags.DevMode) {
+			flags.Classic = flags.Classic || snapst.Flags.Classic
+		}
+
+		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
+		names = append(names, name)
+		stateByInstanceName[name] = &snapst
+		flagsByInstanceName[name] = flags
+	}
+
+	if err := checkDiskSpace(st, "install", updates, userID); err != nil {
+		return nil, err
+	}
+
+	params := func(update *snap.Info) (*RevisionOptions, Flags, *SnapState) {
+		name := update.InstanceName()
+		return nil, flagsByInstanceName[name], stateByInstanceName[name]
+	}
+
+	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	if err != nil {
+		return nil, err
+	}
+
+	return tasksets, nil
 }
 
 // InstallMany installs everything from the given list of names.
@@ -1606,7 +1723,7 @@ func autoAliasesUpdate(st *state.State, names []string, updates []minimalInstall
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(st *state.State, snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
+func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return "", nil
 	}
@@ -1730,7 +1847,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1771,7 +1888,10 @@ type RevisionOptions struct {
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet can contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications. If no such edge is set, then none of the tasks introduce
+// system modifications.
 func Update(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
 	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "")
 }
@@ -1780,7 +1900,10 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 // It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet can contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications. If no such edge is set, then none of the tasks introduce
+// system modifications.
 func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
@@ -1806,7 +1929,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, err
 	}
 
-	opts.Channel, err = resolveChannel(st, name, snapst.TrackingChannel, opts.Channel, deviceCtx)
+	opts.Channel, err = resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1960,6 +2083,10 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 // AutoRefreshAssertions allows to hook fetching of important assertions
 // into the Autorefresh function.
 var AutoRefreshAssertions func(st *state.State, userID int) error
+
+var AddCurrentTrackingToValidationSetsStack func(st *state.State) error
+
+var RestoreValidationSetsTracking func(st *state.State) error
 
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
@@ -2269,8 +2396,8 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	linkSnap.Set("snap-setup-task", prepareSnap.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
-	// we need this for remodel
-	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	// prepare-snap is the last task that carries no system modifications
+	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	return ts, nil
 }
 
@@ -2315,6 +2442,14 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
+	// make sure that remodel can identify which tasks introduce actual
+	// changes to the system and order them correctly
+	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {
+		// no task in the task set is marked as last before system
+		// modifications are introduced, so we need to mark the last
+		// task in the set, as tasks introduced here modify system state
+		ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+	}
 	return ts, nil
 }
 
@@ -2362,9 +2497,9 @@ func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 	gadgetCmdline.WaitFor(gadgetUpdate)
 	gadgetCmdline.Set("snap-setup-task", prepareSnap.ID())
 
-	// we need this for remodel
 	ts := state.NewTaskSet(prepareSnap, gadgetUpdate, gadgetCmdline)
-	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	// prepare-snap is the last task that carries no system modifications
+	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	return ts, nil
 }
 
@@ -2389,6 +2524,14 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, e
 	gadgetCmdline.Set("snap-setup-task", snapSetupTask.ID())
 	gadgetCmdline.WaitFor(gadgetUpdate)
 	ts.AddTask(gadgetCmdline)
+	// make sure that remodel can identify which tasks introduce actual
+	// changes to the system and order them correctly
+	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {
+		// no task in the task set is marked as last before system
+		// modifications are introduced, so we need to mark the last
+		// task in the set, as tasks introduced here modify system state
+		ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+	}
 	return ts, nil
 }
 

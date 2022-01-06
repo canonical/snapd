@@ -83,7 +83,7 @@ type managerBackend interface {
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev boot.Device, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error
 	// cleanup
-	ClearTrashedData(oldSnap *snap.Info, opts *dirs.SnapDirOptions)
+	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove related
 	UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error
@@ -108,4 +108,8 @@ type managerBackend interface {
 	RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (*osutil.FileLock, error)
 	// (not a backend method because doInstall cannot access the backend)
 	// WithSnapLock(info *snap.Info, action func() error) error
+
+	// ~/.snap/data migration related
+	HideSnapData(snapName string) error
+	UndoHideSnapData(snapName string) error
 }
