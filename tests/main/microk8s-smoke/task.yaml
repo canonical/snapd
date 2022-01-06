@@ -11,6 +11,7 @@ systems:
   - -ubuntu-14.04-*   # doesn't have libseccomp >= 2.4
   - -ubuntu-18.04-32  # no microk8s snap for i386 pc systems
   - -arch-linux-*     # XXX: no curl to the pod for unknown reasons
+  - -ubuntu-*-arm*    # not available on arm
 
 environment:
     CHANNEL/edge: latest/edge/strict
