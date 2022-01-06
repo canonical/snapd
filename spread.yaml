@@ -522,7 +522,7 @@ debug-each: |
     echo "# /var/lib/snapd"
     find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     echo '# system journal messages'
-    journalctl -e
+    journalctl -b 0
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
