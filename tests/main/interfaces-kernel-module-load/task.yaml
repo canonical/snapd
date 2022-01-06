@@ -10,6 +10,10 @@ environment:
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local $SNAP_NAME
 
+restore: |
+    echo "Ensure snap is removed even if something goes wrong"
+    snap remove "$SNAP_NAME"
+
 execute: |
     echo "When the interface is connected"
     snap connect "$SNAP_NAME:kernel-module-load"
