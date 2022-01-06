@@ -539,7 +539,6 @@ pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
         cups
-        dbus-user-session
         fontconfig
         gnome-keyring
         jq
@@ -562,6 +561,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-16.04-64)
             echo "
+                dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-6
@@ -577,6 +577,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-32)
             echo "
+                dbus-user-session
                 gccgo-6
                 evolution-data-server
                 fwupd
@@ -587,6 +588,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-18.04-64)
             echo "
+                dbus-user-session
                 gccgo-8
                 gperf
                 evolution-data-server
@@ -597,6 +599,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-20.04-64)
             echo "
+                dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-9
@@ -610,6 +613,7 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-21.04-64|ubuntu-21.10-64*)
             # bpftool is part of linux-tools package
             echo "
+                dbus-user-session
                 fwupd
                 golang
                 linux-tools-$(uname -r)
