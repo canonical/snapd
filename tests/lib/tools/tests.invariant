@@ -126,11 +126,8 @@ check_leftover_defer_sh() {
 check_broken_snaps() {
 	n="$1" # invariant name
 	(
-		# fist column is the snap name, revision is 3rd from the end, we cannot use $3 as
-		# broken snaps have empty version column
-		# TODO: when https://github.com/snapcore/snapd/pull/11166 is landed, 
-		# this can be simplified
-		snap list --all | awk '/,?broken,?/ { print $1, $(NF-3) }' | while read -r name rev; do 
+		# fist column is the snap name, revision is 3rd
+		snap list --all | awk '/,?broken,?/ {print $1,$3}' | while read -r name rev; do
 			echo "snap $name ($rev) is broken"
 		done
 	) > "$TESTSTMP/tests.invariant.$n"
