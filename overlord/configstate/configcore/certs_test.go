@@ -196,14 +196,15 @@ func (s *certsSuite) TestCombineAndInstallCerts(c *C) {
 	}
 
 	// Perform the actual combine of the certifiation configurations
-	configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsBasePath, s.certsAddedPath}, blockedCerts)
+	err := configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsBasePath, s.certsAddedPath}, blockedCerts)
+	c.Assert(err, IsNil)
 
 	// Verify output in folder
 	c.Assert(filepath.Join(s.certsMergedPath, "cert0.crt"), testutil.FileEquals, mockCert)
 	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileAbsent)
 	c.Assert(filepath.Join(s.certsMergedPath, "cert2.crt"), testutil.FileEquals, mockCert)
 	c.Assert(filepath.Join(s.certsMergedPath, "cert3.crt"), testutil.FileEquals, mockCert)
-	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, string(expectedCACdata))
 }
 
 func (s *certsSuite) TestVerifyExclusionOfExtensions(c *C) {
@@ -227,7 +228,7 @@ func (s *certsSuite) TestVerifyExclusionOfExtensions(c *C) {
 	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileEquals, mockCert)
 	c.Assert(filepath.Join(s.certsMergedPath, "cert2"), testutil.FileAbsent)
 	c.Assert(filepath.Join(s.certsMergedPath, "cert3.lasd"), testutil.FileAbsent)
-	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, string(expectedCACdata))
 }
 
 func (s *certsSuite) TestEmptyDirsNoErrors(c *C) {
@@ -244,7 +245,7 @@ func (s *certsSuite) TestEmptyDirsNoErrors(c *C) {
 	configcore.CombineCertConfigurations(s.certsMergedPath, []string{s.certsBasePath, s.certsAddedPath}, []string{})
 
 	// Verify output in folder
-	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, string(expectedCACdata))
 }
 
 func (s *certsSuite) TestUpdateCertificates(c *C) {
@@ -273,7 +274,7 @@ func (s *certsSuite) TestUpdateCertificates(c *C) {
 	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileEquals, mockCert)
 	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.SymlinkTargetEquals, filepath.Join(s.certsAddedPath, "cert1.crt"))
 	c.Assert(filepath.Join(s.certsMergedPath, "cert2.crt"), testutil.FileEquals, mockCert)
-	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, string(expectedCACdata))
 }
 
 func (s *certsSuite) TestUpdateCertificatesWithOutputInInput(c *C) {
@@ -302,5 +303,5 @@ func (s *certsSuite) TestUpdateCertificatesWithOutputInInput(c *C) {
 	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.FileEquals, mockCert)
 	c.Assert(filepath.Join(s.certsMergedPath, "cert1.crt"), testutil.SymlinkTargetEquals, filepath.Join(s.certsAddedPath, "cert1.crt"))
 	c.Assert(filepath.Join(s.certsMergedPath, "cert2.crt"), testutil.FileEquals, mockCert)
-	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, expectedCACdata)
+	c.Assert(filepath.Join(s.certsMergedPath, "ca-certificates.crt"), testutil.FileEquals, string(expectedCACdata))
 }

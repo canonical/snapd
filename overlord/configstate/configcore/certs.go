@@ -24,10 +24,12 @@ package configcore
 import (
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -40,7 +42,7 @@ type certificate struct {
 	RealPath string
 }
 
-// isBlocked This function validates the name of the certificate. We only allow certificates
+// isBlocked this function validates the name of the certificate. We only allow certificates
 // with the correct suffix ".crt" except for the ca-certificates.crt,
 // or if the name is in the blockedCerts lists.
 func isBlocked(cert certificate, blockedCerts []string) bool {
@@ -56,7 +58,7 @@ func isBlocked(cert certificate, blockedCerts []string) bool {
 	return strutil.ListContains(blockedCerts, cert.Name)
 }
 
-// getCertObjects Helper function to retrieve a list of files in the directory path and returns
+// getCertObjects retrieves a list of files in the directory path and returns
 // them as objects with their name and real path (any symlinks will be evaluated). Each file object
 // contains both the path of file, and the evaluated real path, which are identical if the file is
 // not a symlink.
@@ -98,7 +100,7 @@ func getCertObjects(certsPath string) ([]certificate, error) {
 	return certsObjects, nil
 }
 
-// filterCerts Filters out the certificates that are not allowed to be merged.
+// filterCerts filters out the certificates that are not allowed to be merged.
 func filterCerts(certs []certificate, blockedCerts []string) ([]certificate, error) {
 	var filteredCerts []certificate
 	for _, cert := range certs {
@@ -127,7 +129,7 @@ func filterCertsInDirectory(dirPath string, blockedCerts []string) error {
 	return nil
 }
 
-// installCerts Populates symbolic links in the output directory, to each certificate
+// installCerts populates symbolic links in the output directory, to each certificate
 // provided. There may need to be some provide apparmor rules for the source directories
 // and not just the merged (output) directory.
 // TODO apparmor rules for the source directories?
@@ -141,15 +143,18 @@ func installCerts(outputPath string, certs []certificate) error {
 		}
 
 		// If the path exists, then remove it first to update the certificate
-		if _, err := os.Lstat(certDestinationPath); err == nil {
+		_, err := os.Lstat(certDestinationPath)
+		if err == nil {
 			err := os.Remove(certDestinationPath)
 			if err != nil {
 				return fmt.Errorf("cannot remove existing certificate: %v", err)
 			}
+		} else if e, ok := err.(*os.PathError); !ok || e.Err != syscall.ENOENT {
+			return fmt.Errorf("cannot stat path %s: %v", certDestinationPath, err)
 		}
 
 		// Create a link to the real path of the cert in the output path
-		err := os.Symlink(cert.RealPath, certDestinationPath)
+		err = os.Symlink(cert.RealPath, certDestinationPath)
 		if err != nil {
 			return fmt.Errorf("cannot symlink store certificate: %v", err)
 		}
@@ -158,7 +163,7 @@ func installCerts(outputPath string, certs []certificate) error {
 	return nil
 }
 
-// generateCACertificates Generate the ca-certificates.crt to the output path
+// generateCACertificates generates the ca-certificates.crt to the output path
 // The ca-certificates.crt is a concatenation of all the certs in the
 // output path.
 func generateCACertificates(outputPath string) error {
@@ -173,18 +178,19 @@ func generateCACertificates(outputPath string) error {
 		return fmt.Errorf("cannot create ca-certificates.crt: %v", err)
 	}
 
-	for _, cert := range certificates {
-		copyOne := func(from string) error {
-			inf, err := os.Open(from)
-			if err := nil {
-				return err
-			}
-			defer inf.Close()
-			if _, err := io.Copy(certsFile, inf); err != nil {
-				return err
-			}
-			return nil
+	copyOne := func(from string) error {
+		inf, err := os.Open(from)
+		if err != nil {
+			return err
 		}
+		defer inf.Close()
+		if _, err := io.Copy(certsFile, inf); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	for _, cert := range certificates {
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy certificate %q: %v", cert.Name, err)
 		}
@@ -214,7 +220,7 @@ func getCertObjectsFromPaths(outputPath string, inputPaths []string) ([]certific
 	return certObjects, nil
 }
 
-// CombineCertConfigurations Allows the caller to combine multiple certification directories into one single directory.
+// CombineCertConfigurations allows the caller to combine multiple certificate directories into a single directory.
 // Creates new symlinks in the output directory, following symlinks from
 // the source directories, and generates the ca-certificates.crt file in the output folder.
 func CombineCertConfigurations(outputPath string, certDirectoryPaths []string, blockedCerts []string) error {
