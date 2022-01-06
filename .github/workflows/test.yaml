@@ -53,6 +53,12 @@ jobs:
           cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
           exit 1
         fi
+        unsquashfs snapd*.snap usr/lib/snapd/info
+        if grep dirty squashfs-root/usr/lib/snapd/info; then
+            echo "PR produced dirty snapd info version"
+            cat squashfs-root/usr/lib/snapd/info
+            exit 1
+        fi
         cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
