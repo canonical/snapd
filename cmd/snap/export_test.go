@@ -95,6 +95,8 @@ var (
 
 	GetKeypairManager = getKeypairManager
 	GenerateKey       = generateKey
+
+	GetSnapDirOptions = getSnapDirOptions
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
