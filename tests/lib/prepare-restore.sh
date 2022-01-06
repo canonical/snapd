@@ -424,7 +424,7 @@ prepare_project() {
 
     restart_logind=
     restart_networkd=
-    if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
+    if not os.query is-trusty && [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
         restart_logind=maybe
         restart_networkd=maybe
     fi
@@ -440,8 +440,8 @@ prepare_project() {
         if [ "$restart_networkd" = maybe ]; then
             systemctl reset-failed systemd-networkd.service
             systemctl try-restart systemd-networkd.service
-            install_pkg_dependencies
         fi
+        install_pkg_dependencies
     fi
 
     if [ "$restart_logind" = maybe ]; then
