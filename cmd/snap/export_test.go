@@ -443,3 +443,11 @@ func MockIsGraphicalSession(graphical bool) (restore func()) {
 		isGraphicalSession = old
 	}
 }
+
+func MockAutostartSessionApps(f func(string) error) func() {
+	old := autostartSessionApps
+	autostartSessionApps = f
+	return func() {
+		autostartSessionApps = old
+	}
+}
