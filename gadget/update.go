@@ -374,6 +374,15 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string) (res 
 	// to ensure that extra partitions don't sneak in - we double check things
 	// again below this loop
 	for _, structure := range expLayout.LaidOutStructure {
+		// don't create traits for non-partitions, there is nothing we can
+		// measure on the disk about bare structures other than perhaps reading
+		// their content - the fact that bare structures do not overlap with
+		// real partitions will have been validated when the YAML was validated
+		// previously
+		if !structure.IsPartition() {
+			continue
+		}
+
 		part, ok := diskPartitionsByOffset[uint64(structure.StartOffset)]
 		if !ok {
 			// unexpected error - somehow this structure's start offset is not

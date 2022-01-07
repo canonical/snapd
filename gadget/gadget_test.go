@@ -3085,7 +3085,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 					OriginalDevicePath: "/dev/vdb1",
 					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb/vdb1",
 					PartitionUUID:      "C06F16ED-A587-4D0E-8EE4-2C3AE8BECE68",
-					PartitionLabel:     "barething",
+					PartitionLabel:     "nofspart",
 					PartitionType:      "EBBEADAF-22C9-E33B-8F5D-0E81686A68CB",
 					Offset:             0x100000,
 					Size:               0x1000,
