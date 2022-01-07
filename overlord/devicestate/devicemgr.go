@@ -1754,7 +1754,12 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
 
 func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
-	if m.ntpSyncedOrTimedOut || time.Now().After(startTime.Add(maxWait)) {
+	if m.ntpSyncedOrTimedOut {
+		return true
+	}
+	if time.Now().After(startTime.Add(maxWait)) {
+		logger.Noticef("no NTP sync after %v, trying auto-refresh anyway", maxWait)
+		m.ntpSyncedOrTimedOut = true
 		return true
 	}
 

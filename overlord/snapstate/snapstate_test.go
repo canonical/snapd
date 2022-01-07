@@ -430,6 +430,7 @@ const (
 	updatesGadgetAssets
 	updatesBootConfig
 	noConfigure
+	noLastBeforeModificationsEdge
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -4950,7 +4951,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, HasLen, 1)
 	ts := state.NewTaskSet(chg.Tasks()...)
-	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
+	// task set was reconstituted from change tasks, so edges information is
+	// lost
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure|noLastBeforeModificationsEdge, 0, ts)
 
 	// ensure preferences from the core snap got transferred over
 	var snapst snapstate.SnapState

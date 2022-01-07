@@ -269,7 +269,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// if a previous version of snapd persisted Prereq only, fill the contentAttrs.
-	// There will be not content attrs, so it will not update an outdated default provider
+	// There will be no content attrs, so it will not update an outdated default provider
 	if len(snapsup.PrereqContentAttrs) == 0 && len(snapsup.Prereq) != 0 {
 		snapsup.PrereqContentAttrs = make(map[string][]string, len(snapsup.Prereq))
 

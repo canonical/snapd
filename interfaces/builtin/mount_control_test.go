@@ -238,6 +238,22 @@ apps:
 			"mount:\n  - what: /\n    where: /media/../etc",
 			`mount-control "where" pattern is not clean:.*`,
 		},
+		{
+			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]",
+			`mount-control "what" attribute can be "none" only with "tmpfs"`,
+		},
+		{
+			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]\n    type: [ext4,ntfs]",
+			`mount-control "what" attribute can be "none" only with "tmpfs"`,
+		},
+		{
+			"mount:\n  - what: none\n    where: /media/*\n    options: [rw]\n    type: [tmpfs,ext4]",
+			`mount-control filesystem type "tmpfs" cannot be listed with other types`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    options: [rw]\n    type: [tmpfs]",
+			`mount-control "what" attribute must be "none" with "tmpfs"; found "/" instead`,
+		},
 	}
 
 	for _, testData := range data {

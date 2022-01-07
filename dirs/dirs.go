@@ -267,6 +267,12 @@ func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
 }
 
+// SnapSystemdConfDirUnder returns the path to the systemd conf dir under
+// rootdir.
+func SnapServicesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, "/etc/systemd/system")
+}
+
 // SnapBootAssetsDirUnder returns the path to boot assets directory under a
 // rootdir.
 func SnapBootAssetsDirUnder(rootdir string) string {

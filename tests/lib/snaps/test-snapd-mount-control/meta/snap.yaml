@@ -17,4 +17,7 @@ plugs:
               where: /media/**
               type: [ext2, ext3, ext4]
               options: [rw, sync]
-
+            - what: none
+              where: $SNAP_COMMON/**
+              type: [tmpfs]
+              options: [rw]
