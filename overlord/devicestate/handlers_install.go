@@ -40,6 +40,9 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
@@ -580,6 +583,19 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
+	preseeded, err := maybeApplyPreseededData(boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
+	if err != nil {
+		msg := fmt.Sprintf("failed to apply preseed data: %v", err)
+		t.Logf(msg)
+		logger.Noticef(msg)
+		return err
+	}
+	if preseeded {
+		logger.Noticef("successfully preseeded the system")
+	} else {
+		logger.Noticef("preseed data not present, will do normal seeding")
+	}
+
 	// ensure the next boot goes into run mode
 	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
 		return err
@@ -617,4 +633,73 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	restart.Request(st, rst, nil)
 
 	return nil
+}
+
+var seedOpen = seed.Open
+
+var maybeApplyPreseededData = func(ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+	if !osutil.FileExists(preseedArtifact) {
+		return false, nil
+	}
+
+	// TODO: verify artifact signature?
+
+	logger.Noticef("apply preseed data: %q, %q", writableDir, preseedArtifact)
+	cmd := exec.Command("tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact)
+	if err := cmd.Run(); err != nil {
+		return false, err
+	}
+
+	logger.Noticef("copying snaps")
+
+	deviceSeed, err := seedOpen(dirs.SnapSeedDir, sysLabel)
+	if err != nil {
+		return false, err
+	}
+	tm := timings.New(nil)
+
+	// XXX: this is expensive, but we need snap revisions. Any way around this?
+	if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
+		return false, err
+	}
+	if err := deviceSeed.LoadMeta(tm); err != nil {
+		return false, err
+	}
+
+	copyBlob := func(sn *seed.Snap) error {
+		sq := squashfs.New(sn.Path)
+		opts := &snap.InstallOptions{
+			MustNotCrossDevices: true,
+		}
+		pinfo := sn.PlaceInfo()
+		if pinfo.SnapRevision().Unset() {
+			pinfo = snap.MinimalPlaceInfo(pinfo.InstanceName(), snap.R(-1))
+		}
+		targetPath := filepath.Join(writableDir, pinfo.MountFile())
+		mountDir := filepath.Join(writableDir, pinfo.MountDir())
+		logger.Debugf("copying: %q to %q; mount dir=%q", sn.Path, targetPath, mountDir)
+		if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	ess := deviceSeed.EssentialSnaps()
+	for _, esnap := range ess {
+		if err := copyBlob(esnap); err != nil {
+			return false, err
+		}
+	}
+	msnaps, err := deviceSeed.ModeSnaps("run")
+	if err != nil {
+		return false, err
+	}
+	for _, ssnap := range msnaps {
+		if err := copyBlob(ssnap); err != nil {
+			return false, err
+		}
+	}
+
+	return true, nil
 }
