@@ -332,8 +332,8 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 // builds up the disk volume traits for that device. If the laid out volume is
 // not compatible with the disk structure for the specified device an error is
 // returned.
-func DiskTraitsFromDeviceAndValidate(laidOutVolume *LaidOutVolume, dev string) (res DiskVolumeDeviceTraits, err error) {
-	vol := laidOutVolume.Volume
+func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string) (res DiskVolumeDeviceTraits, err error) {
+	vol := expLayout.Volume
 
 	// get the disk layout for this device
 	diskLayout, err := OnDiskVolumeFromDevice(dev)
@@ -347,7 +347,7 @@ func DiskTraitsFromDeviceAndValidate(laidOutVolume *LaidOutVolume, dev string) (
 		// at this point all partitions should be created
 		AssumeCreatablePartitionsCreated: true,
 	}
-	if err := EnsureLayoutCompatibility(laidOutVolume, diskLayout, opts); err != nil {
+	if err := EnsureLayoutCompatibility(expLayout, diskLayout, opts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
 	}
 
@@ -373,7 +373,7 @@ func DiskTraitsFromDeviceAndValidate(laidOutVolume *LaidOutVolume, dev string) (
 	// create the traits for each structure looping over the laid out structure
 	// to ensure that extra partitions don't sneak in - we double check things
 	// again below this loop
-	for _, structure := range laidOutVolume.LaidOutStructure {
+	for _, structure := range expLayout.LaidOutStructure {
 		part, ok := diskPartitionsByOffset[uint64(structure.StartOffset)]
 		if !ok {
 			// unexpected error - somehow this structure's start offset is not
