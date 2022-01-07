@@ -1,3 +1,26 @@
+snapd (2.54.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1955137
+    - tests: exclude interfaces-kernel-module load on arm
+    - tests: ensure that test-snapd-kernel-module-load is
+      removed
+    - tests: do not test microk8s-smoke on arm
+    - tests/core/failover: replace boot-state with snap debug boot-vars
+    - tests: use snap info|awk to extract tracking channel
+    - tests: fix remodel-kernel test when running on external devices
+    - .github/workflows/test.yaml: also check internal snapd version for
+      cleanliness
+    - packaging/ubuntu-16.04/rules: eliminate seccomp modification
+    - bootloader/assets/grub_*cfg_asset.go: update Copyright
+    - build-aux/snap/snapcraft.yaml: adjust comment about get-version
+    - .github/workflows/test.yaml: add check in github actions for dirty
+      snapd snaps
+    - build-aux/snap/snapcraft.yaml: use build-packages, don't fail
+      dirty builds
+    - data/selinux: allow poking /proc/xen
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 06 Jan 2022 15:25:16 -0600
+
 snapd (2.54.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1955137
