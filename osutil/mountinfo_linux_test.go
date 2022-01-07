@@ -194,3 +194,7 @@ func (s *mountinfoSuite) TestLoadMountInfo3(c *C) {
 	_, err = osutil.LoadMountInfo()
 	c.Assert(err, ErrorMatches, "*. permission denied")
 }
+
+func (s *mountinfoSuite) TestLoadMountInfoComplainsWhenNotMockedInTest(c *C) {
+	c.Assert(func() { osutil.LoadMountInfo() }, PanicMatches, "/proc/self/mountinfo must be mocked in tests")
+}

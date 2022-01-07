@@ -27,7 +27,6 @@ import (
 	"os"
 )
 
-// Substitutable imported dependencies
 var osReadlink = os.Readlink
 
 // ErrNoBuildID is returned when an executable does not contain a Build-ID

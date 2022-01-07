@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -89,12 +88,6 @@ func (mi *MountInfoEntry) String() string {
 		escape(mi.MountDir), flattenMap(mi.MountOptions), flattenList(mi.OptionalFields),
 		maybeSpace, escape(mi.FsType), escape(mi.MountSource),
 		flattenMap(mi.SuperOptions))
-}
-
-var openMountInfoFile = func() (io.ReadCloser, error) {
-	CheckScopeIsNotTestExecution("/proc/self/mountinfo must be mocked in tests")
-	const selfMountInfoPathname = "/proc/self/mountinfo"
-	return os.Open(selfMountInfoPathname)
 }
 
 // LoadMountInfo loads list of mounted entries from /proc/self/mountinfo. This

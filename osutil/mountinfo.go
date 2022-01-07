@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,33 +20,11 @@
 package osutil
 
 import (
-	"bytes"
 	"io"
-	"io/ioutil"
+	"os"
 )
 
-func MockMountInfo(content string) (restore func()) {
-	old := openMountInfoFile
-	openMountInfoFile = func() (io.ReadCloser, error) {
-		return ioutil.NopCloser(bytes.NewBufferString(content)), nil
-	}
-	return func() {
-		openMountInfoFile = old
-	}
-}
-
-func MockFindUid(f func(string) (uint64, error)) (restore func()) {
-	old := FindUid
-	FindUid = f
-	return func() {
-		FindUid = old
-	}
-}
-
-func MockFindGid(f func(string) (uint64, error)) (restore func()) {
-	old := FindGid
-	FindGid = f
-	return func() {
-		FindGid = old
-	}
+var openMountInfoFile = func() (io.ReadCloser, error) {
+	MustNotBeTestBinary("/proc/self/mountinfo must be mocked in tests")
+	return os.Open("/proc/self/mountinfo")
 }

@@ -33,11 +33,8 @@ import (
 )
 
 var (
-	// Substitutable imported dependencies
 	userLookup  = user.Lookup
 	userCurrent = user.Current
-
-	// Substitutable attributes
 	sudoersDotD = "/etc/sudoers.d"
 )
 
