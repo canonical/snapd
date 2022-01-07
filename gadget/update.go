@@ -380,7 +380,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string) (res 
 			// present in the OnDiskVolume, which is unexpected because we
 			// validated that the laid out volume structure matches the on disk
 			// volume
-			return res, fmt.Errorf("internal error: inconsistent disk structures from LaidOutVolume and disks.Disk: structure starting at %d missing on disk", *structure.Offset)
+			return res, fmt.Errorf("internal error: inconsistent disk structures from LaidOutVolume and disks.Disk: structure starting at %d missing on disk", structure.StartOffset)
 		}
 		ms := DiskStructureDeviceTraits{
 			Size:               quantity.Size(part.SizeInBytes),
