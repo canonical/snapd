@@ -524,7 +524,20 @@ uc20_build_initramfs_kernel_snap() {
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
-    apt install ubuntu-core-initramfs linux-firmware -y
+    apt install linux-firmware devscripts equivs -y
+
+    git clone -b core20 https://github.com/snapcore/core-initrd.git
+    (
+        cd core-initrd
+        for patch in "${PROJECT_PATH}/core-initrd-patches"/*.patch; do
+            git apply --unsafe-paths -p1 <"${patch}"
+        done
+        mk-build-deps
+        apt install ./ubuntu-core-initramfs-build-deps*.deb -y
+        debuild -us -uc
+    )
+    apt install ./ubuntu-core-initramfs*.deb
+    apt remove --autoremove -y ubuntu-core-initramfs-build-deps
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
@@ -570,14 +583,13 @@ uc20_build_initramfs_kernel_snap() {
         # we don't use the distro package because the distro package may be 
         # different systemd version, etc. in the initrd from the one in the 
         # kernel and we don't want to test that, just test our snap-bootstrap
-        cp -ar unpacked-initrd skeleton
+        #cp -ar unpacked-initrd skeleton
+
+        cp -ar /usr/lib/ubuntu-core-initramfs skeleton
+
         # all the skeleton edits go to a local copy of distro directory
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
-
-        for patch in "${PROJECT_PATH}/core-initrd-patches"/*.patch; do
-            git apply --unsafe-paths --directory="${skeletondir}/main" -p2 <"${patch}"
-        done
 
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core/basic20 spread test
@@ -617,16 +629,15 @@ EOF
         (
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
-            cd unpacked-initrd/main
+            #cd unpacked-initrd/main
             # XXX: pass feature 'main' and u-c-i picks up any directory named
             # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules/$kver" \
+                                  --kerneldir "$unpackeddir/modules/$kver" \
                                   --firmwaredir "$unpackeddir/firmware" \
-                                  --feature 'main' \
-                                  --output ../../repacked-initrd
+                                  --output repacked-initrd
         )
 
         # copy out the kernel image for create-efi command
