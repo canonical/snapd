@@ -23,7 +23,7 @@
 #define SNAP_BOOTSELECT_VERSION_V2 0x00010010
 #define SNAP_BOOTSELECT_SIGNATURE_RECOVERY ('S' | ('R' << 8) | ('s' << 16) | ('e' << 24))
 
-// devive lock states
+// device lock states
 #define DEVICE_STATE_UNKNOW   0  // initial device state at first boot
 #define DEVICE_STATE_UNLOCKED 1  // device unlocked
 #define DEVICE_STATE_LOCKED   2  // device locked
