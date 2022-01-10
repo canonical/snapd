@@ -1152,38 +1152,25 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	// the migration hasn't been done - do it now
 	if opts.UseHidden && !opts.MigratedToHidden {
-		if err := m.migrateToHiddenDir(t); err != nil {
-			return err
+		err = m.backend.HideSnapData(snapsup.InstanceName())
+		snapsup.MigratedHidden = true
+
+		// set the migrated status even on error, so we undo the snap data dir move
+		st.Lock()
+		tErr := SetTaskSnapSetup(t, snapsup)
+		st.Unlock()
+
+		if tErr != nil {
+			errMsg := "cannot set migration status (migration won't be undone): %w"
+			if err == nil {
+				return fmt.Errorf(errMsg, tErr)
+			}
+
+			t.Logf(errMsg, tErr)
 		}
 	}
 
 	return nil
-}
-
-func (m *SnapManager) migrateToHiddenDir(t *state.Task) error {
-	t.State().Lock()
-	snapsup, err := TaskSnapSetup(t)
-	t.State().Unlock()
-	if err != nil {
-		return err
-	}
-
-	// set the migrated status even on error, so we undo this later
-	err = m.backend.HideSnapData(snapsup.InstanceName())
-	snapsup.MigratedHidden = true
-
-	t.State().Lock()
-	defer t.State().Unlock()
-	if tErr := SetTaskSnapSetup(t, snapsup); tErr != nil {
-		tErr := fmt.Errorf("cannot set migration status (migration won't be undone): %w", tErr)
-		if err == nil {
-			return tErr
-		}
-
-		logger.Debugf(tErr.Error())
-	}
-
-	return err
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -1207,9 +1194,20 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	// we migrated the data in this run - undo that
 	if snapsup.MigratedHidden {
-		if err := m.undoMigration(t, st, snapst, snapsup); err != nil {
+		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 			return err
 		}
+
+		snapsup.MigratedHidden = false
+		st.Lock()
+		err := SetTaskSnapSetup(t, snapsup)
+		st.Unlock()
+		if err != nil {
+			return err
+		}
+
+		// persist the undone migration status before allowing the snap to be run
+		writeSeqFile(snapsup.InstanceName(), snapst)
 	}
 
 	st.Lock()
@@ -1244,23 +1242,6 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	return nil
-}
-
-func (m *SnapManager) undoMigration(t *state.Task, st *state.State, snapst *SnapState, snapsup *SnapSetup) error {
-	if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-		return err
-	}
-
-	snapsup.MigratedHidden = false
-	st.Lock()
-	err := SetTaskSnapSetup(t, snapsup)
-	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	// persist the undone migration status before allowing the snap to be run
-	return writeSeqFile(snapsup.InstanceName(), snapst)
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
