@@ -71,6 +71,7 @@ execute: |
 
         # netplan config
         tests.nested exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        tests.nested exec "netplan get ethernets.ens3.dhcp4" | MATCH false
     }
 
     check_core20_early_config
