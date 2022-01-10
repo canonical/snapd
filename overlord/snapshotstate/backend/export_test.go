@@ -48,14 +48,6 @@ func MockIsTesting(newIsTesting bool) func() {
 	}
 }
 
-func MockUserLookupId(newLookupId func(string) (*user.User, error)) func() {
-	oldLookupId := userLookupId
-	userLookupId = newLookupId
-	return func() {
-		userLookupId = oldLookupId
-	}
-}
-
 func MockOsOpen(newOsOpen func(string) (*os.File, error)) func() {
 	oldOsOpen := osOpen
 	osOpen = newOsOpen

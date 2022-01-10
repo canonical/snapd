@@ -332,7 +332,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()

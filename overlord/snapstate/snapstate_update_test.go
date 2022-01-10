@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -65,6 +66,10 @@ func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSe
 	}
 
 	c.Assert(kinds, DeepEquals, expected)
+
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "validate-snap")
 }
 
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
@@ -814,6 +819,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
+
+	// local modifications, edge must be set
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "validate-snap")
 
 	defer s.se.Stop()
 	s.settle(c)
@@ -2705,6 +2715,10 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	chg := s.state.NewChange("refresh", "refresh a snap")
 	chg.AddAll(ts)
 
+	// no local modifications, hence no edge
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, IsNil)
+
 	defer s.se.Stop()
 	s.settle(c)
 
@@ -4413,7 +4427,7 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 	c.Assert(err, IsNil)
 
 	// ensure edges information is still there
-	te, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	te, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, NotNil)
 	c.Assert(err, IsNil)
 
@@ -4494,7 +4508,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks())+1) // 1==rerefresh
 
 	// ensure edges information is still there
-	te, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	te, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, NotNil)
 	c.Assert(err, IsNil)
 
@@ -6842,6 +6856,141 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
 		{macaroon: s.user.StoreMacaroon, name: "outdated-consumer", target: filepath.Join(dirs.SnapBlobDir, "outdated-consumer_11.snap")},
 		{macaroon: s.user.StoreMacaroon, name: "outdated-producer", target: filepath.Join(dirs.SnapBlobDir, "outdated-producer_11.snap")},
 	})
+}
+
+func (s *validationSetsSuite) testUpdateManyValidationSetsPartialFailure(c *C) *state.Change {
+	logbuf, rest := logger.MockLogger()
+	defer rest()
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		snap1 := map[string]interface{}{
+			"id":       "aaqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": "required",
+		}
+		snap2 := map[string]interface{}{
+			"id":       "bgtKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-other-snap",
+			"presence": "required",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "2", snap1, snap2)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	si1 := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-snap`, si1)
+
+	si2 := &snap.SideInfo{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)}
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, `name: some-other-snap`, si2)
+
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-other-snap/11")
+
+	names, tss, err := snapstate.UpdateMany(context.Background(), s.state, nil, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
+	c.Check(logbuf.String(), Equals, "")
+	chg := s.state.NewChange("update", "")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+
+	return chg
+}
+
+func (s *validationSetsSuite) TestUpdateManyValidationSetsPartialFailureNothingToRestore(c *C) {
+	var refreshed []string
+	restoreMaybeRestoreValidationSetsAndRevertSnaps := snapstate.MockMaybeRestoreValidationSetsAndRevertSnaps(func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error) {
+		refreshed = refreshedSnaps
+		// nothing to restore
+		return nil, nil
+	})
+	defer restoreMaybeRestoreValidationSetsAndRevertSnaps()
+
+	var addCurrentTrackingToValidationSetsStackCalled int
+	restoreAddCurrentTrackingToValidationSetsStack := snapstate.MockAddCurrentTrackingToValidationSetsStack(func(st *state.State) error {
+		addCurrentTrackingToValidationSetsStackCalled++
+		return nil
+	})
+	defer restoreAddCurrentTrackingToValidationSetsStack()
+
+	s.testUpdateManyValidationSetsPartialFailure(c)
+
+	// only some-snap was successfully refreshed, this also confirms that
+	// mockMaybeRestoreValidationSetsAndRevertSnaps was called.
+	c.Check(refreshed, DeepEquals, []string{"some-snap"})
+
+	// validation sets history update was attempted (could be a no-op if
+	// maybeRestoreValidationSetsAndRevertSnaps restored last tracking
+	// data).
+	c.Check(addCurrentTrackingToValidationSetsStackCalled, Equals, 1)
+}
+
+func (s *validationSetsSuite) TestUpdateManyValidationSetsPartialFailureRevertTasks(c *C) {
+	var refreshed []string
+	restoreMaybeRestoreValidationSetsAndRevertSnaps := snapstate.MockMaybeRestoreValidationSetsAndRevertSnaps(func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error) {
+		refreshed = refreshedSnaps
+		ts := state.NewTaskSet(st.NewTask("fake-revert-task", ""))
+		return []*state.TaskSet{ts}, nil
+	})
+	defer restoreMaybeRestoreValidationSetsAndRevertSnaps()
+
+	var addCurrentTrackingToValidationSetsStackCalled int
+	restoreAddCurrentTrackingToValidationSetsStack := snapstate.MockAddCurrentTrackingToValidationSetsStack(func(st *state.State) error {
+		addCurrentTrackingToValidationSetsStackCalled++
+		return nil
+	})
+	defer restoreAddCurrentTrackingToValidationSetsStack()
+
+	chg := s.testUpdateManyValidationSetsPartialFailure(c)
+
+	// only some-snap was successfully refreshed, this also confirms that
+	// mockMaybeRestoreValidationSetsAndRevertSnaps was called.
+	c.Check(refreshed, DeepEquals, []string{"some-snap"})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// check that a fake revert task returned by maybeRestoreValidationSetsAndRevertSnaps
+	// got injected into the refresh change.
+	var seen bool
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "fake-revert-task" {
+			seen = true
+			break
+		}
+	}
+	c.Check(seen, Equals, true)
+
+	// we haven't updated validation sets history
+	c.Check(addCurrentTrackingToValidationSetsStackCalled, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestUpdatePrerequisiteBackwardsCompat(c *C) {
