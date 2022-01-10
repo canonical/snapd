@@ -56,7 +56,8 @@ To install multiple instances of the same snap, append an underscore and a
 unique identifier (for each instance) to a snap's name.
 
 With no further options, the snaps are installed tracking the stable channel,
-with strict security confinement.
+with strict security confinement. All available channels of a snap are listed in
+its 'snap info' output.
 
 Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
@@ -85,7 +86,8 @@ The refresh command updates the specified snaps, or all snaps in the system if
 none are specified.
 
 With no further options, the snaps are refreshed to the current revision of the
-channel they're tracking, preserving their confinement options.
+channel they're tracking, preserving their confinement options. All available
+channels of a snap are listed in its 'snap info' output.
 
 Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
@@ -1032,7 +1034,8 @@ func (x *cmdRevert) Execute(args []string) error {
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
 var longSwitchHelp = i18n.G(`
 The switch command switches the given snap to a different channel without
-doing a refresh.
+doing a refresh. All available channels of a snap are listed in
+its 'snap info' output.
 `)
 
 type cmdSwitch struct {
