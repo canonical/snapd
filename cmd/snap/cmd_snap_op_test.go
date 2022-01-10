@@ -1045,7 +1045,7 @@ func (s *SnapOpSuite) TestInstallPathManyMode(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", "foo.snap", "bar.snap"})
 	// allows mode with many local snaps (err is unrelated)
-	c.Assert(err.Error(), check.Equals, `cannot open: "foo.snap"`)
+	c.Assert(err, check.ErrorMatches, `cannot open "foo.snap":.*`)
 }
 
 func (s *SnapSuite) TestInstallWithInstanceNoPath(c *check.C) {
