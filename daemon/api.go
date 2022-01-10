@@ -132,6 +132,7 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
+	snapstateInstallPathMany   = snapstate.InstallPathMany
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
@@ -142,7 +143,8 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
 
-	assertstateRefreshSnapAssertions = assertstate.RefreshSnapAssertions
+	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
+	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 )
 
 func ensureStateSoonImpl(st *state.State) {

@@ -79,6 +79,7 @@ if [ "$1" = "purge" ]; then
             fi
             # modules
             rm -f "/etc/modules-load.d/snap.${snap}.conf"
+            rm -f "/etc/modprobe.d/snap.${snap}.conf"
             # timer and socket units
             find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"

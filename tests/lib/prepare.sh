@@ -579,18 +579,18 @@ uc20_build_initramfs_kernel_snap() {
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         # also save the time before snap-bootstrap runs
         sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
-        {
-            echo "" 
-            echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
-            # also copy the time for the clock-epoch to system-data, this is 
-            # used by a specific test but doesn't hurt anything to do this for 
-            # all tests
-            echo "mode=\$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
-            echo "mode=\${mode##snapd_recovery_mode=}"
-            echo "stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/\${mode}-clock-epoch"
-            echo "echo \"\$beforeDate\" > /run/mnt/ubuntu-seed/\${mode}-before-snap-bootstrap-date"
-            echo "date --utc '+%s' > /run/mnt/ubuntu-seed/\${mode}-after-snap-bootstrap-date"
-        } >> "$skeletondir/main/usr/lib/the-tool"
+        cat >> "$skeletondir/main/usr/lib/the-tool" <<'EOF'
+        if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi
+        # also copy the time for the clock-epoch to system-data, this is
+        # used by a specific test but doesn't hurt anything to do this for
+        # all tests
+        mode=$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)
+        mode=${mode##snapd_recovery_mode=}
+        mkdir -p /run/mnt/ubuntu-seed/test
+        stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
+        echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
+        date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
+EOF
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
@@ -1022,13 +1022,13 @@ EOF
     # mount it so we can use it now
     mount "/dev/mapper/${dev}p${LOOP_PARTITION}" /mnt
 
-    mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
     # - VCS files
     # - built debs
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
     if os.query is-core16 || os.query is-core18; then
+        mkdir -p /mnt/user-data/
         # we need to include "core" here because -C option says to ignore 
         # files the way CVS(?!) does, so it ignores files named "core" which
         # are core dumps, but we have a test suite named "core", so including 

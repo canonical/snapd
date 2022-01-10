@@ -75,12 +75,14 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 			if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") || strings.HasSuffix(unit, ".target") {
 				// Units using the baseProperties query
 				return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
 ActiveState=%s
 UnitFileState=%s
 `, args[2], activeState, unitState)), nil
 			} else {
 				// Units using the extendedProperties query
 				return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
