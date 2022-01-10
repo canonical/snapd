@@ -33,6 +33,9 @@ execute: |
     snap set system system.network.netplan.network.bridges.br54.dhcp6=true
     res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90-snapd-config.yaml)
     [ "$res" = "true" ]
+    echo "And the dhcp4 setting is preserved and it is still set"
+    res=$(yq e '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
+    [ "$res" = "true" ]
 
     echo "Check that unset works"
     snap unset system system.network.netplan.network.bridges.br54.dhcp6
