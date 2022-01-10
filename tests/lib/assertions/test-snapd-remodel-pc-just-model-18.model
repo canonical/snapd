@@ -1,0 +1,23 @@
+type: model
+authority-id: test-snapd
+series: 16
+brand-id: test-snapd
+model: test-snapd-remodel-pc-just-model
+architecture: amd64
+base: core18
+gadget: test-snapd-remodel-pc=18
+kernel: pc-kernel=18
+store: CQvkdMjgbapk821Po2cF
+timestamp: 2021-12-02T12:18:12+00:00
+sign-key-sha3-384: HBWEhDcIt0C2IfeIpNdMhbd5yGyCtosl1WeO1pvgeb7_TY2NBuB6k5fQ2FArsfMS
+
+AcLBcwQAAQoAHRYhBAkJO0ol4HziPLWLcJK8CHGoSq8xBQJh3EHlAAoJEJK8CHGoSq8xw1wP/iwn
+dXvPsEn6SuocE5ni+nof/J+CgicXT3MTcTPrg4G8oG64a28HIBSQ7XsAfSslcSa9QFTboY5SR/44
+n0E/x/872jg4pRdKRbfy5RxEoS9RZbGKEYJ252AjxSRViBbUiLOwtMVmOgLUiT4cu2/ZvAUw9LSr
+zA129FoaSRNcO8F7lN+/u0P7N7RtveRrKoFpM+DSiAo4wZviiLN7S+kFTDkD3V32XA4LxlffxrSe
+YxGtns1iN7z56wdFPAM+1gBLZhCe70yFBuuu5ZHbaVP/H1qqtgeAEYnVhCaOMW9hwVcag84TqtLX
+k6TIdiSMFQ2bhvIpv03sFwdLOvSAzacav+vvgB0MyeAP7UHhYFj4hSYy0EAO245CuMReti41rveX
+Cf8uA281L3mfft+B1rwRuDP0nYAyCIqZLVBRYd2nhBYM2Krmo+L2ZimyNBe+uWCBKcs0h6VMmPX2
+E6jVqhrktR6fdbRHcpIv7zZk1uurKK2ngtWgnJnSAu3XnmYDCQ8ltPNIr0YJDEeBOn+RbYLb8+YZ
+0hDUlARcSK9/6kwF1P/3h1AKZCU/d+kP3oiTrUqdTnZxKwuFBDQTC2tNlJoC2olnhXJ7I0TXHAZO
+XINuuenj6SBYriGHNISc0BpnmYApP366cD2gHndqv9NgD/PaXV5SOR+y0aHfQfLIBcaxx1lE
