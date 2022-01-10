@@ -115,7 +115,6 @@ func (s *launcherSuite) testOpenURLWithFallbackInvalidDesktopFile(c *C, desktopF
 	mockXdgMime := testutil.MockCommand(c, "xdg-mime", fmt.Sprintf("echo %s", desktopFileName))
 	defer mockXdgMime.Restore()
 	err := s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender")
-	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `Supplied URL scheme "fallback-scheme" is not allowed`)
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
 	c.Assert(mockXdgMime.Calls(), DeepEquals, [][]string{

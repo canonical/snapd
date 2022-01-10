@@ -176,7 +176,7 @@ func schemeHasHandler(scheme string) (bool, error) {
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
 func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
-	logger.Noticef("open url: %q", addr)
+	logger.Debugf("open url: %q", addr)
 	if err := checkOnClassic(); err != nil {
 		return err
 	}
@@ -194,11 +194,10 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 		// scheme is not listed in our allowed schemes list, perform
 		// fallback and check whether the local system has a handler for
 		// it
-		has, err := schemeHasHandler(u.Scheme)
+		isAllowed, err = schemeHasHandler(u.Scheme)
 		if err != nil {
 			logger.Noticef("cannot obtain scheme handler for %q: %v", u.Scheme, err)
 		}
-		isAllowed = isAllowed || has
 	}
 	if !isAllowed {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
