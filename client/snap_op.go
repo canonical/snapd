@@ -216,7 +216,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("cannot open: %q", path)
+		return "", fmt.Errorf("cannot open %q: %w", path, err)
 	}
 
 	action := actionData{
@@ -244,7 +244,7 @@ func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (cha
 			for _, openFile := range files {
 				openFile.Close()
 			}
-			return "", fmt.Errorf("cannot open: %q", path)
+			return "", fmt.Errorf("cannot open %q: %w", path, err)
 		}
 
 		files = append(files, f)
