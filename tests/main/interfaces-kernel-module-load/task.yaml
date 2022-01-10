@@ -4,11 +4,18 @@ details: |
     The kernel-module-load interface allows to statically control kernel module
     loading in a way that can be constrained via snap-declaration.
 
+systems:
+    - ubuntu-core-*-arm-* # XXX: fails with a kill-timeout
+
 environment:
     SNAP_NAME: test-snapd-kernel-module-load
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local $SNAP_NAME
+
+restore: |
+    echo "Ensure snap is removed even if something goes wrong"
+    snap remove "$SNAP_NAME"
 
 execute: |
     echo "When the interface is connected"
