@@ -3036,6 +3036,23 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesy
 	c.Assert(err, IsNil)
 }
 
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithImplicitSystemData(c *C) {
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := uc16DeviceLayout
+
+	// with no/default opts, then they are not compatible
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
+
+	// compatible with AllowImplicitSystemData however
+	opts := &gadget.EnsureLayoutCompatibilityOptions{
+		AllowImplicitSystemData: true,
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
 func (s *gadgetYamlTestSuite) TestSchemaCompatibility(c *C) {
 	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml, nil)
 	c.Assert(err, IsNil)
