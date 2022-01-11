@@ -35,6 +35,15 @@ type OnDiskStructure struct {
 	// Node identifies the device node of the block device.
 	Node string
 
+	// StructureIndex is the index of the structure on the disk - this should be
+	// used instead of "Index" for an OnDiskStructure, "Index" comes from the
+	// embedded LaidOutStructure which is 0-based and does not have the same
+	// meaning. A LaidOutStructure's index position will include that of bare
+	// structures which will not show up as an OnDiskStructure, so the maximum
+	// OnDiskStructure.StructureIndex is not necessarily the same as the maximum
+	// LaidOutStructure.Index.
+	StructureIndex int
+
 	// Size of the on disk structure, which is at least equal to the
 	// LaidOutStructure.Size but may be bigger if the partition was
 	// expanded.
@@ -82,10 +91,14 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 		return nil, err
 	}
 
-	structure := make([]VolumeStructure, len(parts))
 	ds := make([]OnDiskStructure, len(parts))
 
 	for _, p := range parts {
+		s, err := OnDiskStructureFromPartition(p)
+		if err != nil {
+			return nil, err
+		}
+
 		// Use the index of the structure on the disk rather than the order in
 		// which we iterate over the list of partitions, since the order of the
 		// partitions is returned "last seen first" which matches the behavior
@@ -97,37 +110,7 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 		// property exists. Also note that StructureIndex starts at 1, as
 		// opposed to gadget.LaidOutVolume.Structure's Index which starts at 0.
 		i := p.StructureIndex - 1
-
-		// the PartitionLabel and FilesystemLabel are encoded, so they must be
-		// decoded before they can be used in other gadget functions
-
-		decodedPartLabel, err := disks.BlkIDDecodeLabel(p.PartitionLabel)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode partition label for partition on disk %s: %v", disk.KernelDeviceNode(), err)
-		}
-		decodedFsLabel, err := disks.BlkIDDecodeLabel(p.FilesystemLabel)
-		if err != nil {
-			return nil, fmt.Errorf("cannot decode partition label for partition on disk %s: %v", disk.KernelDeviceNode(), err)
-		}
-
-		structure[i] = VolumeStructure{
-			Name:       decodedPartLabel,
-			Size:       quantity.Size(p.SizeInBytes),
-			Label:      decodedFsLabel,
-			Type:       p.PartitionType,
-			Filesystem: p.FilesystemType,
-			ID:         p.PartitionUUID,
-		}
-
-		ds[i] = OnDiskStructure{
-			LaidOutStructure: LaidOutStructure{
-				VolumeStructure: &structure[i],
-				StartOffset:     quantity.Offset(p.StartInBytes),
-				Index:           int(p.StructureIndex),
-			},
-			Size: quantity.Size(p.SizeInBytes),
-			Node: p.KernelDeviceNode,
-		}
+		ds[i] = s
 	}
 
 	diskSz, err := disk.SizeInBytes()
@@ -156,4 +139,42 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 	}
 
 	return dl, nil
+}
+
+const UnknownLaidOutStructureIndex = -1
+
+func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
+	// the PartitionLabel and FilesystemLabel are encoded, so they must be
+	// decoded before they can be used in other gadget functions
+
+	decodedPartLabel, err := disks.BlkIDDecodeLabel(p.PartitionLabel)
+	if err != nil {
+		return OnDiskStructure{}, fmt.Errorf("cannot decode partition label for partition %s: %v", p.KernelDeviceNode, err)
+	}
+	decodedFsLabel, err := disks.BlkIDDecodeLabel(p.FilesystemLabel)
+	if err != nil {
+		return OnDiskStructure{}, fmt.Errorf("cannot decode filesystem label for partition %s: %v", p.KernelDeviceNode, err)
+	}
+
+	volStruct := VolumeStructure{
+		Name:       decodedPartLabel,
+		Size:       quantity.Size(p.SizeInBytes),
+		Label:      decodedFsLabel,
+		Type:       p.PartitionType,
+		Filesystem: p.FilesystemType,
+		ID:         p.PartitionUUID,
+	}
+
+	return OnDiskStructure{
+		LaidOutStructure: LaidOutStructure{
+			VolumeStructure: &volStruct,
+			StartOffset:     quantity.Offset(p.StartInBytes),
+			// we don't know what LaidOutStructure Index this should have
+			// because we have only on-disk information at this point
+			Index: UnknownLaidOutStructureIndex,
+		},
+		StructureIndex: int(p.StructureIndex),
+		Size:           quantity.Size(p.SizeInBytes),
+		Node:           p.KernelDeviceNode,
+	}, nil
 }

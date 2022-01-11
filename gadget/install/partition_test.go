@@ -415,10 +415,11 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
 				},
 				StartOffset: 1024 * 1024,
-				Index:       1,
+				Index:       gadget.UnknownLaidOutStructureIndex,
 			},
-			Node: "/dev/node1",
-			Size: 1024 * 1024,
+			StructureIndex: 1,
+			Node:           "/dev/node1",
+			Size:           1024 * 1024,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -432,11 +433,11 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 				},
 
 				StartOffset: 1024*1024 + 1024*1024,
-				Index:       2,
+				Index:       gadget.UnknownLaidOutStructureIndex,
 			},
-
-			Node: "/dev/node2",
-			Size: 2457600 * 512,
+			StructureIndex: 2,
+			Node:           "/dev/node2",
+			Size:           2457600 * 512,
 		},
 	})
 }
@@ -564,10 +565,11 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
 				},
 				StartOffset: 1024 * 1024,
-				Index:       1,
+				Index:       gadget.UnknownLaidOutStructureIndex,
 			},
-			Node: "/dev/node1",
-			Size: 1024 * 1024,
+			StructureIndex: 1,
+			Node:           "/dev/node1",
+			Size:           1024 * 1024,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -581,11 +583,12 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 				},
 
 				StartOffset: 1024*1024 + 1024*1024 + 2457600*512,
-				Index:       3,
+				Index:       gadget.UnknownLaidOutStructureIndex,
 			},
 
-			Node: "/dev/node3",
-			Size: 2457600 * 512,
+			Node:           "/dev/node3",
+			StructureIndex: 3,
+			Size:           2457600 * 512,
 		},
 	})
 }

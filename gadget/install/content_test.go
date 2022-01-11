@@ -117,8 +117,8 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 			},
 		},
 		StartOffset: 2097152,
-		Index:       2,
 	},
+	StructureIndex: 2,
 }
 
 func makeMockGadget(gadgetRoot, gadgetContent string) error {
