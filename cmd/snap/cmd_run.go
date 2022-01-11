@@ -1175,6 +1175,21 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		// tracking cgroup, named after the systemd unit name, and those are
 		// sufficient to identify both the snap name and the app name.
 		needsTracking = false
+		// however it is still possible that the app (which is a
+		// service) was invoked by the user, so it may be running inside
+		// a user's scope cgroup, in which case separate tracking group
+		// needs to be established
+		if err := cgroupConfirmSystemdServiceTracking(securityTag); err != nil {
+			if err == cgroup.ErrCannotTrackProcess {
+				// we are not being tracked in a service cgroup
+				// after all, go ahead and create a transient
+				// scope
+				needsTracking = true
+				logger.Debugf("service app not tracked by systemd")
+			} else {
+				return err
+			}
+		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
@@ -1183,8 +1198,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
 		trackingErr = cgroupCreateTransientScopeForTracking(securityTag, opts)
-	} else {
-		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
 	}
 	if trackingErr != nil {
 		if trackingErr != cgroup.ErrCannotTrackProcess {
