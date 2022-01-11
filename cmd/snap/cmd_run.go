@@ -1194,20 +1194,18 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
 	// Track, or confirm existing tracking from systemd.
-	var trackingErr error
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
-		trackingErr = cgroupCreateTransientScopeForTracking(securityTag, opts)
-	}
-	if trackingErr != nil {
-		if trackingErr != cgroup.ErrCannotTrackProcess {
-			return trackingErr
+		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
+			if err != cgroup.ErrCannotTrackProcess {
+				return err
+			}
+			// If we cannot track the process then log a debug message.
+			// TODO: if we could, create a warning. Currently this is not possible
+			// because only snapd can create warnings, internally.
+			logger.Debugf("snapd cannot track the started application")
+			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
-		// If we cannot track the process then log a debug message.
-		// TODO: if we could, create a warning. Currently this is not possible
-		// because only snapd can create warnings, internally.
-		logger.Debugf("snapd cannot track the started application")
-		logger.Debugf("snap refreshes will not be postponed by this process")
 	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
