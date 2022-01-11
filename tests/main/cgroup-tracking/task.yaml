@@ -178,7 +178,7 @@ execute: |
         # that location writable
         chmod a+w /var/snap/test-snapd-tracking/common
     fi
-    echo "A service run directly as the root user will also get a tracking scope"
+    echo "A service run directly as the user will also get a tracking scope"
     rm -f /var/snap/test-snapd-tracking/common/nap.cgroup
     tests.session -p /tmp/4.pid -u "$USER" exec snap run test-snapd-tracking.nap &
     session4_pid=$!
