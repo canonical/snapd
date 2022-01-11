@@ -220,10 +220,10 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 					// use more specific error message for structures that are
 					// not creatable at install
 					if !IsCreatableAtInstall(gv) {
-						return false, "filesystems do not match and the partition is not creatable at install"
+						return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
 					}
 					// otherwise generic
-					return false, "filesystems do not match"
+					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
 				}
 			}
 		}
