@@ -213,18 +213,14 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// case we don't care about the filesystem at all because snapd does
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file.
-			if gv.Filesystem != "" {
-				// then the gadget specified a filesystem and the on disk needs
-				// to match
-				if gv.Filesystem != dv.Filesystem {
-					// use more specific error message for structures that are
-					// not creatable at install
-					if !IsCreatableAtInstall(gv) {
-						return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
-					}
-					// otherwise generic
-					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
+			if gv.Filesystem != "" && gv.Filesystem != dv.Filesystem {
+				// use more specific error message for structures that are
+				// not creatable at install
+				if !IsCreatableAtInstall(gv) {
+					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
 				}
+				// otherwise generic
+				return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
 			}
 		}
 
