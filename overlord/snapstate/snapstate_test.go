@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/wrappers"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -3362,7 +3363,7 @@ func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
 	defer r()
 
 	var generateWrappersCalled bool
-	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info) error {
+	restore := backend.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions) error {
 		c.Assert(snapInfo.SnapName(), Equals, "snapd")
 		generateWrappersCalled = true
 		return nil

@@ -644,8 +644,6 @@ var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Tas
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
 }
 
-var generateSnapdWrappers = backend.GenerateSnapdWrappers
-
 // FinishRestart will return a Retry error if there is a pending restart
 // and a real error if anything went wrong (like a rollback across
 // restarts).
@@ -673,7 +671,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			}
 			// TODO: if future changes to wrappers need one more snapd restart,
 			// then it should be handled here as well.
-			if err := generateSnapdWrappers(snapdInfo); err != nil {
+			if err := backend.GenerateSnapdWrappers(snapdInfo, nil); err != nil {
 				return err
 			}
 		}

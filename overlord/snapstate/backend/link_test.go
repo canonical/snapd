@@ -367,6 +367,33 @@ WantedBy=snapd.service
 		"[D-BUS Service]\nName=io.snapcraft.SessionAgent")
 }
 
+func (s *linkSuite) TestLinkSnapdSnapOnCorePreseeding(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var wrappersOpts *wrappers.AddSnapdSnapServicesOptions
+	restore = backend.MockGenerateSnapdWrappers(func(si *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions) error {
+		wrappersOpts = opts
+		return nil
+	})
+	defer restore()
+
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapUserServicesDir, 0755)
+	c.Assert(err, IsNil)
+
+	info, _ := mockSnapdSnapForLink(c)
+
+	be := backend.NewForPreseedMode()
+	reboot, err := be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(reboot, Equals, false)
+
+	c.Assert(wrappersOpts, NotNil)
+	c.Check(wrappersOpts.Preseeding, Equals, true)
+}
+
 type linkCleanupSuite struct {
 	linkSuiteCommon
 	info *snap.Info

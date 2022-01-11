@@ -90,7 +90,7 @@ func (m *mockSystemctlError) Error() string {
 	return fmt.Sprintf("mocked systemctl error: code: %v msg: %q", m.exitCode, m.msg)
 }
 
-func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
+func (s *servicesTestSuite) testAddSnapServicesForSnapdOnCore(c *C, preseeding bool) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -118,8 +118,13 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	defer systemctlRestorer()
 
 	info := makeMockSnapdSnap(c)
+
+	var opts *wrappers.AddSnapdSnapServicesOptions
+	if preseeding {
+		opts = &wrappers.AddSnapdSnapServicesOptions{Preseeding: true}
+	}
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, opts, progress.Null)
 	c.Assert(err, IsNil)
 
 	mountUnit := fmt.Sprintf(`[Unit]
@@ -186,37 +191,62 @@ WantedBy=snapd.service
 	c.Check(filepath.Join(dirs.SnapDBusSystemPolicyDir, "io.netplan.Netplan.conf"), testutil.FileAbsent)
 
 	// check the systemctl calls
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-		{"enable", "usr-lib-snapd.mount"},
-		{"stop", "usr-lib-snapd.mount"},
-		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
-		{"start", "usr-lib-snapd.mount"},
-		{"daemon-reload"},
-		{"is-enabled", "snapd.autoimport.service"},
-		{"is-enabled", "snapd.service"},
-		{"is-enabled", "snapd.snap-repair.timer"},
-		// test pretends snapd.socket is disabled and needs enabling
-		{"is-enabled", "snapd.socket"},
-		{"enable", "snapd.socket"},
-		{"is-enabled", "snapd.system-shutdown.service"},
-		{"is-active", "snapd.autoimport.service"},
-		{"stop", "snapd.autoimport.service"},
-		{"show", "--property=ActiveState", "snapd.autoimport.service"},
-		{"start", "snapd.autoimport.service"},
-		{"is-active", "snapd.snap-repair.timer"},
-		{"stop", "snapd.snap-repair.timer"},
-		{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
-		{"start", "snapd.snap-repair.timer"},
-		{"is-active", "snapd.socket"},
-		{"start", "--no-block", "snapd.service"},
-		{"start", "--no-block", "snapd.seeded.service"},
-		{"start", "--no-block", "snapd.autoimport.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.service"},
-		{"--user", "--global", "enable", "snapd.session-agent.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.socket"},
-		{"--user", "--global", "enable", "snapd.session-agent.socket"},
-	})
+	if (preseeding) {
+		c.Check(s.sysdLog, DeepEquals, [][]string{
+			{"--root", s.tempdir, "enable", "usr-lib-snapd.mount"},
+			{"--root", s.tempdir, "enable", "snapd.autoimport.service"},
+			{"--root", s.tempdir, "enable", "snapd.service"},
+			{"--root", s.tempdir, "enable", "snapd.snap-repair.timer"},
+			{"--root", s.tempdir, "enable", "snapd.socket"},
+			{"--root", s.tempdir, "enable", "snapd.system-shutdown.service"},
+			{"--user", "--global", "disable", "snapd.session-agent.service"},
+			{"--user", "--global", "enable", "snapd.session-agent.service"},
+			{"--user", "--global", "disable", "snapd.session-agent.socket"},
+			{"--user", "--global", "enable", "snapd.session-agent.socket"},
+		})
+	} else {
+		c.Check(s.sysdLog, DeepEquals, [][]string{
+			{"daemon-reload"},
+			{"enable", "usr-lib-snapd.mount"},
+			{"stop", "usr-lib-snapd.mount"},
+			{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
+			{"start", "usr-lib-snapd.mount"},
+			{"daemon-reload"},
+			{"is-enabled", "snapd.autoimport.service"},
+			{"is-enabled", "snapd.service"},
+			{"is-enabled", "snapd.snap-repair.timer"},
+			// test pretends snapd.socket is disabled and needs enabling
+			{"is-enabled", "snapd.socket"},
+			{"enable", "snapd.socket"},
+			{"is-enabled", "snapd.system-shutdown.service"},
+			{"is-active", "snapd.autoimport.service"},
+			{"stop", "snapd.autoimport.service"},
+			{"show", "--property=ActiveState", "snapd.autoimport.service"},
+			{"start", "snapd.autoimport.service"},
+			{"is-active", "snapd.snap-repair.timer"},
+			{"stop", "snapd.snap-repair.timer"},
+			{"show", "--property=ActiveState", "snapd.snap-repair.timer"},
+			{"start", "snapd.snap-repair.timer"},
+			{"is-active", "snapd.socket"},
+			{"start", "--no-block", "snapd.service"},
+			{"start", "--no-block", "snapd.seeded.service"},
+			{"start", "--no-block", "snapd.autoimport.service"},
+			{"--user", "--global", "disable", "snapd.session-agent.service"},
+			{"--user", "--global", "enable", "snapd.session-agent.service"},
+			{"--user", "--global", "disable", "snapd.session-agent.socket"},
+			{"--user", "--global", "enable", "snapd.session-agent.socket"},
+		})
+	}
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
+	preseed := false
+	s.testAddSnapServicesForSnapdOnCore(c, preseed)
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCorePreseed(c *C) {
+	preseed := true
+	s.testAddSnapServicesForSnapdOnCore(c, preseed)
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
@@ -225,7 +255,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// check that snapd services were *not* created
@@ -260,7 +290,7 @@ func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
 	defer restore()
 
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 
 	// didn't fail despite of read-only SnapDBusSessionPolicyDir
 	c.Assert(err, IsNil)
@@ -286,7 +316,7 @@ func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
 
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 	c.Assert(err, ErrorMatches, `internal error: adding explicit snapd services for snap "foo" type "app" is unexpected`)
 }
 
