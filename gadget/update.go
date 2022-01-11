@@ -357,18 +357,18 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string) (res 
 		return res, fmt.Errorf("cannot get disk for device %s: %v", dev, err)
 	}
 
-	mappedStructures := make([]DiskStructureDeviceTraits, 0, len(diskLayout.Structure))
-
 	diskPartitions, err := disk.Partitions()
 	if err != nil {
 		return res, fmt.Errorf("cannot get partitions for disk device %s: %v", dev, err)
 	}
 
-	// make an easy map of start offsets to to partitions for lookup
+	// make an map of start offsets to partitions for lookup
 	diskPartitionsByOffset := map[uint64]disks.Partition{}
 	for _, p := range diskPartitions {
 		diskPartitionsByOffset[p.StartInBytes] = p
 	}
+
+	mappedStructures := make([]DiskStructureDeviceTraits, 0, len(diskLayout.Structure))
 
 	// create the traits for each structure looping over the laid out structure
 	// to ensure that extra partitions don't sneak in - we double check things
