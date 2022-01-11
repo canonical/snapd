@@ -843,13 +843,20 @@ setup_reflash_magic() {
     UNPACK_DIR="/tmp/$core_name-snap"
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    # build a custom version ubuntu-image with test keys
-    (
-        export GO111MODULE=off
-        # use go get so that ubuntu-image is built with current snapd sources
-        go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-        go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-    )
+    if os.query is-core16; then
+        # the new ubuntu-image expects mkfs to support -d option, which was not
+        # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+    else
+        # on all other systems, build a custom version ubuntu-image with test
+        # keys
+        (
+            export GO111MODULE=off
+            # use go get so that ubuntu-image is built with current snapd sources
+            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+        )
+    fi
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
@@ -973,13 +980,18 @@ EOF
         
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20.snap"
     fi
+    local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+    if os.query is-core16; then
+        # ubuntu-image on 16.04 needs to be installed from a snap
+        UBUNTU_IMAGE=/snap/bin/ubuntu-image
+    fi
     # shellcheck disable=SC2086
-    "$GOHOME"/bin/ubuntu-image snap \
-                           -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
-                           --channel "$IMAGE_CHANNEL" \
-                           $EXTRA_FUNDAMENTAL \
-                           --snap "${extra_snap[0]}" \
-                           --output-dir "$IMAGE_HOME"
+    "$UBUNTU_IMAGE" snap \
+                    -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
+                    --channel "$IMAGE_CHANNEL" \
+                    $EXTRA_FUNDAMENTAL \
+                    --snap "${extra_snap[0]}" \
+                    --output-dir "$IMAGE_HOME"
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
 
     if os.query is-core20; then

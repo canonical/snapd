@@ -920,13 +920,19 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates
-            # build a custom version ubuntu-image with test keys
-            (
-                export GO111MODULE=off
-                # use go get so that ubuntu-image is built with current snapd sources
-                go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            )
+            if os.query is-xenial; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                # build a custom version ubuntu-image with test keys
+                (
+                    export GO111MODULE=off
+                    # use go get so that ubuntu-image is built with current snapd sources
+                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                )
+            fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -961,13 +967,19 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates
-            # build a custom version ubuntu-image with test keys
-            (
-                export GO111MODULE=off
-                # use go get so that ubuntu-image is built with current snapd sources
-                go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            )
+            if os.query is-xenial; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                # build a custom version ubuntu-image with test keys
+                (
+                    export GO111MODULE=off
+                    # use go get so that ubuntu-image is built with current snapd sources
+                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                )
+            fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
@@ -1006,13 +1018,19 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates
-            # build a custom version ubuntu-image with test keys
-            (
-                export GO111MODULE=off
-                # use go get so that ubuntu-image is built with current snapd sources
-                go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            )
+            if os.query is-xenial; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                # build a custom version ubuntu-image with test keys
+                (
+                    export GO111MODULE=off
+                    # use go get so that ubuntu-image is built with current snapd sources
+                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+                )
+            fi
 
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb

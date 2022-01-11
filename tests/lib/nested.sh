@@ -591,6 +591,10 @@ nested_create_core_vm() {
         else
             # create the ubuntu-core image
             local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+            if os.query is-xenial; then
+                # ubuntu-image on 16.04 needs to be installed from a snap
+                UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            fi
             local EXTRA_FUNDAMENTAL=""
             local EXTRA_SNAPS=""
             for mysnap in $(nested_get_extra_snaps); do
