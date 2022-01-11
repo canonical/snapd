@@ -17,6 +17,12 @@ restore: |
 
     tests.session -u test restore
 
+debug: |
+    ls /snap/bin/
+    cat /etc/environment
+    tests.session -u test exec sh -c 'echo $PATH'
+    tests.session -u test exec sh -c 'env'
+
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
