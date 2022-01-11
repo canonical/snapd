@@ -198,8 +198,22 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 		numPartsInGadget+1 == numPartsOnDisk
 }
 
+
+// EnsureLayoutCompatibilityOptions is a set of options for determining how
+// strict to be when evaluating whether an on-disk structure matches a laid out
+// structure.
 type EnsureLayoutCompatibilityOptions struct {
+	// AssumeCreatablePartitionsCreated will assume that all partitions such as
+	// ubuntu-data, ubuntu-save, etc. that are creatable in install mode have
+	// already been created and thus must be already exactly matching that which
+	// is in the gadget.yaml.
 	AssumeCreatablePartitionsCreated bool
+
+	// AllowImplicitSystemData allows the system-data role to be missing from
+	// the laid out volume as was allowed in UC18 and UC16 where the system-data
+	// partition would be dynamically inserted into the image at image build
+	// time by ubuntu-image without being mentioned in the gadget.yaml.
+	AllowImplicitSystemData bool
 }
 
 func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
@@ -307,6 +321,20 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				reasonAbsent = reasonNotMatches
 			}
 		}
+
+		if opts.AllowImplicitSystemData {
+			// Handle the case of an implicit system-data role before giving up;
+			// we used to allow system-data to be implicit from the gadget.yaml.
+			// That means we won't have system-data in the laidOutVol but it
+			// will be in diskLayout, so if after searching all the laid out
+			// structures we don't find a on disk structure, check if we might
+			// be dealing with a structure that looks like the implicit
+			// system-data that ubuntu-image would have created.
+			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, diskLayout, needle) {
+				return true, ""
+			}
+		}
+
 		return false, reasonAbsent
 	}
 
