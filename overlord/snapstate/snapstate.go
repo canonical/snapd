@@ -1158,7 +1158,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		return nil, flagsByInstanceName[name], stateByInstanceName[name]
 	}
 
-	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "", false)
 	if err != nil {
 		return nil, err
 	}
@@ -1168,7 +1168,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+func InstallMany(st *state.State, names []string, userID int, transactional bool) ([]string, []*state.TaskSet, error) {
 	// need to have a model set before trying to talk the store
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
@@ -1214,6 +1214,10 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	var transLane int
+	if transactional {
+		transLane = st.NewLane()
+	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
@@ -1249,7 +1253,11 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		if err != nil {
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		if transactional {
+			ts.JoinLane(transLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 		tasksets = append(tasksets, ts)
 	}
 
@@ -1269,8 +1277,8 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
+func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, transactional bool, flags *Flags) ([]string, []*state.TaskSet, error) {
+	return updateManyFiltered(ctx, st, names, userID, nil, flags, "", transactional)
 }
 
 // updateFilter is the type of function that can be passed to
@@ -1351,7 +1359,7 @@ func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) err
 	return nil
 }
 
-func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, []*state.TaskSet, error) {
+func updateManyFiltered(ctx context.Context, st *state.State, names []string, userID int, filter updateFilter, flags *Flags, fromChange string, transactional bool) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1416,7 +1424,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 		return nil, nil, err
 	}
 
-	updated, tasksets, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
+	updated, tasksets, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange, transactional)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1424,7 +1432,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	return updated, tasksets, nil
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, []*state.TaskSet, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string, transactional bool) ([]string, []*state.TaskSet, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
@@ -1482,6 +1490,10 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
+	var transLane int
+	if transactional {
+		transLane = st.NewLane()
+	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
 		if err != nil {
@@ -1501,7 +1513,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		if transactional {
+			ts.JoinLane(transLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
@@ -1976,7 +1992,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return opts, flags, &snapst
 	}
 
-	_, tts, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange)
+	_, tts, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange, false)
 	if err != nil {
 		return nil, err
 	}
@@ -2109,7 +2125,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+		return UpdateMany(ctx, st, nil, userID, false, &Flags{IsAutoRefresh: true})
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
@@ -2285,7 +2301,7 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		return nil, err
 	}
 
-	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
+	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange, false)
 	if err != nil {
 		return nil, err
 	}
@@ -2928,7 +2944,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
-func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+func RemoveMany(st *state.State, names []string, transactional bool) ([]string, []*state.TaskSet, error) {
 	names = strutil.Deduplicate(names)
 
 	if err := validateSnapNames(names); err != nil {
@@ -2941,6 +2957,10 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	var totalSnapshotsSize uint64
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 
+	var transLane int
+	if transactional {
+		transLane = st.NewLane()
+	}
 	for _, name := range names {
 		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), nil)
 		// FIXME: is this expected behavior?
@@ -2952,7 +2972,11 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 		}
 		totalSnapshotsSize += snapshotSize
 		removed = append(removed, name)
-		ts.JoinLane(st.NewLane())
+		if transactional {
+			ts.JoinLane(transLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 		tasksets = append(tasksets, ts)
 	}
 
