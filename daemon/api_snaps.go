@@ -151,6 +151,9 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
+	if inst.Transactional {
+		chg.Set("transactional", true)
+	}
 
 	ensureStateSoon(state)
 
@@ -198,6 +201,7 @@ type snapInstruction struct {
 	Unaliased              bool     `json:"unaliased"`
 	Purge                  bool     `json:"purge,omitempty"`
 	SystemRestartImmediate bool     `json:"system-restart-immediate"`
+	Transactional          bool     `json:"transactional"`
 	Snaps                  []string `json:"snaps"`
 	Users                  []string `json:"users"`
 
@@ -539,6 +543,9 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
+	if inst.Transactional {
+		chg.Set("transactional", true)
+	}
 
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
 
@@ -568,7 +575,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, inst.Transactional)
 	if err != nil {
 		return nil, err
 	}
@@ -605,7 +612,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, inst.Transactional, nil)
 	if err != nil {
 		if opts.IsRefreshOfAllSnaps {
 			if err := assertstateRestoreValidationSetsTracking(st); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -640,7 +647,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 }
 
 func snapRemoveMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps)
+	removed, tasksets, err := snapstateRemoveMany(st, inst.Snaps, inst.Transactional)
 	if err != nil {
 		return nil, err
 	}

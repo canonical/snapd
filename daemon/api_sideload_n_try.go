@@ -183,6 +183,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	}
 
 	chg.Set("system-restart-immediate", isTrue(form, "system-restart-immediate"))
+	chg.Set("transactional", isTrue(form, "transactional"))
 
 	ensureStateSoon(st)
 
