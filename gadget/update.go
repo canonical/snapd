@@ -228,10 +228,6 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			}
 		}
 
-		// TODO: here we could have a partition like an encrypted one which is
-		//       created at install and we want to make sure that the encrypted
-		//       partitions have a filesystem type of LUKS or whatever
-
 		// otherwise if we got here things are matching
 		return true, ""
 	}
