@@ -199,14 +199,17 @@ distro_install_package() {
         ubuntu-*|debian-*)
             # shellcheck disable=SC2086
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
+            retval=$?
             ;;
         amazon-*|centos-7-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
+            retval=$?
             ;;
         fedora-*|centos-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
+            retval=$?
             ;;
         opensuse-*)
             # packages may be downgraded in the repositories, which would be
@@ -219,10 +222,12 @@ distro_install_package() {
 
             # shellcheck disable=SC2086
             quiet zypper install -y --allow-downgrade --force-resolution $ZYPPER_FLAGS "${pkg_names[@]}"
+            retval=$?
             ;;
         arch-*)
             # shellcheck disable=SC2086
             pacman -Suq --needed --noconfirm "${pkg_names[@]}"
+            retval=$?
             ;;
         *)
             echo "ERROR: Unsupported distribution $SPREAD_SYSTEM"
@@ -230,6 +235,10 @@ distro_install_package() {
             ;;
     esac
     test "$orig_xtrace" = on && set -x
+    # pass any errors up
+    if [ "$retval" != "0" ]; then
+        return $retval
+    fi
 }
 
 distro_purge_package() {
@@ -530,7 +539,6 @@ pkg_dependencies_ubuntu_classic(){
     echo "
         avahi-daemon
         cups
-        dbus-x11
         fontconfig
         gnome-keyring
         jq
@@ -549,7 +557,7 @@ pkg_dependencies_ubuntu_classic(){
 
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
-                pkg_linux_image_extra
+            pkg_linux_image_extra
             ;;
         ubuntu-16.04-64)
             echo "
@@ -591,6 +599,7 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-20.04-64)
             echo "
+                dbus-user-session
                 evolution-data-server
                 fwupd
                 gccgo-9
@@ -620,7 +629,6 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 autopkgtest
                 debootstrap
-                dbus-user-session
                 eatmydata
                 evolution-data-server
                 fwupd
@@ -631,7 +639,6 @@ pkg_dependencies_ubuntu_classic(){
                 packagekit
                 sbuild
                 schroot
-                systemd-timesyncd
                 "
             ;;
     esac
@@ -685,6 +692,7 @@ pkg_dependencies_fedora_centos_common(){
         nmap-ncat
         nfs-utils
         PackageKit
+        polkit
         python3-yaml
         python3-dbus
         python3-gobject

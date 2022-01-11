@@ -283,6 +283,99 @@ bar:
 	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
 }
 
+func (s *attrConstraintsSuite) TestAlternativeMatchingStringList(c *C) {
+	toMatch := attrs(`
+write:
+ - /var/tmp
+ - /var/lib/snapd/snapshots
+`)
+	m, err := asserts.ParseHeaders([]byte(`attrs:
+  write: /var/(tmp|lib/snapd/snapshots)`))
+	c.Assert(err, IsNil)
+
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrs.Check(toMatch, nil)
+	c.Check(err, IsNil)
+
+	m, err = asserts.ParseHeaders([]byte(`attrs:
+  write:
+    - /var/tmp
+    - /var/lib/snapd/snapshots`))
+	c.Assert(err, IsNil)
+
+	cstrsLst, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrsLst.Check(toMatch, nil)
+	c.Check(err, IsNil)
+}
+
+func (s *attrConstraintsSuite) TestAlternativeMatchingComplex(c *C) {
+	toMatch := attrs(`
+mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar/*", where: "/baz/*", options: ["rw", "bind"]}]
+`)
+
+	m, err := asserts.ParseHeaders([]byte(`attrs:
+  mnt:
+    -
+      what: /(bar/|dev/x)\*
+      where: /(foo|baz)/\*
+      options: rw|bind|nodev`))
+	c.Assert(err, IsNil)
+
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrs.Check(toMatch, nil)
+	c.Check(err, IsNil)
+
+	m, err = asserts.ParseHeaders([]byte(`attrs:
+  mnt:
+    -
+      what: /dev/x\*
+      where: /foo/\*
+      options:
+        - nodev
+        - rw
+    -
+      what: /bar/\*
+      where: /baz/\*
+      options:
+        - rw
+        - bind`))
+	c.Assert(err, IsNil)
+
+	cstrsExtensive, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrsExtensive.Check(toMatch, nil)
+	c.Check(err, IsNil)
+
+	// not matching case
+	m, err = asserts.ParseHeaders([]byte(`attrs:
+  mnt:
+    -
+      what: /dev/x\*
+      where: /foo/\*
+      options:
+        - rw
+    -
+      what: /bar/\*
+      where: /baz/\*
+      options:
+        - rw
+        - bind`))
+	c.Assert(err, IsNil)
+
+	cstrsExtensiveNoMatch, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrsExtensiveNoMatch.Check(toMatch, nil)
+	c.Check(err, ErrorMatches, `no alternative for attribute "mnt\.0" matches: no alternative for attribute "mnt\.0.options\.1" matches:.*`)
+}
+
 func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
 	m, err := asserts.ParseHeaders([]byte(`attrs:
   foo: 1

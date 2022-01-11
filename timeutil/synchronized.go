@@ -25,7 +25,6 @@ import (
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/logger"
 )
 
 func isNoServiceOrUnknownPropertyDbusErr(err error) bool {
@@ -69,7 +68,6 @@ func IsNTPSynchronized() (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("timedate1 returned invalid value for NTPSynchronized property: %s", dbusV)
 	}
-	logger.Debugf("NTPSynchronized state returned by timedate1: %s", dbusV)
 
 	return v, nil
 }

@@ -271,6 +271,13 @@ func MockRunGPG(mock func(prev GPGRunner, input []byte, args ...string) ([]byte,
 	}
 }
 
+func GPGBatchYes() (restore func()) {
+	gpgBatchYes = true
+	return func() {
+		gpgBatchYes = false
+	}
+}
+
 // Headers helpers to test
 var (
 	ParseHeaders = parseHeaders

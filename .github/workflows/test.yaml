@@ -44,9 +44,19 @@ jobs:
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 4.x/candidate
-    - name: Cache built artifact
+    - name: Cache and check built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/info
+        if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
+          echo "PR produces dirty snapd snap version"
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
+          echo "PR produces dirty internal snapd info version"
+          cat squashfs-root/usr/lib/snapd/info
+          exit 1
+        fi
         cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
@@ -255,9 +265,8 @@ jobs:
         - debian-10-64
         - debian-11-64
         - debian-sid-64
-        - fedora-33-64
         - fedora-34-64
-        - opensuse-15.2-64
+        - fedora-35-64
         - opensuse-15.3-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
@@ -318,6 +327,21 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+    - name: report spread errors
+      if: always()
+      run: |
+        if [ -e spread.log ]; then
+            echo "Running spread log analyzer"
+            ./tests/lib/tools/log-parser spread.log --print-detail error-debug --output spread-results.json --cut 100
+            while IFS= read -r line; do
+                if [ ! -z "$line" ]; then
+                    echo "Reporting spread error..."
+                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors "$line"
+                fi
+            done <<< $(jq -cr '.[] | select( .type == "info") | select( (.info_type == "Error") or (.info_type == "Debug"))' spread-results.json)
+        else
+            echo "No spread log found, skipping errors reporting"
+        fi
 
   spread-nested:
     needs: [unit-tests]
@@ -371,7 +395,10 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          spread -abend google-nested:${{ matrix.system }}:tests/nested/...
+          # "pipefail" ensures that a non-zero status from the spread is
+          # propagated; and we use a subshell as this option could trigger
+          # undesired changes elsewhere
+          (set -o pipefail; spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log)
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -383,3 +410,18 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+    - name: report spread errors
+      if: always()
+      run: |
+        if [ -e spread.log ]; then
+            echo "Running spread log analyzer"
+            ./tests/lib/tools/log-parser spread.log --print-detail error --output spread-results.json --cut 100
+            while IFS= read -r line; do
+                if [ ! -z "$line" ]; then
+                    echo "Reporting spread error..."
+                    ./tests/lib/tools/report-mongodb --db-name snapd --db-collection spread_errors "$line"
+                fi
+            done <<< $(jq -cr '.[] | select( .type == "info") | select( .info_type == "Error")' spread-results.json)
+        else
+            echo "No spread log found, skipping errors reporting"
+        fi

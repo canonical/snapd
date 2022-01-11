@@ -153,8 +153,8 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 	svc := "snap." + name + ".svc1.service"
 	return []expectedSystemctl{
 		{
-			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type", svc},
-			output:  fmt.Sprintf("Id=%s\nActiveState=active\nUnitFileState=enabled\nType=simple\n", svc),
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", svc},
+			output:  fmt.Sprintf("Id=%s\nNames=%[1]s\nActiveState=active\nUnitFileState=enabled\nType=simple\n", svc),
 		},
 		{expArgs: []string{"stop", svc}},
 		{

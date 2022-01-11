@@ -92,19 +92,21 @@ func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 	st.Set("validation-sets", vsmap)
 }
 
-// DeleteValidationSet deletes a validation set for the given accountID and name.
+// ForgetValidationSet deletes a validation set for the given accountID and name.
 // It is not an error to delete a non-existing one.
-func DeleteValidationSet(st *state.State, accountID, name string) {
+func ForgetValidationSet(st *state.State, accountID, name string) error {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
 	if err != nil && err != state.ErrNoState {
 		panic("internal error: cannot unmarshal validation set tracking state: " + err.Error())
 	}
 	if len(vsmap) == 0 {
-		return
+		return nil
 	}
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-sets", vsmap)
+
+	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
 // GetValidationSet retrieves the ValidationSetTracking for the given account and name.
@@ -258,4 +260,20 @@ func ValidationSetsHistory(st *state.State) ([]map[string]*ValidationSetTracking
 		return nil, err
 	}
 	return vshist, nil
+}
+
+// RestoreValidationSetsTracking restores validation-sets state to the last state
+// stored in the validation-sets-stack. It should only be called when the stack
+// is not empty, otherwise an error is returned.
+func RestoreValidationSetsTracking(st *state.State) error {
+	trackingState, err := validationSetsHistoryTop(st)
+	if err != nil {
+		return err
+	}
+	if len(trackingState) == 0 {
+		// we should never be called when there is nothing in the stack
+		return state.ErrNoState
+	}
+	st.Set("validation-sets", trackingState)
+	return nil
 }

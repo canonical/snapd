@@ -596,3 +596,30 @@ func (s *restSuite) TestPostPendingRefreshNotificationNotificationServerFailure(
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot send notification message: org.freedesktop.DBus.Error.Failed"})
 }
+
+func (s *restSuite) testPostFinishRefreshNotificationBody(c *C, refreshInfo *client.FinishedSnapRefreshInfo) {
+	reqBody, err := json.Marshal(refreshInfo)
+	c.Assert(err, IsNil)
+	req := httptest.NewRequest("POST", "/v1/notifications/finish-refresh", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	agent.FinishRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
+	c.Check(rec.Code, Equals, 200)
+	c.Check(rec.HeaderMap.Get("Content-Type"), Equals, "application/json")
+
+	var rsp resp
+	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
+	c.Check(rsp.Type, Equals, agent.ResponseTypeSync)
+	c.Check(rsp.Result, IsNil)
+}
+
+func (s *restSuite) TestPostCloseRefreshNotification(c *C) {
+	// add a notification first
+	refreshInfo := &client.PendingSnapRefreshInfo{InstanceName: "some-snap"}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+
+	closeInfo := &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"}
+	s.testPostFinishRefreshNotificationBody(c, closeInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 0)
+}

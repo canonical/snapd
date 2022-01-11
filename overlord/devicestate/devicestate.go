@@ -328,14 +328,14 @@ func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
 	return naming.NewSnapSet(reqSnaps)
 }
 
-var errNoDownloadInstallEdge = fmt.Errorf("download and checks edge not found")
+var errNoBeforeLocalModificationsEdge = fmt.Errorf("before-local-modifications edge not found")
 
-// extractDownloadInstallEdgesFromTs extracts the first, last download
+// extractBeforeLocalModificationsEdgesTs extracts the first, last download
 // phase and install phase tasks from a TaskSet
-func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
-	edgeTask := ts.MaybeEdge(snapstate.DownloadAndChecksDoneEdge)
+func extractBeforeLocalModificationsEdgesTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
+	edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 	if edgeTask == nil {
-		return nil, nil, nil, nil, errNoDownloadInstallEdge
+		return nil, nil, nil, nil, errNoBeforeLocalModificationsEdge
 	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads
@@ -479,9 +479,11 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 				return nil, err
 			}
 			if ts != nil {
-				if edgeTask := ts.MaybeEdge(snapstate.DownloadAndChecksDoneEdge); edgeTask != nil {
-					// we have downloads and checks done edge, so
-					// the update is not a simple
+				if edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge); edgeTask != nil {
+					// no task is marked as being last
+					// before local modifications are
+					// introduced, indicating that the
+					// update is a simple
 					// switch-snap-channel
 					return ts, nil
 				} else {
@@ -632,7 +634,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		// Terminology
 		// A <- B means B waits for A
 		// "download,verify" are part of the "Download" phase
-		// "link,start" is part of "Install" phase
+		// "link,start" is part of "Install" phase which introduces
+		// system modifications. The last task of the "Download" phase
+		// is marked with LastBeforeLocalModificationsEdge.
 		//
 		// - all tasks inside ts{Download,Install} already wait for
 		//   each other so the chains look something like this:
@@ -649,15 +653,16 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		//     verify2 <- download3 (added)
 		//     install1  <- install2 (added)
 		//     install2  <- install3 (added)
-		downloadStart, downloadLast, installFirst, installLast, err := extractDownloadInstallEdgesFromTs(ts)
+		downloadStart, downloadLast, installFirst, installLast, err := extractBeforeLocalModificationsEdgesTs(ts)
 		if err != nil {
-			if err == errNoDownloadInstallEdge {
+			if err == errNoBeforeLocalModificationsEdge {
 				// there is no task in the task set marked with
-				// download edges, which can happen when there
-				// is a simple channel switch if the snap which
-				// is part of remodel has the same revision in
-				// the current channel and one that will be used
-				// after remodel
+				// as being last before system modification
+				// edge, which can happen when there is a simple
+				// channel switch if the snap which is part of
+				// remodel has the same revision in the current
+				// channel and one that will be used after
+				// remodel
 				continue
 			}
 			return nil, fmt.Errorf("cannot remodel: %v", err)

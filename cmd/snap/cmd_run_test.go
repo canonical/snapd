@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/strace"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
 	"github.com/snapcore/snapd/sandbox/cgroup"
@@ -479,14 +480,29 @@ func (s *RunSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 }
 
 func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
+	for _, t := range []struct {
+		snapDir string
+		opts    *dirs.SnapDirOptions
+	}{
+		{snapDir: dirs.UserHomeSnapDir},
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
+		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
+	} {
+		s.testSnapRunCreateDataDirs(c, t.snapDir, t.opts)
+		c.Assert(os.RemoveAll(s.fakeHome), check.IsNil)
+		s.fakeHome = c.MkDir()
+	}
+}
+
+func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *dirs.SnapDirOptions) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
-	err = snaprun.CreateUserDataDirs(info)
+	err = snaprun.CreateUserDataDirs(info, opts)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/common")), check.Equals, true)
 }
 
 func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
@@ -495,7 +511,7 @@ func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
 	info.SideInfo.Revision = snap.R(42)
 	info.InstanceKey = "foo"
 
-	err = snaprun.CreateUserDataDirs(info)
+	err = snaprun.CreateUserDataDirs(info, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
@@ -994,7 +1010,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
+			"-e", strace.ExcludedSyscalls,
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -1017,7 +1033,7 @@ echo "stdout output 2"
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
+			"-e", strace.ExcludedSyscalls,
 			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
 			"snap.snapname.app",
 			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
@@ -1064,7 +1080,7 @@ func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
 			filepath.Join(straceCmd.BinDir(), "strace"),
 			"-u", user.Username,
 			"-f",
-			"-e", "!select,pselect6,_newselect,clock_gettime,sigaltstack,gettid,gettimeofday,nanosleep",
+			"-e", strace.ExcludedSyscalls,
 			"-tt",
 			"-o",
 			"file with spaces",
@@ -1862,7 +1878,7 @@ func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
 	})
 
 	info := &snap.Info{SuggestedName: "some-snap"}
-	c.Assert(snaprun.CreateUserDataDirs(info), check.IsNil)
+	c.Assert(snaprun.CreateUserDataDirs(info, nil), check.IsNil)
 
 	fi, err := os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir))
 	c.Assert(err, check.IsNil)

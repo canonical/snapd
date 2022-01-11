@@ -30,6 +30,10 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
+var (
+	LockWithTimeout = lockWithTimeout
+)
+
 // MockEnsureInterval sets the overlord ensure interval for tests.
 func MockEnsureInterval(d time.Duration) (restore func()) {
 	old := ensureInterval
@@ -49,6 +53,18 @@ func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
 		pruneInterval = oldPruneInterval
 		pruneWait = oldPruneWait
 		abortWait = oldAbortWait
+	}
+}
+
+// MockStateLockTimeout sets the overlord state lock timeout for the tests.
+func MockStateLockTimeout(timeout, retryInterval time.Duration) (restore func()) {
+	oldTimeout := stateLockTimeout
+	oldRetryInterval := stateLockRetryInterval
+	stateLockTimeout = timeout
+	stateLockRetryInterval = retryInterval
+	return func() {
+		stateLockTimeout = oldTimeout
+		stateLockRetryInterval = oldRetryInterval
 	}
 }
 
@@ -95,5 +111,13 @@ func MockPreseedExitWithError(f func(err error)) (restore func()) {
 	preseedExitWithError = f
 	return func() {
 		preseedExitWithError = old
+	}
+}
+
+func MockSystemdSdNotify(f func(notifyState string) error) (restore func()) {
+	old := systemdSdNotify
+	systemdSdNotify = f
+	return func() {
+		systemdSdNotify = old
 	}
 }

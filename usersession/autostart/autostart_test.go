@@ -317,7 +317,8 @@ Exec=no-snap
 Exec=no-snap
 `))
 
-	err := autostart.AutostartSessionApps()
+	usrSnapDir := filepath.Join(s.userDir, "snap")
+	err := autostart.AutostartSessionApps(usrSnapDir)
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `- "foo-stable.desktop": cannot determine startup command for application foo in snap a-foo: Exec not found or invalid
 - "no-match.desktop": cannot match desktop file with snap b-foo applications
