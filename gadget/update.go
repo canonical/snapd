@@ -428,12 +428,19 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
+type DiskVolumeValidationOpts struct {
+	AllowImplicitSystemData bool
+}
+
 // DiskTraitsFromDeviceAndValidate takes a laid out gadget volume and an
 // expected disk device path and confirms that they are compatible, and then
 // builds up the disk volume traits for that device. If the laid out volume is
 // not compatible with the disk structure for the specified device an error is
 // returned.
-func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string) (res DiskVolumeDeviceTraits, err error) {
+func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts *DiskVolumeValidationOpts) (res DiskVolumeDeviceTraits, err error) {
+	if opts == nil {
+		opts = &DiskVolumeValidationOpts{}
+	}
 	vol := expLayout.Volume
 
 	// get the disk layout for this device
@@ -444,11 +451,14 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string) (res 
 
 	// ensure that the on disk volume and the laid out volume are actually
 	// compatible
-	opts := &EnsureLayoutCompatibilityOptions{
+	ensureOpts := &EnsureLayoutCompatibilityOptions{
 		// at this point all partitions should be created
 		AssumeCreatablePartitionsCreated: true,
+
+		// provide the other opts as we were provided
+		AllowImplicitSystemData: opts.AllowImplicitSystemData,
 	}
-	if err := EnsureLayoutCompatibility(expLayout, diskLayout, opts); err != nil {
+	if err := EnsureLayoutCompatibility(expLayout, diskLayout, ensureOpts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
 	}
 
@@ -511,15 +521,49 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string) (res 
 		delete(diskPartitionsByOffset, uint64(structure.StartOffset))
 	}
 
-	// check that we don't have any extra partitions on the disk that are not
-	// accounted for in the layout - again this is unexpected since we confirmed
-	// above that the laid out volume was compatible with the on disk volume
-	if len(diskPartitions) != len(mappedStructures) {
+	// We should have deleted all structures from diskPartitionsByOffset that
+	// are in the gadget.yaml laid out volume, however there is a small
+	// possibility (mainly due to bugs) where we could still have partitions in
+	// diskPartitionsByOffset. So we check to make sure there are no partitions
+	// left over.
+	// However, the one notable exception to this is in the case of legacy UC16
+	// or UC18 gadgets where the system-data role could have been left out and
+	// ubuntu-image would dynamically create the partition. In this case, we
+	// ought to just ignore this on-disk structure since it is not in the
+	// gadget.yaml, and the primary use case of tracking disks and structures is
+	// for gadget asset update, but by definition something which is not in the
+	// gadget.yaml cannot be updated via gadget asset updates.
+	switch len(diskPartitionsByOffset) {
+	case 0:
+		// expected, no implicit system-data
+		break
+	case 1:
+		// could be implicit system-data
+		if opts.AllowImplicitSystemData {
+			var part disks.Partition
+			for _, part = range diskPartitionsByOffset {
+				break
+			}
+
+			s, err := OnDiskStructureFromPartition(part)
+			if err != nil {
+				return res, err
+			}
+
+			if onDiskStructureIsLikelyImplicitSystemDataRole(expLayout, diskLayout, s) {
+				// it is likely the implicit system-data
+				break
+			}
+		}
+		fallthrough
+	default:
+		// we for sure have left over partitions that should have been in the
+		// gadget.yaml - make a nice string with what partitions are leftover
 		leftovers := []string{}
 		for _, part := range diskPartitionsByOffset {
 			leftovers = append(leftovers, part.KernelDeviceNode)
 		}
-		return res, fmt.Errorf("internal error: unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
+		return res, fmt.Errorf("unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
 	}
 
 	return DiskVolumeDeviceTraits{
