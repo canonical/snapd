@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.54.1
+Version:        2.54.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -989,6 +989,26 @@ fi
 
 
 %changelog
+* Thu Jan 06 2022 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.54.2
+ - tests: exclude interfaces-kernel-module load on arm
+ - tests: ensure that test-snapd-kernel-module-load is
+   removed
+ - tests: do not test microk8s-smoke on arm
+ - tests/core/failover: replace boot-state with snap debug boot-vars
+ - tests: use snap info|awk to extract tracking channel
+ - tests: fix remodel-kernel test when running on external devices
+ - .github/workflows/test.yaml: also check internal snapd version for
+   cleanliness
+ - packaging/ubuntu-16.04/rules: eliminate seccomp modification
+ - bootloader/assets/grub_*cfg_asset.go: update Copyright
+ - build-aux/snap/snapcraft.yaml: adjust comment about get-version
+ - .github/workflows/test.yaml: add check in github actions for dirty
+   snapd snaps
+ - build-aux/snap/snapcraft.yaml: use build-packages, don't fail
+   dirty builds
+ - data/selinux: allow poking /proc/xen
+
 * Mon Dec 20 2021 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.54.1
  - buid-aux: set version before calling ./generate-packaging-dir

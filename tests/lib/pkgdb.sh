@@ -680,6 +680,7 @@ pkg_dependencies_fedora_centos_common(){
         nmap-ncat
         nfs-utils
         PackageKit
+        polkit
         python3-yaml
         python3-dbus
         python3-gobject
