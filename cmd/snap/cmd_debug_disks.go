@@ -33,8 +33,8 @@ type cmdDiskMapping struct {
 
 func init() {
 	cmd := addDebugCommand("disks",
-		"(internal) obtain all on disk volumes",
-		"(internal) obtain all on disk volumes",
+		"(internal) obtain all on-disk volumes information as yaml",
+		"(internal) obtain all on-disk volumes information as yaml",
 		func() flags.Commander {
 			return &cmdDiskMapping{}
 		}, nil, nil)
