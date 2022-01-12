@@ -69,9 +69,15 @@ execute: |
         tests.nested exec "cat /etc/hostname" | MATCH "foo"
         tests.nested exec "hostname" | MATCH "foo"
 
-        # netplan config
+        # netplan config defaults are applied
         tests.nested exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        tests.nested exec "netplan get bridges.br54.dhcp4" | MATCH true
+        tests.nested exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
         tests.nested exec "netplan get ethernets.ens3.dhcp4" | MATCH false
+        # and updating netplan works
+        tests.nested exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
+        tests.nested exec "netplan get bridges.br54.dhcp4" | MATCH false
+        tests.nested exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
     }
 
     check_core20_early_config
