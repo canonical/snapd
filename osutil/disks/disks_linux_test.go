@@ -287,7 +287,7 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			KernelDeviceNode: "/dev/vdb2",
 			SizeInBytes:      124473665 * 512,
 			StartInBytes:     uint64(257 * quantity.SizeMiB),
-			StructureIndex:   2,
+			DiskIndex:        2,
 		},
 		{
 			Major:            1,
@@ -298,7 +298,7 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			KernelDeviceNode: "/dev/vdb1",
 			SizeInBytes:      uint64(256 * quantity.SizeMiB),
 			StartInBytes:     uint64(quantity.SizeMiB),
-			StructureIndex:   1,
+			DiskIndex:        1,
 		},
 	})
 
@@ -609,7 +609,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			Minor:            4,
 			PartitionType:    "SOME-GPT-UUID-TYPE",
 			SizeInBytes:      3000 * 512,
-			StructureIndex:   4,
+			DiskIndex:        4,
 			StartInBytes:     2500 * 512,
 		},
 	})
@@ -848,7 +848,7 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c
 	c.Assert(parts, DeepEquals, []disks.Partition{
 		{
 			PartitionType:    "GOOOOOOO",
-			StructureIndex:   1,
+			DiskIndex:        1,
 			StartInBytes:     512 * 2048,
 			SizeInBytes:      500000 * 512,
 			PartitionUUID:    "foo-foo-foo-foo-1",
@@ -1107,7 +1107,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda4",
 			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			SizeInBytes:      8552415 * 512,
-			StructureIndex:   4,
+			DiskIndex:        4,
 			StartInBytes:     3997696 * 512,
 		},
 		"ubuntu-boot": {
@@ -1120,7 +1120,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda3",
 			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			SizeInBytes:      1536000 * 512,
-			StructureIndex:   3,
+			DiskIndex:        3,
 			StartInBytes:     2461696 * 512,
 		},
 		"ubuntu-seed": {
@@ -1133,7 +1133,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda2",
 			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			SizeInBytes:      2457600 * 512,
-			StructureIndex:   2,
+			DiskIndex:        2,
 			StartInBytes:     4096 * 512,
 		},
 		"bios-boot": {
@@ -1145,7 +1145,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda1",
 			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
 			SizeInBytes:      2048 * 512,
-			StructureIndex:   1,
+			DiskIndex:        1,
 			StartInBytes:     2048 * 512,
 		},
 	}
