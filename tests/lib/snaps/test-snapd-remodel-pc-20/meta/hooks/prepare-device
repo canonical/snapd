@@ -7,7 +7,7 @@ if test -z "$MODEL_API_KEY"; then
     exit 1
 fi
 
-product_serial="$(date -Is)"
+product_serial="1234-snapd-remodel-testing"
 
 echo "product_serial:[$product_serial]"
 
