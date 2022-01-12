@@ -23,9 +23,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/snapcore/snapd/gadget"
-
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/gadget"
 )
 
 type cmdDiskMapping struct {
