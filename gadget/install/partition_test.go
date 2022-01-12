@@ -415,7 +415,6 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
 				},
 				StartOffset: 1024 * 1024,
-				YamlIndex:   gadget.UnknownLaidOutDiskIndex,
 			},
 			DiskIndex: 1,
 			Node:      "/dev/node1",
@@ -433,7 +432,6 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 				},
 
 				StartOffset: 1024*1024 + 1024*1024,
-				YamlIndex:   gadget.UnknownLaidOutDiskIndex,
 			},
 			DiskIndex: 2,
 			Node:      "/dev/node2",
@@ -565,7 +563,6 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
 				},
 				StartOffset: 1024 * 1024,
-				YamlIndex:   gadget.UnknownLaidOutDiskIndex,
 			},
 			DiskIndex: 1,
 			Node:      "/dev/node1",
@@ -583,7 +580,6 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 				},
 
 				StartOffset: 1024*1024 + 1024*1024 + 2457600*512,
-				YamlIndex:   gadget.UnknownLaidOutDiskIndex,
 			},
 
 			Node:      "/dev/node3",
