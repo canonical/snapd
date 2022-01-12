@@ -2,5 +2,5 @@
 
 set -e
 
-udevadm control --reload
+udevadm control --reload --timeout 0
 udevadm trigger
