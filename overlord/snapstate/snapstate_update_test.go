@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -7170,6 +7171,87 @@ func (s *snapmgrTestSuite) TestUpdateAfterMigration(c *C) {
 
 	// check state and seq file still have correct migration state
 	assertMigrationState(c, s.state, "some-snap", true)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationAfterHidingFails(c *C) {
+	s.testUndoMigration(c, false)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationFailsAfterHidingFails(c *C) {
+	s.testUndoMigration(c, true)
+}
+
+func (s *snapmgrTestSuite) testUndoMigration(c *C, failUndo bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "hide-snap-data" || (failUndo && op.op == "undo-hide-snap-data") {
+			return errors.New("boom")
+		}
+
+		return nil
+	}
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), Not(IsNil))
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	copyTaskLogs := findLastTask(chg, "copy-snap-data").Log()
+	failedUndoLog := `.*cannot undo snap dir migration \(must manually restore some-snap's dirs from .* to .*\): boom`
+
+	if failUndo {
+		mustMatch(c, copyTaskLogs, failedUndoLog)
+	} else {
+		mustNotMatch(c, copyTaskLogs, failedUndoLog)
+	}
+
+	assertMigrationState(c, s.state, "some-snap", false)
+}
+
+func mustMatch(c *C, haystack []string, needle string) {
+	c.Assert(someMatches(c, haystack, needle), Equals, true)
+}
+
+func mustNotMatch(c *C, haystack []string, needle string) {
+	c.Assert(someMatches(c, haystack, needle), Equals, false)
+}
+
+func someMatches(c *C, haystack []string, needle string) bool {
+	pattern, err := regexp.Compile(needle)
+	c.Assert(err, IsNil)
+
+	for _, s := range haystack {
+		if pattern.MatchString(s) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func assertMigrationState(c *C, st *state.State, snap string, migrated bool) {

@@ -1152,21 +1152,26 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	// the migration hasn't been done - do it now
 	if opts.UseHidden && !opts.MigratedToHidden {
-		err = m.backend.HideSnapData(snapsup.InstanceName())
-		snapsup.MigratedHidden = true
+		if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 
-		// set the migrated status even on error, so we undo the snap data dir move
-		st.Lock()
-		tErr := SetTaskSnapSetup(t, snapsup)
-		st.Unlock()
-
-		if tErr != nil {
-			errMsg := "cannot set migration status (migration won't be undone): %w"
-			if err == nil {
-				return fmt.Errorf(errMsg, tErr)
+			// try to undo migration
+			if undoErr := m.backend.UndoHideSnapData(snapsup.InstanceName()); undoErr != nil {
+				st.Lock()
+				t.Logf("cannot undo snap dir migration (must manually restore %s's dirs from %s to %s): %v",
+					snapsup.InstanceName(), dirs.HiddenSnapDataHomeDir, dirs.UserHomeSnapDir, undoErr)
+				st.Unlock()
 			}
 
-			t.Logf(errMsg, tErr)
+			// successfully recovered, no further action necessary
+			return err
+		}
+
+		snapsup.MigratedHidden = true
+		st.Lock()
+		err := SetTaskSnapSetup(t, snapsup)
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot set migration status to done (migration won't be undone if change fails): %w", err)
 		}
 	}
 

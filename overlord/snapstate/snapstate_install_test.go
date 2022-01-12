@@ -4241,7 +4241,7 @@ func (s *snapmgrTestSuite) TestInstallMigrateData(c *C) {
 	assertMigrationState(c, s.state, "some-snap", true)
 }
 
-func (s *snapmgrTestSuite) TestInstallMigrateFails(c *C) {
+func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
