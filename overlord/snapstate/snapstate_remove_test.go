@@ -1282,6 +1282,92 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestRemoveManyTransactionally(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "one", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "one", SnapID: "one-id", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+	snapstate.Set(s.state, "two", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "two", SnapID: "two-id", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+
+	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, true)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(removed, DeepEquals, []string{"one", "two"})
+
+	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	for _, ts := range tts {
+		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
+			"stop-snap-services",
+			"run-hook[remove]",
+			"auto-disconnect",
+			"remove-aliases",
+			"unlink-snap",
+			"remove-profiles",
+			"clear-snap",
+			"discard-snap",
+		})
+		verifyStopReason(c, ts, "remove")
+		// check that tasksets are all in the same lane
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+
+	}
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyTransactionallyFails(c *C) {
+	b := &snapdBackend{}
+	snapstate.SetSnapManagerBackend(s.snapmgr, b)
+	AddForeignTaskHandlers(s.o.TaskRunner(), b)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	makeTestSnaps(c, s.state)
+
+	chg := s.state.NewChange("remove", "remove some snaps")
+	// transactional == true
+	removed, tts, err := snapstate.RemoveMany(s.state,
+		[]string{"some-snap", "some-other-snap"}, true)
+	c.Check(removed, DeepEquals, []string{"some-snap", "some-other-snap"})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+
+	chg.AddAll(tts[0])
+	// inject an error for some-snap changes before clear-snap of
+	// revision 1 (current), after discard-snap for revision 2,
+	// that means data and snap rev 1 are still present.
+	injectError(c, chg, "clear-snap", snap.Revision{N: 1})
+	chg.AddAll(tts[1])
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// Check that we have not removed any snap although only one
+	// has failed
+	for _, snapName := range []string{"some-snap", "some-other-snap"} {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+		c.Check(snapst.Active, Equals, true)
+		c.Check(snapst.Current, Equals, snap.Revision{N: 1})
+		c.Assert(snapst.Sequence, HasLen, 1)
+		c.Check(snapst.Sequence[0].Revision, Equals, snap.Revision{N: 1})
+	}
+}
+
 func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, automaticSnapshot, freeSpaceCheckFail bool) error {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1450,28 +1536,30 @@ func injectError(c *C, chg *state.Change, beforeTaskKind string, snapRev snap.Re
 }
 
 func makeTestSnaps(c *C, st *state.State) {
-	si1 := snap.SideInfo{
-		SnapID:   "some-snap-id",
-		RealName: "some-snap",
-		Revision: snap.R(1),
+	for _, snapName := range []string{"some-snap", "some-other-snap"} {
+		si1 := snap.SideInfo{
+			SnapID:   snapName + "-id",
+			RealName: snapName,
+			Revision: snap.R(1),
+		}
+
+		si2 := snap.SideInfo{
+			SnapID:   "some-snap-id",
+			RealName: snapName,
+			Revision: snap.R(2),
+		}
+
+		snapstate.Set(st, snapName, &snapstate.SnapState{
+			Active:   true,
+			Sequence: []*snap.SideInfo{&si1, &si2},
+			Current:  si1.Revision,
+			SnapType: "app",
+		})
+
+		c.Assert(os.MkdirAll(snap.DataDir(snapName, si1.Revision), 0755), IsNil)
+		c.Assert(os.MkdirAll(snap.DataDir(snapName, si2.Revision), 0755), IsNil)
+		c.Assert(os.MkdirAll(snap.CommonDataDir(snapName), 0755), IsNil)
 	}
-
-	si2 := snap.SideInfo{
-		SnapID:   "some-snap-id",
-		RealName: "some-snap",
-		Revision: snap.R(2),
-	}
-
-	snapstate.Set(st, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{&si1, &si2},
-		Current:  si1.Revision,
-		SnapType: "app",
-	})
-
-	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si1.Revision), 0755), IsNil)
-	c.Assert(os.MkdirAll(snap.DataDir("some-snap", si2.Revision), 0755), IsNil)
-	c.Assert(os.MkdirAll(snap.CommonDataDir("some-snap"), 0755), IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {

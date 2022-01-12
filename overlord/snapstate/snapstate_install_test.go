@@ -3317,6 +3317,61 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, true)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(installed, DeepEquals, []string{"one", "two"})
+
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
+
+	for _, ts := range tts {
+		verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
+		// check that tasksets are all in one lane
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// trigger download error on content provider
+	s.fakeStore.downloadError["some-other-snap"] = fmt.Errorf("boom")
+
+	snapstate.ReplaceStore(s.state,
+		contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	chg := s.state.NewChange("install", "install some snaps")
+	installed, tts, err := snapstate.InstallMany(s.state,
+		[]string{"some-snap", "some-other-snap"}, 0, true)
+	c.Assert(err, IsNil)
+	c.Check(installed, DeepEquals, []string{"some-snap", "some-other-snap"})
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"some-other-snap\" \\(11\\) from channel \"stable\" \\(boom\\).*")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapSt snapstate.SnapState
+	// some-other-snap not installed due to download failure
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapSt), Equals, state.ErrNoState)
+	// some-snap not installed as this was a transactional install
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapSt), Equals, state.ErrNoState)
+}
+
 func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
 	defer restore()
