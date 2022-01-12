@@ -28,6 +28,7 @@ var (
 	SessionInfoCmd                = sessionInfoCmd
 	ServiceControlCmd             = serviceControlCmd
 	PendingRefreshNotificationCmd = pendingRefreshNotificationCmd
+	FinishRefreshNotificationCmd  = finishRefreshNotificationCmd
 )
 
 func MockStopTimeouts(stop, kill time.Duration) (restore func()) {
