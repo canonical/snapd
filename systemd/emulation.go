@@ -58,13 +58,13 @@ func (s *emulation) DaemonReexec() error {
 	return &notImplementedError{"DaemonReexec"}
 }
 
-func (s *emulation) Enable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "enable", service)
+func (s *emulation) Enable(service ...string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "enable"}, service...)...)
 	return err
 }
 
-func (s *emulation) Disable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "disable", service)
+func (s *emulation) Disable(service ...string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "disable"}, service...)...)
 	return err
 }
 
@@ -76,7 +76,7 @@ func (s *emulation) StartNoBlock(service ...string) error {
 	return &notImplementedError{"StartNoBlock"}
 }
 
-func (s *emulation) Stop(service string, timeout time.Duration) error {
+func (s *emulation) Stop(timeout time.Duration, service ...string) error {
 	return &notImplementedError{"Stop"}
 }
 
@@ -84,7 +84,7 @@ func (s *emulation) Kill(service, signal, who string) error {
 	return &notImplementedError{"Kill"}
 }
 
-func (s *emulation) Restart(service string, timeout time.Duration) error {
+func (s *emulation) Restart(timeout time.Duration, service ...string) error {
 	return &notImplementedError{"Restart"}
 }
 

@@ -295,20 +295,20 @@ type Systemd interface {
 	// only necessary to apply manager's configuration like
 	// watchdog.
 	DaemonReexec() error
-	// Enable the given service.
-	Enable(service string) error
-	// Disable the given service.
-	Disable(service string) error
+	// Enable the given services.
+	Enable(services ...string) error
+	// Disable the given services.
+	Disable(services ...string) error
 	// Start the given service or services.
 	Start(service ...string) error
 	// StartNoBlock starts the given service or services non-blocking.
 	StartNoBlock(service ...string) error
 	// Stop the given service, and wait until it has stopped.
-	Stop(service string, timeout time.Duration) error
+	Stop(timeout time.Duration, service ...string) error
 	// Kill all processes of the unit with the given signal.
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
-	Restart(service string, timeout time.Duration) error
+	Restart(timeout time.Duration, service ...string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
@@ -501,12 +501,15 @@ func (s *systemd) DaemonReexec() error {
 	return err
 }
 
-func (s *systemd) Enable(serviceName string) error {
+func (s *systemd) Enable(serviceNames ...string) error {
+	if 0 == len(serviceNames) {
+		return nil
+	}
 	var err error
 	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
+		_, err = s.systemctl(append([]string{"--root", s.rootDir, "enable"}, serviceNames...)...)
 	} else {
-		_, err = s.systemctl("enable", serviceName)
+		_, err = s.systemctl(append([]string{"enable"}, serviceNames...)...)
 	}
 	return err
 }
@@ -521,12 +524,15 @@ func (s *systemd) Unmask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Disable(serviceName string) error {
+func (s *systemd) Disable(serviceNames ...string) error {
+	if 0 == len(serviceNames) {
+		return nil
+	}
 	var err error
 	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
+		_, err = s.systemctl(append([]string{"--root", s.rootDir, "disable"}, serviceNames...)...)
 	} else {
-		_, err = s.systemctl("disable", serviceName)
+		_, err = s.systemctl(append([]string{"disable"}, serviceNames...)...)
 	}
 	return err
 }
@@ -919,11 +925,11 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	return false, err
 }
 
-func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
+func (s *systemd) Stop(timeout time.Duration, serviceNames ...string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
 	}
-	if _, err := s.systemctl("stop", serviceName); err != nil {
+	if _, err := s.systemctl(append([]string{"stop"}, serviceNames...)...); err != nil {
 		return err
 	}
 
@@ -941,24 +947,34 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := s.systemctl("show", "--property=ActiveState", serviceName)
-			if err != nil {
-				return err
+			allStopped := true
+			stillRunningServices := []string{}
+		serviceCheck:
+			for i := 0; i < len(serviceNames); i++ {
+				bs, err := s.systemctl("show", "--property=ActiveState", serviceNames[i])
+				if err != nil {
+					return err
+				}
+				if !isStopDone(bs) {
+					stillRunningServices = append(stillRunningServices, serviceNames[i])
+					allStopped = false
+				}
+				if !firstCheck {
+					continue serviceCheck
+				}
 			}
-			if isStopDone(bs) {
+			if allStopped {
 				return nil
 			}
-			if !firstCheck {
-				continue loop
-			}
+			serviceNames = stillRunningServices
 			firstCheck = false
 		case <-notify.C:
 		}
 		// after notify delay or after a failed first check
-		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
+		s.reporter.Notify(fmt.Sprintf("Waiting for %q to stop.", serviceNames))
 	}
 
-	return &Timeout{action: "stop", service: serviceName}
+	return &Timeout{action: "stop", service: serviceNames[0]}
 }
 
 func (s *systemd) Kill(serviceName, signal, who string) error {
@@ -972,14 +988,14 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	return err
 }
 
-func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
+func (s *systemd) Restart(timeout time.Duration, serviceName ...string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	if err := s.Stop(serviceName, timeout); err != nil {
+	if err := s.Stop(timeout, serviceName...); err != nil {
 		return err
 	}
-	return s.Start(serviceName)
+	return s.Start(serviceName...)
 }
 
 func (s *systemd) RestartAll(serviceName string) error {
@@ -1361,7 +1377,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+		if err := s.Stop(time.Duration(1*time.Second), filepath.Base(unit)); err != nil {
 			return err
 		}
 	}
