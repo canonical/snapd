@@ -627,12 +627,21 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 
 func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, nil, err
-	}
-	if modeEnv != nil {
-		sysLabel = modeEnv.RecoverySystem
+	if m.preseed {
+		var err error
+		sysLabel, err = systemForPreseeding()
+		if err != nil {
+			logger.Noticef("%v", err)
+			return nil, nil, err
+		}
+	} else {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, nil, err
+		}
+		if modeEnv != nil {
+			sysLabel = modeEnv.RecoverySystem
+		}
 	}
 
 	// we time preloadGadget + first ensureSeeded together
@@ -731,15 +740,12 @@ func (m *DeviceManager) ensureSeeded() error {
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
 		if !release.OnClassic {
-			// XXX: needed by loadDeviceSeed(), otherwise Ensure fails with:
-			// "devicemgr: cannot seed: internal error: requested inconsistent device seed: 20220105 (was )"
-			unloadDeviceSeed(m.state)
 			systemLabel, err := systemForPreseeding()
 			if err != nil {
 				logger.Noticef("%v", err)
 				return err
 			}
-			opts.Mode = "install"
+			opts.Mode = "run"
 			opts.Label = systemLabel
 		}
 	} else {
