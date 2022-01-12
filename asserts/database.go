@@ -418,9 +418,9 @@ func (db *Database) Check(assert Assertion) error {
 	var err error
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
-		accKey, err = db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
+		accKey, err = db.findAccountKey(assert.SignatoryID(), assert.SignKeyID())
 		if IsNotFound(err) {
-			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
+			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.SignatoryID())
 		}
 		if err != nil {
 			return fmt.Errorf("error finding matching public key for signature: %v", err)
@@ -704,7 +704,7 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB 
 		return nil
 	}
 	if !signingKey.isValidAssumingCurTimeWithin(checkTimeEarliest, checkTimeLatest) {
-		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
+		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.SignatoryID())
 	}
 	return nil
 }
@@ -714,8 +714,26 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 	var pubKey PublicKey
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
-		if assert.AuthorityID() != signingKey.AccountID() {
-			return fmt.Errorf("assertion authority %q does not match public key from %q", assert.AuthorityID(), signingKey.AccountID())
+		if assert.SignatoryID() != signingKey.AccountID() {
+			return fmt.Errorf("assertion signatory %q does not match public key from %q", assert.AuthorityID(), signingKey.AccountID())
+		}
+		if assert.SignatoryID() != assert.AuthorityID() {
+			ad, err := roDB.Find(AuthorityDelegationType, map[string]string{
+				"account-id":  assert.AuthorityID(),
+				"delegate-id": assert.SignatoryID(),
+			})
+			if err != nil {
+				if IsNotFound(err) {
+					return fmt.Errorf("no matching authority-delegation for signing delegation from %q to %q", assert.AuthorityID(), assert.SignatoryID())
+
+				}
+				return err
+			}
+			acs := ad.(*AuthorityDelegation).MatchingConstraints(assert)
+			if len(acs) == 0 {
+				return fmt.Errorf("no valid constraints supporting delegated %q from %q to %q", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID())
+			}
+			return fmt.Errorf("signing authority delegation not implemented")
 		}
 	} else {
 		custom, ok := assert.(customSigner)
