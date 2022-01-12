@@ -1,0 +1,366 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2022 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package builtin
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
+)
+
+const customDeviceSummary = `provides access to specific devices via the gadget snap`
+
+const customDeviceBaseDeclarationPlugs = `
+  custom-device:
+    allow-installation: true
+    allow-connection:
+      slot-attributes:
+        custom-device: $PLUG(custom-device)
+`
+
+const customDeviceBaseDeclarationSlots = `
+  custom-device:
+    allow-installation:
+      slot-snap-type:
+        - gadget
+    deny-connection: true
+    deny-auto-connection: true
+`
+
+var (
+	// A cryptic, uninformative error message that we use only on impossible code paths
+	customDeviceInternalError = errors.New(`custom-device interface internal error`)
+
+	// Validating regexp for filesystem paths
+	customDevicePathRegexp = regexp.MustCompile(`^/[^"@]*$`)
+
+	// Validating regexp for udev device names.
+	// We forbid:
+	// - `|`: it's valid for udev, but more work for us
+	// - `{}`: have a special meaning for AppArmor
+	// - `"`: it's just dangerous (both for udev and AppArmor)
+	// - `\`: also dangerous
+	customDeviceUDevDeviceRegexp = regexp.MustCompile(`^/dev/[^"|{}\\]+$`)
+
+	// Validating regexp for udev tag values (all but kernel devices)
+	customDeviceUDevValueRegexp = regexp.MustCompile(`^[^"{}\\]+$`)
+)
+
+// customDeviceInterface allows sharing customDevice between snaps
+type customDeviceInterface struct{}
+
+func (iface *customDeviceInterface) validateFilePath(path string) error {
+	if !customDevicePathRegexp.MatchString(path) {
+		return fmt.Errorf(`custom-device path must start with / and cannot contain special characters: %q`, path)
+	}
+
+	if !cleanSubPath(path) {
+		return fmt.Errorf(`custom-device path is not clean: %q`, path)
+	}
+
+	if _, err := utils.NewPathPattern(path); err != nil {
+		return fmt.Errorf(`custom-device path cannot be used: %v`, err)
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) validateDevice(path string) error {
+	// The device must satisfy udev's device name rules and generic path rules
+	if !customDeviceUDevDeviceRegexp.MatchString(path) {
+		return fmt.Errorf(`custom-device path must start with /dev/ and cannot contain special characters: %q`, path)
+	}
+
+	if err := iface.validateFilePath(path); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) validatePaths(slot *snap.SlotInfo, attrName string) error {
+	var paths []string
+	if err := slot.Attr(attrName, &paths); err != nil {
+		if !errors.Is(err, snap.AttributeNotFoundError{}) {
+			return err
+		}
+	}
+
+	for _, path := range paths {
+		if err := iface.validateFilePath(path); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) validateUDevValue(value interface{}) error {
+	stringValue, ok := value.(string)
+	if !ok {
+		return fmt.Errorf(`value "%v" is not a string`, value)
+	}
+
+	if !customDeviceUDevValueRegexp.MatchString(stringValue) {
+		return fmt.Errorf(`value "%v" contains invalid characters`, stringValue)
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) validateUDevValueMap(value interface{}) error {
+	valueMap, ok := value.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf(`value "%v" is not a map`, value)
+	}
+
+	for key, val := range valueMap {
+		if !customDeviceUDevValueRegexp.MatchString(key) {
+			return fmt.Errorf(`key "%v" contains invalid characters`, key)
+		}
+		if err := iface.validateUDevValue(val); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
+	hasKernelTag := false
+	for key, value := range rule {
+		var err error
+		switch key {
+		case "subsystem":
+			err = iface.validateUDevValue(value)
+		case "kernel":
+			hasKernelTag = true
+			err = iface.validateUDevValue(value)
+			if err == nil {
+				deviceName := value.(string)
+				// furthermore, the kernel name must match the name of one of
+				// the given devices
+				if !strutil.ListContains(devices, "/dev/"+deviceName) {
+					err = fmt.Errorf(`%q does not match a specified device`, deviceName)
+				}
+			}
+		case "attributes", "environment":
+			err = iface.validateUDevValueMap(value)
+		default:
+			err = errors.New(`unknown key`)
+		}
+
+		if err != nil {
+			return fmt.Errorf(`custom-device "udev-tagging" invalid %q tag: %v`, key, err)
+		}
+	}
+
+	if !hasKernelTag {
+		return errors.New(`custom-device udev tagging rule missing mandatory "kernel" key`)
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) Name() string {
+	return "custom-device"
+}
+
+func (iface *customDeviceInterface) StaticInfo() interfaces.StaticInfo {
+	return interfaces.StaticInfo{
+		Summary:              customDeviceSummary,
+		BaseDeclarationPlugs: customDeviceBaseDeclarationPlugs,
+		BaseDeclarationSlots: customDeviceBaseDeclarationSlots,
+		AffectsPlugOnRefresh: true,
+	}
+}
+
+func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	if slot.Attrs == nil {
+		slot.Attrs = make(map[string]interface{})
+	}
+	// custom-device defaults to "slot" name if unspecified
+	slot.Attrs["custom-device"] = slot.Name
+
+	var devices []string
+	err := slot.Attr("devices", &devices)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+		return err
+	}
+	for _, device := range devices {
+		if err := iface.validateDevice(device); err != nil {
+			return err
+		}
+	}
+
+	if err := iface.validatePaths(slot, "read"); err != nil {
+		return err
+	}
+	if err := iface.validatePaths(slot, "write"); err != nil {
+		return err
+	}
+
+	var udevTaggingRules []map[string]interface{}
+	err = slot.Attr("udev-tagging", &udevTaggingRules)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+		return err
+	}
+	for _, udevTaggingRule := range udevTaggingRules {
+		if err := iface.validateUDevTaggingRule(udevTaggingRule, devices); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	customDeviceAttr, isSet := plug.Attrs["custom-device"]
+	customDevice, ok := customDeviceAttr.(string)
+	if isSet && !ok {
+		return fmt.Errorf(`custom-device "custom-device" attribute must be a string, not %v`,
+			plug.Attrs["custom-device"])
+	}
+	if customDevice == "" {
+		if plug.Attrs == nil {
+			plug.Attrs = make(map[string]interface{})
+		}
+		// custom-device defaults to "plug" name if unspecified
+		plug.Attrs["custom-device"] = plug.Name
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	snippet := &bytes.Buffer{}
+	emitRule := func(paths []string, permissions string) {
+		for _, path := range paths {
+			fmt.Fprintf(snippet, "\"%s\" %s,\n", path, permissions)
+		}
+	}
+
+	// get all attributes without validation, since that was done before;
+	// should an error occur, we'll simply not write any rule.
+
+	var devicePaths []string
+	_ = slot.Attr("devices", &devicePaths)
+	emitRule(devicePaths, "rw")
+
+	var writablePaths []string
+	_ = slot.Attr("write", &writablePaths)
+	emitRule(writablePaths, "rw")
+
+	var readOnlyPaths []string
+	_ = slot.Attr("read", &readOnlyPaths)
+	emitRule(readOnlyPaths, "r")
+
+	spec.AddSnippet(snippet.String())
+	return nil
+}
+
+// extractStringMapAttribute looks up the given key in the container, and
+// returns its value as a map[string]string.
+// No validation is performed, since it already occurred before connecting the
+// interface.
+func (iface *customDeviceInterface) extractStringMapAttribute(container map[string]interface{}, key string) map[string]string {
+	valueMap, ok := container[key].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	stringMap := make(map[string]string, len(valueMap))
+	for key, value := range valueMap {
+		stringMap[key] = value.(string)
+	}
+
+	return stringMap
+}
+
+func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var devicePaths []string
+	_ = slot.Attr("devices", &devicePaths)
+
+	deviceRules := make(map[string]string, len(devicePaths))
+	for _, devicePath := range devicePaths {
+		if strings.HasPrefix(devicePath, "/dev/") {
+			deviceName := devicePath[5:]
+			deviceRule := fmt.Sprintf(`KERNEL=="%s"`, deviceName)
+			deviceRules[deviceName] = deviceRule
+		}
+	}
+
+	// Generate udev rules from the "udev-tagging" attribute; note that these
+	// rules might override the simpler KERNEL=="<device>" rules we computed
+	// above -- that's fine.
+	var udevTaggingRules []map[string]interface{}
+	_ = slot.Attr("udev-tagging", &udevTaggingRules)
+	for _, udevTaggingRule := range udevTaggingRules {
+		rule := &bytes.Buffer{}
+
+		deviceName, ok := udevTaggingRule["kernel"].(string)
+		if !ok {
+			return customDeviceInternalError
+		}
+
+		fmt.Fprintf(rule, `KERNEL=="%s"`, deviceName)
+
+		if subsystem, ok := udevTaggingRule["subsystem"].(string); ok {
+			fmt.Fprintf(rule, `, SUBSYSTEM=="%s"`, subsystem)
+		}
+
+		environment := iface.extractStringMapAttribute(udevTaggingRule, "environment")
+		for variable, value := range environment {
+			fmt.Fprintf(rule, `, ENV{%s}=="%s"`, variable, value)
+		}
+
+		attributes := iface.extractStringMapAttribute(udevTaggingRule, "attributes")
+		for variable, value := range attributes {
+			fmt.Fprintf(rule, `, ATTR{%s}=="%s"`, variable, value)
+		}
+
+		deviceRules[deviceName] = rule.String()
+	}
+
+	// Now write all the rules
+	for _, rule := range deviceRules {
+		spec.AddSnippet(rule)
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
+	// allow what declarations allowed
+	return true
+}
+
+func init() {
+	registerIface(&customDeviceInterface{})
+}
