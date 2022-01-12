@@ -148,6 +148,56 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
+func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
+	// in uc16/uc18 we used to allow system-data to be implicit / missing from
+	// the gadget.yaml in which case we won't have system-data in the laidOutVol
+	// but it will be in diskLayout, so we sometimes need to check if a given on
+	// disk partition looks like it was created implicitly by ubuntu-image as
+	// specified via the defaults in
+	// https://github.com/canonical/ubuntu-image-legacy/blob/master/ubuntu_image/parser.py#L568-L589
+
+	// namely it must meet the following conditions:
+	// * fs is ext4
+	// * partition type is "Linux filesystem data"
+	// * fs label is "writable"
+	// * this on disk structure is last on the disk
+	// * there is exactly one more structure on disk than partitions in the
+	//   gadget
+	// * there is no system-data role in the gadget.yaml
+
+	// note: we specifically do not check the size of the structure because it
+	// likely was resized, but it also could have not been resized if there
+	// ended up being less than 10% free space as per the resize script in the
+	// initramfs:
+	// https://github.com/snapcore/core-build/blob/master/initramfs/scripts/local-premount/resize
+
+	// bare structures don't show up on disk, so we can't include them
+	// when calculating how many "structures" are in gadgetLayout to
+	// ensure that there is only one extra OnDiskStructure at the end
+	numPartsInGadget := 0
+	for _, s := range gadgetLayout.Structure {
+		if s.IsPartition() {
+			numPartsInGadget++
+		}
+
+		// also check for explicit system-data role
+		if s.Role == SystemData {
+			// s can't be implicit system-data since there is an explicit
+			// system-data
+			return false
+		}
+	}
+
+	numPartsOnDisk := len(diskLayout.Structure)
+
+	return s.Filesystem == "ext4" &&
+		s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" && // TODO: check hybrid and on MBR/DOS too
+		s.Label == "writable" &&
+		// DiskIndex is 1-based
+		s.DiskIndex == numPartsOnDisk &&
+		numPartsInGadget+1 == numPartsOnDisk
+}
+
 type EnsureLayoutCompatibilityOptions struct {
 	AssumeCreatablePartitionsCreated bool
 }
