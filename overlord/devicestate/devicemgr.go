@@ -129,12 +129,14 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:  snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
-	if modeEnv != nil {
-		m.sysMode = modeEnv.Mode
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, err
+		}
+		if modeEnv != nil {
+			m.sysMode = modeEnv.Mode
+		}
 	}
 
 	s.Lock()
