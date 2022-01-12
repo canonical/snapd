@@ -1162,7 +1162,6 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 				st.Unlock()
 			}
 
-			// successfully recovered, no further action necessary
 			return err
 		}
 
