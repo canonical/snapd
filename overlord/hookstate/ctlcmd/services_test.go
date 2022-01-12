@@ -364,7 +364,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
-	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, 0)
+	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, 0, false)
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 	c.Assert(tts, HasLen, 2)
@@ -508,7 +508,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("update many change", "update change")
-	installed, tts, err := snapstate.UpdateMany(context.Background(), s.st, []string{"test-snap", "other-snap"}, 0, nil)
+	installed, tts, err := snapstate.UpdateMany(context.Background(), s.st, []string{"test-snap", "other-snap"}, 0, false, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})

@@ -196,7 +196,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 
 	s.BaseTest.AddCleanup(snapstate.MockReRefreshRetryTimeout(time.Second / 200))
-	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, []*state.TaskSet, error) {
+	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, int, snapstate.UpdateFilter, *snapstate.Flags, string, bool) ([]string, []*state.TaskSet, error) {
 		return nil, nil, nil
 	}))
 

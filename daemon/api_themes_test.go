@@ -416,7 +416,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 			},
 		},
 	}
-	restore := daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, transactional bool) ([]string, []*state.TaskSet, error) {
 		t := s.NewTask("fake-theme-install", "Theme install")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})
