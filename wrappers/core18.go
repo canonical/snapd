@@ -108,7 +108,7 @@ WantedBy=snapd.service
 	// meh this is killing snap services that use Requires=<this-unit> because
 	// it doesn't use verbatim systemctl restart, it instead does it with
 	// a systemctl stop and then a systemctl start, which triggers LP #1924805
-	if err := sysd.Restart(SnapdToolingMountUnit, 5*time.Second); err != nil {
+	if err := sysd.Restart(5*time.Second, SnapdToolingMountUnit); err != nil {
 		return err
 	}
 
@@ -129,7 +129,7 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 	// XXX: it is ok to stop the mount unit, the failover handler
 	// executes snapd directly from the previous revision of snapd snap or
 	// the core snap, the handler is running directly from the mounted snapd snap
-	if err := sysd.Stop(unit, snapdServiceStopTimeout); err != nil {
+	if err := sysd.Stop(snapdServiceStopTimeout, unit); err != nil {
 		return err
 	}
 	return os.Remove(mountUnitPath)
@@ -203,7 +203,7 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 	}
 	// stop all removed units first
 	for _, unit := range removed {
-		if err := sysd.Stop(unit, 5*time.Second); err != nil {
+		if err := sysd.Stop(5*time.Second, unit); err != nil {
 			logger.Noticef("failed to stop %q: %v", unit, err)
 		}
 		if err := sysd.Disable(unit); err != nil {
@@ -263,7 +263,7 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 			// we can never restart the snapd.socket because
 			// this will also bring down snapd itself
 			if unit != "snapd.socket" {
-				if err := sysd.Restart(unit, 5*time.Second); err != nil {
+				if err := sysd.Restart(5*time.Second, unit); err != nil {
 					return err
 				}
 			}
@@ -346,7 +346,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 			if err := sysd.Disable(unit); err != nil {
 				logger.Noticef("failed to disable %q: %v", unit, err)
 			}
-			if err := sysd.Stop(unit, snapdServiceStopTimeout); err != nil {
+			if err := sysd.Stop(snapdServiceStopTimeout, unit); err != nil {
 				return err
 			}
 		}
@@ -384,7 +384,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 				return err
 			}
 			if isActive {
-				if err := sysd.Restart(unit, snapdServiceStopTimeout); err != nil {
+				if err := sysd.Restart(snapdServiceStopTimeout, unit); err != nil {
 					return err
 				}
 			} else {

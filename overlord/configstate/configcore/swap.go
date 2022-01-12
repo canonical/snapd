@@ -147,7 +147,7 @@ func handlesystemSwapConfiguration(_ sysconfig.Device, tr config.ConfGetter, opt
 		sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &backlightSysdLogger{})
 
 		// TODO: what's an appropriate amount of time to wait here?
-		if err := sysd.Restart("swapfile.service", 60*time.Second); err != nil {
+		if err := sysd.Restart(60*time.Second, "swapfile.service"); err != nil {
 			return err
 		}
 	}

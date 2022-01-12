@@ -111,7 +111,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	stopErrors := make(map[string]string)
 	if len(startErrors) != 0 {
 		for _, service := range started {
-			if err := sysd.Stop(service, stopTimeout); err != nil {
+			if err := sysd.Stop(stopTimeout, service); err != nil {
 				stopErrors[service] = err.Error()
 			}
 		}
@@ -143,7 +143,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 
 	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := sysd.Stop(service, stopTimeout); err != nil {
+		if err := sysd.Stop(stopTimeout, service); err != nil {
 			stopErrors[service] = err.Error()
 		}
 	}

@@ -72,7 +72,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 			return err
 		}
 		if opts == nil {
-			return sysd.Stop(serviceName, 5*time.Minute)
+			return sysd.Stop(5*time.Minute, serviceName)
 		}
 	} else {
 		err := os.Remove(sshCanary)
@@ -183,7 +183,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 			return err
 		}
 		if opts == nil {
-			return sysd.Stop(serviceName, 5*time.Minute)
+			return sysd.Stop(5*time.Minute, serviceName)
 		}
 	} else {
 		if err := sysd.Unmask(serviceName); err != nil {

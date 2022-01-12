@@ -107,7 +107,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		if !b.preseed {
 			// If we have a new service here which isn't started yet the restart
 			// operation will start it.
-			if err := systemd.Restart(service, 10*time.Second); err != nil {
+			if err := systemd.Restart(10*time.Second, service); err != nil {
 				logger.Noticef("cannot restart service %q: %s", service, err)
 			}
 		}
@@ -133,7 +133,7 @@ func (b *Backend) Remove(snapName string) error {
 			logger.Noticef("cannot disable service %q: %s", service, err)
 		}
 		if !b.preseed {
-			if err := systemd.Stop(service, 5*time.Second); err != nil {
+			if err := systemd.Stop(5*time.Second, service); err != nil {
 				logger.Noticef("cannot stop service %q: %s", service, err)
 			}
 		}
@@ -187,7 +187,7 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 				logger.Noticef("cannot disable service %q: %s", service, err)
 			}
 			if !b.preseed {
-				if err := systemd.Stop(service, 5*time.Second); err != nil {
+				if err := systemd.Stop(5*time.Second, service); err != nil {
 					logger.Noticef("cannot stop service %q: %s", service, err)
 				}
 			}
