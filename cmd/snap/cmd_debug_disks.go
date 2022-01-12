@@ -23,8 +23,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/jessevdk/go-flags"
 	"github.com/snapcore/snapd/gadget"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type cmdDiskMapping struct {
@@ -33,8 +34,8 @@ type cmdDiskMapping struct {
 
 func init() {
 	cmd := addDebugCommand("disks",
-		"(internal) obtain all on-disk volumes information as yaml",
-		"(internal) obtain all on-disk volumes information as yaml",
+		"(internal) obtain all on-disk volume information as JSON",
+		"(internal) obtain all on-disk volume information as JSON",
 		func() flags.Commander {
 			return &cmdDiskMapping{}
 		}, nil, nil)
