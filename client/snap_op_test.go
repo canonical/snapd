@@ -70,7 +70,7 @@ func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
 func (cs *clientSuite) TestClientMultiOpSnapServerError(c *check.C) {
 	cs.err = errors.New("fail")
 	for _, s := range multiOps {
-		_, err := s.op(cs.cli, nil, nil)
+		_, err := s.op(cs.cli, nil, &client.SnapOptions{})
 		c.Check(err, check.ErrorMatches, `.*fail`, check.Commentf(s.action))
 	}
 	_, _, err := cs.cli.SnapshotMany(nil, nil)
@@ -90,7 +90,7 @@ func (cs *clientSuite) TestClientMultiOpSnapResponseError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
 	for _, s := range multiOps {
-		_, err := s.op(cs.cli, nil, nil)
+		_, err := s.op(cs.cli, nil, &client.SnapOptions{})
 		c.Check(err, check.ErrorMatches, `.*server error: "Internal Server Error"`, check.Commentf(s.action))
 	}
 	_, _, err := cs.cli.SnapshotMany(nil, nil)
@@ -167,7 +167,7 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 	}`
 	for _, s := range multiOps {
 		// Note body is essentially the same as TestClientMultiSnapshot; keep in sync
-		id, err := s.op(cs.cli, []string{pkgName}, nil)
+		id, err := s.op(cs.cli, []string{pkgName}, &client.SnapOptions{})
 		c.Assert(err, check.IsNil)
 
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
