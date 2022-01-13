@@ -186,6 +186,37 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 	}
 }
 
+func (cs *clientSuite) TestClientMultiOpSnapTransactional(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "d728",
+		"status-code": 202,
+		"type": "async"
+	}`
+	for _, s := range multiOps {
+		// Note body is essentially the same as TestClientMultiSnapshot; keep in sync
+		id, err := s.op(cs.cli, []string{pkgName},
+			&client.SnapOptions{Transactional: true})
+		c.Assert(err, check.IsNil)
+
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
+
+		body, err := ioutil.ReadAll(cs.req.Body)
+		c.Assert(err, check.IsNil, check.Commentf(s.action))
+		jsonBody := make(map[string]interface{})
+		err = json.Unmarshal(body, &jsonBody)
+		c.Assert(err, check.IsNil, check.Commentf(s.action))
+		c.Check(jsonBody["action"], check.Equals, s.action, check.Commentf(s.action))
+		c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName}, check.Commentf(s.action))
+		c.Check(jsonBody["transactional"], check.Equals, true,
+			check.Commentf(s.action))
+		c.Check(jsonBody, check.HasLen, 3, check.Commentf(s.action))
+
+		c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps", check.Commentf(s.action))
+		c.Check(id, check.Equals, "d728", check.Commentf(s.action))
+	}
+}
+
 func (cs *clientSuite) TestClientMultiSnapshot(c *check.C) {
 	// Note body is essentially the same as TestClientMultiOpSnap; keep in sync
 	cs.status = 202
@@ -441,6 +472,44 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"unaliased\"\r\n\r\ntrue\r\n.*")
+}
+
+func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	opts := client.SnapOptions{
+		Transactional: true,
+	}
+
+	_, err = cs.cli.InstallMany([]string{"foo", "bar"}, &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	jsonBody := make(map[string]interface{})
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
+	c.Check(jsonBody["transactional"], check.Equals, true,
+		check.Commentf("body: %v", string(body)))
+
+	_, err = cs.cli.InstallPath(snap, "", &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err = ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches,
+		"(?s).*Content-Disposition: form-data; name=\"transactional\"\r\n\r\ntrue\r\n.*")
 }
 
 func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
