@@ -198,7 +198,6 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 		numPartsInGadget+1 == numPartsOnDisk
 }
 
-
 // EnsureLayoutCompatibilityOptions is a set of options for determining how
 // strict to be when evaluating whether an on-disk structure matches a laid out
 // structure.
