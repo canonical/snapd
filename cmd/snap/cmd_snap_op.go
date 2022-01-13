@@ -120,9 +120,10 @@ and the snap can easily be enabled again.
 type cmdRemove struct {
 	waitMixin
 
-	Revision   string `long:"revision"`
-	Purge      bool   `long:"purge"`
-	Positional struct {
+	Revision      string `long:"revision"`
+	Purge         bool   `long:"purge"`
+	Transactional bool   `long:"transactional"`
+	Positional    struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -193,7 +194,11 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 }
 
 func (x *cmdRemove) Execute([]string) error {
-	opts := &client.SnapOptions{Revision: x.Revision, Purge: x.Purge}
+	opts := &client.SnapOptions{
+		Revision:      x.Revision,
+		Purge:         x.Purge,
+		Transactional: x.Transactional,
+	}
 	if len(x.Positional.Snaps) == 1 {
 		return x.removeOne(opts)
 	}
@@ -201,7 +206,7 @@ func (x *cmdRemove) Execute([]string) error {
 	if x.Purge || x.Revision != "" {
 		return errors.New(i18n.G("a single snap name is needed to specify options"))
 	}
-	return x.removeMany(nil)
+	return x.removeMany(opts)
 }
 
 type channelMixin struct {
@@ -479,6 +484,7 @@ type cmdInstall struct {
 	Cohort           string `long:"cohort"`
 	IgnoreValidation bool   `long:"ignore-validation"`
 	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
+	Transactional    bool   `long:"transactional"`
 	Positional       struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -624,6 +630,7 @@ func (x *cmdInstall) Execute([]string) error {
 		CohortKey:        x.Cohort,
 		IgnoreValidation: x.IgnoreValidation,
 		IgnoreRunning:    x.IgnoreRunning,
+		Transactional:    x.Transactional,
 	}
 	x.setModes(opts)
 
@@ -669,6 +676,7 @@ type cmdRefresh struct {
 	Time             bool   `long:"time"`
 	IgnoreValidation bool   `long:"ignore-validation"`
 	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
+	Transactional    bool   `long:"transactional"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -829,17 +837,18 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
+	opts := &client.SnapOptions{
+		Amend:            x.Amend,
+		Channel:          x.Channel,
+		IgnoreValidation: x.IgnoreValidation,
+		IgnoreRunning:    x.IgnoreRunning,
+		Revision:         x.Revision,
+		CohortKey:        x.Cohort,
+		LeaveCohort:      x.LeaveCohort,
+		Transactional:    x.Transactional,
+	}
+	x.setModes(opts)
 	if len(names) == 1 {
-		opts := &client.SnapOptions{
-			Amend:            x.Amend,
-			Channel:          x.Channel,
-			IgnoreValidation: x.IgnoreValidation,
-			IgnoreRunning:    x.IgnoreRunning,
-			Revision:         x.Revision,
-			CohortKey:        x.Cohort,
-			LeaveCohort:      x.LeaveCohort,
-		}
-		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
 	}
 
@@ -854,7 +863,7 @@ func (x *cmdRefresh) Execute([]string) error {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring running apps and hooks"))
 	}
 
-	return x.refreshMany(names, nil)
+	return x.refreshMany(names, opts)
 }
 
 type cmdTry struct {
@@ -1121,6 +1130,8 @@ func init() {
 			"revision": i18n.G("Remove only the given revision"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"purge": i18n.G("Remove the snap without saving a snapshot of its data"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"transactional": i18n.G("Remove transactionally a set of snaps."),
 		}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
@@ -1140,6 +1151,8 @@ func init() {
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"transactional": i18n.G("Install transactionally a set of snaps."),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1159,6 +1172,8 @@ func init() {
 			"cohort": i18n.G("Refresh the snap into the given cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"transactional": i18n.G("Refresh transactionally a set of snaps."),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

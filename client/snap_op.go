@@ -44,6 +44,7 @@ type SnapOptions struct {
 	Unaliased        bool   `json:"unaliased,omitempty"`
 	Purge            bool   `json:"purge,omitempty"`
 	Amend            bool   `json:"amend,omitempty"`
+	Transactional    bool   `json:"transactional,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -53,6 +54,20 @@ func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
 		return nil
 	}
 	return mw.WriteField(key, "true")
+}
+
+func writeFields(mw *multipart.Writer,
+	fields *[]struct {
+		f string
+		b bool
+	}) error {
+	for _, o := range *fields {
+		if err := writeFieldBool(mw, o.f, o.b); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
@@ -65,20 +80,19 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 		{"jailmode", opts.JailMode},
 		{"dangerous", opts.Dangerous},
 	}
-	for _, o := range fields {
-		if err := writeFieldBool(mw, o.f, o.b); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return writeFields(mw, &fields)
 }
 
 func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
-	if err := writeFieldBool(mw, "ignore-running", opts.IgnoreRunning); err != nil {
-		return err
+	fields := []struct {
+		f string
+		b bool
+	}{
+		{"ignore-running", opts.IgnoreRunning},
+		{"unaliased", opts.Unaliased},
+		{"transactional", opts.Transactional},
 	}
-	return writeFieldBool(mw, "unaliased", opts.Unaliased)
+	return writeFields(mw, &fields)
 }
 
 type actionData struct {
@@ -89,9 +103,10 @@ type actionData struct {
 }
 
 type multiActionData struct {
-	Action string   `json:"action"`
-	Snaps  []string `json:"snaps,omitempty"`
-	Users  []string `json:"users,omitempty"`
+	Action        string   `json:"action"`
+	Snaps         []string `json:"snaps,omitempty"`
+	Users         []string `json:"users,omitempty"`
+	Transactional bool     `json:"transactional,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -183,22 +198,22 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 }
 
 func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
-	if options != nil {
-		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
-	}
 	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
 
 	return changeID, err
 }
 
 func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, options *SnapOptions) (result json.RawMessage, changeID string, err error) {
+	if options.Dangerous {
+		return nil, "", ErrDangerousNotApplicable
+	}
 	action := multiActionData{
-		Action: actionName,
-		Snaps:  snaps,
+		Action:        actionName,
+		Snaps:         snaps,
+		Users:         options.Users,
+		Transactional: options.Transactional,
 	}
-	if options != nil {
-		action.Users = options.Users
-	}
+
 	data, err := json.Marshal(&action)
 	if err != nil {
 		return nil, "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
