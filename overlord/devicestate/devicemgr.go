@@ -183,7 +183,24 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	boot.RunFDESetupHook = m.runFDESetupHook
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
+	// ensure permissions are ok
+	if err := ensureFileDirPermissions(); err != nil {
+		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
+	}
+
 	return m, nil
+}
+
+func ensureFileDirPermissions() error {
+	// ensure the void dir has correct permissions
+	st, err := os.Stat(dirs.SnapVoidDir)
+	if err == nil && st.Mode().Perm() != 0111 {
+		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
+		if err := os.Chmod(dirs.SnapVoidDir, 0111); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type genericHook struct{}
