@@ -96,7 +96,7 @@ func mountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 }
 
 func writeFilesystemContent(ds *gadget.OnDiskStructure, observer gadget.ContentObserver) (err error) {
-	mountpoint := filepath.Join(contentMountpoint, strconv.Itoa(ds.StructureIndex))
+	mountpoint := filepath.Join(contentMountpoint, strconv.Itoa(ds.DiskIndex))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
 	}

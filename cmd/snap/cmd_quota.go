@@ -66,7 +66,7 @@ group the nested groups are part of.
 
 All provided snaps are appended to the group; to remove a snap from a
 quota group, the entire group must be removed with remove-quota and recreated 
-without the quota group. To remove a sub-group from the quota group, the 
+without the snap. To remove a sub-group from the quota group, the 
 sub-group must be removed directly with the remove-quota command.
 
 The memory limit for a quota group can be increased but not decreased. To

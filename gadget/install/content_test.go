@@ -95,7 +95,7 @@ var mockOnDiskStructureBiosBoot = gadget.OnDiskStructure{
 			},
 		},
 		StartOffset: 0,
-		Index:       1,
+		YamlIndex:   1,
 	},
 }
 
@@ -117,8 +117,9 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 			},
 		},
 		StartOffset: 2097152,
+		YamlIndex:   1000, // to demonstrate we do not use the laid out index
 	},
-	StructureIndex: 2,
+	DiskIndex: 2,
 }
 
 func makeMockGadget(gadgetRoot, gadgetContent string) error {

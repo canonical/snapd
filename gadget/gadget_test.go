@@ -2959,7 +2959,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// have already been created will fail
 	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, opts)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match \(expected something_else from gadget.yaml, got ext4\)`)
 
 	// we are going to manipulate last structure, which has system-data role
 	c.Assert(gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role, Equals, gadget.SystemData)
@@ -2973,7 +2973,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// now we fail to find the /dev/node2 structure from the gadget on disk
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match and the partition is not creatable at install`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match \(expected something_else from gadget.yaml, got ext4\) and the partition is not creatable at install`)
 
 	// undo the role change
 	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemData
@@ -3416,9 +3416,9 @@ var uc16DeviceLayout = gadget.OnDiskVolume{
 				},
 				StartOffset: 1048576,
 			},
-			StructureIndex: 1,
-			Node:           "/dev/sda1",
-			Size:           1048576,
+			DiskIndex: 1,
+			Node:      "/dev/sda1",
+			Size:      1048576,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -3432,9 +3432,9 @@ var uc16DeviceLayout = gadget.OnDiskVolume{
 				},
 				StartOffset: 2097152,
 			},
-			StructureIndex: 2,
-			Node:           "/dev/sda2",
-			Size:           52428800,
+			DiskIndex: 2,
+			Node:      "/dev/sda2",
+			Size:      52428800,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -3448,9 +3448,9 @@ var uc16DeviceLayout = gadget.OnDiskVolume{
 				},
 				StartOffset: 54525952,
 			},
-			StructureIndex: 3,
-			Node:           "/dev/sda3",
-			Size:           10682875392,
+			DiskIndex: 3,
+			Node:      "/dev/sda3",
+			Size:      10682875392,
 		},
 	},
 	ID:               "2a9b0671-4597-433b-b3ad-be99950e8c5e",
@@ -3478,6 +3478,20 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, true)
 
+	// the size of the partition does not matter when it comes to being a
+	// candidate implicit system-data
+	oldSize := deviceLayout.Structure[2].Size
+	deviceLayout.Structure[2].Size = 10
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, true)
+	deviceLayout.Structure[2].Size = oldSize
+
+	// very large okay too
+	deviceLayout.Structure[2].Size = 1000000000000000000
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, true)
+	deviceLayout.Structure[2].Size = oldSize
+
 	// if we make system-data not ext4 then it is not
 	deviceLayout.Structure[2].Filesystem = "zfs"
 	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
@@ -3504,21 +3518,8 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	c.Assert(matches, Equals, false)
 	gadgetLayout.Structure = gadgetLayout.Structure[:len(gadgetLayout.Structure)-1]
 
-	// if we make the partition size too small, then it is not
-	oldSize := deviceLayout.Structure[2].Size
-	deviceLayout.Structure[2].Size = 10
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
-	c.Assert(matches, Equals, false)
-	deviceLayout.Structure[2].Size = oldSize
-
-	// if we make the partition size too large, then it is not
-	deviceLayout.Structure[2].Size = 1000000000000000000
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
-	c.Assert(matches, Equals, false)
-	deviceLayout.Structure[2].Size = oldSize
-
 	// if we make the partition not the last partition, then it is not
-	deviceLayout.Structure[2].StructureIndex = 1
+	deviceLayout.Structure[2].DiskIndex = 1
 	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
 }

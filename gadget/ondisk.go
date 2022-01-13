@@ -35,14 +35,14 @@ type OnDiskStructure struct {
 	// Node identifies the device node of the block device.
 	Node string
 
-	// StructureIndex is the index of the structure on the disk - this should be
-	// used instead of "Index" for an OnDiskStructure, "Index" comes from the
-	// embedded LaidOutStructure which is 0-based and does not have the same
-	// meaning. A LaidOutStructure's index position will include that of bare
-	// structures which will not show up as an OnDiskStructure, so the maximum
-	// OnDiskStructure.StructureIndex is not necessarily the same as the maximum
-	// LaidOutStructure.Index.
-	StructureIndex int
+	// DiskIndex is the index of the structure on the disk - this should be
+	// used instead of YamlIndex for an OnDiskStructure, YamlIndex comes from
+	// the embedded LaidOutStructure which is 0-based and does not have the same
+	// meaning. A LaidOutStructure's YamlIndex position will include that of
+	// bare structures which will not show up as an OnDiskStructure, so the
+	// range of OnDiskStructure.DiskIndex values is not necessarily the same as
+	// the range of LaidOutStructure.YamlIndex values.
+	DiskIndex int
 
 	// Size of the on disk structure, which is at least equal to the
 	// LaidOutStructure.Size but may be bigger if the partition was
@@ -106,10 +106,10 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 		// populating /dev/disk/by-label/ and friends.
 		// All that is to say the order that the list of partitions from
 		// Partitions() is in is _not_ the same as the order that the structures
-		// actually appear in on disk, but this is why the StructureIndex
-		// property exists. Also note that StructureIndex starts at 1, as
+		// actually appear in on disk, but this is why the DiskIndex
+		// property exists. Also note that DiskIndex starts at 1, as
 		// opposed to gadget.LaidOutVolume.Structure's Index which starts at 0.
-		i := p.StructureIndex - 1
+		i := p.DiskIndex - 1
 		ds[i] = s
 	}
 
@@ -141,8 +141,6 @@ func OnDiskVolumeFromDisk(disk disks.Disk) (*OnDiskVolume, error) {
 	return dl, nil
 }
 
-const UnknownLaidOutStructureIndex = -1
-
 func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 	// the PartitionLabel and FilesystemLabel are encoded, so they must be
 	// decoded before they can be used in other gadget functions
@@ -169,12 +167,9 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 		LaidOutStructure: LaidOutStructure{
 			VolumeStructure: &volStruct,
 			StartOffset:     quantity.Offset(p.StartInBytes),
-			// we don't know what LaidOutStructure Index this should have
-			// because we have only on-disk information at this point
-			Index: UnknownLaidOutStructureIndex,
 		},
-		StructureIndex: int(p.StructureIndex),
-		Size:           quantity.Size(p.SizeInBytes),
-		Node:           p.KernelDeviceNode,
+		DiskIndex: int(p.DiskIndex),
+		Size:      quantity.Size(p.SizeInBytes),
+		Node:      p.KernelDeviceNode,
 	}, nil
 }

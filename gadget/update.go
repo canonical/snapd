@@ -164,8 +164,13 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 	// * this on disk structure is last on the disk
 	// * there is exactly one more structure on disk than partitions in the
 	//   gadget
-	// * the size of this structure extends to the end of the disk
 	// * there is no system-data role in the gadget.yaml
+
+	// note: we specifically do not check the size of the structure because it
+	// likely was resized, but it also could have not been resized if there
+	// ended up being less than 10% free space as per the resize script in the
+	// initramfs:
+	// https://github.com/snapcore/core-build/blob/master/initramfs/scripts/local-premount/resize
 
 	// bare structures don't show up on disk, so we can't include them
 	// when calculating how many "structures" are in gadgetLayout to
@@ -186,16 +191,12 @@ func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, 
 
 	numPartsOnDisk := len(diskLayout.Structure)
 
-	structEnd := quantity.Offset(s.Size) + s.StartOffset
-	diskEnd := quantity.Offset(uint64(diskLayout.SectorSize) * diskLayout.UsableSectorsEnd)
-
 	return s.Filesystem == "ext4" &&
 		s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" && // TODO: check hybrid and on MBR/DOS too
 		s.Label == "writable" &&
-		// StructureIndex is 1-based
-		s.StructureIndex == numPartsOnDisk &&
-		numPartsInGadget+1 == numPartsOnDisk &&
-		structEnd == diskEnd
+		// DiskIndex is 1-based
+		s.DiskIndex == numPartsOnDisk &&
+		numPartsInGadget+1 == numPartsOnDisk
 }
 
 // EnsureLayoutCompatibilityOptions is a set of options for determining how
@@ -276,18 +277,14 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// case we don't care about the filesystem at all because snapd does
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file.
-			if gv.Filesystem != "" {
-				// then the gadget specified a filesystem and the on disk needs
-				// to match
-				if gv.Filesystem != dv.Filesystem {
-					// use more specific error message for structures that are
-					// not creatable at install
-					if !IsCreatableAtInstall(gv) {
-						return false, "filesystems do not match and the partition is not creatable at install"
-					}
-					// otherwise generic
-					return false, "filesystems do not match"
+			if gv.Filesystem != "" && gv.Filesystem != dv.Filesystem {
+				// use more specific error message for structures that are
+				// not creatable at install
+				if !IsCreatableAtInstall(gv) {
+					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
 				}
+				// otherwise generic
+				return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
 			}
 		}
 
