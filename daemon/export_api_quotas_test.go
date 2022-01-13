@@ -20,8 +20,9 @@
 package daemon
 
 import (
-	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/resources"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -30,7 +31,7 @@ type (
 	PostQuotaGroupData = postQuotaGroupData
 )
 
-func MockServicestateCreateQuota(f func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error)) func() {
+func MockServicestateCreateQuota(f func(st *state.State, name string, parentName string, snaps []string, resourceLimits resources.QuotaResources) (*state.TaskSet, error)) func() {
 	old := servicestateCreateQuota
 	servicestateCreateQuota = f
 	return func() {
@@ -54,10 +55,10 @@ func MockServicestateRemoveQuota(f func(st *state.State, name string) (*state.Ta
 	}
 }
 
-func MockGetQuotaMemUsage(f func(grp *quota.Group) (quantity.Size, error)) (restore func()) {
-	old := getQuotaMemUsage
-	getQuotaMemUsage = f
+func MockGetQuotaUsage(f func(grp *quota.Group) (*client.QuotaValues, error)) (restore func()) {
+	old := getQuotaUsage
+	getQuotaUsage = f
 	return func() {
-		getQuotaMemUsage = old
+		getQuotaUsage = old
 	}
 }
