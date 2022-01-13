@@ -26,12 +26,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
@@ -759,18 +759,7 @@ func getAttribute(snapName string, ifaceName string, attrs map[string]interface{
 		}
 	}
 
-	rt := reflect.TypeOf(val)
-	if rt.Kind() != reflect.Ptr || val == nil {
-		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
-	}
-
-	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
-	}
-	rv := reflect.ValueOf(val)
-	rv.Elem().Set(reflect.ValueOf(v))
-
-	return nil
+	return metautil.SetValueFromAttribute(snapName, ifaceName, key, v, val)
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {
