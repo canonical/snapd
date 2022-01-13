@@ -707,6 +707,17 @@ type DeltaInfo struct {
 // sanity check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
 
+type AttributeNotFoundError struct{ Err error }
+
+func (e AttributeNotFoundError) Error() string {
+	return e.Err.Error()
+}
+
+func (e AttributeNotFoundError) Is(target error) bool {
+	_, ok := target.(AttributeNotFoundError)
+	return ok
+}
+
 // PlugInfo provides information about a plug.
 type PlugInfo struct {
 	Snap *Info
@@ -743,7 +754,9 @@ func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
 	v, ok := lookupAttr(attrs, key)
 	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+		return AttributeNotFoundError{
+			fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName),
+		}
 	}
 
 	rt := reflect.TypeOf(val)
