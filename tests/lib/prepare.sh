@@ -1228,6 +1228,10 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
+
+        # important to remove disabled snaps before calling save_snapd_state
+        # or restore will break
+        remove_disabled_snaps
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state
