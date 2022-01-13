@@ -86,7 +86,8 @@ func lookupAttr(staticAttrs map[string]interface{}, dynamicAttrs map[string]inte
 func getAttribute(snapName string, ifaceName string, staticAttrs map[string]interface{}, dynamicAttrs map[string]interface{}, path string, val interface{}) error {
 	v, ok := lookupAttr(staticAttrs, dynamicAttrs, path)
 	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+		err := fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, path, ifaceName)
+		return snap.AttributeNotFoundError{Err: err}
 	}
 
 	rt := reflect.TypeOf(val)
