@@ -214,11 +214,7 @@ reset_all_snap() {
 # 2021-04-23T20:11:20Z INFO Waiting for automatic snapd restart...
 # snapd 2.49.2 installed
 #
-
-snap list --all | grep disabled | while read -r name _ revision _ ; do
-    snap remove "$name" --revision="$revision"
-done
-
+remove_disabled_snaps
 
 # When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
 # In that case we just cleanup the environment by removing installed snaps as
