@@ -330,7 +330,7 @@ func newMountedFilesystemUpdater(ps *LaidOutStructure, backupDir string, mountLo
 }
 
 func fsStructBackupPath(backupDir string, ps *LaidOutStructure) string {
-	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.Index))
+	return filepath.Join(backupDir, fmt.Sprintf("struct-%v", ps.YamlIndex))
 }
 
 // entryDestPaths resolves destination and backup paths for given

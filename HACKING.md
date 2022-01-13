@@ -376,7 +376,7 @@ For more information on testing, please see the Testing section.
 Install the following package(s) to satisfy test dependencies.
 
 ```
-sudo apt-get install python3-yamlordereddictloader
+sudo apt-get install python3-yamlordereddictloader dbus-x11
 ```
 
 To run the various tests that we have to ensure a high quality source just run:

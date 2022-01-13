@@ -2940,8 +2940,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
-					Name: "Writable",
-					// Role:       "system-data",
+					Name:       "Writable",
 					Size:       1200 * quantity.SizeMiB,
 					Label:      "writable",
 					Filesystem: "something_else",
@@ -2960,7 +2959,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// have already been created will fail
 	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, opts)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match \(expected something_else from gadget.yaml, got ext4\)`)
 
 	// we are going to manipulate last structure, which has system-data role
 	c.Assert(gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role, Equals, gadget.SystemData)
@@ -2974,7 +2973,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// now we fail to find the /dev/node2 structure from the gadget on disk
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match and the partition is not creatable at install`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match \(expected something_else from gadget.yaml, got ext4\) and the partition is not creatable at install`)
 
 	// undo the role change
 	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemData
@@ -2997,6 +2996,43 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// but a smaller partition on disk for SystemData role is okay
 	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemData
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
+	c.Assert(err, IsNil)
+}
+
+const mockExtraNonInstallableStructureWithoutFilesystem = `
+      - name: foobar
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesystemOnDiskHasFilesystem(c *C) {
+	gadgetLayoutWithNonInstallableStructureWithoutFs, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraNonInstallableStructureWithoutFilesystem, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockDeviceLayout
+
+	// device matches, but it has a filesystem
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		gadget.OnDiskStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "foobar",
+					Size:       1200 * quantity.SizeMiB,
+					Label:      "whatever",
+					Filesystem: "something",
+				},
+				StartOffset: 2 * quantity.OffsetMiB,
+			},
+			Node: "/dev/node2",
+		},
+	)
+
+	// with no/default opts, then they are compatible
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithNonInstallableStructureWithoutFs, &deviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// still compatible with strict opts
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithNonInstallableStructureWithoutFs, &deviceLayout, opts)
 	c.Assert(err, IsNil)
 }
 
