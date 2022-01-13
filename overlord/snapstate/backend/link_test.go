@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/servicestate/resources"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -789,7 +790,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	grp, err := quota.NewGroup("foogroup", quantity.SizeMiB)
+	grp, err := quota.NewGroup("foogroup", resources.CreateQuotaResources(quantity.SizeMiB))
 	c.Assert(err, IsNil)
 
 	linkCtxWithGroup := backend.LinkContext{
