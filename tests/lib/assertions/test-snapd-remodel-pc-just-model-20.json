@@ -5,6 +5,7 @@
     "brand-id": "test-snapd",
     "store": "CQvkdMjgbapk821Po2cF",
     "model": "test-snapd-remodel-pc-just-model",
+    "system-user-authority": "*",
     "architecture": "amd64",
     "timestamp": "2021-12-02T12:18:12+00:00",
     "grade": "dangerous",
