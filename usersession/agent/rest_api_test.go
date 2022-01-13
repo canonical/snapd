@@ -351,7 +351,7 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 		"kind":    "service-control",
 		"value": map[string]interface{}{
 			"stop-errors": map[string]interface{}{
-				"snap.bar.service": "snap.bar.service failed to stop: timeout",
+				"snap.bar.service": `"snap.bar.service" failed to stop: timeout`,
 			},
 		},
 	})

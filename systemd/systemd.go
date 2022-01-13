@@ -975,7 +975,7 @@ loop:
 		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
 	}
 
-	return &Timeout{action: "stop", service: serviceNames[0]}
+	return &Timeout{action: "stop", services: serviceNames}
 }
 
 func (s *systemd) Kill(serviceName, signal, who string) error {
@@ -1043,12 +1043,12 @@ func (e *Error) Error() string {
 // Timeout is returned if the systemd action failed to reach the
 // expected state in a reasonable amount of time
 type Timeout struct {
-	action  string
-	service string
+	action   string
+	services []string
 }
 
 func (e *Timeout) Error() string {
-	return fmt.Sprintf("%v failed to %v: timeout", e.service, e.action)
+	return fmt.Sprintf("%v failed to %v: timeout", strutil.Quoted(e.services), e.action)
 }
 
 // IsTimeout checks whether the given error is a Timeout

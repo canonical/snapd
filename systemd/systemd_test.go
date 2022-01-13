@@ -235,6 +235,24 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 	c.Check(s.argses[1], DeepEquals, s.argses[3])
 }
 
+func (s *SystemdTestSuite) TestStopTimesOut(c *C) {
+	restore := MockStopDelays(time.Millisecond, 4*time.Millisecond)
+	defer restore()
+	s.outs = [][]byte{
+		nil, // for the "stop" itself
+		[]byte("ActiveState=active\n"),
+		[]byte("ActiveState=active\n"),
+		[]byte("ActiveState=active\n"),
+	}
+	s.errors = []error{nil, nil, nil, nil, nil}
+	err := New(SystemMode, s.rep).Stop(3*time.Millisecond, "foo", "bar")
+	c.Assert(err, ErrorMatches, `"foo", "bar" failed to stop: timeout`)
+	c.Assert(len(s.argses) >= 3, Equals, true)
+	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+}
+
 func (s *SystemdTestSuite) TestStatus(c *C) {
 	s.outs = [][]byte{
 		[]byte(`
