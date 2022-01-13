@@ -81,7 +81,7 @@
 
 
 Name:           snapd
-Version:        2.53.2
+Version:        2.54.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -125,6 +125,7 @@ BuildRequires:  ca-certificates-mozilla
 %if %{with apparmor}
 BuildRequires:  libapparmor-devel
 BuildRequires:  apparmor-rpm-macros
+BuildRequires:  apparmor-parser
 %endif
 
 PreReq:         permissions
@@ -272,6 +273,7 @@ done
 %make_install -C %{indigo_srcdir}/data \
 		BINDIR=%{_bindir} \
 		LIBEXECDIR=%{_libexecdir} \
+		DATADIR=%{_datadir} \
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		SNAP_MOUNT_DIR=%{snap_mount_dir}
 # Install all the C executables.
@@ -330,12 +332,27 @@ install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_data
 %endif
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
+%if %{with apparmor}
+if [ -x /usr/bin/systemctl ]; then
+    if systemctl is-enabled snapd.service >/dev/null 2>&1 || systemctl is-enabled snapd.socket >/dev/null 2>&1; then
+        # either the snapd.service or the snapd.socket are enabled, meaning snapd is
+        # being actively used
+        if systemctl is-enabled apparmor.service >/dev/null 2>&1 && ! systemctl is-enabled snapd.apparmor.service >/dev/null 2>&1; then
+            # also apparmor appears to be enabled, but loading of apparmor profiles
+            # of the snaps is not, so enable that now so that the snaps continue to
+            # work after the update
+            systemctl enable --now snapd.apparmor.service || :
+        fi
+    fi
+fi
+%endif
+
 case ":$PATH:" in
     *:/snap/bin:*)
         ;;
     *)
         echo "Please reboot, logout/login or source /etc/profile to have /snap/bin added to PATH."
-        echo "On a Tumbleweed system you need to run: systemctl enable snapd.apparmor.service"
+        echo "On a Tumbleweed and Leap 15.3+ systems you need to run: systemctl enable snapd.apparmor.service"
         ;;
 esac
 
@@ -401,6 +418,9 @@ fi
 # this is typically owned by zsh, but we do not want to explicitly require zsh
 %dir %{_datadir}/zsh
 %dir %{_datadir}/zsh/site-functions
+# similar case for fish
+%dir %{_datadir}/fish
+%dir %{_datadir}/fish/vendor_conf.d
 
 # Ghost entries for things created at runtime
 %ghost %dir %{_localstatedir}/snap
@@ -424,6 +444,7 @@ fi
 %{_datadir}/dbus-1/session.d/snapd.session-services.conf
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
+%{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_environmentdir}/990-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh

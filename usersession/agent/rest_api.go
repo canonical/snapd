@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/usersession/client"
 )
 
 var restApi = []*Command{
@@ -318,10 +319,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 
 	decoder := json.NewDecoder(r.Body)
 
-	type finishRefreshNotificationInfo struct {
-		InstanceName string `json:"instance-name"`
-	}
-	var finishRefresh finishRefreshNotificationInfo
+	var finishRefresh client.FinishedSnapRefreshInfo
 	if err := decoder.Decode(&finishRefresh); err != nil {
 		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
 	}

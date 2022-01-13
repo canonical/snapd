@@ -271,7 +271,7 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
 }
 
 func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
@@ -286,12 +286,10 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
+		return tracker.ForeignTask(kind, status, snapsup)
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	runner.AddHandler("auto-connect", fakeHandler, nil)
+	runner.AddHandler("auto-connect", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-disconnect", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
@@ -432,6 +430,7 @@ const (
 	updatesGadgetAssets
 	updatesBootConfig
 	noConfigure
+	noLastBeforeModificationsEdge
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -2024,6 +2023,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:    "auto-connect:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
 		},
 		{
 			op:   "unlink-snap",
@@ -4947,7 +4951,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, HasLen, 1)
 	ts := state.NewTaskSet(chg.Tasks()...)
-	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
+	// task set was reconstituted from change tasks, so edges information is
+	// lost
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure|noLastBeforeModificationsEdge, 0, ts)
 
 	// ensure preferences from the core snap got transferred over
 	var snapst snapstate.SnapState
@@ -6151,7 +6157,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.cur, tc.new, deviceCtx)
+		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx)
 		s.state.Unlock()
 		comment := Commentf("tc %d: %#v", i, tc)
 		if tc.err != "" {

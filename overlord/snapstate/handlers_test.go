@@ -24,6 +24,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -280,4 +283,23 @@ func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
 	logs := t.Log()
 	c.Assert(logs, HasLen, 1)
 	c.Check(logs[0], testutil.Contains, "ERROR something failed")
+}
+
+func (s *handlersSuite) TestGetSnapDirOptions(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	// set feature flag
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
+
+	tr.Commit()
+
+	// check options reflect flag
+	opts, err := snapstate.GetSnapDirOptions(s.state)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 }

@@ -273,9 +273,15 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 			}
 		}
 	}
+
 	// and finally start snapd.service (it will stop by itself and gets
 	// started by systemd then)
-	if err := sysd.Start("snapd.service"); err != nil {
+	// Because of the file lock held on the snapstate by the Overlord, the new
+	// snapd will block there until we release it. For this reason, we cannot
+	// start the unit in blocking mode.
+	// TODO: move/share this responsibility with daemon so that we can make the
+	// start blocking again
+	if err := sysd.StartNoBlock("snapd.service"); err != nil {
 		return err
 	}
 	if err := sysd.StartNoBlock("snapd.seeded.service"); err != nil {

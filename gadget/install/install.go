@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -103,7 +104,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureLayoutCompatibility(lv, diskLayout); err != nil {
+	if err := gadget.EnsureLayoutCompatibility(lv, diskLayout, nil); err != nil {
 		return nil, fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 

@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
@@ -286,7 +287,7 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			KernelDeviceNode: "/dev/vdb2",
 			SizeInBytes:      124473665 * 512,
 			StartInBytes:     uint64(257 * quantity.SizeMiB),
-			StructureIndex:   2,
+			DiskIndex:        2,
 		},
 		{
 			Major:            1,
@@ -297,7 +298,7 @@ func (s *diskSuite) TestDiskFromDevicePathHappy(c *C) {
 			KernelDeviceNode: "/dev/vdb1",
 			SizeInBytes:      uint64(256 * quantity.SizeMiB),
 			StartInBytes:     uint64(quantity.SizeMiB),
-			StructureIndex:   1,
+			DiskIndex:        1,
 		},
 	})
 
@@ -608,7 +609,7 @@ func (s *diskSuite) TestDiskFromMountPointHappySinglePartitionIgnoresNonPartitio
 			Minor:            4,
 			PartitionType:    "SOME-GPT-UUID-TYPE",
 			SizeInBytes:      3000 * 512,
-			StructureIndex:   4,
+			DiskIndex:        4,
 			StartInBytes:     2500 * 512,
 		},
 	})
@@ -749,6 +750,114 @@ func (s *diskSuite) TestDiskFromMountPointIsDecryptedLUKSDeviceVolumeHappy(c *C)
 	c.Assert(d.Dev(), Equals, "42:0")
 	c.Assert(d.HasPartitions(), Equals, true)
 	c.Assert(d.Schema(), Equals, "dos")
+}
+
+func (s *diskSuite) TestDiskFromMountPointIsDecryptedUnlockedDeviceVolumeHappy(c *C) {
+	restore := osutil.MockMountInfo(`130 30 242:1 / /run/mnt/point rw,relatime shared:54 - ext4 /dev/mapper/something-device-locked rw
+`)
+	defer restore()
+
+	// un-register the fde handler so we can make sure that the default
+	// handler(s) don't match this device mapper - this name needs to be kept in
+	// sync with what's in kernel/fde/fde.go
+	disks.UnregisterDeviceMapperBackResolver("device-unlock-kernel-fde")
+	defer func() {
+		// this is registered by default in this file since we import the fde
+		// package so make sure it is re-registered at the end
+		disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
+	}()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/mapper/something-device-locked":
+			return map[string]string{
+				"DEVTYPE": "disk",
+				"MAJOR":   "242",
+				"MINOR":   "1",
+			}, nil
+		case "/dev/disk/by-partuuid/5a522809-c87e-4dfa-81a8-8dc5667d1304":
+			return map[string]string{
+				"DEVTYPE":            "disk",
+				"ID_PART_ENTRY_DISK": "41:3",
+			}, nil
+		case "/dev/block/41:3":
+			return map[string]string{
+				"DEVTYPE":            "disk",
+				"DEVNAME":            "/dev/sda",
+				"DEVPATH":            "/block/foo",
+				"ID_PART_TABLE_UUID": "foo-foo-foo-foo",
+				"ID_PART_TABLE_TYPE": "gpt",
+			}, nil
+		case "sda1":
+			return map[string]string{
+				"DEVPATH":              "/block/foo/sda1",
+				"DEVNAME":              "/dev/sda1",
+				"ID_PART_ENTRY_UUID":   "foo-foo-foo-foo-1",
+				"ID_PART_ENTRY_TYPE":   "gooooooo",
+				"ID_PART_ENTRY_SIZE":   "500000",
+				"ID_PART_ENTRY_NUMBER": "1",
+				"ID_PART_ENTRY_OFFSET": "2048",
+				"MAJOR":                "41",
+				"MINOR":                "4",
+			}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	// mock the sysfs dm uuid and name files
+	dmDir := filepath.Join(filepath.Join(dirs.SysfsDir, "dev", "block"), "242:1", "dm")
+	err := os.MkdirAll(dmDir, 0755)
+	c.Assert(err, IsNil)
+
+	// name expected by fde
+	b := []byte("something-device-locked")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "name"), b, 0644)
+	c.Assert(err, IsNil)
+
+	b = []byte("5a522809-c87e-4dfa-81a8-8dc5667d1304")
+	err = ioutil.WriteFile(filepath.Join(dmDir, "uuid"), b, 0644)
+	c.Assert(err, IsNil)
+
+	opts := &disks.Options{IsDecryptedDevice: true}
+
+	// first try without the handler fails
+	_, err = disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, ErrorMatches, `cannot find disk from mountpoint source /dev/mapper/something-device-locked of /run/mnt/point: internal error: no back resolver supports decrypted device mapper with UUID "5a522809-c87e-4dfa-81a8-8dc5667d1304" and name "something-device-locked"`)
+
+	// next try with the FDE package handler works
+	disks.RegisterDeviceMapperBackResolver("device-unlock-kernel-fde", fde.DeviceUnlockKernelHookDeviceMapperBackResolver)
+
+	d, err := disks.DiskFromMountPoint("/run/mnt/point", opts)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, "41:3")
+	c.Assert(d.HasPartitions(), Equals, true)
+
+	// mock a partition
+	partFile := filepath.Join(dirs.SysfsDir, "/block/foo/sda1/partition")
+	err = os.MkdirAll(filepath.Dir(partFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(partFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	parts, err := d.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{
+		{
+			PartitionType:    "GOOOOOOO",
+			DiskIndex:        1,
+			StartInBytes:     512 * 2048,
+			SizeInBytes:      500000 * 512,
+			PartitionUUID:    "foo-foo-foo-foo-1",
+			Major:            41,
+			Minor:            4,
+			KernelDevicePath: filepath.Join(dirs.SysfsDir, "/block/foo/sda1"),
+			KernelDeviceNode: "/dev/sda1",
+		},
+	})
 }
 
 func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
@@ -998,7 +1107,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda4",
 			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			SizeInBytes:      8552415 * 512,
-			StructureIndex:   4,
+			DiskIndex:        4,
 			StartInBytes:     3997696 * 512,
 		},
 		"ubuntu-boot": {
@@ -1011,7 +1120,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda3",
 			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			SizeInBytes:      1536000 * 512,
-			StructureIndex:   3,
+			DiskIndex:        3,
 			StartInBytes:     2461696 * 512,
 		},
 		"ubuntu-seed": {
@@ -1024,7 +1133,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda2",
 			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			SizeInBytes:      2457600 * 512,
-			StructureIndex:   2,
+			DiskIndex:        2,
 			StartInBytes:     4096 * 512,
 		},
 		"bios-boot": {
@@ -1036,7 +1145,7 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 			KernelDeviceNode: "/dev/vda1",
 			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
 			SizeInBytes:      2048 * 512,
-			StructureIndex:   1,
+			DiskIndex:        1,
 			StartInBytes:     2048 * 512,
 		},
 	}

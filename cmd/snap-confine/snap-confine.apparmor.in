@@ -371,6 +371,10 @@
     @{HOME}/ r,
     @{HOME}/snap/{,*/,*/*/} rw,
 
+    # experimental
+    @{HOME}/.snap/                rw,
+    @{HOME}/.snap/data/{,*/,*/*/} rw,
+
     # Special case for *classic* snaps that are used by users with existing dirs
     # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...
     # (see https://forum.snapcraft.io/t/9717)

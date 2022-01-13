@@ -20,11 +20,8 @@
 package builtin_test
 
 import (
-	"fmt"
-
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -132,31 +129,10 @@ func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 
 func (s *microStackSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
 	spec := &udev.Specification{}
+	// no udev specs because the interface controls it's own device cgroups
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.Snippets(), HasLen, 11)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-KERNEL=="vhost-net", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-KERNEL=="vhost-scsi", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-KERNEL=="vhost-vsock", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-SUBSYSTEM=="block", KERNEL=="nbd[0-9]*", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-SUBSYSTEM=="misc", KERNEL=="vfio", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-SUBSYSTEM=="vfio", KERNEL=="[0-9]*", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-SUBSYSTEM=="block", KERNEL=="loop[0-9]*", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-SUBSYSTEM=="misc", KERNEL=="loop-control", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-SUBSYSTEM=="misc", KERNEL=="device-mapper", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
-SUBSYSTEM=="block", KERNEL=="dm-[0-9]*", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains,
-		fmt.Sprintf(`TAG=="snap_microstack_app", RUN+="%s/snap-device-helper $env{ACTION} snap_microstack_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *microStackSupportInterfaceSuite) TestInterfaces(c *C) {

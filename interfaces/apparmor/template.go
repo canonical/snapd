@@ -336,6 +336,12 @@ var templateCommon = `
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
 
+  # Experimental snap folder changes
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/                    r,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/**                  mrkix,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
+
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
@@ -503,6 +509,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
+  /{,usr/}bin/busctl ixr,
   /{,usr/}bin/bzcat ixr,
   /{,usr/}bin/bzdiff ixr,
   /{,usr/}bin/bzgrep ixr,
