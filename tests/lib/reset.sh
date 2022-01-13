@@ -189,7 +189,7 @@ reset_all_snap() {
     fi
 
     # Exit in case there is a snap in broken state after restoring the snapd state
-    if snap list | grep -E "broken$"; then
+    if snap list --all | grep -E "broken$"; then
         echo "snap in broken state"
         exit 1
     fi
