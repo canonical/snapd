@@ -949,7 +949,6 @@ loop:
 		case <-check.C:
 			allStopped := true
 			stillRunningServices := []string{}
-		serviceCheck:
 			for _, service := range serviceNames {
 				bs, err := s.systemctl("show", "--property=ActiveState", service)
 				if err != nil {
@@ -959,19 +958,21 @@ loop:
 					stillRunningServices = append(stillRunningServices, service)
 					allStopped = false
 				}
-				if !firstCheck {
-					continue serviceCheck
-				}
 			}
 			if allStopped {
 				return nil
+			}
+			if !firstCheck {
+				// do not notify about services waiting on the
+				// first pass
+				continue loop
 			}
 			serviceNames = stillRunningServices
 			firstCheck = false
 		case <-notify.C:
 		}
 		// after notify delay or after a failed first check
-		s.reporter.Notify(fmt.Sprintf("Waiting for %q to stop.", serviceNames))
+		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
 	}
 
 	return &Timeout{action: "stop", service: serviceNames[0]}

@@ -531,7 +531,16 @@ func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 	err := New(SystemMode, s.rep).Stop(10*time.Millisecond, "foo")
 	c.Assert(err, FitsTypeOf, &Timeout{})
 	c.Assert(len(s.rep.msgs) > 0, Equals, true)
-	c.Check(s.rep.msgs[0], Equals, "Waiting for [\"foo\"] to stop.")
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
+}
+
+func (s *SystemdTestSuite) TestStopManyTimeout(c *C) {
+	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	defer restore()
+	err := New(SystemMode, s.rep).Stop(10*time.Millisecond, "foo", "bar")
+	c.Assert(err, FitsTypeOf, &Timeout{})
+	c.Assert(len(s.rep.msgs) > 0, Equals, true)
+	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
 }
 
 func (s *SystemdTestSuite) TestDisable(c *C) {
