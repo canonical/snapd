@@ -1412,7 +1412,7 @@ func (s *infoSuite) TestPlugInfoAttr(c *C) {
 	c.Assert(plug.Attr("number", &intVal), IsNil)
 	c.Check(intVal, Equals, 123)
 
-	c.Check(plug.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(plug.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type string for "key" attribute: \*int`)
 	c.Check(plug.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
 	c.Check(plug.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
@@ -1429,7 +1429,7 @@ func (s *infoSuite) TestSlotInfoAttr(c *C) {
 	c.Assert(slot.Attr("number", &intVal), IsNil)
 	c.Check(intVal, Equals, 123)
 
-	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type for "key" attribute`)
+	c.Check(slot.Attr("key", &intVal), ErrorMatches, `snap "snap" has interface "interface" with invalid value type string for "key" attribute: \*int`)
 	c.Check(slot.Attr("unknown", &val), ErrorMatches, `snap "snap" does not have attribute "unknown" for interface "interface"`)
 	c.Check(slot.Attr("key", intVal), ErrorMatches, `internal error: cannot get "key" attribute of interface "interface" with non-pointer value`)
 }
