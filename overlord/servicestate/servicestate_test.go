@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/resources"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -313,7 +314,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	defer st.Unlock()
 
 	// make a quota group
-	grp, err := quota.NewGroup("foogroup", quantity.SizeGiB)
+	grp, err := quota.NewGroup("foogroup", resources.CreateQuotaResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	grp.Snaps = []string{"foosnap"}

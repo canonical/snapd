@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
+	"github.com/snapcore/snapd/overlord/servicestate/resources"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -122,7 +123,7 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 
 	_, err = internal.PatchQuotas(st, otherGrp2, otherGrp)
 	// either group can get checked first
-	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group2?" is invalid: group memory limit must be non-zero`)
+	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group" is invalid: quota group must have a memory limit set`)
 }
 
 func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
@@ -135,7 +136,7 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		Name:        "foogroup",
 		MemoryLimit: quantity.SizeGiB,
 	}
-	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, quantity.SizeGiB, nil)
+	grp1, newGrps, err := internal.CreateQuotaInState(st, "foogroup", nil, nil, resources.CreateQuotaResources(quantity.SizeGiB), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp1, DeepEquals, grp)
 	c.Check(newGrps, DeepEquals, map[string]*quota.Group{
@@ -156,7 +157,7 @@ func (s *servicestateQuotasSuite) TestCreateQuotaInState(c *C) {
 		ParentGroup: "foogroup",
 		Snaps:       []string{"snap1", "snap2"},
 	}
-	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, quantity.SizeGiB, nil)
+	grp3, newGrps, err := internal.CreateQuotaInState(st, "group-2", grp1, []string{"snap1", "snap2"}, resources.CreateQuotaResources(quantity.SizeGiB), nil)
 	c.Assert(err, IsNil)
 	c.Check(grp3.Name, Equals, grp2.Name)
 	c.Check(grp3.MemoryLimit, Equals, grp2.MemoryLimit)
