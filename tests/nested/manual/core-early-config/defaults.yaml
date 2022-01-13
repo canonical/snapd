@@ -7,4 +7,4 @@ defaults:
         disable: true
     system:
       timezone: Europe/Malta
-      hostname: foo
+      hostname: F00

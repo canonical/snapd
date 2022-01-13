@@ -203,7 +203,7 @@ WantedBy=snapd.service
 		{"is-active", "snapd.snap-repair.timer"},
 		{"restart", "snapd.snap-repair.timer"},
 		{"is-active", "snapd.socket"},
-		{"start", "snapd.service"},
+		{"start", "--no-block", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"},
 		{"--user", "--global", "disable", "snapd.session-agent.service"},

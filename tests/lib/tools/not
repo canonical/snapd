@@ -1,6 +1,3 @@
-#!/bin/sh
-# This script executes whatever is given as argument and inverts the return
-# value. It is meant as a workaround for shellcheck discovery
-# https://github.com/koalaman/shellcheck/wiki/SC2251 where shell scripts using
-# "set -e" are not failing with a trivial code like "! true"
-! "$@"
+# This is a placeholder for the tool which is copied from snapd-testing-tools project
+# The tool is copied from the tests/lib/external/snapd-testing-tools/tools directory
+# while the project is being prepared

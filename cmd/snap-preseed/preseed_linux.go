@@ -158,16 +158,16 @@ type targetSnapdInfo struct {
 // The function must be called after syscall.Chroot(..).
 func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	// read snapd version from the mounted core/snapd snap
-	infoPath := filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "info")
-	verFromSnap, err := snapdtool.SnapdVersionFromInfoFile(infoPath)
+	snapdInfoDir := filepath.Join(snapdMountPath, dirs.CoreLibExecDir)
+	verFromSnap, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
 	if err != nil {
 		return nil, err
 	}
 
 	// read snapd version from the main fs under chroot (snapd from the deb);
 	// assumes running under chroot already.
-	infoPath = filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "info")
-	verFromDeb, err := snapdtool.SnapdVersionFromInfoFile(infoPath)
+	hostInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	verFromDeb, _, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
 	if err != nil {
 		return nil, err
 	}

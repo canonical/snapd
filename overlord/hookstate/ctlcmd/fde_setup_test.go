@@ -64,7 +64,7 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	mockInstalledSnap(c, s.st, mockFdeSetupKernelYaml)
+	mockInstalledSnap(c, s.st, mockFdeSetupKernelYaml, "")
 	s.mockTask = s.st.NewTask("test-task", "my test task")
 	hooksup := &hookstate.HookSetup{
 		Snap:     "pc-kernel",

@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -25,7 +26,7 @@ import (
 )
 
 var (
-	DeviceFromRole         = deviceFromRole
+	DiskWithSystemSeed     = diskWithSystemSeed
 	NewEncryptedDeviceLUKS = newEncryptedDeviceLUKS
 )
 

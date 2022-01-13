@@ -138,6 +138,10 @@ type Partition struct {
 	PartitionLabel string
 	// the partition UUID
 	PartitionUUID string
+
+	// TODO: Major and Minor should be uints, they are required to be uints by
+	// the kernel, so it makes sense to match that here
+
 	// Major is the major number for this partition.
 	Major int
 	// Minor is the minor number for this partition.
@@ -147,6 +151,20 @@ type Partition struct {
 	KernelDevicePath string
 	// KernelDeviceNode is the kernel device node in /dev.
 	KernelDeviceNode string
+	// PartitionType is the type of structure, for example 0C in the case of a
+	// vfat partition on a DOS disk, or 0FC63DAF-8483-4772-8E79-3D69D8477DE4,
+	// which is ext4 on a GPT disk. This is always upper case.
+	PartitionType string
+	// FilesystemType is the type of filesystem i.e. ext4 or vfat, etc.
+	FilesystemType string
+	// DiskIndex is the index of the structure on the disk, where the first
+	// partition/structure has index of 1.
+	DiskIndex uint64
+	// StartInBytes is the beginning of the partition/structure in bytes.
+	StartInBytes uint64
+	// SizeInBytes is the overall size of the partition/structure in bytes.
+	SizeInBytes uint64
+
 	// TODO: also include a Disk field for finding what Disk this partition came
 	// from?
 }
@@ -187,3 +205,24 @@ func (e PartitionNotFoundError) Error() string {
 var (
 	_ = error(PartitionNotFoundError{})
 )
+
+var deviceMapperBackResolvers = map[string]func(dmUUID, dmName []byte) (dev string, ok bool){}
+
+// RegisterDeviceMapperBackResolver takes a callback function which is used when
+// the disks package through some of it's various methods to locate/create a
+// disk needs to trace a device mapper node back to the original device node
+// location such as /dev/mapper/something -> /dev/sda1 -> /dev/sda. The
+// parameters the callback is provided are the device mapper UUID and name
+// parameters from the kernel. If and only if the device mapper handler matches
+// this device mapper node, the callback should return the source device node
+// for the mapper device and true. If the handler does not match a provided
+// device mapper, the function should return "ok" as false.
+// The name of the handler is currently only used in tests.
+func RegisterDeviceMapperBackResolver(name string, f func(dmUUID, dmName []byte) (dev string, ok bool)) {
+	deviceMapperBackResolvers[name] = f
+}
+
+// mainly for tests to un-register and re-register handlers
+func unregisterDeviceMapperBackResolver(name string) {
+	delete(deviceMapperBackResolvers, name)
+}

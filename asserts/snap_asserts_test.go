@@ -546,6 +546,24 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			c.Check(fmtnum, Equals, 4)
 		}
 	}
+
+	// alt matcher (so far unused) => format 5
+	for _, sidePrefix := range []string{"plug", "slot"} {
+		headers = map[string]interface{}{
+			sidePrefix + "s": map[string]interface{}{
+				"interface5": map[string]interface{}{
+					"allow-auto-connection": map[string]interface{}{
+						sidePrefix + "-attributes": map[string]interface{}{
+							"x": []interface{}{"alt1", "alt2"}, // alt matcher
+						},
+					},
+				},
+			},
+		}
+		fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+		c.Assert(err, IsNil)
+		c.Check(fmtnum, Equals, 5)
+	}
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
