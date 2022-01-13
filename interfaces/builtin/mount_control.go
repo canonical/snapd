@@ -211,21 +211,13 @@ func parseStringList(mountEntry map[string]interface{}, fieldName string) ([]str
 }
 
 func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error) error {
-	mountAttr, ok := plug.Lookup("mount")
-	if !ok {
-		return nil
-	}
-	mounts, ok := mountAttr.([]interface{})
-	if !ok {
+	var mounts []map[string]interface{}
+	err := plug.Attr("mount", &mounts)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return mountAttrTypeError
 	}
 
-	for _, m := range mounts {
-		mount, ok := m.(map[string]interface{})
-		if !ok {
-			return mountAttrTypeError
-		}
-
+	for _, mount := range mounts {
 		what, ok := mount["what"].(string)
 		if !ok {
 			return fmt.Errorf(`mount-control "what" must be a string`)
