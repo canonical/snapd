@@ -950,13 +950,13 @@ loop:
 			allStopped := true
 			stillRunningServices := []string{}
 		serviceCheck:
-			for i := 0; i < len(serviceNames); i++ {
-				bs, err := s.systemctl("show", "--property=ActiveState", serviceNames[i])
+			for _, service := range serviceNames {
+				bs, err := s.systemctl("show", "--property=ActiveState", service)
 				if err != nil {
 					return err
 				}
 				if !isStopDone(bs) {
-					stillRunningServices = append(stillRunningServices, serviceNames[i])
+					stillRunningServices = append(stillRunningServices, service)
 					allStopped = false
 				}
 				if !firstCheck {
