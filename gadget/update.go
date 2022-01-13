@@ -159,52 +159,73 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	eq := func(ds OnDiskStructure, gs LaidOutStructure) (bool, string) {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
-		nameMatch := gv.Name == dv.Name
-		if gadgetLayout.Schema == "mbr" {
+
+		// name mismatch
+		if gv.Name != dv.Name {
 			// partitions have no names in MBR so bypass the name check
-			nameMatch = true
+			if gadgetLayout.Schema != "mbr" {
+				// don't return a reason if the names don't match
+				return false, ""
+			}
 		}
-		// Previous installation may have failed before filesystem creation or
-		// partition may be encrypted, so if the on disk offset matches the
-		// gadget offset, and the gadget structure is creatable during install,
-		// then they are equal
-		// otherwise, if they are not created during installation, the
-		// filesystem must be the same
-		check := nameMatch && ds.StartOffset == gs.StartOffset
-		// if we require creatable partitions to already exist, then the
-		// filesystems must also match for creatable partitions
-		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gv) {
-			check = check && (dv.Filesystem == gv.Filesystem)
-		}
-		sizeMatches := dv.Size == gv.Size
-		if gv.Role == SystemData {
-			// system-data may have been expanded
-			sizeMatches = dv.Size >= gv.Size
-		}
-		if check && sizeMatches {
-			return true, ""
+
+		// start offset mismatch
+		if ds.StartOffset != gs.StartOffset {
+			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
+				ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
 		}
 
 		switch {
-		case !nameMatch:
-			// don't return a reason if the names don't match
-			return false, ""
-		case ds.StartOffset != gs.StartOffset:
-			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
-				ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
-		case opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
-			return false, "filesystems do not match"
-		case !IsCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
-			return false, "filesystems do not match and the partition is not creatable at install"
+		// on disk size too small
 		case dv.Size < gv.Size:
 			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget size %d (%s)",
 				dv.Size, dv.Size.IECString(), gv.Size, gv.Size.IECString())
-		case gv.Role != SystemData && dv.Size > gv.Size:
-			return false, fmt.Sprintf("on disk size %d (%s) is larger than gadget size %d (%s) (and the role should not be expanded)",
-				dv.Size, dv.Size.IECString(), gv.Size, gv.Size.IECString())
-		default:
-			return false, "some other logic condition (should be impossible?)"
+
+		// on disk size too large
+		case dv.Size > gv.Size:
+			// larger on disk size is allowed specifically only for system-data
+			if gv.Role != SystemData {
+				return false, fmt.Sprintf("on disk size %d (%s) is larger than gadget size %d (%s) (and the role should not be expanded)",
+					dv.Size, dv.Size.IECString(), gv.Size, gv.Size.IECString())
+			}
 		}
+
+		// If we got to this point, the structure on disk has the same name,
+		// size and offset, so the last thing to check is that the filesystem
+		// matches (or that we don't care about the filesystem).
+
+		// TODO: here we need to handle in the strict case partitions which are
+		// to be created at install and are encrypted like ubuntu-data as they
+		// will not match filesystems exactly and need some massaging
+
+		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gv) {
+			// we assume that this partition has already been created
+			// successfully - either because this function was forced to(as is
+			// the case when doing gadget asset updates), or because this
+			// structure is not created during install
+
+			// note that we only check the filesystem if the gadget specified a
+			// filesystem, this is to allow cases where a structure in the
+			// gadget has a image, but does not specify the filesystem because
+			// it is some binary blob from a hardware vendor for non-Linux
+			// components on the device that _just so happen_ to also have a
+			// filesystem when the image is deployed to a partition. In this
+			// case we don't care about the filesystem at all because snapd does
+			// not touch it, unless a gadget asset update says to update that
+			// image file with a new binary image file.
+			if gv.Filesystem != "" && gv.Filesystem != dv.Filesystem {
+				// use more specific error message for structures that are
+				// not creatable at install
+				if !IsCreatableAtInstall(gv) {
+					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
+				}
+				// otherwise generic
+				return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
+			}
+		}
+
+		// otherwise if we got here things are matching
+		return true, ""
 	}
 
 	laidOutContains := func(haystack []LaidOutStructure, needle OnDiskStructure) (bool, string) {

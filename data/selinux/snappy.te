@@ -437,6 +437,10 @@ ifndef(`distro_rhel7',`
 allow snappy_t snappy_cli_t:process { getpgid sigkill };
 allow snappy_t unconfined_service_t:process { getpgid sigkill };
 
+# Snapd invokes systemd-detect-virt, which may make poke /proc/xen/, but does
+# not transition to a separate type and has no interface policy
+kernel_read_xen_state(snappy_t)
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy

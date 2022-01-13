@@ -40,7 +40,7 @@ restore: |
     "$TESTSTOOLS"/boot-state bootenv unset snap_try_kernel
 
 debug: |
-    "$TESTSTOOLS"/boot-state bootenv show
+    snap debug boot-vars
     snap list
     snap changes
 
@@ -123,8 +123,13 @@ execute: |
 
         # check boot env vars
         readlink "/snap/$core_name/current" > failBoot
-        test "$("$TESTSTOOLS"/boot-state bootenv show snap_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
-        test "$("$TESTSTOOLS"/boot-state bootenv show snap_try_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat failBoot).snap"
+        if [ "$TARGET_SNAP" = kernel ]; then
+            snap debug boot-vars | MATCH "snap_try_kernel=${TARGET_SNAP_NAME}_$(cat failBoot).snap\$"
+            snap debug boot-vars | MATCH "snap_kernel=${TARGET_SNAP_NAME}_$(cat prevBoot).snap\$"
+        else
+            snap debug boot-vars | MATCH "snap_try_core=${TARGET_SNAP_NAME}_$(cat failBoot).snap\$"
+            snap debug boot-vars | MATCH "snap_core=${TARGET_SNAP_NAME}_$(cat prevBoot).snap\$"
+        fi
 
         REBOOT
     fi

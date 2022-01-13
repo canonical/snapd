@@ -462,7 +462,11 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
-	for name, v := range gi.Volumes {
+	for name := range gi.Volumes {
+		v := gi.Volumes[name]
+		if v == nil {
+			return nil, fmt.Errorf("volume %q stanza is empty", name)
+		}
 		// set the VolumeName for the volume
 		v.Name = name
 		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
@@ -678,7 +682,7 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
-			Index:           idx,
+			YamlIndex:       idx,
 		}
 		structures[idx] = ps
 		if s.Name != "" {

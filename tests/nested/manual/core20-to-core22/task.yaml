@@ -33,6 +33,9 @@ execute: |
     label_base=$(tests.nested exec "date '+%Y%m%d'")
     label="${label_base}-1"
 
+    # wait until device is initialized and has a serial
+    nested_wait_for_device_initialized_change
+
     echo "Remodel to UC22"
     nested_copy "$TESTSLIB/assertions/valid-for-testing-pc-22-from-20.model"
     REMOTE_CHG_ID="$(tests.nested exec sudo snap remodel --no-wait valid-for-testing-pc-22-from-20.model)"
