@@ -36,7 +36,9 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type taskRunnerSuite struct{}
+type taskRunnerSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&taskRunnerSuite{})
 
@@ -140,6 +142,10 @@ var sequenceTests = []struct{ setup, result string }{{
 	setup:  "t11:was-done:1 t12:was-done:2 t21:was-done:2 t31:was-done:2 t32:do-error:2",
 	result: "t31:undo t32:do t32:do-error t21:undo",
 }}
+
+func (ts *taskRunnerSuite) SetUpTest(c *C) {
+	ts.BaseTest.SetUpTest(c)
+}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	sb := &stateBackend{}
