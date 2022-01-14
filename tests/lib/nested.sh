@@ -690,6 +690,12 @@ defaults:
     journal:
       persistent: true
 EOF
+
+                        # add debugging kernel command line parameters
+                        for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1"; do
+                            echo "$cmd" >> pc-gadget/cmdline.extra
+                        done 
+
                         snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
                         GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
