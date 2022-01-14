@@ -1596,6 +1596,68 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 	c.Assert(confirmed, check.Equals, true)
 }
 
+func (s *RunSuite) TestSnapRunTrackingServicesWhenRunByUser(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	var createTransientScopeOpts *cgroup.TrackingOptions
+	var createTransientScopeCalls int
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+		createTransientScopeCalls++
+		createTransientScopeOpts = opts
+		return nil
+	})
+	defer restore()
+
+	confirmCalls := 0
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		confirmCalls++
+		c.Assert(securityTag, check.Equals, "snap.snapname.svc")
+		return cgroup.ErrCannotTrackProcess
+	})
+	defer restore()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restore()
+
+	// invoked as: snap run -- snapname.svc --arg1 arg2
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.svc", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
+		"snap.snapname.svc",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.svc", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Assert(confirmCalls, check.Equals, 1)
+	c.Assert(createTransientScopeCalls, check.Equals, 1)
+	c.Assert(createTransientScopeOpts, check.DeepEquals, &cgroup.TrackingOptions{
+		AllowSessionBus: true,
+	})
+}
+
 func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
 	defer restore()

@@ -480,7 +480,7 @@ type cmdInstall struct {
 	IgnoreValidation bool   `long:"ignore-validation"`
 	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
 	Positional       struct {
-		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
+		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -628,9 +628,6 @@ func (x *cmdInstall) Execute([]string) error {
 	x.setModes(opts)
 
 	names := remoteSnapNames(x.Positional.Snaps)
-	if len(names) == 0 {
-		return errors.New(i18n.G("cannot install zero snaps"))
-	}
 	for _, name := range names {
 		if len(name) == 0 {
 			return errors.New(i18n.G("cannot install snap with empty name"))

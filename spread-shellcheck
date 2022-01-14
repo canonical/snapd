@@ -141,7 +141,7 @@ def checksection(data, env: Dict[str, str]):
 def checkfile(path, executor):
     logging.debug("checking file %s", path)
     with open(path) as inf:
-        data = yaml.load(inf, Loader=yaml.CSafeLoader)
+        data = yaml.safe_load(inf)
 
     errors = ShellcheckError(path)
     # TODO: handle stacking of environment from other places that influence it:

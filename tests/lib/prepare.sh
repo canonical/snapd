@@ -843,12 +843,25 @@ setup_reflash_magic() {
     UNPACK_DIR="/tmp/$core_name-snap"
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    # install ubuntu-image
-    snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
+    if os.query is-core16; then
+        # the new ubuntu-image expects mkfs to support -d option, which was not
+        # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+    else
+        # on all other systems, build a custom version ubuntu-image with test
+        # keys
+        (
+            export GO111MODULE=off
+            # use go get so that ubuntu-image is built with current snapd sources
+            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+        )
+    fi
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
     IMAGE_HOME=/home/image
+    IMAGE=pc.img
     mkdir -p "$IMAGE_HOME"
 
     # ensure that ubuntu-image is using our test-build of snapd with the
@@ -862,11 +875,9 @@ setup_reflash_magic() {
         repack_snapd_snap_with_deb_content "$IMAGE_HOME"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
-        IMAGE=core18-amd64.img
     elif os.query is-core20; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
-        IMAGE=core20-amd64.img
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -902,9 +913,6 @@ EOF
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
-
-        # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
-        IMAGE=all-snap-amd64.img
     fi
 
     EXTRA_FUNDAMENTAL=
@@ -917,7 +925,7 @@ EOF
         # need to download it
         snap download --channel="$KERNEL_CHANNEL" pc-kernel
 
-        EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+        EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
@@ -927,7 +935,7 @@ EOF
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
         uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        EXTRA_FUNDAMENTAL="--extra-snaps $IMAGE_HOME/pc-kernel_*.snap"
+        EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
     fi
 
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
@@ -972,13 +980,18 @@ EOF
         
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20.snap"
     fi
-
-    /snap/bin/ubuntu-image snap \
-                           -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
-                           --channel "$IMAGE_CHANNEL" \
-                           "$EXTRA_FUNDAMENTAL" \
-                           --extra-snaps "${extra_snap[0]}" \
-                           --output "$IMAGE_HOME/$IMAGE"
+    local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+    if os.query is-core16; then
+        # ubuntu-image on 16.04 needs to be installed from a snap
+        UBUNTU_IMAGE=/snap/bin/ubuntu-image
+    fi
+    # shellcheck disable=SC2086
+    "$UBUNTU_IMAGE" snap \
+                    -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
+                    --channel "$IMAGE_CHANNEL" \
+                    $EXTRA_FUNDAMENTAL \
+                    --snap "${extra_snap[0]}" \
+                    --output-dir "$IMAGE_HOME"
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
 
     if os.query is-core20; then
