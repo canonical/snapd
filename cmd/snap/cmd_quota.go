@@ -107,10 +107,6 @@ type cmdSetQuota struct {
 	} `positional-args:"yes"`
 }
 
-func hasQuotaSet(maxMemory string) bool {
-	return maxMemory != ""
-}
-
 func parseQuotas(maxMemory string) (*client.QuotaValues, error) {
 	var mem int64
 
@@ -128,8 +124,11 @@ func parseQuotas(maxMemory string) (*client.QuotaValues, error) {
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {
+	hasQuotaSet := func() bool {
+		return x.MemoryMax != ""
+	}
 
-	quotaProvided := hasQuotaSet(x.MemoryMax)
+	quotaProvided := hasQuotaSet()
 
 	names := installedSnapNames(x.Positional.Snaps)
 
