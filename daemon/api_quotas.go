@@ -71,12 +71,27 @@ var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 	}
 	currentUsage.Memory = mem
 
+	threads, err := grp.CurrentTaskUsage()
+	if err != nil {
+		return nil, err
+	}
+	currentUsage.Threads = threads
+
 	return &currentUsage, nil
 }
 
 func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 	var constraints client.QuotaValues
 	constraints.Memory = grp.MemoryLimit
+	constraints.Threads = grp.TaskLimit
+
+	if grp.CpuLimit != nil {
+		constraints.Cpu = &client.QuotaCpuValues{
+			Count:       grp.CpuLimit.Count,
+			Percentage:  grp.CpuLimit.Percentage,
+			AllowedCpus: grp.CpuLimit.AllowedCpus,
+		}
+	}
 	return &constraints
 }
 
@@ -161,6 +176,20 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 	if values.Memory != 0 {
 		quotaResources.Memory = &quota.ResourceMemory{
 			Limit: values.Memory,
+		}
+	}
+
+	if values.Cpu != nil {
+		quotaResources.Cpu = &resources.QuotaResourceCpu{
+			Count:       values.Cpu.Count,
+			Percentage:  values.Cpu.Percentage,
+			AllowedCpus: values.Cpu.AllowedCpus,
+		}
+	}
+
+	if values.Threads != 0 {
+		quotaResources.Thread = &resources.QuotaResourceThreads{
+			ThreadLimit: values.Threads,
 		}
 	}
 	return quotaResources
