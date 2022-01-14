@@ -556,8 +556,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 			return errors.New(i18n.G("cannot specify mode for multiple store snaps (only for one store snap or several local ones)"))
 		}
 
-		// install many doesn't support opts
-		changeID, err = x.client.InstallMany(names, nil)
+		changeID, err = x.client.InstallMany(names, opts)
 	}
 
 	if err != nil {
