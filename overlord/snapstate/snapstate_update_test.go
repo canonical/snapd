@@ -7174,11 +7174,13 @@ func (s *snapmgrTestSuite) TestUpdateAfterMigration(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUndoMigrationAfterHidingFails(c *C) {
-	s.testUndoMigration(c, false)
+	const failInUndo = false
+	s.testUndoMigration(c, failInUndo)
 }
 
 func (s *snapmgrTestSuite) TestUndoMigrationFailsAfterHidingFails(c *C) {
-	s.testUndoMigration(c, true)
+	const failInUndo = true
+	s.testUndoMigration(c, failInUndo)
 }
 
 func (s *snapmgrTestSuite) testUndoMigration(c *C, failUndo bool) {

@@ -1154,7 +1154,9 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	if opts.UseHidden && !opts.MigratedToHidden {
 		if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 
-			// try to undo migration
+			// undo the migration. In contrast to copy data for which the new revision
+			// directory can just be discarded, the snap data migration introduces
+			// a change that affects all revisions of the snap and thus needs to be reverted
 			if undoErr := m.backend.UndoHideSnapData(snapsup.InstanceName()); undoErr != nil {
 				st.Lock()
 				t.Logf("cannot undo snap dir migration (must manually restore %s's dirs from %s to %s): %v",
