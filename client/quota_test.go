@@ -44,7 +44,17 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"change": "42"
 	}`
 
-	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, &client.QuotaValues{Memory: quantity.Size(1001)})
+	quotaValues := &client.QuotaValues{
+		Memory: quantity.Size(1001),
+		Cpu: &client.QuotaCpuValues{
+			Count:       1,
+			Percentage:  50,
+			AllowedCpus: []int{0},
+		},
+		Threads: 32,
+	}
+
+	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, quotaValues)
 	c.Assert(err, check.IsNil)
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")

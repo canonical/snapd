@@ -44,8 +44,16 @@ type QuotaGroupResult struct {
 	Current     *QuotaValues `json:"current,omitempty"`
 }
 
+type QuotaCpuValues struct {
+	Count       int   `json:"count,omitempty"`
+	Percentage  int   `json:"percentage,omitempty"`
+	AllowedCpus []int `json:"allowed-cpus,omitempty"`
+}
+
 type QuotaValues struct {
-	Memory quantity.Size `json:"memory,omitempty"`
+	Memory  quantity.Size   `json:"memory,omitempty"`
+	Cpu     *QuotaCpuValues `json:"cpu,omitempty"`
+	Threads int             `json:"threads,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.
