@@ -578,7 +578,10 @@ type UnitStatus struct {
 	Enabled bool
 	Active  bool
 	// Installed is false if the queried unit doesn't exist.
-	Installed        bool
+	Installed bool
+	// NeedDaemonReload is true when systemd reports that the unit on disk
+	// has been modified and may differ from systemd's internal state, thus
+	// a daemon-reload is needed.
 	NeedDaemonReload bool
 }
 
