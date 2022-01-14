@@ -851,6 +851,7 @@ setup_reflash_magic() {
         # on all other systems, build a custom version ubuntu-image with test
         # keys
         (
+            #shellcheck disable=SC2030
             export GO111MODULE=off
             # use go get so that ubuntu-image is built with current snapd sources
             go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
