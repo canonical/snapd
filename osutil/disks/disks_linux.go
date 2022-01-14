@@ -691,7 +691,7 @@ func (d *disk) populatePartitions() error {
 				return emitUDevPropErr(err)
 			}
 
-			part.StructureIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
+			part.DiskIndex, err = requiredUDevPropUint(udevProps, "ID_PART_ENTRY_NUMBER")
 			if err != nil {
 				return emitUDevPropErr(err)
 			}
