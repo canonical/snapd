@@ -124,11 +124,7 @@ func parseQuotas(maxMemory string) (*client.QuotaValues, error) {
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {
-	hasQuotaSet := func() bool {
-		return x.MemoryMax != ""
-	}
-
-	quotaProvided := hasQuotaSet()
+	quotaProvided := x.MemoryMax != ""
 
 	names := installedSnapNames(x.Positional.Snaps)
 
