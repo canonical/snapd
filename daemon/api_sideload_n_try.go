@@ -120,7 +120,8 @@ func (f *Form) GetSnapFiles() ([]*uploadedSnap, *apiError) {
 
 type sideloadFlags struct {
 	snapstate.Flags
-	dangerousOK bool
+	dangerousOK   bool
+	transactional bool
 }
 
 func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
@@ -159,8 +160,9 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
 
 	sideloadFlags := sideloadFlags{
-		Flags:       flags,
-		dangerousOK: isTrue(form, "dangerous"),
+		Flags:         flags,
+		dangerousOK:   isTrue(form, "dangerous"),
+		transactional: isTrue(form, "transactional"),
 	}
 
 	snapFiles, errRsp := form.GetSnapFiles()
@@ -220,7 +222,7 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags.Flags)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags.Flags, flags.transactional)
 	if err != nil {
 		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
 	}

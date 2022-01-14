@@ -1098,7 +1098,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags, transactional bool) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1158,7 +1158,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		return nil, flagsByInstanceName[name], stateByInstanceName[name]
 	}
 
-	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "", false)
+	_, tasksets, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "", transactional)
 	if err != nil {
 		return nil, err
 	}
