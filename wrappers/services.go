@@ -125,8 +125,8 @@ func formatCpuGroupSlice(grp *quota.Group) string {
 
 	// AllowedCpus is only available for cgroupsv2
 	template := `# Always enable cpu accounting, so the following cpu quota options have an effect
- CPUAccounting=true
- `
+CPUAccounting=true
+`
 	return fmt.Sprint(template, calculateSystemdCPULimit(), getAllowedCpusValue(), "\n")
 }
 
@@ -136,28 +136,28 @@ func formatMemoryGroupSlice(grp *quota.Group) string {
 	}
 
 	template := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
- MemoryAccounting=true
- MemoryMax=%[1]d
- # for compatibility with older versions of systemd
- MemoryLimit=%[1]d
- 
- `
+MemoryAccounting=true
+MemoryMax=%[1]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[1]d
+
+`
 	return fmt.Sprintf(template, grp.MemoryLimit)
 }
 
 func formatTaskGroupSlice(grp *quota.Group) string {
 	if grp.TaskLimit == 0 {
 		return `# Always enable task accounting in order to be able to count the processes/
- # threads, etc for a slice
- TasksAccounting=true
- `
+# threads, etc for a slice
+TasksAccounting=true
+`
 	}
 
 	template := `# Always enable task accounting in order to be able to count the processes/
- # threads, etc for a slice
- TasksAccounting=true
- TasksMax=%d
- `
+# threads, etc for a slice
+TasksAccounting=true
+TasksMax=%d
+`
 	return fmt.Sprintf(template, grp.TaskLimit)
 }
 
@@ -170,12 +170,12 @@ func generateGroupSliceFile(grp *quota.Group) []byte {
 	memoryOptions := formatMemoryGroupSlice(grp)
 	taskOptions := formatTaskGroupSlice(grp)
 	template := `[Unit]
- Description=Slice for snap quota group %[1]s
- Before=slices.target
- X-Snappy=yes
- 
- [Slice]
- `
+Description=Slice for snap quota group %[1]s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+`
 
 	fmt.Fprintf(&buf, template, grp.Name)
 	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
@@ -1023,81 +1023,81 @@ func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) ([]byte
 	ifaceSpecifiedServiceSnippet := strings.Join(ifaceServiceSnippets.Items(), "\n")
 
 	serviceTemplate := `[Unit]
- # Auto-generated, DO NOT EDIT
- Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
- {{- if .MountUnit }}
- Requires={{.MountUnit}}
- {{- end }}
- {{- if .PrerequisiteTarget}}
- Wants={{.PrerequisiteTarget}}
- {{- end}}
- {{- if .After}}
- After={{ stringsJoin .After " " }}
- {{- end}}
- {{- if .Before}}
- Before={{ stringsJoin .Before " "}}
- {{- end}}
- {{- if .CoreMountedSnapdSnapDep}}
- Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
- After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
- {{- end}}
- X-Snappy=yes
- 
- [Service]
- EnvironmentFile=-/etc/environment
- ExecStart={{.App.LauncherCommand}}
- SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
- Restart={{.Restart}}
- {{- if .App.RestartDelay}}
- RestartSec={{.App.RestartDelay.Seconds}}
- {{- end}}
- WorkingDirectory={{.WorkingDir}}
- {{- if .App.StopCommand}}
- ExecStop={{.App.LauncherStopCommand}}
- {{- end}}
- {{- if .App.ReloadCommand}}
- ExecReload={{.App.LauncherReloadCommand}}
- {{- end}}
- {{- if .App.PostStopCommand}}
- ExecStopPost={{.App.LauncherPostStopCommand}}
- {{- end}}
- {{- if .StopTimeout}}
- TimeoutStopSec={{.StopTimeout.Seconds}}
- {{- end}}
- {{- if .StartTimeout}}
- TimeoutStartSec={{.StartTimeout.Seconds}}
- {{- end}}
- Type={{.App.Daemon}}
- {{- if .Remain}}
- RemainAfterExit={{.Remain}}
- {{- end}}
- {{- if .BusName}}
- BusName={{.BusName}}
- {{- end}}
- {{- if .App.WatchdogTimeout}}
- WatchdogSec={{.App.WatchdogTimeout.Seconds}}
- {{- end}}
- {{- if .KillMode}}
- KillMode={{.KillMode}}
- {{- end}}
- {{- if .KillSignal}}
- KillSignal={{.KillSignal}}
- {{- end}}
- {{- if .OOMAdjustScore }}
- OOMScoreAdjust={{.OOMAdjustScore}}
- {{- end}}
- {{- if .InterfaceServiceSnippets}}
- {{.InterfaceServiceSnippets}}
- {{- end}}
- {{- if .SliceUnit}}
- Slice={{.SliceUnit}}
- {{- end}}
- {{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
- 
- [Install]
- WantedBy={{.ServicesTarget}}
- {{- end}}
- `
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
+{{- if .MountUnit }}
+Requires={{.MountUnit}}
+{{- end }}
+{{- if .PrerequisiteTarget}}
+Wants={{.PrerequisiteTarget}}
+{{- end}}
+{{- if .After}}
+After={{ stringsJoin .After " " }}
+{{- end}}
+{{- if .Before}}
+Before={{ stringsJoin .Before " "}}
+{{- end}}
+{{- if .CoreMountedSnapdSnapDep}}
+Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
+After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
+{{- end}}
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart={{.App.LauncherCommand}}
+SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
+Restart={{.Restart}}
+{{- if .App.RestartDelay}}
+RestartSec={{.App.RestartDelay.Seconds}}
+{{- end}}
+WorkingDirectory={{.WorkingDir}}
+{{- if .App.StopCommand}}
+ExecStop={{.App.LauncherStopCommand}}
+{{- end}}
+{{- if .App.ReloadCommand}}
+ExecReload={{.App.LauncherReloadCommand}}
+{{- end}}
+{{- if .App.PostStopCommand}}
+ExecStopPost={{.App.LauncherPostStopCommand}}
+{{- end}}
+{{- if .StopTimeout}}
+TimeoutStopSec={{.StopTimeout.Seconds}}
+{{- end}}
+{{- if .StartTimeout}}
+TimeoutStartSec={{.StartTimeout.Seconds}}
+{{- end}}
+Type={{.App.Daemon}}
+{{- if .Remain}}
+RemainAfterExit={{.Remain}}
+{{- end}}
+{{- if .BusName}}
+BusName={{.BusName}}
+{{- end}}
+{{- if .App.WatchdogTimeout}}
+WatchdogSec={{.App.WatchdogTimeout.Seconds}}
+{{- end}}
+{{- if .KillMode}}
+KillMode={{.KillMode}}
+{{- end}}
+{{- if .KillSignal}}
+KillSignal={{.KillSignal}}
+{{- end}}
+{{- if .OOMAdjustScore }}
+OOMScoreAdjust={{.OOMAdjustScore}}
+{{- end}}
+{{- if .InterfaceServiceSnippets}}
+{{.InterfaceServiceSnippets}}
+{{- end}}
+{{- if .SliceUnit}}
+Slice={{.SliceUnit}}
+{{- end}}
+{{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
+
+[Install]
+WantedBy={{.ServicesTarget}}
+{{- end}}
+`
 	var templateOut bytes.Buffer
 	tmpl := template.New("service-wrapper")
 	tmpl.Funcs(template.FuncMap{
@@ -1236,25 +1236,25 @@ func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) ([]byte
 
 func genServiceSocketFile(appInfo *snap.AppInfo, socketName string) []byte {
 	socketTemplate := `[Unit]
- # Auto-generated, DO NOT EDIT
- Description=Socket {{.SocketName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
- {{- if .MountUnit}}
- Requires={{.MountUnit}}
- After={{.MountUnit}}
- {{- end}}
- X-Snappy=yes
- 
- [Socket]
- Service={{.ServiceFileName}}
- FileDescriptorName={{.SocketInfo.Name}}
- ListenStream={{.ListenStream}}
- {{- if .SocketInfo.SocketMode}}
- SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}
- {{- end}}
- 
- [Install]
- WantedBy={{.SocketsTarget}}
- `
+# Auto-generated, DO NOT EDIT
+Description=Socket {{.SocketName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
+{{- if .MountUnit}}
+Requires={{.MountUnit}}
+After={{.MountUnit}}
+{{- end}}
+X-Snappy=yes
+
+[Socket]
+Service={{.ServiceFileName}}
+FileDescriptorName={{.SocketInfo.Name}}
+ListenStream={{.ListenStream}}
+{{- if .SocketInfo.SocketMode}}
+SocketMode={{.SocketInfo.SocketMode | printf "%04o"}}
+{{- end}}
+
+[Install]
+WantedBy={{.SocketsTarget}}
+`
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("socket-wrapper").Parse(socketTemplate))
 
@@ -1332,21 +1332,21 @@ func renderListenStream(socket *snap.SocketInfo) string {
 
 func generateSnapTimerFile(app *snap.AppInfo) ([]byte, error) {
 	timerTemplate := `[Unit]
- # Auto-generated, DO NOT EDIT
- Description=Timer {{.TimerName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
- {{- if .MountUnit}}
- Requires={{.MountUnit}}
- After={{.MountUnit}}
- {{- end}}
- X-Snappy=yes
- 
- [Timer]
- Unit={{.ServiceFileName}}
- {{ range .Schedules }}OnCalendar={{ . }}
- {{ end }}
- [Install]
- WantedBy={{.TimersTarget}}
- `
+# Auto-generated, DO NOT EDIT
+Description=Timer {{.TimerName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
+{{- if .MountUnit}}
+Requires={{.MountUnit}}
+After={{.MountUnit}}
+{{- end}}
+X-Snappy=yes
+
+[Timer]
+Unit={{.ServiceFileName}}
+{{ range .Schedules }}OnCalendar={{ . }}
+{{ end }}
+[Install]
+WantedBy={{.TimersTarget}}
+`
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("timer-wrapper").Parse(timerTemplate))
 
