@@ -652,7 +652,7 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true}
 
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags, transactional bool) ([]*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 		c.Check(userID, check.Not(check.Equals), 0)
 
@@ -713,7 +713,7 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 
 func (s *sideloadSuite) TestSideloadManyFailInstallPathMany(c *check.C) {
 	s.daemon(c)
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags, transactional bool) ([]*state.TaskSet, error) {
 		return nil, errors.New("expected")
 	})
 	defer restore()
@@ -884,7 +884,7 @@ func (s *sideloadSuite) mockAssertions(c *check.C, st *state.State, snaps []stri
 }
 
 func (s *sideloadSuite) testSideloadManySnaps(c *check.C, st *state.State, body string, snaps []string, expectedFlags snapstate.Flags) {
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags, transactional bool) ([]*state.TaskSet, error) {
 		c.Check(*flags, check.DeepEquals, expectedFlags)
 
 		var tss []*state.TaskSet
