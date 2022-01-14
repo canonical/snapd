@@ -205,13 +205,13 @@ func (s *SystemdTestSuite) TestDaemonReexec(c *C) {
 }
 
 func (s *SystemdTestSuite) TestStart(c *C) {
-	err := New(SystemMode, s.rep).Start("foo")
+	err := New(SystemMode, s.rep).Start([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestStartMany(c *C) {
-	err := New(SystemMode, s.rep).Start("foo", "bar", "baz")
+	err := New(SystemMode, s.rep).Start([]string{"foo", "bar", "baz"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
 }
@@ -226,7 +226,7 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 		[]byte("ActiveState=inactive\n"),
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Stop(1*time.Second, "foo")
+	err := New(SystemMode, s.rep).Stop([]string{"foo"}, 1*time.Second)
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, HasLen, 4)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
@@ -245,7 +245,7 @@ func (s *SystemdTestSuite) TestStopTimesOut(c *C) {
 		[]byte("ActiveState=active\n"),
 	}
 	s.errors = []error{nil, nil, nil, nil, nil}
-	err := New(SystemMode, s.rep).Stop(3*time.Millisecond, "foo", "bar")
+	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 3*time.Millisecond)
 	c.Assert(err, ErrorMatches, `"foo", "bar" failed to stop: timeout`)
 	c.Assert(len(s.argses) >= 3, Equals, true)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
@@ -546,7 +546,7 @@ UnitFileState=enabled
 func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()
-	err := New(SystemMode, s.rep).Stop(10*time.Millisecond, "foo")
+	err := New(SystemMode, s.rep).Stop([]string{"foo"}, 10*time.Millisecond)
 	c.Assert(err, FitsTypeOf, &Timeout{})
 	c.Assert(len(s.rep.msgs) > 0, Equals, true)
 	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo" to stop.`)
@@ -555,20 +555,20 @@ func (s *SystemdTestSuite) TestStopTimeout(c *C) {
 func (s *SystemdTestSuite) TestStopManyTimeout(c *C) {
 	restore := MockStopDelays(time.Millisecond, 25*time.Second)
 	defer restore()
-	err := New(SystemMode, s.rep).Stop(10*time.Millisecond, "foo", "bar")
+	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 10*time.Millisecond)
 	c.Assert(err, FitsTypeOf, &Timeout{})
 	c.Assert(len(s.rep.msgs) > 0, Equals, true)
 	c.Check(s.rep.msgs[0], Equals, `Waiting for "foo", "bar" to stop.`)
 }
 
 func (s *SystemdTestSuite) TestDisable(c *C) {
-	err := New(SystemMode, s.rep).Disable("foo")
+	err := New(SystemMode, s.rep).Disable([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Disable("foo")
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Disable([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
@@ -616,13 +616,13 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	err := New(SystemMode, s.rep).Enable("foo")
+	err := New(SystemMode, s.rep).Enable([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Enable("foo")
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Enable([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
@@ -660,7 +660,7 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 		nil, // for the "start"
 	}
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
-	err := New(SystemMode, s.rep).Restart(100*time.Millisecond, "foo")
+	err := New(SystemMode, s.rep).Restart([]string{"foo"}, 100*time.Millisecond)
 	c.Assert(err, IsNil)
 	c.Check(s.argses, HasLen, 3)
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
@@ -1309,9 +1309,9 @@ func (s *SystemdTestSuite) TestUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, UserMode, nil)
 
-	c.Assert(sysd.Enable("foo"), IsNil)
+	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--root", rootDir, "enable", "foo"})
-	c.Assert(sysd.Start("foo"), IsNil)
+	c.Assert(sysd.Start([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "start", "foo"})
 }
 
@@ -1319,9 +1319,9 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
 
-	c.Assert(sysd.Enable("foo"), IsNil)
+	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "enable", "foo"})
-	c.Assert(sysd.Disable("foo"), IsNil)
+	c.Assert(sysd.Disable([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "disable", "foo"})
 	c.Assert(sysd.Mask("foo"), IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
@@ -1334,10 +1334,10 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	// Commands that don't make sense for GlobalUserMode panic
 	c.Check(sysd.DaemonReload, Panics, "cannot call daemon-reload with GlobalUserMode")
 	c.Check(sysd.DaemonReexec, Panics, "cannot call daemon-reexec with GlobalUserMode")
-	c.Check(func() { sysd.Start("foo") }, Panics, "cannot call start with GlobalUserMode")
-	c.Check(func() { sysd.StartNoBlock("foo") }, Panics, "cannot call start with GlobalUserMode")
-	c.Check(func() { sysd.Stop(0, "foo") }, Panics, "cannot call stop with GlobalUserMode")
-	c.Check(func() { sysd.Restart(0, "foo") }, Panics, "cannot call restart with GlobalUserMode")
+	c.Check(func() { sysd.Start([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
+	c.Check(func() { sysd.StartNoBlock([]string{"foo"}) }, Panics, "cannot call start with GlobalUserMode")
+	c.Check(func() { sysd.Stop([]string{"foo"}, 0) }, Panics, "cannot call stop with GlobalUserMode")
+	c.Check(func() { sysd.Restart([]string{"foo"}, 0) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
 }
@@ -1534,10 +1534,10 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 
 func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Enable("foo"), IsNil)
+	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
 
 	sysd = NewEmulationMode("")
-	c.Assert(sysd.Enable("bar"), IsNil)
+	c.Assert(sysd.Enable([]string{"bar"}), IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "enable", "foo"},
 		{"--root", dirs.GlobalRootDir, "enable", "bar"}})
@@ -1545,7 +1545,7 @@ func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 
 func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Disable("foo"), IsNil)
+	c.Assert(sysd.Disable([]string{"foo"}), IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "disable", "foo"}})

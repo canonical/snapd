@@ -101,13 +101,14 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	// Ensure the service is running right now and on reboots
 	for _, service := range changed {
-		if err := systemd.Enable(service); err != nil {
+		serviceUnits := []string{service}
+		if err := systemd.Enable(serviceUnits); err != nil {
 			logger.Noticef("cannot enable service %q: %s", service, err)
 		}
 		if !b.preseed {
 			// If we have a new service here which isn't started yet the restart
 			// operation will start it.
-			if err := systemd.Restart(10*time.Second, service); err != nil {
+			if err := systemd.Restart(serviceUnits, 10*time.Second); err != nil {
 				logger.Noticef("cannot restart service %q: %s", service, err)
 			}
 		}
@@ -129,11 +130,12 @@ func (b *Backend) Remove(snapName string) error {
 	glob := serviceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
-		if err := systemd.Disable(service); err != nil {
+		serviceUnits := []string{service}
+		if err := systemd.Disable(serviceUnits); err != nil {
 			logger.Noticef("cannot disable service %q: %s", service, err)
 		}
 		if !b.preseed {
-			if err := systemd.Stop(5*time.Second, service); err != nil {
+			if err := systemd.Stop(serviceUnits, 5*time.Second); err != nil {
 				logger.Noticef("cannot stop service %q: %s", service, err)
 			}
 		}
@@ -182,12 +184,13 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 	}
 	for _, path := range paths {
 		service := filepath.Base(path)
+		serviceUnits := []string{service}
 		if content[service] == nil {
-			if err := systemd.Disable(service); err != nil {
+			if err := systemd.Disable(serviceUnits); err != nil {
 				logger.Noticef("cannot disable service %q: %s", service, err)
 			}
 			if !b.preseed {
-				if err := systemd.Stop(5*time.Second, service); err != nil {
+				if err := systemd.Stop(serviceUnits, 5*time.Second); err != nil {
 					logger.Noticef("cannot stop service %q: %s", service, err)
 				}
 			}

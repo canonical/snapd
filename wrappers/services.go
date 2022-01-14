@@ -141,12 +141,12 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	case snap.SystemDaemon:
 		stopErrors := []error{}
 		for _, service := range extraServices {
-			if err := sysd.Stop(tout, service); err != nil {
+			if err := sysd.Stop([]string{service}, tout); err != nil {
 				stopErrors = append(stopErrors, err)
 			}
 		}
 
-		if err := sysd.Stop(tout, serviceName); err != nil {
+		if err := sysd.Stop([]string{serviceName}, tout); err != nil {
 			if !systemd.IsTimeout(err) {
 				return err
 			}
@@ -182,12 +182,12 @@ func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err
 
 	disableEnabledServices := func() {
 		for _, srvName := range enabled {
-			if e := systemSysd.Disable(srvName); e != nil {
+			if e := systemSysd.Disable([]string{srvName}); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", srvName, e))
 			}
 		}
 		for _, s := range userEnabled {
-			if e := userSysd.Disable(s); e != nil {
+			if e := userSysd.Disable([]string{s}); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to disable %s due to previous failure: %v", s, e))
 			}
 		}
@@ -212,13 +212,13 @@ func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err
 
 		switch app.DaemonScope {
 		case snap.SystemDaemon:
-			if err = sysd.Enable(svcName); err != nil {
+			if err = sysd.Enable([]string{svcName}); err != nil {
 				return nil, err
 
 			}
 			enabled = append(enabled, svcName)
 		case snap.UserDaemon:
-			if err = userSysd.Enable(svcName); err != nil {
+			if err = userSysd.Enable([]string{svcName}); err != nil {
 				return nil, err
 			}
 			userEnabled = append(userEnabled, svcName)
@@ -318,13 +318,13 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 			for _, socket := range app.Sockets {
 				socketService := filepath.Base(socket.File())
-				if e := sysd.Disable(socketService); e != nil {
+				if e := sysd.Disable([]string{socketService}); e != nil {
 					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
 				}
 			}
 			if app.Timer != nil {
 				timerService := filepath.Base(app.Timer.File())
-				if e := sysd.Disable(timerService); e != nil {
+				if e := sysd.Disable([]string{timerService}); e != nil {
 					inter.Notify(fmt.Sprintf("While trying to disable previously enabled timer service %q: %v", timerService, e))
 				}
 			}
@@ -333,14 +333,14 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		for _, socket := range app.Sockets {
 			socketService := filepath.Base(socket.File())
 			// enable the socket
-			if err = sysd.Enable(socketService); err != nil {
+			if err = sysd.Enable([]string{socketService}); err != nil {
 				return err
 			}
 
 			switch app.DaemonScope {
 			case snap.SystemDaemon:
 				timings.Run(tm, "start-system-socket-service", fmt.Sprintf("start system socket service %q", socketService), func(nested timings.Measurer) {
-					err = sysd.Start(socketService)
+					err = sysd.Start([]string{socketService})
 				})
 			case snap.UserDaemon:
 				timings.Run(tm, "start-user-socket-service", fmt.Sprintf("start user socket service %q", socketService), func(nested timings.Measurer) {
@@ -355,14 +355,14 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if app.Timer != nil {
 			timerService := filepath.Base(app.Timer.File())
 			// enable the timer
-			if err = sysd.Enable(timerService); err != nil {
+			if err = sysd.Enable([]string{timerService}); err != nil {
 				return err
 			}
 
 			switch app.DaemonScope {
 			case snap.SystemDaemon:
 				timings.Run(tm, "start-system-timer-service", fmt.Sprintf("start system timer service %q", timerService), func(nested timings.Measurer) {
-					err = sysd.Start(timerService)
+					err = sysd.Start([]string{timerService})
 				})
 			case snap.UserDaemon:
 				timings.Run(tm, "start-user-timer-service", fmt.Sprintf("start user timer service %q", timerService), func(nested timings.Measurer) {
@@ -383,7 +383,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		// https://github.com/systemd/systemd/issues/8102
 		// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
 		timings.Run(tm, "start-service", fmt.Sprintf("start service %q", srv), func(nested timings.Measurer) {
-			err = systemSysd.Start(srv)
+			err = systemSysd.Start([]string{srv})
 		})
 		if err != nil {
 			// cleanup was set up by iterating over apps
@@ -789,7 +789,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
 			if err == nil && flags.Disable {
-				err = sysd.Disable(app.ServiceName())
+				err = sysd.Disable([]string{app.ServiceName()})
 			}
 		})
 		if err != nil {
@@ -894,7 +894,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		for _, socket := range app.Sockets {
 			path := socket.File()
 			socketServiceName := filepath.Base(path)
-			if err := sysd.Disable(socketServiceName); err != nil {
+			if err := sysd.Disable([]string{socketServiceName}); err != nil {
 				return err
 			}
 
@@ -907,7 +907,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			path := app.Timer.File()
 
 			timerName := filepath.Base(path)
-			if err := sysd.Disable(timerName); err != nil {
+			if err := sysd.Disable([]string{timerName}); err != nil {
 				return err
 			}
 
@@ -916,7 +916,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			}
 		}
 
-		if err := sysd.Disable(serviceName); err != nil {
+		if err := sysd.Disable([]string{serviceName}); err != nil {
 			return err
 		}
 
@@ -1622,7 +1622,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 				err = sysd.ReloadOrRestart(unit.Name)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart(5*time.Second, unit.Name)
+				err = sysd.Restart([]string{unit.Name}, 5*time.Second)
 			}
 		})
 		if err != nil {

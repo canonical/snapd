@@ -296,19 +296,19 @@ type Systemd interface {
 	// watchdog.
 	DaemonReexec() error
 	// Enable the given services.
-	Enable(services ...string) error
+	Enable(services []string) error
 	// Disable the given services.
-	Disable(services ...string) error
+	Disable(services []string) error
 	// Start the given service or services.
-	Start(service ...string) error
+	Start(service []string) error
 	// StartNoBlock starts the given service or services non-blocking.
-	StartNoBlock(service ...string) error
+	StartNoBlock(service []string) error
 	// Stop the given service, and wait until it has stopped.
-	Stop(timeout time.Duration, service ...string) error
+	Stop(services []string, timeout time.Duration) error
 	// Kill all processes of the unit with the given signal.
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
-	Restart(timeout time.Duration, service ...string) error
+	Restart(services []string, timeout time.Duration) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
@@ -501,7 +501,7 @@ func (s *systemd) DaemonReexec() error {
 	return err
 }
 
-func (s *systemd) Enable(serviceNames ...string) error {
+func (s *systemd) Enable(serviceNames []string) error {
 	if 0 == len(serviceNames) {
 		return nil
 	}
@@ -524,7 +524,7 @@ func (s *systemd) Unmask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Disable(serviceNames ...string) error {
+func (s *systemd) Disable(serviceNames []string) error {
 	if 0 == len(serviceNames) {
 		return nil
 	}
@@ -547,7 +547,7 @@ func (s *systemd) Mask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Start(serviceNames ...string) error {
+func (s *systemd) Start(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
@@ -555,7 +555,7 @@ func (s *systemd) Start(serviceNames ...string) error {
 	return err
 }
 
-func (s *systemd) StartNoBlock(serviceNames ...string) error {
+func (s *systemd) StartNoBlock(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
@@ -925,7 +925,7 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	return false, err
 }
 
-func (s *systemd) Stop(timeout time.Duration, serviceNames ...string) error {
+func (s *systemd) Stop(serviceNames []string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
 	}
@@ -989,14 +989,14 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	return err
 }
 
-func (s *systemd) Restart(timeout time.Duration, serviceName ...string) error {
+func (s *systemd) Restart(serviceNames []string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	if err := s.Stop(timeout, serviceName...); err != nil {
+	if err := s.Stop(serviceNames, timeout); err != nil {
 		return err
 	}
-	return s.Start(serviceName...)
+	return s.Start(serviceNames)
 }
 
 func (s *systemd) RestartAll(serviceName string) error {
@@ -1346,10 +1346,11 @@ func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (st
 		return "", err
 	}
 
-	if err := s.Enable(mountUnitName); err != nil {
+	units := []string{mountUnitName}
+	if err := s.Enable(units); err != nil {
 		return "", err
 	}
-	if err := s.Start(mountUnitName); err != nil {
+	if err := s.Start(units); err != nil {
 		return "", err
 	}
 
@@ -1373,16 +1374,17 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	if err != nil {
 		return err
 	}
+	units := []string{filepath.Base(unit)}
 	if isMounted {
 		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(time.Duration(1*time.Second), filepath.Base(unit)); err != nil {
+		if err := s.Stop(units, time.Duration(1*time.Second)); err != nil {
 			return err
 		}
 	}
-	if err := s.Disable(filepath.Base(unit)); err != nil {
+	if err := s.Disable(units); err != nil {
 		return err
 	}
 	if err := os.Remove(unit); err != nil {
