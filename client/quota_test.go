@@ -71,6 +71,12 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"snaps":      []interface{}{"snap-a", "snap-b"},
 		"constraints": map[string]interface{}{
 			"memory": json.Number("1001"),
+			"cpu": map[string]interface{}{
+				"count":        json.Number("1"),
+				"percentage":   json.Number("50"),
+				"allowed-cpus": []interface{}{json.Number("0")},
+			},
+			"threads": json.Number("32"),
 		},
 	})
 }

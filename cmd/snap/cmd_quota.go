@@ -426,7 +426,7 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 
 		var grpConstraintsBuffer bytes.Buffer
 		var addComma bool
-		writeConstraint := func(buffer bytes.Buffer, message string) {
+		writeConstraint := func(buffer *bytes.Buffer, message string) {
 			if addComma {
 				buffer.WriteString(",")
 			}
@@ -436,13 +436,13 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 
 		// format memory constraint as memory=N
 		if q.Constraints.Memory != 0 {
-			writeConstraint(grpConstraintsBuffer, "memory="+strings.TrimSpace(fmtSize(int64(q.Constraints.Memory))))
+			writeConstraint(&grpConstraintsBuffer, "memory="+strings.TrimSpace(fmtSize(int64(q.Constraints.Memory))))
 		}
 
 		// format cpu constraint as cpu=NxM%,allowed-cpus=x,y,z
 		if q.Constraints.Cpu != nil {
 			if q.Constraints.Cpu.Count != 0 || q.Constraints.Cpu.Percentage != 0 {
-				writeConstraint(grpConstraintsBuffer, "cpu=")
+				writeConstraint(&grpConstraintsBuffer, "cpu=")
 				if q.Constraints.Cpu.Count != 0 {
 					grpConstraintsBuffer.WriteString(fmt.Sprintf("%dx", q.Constraints.Cpu.Count))
 				}
@@ -453,13 +453,13 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 
 			if len(q.Constraints.Cpu.AllowedCpus) > 0 {
 				allowedCpus := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(q.Constraints.Cpu.AllowedCpus)), ","), "[]")
-				writeConstraint(grpConstraintsBuffer, "allowed-cpus="+allowedCpus)
+				writeConstraint(&grpConstraintsBuffer, "allowed-cpus="+allowedCpus)
 			}
 		}
 
 		// format threads constraint as thread=N
 		if q.Constraints.Threads != 0 {
-			writeConstraint(grpConstraintsBuffer, "thread="+strconv.Itoa(q.Constraints.Threads))
+			writeConstraint(&grpConstraintsBuffer, "thread="+strconv.Itoa(q.Constraints.Threads))
 		}
 
 		// format current resource values as memory=N,thread=N
@@ -468,10 +468,10 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 		var grpCurrentBuffer bytes.Buffer
 		if q.Current != nil {
 			if q.Current.Memory != 0 {
-				writeConstraint(grpCurrentBuffer, "memory="+strings.TrimSpace(fmtSize(int64(q.Current.Memory))))
+				writeConstraint(&grpCurrentBuffer, "memory="+strings.TrimSpace(fmtSize(int64(q.Current.Memory))))
 			}
 			if q.Current.Threads != 0 {
-				writeConstraint(grpCurrentBuffer, "thread="+fmt.Sprintf("%d", q.Current.Threads))
+				writeConstraint(&grpCurrentBuffer, "thread="+fmt.Sprintf("%d", q.Current.Threads))
 			}
 		}
 

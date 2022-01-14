@@ -242,8 +242,8 @@ func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {
 		err   string
 	}{
 		{"foo", 16 * quantity.SizeKiB, nil, `group "foo" already exists`},
-		{"new", 0, nil, `limits for group "new" could not be validated: quota group must have at least one resource quota set`},
-		{"new", quantity.SizeKiB, nil, `limits for group "new" could not be validated: memory limit 1024 is too small: size must be larger than 4KB`},
+		{"new", 0, nil, `cannot create quota group "new": quota group must have at least one resource limit set`},
+		{"new", quantity.SizeKiB, nil, `cannot create quota group "new": memory limit 1024 is too small: size must be larger than 4KB`},
 		{"new", 16 * quantity.SizeKiB, []string{"baz"}, `cannot use snap "baz" in group "new": snap "baz" is not installed`},
 	}
 
@@ -542,7 +542,7 @@ func (s *quotaControlSuite) TestUpdateQuotaPrecond(c *C) {
 		err  string
 	}{
 		{"what", servicestate.QuotaGroupUpdate{}, `group "what" does not exist`},
-		{"foo", servicestate.QuotaGroupUpdate{NewResourceLimits: newConstraits}, `cannot update group "foo": cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit`},
+		{"foo", servicestate.QuotaGroupUpdate{NewResourceLimits: newConstraits}, `cannot update group "foo": cannot decrease memory limit, remove and re-create it to decrease the limit`},
 		{"foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"baz"}}, `cannot use snap "baz" in group "foo": snap "baz" is not installed`},
 	}
 

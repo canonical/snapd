@@ -245,19 +245,19 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
- name:    foo
- parent:  bar
- constraints:
-   memory:  1000B
- current:
-   memory:   900B
-   threads:  0
- subgroups:
-   - subgrp1
- snaps:
-   - snap-a
-   - snap-b
- `[1:])
+name:    foo
+parent:  bar
+constraints:
+  memory:  1000B
+current:
+  memory:   900B
+  threads:  0
+subgroups:
+  - subgrp1
+snaps:
+  - snap-a
+  - snap-b
+`[1:])
 }
 
 func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
@@ -277,13 +277,13 @@ func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 0)))
 
 	outputTemplate := `
- name:  foo
- constraints:
-   memory:  1000B
- current:
-   memory:   %dB
-   threads:  0
- `[1:]
+name:  foo
+constraints:
+  memory:  1000B
+current:
+  memory:   %dB
+  threads:  0
+`[1:]
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
 	c.Assert(err, check.IsNil)
@@ -341,7 +341,7 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExistingUnhappy(c *check.C) {
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappy(c *check.C) {
 	const exists = false
-	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without any quotas", exists)
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without any limit", exists)
 }
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappyWithParent(c *check.C) {
@@ -494,16 +494,16 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
- Quota    Parent  Constraints   Current
- xxx              memory=9.9kB  memory=10.0kB
- yyyyyyy          memory=1000B  
- zzz              memory=5000B  
- aaa      zzz     memory=1000B  
- ccc      aaa     memory=400B   
- ddd      aaa     memory=400B   
- fff      aaa     memory=1000B  
- bbb      zzz     memory=1000B  memory=400B
- `[1:])
+Quota    Parent  Constraints   Current
+xxx              memory=9.9kB  memory=10.0kB
+yyyyyyy          memory=1000B  
+zzz              memory=5000B  
+aaa      zzz     memory=1000B  
+ccc      aaa     memory=400B   
+ddd      aaa     memory=400B   
+fff      aaa     memory=1000B  
+bbb      zzz     memory=1000B  memory=400B
+`[1:])
 }
 
 func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {

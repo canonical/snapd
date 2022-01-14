@@ -209,7 +209,7 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			rootlimits: quota.NewResources(quantity.SizeMiB, 1, 100, []int{0}, 32),
 			subname:    "sub",
 			sublimits:  quota.NewResources(quantity.SizeMiB/2, 1, 100, []int{0}, 64),
-			err:        "sub-group task limit of 64 is too large to fit inside remaining task space 32 for parent group myroot",
+			err:        "sub-group task limit of 64 is too large to fit inside remaining tasks 32 for parent group myroot",
 			comment:    "sub group with larger task allowance quota than parent unhappy",
 		},
 		{
@@ -353,7 +353,7 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 					MemoryLimit: 0,
 				},
 			},
-			err:     `group "foogroup" is invalid: quota group must have at least one resource quota set`,
+			err:     `group "foogroup" is invalid: quota group must have at least one resource limit set`,
 			comment: "invalid group",
 		},
 		{

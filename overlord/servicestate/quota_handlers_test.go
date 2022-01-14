@@ -641,7 +641,7 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 
 	// trying to create a quota with too low of a memory limit fails
 	err = s.callDoQuotaControl(&qc2)
-	c.Assert(err, ErrorMatches, `limits for group "foo" could not be validated: memory limit 4096 is too small: size must be larger than 4KB`)
+	c.Assert(err, ErrorMatches, `cannot create quota group "foo": memory limit 4096 is too small: size must be larger than 4KB`)
 
 	// but with an adequately sized memory limit, and a snap that exists, we can
 	// create it
@@ -1255,7 +1255,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
 		ResourceLimits: quota.NewResources(quantity.SizeGiB, 0, 0, nil, 0),
 	}
 	err = s.callDoQuotaControl(&qc3)
-	c.Assert(err, ErrorMatches, "cannot update limits for group \"foo\": cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
+	c.Assert(err, ErrorMatches, "cannot update limits for group \"foo\": cannot decrease memory limit, remove and re-create it to decrease the limit")
 }
 
 func (s *quotaHandlersSuite) TestQuotaUpdateAddSnap(c *C) {
