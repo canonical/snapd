@@ -43,13 +43,13 @@ func makeFakeGetQuotaGroupNotFoundHandler(c *check.C, group string) func(w http.
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(404)
 		fmt.Fprintln(w, `{
-			"result": {
-				"message": "not found"
-			},
-			"status": "Not Found",
-			"status-code": 404,
-			"type": "error"
-		}`)
+			 "result": {
+				 "message": "not found"
+			 },
+			 "status": "Not Found",
+			 "status-code": 404,
+			 "type": "error"
+		 }`)
 	}
 
 }
@@ -99,10 +99,19 @@ type fakeQuotaGroupPostHandlerOpts struct {
 	parentName string
 	snaps      []string
 	maxMemory  int64
+	maxThreads int
+}
+
+type quotasEnsureBodyConstraintsCpu struct {
+	Count       int   `json:"count,omitempty"`
+	Percentage  int   `json:"percentage,omitempty"`
+	AllowedCpus []int `json:"allowed-cpus,omitempty"`
 }
 
 type quotasEnsureBodyConstraints struct {
-	Memory int64 `json:"memory,omitempty"`
+	Memory  int64                          `json:"memory,omitempty"`
+	Threads int                            `json:"threads,omitempty"`
+	Cpu     quotasEnsureBodyConstraintsCpu `json:"cpu,omitempty"`
 }
 
 type quotasEnsureBody struct {
@@ -139,6 +148,9 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 			}
 			if opts.maxMemory != 0 {
 				exp.Constraints.Memory = opts.maxMemory
+			}
+			if opts.maxThreads != 0 {
+				exp.Constraints.Threads = opts.maxThreads
 			}
 
 			postJSON := quotasEnsureBody{}
@@ -181,14 +193,31 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		{[]string{"set-quota", "--memory=99B"}, "the required argument `<group-name>` was not provided"},
 		{[]string{"set-quota", "--memory=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
 		{[]string{"set-quota", "--memory=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
+		{[]string{"set-quota", "--cpu=0", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=0x100", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=200", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=20D", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=ASD", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu-set=x", "foo"}, `cannot parse value for --cpu-set at position 0`},
+		{[]string{"set-quota", "--cpu-set=1:2", "foo"}, `cannot parse value for --cpu-set at position 0`},
+		{[]string{"set-quota", "--cpu-set=60000", "foo"}, `invalid cpu number 60000 in --cpu-set`},
+		{[]string{"set-quota", "--cpu-set=0,-2", "foo"}, `invalid cpu number -2 in --cpu-set`},
 		// remove-quota command
 		{[]string{"remove-quota"}, "the required argument `<group-name>` was not provided"},
 	} {
 		s.stdout.Reset()
 		s.stderr.Reset()
 
+		// Mock the CGroup version here to test the --cpu-set command
+		restore := main.MockGetCGroupVersion(func() (int, error) {
+			return 2, nil
+		})
+
 		_, err := main.Parser(main.Client()).ParseArgs(args.args)
 		c.Assert(err, check.ErrorMatches, args.err)
+
+		// Restore the cgroup version callback
+		restore()
 	}
 }
 
@@ -197,17 +226,17 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 	defer restore()
 
 	const json = `{
-		"type": "sync",
-		"status-code": 200,
-		"result": {
-			"group-name":"foo",
-			"parent":"bar",
-			"subgroups":["subgrp1"],
-			"snaps":["snap-a","snap-b"],
-			"constraints": { "memory": 1000 },
-			"current": { "memory": 900 }
-		}
-	}`
+		 "type": "sync",
+		 "status-code": 200,
+		 "result": {
+			 "group-name":"foo",
+			 "parent":"bar",
+			 "subgroups":["subgrp1"],
+			 "snaps":["snap-a","snap-b"],
+			 "constraints": { "memory": 1000 },
+			 "current": { "memory": 900 }
+		 }
+	 }`
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, json))
 
@@ -216,18 +245,19 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-name:    foo
-parent:  bar
-constraints:
-  memory:  1000B
-current:
-  memory:  900B
-subgroups:
-  - subgrp1
-snaps:
-  - snap-a
-  - snap-b
-`[1:])
+ name:    foo
+ parent:  bar
+ constraints:
+   memory:  1000B
+ current:
+   memory:   900B
+   threads:  0
+ subgroups:
+   - subgrp1
+ snaps:
+   - snap-a
+   - snap-b
+ `[1:])
 }
 
 func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
@@ -235,24 +265,25 @@ func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 	defer restore()
 
 	const jsonTemplate = `{
-		"type": "sync",
-		"status-code": 200,
-		"result": {
-			"group-name": "foo",
-			"constraints": {"memory": 1000},
-			"current": {"memory": %d}
-		}
-	}`
+		 "type": "sync",
+		 "status-code": 200,
+		 "result": {
+			 "group-name": "foo",
+			 "constraints": {"memory": 1000},
+			 "current": {"memory": %d}
+		 }
+	 }`
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 0)))
 
 	outputTemplate := `
-name:  foo
-constraints:
-  memory:  1000B
-current:
-  memory:  %dB
-`[1:]
+ name:  foo
+ constraints:
+   memory:  1000B
+ current:
+   memory:   %dB
+   threads:  0
+ `[1:]
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
 	c.Assert(err, check.IsNil)
@@ -310,7 +341,7 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExistingUnhappy(c *check.C) {
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappy(c *check.C) {
 	const exists = false
-	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without memory limit", exists)
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without any quotas", exists)
 }
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappyWithParent(c *check.C) {
@@ -327,18 +358,18 @@ func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPatte
 	if exists {
 		// existing group has 1000 memory limit
 		const getJson = `{
-			"type": "sync",
-			"status-code": 200,
-			"result": {
-				"group-name":"foo",
-				"current": {
-					"memory": 500
-				},
-				"constraints": {
-					"memory": 1000
-				}
-			}
-		}`
+			 "type": "sync",
+			 "status-code": 200,
+			 "result": {
+				 "group-name":"foo",
+				 "current": {
+					 "memory": 500
+				 },
+				 "constraints": {
+					 "memory": 1000
+				 }
+			 }
+		 }`
 
 		s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, getJson))
 	} else {
@@ -361,14 +392,14 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 	}
 
 	const getJsonTemplate = `{
-		"type": "sync",
-		"status-code": 200,
-		"result": {
-			"group-name":"foo",
-			"constraints": { "memory": %d },
-			"current": { "memory": 500 }
-		}
-	}`
+		 "type": "sync",
+		 "status-code": 200,
+		 "result": {
+			 "group-name":"foo",
+			 "constraints": { "memory": %d },
+			 "current": { "memory": 500 }
+		 }
+	 }`
 
 	routes := map[string]http.HandlerFunc{
 		"/v2/quotas": makeFakeQuotaPostHandler(
@@ -448,31 +479,31 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
 		`{"type": "sync", "status-code": 200, "result": [
-			{"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":1000}},
-			{"group-name":"ddd","parent":"aaa","constraints":{"memory":400}},
-			{"group-name":"bbb","parent":"zzz","constraints":{"memory":1000},"current":{"memory":400}},
-			{"group-name":"yyyyyyy","constraints":{"memory":1000}},
-			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
-			{"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
-			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
-			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
-			]}`))
+			 {"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":1000}},
+			 {"group-name":"ddd","parent":"aaa","constraints":{"memory":400}},
+			 {"group-name":"bbb","parent":"zzz","constraints":{"memory":1000},"current":{"memory":400}},
+			 {"group-name":"yyyyyyy","constraints":{"memory":1000}},
+			 {"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
+			 {"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
+			 {"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
+			 {"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
+			 ]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-Quota    Parent  Constraints   Current
-xxx              memory=9.9kB  memory=10.0kB
-yyyyyyy          memory=1000B  
-zzz              memory=5000B  
-aaa      zzz     memory=1000B  
-ccc      aaa     memory=400B   
-ddd      aaa     memory=400B   
-fff      aaa     memory=1000B  
-bbb      zzz     memory=1000B  memory=400B
-`[1:])
+ Quota    Parent  Constraints   Current
+ xxx              memory=9.9kB  memory=10.0kB
+ yyyyyyy          memory=1000B  
+ zzz              memory=5000B  
+ aaa      zzz     memory=1000B  
+ ccc      aaa     memory=400B   
+ ddd      aaa     memory=400B   
+ fff      aaa     memory=1000B  
+ bbb      zzz     memory=1000B  memory=400B
+ `[1:])
 }
 
 func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {
@@ -481,7 +512,7 @@ func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
 		`{"type": "sync", "status-code": 200, "result": [
-			{"group-name":"aaa","subgroups":["ccc"],"max-memory":1000}]}`))
+			 {"group-name":"aaa","subgroups":["ccc"],"max-memory":1000}]}`))
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
 	c.Assert(err, check.ErrorMatches, `internal error: inconsistent groups received, unknown subgroup "ccc"`)
