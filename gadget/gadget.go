@@ -682,7 +682,7 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
-			Index:           idx,
+			YamlIndex:       idx,
 		}
 		structures[idx] = ps
 		if s.Name != "" {

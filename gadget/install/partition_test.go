@@ -95,7 +95,7 @@ func makeMockDiskMappingIncludingPartitions(num int) *disks.MockDiskMapping {
 			PartitionLabel:   "BIOS Boot",
 			Major:            42,
 			Minor:            1,
-			StructureIndex:   1,
+			DiskIndex:        1,
 		})
 	}
 
@@ -109,7 +109,7 @@ func makeMockDiskMappingIncludingPartitions(num int) *disks.MockDiskMapping {
 			PartitionLabel:   "Recovery",
 			Major:            42,
 			Minor:            2,
-			StructureIndex:   2,
+			DiskIndex:        2,
 			FilesystemType:   "vfat",
 			FilesystemUUID:   "A644-B807",
 			FilesystemLabel:  "ubuntu-seed",
@@ -126,7 +126,7 @@ func makeMockDiskMappingIncludingPartitions(num int) *disks.MockDiskMapping {
 			PartitionLabel:   "Writable",
 			Major:            42,
 			Minor:            3,
-			StructureIndex:   3,
+			DiskIndex:        3,
 			FilesystemType:   "ext4",
 			FilesystemUUID:   "8781-433a",
 			FilesystemLabel:  "ubuntu-data",
@@ -149,7 +149,7 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 			Filesystem: "ext4",
 		},
 		StartOffset: 1260388352,
-		Index:       3,
+		YamlIndex:   3,
 	},
 	// expanded to fill the disk
 	Size: 2*quantity.SizeGiB + 845*quantity.SizeMiB + 1031680,
@@ -168,7 +168,7 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 			Filesystem: "ext4",
 		},
 		StartOffset: 1260388352,
-		Index:       3,
+		YamlIndex:   3,
 	},
 	Size: 128 * quantity.SizeMiB,
 }
@@ -186,7 +186,7 @@ var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
 			Filesystem: "ext4",
 		},
 		StartOffset: 1394606080,
-		Index:       4,
+		YamlIndex:   4,
 	},
 	// expanded to fill the disk
 	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
@@ -233,7 +233,7 @@ func (s *partitionTestSuite) TestBuildPartitionListOnlyCreatablePartitions(c *C)
 	// partition just vanished from the disk)
 	mockDisk := makeMockDiskMappingIncludingPartitions(scriptPartitionsBiosSeed)
 	mockDisk.Structure = mockDisk.Structure[1:]
-	mockDisk.Structure[0].StructureIndex = 1
+	mockDisk.Structure[0].DiskIndex = 1
 	m := map[string]*disks.MockDiskMapping{
 		"/dev/node": mockDisk,
 	}
@@ -346,7 +346,7 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 					PartitionLabel:   "BIOS Boot",
 					Major:            42,
 					Minor:            1,
-					StructureIndex:   1,
+					DiskIndex:        1,
 				},
 				{
 					KernelDeviceNode: "/dev/node2",
@@ -357,7 +357,7 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 					PartitionLabel:   "Recovery",
 					Major:            42,
 					Minor:            2,
-					StructureIndex:   2,
+					DiskIndex:        2,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					FilesystemLabel:  "ubuntu-seed",
@@ -371,7 +371,7 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 					PartitionLabel:   "Writable",
 					Major:            42,
 					Minor:            3,
-					StructureIndex:   3,
+					DiskIndex:        3,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8781-433a",
 					FilesystemLabel:  "ubuntu-data",
@@ -415,10 +415,10 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
 				},
 				StartOffset: 1024 * 1024,
-				Index:       1,
 			},
-			Node: "/dev/node1",
-			Size: 1024 * 1024,
+			DiskIndex: 1,
+			Node:      "/dev/node1",
+			Size:      1024 * 1024,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -432,11 +432,10 @@ func (s *partitionTestSuite) TestRemovePartitions(c *C) {
 				},
 
 				StartOffset: 1024*1024 + 1024*1024,
-				Index:       2,
 			},
-
-			Node: "/dev/node2",
-			Size: 2457600 * 512,
+			DiskIndex: 2,
+			Node:      "/dev/node2",
+			Size:      2457600 * 512,
 		},
 	})
 }
@@ -495,7 +494,7 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 					PartitionLabel:   "BIOS Boot",
 					Major:            42,
 					Minor:            1,
-					StructureIndex:   1,
+					DiskIndex:        1,
 				},
 				{
 					KernelDeviceNode: "/dev/node2",
@@ -506,7 +505,7 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 					PartitionLabel:   "Writable",
 					Major:            42,
 					Minor:            2,
-					StructureIndex:   2,
+					DiskIndex:        2,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8781-433a",
 					FilesystemLabel:  "ubuntu-data",
@@ -520,7 +519,7 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 					PartitionLabel:   "Recovery",
 					Major:            42,
 					Minor:            3,
-					StructureIndex:   3,
+					DiskIndex:        3,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					FilesystemLabel:  "ubuntu-seed",
@@ -564,10 +563,10 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 					ID:   "2E59D969-52AB-430B-88AC-F83873519F6F",
 				},
 				StartOffset: 1024 * 1024,
-				Index:       1,
 			},
-			Node: "/dev/node1",
-			Size: 1024 * 1024,
+			DiskIndex: 1,
+			Node:      "/dev/node1",
+			Size:      1024 * 1024,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -581,11 +580,11 @@ func (s *partitionTestSuite) TestRemovePartitionsNonAdjacent(c *C) {
 				},
 
 				StartOffset: 1024*1024 + 1024*1024 + 2457600*512,
-				Index:       3,
 			},
 
-			Node: "/dev/node3",
-			Size: 2457600 * 512,
+			Node:      "/dev/node3",
+			DiskIndex: 3,
+			Size:      2457600 * 512,
 		},
 	})
 }
@@ -693,7 +692,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 					PartitionLabel:   "BIOS Boot",
 					Major:            42,
 					Minor:            1,
-					StructureIndex:   1,
+					DiskIndex:        1,
 				},
 				{
 					KernelDeviceNode: "/dev/node2",
@@ -704,7 +703,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 					PartitionLabel:   "ubuntu-seed",
 					Major:            42,
 					Minor:            2,
-					StructureIndex:   2,
+					DiskIndex:        2,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					FilesystemLabel:  "ubuntu-seed",
@@ -718,7 +717,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 					PartitionLabel:   "ubuntu-boot",
 					Major:            42,
 					Minor:            3,
-					StructureIndex:   3,
+					DiskIndex:        3,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8781-433a",
 					FilesystemLabel:  "ubuntu-boot",
@@ -732,7 +731,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallGPT(c *C) {
 					PartitionLabel:   "ubuntu-data",
 					Major:            42,
 					Minor:            4,
-					StructureIndex:   4,
+					DiskIndex:        4,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8123-433a",
 					FilesystemLabel:  "ubuntu-data",
@@ -815,7 +814,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 					PartitionLabel:   "Recovery",
 					Major:            42,
 					Minor:            1,
-					StructureIndex:   1,
+					DiskIndex:        1,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					FilesystemLabel:  "ubuntu-seed",
@@ -828,7 +827,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 					PartitionLabel:   "Boot",
 					Major:            42,
 					Minor:            2,
-					StructureIndex:   2,
+					DiskIndex:        2,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					FilesystemLabel:  "ubuntu-boot",
@@ -841,7 +840,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 					PartitionLabel:   "Save",
 					Major:            42,
 					Minor:            3,
-					StructureIndex:   3,
+					DiskIndex:        3,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8781-433a",
 					FilesystemLabel:  "ubuntu-save",
@@ -854,7 +853,7 @@ func (s *partitionTestSuite) TestCreatedDuringInstallMBR(c *C) {
 					PartitionLabel:   "Data",
 					Major:            42,
 					Minor:            4,
-					StructureIndex:   4,
+					DiskIndex:        4,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8123-433a",
 					FilesystemLabel:  "ubuntu-data",
