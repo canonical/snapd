@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -494,12 +495,19 @@ apps:
 // but preseed snapd mode is a mouthful
 type preseedModeSuite struct {
 	preseedBaseSuite
+
+	// TestingSeed20 helps populating seeds (it provides
+	// MakeAssertedSnap, MakeSeed) for tests.
+	*seedtest.TestingSeed20
 }
 
 var _ = Suite(&preseedModeSuite{})
 
 func (s *preseedModeSuite) SetUpTest(c *C) {
 	s.preseedBaseSuite.SetUpTest(c, true)
+
+	s.TestingSeed20 = &seedtest.TestingSeed20{}
+	s.SeedDir = dirs.SnapSeedDir
 }
 
 func (s *preseedModeSuite) TearDownTest(c *C) {
@@ -596,7 +604,85 @@ func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
 	c.Check(preseedStartTime.Equal(now), Equals, true)
 }
 
+func (s *preseedModeSuite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+        - name: ubuntu-seed
+          role: system-seed
+          type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+          size: 1G
+        - name: ubuntu-data
+          role: system-data
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 2G
+`
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["snapd"], nil, snap.R(1), "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=20"], nil, snap.R(1), "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["core20"], nil, snap.R(1), "canonical", s.StoreSigning.Database)
+	s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc=20"], [][]string{{"meta/gadget.yaml", gadgetYaml}}, snap.R(1), "canonical", s.StoreSigning.Database)
+
+	model := map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.AssertedSnapID("core20"),
+				"type": "base",
+			},
+		},
+	}
+
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
+}
+
+func (s *preseedModeSuite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
+	// sanity
+	c.Assert(snapdenv.Preseeding(), Equals, true)
+
+	restoreOnClassic := release.MockOnClassic(false)
+	defer restoreOnClassic()
+
+	s.SetupAssertSigning("canonical")
+	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
+		"verification": "verified",
+	})
+	_ = s.setupCore20Seed(c, "20220108")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, _, err := devicestate.PreloadGadget(s.mgr)
+	// would fail if modeenv was read (or seed was not valid)
+	c.Assert(err, IsNil)
+}
+
 func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
+	// sanity
+	c.Assert(snapdenv.Preseeding(), Equals, true)
+
 	restoreOnClassic := release.MockOnClassic(false)
 	defer restoreOnClassic()
 
@@ -605,7 +691,7 @@ func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 		called = true
 		c.Check(opts.Preseed, Equals, true)
 		c.Check(opts.Label, Equals, "20220105")
-		c.Check(opts.Mode, Equals, "install")
+		c.Check(opts.Mode, Equals, "run")
 		return nil, nil
 	})
 	defer restore()
