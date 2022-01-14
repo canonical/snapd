@@ -590,7 +590,11 @@ nested_create_core_vm() {
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
             # create the ubuntu-core image
-            local UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+            if os.query is-xenial; then
+                # ubuntu-image on 16.04 needs to be installed from a snap
+                UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            fi
             local EXTRA_FUNDAMENTAL=""
             local EXTRA_SNAPS=""
             for mysnap in $(nested_get_extra_snaps); do
@@ -745,11 +749,22 @@ EOF
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
             # ubuntu-image creates sparse image files
+            # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
-                "$UBUNTU_IMAGE_CHANNEL_ARG" \
-                --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
-                "$EXTRA_FUNDAMENTAL" \
-                "$EXTRA_SNAPS"
+                $UBUNTU_IMAGE_CHANNEL_ARG \
+                --output-dir "$NESTED_IMAGES_DIR" \
+                $EXTRA_FUNDAMENTAL \
+                $EXTRA_SNAPS
+            # ubuntu-image dropped the --output parameter, so we have to rename
+            # the image ourselves, the images are named after volumes listed in
+            # gadget.yaml
+            find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
+                if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+                    echo "Image $IMAGE_NAME file already present"
+                    exit 1
+                fi
+                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            done
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
