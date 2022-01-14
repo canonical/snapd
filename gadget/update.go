@@ -215,12 +215,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// image file with a new binary image file.
 			if gv.Filesystem != "" && gv.Filesystem != dv.Filesystem {
 				// use more specific error message for structures that are
-				// not creatable at install
-				if !IsCreatableAtInstall(gv) {
-					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
+				// not creatable at install when we are not being strict
+				if !IsCreatableAtInstall(gv) && !opts.AssumeCreatablePartitionsCreated {
+					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, dv.Filesystem)
 				}
 				// otherwise generic
-				return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
+				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, dv.Filesystem)
 			}
 		}
 
