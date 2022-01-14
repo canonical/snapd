@@ -3,11 +3,11 @@ summary: verify a simple UC20 remodel
 systems: [ubuntu-20.04-64]
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-20.model
-  NESTED_IMAGE_ID: uc20-remodel-testing
-  NESTED_ENABLE_TPM: true
-  NESTED_ENABLE_SECURE_BOOT: true
-  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-20.model
+    NESTED_IMAGE_ID: uc20-remodel-testing
+    NESTED_ENABLE_TPM: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
     tests.nested build-image core
@@ -18,9 +18,6 @@ execute: |
     . "$TESTSLIB/nested.sh"
     boot_id="$( nested_get_boot_id )"
     tests.nested exec snap model |MATCH 'model +my-model$'
-    # XXX: recovery system label is based on a date; we may end up with a
-    # different label if the remodel runs around midnight; the label will
-    # conflict with an existing system label
     label_base=$(tests.nested exec "date '+%Y%m%d'")
 
     # wait until device is initialized and has a serial
@@ -44,7 +41,16 @@ execute: |
     # seed system was created
     revno2_label="${label_base}-1"
     echo "Verify seed system with label $revno2_label"
-    tests.nested exec "sudo cat /run/mnt/ubuntu-seed/systems/${revno2_label}/model" > revno-2-from-seed.model
+    # this may fail if the recovery system was created just before midnight and
+    # then we capture label_base just after midnight, so try to work around this
+    # by trying yesterday's date if today's date doesn't work
+    if tests.nested exec "sudo test -d /run/mnt/ubuntu-seed/systems/${revno2_label}"; then
+        tests.nested exec "sudo cat /run/mnt/ubuntu-seed/systems/${revno2_label}/model" > revno-2-from-seed.model
+    else
+        echo "Checking alternate label from yesterday"
+        revno2_label=$(tests.nested exec "date --date=yesterday '+%Y%m%d'")
+        tests.nested exec "sudo cat /run/mnt/ubuntu-seed/systems/${revno2_label}/model" > revno-2-from-seed.model
+    fi
     MATCH 'model: my-model' < revno-2-from-seed.model
     MATCH 'revision: 2' < revno-2-from-seed.model
     tests.nested exec "sudo cat /var/lib/snapd/modeenv" > modeenv
