@@ -159,9 +159,10 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
 	}
 
+	units := []string{serviceName}
 	if opts == nil {
 		// ignore the service if not installed
-		status, err := sysd.Status(serviceName)
+		status, err := sysd.Status(units)
 		if err != nil {
 			return err
 		}
@@ -174,7 +175,6 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		}
 	}
 
-	units := []string{serviceName}
 	if disabled {
 		if opts == nil {
 			if err := sysd.Disable(units); err != nil {

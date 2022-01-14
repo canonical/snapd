@@ -303,7 +303,12 @@ UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket", "reboot.target", "ctrl-alt-del.target")
+	units := []string{
+		"foo.service", "bar.service", "baz.service",
+		"missing.service", "some.timer", "other.socket",
+		"reboot.target", "ctrl-alt-del.target",
+	}
+	out, err := New(SystemMode, s.rep).Status(units)
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
@@ -392,7 +397,7 @@ UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Check(err, ErrorMatches, "cannot get unit status: got more results than expected")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
@@ -415,7 +420,8 @@ UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "test.service")
+	units := []string{"foo.service", "bar.service", "test.service"}
+	out, err := New(SystemMode, s.rep).Status(units)
 	c.Check(err, ErrorMatches, "cannot get unit status: expected 3 results, got 2")
 	c.Check(out, IsNil)
 	c.Check(s.rep.msgs, IsNil)
@@ -433,7 +439,7 @@ Potatoes
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* bad line "Potatoes" .*`)
 	c.Check(out, IsNil)
 }
@@ -449,7 +455,7 @@ UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* queried status of "foo.service" but got status of "bar.service"`)
 	c.Check(out, IsNil)
 }
@@ -466,7 +472,7 @@ Potatoes=false
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* unexpected field "Potatoes" .*`)
 	c.Check(out, IsNil)
 }
@@ -479,7 +485,7 @@ ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Type.*`)
 	c.Check(out, IsNil)
 }
@@ -492,7 +498,7 @@ ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.timer")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.timer"})
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
 	c.Check(out, IsNil)
 }
@@ -505,7 +511,7 @@ ActiveState=active
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("reboot.target")
+	out, err := New(SystemMode, s.rep).Status([]string{"reboot.target"})
 	c.Assert(err, ErrorMatches, `.* missing UnitFileState, Names.*`)
 	c.Check(out, IsNil)
 }
@@ -522,7 +528,7 @@ UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* duplicate field "ActiveState" .*`)
 	c.Check(out, IsNil)
 }
@@ -538,7 +544,7 @@ UnitFileState=enabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service")
+	out, err := New(SystemMode, s.rep).Status([]string{"foo.service"})
 	c.Assert(err, ErrorMatches, `.* empty field "Id" .*`)
 	c.Check(out, IsNil)
 }
@@ -1353,7 +1359,7 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
-	sts, err := sysd.Status("foo", "bar", "baz")
+	sts, err := sysd.Status([]string{"foo", "bar", "baz"})
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
 		{Name: "foo", Enabled: true},
@@ -1363,7 +1369,7 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo", "bar", "baz"})
 
 	// Output is collected if systemctl has a non-zero exit status
-	sts, err = sysd.Status("one", "two", "three")
+	sts, err = sysd.Status([]string{"one", "two", "three"})
 	c.Check(err, IsNil)
 	c.Check(sts, DeepEquals, []*UnitStatus{
 		{Name: "one", Enabled: true},
@@ -1373,7 +1379,7 @@ func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one", "two", "three"})
 
 	// An error is returned if the wrong number of statuses are returned
-	sts, err = sysd.Status("one")
+	sts, err = sysd.Status([]string{"one"})
 	c.Check(err, ErrorMatches, "cannot get enabled status of services: expected 1 results, got 3")
 	c.Check(sts, IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})

@@ -96,7 +96,7 @@ func (s *emulation) RestartAll(service string) error {
 	return &notImplementedError{"RestartAll"}
 }
 
-func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
+func (s *emulation) Status(units []string) ([]*UnitStatus, error) {
 	return nil, &notImplementedError{"Status"}
 }
 

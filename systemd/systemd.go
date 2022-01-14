@@ -316,7 +316,7 @@ type Systemd interface {
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
-	Status(units ...string) ([]*UnitStatus, error)
+	Status(units []string) ([]*UnitStatus, error)
 	// InactiveEnterTimestamp returns the time that the given unit entered the
 	// inactive state as defined by the systemd docs. Specifically, this time is
 	// the most recent time in which the unit transitioned from deactivating
@@ -825,7 +825,7 @@ func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
 	return inactiveEnterTime, nil
 }
 
-func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+func (s *systemd) Status(unitNames []string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
 		return s.getGlobalUserStatus(unitNames...)
 	}

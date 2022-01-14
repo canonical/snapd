@@ -1602,7 +1602,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 		unitNames = append(unitNames, srv.ServiceName())
 	}
 
-	unitStatuses, err := sysd.Status(unitNames...)
+	unitStatuses, err := sysd.Status(unitNames)
 	if err != nil {
 		return err
 	}
