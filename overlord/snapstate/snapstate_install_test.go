@@ -4443,6 +4443,111 @@ epoch: 1
 	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestInstallPathManyTransactionally(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("3"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	// transactional == true
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil, true)
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+
+	for _, ts := range tss {
+		// check that tasksets are all in one lane
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+	}
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	for _, name := range snapNames {
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+		c.Check(snapst.Current, Equals, snap.R("3"))
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyTransactionallyWithOneFailing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		sideInfos = append(sideInfos, &snap.SideInfo{RealName: name})
+	}
+
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	// transactional == true
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil, true)
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+
+	// fail installation of 'other-snap' which will affect 'some-snap'
+	failingTask := s.state.NewTask("fail", "expected failure")
+	snapThreeLanes := tss[1].Tasks()[0].Lanes()
+	for _, lane := range snapThreeLanes {
+		failingTask.JoinLane(lane)
+	}
+	tss[1].AddTask(failingTask)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), NotNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// other-snap is not installed
+	err = snapstate.Get(s.state, "other-snap", &snapstate.SnapState{})
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+	// and some-snap neither
+	err = snapstate.Get(s.state, "some-snap", &snapstate.SnapState{})
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestInstallPathManyAsUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
