@@ -66,6 +66,10 @@ func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSe
 	}
 
 	c.Assert(kinds, DeepEquals, expected)
+
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "validate-snap")
 }
 
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
@@ -815,6 +819,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
+
+	// local modifications, edge must be set
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, NotNil)
+	c.Assert(te.Kind(), Equals, "validate-snap")
 
 	defer s.se.Stop()
 	s.settle(c)
@@ -2706,6 +2715,10 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	chg := s.state.NewChange("refresh", "refresh a snap")
 	chg.AddAll(ts)
 
+	// no local modifications, hence no edge
+	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(te, IsNil)
+
 	defer s.se.Stop()
 	s.settle(c)
 
@@ -4414,7 +4427,7 @@ func (s *snapmgrTestSuite) testUpdateCreatesGCTasks(c *C, expectedDiscards int) 
 	c.Assert(err, IsNil)
 
 	// ensure edges information is still there
-	te, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	te, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, NotNil)
 	c.Assert(err, IsNil)
 
@@ -4495,7 +4508,7 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks())+1) // 1==rerefresh
 
 	// ensure edges information is still there
-	te, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
+	te, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, NotNil)
 	c.Assert(err, IsNil)
 

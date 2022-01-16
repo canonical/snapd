@@ -132,8 +132,12 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	devicestate.EarlyConfig = func(st *state.State, preloadGadget func() (sysconfig.Device, *gadget.Info, error)) error {
 		return nil
 	}
-	t.AddCleanup(func() { devicestate.EarlyConfig = nil })
 	t.overlord = ovld
+	t.AddCleanup(func() {
+		devicestate.EarlyConfig = nil
+		t.overlord.Stop()
+		t.overlord = nil
+	})
 	c.Assert(ovld.StartUp(), IsNil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
@@ -164,8 +168,6 @@ var _ = Suite(&firstBoot16Suite{})
 func (s *firstBoot16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.setup16BaseTest(c, &s.firstBootBaseTest)
-
-	s.startOverlord(c)
 
 	s.SeedDir = dirs.SnapSeedDir
 
@@ -222,6 +224,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -260,6 +263,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	defer restore()
 
 	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -288,6 +292,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	defer restore()
 
 	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -314,6 +319,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	s.startOverlord(c)
 	st := s.overlord.State()
 
 	// add the model assertion and its chain
@@ -382,6 +388,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedErrorsOnState(c *C) {
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -552,6 +559,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	bloader.SetBootKernel("pc-kernel_1.snap")
 	bloader.SetBootBase("core_1.snap")
 
+	s.startOverlord(c)
 	st := s.overlord.State()
 	chg, model := s.makeSeedChange(c, st, nil, checkSeedTasks, checkOrder)
 	err := s.overlord.Settle(settleTimeout)
@@ -643,6 +651,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
+	s.startOverlord(c)
 	st0 := s.overlord.State()
 	st0.Lock()
 	db := assertstate.DB(st0)
@@ -730,6 +739,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -835,6 +845,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -991,6 +1002,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1061,6 +1073,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 	defer restore()
 
 	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1078,6 +1091,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *C) {
 	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1095,6 +1109,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *
 
 func (s *firstBoot16Suite) TestLoadDeviceSeed(c *C) {
 	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1131,6 +1146,7 @@ func (s *firstBoot16Suite) TestLoadDeviceSeed(c *C) {
 
 func (s *firstBoot16Suite) TestLoadDeviceSeedCaching(c *C) {
 	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1190,6 +1206,7 @@ func (s *firstBoot16Suite) TestLoadDeviceSeedCaching(c *C) {
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	ovld, err := overlord.New(nil)
+	defer ovld.Stop()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
@@ -1234,6 +1251,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1254,6 +1272,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1272,6 +1291,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1385,6 +1405,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1507,6 +1528,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1543,6 +1565,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1609,6 +1632,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1680,6 +1704,7 @@ snaps:
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1728,6 +1753,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1813,6 +1839,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1867,6 +1894,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1937,6 +1965,7 @@ snaps:
 }
 
 func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseed(c *C) {
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1962,6 +1991,7 @@ func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseed(c *C) {
 }
 
 func (s *firstBoot16Suite) TestCriticalTaskEdgesForPreseedMissing(c *C) {
+	s.startOverlord(c)
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()

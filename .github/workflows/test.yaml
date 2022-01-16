@@ -44,9 +44,19 @@ jobs:
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 4.x/candidate
-    - name: Cache built artifact
+    - name: Cache and check built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/info
+        if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
+          echo "PR produces dirty snapd snap version"
+          cat squashfs-root/usr/lib/snapd/dirty-git-tree-info.txt
+          exit 1
+        elif cat squashfs-root/usr/lib/snapd/info | grep -q "VERSION=.*dirty.*"; then
+          echo "PR produces dirty internal snapd info version"
+          cat squashfs-root/usr/lib/snapd/info
+          exit 1
+        fi
         cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
@@ -255,9 +265,8 @@ jobs:
         - debian-10-64
         - debian-11-64
         - debian-sid-64
-        - fedora-33-64
         - fedora-34-64
-        - opensuse-15.2-64
+        - fedora-35-64
         - opensuse-15.3-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64

@@ -54,6 +54,11 @@ execute: |
     fi
     "${SNAP_NAME}".cmd test "!" -e "$MOUNT_DEST/file1"
 
+    echo "Verify that a mount with a specific FS type can be created"
+    "${SNAP_NAME}".cmd mount -o rw -t tmpfs none "$MOUNT_DEST"
+    "${SNAP_NAME}".cmd grep "$MOUNT_DEST.*tmpfs" /proc/self/mountinfo
+    "${SNAP_NAME}".cmd umount "$MOUNT_DEST"
+
     if [ "$(snap debug confinement)" = partial ] ; then
         echo "Early exit on systems where strict confinement does not work"
         exit 0

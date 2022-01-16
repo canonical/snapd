@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/usersession/client"
 )
 
 var restApi = []*Command{
@@ -64,6 +65,11 @@ var (
 	pendingRefreshNotificationCmd = &Command{
 		Path: "/v1/notifications/pending-refresh",
 		POST: postPendingRefreshNotification,
+	}
+
+	finishRefreshNotificationCmd = &Command{
+		Path: "/v1/notifications/finish-refresh",
+		POST: postRefreshFinishedNotification,
 	}
 )
 
@@ -300,6 +306,41 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			Status: 500,
 			Result: &errorResult{
 				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var finishRefresh client.FinishedSnapRefreshInfo
+	if err := decoder.Decode(&finishRefresh); err != nil {
+		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send close notification message: %v", err),
 			},
 		})
 	}

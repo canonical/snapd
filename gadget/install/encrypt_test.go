@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -55,7 +56,7 @@ var mockDeviceStructure = gadget.OnDiskStructure{
 			Label: "some-label",
 		},
 		StartOffset: 0,
-		Index:       1,
+		YamlIndex:   1,
 	},
 	Size: 3 * quantity.SizeMiB,
 	Node: "/dev/node1",
@@ -189,7 +190,7 @@ var mockDeviceStructureForDeviceSetupHook = gadget.OnDiskStructure{
 			Label: "ubuntu-data",
 		},
 		StartOffset: 0,
-		Index:       1,
+		YamlIndex:   1,
 	},
 	Size: 3 * quantity.SizeMiB,
 	Node: "/dev/node1",
@@ -266,7 +267,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHookPartitionNameCheck(c *
 				Label: "ubuntu-data",
 			},
 			StartOffset: 0,
-			Index:       1,
+			YamlIndex:   1,
 		},
 		Size: 3 * quantity.SizeMiB,
 		Node: "/dev/node1",

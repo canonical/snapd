@@ -174,7 +174,7 @@ type mountControlInterface struct {
 // is expected that sensible values of what are enforced by the store manual
 // review queue and security teams.
 var (
-	whatRegexp  = regexp.MustCompile(`^/[^"@]*$`)
+	whatRegexp  = regexp.MustCompile(`^(none|/[^"@]*)$`)
 	whereRegexp = regexp.MustCompile(`^(\$SNAP_COMMON|\$SNAP_DATA)?/[^\$"@]+$`)
 )
 
@@ -303,6 +303,7 @@ func validateWhereAttr(where string) error {
 }
 
 func validateMountTypes(types []string) error {
+	includesTmpfs := false
 	for _, t := range types {
 		if !typeRegexp.MatchString(t) {
 			return fmt.Errorf(`mount-control filesystem type invalid: %q`, t)
@@ -310,6 +311,13 @@ func validateMountTypes(types []string) error {
 		if !strutil.ListContains(allowedFSTypes, t) {
 			return fmt.Errorf(`mount-control forbidden filesystem type: %q`, t)
 		}
+		if t == "tmpfs" {
+			includesTmpfs = true
+		}
+	}
+
+	if includesTmpfs && len(types) > 1 {
+		return errors.New(`mount-control filesystem type "tmpfs" cannot be listed with other types`)
 	}
 	return nil
 }
@@ -357,6 +365,16 @@ func validateMountInfo(mountInfo *MountInfo) error {
 	fsExclusiveOption := optionIncompatibleWithFsType(mountInfo.options)
 	if fsExclusiveOption != "" && len(mountInfo.types) > 0 {
 		return fmt.Errorf(`mount-control option %q is incompatible with specifying filesystem type`, fsExclusiveOption)
+	}
+
+	// "what" must be set to "none" iff the type is "tmpfs"
+	isTmpfs := len(mountInfo.types) == 1 && mountInfo.types[0] == "tmpfs"
+	if mountInfo.what == "none" {
+		if !isTmpfs {
+			return errors.New(`mount-control "what" attribute can be "none" only with "tmpfs"`)
+		}
+	} else if isTmpfs {
+		return fmt.Errorf(`mount-control "what" attribute must be "none" with "tmpfs"; found %q instead`, mountInfo.what)
 	}
 
 	return nil

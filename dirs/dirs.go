@@ -75,6 +75,7 @@ var (
 	SnapSeqDir            string
 
 	SnapStateFile     string
+	SnapStateLockFile string
 	SnapSystemKeyFile string
 
 	SnapRepairDir        string
@@ -251,6 +252,11 @@ func SnapStateFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "state.json")
 }
 
+// SnapStateLockFileUnder returns the path to snapd state lock file under rootdir.
+func SnapStateLockFileUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "state.lock")
+}
+
 // SnapModeenvFileUnder returns the path to the modeenv file under rootdir.
 func SnapModeenvFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "modeenv")
@@ -265,6 +271,12 @@ func FeaturesDirUnder(rootdir string) string {
 // rootdir.
 func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+}
+
+// SnapSystemdConfDirUnder returns the path to the systemd conf dir under
+// rootdir.
+func SnapServicesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, "/etc/systemd/system")
 }
 
 // SnapBootAssetsDirUnder returns the path to boot assets directory under a
@@ -363,6 +375,7 @@ func SetRootDir(rootdir string) {
 	SnapSeqDir = filepath.Join(rootdir, snappyDir, "sequence")
 
 	SnapStateFile = SnapStateFileUnder(rootdir)
+	SnapStateLockFile = SnapStateLockFileUnder(rootdir)
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
 
 	SnapCacheDir = filepath.Join(rootdir, "/var/cache/snapd")

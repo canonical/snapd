@@ -30,4 +30,4 @@ execute: |
   test "$(tests.nested exec date --utc '+%s')" -ge "$MODEL_ASSERTION_SIGN_TIME"
 
   echo "Verify that the timestamp from after snap-bootstrap ran is greater than the time from the model assertion"
-  test "$(tests.nested exec "cat /run/mnt/ubuntu-seed/install-after-snap-bootstrap-date")" -ge "$MODEL_ASSERTION_SIGN_TIME"
+  test "$(tests.nested exec "cat /run/mnt/ubuntu-seed/test/install-after-snap-bootstrap-date")" -ge "$MODEL_ASSERTION_SIGN_TIME"
