@@ -38,11 +38,8 @@ import (
 )
 
 var (
-	memoryCGroupError error
-)
-
-var (
 	systemdVersionError error
+	memoryCGroupError   error
 )
 
 var (
@@ -62,6 +59,7 @@ func checkMemoryCGroupEnabled() {
 	memoryCGroupError = memoryCGroupEnabled()
 }
 
+// added to enable path update for testing purposes
 func setCGroupsFilePath(path string) {
 	cgroupsFilePath = path
 	checkMemoryCGroupEnabled()
@@ -85,7 +83,7 @@ func memoryCGroupEnabled() error {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "memory\t") {
 			memoryCgroupValues := strings.Fields(line)
-			if len(memoryCgroupValues) == 4 { // any change in size should lead to an error for us to update
+			if len(memoryCgroupValues) < 4 { // assuming any increase in size will lead to values added to the end
 				isMemoryEnabled, err := strconv.ParseBool(memoryCgroupValues[3])
 				if err != nil {
 					return fmt.Errorf("cannot parse memory control group status: %v", err)

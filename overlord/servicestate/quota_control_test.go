@@ -1083,12 +1083,12 @@ func (s *quotaControlSuite) TestMemoryCGroupMalformed(c *C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(err, check.IsNil)
 	defer cgroupsFile.Close()
-	// each configuration has 5 fields instead of 4
+	// each configuration has 3 fields instead of 4
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled	extra_field
-cpuset	6	3	1	0
-cpu	3	133	1	0
-memory	2	223	0	0
-devices	10	135	1	0`)
+cpuset	6	3
+cpu	3	133
+memory	2	223
+devices	10	135`)
 	c.Assert(err, check.IsNil)
 	cgroupsFile.Sync()
 
