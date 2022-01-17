@@ -67,6 +67,12 @@ execute: |
     not tests.nested exec "snap list hello-world"
     not tests.nested exec "snap list core"
 
+    # snapd gets stuck ensuring prerequisites of hello-world, which is the
+    # installation of core, workaround this problem by installing core
+    # explicitly
+    # TODO: drop this once prereq is fixed
+    tests.nested exec "snap install core"
+
     tests.nested copy "$TESTSLIB/assertions/test-snapd-remodel-pc-just-model-$variant.model"
     CHANGE_ID="$(tests.nested exec "sudo snap remodel --no-wait test-snapd-remodel-pc-just-model-$variant.model")"
     test -n "$CHANGE_ID"
