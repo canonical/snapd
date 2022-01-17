@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
-	"github.com/snapcore/snapd/overlord/servicestate/resources"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -46,27 +45,27 @@ import (
 // modification that lives in a task.
 type QuotaControlAction struct {
 	// QuotaName is the name of the quota group being controlled.
-	QuotaName string `json:"quota-name"`
+	QuotaName string `json:"quota-name,omitempty"`
 
 	// Action is the action being taken on the quota group. It can be either
 	// "create", "update", or "remove".
-	Action string `json:"action"`
+	Action string `json:"action,omitempty"`
 
 	// AddSnaps is the set of snaps to add to the quota group, valid for either
 	// the "update" or the "create" actions.
-	AddSnaps []string `json:"snaps"`
+	AddSnaps []string `json:"snaps,omitempty"`
 
 	// ResourceLimits is the set of resource limits to set on the quota group.
 	// Either the initial limit the group is created with for the "create"
 	// action, or if non-zero for the "update" the memory limit, then the new
 	// value to be set.
-	ResourceLimits resources.QuotaResources `json:"resource-limits"`
+	ResourceLimits quota.QuotaResources `json:"resource-limits,omitempty"`
 
 	// ParentName is the name of the parent for the quota group if it is being
 	// created. Eventually this could be used with the "update" action to
 	// support moving quota groups from one parent to another, but that is
 	// currently not supported.
-	ParentName string
+	ParentName string `json:"parent-name,omitempty"`
 }
 
 func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
@@ -334,7 +333,7 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	return grp, allGrps, nil
 }
 
-func quotaUpdateGroupLimits(grp *quota.Group, limits resources.QuotaResources) error {
+func quotaUpdateGroupLimits(grp *quota.Group, limits quota.QuotaResources) error {
 	currentQuotas := grp.GetQuotaResources()
 	if err := currentQuotas.Change(limits); err != nil {
 		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)

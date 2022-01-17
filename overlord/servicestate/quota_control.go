@@ -25,9 +25,9 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
-	"github.com/snapcore/snapd/overlord/servicestate/resources"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -65,7 +65,7 @@ func quotaGroupsAvailable(st *state.State) error {
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
-func CreateQuota(st *state.State, name string, parentName string, snaps []string, resourceLimits resources.QuotaResources) (*state.TaskSet, error) {
+func CreateQuota(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.QuotaResources) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ type QuotaGroupUpdate struct {
 
 	// NewResourceLimits is the new resource limits to be used for the quota group. If
 	// the limits are zero, then the quota group's limits is not changed.
-	NewResourceLimits resources.QuotaResources
+	NewResourceLimits quota.QuotaResources
 }
 
 // UpdateQuota updates the quota as per the options.

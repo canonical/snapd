@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
-	"github.com/snapcore/snapd/overlord/servicestate/resources"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
@@ -157,10 +156,10 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 	return SyncResponse(res)
 }
 
-func quotaValuesToResources(values client.QuotaValues) resources.QuotaResources {
-	var quotaResources resources.QuotaResources
+func quotaValuesToResources(values client.QuotaValues) quota.QuotaResources {
+	var quotaResources quota.QuotaResources
 	if values.Memory != 0 {
-		quotaResources.Memory = &resources.QuotaResourceMemory{
+		quotaResources.Memory = &quota.QuotaResourceMemory{
 			MemoryLimit: values.Memory,
 		}
 	}

@@ -17,7 +17,7 @@
 *
  */
 
-package resources
+package quota
 
 import (
 	"fmt"
@@ -30,11 +30,17 @@ import (
 // action, or if non-zero for the "update" the memory limit, then the new
 // value to be set.
 type QuotaResourceMemory struct {
-	MemoryLimit quantity.Size
+	// Lets not set omitempty here, as we want to be able to see the 0 value in
+	// case the memory struct is provided. Remember that we have omitempty set on
+	// the memory value in QuotaResources.
+	MemoryLimit quantity.Size `json:"memory-limit"`
 }
 
+// QuotaResources is built up of multiple quota limits. Each quota limit is a pointer
+// value to indicate that their presence may be optional, and because we want to detect
+// whenever someone changes a limit to '0' explicitly.
 type QuotaResources struct {
-	Memory *QuotaResourceMemory
+	Memory *QuotaResourceMemory `json:"memory,omitempty"`
 }
 
 func (qr *QuotaResources) validateMemoryQuota() error {
@@ -53,6 +59,8 @@ func (qr *QuotaResources) validateMemoryQuota() error {
 	return nil
 }
 
+// Validate performs validation of the provided quota resources for a group. Its intended
+// use is before creating a group.
 func (qr *QuotaResources) Validate() error {
 	if qr.Memory == nil {
 		return fmt.Errorf("quota group must have a memory limit set")
@@ -67,10 +75,17 @@ func (qr *QuotaResources) Validate() error {
 	return nil
 }
 
+// ValidateChange performs validation of new quota limits against the current limits.
+// This is to catch issues where we want to guard against lowering limits where not supported
+// or to make sure that certain/all limits are not removed.
 func (qr *QuotaResources) ValidateChange(newLimits QuotaResources) error {
 
-	// check that the memory limit is not being decreased
-	if newLimits.Memory != nil && newLimits.Memory.MemoryLimit != 0 {
+	// Check that the memory limit is not being decreased, but we allow it to be removed
+	if newLimits.Memory != nil {
+		if newLimits.Memory.MemoryLimit == 0 {
+			return fmt.Errorf("cannot remove memory limit from quota group")
+		}
+
 		// we disallow decreasing the memory limit because it is difficult to do
 		// so correctly with the current state of our code in
 		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
@@ -83,6 +98,9 @@ func (qr *QuotaResources) ValidateChange(newLimits QuotaResources) error {
 	return nil
 }
 
+// Change updates the current quota limits with the new limits. Additional verification
+// logic exists for this operation compared to when setting initial limits. Some changes
+// of limits are not allowed.
 func (qr *QuotaResources) Change(newLimits QuotaResources) error {
 	if err := qr.ValidateChange(newLimits); err != nil {
 		return err
