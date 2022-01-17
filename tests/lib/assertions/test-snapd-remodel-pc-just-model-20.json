@@ -44,7 +44,7 @@
             "default-channel": "latest/stable",
             "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
             "name": "core",
-            "type": "base"
+            "type": "core"
         }
     ]
 }
