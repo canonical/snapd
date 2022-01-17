@@ -59,7 +59,7 @@ type QuotaControlAction struct {
 	// Either the initial limit the group is created with for the "create"
 	// action, or if non-zero for the "update" the memory limit, then the new
 	// value to be set.
-	ResourceLimits quota.QuotaResources `json:"resource-limits,omitempty"`
+	ResourceLimits quota.Resources `json:"resource-limits,omitempty"`
 
 	// ParentName is the name of the parent for the quota group if it is being
 	// created. Eventually this could be used with the "update" action to
@@ -333,7 +333,7 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	return grp, allGrps, nil
 }
 
-func quotaUpdateGroupLimits(grp *quota.Group, limits quota.QuotaResources) error {
+func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
 	currentQuotas := grp.GetQuotaResources()
 	if err := currentQuotas.Change(limits); err != nil {
 		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)

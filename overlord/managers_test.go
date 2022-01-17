@@ -732,7 +732,7 @@ apps:
 	tr.Commit()
 
 	// put the snap in a quota group
-	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quota.CreateQuotaResources(quantity.SizeMiB))
+	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quota.CreateResources(quantity.SizeMiB))
 	c.Assert(err, IsNil)
 
 	ts, err := snapstate.Remove(st, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})

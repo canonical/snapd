@@ -33,7 +33,7 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 	return internal.PatchQuotas(st, grps...)
 }
 
-func MockQuotaInState(st *state.State, quotaName string, parentName string, snaps []string, resourceLimits quota.QuotaResources) error {
+func MockQuotaInState(st *state.State, quotaName string, parentName string, snaps []string, resourceLimits quota.Resources) error {
 	allGrps, err := internal.AllQuotas(st)
 	if err != nil {
 		return nil

@@ -73,7 +73,7 @@ type Group struct {
 }
 
 // NewGroup creates a new top quota group with the given name and memory limit.
-func NewGroup(name string, resourceLimits QuotaResources) (*Group, error) {
+func NewGroup(name string, resourceLimits Resources) (*Group, error) {
 	grp := &Group{
 		Name: name,
 	}
@@ -88,14 +88,14 @@ func NewGroup(name string, resourceLimits QuotaResources) (*Group, error) {
 
 // UpdateQuotaLimits updates all the quota limits set for the group to the new limits
 // given. The limits must be validated prior to calling this function.
-func (grp *Group) UpdateQuotaLimits(resourceLimits QuotaResources) {
+func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
 	if resourceLimits.Memory != nil {
-		grp.MemoryLimit = resourceLimits.Memory.MemoryLimit
+		grp.MemoryLimit = resourceLimits.Memory.Limit
 	}
 }
 
-func (grp *Group) GetQuotaResources() QuotaResources {
-	return CreateQuotaResources(grp.MemoryLimit)
+func (grp *Group) GetQuotaResources() Resources {
+	return CreateResources(grp.MemoryLimit)
 }
 
 // CurrentMemoryUsage returns the current memory usage of the quota group. For
@@ -205,7 +205,7 @@ func (grp *Group) validate() error {
 }
 
 // NewSubGroup creates a new sub group under the current group.
-func (grp *Group) NewSubGroup(name string, resourceLimits QuotaResources) (*Group, error) {
+func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, error) {
 	// TODO: implement a maximum sub-group depth
 
 	subGrp := &Group{

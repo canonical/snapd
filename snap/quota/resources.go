@@ -25,27 +25,27 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
-// QuotaResourceMemory is the memory limit for the quota group being controlled,
+// ResourceMemory is the memory limit for the quota group being controlled,
 // either the initial limit the group is created with for the "create"
 // action, or if non-zero for the "update" the memory limit, then the new
 // value to be set.
-type QuotaResourceMemory struct {
+type ResourceMemory struct {
 	// Lets not set omitempty here, as we want to be able to see the 0 value in
 	// case the memory struct is provided. Remember that we have omitempty set on
 	// the memory value in QuotaResources.
-	MemoryLimit quantity.Size `json:"memory-limit"`
+	Limit quantity.Size `json:"limit"`
 }
 
-// QuotaResources is built up of multiple quota limits. Each quota limit is a pointer
+// Resources is built up of multiple quota limits. Each quota limit is a pointer
 // value to indicate that their presence may be optional, and because we want to detect
 // whenever someone changes a limit to '0' explicitly.
-type QuotaResources struct {
-	Memory *QuotaResourceMemory `json:"memory,omitempty"`
+type Resources struct {
+	Memory *ResourceMemory `json:"memory,omitempty"`
 }
 
-func (qr *QuotaResources) validateMemoryQuota() error {
+func (qr *Resources) validateMemoryQuota() error {
 	// make sure the memory limit is not zero
-	if qr.Memory.MemoryLimit == 0 {
+	if qr.Memory.Limit == 0 {
 		return fmt.Errorf("cannot create quota group with no memory limit set")
 	}
 
@@ -53,15 +53,15 @@ func (qr *QuotaResources) validateMemoryQuota() error {
 	// to allow nesting, otherwise groups with less than 4K will trigger the
 	// oom killer to be invoked when a new group is added as a sub-group to the
 	// larger group.
-	if qr.Memory.MemoryLimit <= 4*quantity.SizeKiB {
-		return fmt.Errorf("memory limit %d is too small: size must be larger than 4KB", qr.Memory.MemoryLimit)
+	if qr.Memory.Limit <= 4*quantity.SizeKiB {
+		return fmt.Errorf("memory limit %d is too small: size must be larger than 4KB", qr.Memory.Limit)
 	}
 	return nil
 }
 
 // Validate performs validation of the provided quota resources for a group. Its intended
 // use is before creating a group.
-func (qr *QuotaResources) Validate() error {
+func (qr *Resources) Validate() error {
 	if qr.Memory == nil {
 		return fmt.Errorf("quota group must have a memory limit set")
 	}
@@ -78,11 +78,11 @@ func (qr *QuotaResources) Validate() error {
 // ValidateChange performs validation of new quota limits against the current limits.
 // This is to catch issues where we want to guard against lowering limits where not supported
 // or to make sure that certain/all limits are not removed.
-func (qr *QuotaResources) ValidateChange(newLimits QuotaResources) error {
+func (qr *Resources) ValidateChange(newLimits Resources) error {
 
 	// Check that the memory limit is not being decreased, but we allow it to be removed
 	if newLimits.Memory != nil {
-		if newLimits.Memory.MemoryLimit == 0 {
+		if newLimits.Memory.Limit == 0 {
 			return fmt.Errorf("cannot remove memory limit from quota group")
 		}
 
@@ -90,7 +90,7 @@ func (qr *QuotaResources) ValidateChange(newLimits QuotaResources) error {
 		// so correctly with the current state of our code in
 		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
 		// full details
-		if qr.Memory != nil && newLimits.Memory.MemoryLimit < qr.Memory.MemoryLimit {
+		if qr.Memory != nil && newLimits.Memory.Limit < qr.Memory.Limit {
 			return fmt.Errorf("cannot decrease memory limit, remove and re-create it to decrease the limit")
 		}
 	}
@@ -101,7 +101,7 @@ func (qr *QuotaResources) ValidateChange(newLimits QuotaResources) error {
 // Change updates the current quota limits with the new limits. Additional verification
 // logic exists for this operation compared to when setting initial limits. Some changes
 // of limits are not allowed.
-func (qr *QuotaResources) Change(newLimits QuotaResources) error {
+func (qr *Resources) Change(newLimits Resources) error {
 	if err := qr.ValidateChange(newLimits); err != nil {
 		return err
 	}
@@ -112,11 +112,11 @@ func (qr *QuotaResources) Change(newLimits QuotaResources) error {
 	return nil
 }
 
-func CreateQuotaResources(memoryLimit quantity.Size) QuotaResources {
-	var quotaResources QuotaResources
+func CreateResources(memoryLimit quantity.Size) Resources {
+	var quotaResources Resources
 	if memoryLimit != 0 {
-		quotaResources.Memory = &QuotaResourceMemory{
-			MemoryLimit: memoryLimit,
+		quotaResources.Memory = &ResourceMemory{
+			Limit: memoryLimit,
 		}
 	}
 	return quotaResources

@@ -65,7 +65,7 @@ func quotaGroupsAvailable(st *state.State) error {
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
-func CreateQuota(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.QuotaResources) (*state.TaskSet, error) {
+func CreateQuota(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -172,9 +172,9 @@ type QuotaGroupUpdate struct {
 	// the quota group
 	AddSnaps []string
 
-	// NewResourceLimits is the new resource limits to be used for the quota group. If
-	// the limits are zero, then the quota group's limits is not changed.
-	NewResourceLimits quota.QuotaResources
+	// NewResourceLimits is the new resource limits to be used for the quota group. A
+	// limit is only changed if the corresponding limit is != nil.
+	NewResourceLimits quota.Resources
 }
 
 // UpdateQuota updates the quota as per the options.

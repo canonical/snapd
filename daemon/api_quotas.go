@@ -156,11 +156,11 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 	return SyncResponse(res)
 }
 
-func quotaValuesToResources(values client.QuotaValues) quota.QuotaResources {
-	var quotaResources quota.QuotaResources
+func quotaValuesToResources(values client.QuotaValues) quota.Resources {
+	var quotaResources quota.Resources
 	if values.Memory != 0 {
-		quotaResources.Memory = &quota.QuotaResourceMemory{
-			MemoryLimit: values.Memory,
+		quotaResources.Memory = &quota.ResourceMemory{
+			Limit: values.Memory,
 		}
 	}
 	return quotaResources

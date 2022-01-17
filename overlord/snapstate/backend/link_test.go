@@ -789,7 +789,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	grp, err := quota.NewGroup("foogroup", quota.CreateQuotaResources(quantity.SizeMiB))
+	grp, err := quota.NewGroup("foogroup", quota.CreateResources(quantity.SizeMiB))
 	c.Assert(err, IsNil)
 
 	linkCtxWithGroup := backend.LinkContext{

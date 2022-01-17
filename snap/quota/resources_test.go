@@ -32,11 +32,11 @@ var _ = Suite(&resourcesTestSuite{})
 
 func (s *resourcesTestSuite) TestQuotaValidation(c *C) {
 	tests := []struct {
-		limits quota.QuotaResources
+		limits quota.Resources
 		err    string
 	}{
-		{quota.QuotaResources{}, `quota group must have a memory limit set`},
-		{quota.CreateQuotaResources(quantity.Size(0)), `quota group must have a memory limit set`},
+		{quota.Resources{}, `quota group must have a memory limit set`},
+		{quota.CreateResources(quantity.Size(0)), `quota group must have a memory limit set`},
 	}
 
 	for _, t := range tests {
@@ -47,12 +47,12 @@ func (s *resourcesTestSuite) TestQuotaValidation(c *C) {
 
 func (s *resourcesTestSuite) TestQuotaChangeValidation(c *C) {
 	tests := []struct {
-		limits       quota.QuotaResources
-		updateLimits quota.QuotaResources
+		limits       quota.Resources
+		updateLimits quota.Resources
 		err          string
 	}{
-		{quota.CreateQuotaResources(quantity.SizeMiB), quota.QuotaResources{&quota.QuotaResourceMemory{0}}, `cannot remove memory limit from quota group`},
-		{quota.CreateQuotaResources(quantity.SizeMiB), quota.CreateQuotaResources(5 * quantity.SizeKiB), `cannot decrease memory limit, remove and re-create it to decrease the limit`},
+		{quota.CreateResources(quantity.SizeMiB), quota.Resources{&quota.ResourceMemory{0}}, `cannot remove memory limit from quota group`},
+		{quota.CreateResources(quantity.SizeMiB), quota.CreateResources(5 * quantity.SizeKiB), `cannot decrease memory limit, remove and re-create it to decrease the limit`},
 	}
 
 	for _, t := range tests {

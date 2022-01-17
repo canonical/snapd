@@ -219,7 +219,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	memLimit := quantity.SizeGiB
-	grp, err := quota.NewGroup("foogroup", quota.CreateQuotaResources(memLimit))
+	grp, err := quota.NewGroup("foogroup", quota.CreateResources(memLimit))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -421,7 +421,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// use new memory limit
-	grp, err := quota.NewGroup("foogroup", quota.CreateQuotaResources(memLimit2))
+	grp, err := quota.NewGroup("foogroup", quota.CreateResources(memLimit2))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -515,7 +515,7 @@ WantedBy=multi-user.target
 	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
 	c.Assert(err, IsNil)
 
-	grp, err := quota.NewGroup("foogroup", quota.CreateQuotaResources(memLimit))
+	grp, err := quota.NewGroup("foogroup", quota.CreateResources(memLimit))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -538,7 +538,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	// create the group
-	grp, err := quota.NewGroup("foogroup", quota.CreateQuotaResources(5*quantity.SizeKiB))
+	grp, err := quota.NewGroup("foogroup", quota.CreateResources(5*quantity.SizeKiB))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -608,12 +608,12 @@ apps:
 	var err error
 	memLimit := quantity.SizeGiB
 	// make a root quota group and add the first snap to it
-	grp, err := quota.NewGroup("foogroup", quota.CreateQuotaResources(memLimit))
+	grp, err := quota.NewGroup("foogroup", quota.CreateResources(memLimit))
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but is for the
 	// second snap
-	subgrp, err := grp.NewSubGroup("subgroup", quota.CreateQuotaResources(memLimit))
+	subgrp, err := grp.NewSubGroup("subgroup", quota.CreateResources(memLimit))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -741,12 +741,12 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	var err error
 	memLimit := quantity.SizeGiB
 	// make a root quota group without any snaps in it
-	grp, err := quota.NewGroup("foogroup", quota.CreateQuotaResources(memLimit))
+	grp, err := quota.NewGroup("foogroup", quota.CreateResources(memLimit))
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but it is the one
 	// with the snap in it
-	subgrp, err := grp.NewSubGroup("subgroup", quota.CreateQuotaResources(memLimit))
+	subgrp, err := grp.NewSubGroup("subgroup", quota.CreateResources(memLimit))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")

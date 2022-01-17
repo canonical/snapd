@@ -108,7 +108,7 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 
 // CreateQuotaInState creates a quota group with the given paremeters
 // in the state.  It takes the current map of all quota groups.
-func CreateQuotaInState(st *state.State, quotaName string, parentGrp *quota.Group, snaps []string, resourceLimits quota.QuotaResources, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+func CreateQuotaInState(st *state.State, quotaName string, parentGrp *quota.Group, snaps []string, resourceLimits quota.Resources, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
 	// make sure that the parent group exists if we are creating a sub-group
 	var grp *quota.Group
 	var err error
