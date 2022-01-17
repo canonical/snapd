@@ -122,8 +122,12 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 		return err
 	}
 
-	dirty := false
-	needsReconfig := false
+	// Set when we change a boot env variable, to know if we need to save the env
+	dirtyEnv := false
+	// Flag to know if we need to write piboot's config.txt or tryboot.txt
+	reconfigBootloader := false
+	// If the change is coming from the initramfs, we do not really want
+	// to regenerate config.txt/tryboot.txt yet, so we need this flag too.
 	pibootConfigureAllow := true
 	for k, v := range values {
 		// already set to the right value, nothing to do
@@ -132,15 +136,16 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 		}
 		// "kernel_status" transitions from "try" to "trying"/"" are
 		// coming from the initramfs (simulating what the bootloader
-		// should do) and do not retrigger a configuration.
+		// should do) and do not retrigger a configuration, as the
+		// reconfiguration will be triggered later from the rootfs.
 		if k == "kernel_status" && env.Get(k) == "try" {
 			pibootConfigureAllow = false
 		}
 		env.Set(k, v)
-		dirty = true
+		dirtyEnv = true
 		// Cases that change the bootloader configuration
 		if k == "snapd_recovery_mode" || k == "kernel_status" {
-			needsReconfig = true
+			reconfigBootloader = true
 		}
 		if k == "snap_try_kernel" && v == "" {
 			// refresh (ok or not) finished, remove tryboot.txt
@@ -153,13 +158,13 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 		}
 	}
 
-	if dirty {
+	if dirtyEnv {
 		if err := env.Save(); err != nil {
 			return err
 		}
 	}
 
-	if needsReconfig && pibootConfigureAllow {
+	if reconfigBootloader && pibootConfigureAllow {
 		if err := p.loadAndApplyConfig(env); err != nil {
 			return err
 		}
