@@ -775,6 +775,7 @@ const (
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
 	"snap-yaml": @SNAP_YAML@,
+        "base": @BASE@,
 	"summary": "Foo",
 	"description": "this is a description",
 	"version": "@VERSION@",
@@ -916,6 +917,11 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		hit = strings.Replace(hit, `@SNAP_YAML@`, string(rawInfoBuf), -1)
+		baseStr := "null"
+		if info.Base != "" {
+			baseStr = fmt.Sprintf("%q", info.Base)
+		}
+		hit = strings.Replace(hit, `@BASE@`, baseStr, -1)
 		return hit
 	}
 
