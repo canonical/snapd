@@ -27,18 +27,27 @@ snaps:
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
     type: snapd
+  -
+    default-channel: latest/stable
+    id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
+    name: hello-world
+  -
+    default-channel: latest/stable
+    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    name: core
+    type: base
 store: CQvkdMjgbapk821Po2cF
 system-user-authority: *
 timestamp: 2021-12-02T12:18:12+00:00
 sign-key-sha3-384: HBWEhDcIt0C2IfeIpNdMhbd5yGyCtosl1WeO1pvgeb7_TY2NBuB6k5fQ2FArsfMS
 
-AcLBcwQAAQoAHRYhBAkJO0ol4HziPLWLcJK8CHGoSq8xBQJh4ASuAAoJEJK8CHGoSq8x/DoP+wX/
-yqiTLnZL4NK4ZBflFzYaQ73Hj4glGCjVlrw1sGPrWbVv3fuTPmKSFDmEO4cXe39072LkYjeMb5Ot
-m5GhZDNosvm+9omfJiwJEPRLE6pGtEMRb68h5ZRTGxoFpJDCcTLvZ6vCw3cYI1KWe/vo7BE3vrop
-LUMZM+797B7j7IVErLyESy2RY6WloTQQO9E6Kgcj5D3cgafmGEOVXKnspHcsX/gkzTzpByJG5ESX
-injmT/T2hFRLTkz/zdm21lkfjzv/V0Ei+nVWEUoxVOanrf/J9G2ba/TP3w7O6N0Aj9F3AMCxGv6A
-oUciE+Uou0CE5GZtzzslAd+2SJ7ABst+CUI1bfcgTIRUg0qp14XuMupCnM0XUz/kcEbww5ZexWny
-4mjBZPuiO3eGqMwTTfjLdlMQ9LJ9K/lkgWhG8uX30yoOxv2d3e7BD/GXGWJhdBK83es/es+cln9m
-euF68RAaHEH1+wPdRadTc4HYRsqXAz6i6+XdBH9DvkuvyxKy2La2Fn7H4s5bWYT4Adk87rAW+Dny
-hN/rVN8G8lMSv/MIH+n3/+jcG/oKn0sp6wi9cbPIKOwKYakjmZkThCgcE1in++r+IASwB+XkVKlP
-v6yzbl/ddVO9IiyLtBH5mhUO/IfbNVXV8EzHlEZ3ydomSVcLfxwMCtZCOusIIvIPSInw3Xsh
+AcLBcwQAAQoAHRYhBAkJO0ol4HziPLWLcJK8CHGoSq8xBQJh5TznAAoJEJK8CHGoSq8xW9QP/i2M
+5Ero9yfPSiBJpuBJAJ/4kC8Hr8kaCywqnoW6rNa8hjT6QlHNX3Wz0hY+B+hlno4Xs8bf//DTIgol
+qqVSh111ilvjeeZwzVNVqtAVTiuR34W67BxCd84qFggCILwB1uY7u1nIHVKrBINJXhisNCBWbAvF
+4N/UyDCYiFgwnkxFYjAhsnqsfy9hWxtznU9Gd7iaTXhjeoProVnSqo3vbYhl98bqX/Diihr66xKC
+C62cunfJTepjKYWkxt4eYUKPvJUpUZPSCMsvq2cOWWzB2Xzhpebnkdg8in0LZSmihP95WNGwHJSP
+/XtmcXpOlHhgrhuyHsjm6/nhRCEF4zGoRBB6XcVt9ELq2Sq9mkZzZ8nPYp1cD9xjurwx+1e/Owvn
+7DCsOG6Dhm0XaloKd/uOxHJUSXFR4+TKB3hclBmKpK38t/KCeXZcDaGsj1YHFuniP2aWKpZGRUEy
+TdQbQ2q4dbhcPWVeutkSElybG5k+o1uZu9Rye4QnAGBdPVsGExZduqFArwAglNds1pJjG3YoBZDe
+7HXPyTKbxMjelj6afNhd0am3VsXXpxd5qaf9W9SamdgK32VFw4gl59TW2pGD6bCKfWEIrfVT6yWB
+vdhxsoiJJ1kfuQ0b5v5TLFRJ7ugkEdWF743vwVcjDoi30JM2AyAmqmHrc0XB5AJM0jbdglwN
