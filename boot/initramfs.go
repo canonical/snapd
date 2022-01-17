@@ -128,6 +128,9 @@ func InitramfsReboot() error {
 	return initramfsReboot()
 }
 
+// This function implements logic that is usually part of the
+// bootloader, but that it is not possible to implement in piboot. See
+// handling of kernel_status in bootloader/assets/data/grub.cfg.
 func updatePibootKernelStatus(bl bootloader.Bootloader) error {
 	blVars, err := bl.GetBootVars("kernel_status")
 	if err != nil {
@@ -146,10 +149,8 @@ func updatePibootKernelStatus(bl bootloader.Bootloader) error {
 	// "" would be the value for the error case
 	newStatus := ""
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "kernel_status=") && curKernStatus == "try" {
-			keyVal := strings.Split(arg, "=")
-			// Must be "trying"
-			newStatus = keyVal[1]
+		if arg == "kernel_status=trying" && curKernStatus == "try" {
+			newStatus = "trying"
 			break
 		}
 	}
