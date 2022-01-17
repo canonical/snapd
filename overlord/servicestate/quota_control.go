@@ -65,12 +65,12 @@ func setCGroupsFilePath(path string) {
 	checkMemoryCGroupEnabled()
 }
 
-//	since the control groups can be enabled/disabled without the kernel config the only
-//	way to identify the status of memory control groups is via /proc/cgroups
-//	"cat /proc/cgroups | grep memory" returns the active status of memory control group
-//	and the 3rd parameter is the status
-//	0 => false => disabled
-//	1 => true => enabled
+// since the control groups can be enabled/disabled without the kernel config the only
+// way to identify the status of memory control groups is via /proc/cgroups
+// "cat /proc/cgroups | grep memory" returns the active status of memory control group
+// and the 3rd parameter is the status
+// 0 => false => disabled
+// 1 => true => enabled
 func memoryCGroupEnabled() error {
 	cgroupsFile, err := os.Open(cgroupsFilePath)
 	if err != nil {
