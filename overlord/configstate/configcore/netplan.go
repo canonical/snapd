@@ -157,7 +157,7 @@ func testStoreReachableWithRetry(state *state.State, n int, wait time.Duration) 
 	return n, false
 }
 
-func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
+func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) (err error) {
 	if !hasNetplanChanges(tr) {
 		return nil
 	}
@@ -176,6 +176,13 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			if e := cancelNetplanCfgSnapshot(netplanCfgSnapshot); e != nil {
+				err = fmt.Errorf("%s and %s", err, e)
+			}
+		}
+	}()
 
 	seeded, err := alreadySeeded(tr)
 	if err != nil {
@@ -234,14 +241,6 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	logger.Debugf("store reachable after netplan changes: %v (tried %v times)", storeReachableAfter, tries)
 
 	if storeReachableBefore && !storeReachableAfter {
-		var wasCancelled bool
-		if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
-			return fmt.Errorf("cannot set netplan config: store no longer reachable and cannot cancel netplan config: %v", err)
-		}
-		if !wasCancelled {
-			return fmt.Errorf("cannot set netplan config: store no longer reachable and cannot cancel netplan config: no specific reason returned from netplan")
-		}
-
 		return fmt.Errorf("cannot set netplan config: store no longer reachable")
 	}
 

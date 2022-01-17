@@ -302,6 +302,7 @@ func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
 func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 	s.backend.ExportApiV2()
 	s.backend.ConfigApiSetRet = false
+	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
 	tr := config.NewTransaction(s.state)
@@ -313,6 +314,8 @@ func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
+	s.backend.ConfigApiCancelRet = true
+
 	s.backend.ExportApiV2()
 	s.backend.ConfigApiSetErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
@@ -329,6 +332,7 @@ func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
 	s.backend.ExportApiV2()
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryRet = false
+	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
 	tr := config.NewTransaction(s.state)
@@ -343,6 +347,7 @@ func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
 	s.backend.ExportApiV2()
 	s.backend.ConfigApiSetRet = true
 	s.backend.ConfigApiTryErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
+	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
 	tr := config.NewTransaction(s.state)
@@ -393,6 +398,8 @@ func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOr
 }
 
 func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
+	s.backend.ConfigApiCancelRet = true
+
 	// export the V2 api, things work with that
 	s.backend.ExportApiV2()
 
@@ -412,6 +419,8 @@ func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
+	s.backend.ConfigApiCancelRet = true
+
 	// export the V2 api, things work with that
 	s.backend.ExportApiV2()
 
@@ -490,6 +499,8 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {
+	s.backend.ConfigApiCancelRet = true
+
 	s.backend.ExportApiV2()
 	s.fakestore.statusSeq = []map[string]bool{
 		{"host1": true},
