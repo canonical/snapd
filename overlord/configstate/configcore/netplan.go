@@ -277,13 +277,8 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 		return nil, err
 	}
 	defer func() {
-		// discard snapshot again
-		var wasCancelled bool
-		if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
-			logger.Noticef("cannot cancel netplan config: %v", err)
-		}
-		if !wasCancelled {
-			logger.Noticef("cannot cancel netplan config: no specific reason returned from netplan")
+		if err := cancelNetplanCfgSnapshot(netplanCfgSnapshot); err != nil {
+			logger.Noticef("%s", err)
 		}
 	}()
 
@@ -293,4 +288,16 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 	}
 
 	return cfg, nil
+}
+
+func cancelNetplanCfgSnapshot(netplanCfgSnapshot dbus.BusObject) error {
+	// and discard the config snapshot
+	var wasCancelled bool
+	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
+		return fmt.Errorf("cannot cancel netplan config: %v", err)
+	}
+	if !wasCancelled {
+		return fmt.Errorf("cannot cancel netplan config: no specific reason returned from netplan")
+	}
+	return nil
 }
