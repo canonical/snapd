@@ -109,7 +109,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(lv, diskLayout); err != nil {
+	if err := removeCreatedPartitions(gadgetRoot, lv, diskLayout); err != nil {
 		return nil, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -124,7 +124,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 
 	var created []gadget.OnDiskStructure
 	timings.Run(perfTimings, "create-partitions", "Create partitions", func(timings.Measurer) {
-		created, err = createMissingPartitions(diskLayout, lv)
+		created, err = createMissingPartitions(gadgetRoot, diskLayout, lv)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
