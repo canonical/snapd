@@ -10,5 +10,6 @@
     "timestamp": "2021-12-02T12:18:12+00:00",
     "base": "core18",
     "gadget": "test-snapd-remodel-pc=18",
-    "kernel": "pc-kernel=18"
+    "kernel": "pc-kernel=18",
+    "required-snaps": [ "core", "hello-world" ]
 }

@@ -34,6 +34,17 @@
             "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
             "name": "snapd",
             "type": "snapd"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "base"
         }
     ]
 }
