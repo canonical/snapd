@@ -72,10 +72,15 @@ execute: |
     # check that now
     tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
 
-    # we should have rebooted a couple of times (at least twice for the recovery
-    # system and the base), so boot-id should be different
     current_boot_id="$( nested_get_boot_id )"
-    test "$boot_id" != "$current_boot_id"
+    if [ "$variant" = "20" ]; then
+        # we should have rebooted a couple of times (at least twice for the recovery
+        # system and the base), so boot-id should be different
+        test "$boot_id" != "$current_boot_id"
+    else
+        # but there is no reboot on UC18
+        test "$boot_id" == "$current_boot_id"
+    fi
 
     # we are remodeling within the same store
     tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_STORE\$"
