@@ -83,7 +83,7 @@ func memoryCGroupEnabled() error {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "memory\t") {
 			memoryCgroupValues := strings.Fields(line)
-			if len(memoryCgroupValues) < 4 { // assuming any increase in size will lead to values added to the end
+			if len(memoryCgroupValues) >= 4 { // assuming any increase in size will lead to values added to the end
 				isMemoryEnabled, err := strconv.ParseBool(memoryCgroupValues[3])
 				if err != nil {
 					return fmt.Errorf("cannot parse memory control group status: %v", err)
