@@ -1057,6 +1057,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 	info := sar.Info
+	fmt.Printf("info reports base %q\n", info.Base)
 
 	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())

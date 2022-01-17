@@ -20,6 +20,7 @@
 package state
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -437,6 +438,7 @@ ConsiderTasks:
 		}
 
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
+		fmt.Printf("Running task %s on %s: %s\n", t.ID(), t.Status(), t.Summary())
 		r.run(t)
 
 		running = append(running, t)

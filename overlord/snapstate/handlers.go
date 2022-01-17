@@ -278,7 +278,9 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	fmt.Printf("%q prereqs install\n", snapsup.InstanceName())
 	if err := m.installPrereqs(t, base, snapsup.PrereqContentAttrs, snapsup.UserID, perfTimings, snapsup.Flags); err != nil {
+		fmt.Printf("install prereq err: %s\n", err)
 		return err
 	}
 
@@ -310,6 +312,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
 		return nil, err
 	} else if linkTask != nil {
+		fmt.Printf("found in-flight link task of %q\n", snapName)
 		return nil, onInFlight
 	}
 
@@ -450,6 +453,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	// can be installed together we add the tasks to the change.
 	var tss []*state.TaskSet
 	for prereqName, contentAttrs := range prereq {
+		fmt.Printf("prepreq attr %q\n", prereqName)
 		var onInFlightErr error = nil
 		var err error
 		var ts *state.TaskSet
@@ -473,6 +477,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	var tsBase *state.TaskSet
 	var err error
 	if base != "none" {
+		fmt.Printf("prepreq base %q\n", base)
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
 			requireTypeBase := true
 			tsBase, err = m.installOneBaseOrRequired(t, base, nil, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID, Flags{})
