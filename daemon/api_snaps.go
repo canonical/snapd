@@ -543,9 +543,6 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
-	if inst.Transactional {
-		chg.Set("transactional", true)
-	}
 
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
 

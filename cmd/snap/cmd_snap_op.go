@@ -1130,7 +1130,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"purge": i18n.G("Remove the snap without saving a snapshot of its data"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transactional": i18n.G("Remove transactionally a set of snaps."),
+			"transactional": i18n.G("Remove a set of snaps transactionally."),
 		}), nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(map[string]string{
@@ -1151,7 +1151,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transactional": i18n.G("Install transactionally a set of snaps."),
+			"transactional": i18n.G("Install a set of snaps transactionally."),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1172,7 +1172,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transactional": i18n.G("Refresh transactionally a set of snaps."),
+			"transactional": i18n.G("Refresh a set of snaps transactionally."),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

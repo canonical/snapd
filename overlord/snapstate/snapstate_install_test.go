@@ -3326,8 +3326,6 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 
-	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
-
 	for _, ts := range tts {
 		verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
 		// check that tasksets are all in one lane

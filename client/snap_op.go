@@ -56,13 +56,14 @@ func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
 	return mw.WriteField(key, "true")
 }
 
-func writeFields(mw *multipart.Writer,
-	fields *[]struct {
-		f string
-		b bool
-	}) error {
-	for _, o := range *fields {
-		if err := writeFieldBool(mw, o.f, o.b); err != nil {
+type field struct {
+	field string
+	value bool
+}
+
+func writeFields(mw *multipart.Writer, fields *[]field) error {
+	for _, fd := range *fields {
+		if err := writeFieldBool(mw, fd.field, fd.value); err != nil {
 			return err
 		}
 	}
@@ -71,28 +72,22 @@ func writeFields(mw *multipart.Writer,
 }
 
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
-	fields := []struct {
-		f string
-		b bool
-	}{
+	fields := &[]field{
 		{"devmode", opts.DevMode},
 		{"classic", opts.Classic},
 		{"jailmode", opts.JailMode},
 		{"dangerous", opts.Dangerous},
 	}
-	return writeFields(mw, &fields)
+	return writeFields(mw, fields)
 }
 
 func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
-	fields := []struct {
-		f string
-		b bool
-	}{
+	fields := &[]field{
 		{"ignore-running", opts.IgnoreRunning},
 		{"unaliased", opts.Unaliased},
 		{"transactional", opts.Transactional},
 	}
-	return writeFields(mw, &fields)
+	return writeFields(mw, fields)
 }
 
 type actionData struct {
