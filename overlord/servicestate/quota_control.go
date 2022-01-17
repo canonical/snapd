@@ -84,10 +84,7 @@ func memoryCGroupEnabled() error {
 		if strings.HasPrefix(line, "memory\t") {
 			memoryCgroupValues := strings.Fields(line)
 			if len(memoryCgroupValues) >= 4 { // assuming any increase in size will lead to values added to the end
-				isMemoryEnabled, err := strconv.ParseBool(memoryCgroupValues[3])
-				if err != nil {
-					return fmt.Errorf("cannot parse memory control group status: %v", err)
-				}
+				isMemoryEnabled := memoryCgroupValues[3] == "1"
 				if !isMemoryEnabled {
 					return fmt.Errorf("cannot retrieve quota information, memory cgroup is disabled on this system")
 				}
