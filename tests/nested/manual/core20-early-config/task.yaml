@@ -30,6 +30,9 @@ prepare: |
     tests.nested build-image core
     tests.nested create-vm core
 
+restore: |
+    tests.nested exec "sudo rm -f /etc/netplan/90-snapd-config.yaml" || true
+
 debug: |
     # show if anything went wrong during seeding
     tests.nested exec "snap change 1"
