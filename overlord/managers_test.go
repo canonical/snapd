@@ -7768,6 +7768,197 @@ func (s *mgrsSuite) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) {
 	c.Check(i, Equals, len(tasks))
 }
 
+const prereqSnapYaml = `
+name: prereq
+version: 1.0
+base: prereq-base
+`
+
+const prereqBaseSnapYaml = `
+name: prereq-base
+version: 1.0
+type: base
+`
+
+// const coreSnapYaml = `name: core
+// type: os
+// version: 1.0
+// `
+
+func (s *mgrsSuite) TestRemodelUC20SnapWithPrereqs(c *C) {
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "prereq-base",
+				"id":   fakeSnapID("prereq-base"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "prereq",
+				"id":   fakeSnapID("prereq"),
+			},
+			// map[string]interface{}{
+			// 	"name": "core",
+			// 	"id":   fakeSnapID("core"),
+			// 	"type": "core",
+			// },
+		},
+		"revision": "1",
+	})
+
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	c.Assert(err, IsNil)
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "prereq-base",
+	}, map[string]interface{}{
+		"snap-name": "prereq",
+	})
+
+	snapPath, _ := s.makeStoreTestSnap(c, prereqSnapYaml, "1")
+	s.serveSnap(snapPath, "1")
+	snapPath, _ = s.makeStoreTestSnap(c, prereqBaseSnapYaml, "1")
+	s.serveSnap(snapPath, "1")
+	// snapPath, _ := s.makeStoreTestSnap(c, coreSnapYaml, "1")
+	// s.serveSnap(snapPath, "1")
+
+	now := time.Now()
+	expectedLabel := now.Format("20060102")
+
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	dumpTasks(c, "1", chg.Tasks())
+
+	// first comes a reboot to the new recovery system
+	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
+	c.Check(devicestate.RemodelingChange(st), NotNil)
+	restarting, kind := restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystemNow)
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
+	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "try",
+	})
+	// simulate successful reboot to recovery and back
+	restart.MockPending(st, restart.RestartUnset)
+	// this would be done by snap-bootstrap in initramfs
+	err = bl.SetBootVars(map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	// reset, so that after-reboot handling of tried system is executed
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	dumpTasks(c, "2", chg.Tasks())
+	// a reboot was requested, as mock updated were applied
+	restarting, kind = restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystem)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+	})
+
+	// pretend we have the right command line
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"),
+		[]byte("snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"), 0444),
+		IsNil)
+
+	// run post boot code again
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// verify command lines again
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+	})
+
+	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "old-pc", &snapst)
+	c.Assert(err, IsNil)
+	// and the gadget tracking channel is the same as in the model
+	c.Check(snapst.TrackingChannel, Equals, "20/edge")
+
+	// ensure sorting is correct
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	var i int
+
+	// prepare first
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Switch snap "old-pc" from channel "20/beta" to "20/edge"`))
+	i++
+	// then recovery system
+	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
+	// then gadget switch with update of assets and kernel command line
+	i += validateGadgetSwitchTasks(c, tasks[i:], "old-pc", "1")
+	// finally new model assertion
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
+	i++
+	c.Check(i, Equals, len(tasks))
+}
+
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
 	hookMgr := s.o.HookManager()
 	c.Assert(hookMgr, NotNil)
