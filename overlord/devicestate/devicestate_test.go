@@ -1882,9 +1882,11 @@ func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	// creating a device.Manager will fix the permissions
-	_, err = devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
 	st, err := os.Stat(dirs.SnapVoidDir)
 	c.Assert(err, IsNil)
 	c.Check(int(st.Mode().Perm()), Equals, 0111)

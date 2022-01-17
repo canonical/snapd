@@ -183,11 +183,6 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	boot.RunFDESetupHook = m.runFDESetupHook
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
-	// ensure permissions are ok
-	if err := ensureFileDirPermissions(); err != nil {
-		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
-	}
-
 	return m, nil
 }
 
@@ -268,6 +263,11 @@ func (m *DeviceManager) StartUp() error {
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
+	}
+
+	// ensure /var/lib/snapd/void permissions are ok
+	if err := ensureFileDirPermissions(); err != nil {
+		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
 	}
 
 	// TODO: setup proper timings measurements for this
