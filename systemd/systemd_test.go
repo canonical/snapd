@@ -243,45 +243,53 @@ Id=foo.service
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 
 Type=simple
 Id=bar.service
 Names=bar.service
 ActiveState=reloading
 UnitFileState=static
+NeedDaemonReload=no
 
 Type=potato
 Id=baz.service
 Names=baz.service
 ActiveState=inactive
 UnitFileState=disabled
+NeedDaemonReload=yes
 
 Type=
 Id=missing.service
 Names=missing.service
 ActiveState=inactive
 UnitFileState=
+NeedDaemonReload=no
 `[1:]),
 		[]byte(`
 Id=some.timer
 Names=some.timer
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=yes
 
 Id=other.socket
 Names=other.socket
 ActiveState=active
 UnitFileState=disabled
+NeedDaemonReload=yes
 
 Id=reboot.target
 Names=reboot.target ctrl-alt-del.target
 ActiveState=inactive
 UnitFileState=enabled
+NeedDaemonReload=yes
 
 Id=reboot.target
 Names=reboot.target ctrl-alt-del.target
 ActiveState=inactive
 UnitFileState=enabled
+NeedDaemonReload=yes
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -289,70 +297,78 @@ UnitFileState=enabled
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
-			Daemon:    "simple",
-			Name:      "foo.service",
-			Names:     []string{"foo.service"},
-			Active:    true,
-			Enabled:   true,
-			Installed: true,
-			Id:        "foo.service",
+			Daemon:           "simple",
+			Name:             "foo.service",
+			Names:            []string{"foo.service"},
+			Active:           true,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "foo.service",
+			NeedDaemonReload: false,
 		}, {
-			Daemon:    "simple",
-			Name:      "bar.service",
-			Names:     []string{"bar.service"},
-			Active:    true,
-			Enabled:   true,
-			Installed: true,
-			Id:        "bar.service",
+			Daemon:           "simple",
+			Name:             "bar.service",
+			Names:            []string{"bar.service"},
+			Active:           true,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "bar.service",
+			NeedDaemonReload: false,
 		}, {
-			Daemon:    "potato",
-			Name:      "baz.service",
-			Names:     []string{"baz.service"},
-			Active:    false,
-			Enabled:   false,
-			Installed: true,
-			Id:        "baz.service",
+			Daemon:           "potato",
+			Name:             "baz.service",
+			Names:            []string{"baz.service"},
+			Active:           false,
+			Enabled:          false,
+			Installed:        true,
+			Id:               "baz.service",
+			NeedDaemonReload: true,
 		}, {
-			Daemon:    "",
-			Name:      "missing.service",
-			Names:     []string{"missing.service"},
-			Active:    false,
-			Enabled:   false,
-			Installed: false,
-			Id:        "missing.service",
+			Daemon:           "",
+			Name:             "missing.service",
+			Names:            []string{"missing.service"},
+			Active:           false,
+			Enabled:          false,
+			Installed:        false,
+			Id:               "missing.service",
+			NeedDaemonReload: false,
 		}, {
-			Name:      "some.timer",
-			Names:     []string{"some.timer"},
-			Active:    true,
-			Enabled:   true,
-			Installed: true,
-			Id:        "some.timer",
+			Name:             "some.timer",
+			Names:            []string{"some.timer"},
+			Active:           true,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "some.timer",
+			NeedDaemonReload: true,
 		}, {
-			Name:      "other.socket",
-			Names:     []string{"other.socket"},
-			Active:    true,
-			Enabled:   false,
-			Installed: true,
-			Id:        "other.socket",
+			Name:             "other.socket",
+			Names:            []string{"other.socket"},
+			Active:           true,
+			Enabled:          false,
+			Installed:        true,
+			Id:               "other.socket",
+			NeedDaemonReload: true,
 		}, {
-			Name:      "reboot.target",
-			Names:     []string{"reboot.target", "ctrl-alt-del.target"},
-			Active:    false,
-			Enabled:   true,
-			Installed: true,
-			Id:        "reboot.target",
+			Name:             "reboot.target",
+			Names:            []string{"reboot.target", "ctrl-alt-del.target"},
+			Active:           false,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "reboot.target",
+			NeedDaemonReload: true,
 		}, {
-			Name:      "ctrl-alt-del.target",
-			Names:     []string{"reboot.target", "ctrl-alt-del.target"},
-			Active:    false,
-			Enabled:   true,
-			Installed: true,
-			Id:        "reboot.target",
+			Name:             "ctrl-alt-del.target",
+			Names:            []string{"reboot.target", "ctrl-alt-del.target"},
+			Active:           false,
+			Enabled:          true,
+			Installed:        true,
+			Id:               "reboot.target",
+			NeedDaemonReload: true,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", "foo.service", "bar.service", "baz.service", "missing.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "foo.service", "bar.service", "baz.service", "missing.service"},
 		{"show", "--property=Id,ActiveState,UnitFileState,Names", "some.timer", "other.socket", "reboot.target", "ctrl-alt-del.target"},
 	})
 }
@@ -365,12 +381,14 @@ Id=foo.service
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 
 Type=simple
 Id=foo.service
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -388,12 +406,14 @@ Id=foo.service
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 
 Type=simple
 Id=bar.service
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -428,6 +448,7 @@ Id=bar.service
 Names=bar.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -445,6 +466,7 @@ Names=foo.service
 ActiveState=active
 UnitFileState=enabled
 Potatoes=false
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -458,6 +480,7 @@ func (s *SystemdTestSuite) TestStatusMissingRequiredFieldService(c *C) {
 		[]byte(`
 Id=foo.service
 ActiveState=active
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -501,6 +524,7 @@ Names=foo.service
 ActiveState=active
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -517,6 +541,7 @@ Id=
 Names=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
