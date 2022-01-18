@@ -23,11 +23,16 @@ package secboot
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -186,8 +191,6 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 }
 
 func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (string, string, error) {
-	// 1. mount name under the right mapper with 1mb offset
-
 	// XXX: we're assuming that partition name is well known at this point
 	// and the assumption has been verified at install time
 	part, err := disk.FindMatchingPartitionWithPartLabel(name)
@@ -196,6 +199,65 @@ func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (strin
 	}
 	// TODO: use part.KernelDeviceNode
 	partDevice := filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID)
+
+	// 0.5 - save the first 1 MB header from the physical partition before we
+	// setup the encryption - we don't attempt to decode the header here for
+	// some marginally useful paranoia. We could decode the structure here, but
+	// it's easier and probably safer to let userspace decode it, since
+	// userspace will only decode if it really needs to decode it for a gadget
+	// asset update (which should happen rarely), and also only if decryption of
+	// the primary data succeeds as well. This is wise to do since this data we
+	// are reading is considered untrusted, unencrypted data.
+
+	// Note that eventually this data will need to be decrypyted in the
+	// initramfs when this header data is actually LUKS information
+
+
+	size := fde.DeviceSetupHookPartitionOffset
+
+	partF, err := os.Open(partDevice)
+	if err != nil {
+		logger.Noticef("cannot open node %s: %v", partDevice, err)
+		return "", "", fmt.Errorf("error debugging inline cryptography encrypted partition: %v", err)
+	}
+	closeDoer := &sync.Once{}
+	close := func() { partF.Close() }
+	defer func() { closeDoer.Do(close) }()
+
+	buf := make([]byte, size)
+	n, err := partF.Read(buf)
+	if err != nil {
+		logger.Noticef("cannot read %d bytes from node %s: %v", size, partDevice, err)
+		return "", "", fmt.Errorf("error debugging inline cryptography encrypted partition: %v", err)
+	}
+	if n != int(size) {
+		logger.Noticef("incomplete read of %d bytes from node %s (expected %d bytes)", n, partDevice, size)
+		return "", "", fmt.Errorf("incomplete read of %d bytes from node %s (expected %d bytes)", n, partDevice, size)
+	}
+
+	// close early for maximum safety
+	closeDoer.Do(close)
+
+	logger.Debugf("read %d bytes from ICE node %s, here is first 20: %s", size, partDevice, string(buf[:20]))
+
+	// The naming convention of the file we write in /run is
+	// "disks/<maj:min>/<partition-disk-index>". This is so that we don't need
+	// to know information about what disk maps to what gadget volume, etc.
+	// during the initramfs.
+	// When doing comparisons in userspace, we have this information more
+	// readily available and can map back to the partition's saved data this way
+	headerCopyInRun := filepath.Join(dirs.GlobalRootDir, "/run/snapd/disks", disk.Dev(), strconv.Itoa(int(part.DiskIndex)))
+
+	// TODO: make this dir private or not?
+	if err := os.MkdirAll(filepath.Dir(headerCopyInRun), 0600); err != nil {
+		return "", "", fmt.Errorf("cannot create /run dir for disks header backup: %v", err)
+	}
+	if err := ioutil.WriteFile(headerCopyInRun, buf, 0600); err != nil {
+		return "", "", fmt.Errorf("cannot write header copy to /run: %v", err)
+	}
+
+	// 1. mount name under the right mapper with 1mb offset
+
 	partSize, err := disks.Size(partDevice)
 	if err != nil {
 		return "", "", err
@@ -218,7 +280,7 @@ func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (strin
 func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	res := UnlockResult{}
 
-	// 1. setup mapper
+	// 1. setup mapper and copy data about the header into /run for later usage
 	partDevice, mapperDevice, err := setupDeviceMapperTargetForDeviceUnlock(disk, name)
 	if err != nil {
 		return res, err

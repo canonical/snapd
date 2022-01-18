@@ -20,9 +20,12 @@
 package gadget
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -383,7 +386,66 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 
 				switch encTypeParams.Method {
 				case EncryptionICE:
-					return false, "Inline Crypto Engine encrypted partitions currently unsupported"
+
+					// for ICE, we need to look in /run for the initramfs and
+					// install mode header that was put there before the inline
+					// decryption turned on, since after that is turned on, we
+					// can no longer directly access the first header
+
+					// TODO: make an easier method to get back a disks.Disk from
+					// the OnDiskVolume / OnDiskStructure
+					disk, err := disks.DiskFromPartitionDeviceNode(ds.Node)
+					if err != nil {
+						return false, fmt.Sprintf("error accessing disk from partition device node %s for accessing inline cryptography encrypted partition: %v", ds.Node, err)
+					}
+
+					headerCopyInRun := fmt.Sprintf("/run/snapd/disks/%s/%d", disk.Dev(), ds.DiskIndex)
+
+					logger.Noticef("ICE detection for %s via /run file %s", ds.Node, headerCopyInRun)
+
+					f, err := os.Open(headerCopyInRun)
+					if err != nil {
+						return false, fmt.Sprintf("error accessing inline cryptography encrypted partition header copy at %s: %v", headerCopyInRun, err)
+					}
+
+					buf := make([]byte, 1024*1024)
+					if _, err := f.Read(buf); err != nil {
+						return false, fmt.Sprintf("error reading inline cryptography encrypted partition header copy at %s: %v", headerCopyInRun, err)
+					}
+
+					if !bytes.Equal(buf[:9], []byte("snapd_ice")) {
+						return false, "unknown header for expected inline cryptography encrypted partition"
+					}
+
+					type headerPrimaryData struct {
+						Version json.Number `json:"version"`
+					}
+
+					headerData := headerPrimaryData{}
+
+					jsonData := buf[9:]
+
+					// attempt to decode the JSON
+					decoder := json.NewDecoder(bytes.NewBuffer(jsonData))
+					if err := decoder.Decode(&headerData); err != nil {
+						return false, fmt.Sprintf("cannot de-serialize header data: %v", err)
+					}
+
+					// decode the version
+					vers, err := headerData.Version.Int64()
+					if err != nil {
+						return false, fmt.Sprintf("error accessing inline cryptography engine header version: %v", err)
+					}
+
+					// TODO: do real header validation other than just checking
+					// the version
+					if vers != 1 {
+						return false, fmt.Sprintf("unknown inline cryptography engine header version number %d", vers)
+					}
+
+					// otherwise ok
+					return true, ""
+
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
