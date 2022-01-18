@@ -53,7 +53,7 @@ type FakeSystemdForMount struct {
 	AddMountUnitFileWithOptionsResult ResultForAddMountUnitFileWithOptions
 }
 
-func (s *FakeSystemdForMount) Start(serviceNames ...string) error {
+func (s *FakeSystemdForMount) Start(serviceNames []string) error {
 	s.StartCalls = append(s.StartCalls, serviceNames)
 	return s.StartResult
 }
