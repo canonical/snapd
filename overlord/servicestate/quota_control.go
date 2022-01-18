@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
