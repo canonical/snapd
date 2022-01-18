@@ -36,7 +36,7 @@ func (s *resourcesTestSuite) TestQuotaValidation(c *C) {
 		err    string
 	}{
 		{quota.Resources{}, `quota group must have a memory limit set`},
-		{quota.CreateResources(quantity.Size(0)), `quota group must have a memory limit set`},
+		{quota.NewResources(quantity.Size(0)), `quota group must have a memory limit set`},
 	}
 
 	for _, t := range tests {
@@ -51,8 +51,8 @@ func (s *resourcesTestSuite) TestQuotaChangeValidation(c *C) {
 		updateLimits quota.Resources
 		err          string
 	}{
-		{quota.CreateResources(quantity.SizeMiB), quota.Resources{&quota.ResourceMemory{0}}, `cannot remove memory limit from quota group`},
-		{quota.CreateResources(quantity.SizeMiB), quota.CreateResources(5 * quantity.SizeKiB), `cannot decrease memory limit, remove and re-create it to decrease the limit`},
+		{quota.NewResources(quantity.SizeMiB), quota.Resources{&quota.ResourceMemory{0}}, `cannot remove memory limit from quota group`},
+		{quota.NewResources(quantity.SizeMiB), quota.NewResources(5 * quantity.SizeKiB), `cannot decrease memory limit, remove and re-create it to decrease the limit`},
 	}
 
 	for _, t := range tests {

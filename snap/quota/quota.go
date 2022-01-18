@@ -95,7 +95,7 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
 }
 
 func (grp *Group) GetQuotaResources() Resources {
-	return CreateResources(grp.MemoryLimit)
+	return NewResources(grp.MemoryLimit)
 }
 
 // CurrentMemoryUsage returns the current memory usage of the quota group. For

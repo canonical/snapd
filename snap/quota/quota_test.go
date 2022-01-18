@@ -49,82 +49,82 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 	}{
 		{
 			name:    "group1",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			comment: "basic happy",
 		},
 		{
 			name:    "biglimit",
-			limits:  quota.CreateResources(quantity.Size(math.MaxUint64)),
+			limits:  quota.NewResources(quantity.Size(math.MaxUint64)),
 			comment: "huge limit happy",
 		},
 		{
 			name:    "zero",
-			limits:  quota.CreateResources(0),
+			limits:  quota.NewResources(0),
 			err:     `quota group must have a memory limit set`,
 			comment: "group with zero memory limit",
 		},
 		{
 			name:    "group1-unsupported chars",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `invalid quota group name: contains invalid characters.*`,
 			comment: "unsupported characters in group name",
 		},
 		{
 			name:    "group%%%",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `invalid quota group name: contains invalid characters.*`,
 			comment: "more invalid characters in name",
 		},
 		{
 			name:    "CAPITALIZED",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `invalid quota group name: contains invalid characters.*`,
 			comment: "capitalized letters",
 		},
 		{
 			name:    "g1",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			comment: "small group name",
 		},
 		{
 			name:          "name-with-dashes",
 			sliceFileName: `name\x2dwith\x2ddashes`,
-			limits:        quota.CreateResources(quantity.SizeMiB),
+			limits:        quota.NewResources(quantity.SizeMiB),
 			comment:       "name with dashes",
 		},
 		{
 			name:    "",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `invalid quota group name: must not be empty`,
 			comment: "empty group name",
 		},
 		{
 			name:    "g",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `invalid quota group name: must be between 2 and 40 characters long.*`,
 			comment: "too small group name",
 		},
 		{
 			name:    "root",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `group name "root" reserved`,
 			comment: "reserved root name",
 		},
 		{
 			name:    "snapd",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `group name "snapd" reserved`,
 			comment: "reserved snapd name",
 		},
 		{
 			name:    "system",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `group name "system" reserved`,
 			comment: "reserved system name",
 		},
 		{
 			name:    "user",
-			limits:  quota.CreateResources(quantity.SizeMiB),
+			limits:  quota.NewResources(quantity.SizeMiB),
 			err:     `group name "user" reserved`,
 			comment: "reserved user name",
 		},
@@ -158,64 +158,64 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 		comment       string
 	}{
 		{
-			rootlimits: quota.CreateResources(quantity.SizeMiB),
+			rootlimits: quota.NewResources(quantity.SizeMiB),
 			subname:    "sub",
-			sublimits:  quota.CreateResources(quantity.SizeMiB),
+			sublimits:  quota.NewResources(quantity.SizeMiB),
 			comment:    "basic sub group with same quota as parent happy",
 		},
 		{
-			rootlimits: quota.CreateResources(quantity.SizeMiB),
+			rootlimits: quota.NewResources(quantity.SizeMiB),
 			subname:    "sub",
-			sublimits:  quota.CreateResources(quantity.SizeMiB / 2),
+			sublimits:  quota.NewResources(quantity.SizeMiB / 2),
 			comment:    "basic sub group with smaller quota than parent happy",
 		},
 		{
-			rootlimits:    quota.CreateResources(quantity.SizeMiB),
+			rootlimits:    quota.NewResources(quantity.SizeMiB),
 			subname:       "sub-with-dashes",
 			sliceFileName: `myroot-sub\x2dwith\x2ddashes`,
-			sublimits:     quota.CreateResources(quantity.SizeMiB / 2),
+			sublimits:     quota.NewResources(quantity.SizeMiB / 2),
 			comment:       "basic sub group with dashes in the name",
 		},
 		{
 			rootname:      "my-root",
-			rootlimits:    quota.CreateResources(quantity.SizeMiB),
+			rootlimits:    quota.NewResources(quantity.SizeMiB),
 			subname:       "sub-with-dashes",
 			sliceFileName: `my\x2droot-sub\x2dwith\x2ddashes`,
-			sublimits:     quota.CreateResources(quantity.SizeMiB / 2),
+			sublimits:     quota.NewResources(quantity.SizeMiB / 2),
 			comment:       "parent and sub group have dashes in name",
 		},
 		{
-			rootlimits: quota.CreateResources(quantity.SizeMiB),
+			rootlimits: quota.NewResources(quantity.SizeMiB),
 			subname:    "sub",
-			sublimits:  quota.CreateResources(quantity.SizeMiB * 2),
+			sublimits:  quota.NewResources(quantity.SizeMiB * 2),
 			err:        "sub-group memory limit of 2 MiB is too large to fit inside remaining quota space 1 MiB for parent group myroot",
 			comment:    "sub group with larger quota than parent unhappy",
 		},
 		{
-			rootlimits: quota.CreateResources(quantity.SizeMiB),
+			rootlimits: quota.NewResources(quantity.SizeMiB),
 			subname:    "sub invalid chars",
-			sublimits:  quota.CreateResources(quantity.SizeMiB),
+			sublimits:  quota.NewResources(quantity.SizeMiB),
 			err:        `invalid quota group name: contains invalid characters.*`,
 			comment:    "sub group with invalid name",
 		},
 		{
-			rootlimits: quota.CreateResources(quantity.SizeMiB),
+			rootlimits: quota.NewResources(quantity.SizeMiB),
 			subname:    "myroot",
-			sublimits:  quota.CreateResources(quantity.SizeMiB),
+			sublimits:  quota.NewResources(quantity.SizeMiB),
 			err:        `cannot use same name "myroot" for sub group as parent group`,
 			comment:    "sub group with same name as parent group",
 		},
 		{
-			rootlimits: quota.CreateResources(quantity.SizeMiB),
+			rootlimits: quota.NewResources(quantity.SizeMiB),
 			subname:    "snapd",
-			sublimits:  quota.CreateResources(quantity.SizeMiB),
+			sublimits:  quota.NewResources(quantity.SizeMiB),
 			err:        `group name "snapd" reserved`,
 			comment:    "sub group with reserved name",
 		},
 		{
-			rootlimits: quota.CreateResources(quantity.SizeMiB),
+			rootlimits: quota.NewResources(quantity.SizeMiB),
 			subname:    "zero",
-			sublimits:  quota.CreateResources(0),
+			sublimits:  quota.NewResources(0),
 			err:        `quota group must have a memory limit set`,
 			comment:    "sub group with zero memory limit",
 		},
@@ -248,30 +248,30 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 }
 
 func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
-	rootGrp, err := quota.NewGroup("myroot", quota.CreateResources(quantity.SizeMiB))
+	rootGrp, err := quota.NewGroup("myroot", quota.NewResources(quantity.SizeMiB))
 	c.Assert(err, IsNil)
 
 	// try adding 2 sub-groups with total quota split exactly equally
-	sub1, err := rootGrp.NewSubGroup("sub1", quota.CreateResources(quantity.SizeMiB/2))
+	sub1, err := rootGrp.NewSubGroup("sub1", quota.NewResources(quantity.SizeMiB/2))
 	c.Assert(err, IsNil)
 	c.Assert(sub1.SliceFileName(), Equals, "snap.myroot-sub1.slice")
 
-	sub2, err := rootGrp.NewSubGroup("sub2", quota.CreateResources(quantity.SizeMiB/2))
+	sub2, err := rootGrp.NewSubGroup("sub2", quota.NewResources(quantity.SizeMiB/2))
 	c.Assert(err, IsNil)
 	c.Assert(sub2.SliceFileName(), Equals, "snap.myroot-sub2.slice")
 
 	// adding another sub-group to this group fails
-	_, err = rootGrp.NewSubGroup("sub3", quota.CreateResources(5*quantity.SizeKiB))
+	_, err = rootGrp.NewSubGroup("sub3", quota.NewResources(5*quantity.SizeKiB))
 	c.Assert(err, ErrorMatches, "sub-group memory limit of 5 KiB is too large to fit inside remaining quota space 0 B for parent group myroot")
 
 	// we can however add a sub-group to one of the sub-groups with the exact
 	// size of the parent sub-group
-	subsub1, err := sub1.NewSubGroup("subsub1", quota.CreateResources(quantity.SizeMiB/2))
+	subsub1, err := sub1.NewSubGroup("subsub1", quota.NewResources(quantity.SizeMiB/2))
 	c.Assert(err, IsNil)
 	c.Assert(subsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1.slice")
 
 	// and we can even add a smaller sub-sub-sub-group to the sub-group
-	subsubsub1, err := subsub1.NewSubGroup("subsubsub1", quota.CreateResources(quantity.SizeMiB/4))
+	subsubsub1, err := subsub1.NewSubGroup("subsubsub1", quota.NewResources(quantity.SizeMiB/4))
 	c.Assert(err, IsNil)
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
@@ -490,10 +490,10 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 }
 
 func (ts *quotaTestSuite) TestAddAllNecessaryGroupsAvoidsInfiniteRecursion(c *C) {
-	grp, err := quota.NewGroup("infinite-group", quota.CreateResources(quantity.SizeGiB))
+	grp, err := quota.NewGroup("infinite-group", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	grp2, err := grp.NewSubGroup("infinite-group2", quota.CreateResources(quantity.SizeGiB))
+	grp2, err := grp.NewSubGroup("infinite-group2", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	// create a cycle artificially to the same group
@@ -513,7 +513,7 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroupsAvoidsInfiniteRecursion(c *C)
 	// make a real sub-group and try one more level of indirection going back
 	// to the parent
 	grp2.SetInternalSubGroups(nil)
-	grp3, err := grp2.NewSubGroup("infinite-group3", quota.CreateResources(quantity.SizeGiB))
+	grp3, err := grp2.NewSubGroup("infinite-group3", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 	grp3.SetInternalSubGroups([]*quota.Group{grp})
 
@@ -527,7 +527,7 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	// it should initially be empty
 	c.Assert(qs.AllQuotaGroups(), HasLen, 0)
 
-	grp1, err := quota.NewGroup("myroot", quota.CreateResources(quantity.SizeGiB))
+	grp1, err := quota.NewGroup("myroot", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	// add the group and make sure it is in the set
@@ -543,7 +543,7 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1})
 
 	// add a new group and make sure it is in the set now
-	grp2, err := quota.NewGroup("myroot2", quota.CreateResources(quantity.SizeGiB))
+	grp2, err := quota.NewGroup("myroot2", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 	err = qs.AddAllNecessaryGroups(grp2)
 	c.Assert(err, IsNil)
@@ -554,7 +554,7 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 
 	// make a sub-group and add the root group - it will automatically add
 	// the sub-group without us needing to explicitly add the sub-group
-	subgrp1, err := grp1.NewSubGroup("mysub1", quota.CreateResources(quantity.SizeGiB))
+	subgrp1, err := grp1.NewSubGroup("mysub1", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 	// add grp2 as well
 	err = qs.AddAllNecessaryGroups(grp2)
@@ -571,13 +571,13 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 
 	// create a new set of group and sub-groups to add the deepest child group
 	// and add that, and notice that the root groups are also added
-	grp3, err := quota.NewGroup("myroot3", quota.CreateResources(quantity.SizeGiB))
+	grp3, err := quota.NewGroup("myroot3", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	subgrp3, err := grp3.NewSubGroup("mysub3", quota.CreateResources(quantity.SizeGiB))
+	subgrp3, err := grp3.NewSubGroup("mysub3", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	subsubgrp3, err := subgrp3.NewSubGroup("mysubsub3", quota.CreateResources(quantity.SizeGiB))
+	subsubgrp3, err := subgrp3.NewSubGroup("mysubsub3", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	err = qs.AddAllNecessaryGroups(subsubgrp3)
@@ -587,13 +587,13 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	// finally create a tree with multiple branches and ensure that adding just
 	// a single deepest child will add all the other deepest children from other
 	// branches
-	grp4, err := quota.NewGroup("myroot4", quota.CreateResources(quantity.SizeGiB))
+	grp4, err := quota.NewGroup("myroot4", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	subgrp4, err := grp4.NewSubGroup("mysub4", quota.CreateResources(quantity.SizeGiB/2))
+	subgrp4, err := grp4.NewSubGroup("mysub4", quota.NewResources(quantity.SizeGiB/2))
 	c.Assert(err, IsNil)
 
-	subgrp5, err := grp4.NewSubGroup("mysub5", quota.CreateResources(quantity.SizeGiB/2))
+	subgrp5, err := grp4.NewSubGroup("mysub5", quota.NewResources(quantity.SizeGiB/2))
 	c.Assert(err, IsNil)
 
 	// adding just subgrp5 to a quota set will automatically add the other sub
@@ -605,13 +605,13 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 }
 
 func (ts *quotaTestSuite) TestResolveCrossReferencesLimitCheckSkipsSelf(c *C) {
-	grp1, err := quota.NewGroup("myroot", quota.CreateResources(quantity.SizeGiB))
+	grp1, err := quota.NewGroup("myroot", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	subgrp1, err := grp1.NewSubGroup("mysub1", quota.CreateResources(quantity.SizeGiB))
+	subgrp1, err := grp1.NewSubGroup("mysub1", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	subgrp2, err := subgrp1.NewSubGroup("mysub2", quota.CreateResources(quantity.SizeGiB))
+	subgrp2, err := subgrp1.NewSubGroup("mysub2", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	all := map[string]*quota.Group{
@@ -624,13 +624,13 @@ func (ts *quotaTestSuite) TestResolveCrossReferencesLimitCheckSkipsSelf(c *C) {
 }
 
 func (ts *quotaTestSuite) TestResolveCrossReferencesCircular(c *C) {
-	grp1, err := quota.NewGroup("myroot", quota.CreateResources(quantity.SizeGiB))
+	grp1, err := quota.NewGroup("myroot", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	subgrp1, err := grp1.NewSubGroup("mysub1", quota.CreateResources(quantity.SizeGiB))
+	subgrp1, err := grp1.NewSubGroup("mysub1", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
-	subgrp2, err := subgrp1.NewSubGroup("mysub2", quota.CreateResources(quantity.SizeGiB))
+	subgrp2, err := subgrp1.NewSubGroup("mysub2", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	all := map[string]*quota.Group{
@@ -705,7 +705,7 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 	})
 	defer r()
 
-	grp1, err := quota.NewGroup("group", quota.CreateResources(quantity.SizeGiB))
+	grp1, err := quota.NewGroup("group", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	// group initially is inactive, so it has no current memory usage

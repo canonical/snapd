@@ -112,7 +112,7 @@ func (qr *Resources) Change(newLimits Resources) error {
 	return nil
 }
 
-func CreateResources(memoryLimit quantity.Size) Resources {
+func NewResources(memoryLimit quantity.Size) Resources {
 	var quotaResources Resources
 	if memoryLimit != 0 {
 		quotaResources.Memory = &ResourceMemory{

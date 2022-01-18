@@ -192,7 +192,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	tr.Commit()
 
 	// make a new quota group with this snap in it
-	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, quota.CreateResources(quantity.SizeMiB))
+	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, quota.NewResources(quantity.SizeMiB))
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
