@@ -126,20 +126,10 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 	dirtyEnv := false
 	// Flag to know if we need to write piboot's config.txt or tryboot.txt
 	reconfigBootloader := false
-	// If the change is coming from the initramfs, we do not really want
-	// to regenerate config.txt/tryboot.txt yet, so we need this flag too.
-	pibootConfigureAllow := true
 	for k, v := range values {
 		// already set to the right value, nothing to do
 		if env.Get(k) == v {
 			continue
-		}
-		// "kernel_status" transitions from "try" to "trying"/"" are
-		// coming from the initramfs (simulating what the bootloader
-		// should do) and do not retrigger a configuration, as the
-		// reconfiguration will be triggered later from the rootfs.
-		if k == "kernel_status" && env.Get(k) == "try" {
-			pibootConfigureAllow = false
 		}
 		env.Set(k, v)
 		dirtyEnv = true
@@ -164,8 +154,34 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 		}
 	}
 
-	if reconfigBootloader && pibootConfigureAllow {
+	if reconfigBootloader {
 		if err := p.loadAndApplyConfig(env); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *piboot) SetBootVarsFromInitramfs(values map[string]string) error {
+	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
+	if err != nil {
+		return err
+	}
+
+	dirtyEnv := false
+	for k, v := range values {
+		// already set to the right value, nothing to do
+		logger.Noticef("Setting %s=%s", k, v)
+		if env.Get(k) == v {
+			continue
+		}
+		env.Set(k, v)
+		dirtyEnv = true
+	}
+
+	if dirtyEnv {
+		if err := env.Save(); err != nil {
 			return err
 		}
 	}

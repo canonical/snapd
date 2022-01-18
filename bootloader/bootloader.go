@@ -226,6 +226,18 @@ type TrustedAssetsBootloader interface {
 	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
 }
 
+// NotScriptableBootloader cannot change the bootloader environment
+// because it supports no scripting or cannot do any writes. This
+// applies to piboot for the moment.
+type NotScriptableBootloader interface {
+	Bootloader
+
+	// Sets boot variables from initramfs - this is needed in
+	// addition to SetBootVars() to prevent side effects like
+	// re-writing the bootloader configuration.
+	SetBootVarsFromInitramfs(values map[string]string) error
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) error {
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
 		return err
