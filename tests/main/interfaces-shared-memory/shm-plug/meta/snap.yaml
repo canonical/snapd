@@ -8,3 +8,6 @@ plugs:
   shmem:
     interface: shared-memory
     shared-memory: super-foo
+  shmem-wildcard:
+    interface: shared-memory
+    shared-memory: super-foo-wildcard
