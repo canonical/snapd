@@ -254,6 +254,10 @@ apps:
 			"mount:\n  - what: /\n    where: /media/*\n    options: [rw]\n    type: [tmpfs]",
 			`mount-control "what" attribute must be "none" with "tmpfs"; found "/" instead`,
 		},
+		{
+			"mount:\n  - what: /\n    where: $SNAP_DATA/foo\n    options: [ro]\n    persistent: true",
+			`mount-control "persistent" attribute cannot be used to mount onto \$SNAP_DATA`,
+		},
 	}
 
 	for _, testData := range data {

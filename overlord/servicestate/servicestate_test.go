@@ -86,6 +86,7 @@ Names=%[1]s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
+NeedDaemonReload=no
 `, args[2], activeState, unitState)), nil
 			}
 		case "--user":

@@ -585,10 +585,14 @@ type UnitStatus struct {
 	Active  bool
 	// Installed is false if the queried unit doesn't exist.
 	Installed bool
+	// NeedDaemonReload is true when systemd reports that the unit on disk
+	// has been modified and may differ from systemd's internal state, thus
+	// a daemon-reload is needed.
+	NeedDaemonReload bool
 }
 
 var baseProperties = []string{"Id", "ActiveState", "UnitFileState", "Names"}
-var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type", "Names"}
+var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type", "Names", "NeedDaemonReload"}
 var unitProperties = map[string][]string{
 	".timer":  baseProperties,
 	".socket": baseProperties,
@@ -693,6 +697,8 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		case "Names":
 			// This list can include Alias names for a unit (but also includes Id)
 			cur.Names = strings.Fields(v)
+		case "NeedDaemonReload":
+			cur.NeedDaemonReload = v == "yes"
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
