@@ -13,6 +13,7 @@ plugs:
             - what: /var/tmp/**
               where: $SNAP_COMMON/**
               options: [rw, bind]
+              persistent: true
             - what: /dev/sd*
               where: /media/**
               type: [ext2, ext3, ext4]
