@@ -106,8 +106,8 @@ func (s *umountSuite) TestMissingContext(c *C) {
 }
 
 func (s *umountSuite) TestMissingParameters(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"umount", ""}, 0)
-	c.Check(err, ErrorMatches, `mount point cannot be empty`)
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"umount"}, 0)
+	c.Check(err, ErrorMatches, "the required argument `<where>` was not provided")
 }
 
 func (s *umountSuite) TestListUnitFailure(c *C) {
