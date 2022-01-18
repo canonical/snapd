@@ -205,15 +205,27 @@ func (s *SystemdTestSuite) TestDaemonReexec(c *C) {
 }
 
 func (s *SystemdTestSuite) TestStart(c *C) {
-	err := New(SystemMode, s.rep).Start([]string{"foo"})
+	sysd := New(SystemMode, s.rep)
+	err := sysd.Start([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo"}})
-}
 
-func (s *SystemdTestSuite) TestStartMany(c *C) {
-	err := New(SystemMode, s.rep).Start([]string{"foo", "bar", "baz"})
+	s.argses = nil
+	err = sysd.Start([]string{"foo", "bar", "baz"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"start", "foo", "bar", "baz"}})
+}
+
+func (s *SystemdTestSuite) TestStartNoBlock(c *C) {
+	sysd := New(SystemMode, s.rep)
+	err := sysd.StartNoBlock([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo"}})
+
+	s.argses = nil
+	err = sysd.StartNoBlock([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"start", "--no-block", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestStop(c *C) {
@@ -233,6 +245,23 @@ func (s *SystemdTestSuite) TestStop(c *C) {
 	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
 	c.Check(s.argses[1], DeepEquals, s.argses[2])
 	c.Check(s.argses[1], DeepEquals, s.argses[3])
+}
+
+func (s *SystemdTestSuite) TestStopMany(c *C) {
+	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	defer restore()
+	s.outs = [][]byte{
+		nil,                              // for the "stop" itself
+		[]byte("ActiveState=inactive\n"), // foo
+		[]byte("ActiveState=inactive\n"), // bar
+	}
+	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
+	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"}, 1*time.Second)
+	c.Assert(err, IsNil)
+	c.Assert(s.argses, HasLen, 3)
+	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
 }
 
 func (s *SystemdTestSuite) TestStopTimesOut(c *C) {
@@ -593,9 +622,15 @@ func (s *SystemdTestSuite) TestStopManyTimeout(c *C) {
 }
 
 func (s *SystemdTestSuite) TestDisable(c *C) {
-	err := New(SystemMode, s.rep).Disable([]string{"foo"})
+	sysd := New(SystemMode, s.rep)
+	err := sysd.Disable([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo"}})
+
+	s.argses = nil
+	err = sysd.Disable([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
@@ -647,9 +682,15 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 }
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
-	err := New(SystemMode, s.rep).Enable([]string{"foo"})
+	sysd := New(SystemMode, s.rep)
+	err := sysd.Enable([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo"}})
+
+	s.argses = nil
+	err = sysd.Enable([]string{"foo", "bar"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
@@ -697,6 +738,25 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
 	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
 	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
+}
+
+func (s *SystemdTestSuite) TestRestartMany(c *C) {
+	restore := MockStopDelays(time.Millisecond, 25*time.Second)
+	defer restore()
+	s.outs = [][]byte{
+		nil,                              // for the "stop" itself
+		[]byte("ActiveState=inactive\n"), // foo
+		[]byte("ActiveState=inactive\n"), // bar
+		nil,                              // for the "start"
+	}
+	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
+	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"}, 100*time.Millisecond)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, HasLen, 4)
+	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo", "bar"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=ActiveState", "bar"})
+	c.Check(s.argses[3], DeepEquals, []string{"start", "foo", "bar"})
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
