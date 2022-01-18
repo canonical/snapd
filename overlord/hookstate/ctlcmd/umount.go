@@ -50,10 +50,6 @@ func (m *umountCommand) Execute([]string) error {
 		return err
 	}
 
-	if m.Positional.Where == "" {
-		return fmt.Errorf("mount point cannot be empty")
-	}
-
 	snapName := context.InstanceName()
 
 	// Get the list of all our mount units, to find the matching one
