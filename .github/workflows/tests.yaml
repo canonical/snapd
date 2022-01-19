@@ -1,8 +1,11 @@
 name: Jobs
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
-      - '**'        # matches every branch
+      - main
 
 jobs:
   unit-tests:
