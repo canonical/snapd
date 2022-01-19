@@ -64,7 +64,7 @@ func validateSharedMemoryPath(path string) error {
 	}
 
 	// TODO: allow "*" as a globbing character; figure out if more AARE should be allowed
-	if err := apparmor.ValidateNoAppArmorRegexp(path); err != nil {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
 		return fmt.Errorf("shared-memory interface path is invalid: %v", err)
 	}
 
