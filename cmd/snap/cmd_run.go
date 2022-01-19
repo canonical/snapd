@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
  * Copyright (C) 2014-2018 Canonical Ltd
  *
@@ -1230,6 +1229,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
+// TODO: add migration status based on seq file info
 func getSnapDirOptions() *dirs.SnapDirOptions {
 	return &dirs.SnapDirOptions{
 		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
