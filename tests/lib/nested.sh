@@ -295,6 +295,9 @@ nested_get_google_image_url_for_vm() {
         ubuntu-21.10-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
             ;;
+        ubuntu-22.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -319,6 +322,9 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-21.10-64*)
             echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-22.04-64*)
+            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
