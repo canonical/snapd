@@ -153,7 +153,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 			continue
 		}
 
-		if connState.Undesired || connState.HotplugGone {
+		if !connState.Active() {
 			continue
 		}
 
