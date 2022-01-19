@@ -69,8 +69,8 @@ func validateSharedMemoryPath(path string) error {
 		return fmt.Errorf("shared-memory interface path has leading or trailing spaces: %q", path)
 	}
 
-	// allow specifically only a single "*" globbing character, but disallow all
-	// other AARE characters
+	// allow specifically only "*" globbing character, but disallow all other
+	// AARE characters
 
 	// same as from ValidateNoAppArmorRegexp, but with globbing
 	const aareWithoutGlob = `?[]{}^"` + "\x00"
@@ -78,7 +78,8 @@ func validateSharedMemoryPath(path string) error {
 		return fmt.Errorf("shared-memory interface path is invalid: %q contains a reserved apparmor char from %s", path, aareWithoutGlob)
 	}
 
-	// make sure there are no "**" which affect directories as well
+	// in addition to only allowing "*", we don't want to allow double "**"
+	// because "**" can traverse sub-directories as well which we don't want
 	if strings.Contains(path, "**") {
 		return fmt.Errorf("shared-memory interface path is invalid: %q contains ** which is unsupported", path)
 	}
