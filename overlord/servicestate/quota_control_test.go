@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -69,10 +68,10 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	if _, err := os.Stat(filepath.Dir(cgroupsPath)); os.IsNotExist(err) {
 		err := os.Mkdir(filepath.Dir(cgroupsPath), 0777)
-		c.Assert(err, check.IsNil)
+		c.Assert(err, IsNil)
 	}
 	cgroupsFile, err := os.Create(cgroupsPath)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	defer cgroupsFile.Close()
 	// memory is enabled & file size is reduced as we only check for memory at this point
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
@@ -80,7 +79,7 @@ cpuset	6	3	1
 cpu	3	133	1
 memory	2	223	1
 devices	10	135	1`)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	cgroupsFile.Sync()
 }
 
@@ -951,7 +950,7 @@ func (s *quotaControlSuite) TestMemoryCGroupDisabled(c *C) {
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err := os.Create(cgroupsPath)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	defer cgroupsFile.Close()
 	// memory is enabled & file size is reduced as we only check for memory at this point
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
@@ -959,7 +958,7 @@ cpuset	6	3	1
 cpu	3	133	1
 memory	2	223	0
 devices	10	135	1`)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	cgroupsFile.Sync()
 	// reset memory cgroup status with the enabled file
 	servicestate.SetCGroupsFilePath(cgroupsPath)
@@ -998,7 +997,7 @@ func (s *quotaControlSuite) TestMemoryCGroupEnabled(c *C) {
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err := os.Create(cgroupsPath)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	defer cgroupsFile.Close()
 	// memory is enabled & file size is reduced as we only check for memory at this point
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
@@ -1006,7 +1005,7 @@ cpuset	6	3	1
 cpu	3	133	1
 memory	2	223	1
 devices	10	135	1`)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	cgroupsFile.Sync()
 
 	// reset memory cgroup status with the enabled file
@@ -1080,8 +1079,7 @@ func (s *quotaControlSuite) TestMemoryCGroupMalformed(c *C) {
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err := os.Create(cgroupsPath)
-	c.Assert(err, check.IsNil)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	defer cgroupsFile.Close()
 	// each configuration has 3 fields instead of 4
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled	extra_field
@@ -1089,7 +1087,7 @@ cpuset	6	3
 cpu	3	133
 memory	2	223
 devices	10	135`)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	cgroupsFile.Sync()
 
 	// reset memory cgroup status with the disabled file
@@ -1129,14 +1127,14 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingMemory(c *C) {
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err := os.Create(cgroupsPath)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	defer cgroupsFile.Close()
 	// memory is enabled & file size is reduced as we only check for memory at this point
 	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
 cpuset	6	3	1
 cpu	3	133	1
 devices	10	135	1`)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	cgroupsFile.Sync()
 	// reset memory cgroup status with the enabled file
 	servicestate.SetCGroupsFilePath(cgroupsPath)
