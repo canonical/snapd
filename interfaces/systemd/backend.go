@@ -93,23 +93,33 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	// Reload systemd whenever something is added or removed
-	if !b.preseed && (len(changed) > 0 || len(removed) > 0) {
-		err := systemd.DaemonReload()
-		if err != nil {
-			logger.Noticef("cannot reload systemd state: %s", err)
+	if !b.preseed {
+		if len(changed) > 0 {
+			err := systemd.DaemonReloadIfNeeded(true, changed)
+			if err != nil {
+				logger.Noticef("cannot reload systemd state: %s", err)
+			}
+		}
+		if len(removed) > 0 {
+			err := systemd.DaemonReloadIfNeeded(false, removed)
+			if err != nil {
+				logger.Noticef("cannot reload systemd state: %s", err)
+			}
 		}
 	}
-	// Ensure the service is running right now and on reboots
-	for _, service := range changed {
-		serviceUnits := []string{service}
-		if err := systemd.Enable(serviceUnits); err != nil {
-			logger.Noticef("cannot enable service %q: %s", service, err)
+
+	if len(changed) > 0 {
+		logger.Noticef("systemd-backend: Setup: changed services: %q", changed)
+		if err := systemd.Enable(changed); err != nil {
+			logger.Noticef("cannot enable services %q: %s", changed, err)
 		}
+		// Ensure the service is running right now and on reboots
+		// If we have a new service here which isn't started yet the restart
+		// operation will start it.
 		if !b.preseed {
-			// If we have a new service here which isn't started yet the restart
-			// operation will start it.
-			if err := systemd.Restart(serviceUnits, 10*time.Second); err != nil {
-				logger.Noticef("cannot restart service %q: %s", service, err)
+			logger.Noticef("systemd-backend: Setup: Restart service: %q", changed)
+			if err := systemd.Restart(changed, 10*time.Second); err != nil {
+				logger.Noticef("cannot restart service %q: %s", changed, err)
 			}
 		}
 	}
@@ -129,22 +139,20 @@ func (b *Backend) Remove(snapName string) error {
 	// Remove all the files matching snap glob
 	glob := serviceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
-	for _, service := range removed {
-		serviceUnits := []string{service}
-		if err := systemd.Disable(serviceUnits); err != nil {
-			logger.Noticef("cannot disable service %q: %s", service, err)
+
+	if len(removed) > 0 {
+		logger.Noticef("systemd-backend: Disable: removed services: %q", removed)
+		if err := systemd.Disable(removed); err != nil {
+			logger.Noticef("cannot disable service %q: %s", removed, err)
 		}
 		if !b.preseed {
-			if err := systemd.Stop(serviceUnits, 5*time.Second); err != nil {
-				logger.Noticef("cannot stop service %q: %s", service, err)
+			if err := systemd.Stop(removed, 5*time.Second); err != nil {
+				logger.Noticef("cannot stop service %q: %s", removed, err)
 			}
 		}
-	}
-	// Reload systemd whenever something is removed
-	if !b.preseed && len(removed) > 0 {
-		err := systemd.DaemonReload()
-		if err != nil {
-			logger.Noticef("cannot reload systemd state: %s", err)
+		// Reload systemd configuration if necessary
+		if err := systemd.DaemonReloadIfNeeded(false, removed); err != nil {
+			logger.Noticef("cannot do daemon-reload for %q: %s", removed, err)
 		}
 	}
 	return errEnsure
