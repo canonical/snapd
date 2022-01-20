@@ -139,25 +139,19 @@ func (s *servicesTestSuite) checkOrdered(c *C, obtained [][]string, checker Chec
 	return s.checkOrderedWithComment(c, obtained, checker, expected, nil)
 }
 
-func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
+func (s *servicesTestSuite) testAddSnapServicesAndRemove(c *C, svcFile string, addSnapAssertStrings [][]string, startAssertStrings [][]string, stopAssertStrings [][]string, disableAssertStrings [][]string) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, addSnapAssertStrings)
 
 	s.sysdLog = nil
 
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err = wrappers.StartServices(info.Services(), nil, flags, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", filepath.Base(svcFile)},
-		{"start", filepath.Base(svcFile)},
-	})
+	c.Check(s.sysdLog, DeepEquals, startAssertStrings)
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
@@ -190,20 +184,67 @@ WantedBy=multi-user.target
 	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 2)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"stop", filepath.Base(svcFile)},
-		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
-	})
+	c.Check(s.sysdLog, DeepEquals, stopAssertStrings)
 
 	s.sysdLog = nil
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(svcFile, testutil.FileAbsent)
-	c.Assert(s.sysdLog, DeepEquals, [][]string{
-		{"disable", filepath.Base(svcFile)},
-		{"daemon-reload"},
-	})
+	c.Assert(s.sysdLog, DeepEquals, disableAssertStrings)
 }
+
+func (s *servicesTestSuite) TestAddSnapServicesAndRemoveLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	s.testAddSnapServicesAndRemove(c, svcFile,
+		[][]string{
+			{"daemon-reload"},
+		},
+		[][]string{
+			{"enable", filepath.Base(svcFile)},
+			{"start", filepath.Base(svcFile)},
+		},
+		[][]string{
+			{"stop", filepath.Base(svcFile)},
+			{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+		},
+		[][]string{
+			{"disable", filepath.Base(svcFile)},
+			{"is-failed", filepath.Base(svcFile)},
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesAndRemoveModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	s.testAddSnapServicesAndRemove(c, svcFile,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+		},
+		[][]string{
+			{"enable", filepath.Base(svcFile)},
+			{"start", filepath.Base(svcFile)},
+		},
+		[][]string{
+			{"stop", filepath.Base(svcFile)},
+			{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+		},
+		[][]string{
+			{"disable", filepath.Base(svcFile)},
+			{"is-failed", filepath.Base(svcFile)},
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+		},
+	)
+}
+
 func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
