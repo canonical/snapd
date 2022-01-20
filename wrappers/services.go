@@ -864,19 +864,20 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	systemSysd := systemd.New(systemd.SystemMode, inter)
 	userSysd := systemd.New(systemd.GlobalUserMode, inter)
 	var removedSystem, removedUser bool
+	systemUnits := []string{}
+	userUnits := []string{}
+	systemUnitsFiles := []string{}
 
+	// collect list of system units to disable and remove
 	for _, app := range s.Apps {
 		if !app.IsService() || !osutil.FileExists(app.ServiceFile()) {
 			continue
 		}
 
-		var sysd systemd.Systemd
 		switch app.DaemonScope {
 		case snap.SystemDaemon:
-			sysd = systemSysd
 			removedSystem = true
 		case snap.UserDaemon:
-			sysd = userSysd
 			removedUser = true
 		}
 		serviceName := filepath.Base(app.ServiceFile())
@@ -884,41 +885,70 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		for _, socket := range app.Sockets {
 			path := socket.File()
 			socketServiceName := filepath.Base(path)
-			if err := sysd.Disable([]string{socketServiceName}); err != nil {
-				return err
+			logger.Noticef("RemoveSnapServices - socket %s", socketServiceName)
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				systemUnits = append(systemUnits, socketServiceName)
+			case snap.UserDaemon:
+				userUnits = append(userUnits, socketServiceName)
 			}
-
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				logger.Noticef("Failed to remove socket file %q for %q: %v", path, serviceName, err)
-			}
+			systemUnitsFiles = append(systemUnitsFiles, path)
 		}
 
 		if app.Timer != nil {
 			path := app.Timer.File()
 
 			timerName := filepath.Base(path)
-			if err := sysd.Disable([]string{timerName}); err != nil {
-				return err
+			logger.Noticef("RemoveSnapServices - timer %s", timerName)
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				systemUnits = append(systemUnits, timerName)
+			case snap.UserDaemon:
+				userUnits = append(userUnits, timerName)
 			}
-
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				logger.Noticef("Failed to remove timer file %q for %q: %v", path, serviceName, err)
-			}
+			systemUnitsFiles = append(systemUnitsFiles, path)
 		}
 
-		if err := sysd.Disable([]string{serviceName}); err != nil {
-			return err
+		logger.Noticef("RemoveSnapServices - disabling %s", serviceName)
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			systemUnits = append(systemUnits, serviceName)
+		case snap.UserDaemon:
+			userUnits = append(userUnits, serviceName)
 		}
+		systemUnitsFiles = append(systemUnitsFiles, app.ServiceFile())
+	}
 
-		if err := os.Remove(app.ServiceFile()); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("Failed to remove service file for %q: %v", serviceName, err)
+	// disable all collected systemd units
+	if err := systemSysd.Disable(systemUnits); err != nil {
+		return err
+	}
+
+	// disable all collected user units
+	if err := userSysd.Disable(userUnits); err != nil {
+		return err
+	}
+
+	// remove unit filenames
+	for i := 0; i < len(systemUnitsFiles); i++ {
+		if err := os.Remove(systemUnitsFiles[i]); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("Failed to remove socket file %q: %v", systemUnitsFiles[i], err)
 		}
+	}
 
+	// When a service is in failed state, simply disabling it does not make
+	// systemd 'forget' about it: the state is kept for administrators to
+	// take a look at it. To remove it, we use the reset-failed systemctl
+	// command - otherwise we would need a daemon-reload if we reinstall the
+	// same snap, which is much more costly.
+	if err := systemSysd.ResetFailedIfNeeded(systemUnits); err != nil {
+		logger.Noticef("RemoveSnapServices - ResetFailedIfNeeded %v", err)
+		return err
 	}
 
 	// only reload if we actually had services
 	if removedSystem {
-		if err := systemSysd.DaemonReload(); err != nil {
+		if err := systemSysd.DaemonReloadIfNeeded(false, systemUnits); err != nil {
 			return err
 		}
 	}
