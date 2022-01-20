@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	. "github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -721,6 +722,69 @@ func (s *SystemdTestSuite) TestUnmaskUnderRoot(c *C) {
 	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Unmask("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "unmask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsFailed(c *C) {
+	s.outs = [][]byte{
+		[]byte("active\n"),
+	}
+	isFailed := New(SystemMode, s.rep).IsFailed([]string{"foo"})
+	c.Assert(isFailed, Equals, false)
+	c.Check(s.argses, DeepEquals, [][]string{{"is-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsFailedFails(c *C) {
+	s.outs = [][]byte{
+		[]byte("failed\n"), // unit is in failed state
+	}
+	isFailed := New(SystemMode, s.rep).IsFailed([]string{"foo"})
+	c.Assert(isFailed, Equals, true)
+	c.Check(s.argses, DeepEquals, [][]string{{"is-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsFailedEmpty(c *C) {
+	s.outs = [][]byte{
+		nil, // systemd fails to reply, assume failed
+	}
+	isFailed := New(SystemMode, s.rep).IsFailed([]string{"foo"})
+	c.Assert(isFailed, Equals, true)
+	c.Check(s.argses, DeepEquals, [][]string{{"is-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsFailedUnderRoot(c *C) {
+	s.outs = [][]byte{
+		[]byte("active\n"),
+	}
+	isFailed := NewUnderRoot("xyzzy", SystemMode, s.rep).IsFailed([]string{"foo"})
+	c.Assert(isFailed, Equals, false)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsFailedUnderRootFails(c *C) {
+	s.outs = [][]byte{
+		[]byte("failed\n"),
+	}
+	isFailed := NewUnderRoot("xyzzy", SystemMode, s.rep).IsFailed([]string{"foo"})
+	c.Assert(isFailed, Equals, true)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestResetFailed(c *C) {
+	err := New(SystemMode, s.rep).ResetFailed([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"reset-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestResetFailedFails(c *C) {
+	err := New(SystemMode, s.rep).ResetFailed([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"reset-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestResetFailedUnderRoot(c *C) {
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).ResetFailed([]string{"foo"})
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "reset-failed", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
