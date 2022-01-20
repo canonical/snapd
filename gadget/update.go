@@ -148,8 +148,71 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
+func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
+	// in uc16/uc18 we used to allow system-data to be implicit / missing from
+	// the gadget.yaml in which case we won't have system-data in the laidOutVol
+	// but it will be in diskLayout, so we sometimes need to check if a given on
+	// disk partition looks like it was created implicitly by ubuntu-image as
+	// specified via the defaults in
+	// https://github.com/canonical/ubuntu-image-legacy/blob/master/ubuntu_image/parser.py#L568-L589
+
+	// namely it must meet the following conditions:
+	// * fs is ext4
+	// * partition type is "Linux filesystem data"
+	// * fs label is "writable"
+	// * this on disk structure is last on the disk
+	// * there is exactly one more structure on disk than partitions in the
+	//   gadget
+	// * there is no system-data role in the gadget.yaml
+
+	// note: we specifically do not check the size of the structure because it
+	// likely was resized, but it also could have not been resized if there
+	// ended up being less than 10% free space as per the resize script in the
+	// initramfs:
+	// https://github.com/snapcore/core-build/blob/master/initramfs/scripts/local-premount/resize
+
+	// bare structures don't show up on disk, so we can't include them
+	// when calculating how many "structures" are in gadgetLayout to
+	// ensure that there is only one extra OnDiskStructure at the end
+	numPartsInGadget := 0
+	for _, s := range gadgetLayout.Structure {
+		if s.IsPartition() {
+			numPartsInGadget++
+		}
+
+		// also check for explicit system-data role
+		if s.Role == SystemData {
+			// s can't be implicit system-data since there is an explicit
+			// system-data
+			return false
+		}
+	}
+
+	numPartsOnDisk := len(diskLayout.Structure)
+
+	return s.Filesystem == "ext4" &&
+		s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" && // TODO: check hybrid and on MBR/DOS too
+		s.Label == "writable" &&
+		// DiskIndex is 1-based
+		s.DiskIndex == numPartsOnDisk &&
+		numPartsInGadget+1 == numPartsOnDisk
+}
+
+// EnsureLayoutCompatibilityOptions is a set of options for determining how
+// strict to be when evaluating whether an on-disk structure matches a laid out
+// structure.
 type EnsureLayoutCompatibilityOptions struct {
+	// AssumeCreatablePartitionsCreated will assume that all partitions such as
+	// ubuntu-data, ubuntu-save, etc. that are creatable in install mode have
+	// already been created and thus must be already exactly matching that which
+	// is in the gadget.yaml.
 	AssumeCreatablePartitionsCreated bool
+
+	// AllowImplicitSystemData allows the system-data role to be missing from
+	// the laid out volume as was allowed in UC18 and UC16 where the system-data
+	// partition would be dynamically inserted into the image at image build
+	// time by ubuntu-image without being mentioned in the gadget.yaml.
+	AllowImplicitSystemData bool
 }
 
 func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
@@ -215,12 +278,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// image file with a new binary image file.
 			if gv.Filesystem != "" && gv.Filesystem != dv.Filesystem {
 				// use more specific error message for structures that are
-				// not creatable at install
-				if !IsCreatableAtInstall(gv) {
-					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
+				// not creatable at install when we are not being strict
+				if !IsCreatableAtInstall(gv) && !opts.AssumeCreatablePartitionsCreated {
+					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, dv.Filesystem)
 				}
 				// otherwise generic
-				return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
+				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, dv.Filesystem)
 			}
 		}
 
@@ -257,6 +320,20 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				reasonAbsent = reasonNotMatches
 			}
 		}
+
+		if opts.AllowImplicitSystemData {
+			// Handle the case of an implicit system-data role before giving up;
+			// we used to allow system-data to be implicit from the gadget.yaml.
+			// That means we won't have system-data in the laidOutVol but it
+			// will be in diskLayout, so if after searching all the laid out
+			// structures we don't find a on disk structure, check if we might
+			// be dealing with a structure that looks like the implicit
+			// system-data that ubuntu-image would have created.
+			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, diskLayout, needle) {
+				return true, ""
+			}
+		}
+
 		return false, reasonAbsent
 	}
 

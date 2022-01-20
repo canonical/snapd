@@ -115,8 +115,10 @@ func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
 	}
 }
 
+// HideSnapData moves the snap's data directory in ~/snap into the corresponding
+// ~/.snap/data directory, for each user using the snap.
 func (b Backend) HideSnapData(snapName string) error {
-	postMigrationOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	hiddenDirOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
 	users, err := allUsers(nil)
 	if err != nil {
@@ -138,13 +140,13 @@ func (b Backend) HideSnapData(snapName string) error {
 		}
 
 		// create the new hidden snap dir
-		hiddenSnapDir := snap.SnapDir(usr.HomeDir, postMigrationOpts)
+		hiddenSnapDir := snap.SnapDir(usr.HomeDir, hiddenDirOpts)
 		if err := osutil.MkdirAllChown(hiddenSnapDir, 0700, uid, gid); err != nil {
 			return fmt.Errorf("cannot create snap dir %q: %w", hiddenSnapDir, err)
 		}
 
 		// move the snap's dir
-		newSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, postMigrationOpts)
+		newSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, hiddenDirOpts)
 		if err := osutil.AtomicRename(oldSnapDir, newSnapDir); err != nil {
 			return fmt.Errorf("cannot move %q to %q: %w", oldSnapDir, newSnapDir, err)
 		}
@@ -158,10 +160,12 @@ func (b Backend) HideSnapData(snapName string) error {
 	return nil
 }
 
+// UndoHideSnapData moves the snap's data directory in ~/.snap/data into ~/snap,
+// for each user using the snap.
 func (b Backend) UndoHideSnapData(snapName string) error {
-	postMigrationOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	hiddenDirOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
-	users, err := allUsers(postMigrationOpts)
+	users, err := allUsers(hiddenDirOpts)
 	if err != nil {
 		return err
 	}
@@ -184,7 +188,7 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 		}
 
 		// skip it if wasn't migrated
-		hiddenSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, postMigrationOpts)
+		hiddenSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, hiddenDirOpts)
 		if _, err := os.Stat(hiddenSnapDir); err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				handle(fmt.Errorf("cannot read files in %q: %w", hiddenSnapDir, err))
@@ -205,7 +209,7 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 		}
 
 		// remove ~/.snap/data dir if empty
-		hiddenDir := snap.SnapDir(usr.HomeDir, postMigrationOpts)
+		hiddenDir := snap.SnapDir(usr.HomeDir, hiddenDirOpts)
 		if err := removeIfEmpty(hiddenDir); err != nil {
 			handle(fmt.Errorf("cannot remove dir %q: %w", hiddenDir, err))
 		}

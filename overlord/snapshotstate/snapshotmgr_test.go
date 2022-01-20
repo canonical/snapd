@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -301,7 +300,7 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 }
 
 func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
-	restore := snapstate.MockGetSnapDirOptions(func(*state.State) (*dirs.SnapDirOptions, error) {
+	restore := snapshotstate.MockGetSnapDirOptions(func(*state.State, string) (*dirs.SnapDirOptions, error) {
 		return &dirs.SnapDirOptions{HiddenSnapDataDir: true}, nil
 	})
 	defer restore()

@@ -88,6 +88,7 @@ func (x *cmdUserd) Execute(args []string) error {
 	}
 
 	if x.Autostart {
+		// TODO: adapt this to look for snaps in both ~/.snap/data and ~/snap
 		// get the user's snap dir ($HOME/snap or $HOME/.snap/data)
 		usrSnapDir, err := getUserSnapDir()
 		if err != nil {

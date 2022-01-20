@@ -4224,6 +4224,54 @@ func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallMigrateData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), Not(HasLen), 0)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
+	assertMigrationState(c, s.state, "some-snap", true)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	// fail at the end
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
+}
+
 func (s *snapmgrTestSuite) TestInstallDeduplicatesSnapNames(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
