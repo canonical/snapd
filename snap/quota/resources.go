@@ -25,14 +25,8 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
-// ResourceMemory is the memory limit for the quota group being controlled,
-// either the initial limit the group is created with for the "create"
-// action, or if non-zero for the "update" the memory limit, then the new
-// value to be set.
+// ResourceMemory is the memory limit for a quota group.
 type ResourceMemory struct {
-	// Lets not set omitempty here, as we want to be able to see the 0 value in
-	// case the memory struct is provided. Remember that we have omitempty set on
-	// the memory value in QuotaResources.
 	Limit quantity.Size `json:"limit"`
 }
 
