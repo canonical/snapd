@@ -59,8 +59,9 @@ func (qr *Resources) validateMemoryQuota() error {
 	return nil
 }
 
-// Validate performs validation of the provided quota resources for a group. Its intended
-// use is before creating a group.
+// Validate performs validation of the provided quota resources for a group.
+// The restrictions imposed are that atleast one limit should exist (memory for now),
+// and the memory limit must be above 4KB.
 func (qr *Resources) Validate() error {
 	if qr.Memory == nil {
 		return fmt.Errorf("quota group must have a memory limit set")
