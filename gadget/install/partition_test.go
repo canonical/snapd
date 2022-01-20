@@ -529,7 +529,7 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	c.Assert(err, IsNil)
 
 	// add the file to indicate we should do the device/rescan trick
-	err = ioutil.WriteFile(filepath.Join(s.gadgetRoot, "force-partition-table-reload-via-device-rescan.txt"), nil, 0755)
+	err = ioutil.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	pv, err := gadgettest.MustLayOutSingleVolumeFromGadget(s.gadgetRoot, "", uc20Mod)

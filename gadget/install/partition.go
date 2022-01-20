@@ -44,7 +44,7 @@ var (
 // says - if the gadget has a special marker file, then we will use a special
 // reload mechanism, implemented for a specific device.
 func reloadPartitionTable(gadgetRoot string, device string) error {
-	if osutil.FileExists(filepath.Join(gadgetRoot, "force-partition-table-reload-via-device-rescan.txt")) {
+	if osutil.FileExists(filepath.Join(gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan")) {
 		// TODO: remove this method when we are able to, this exists for a very
 		// specific device + kernel combination which is not compatible with
 		// using partx and so instead we must use this rescan trick
