@@ -60,7 +60,7 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 		{
 			name:    "zero",
 			limits:  quota.NewResources(0, 0, 0, nil, 0),
-			err:     `quota group must have at least one resource quota set`,
+			err:     `quota group must have at least one resource limit set`,
 			comment: "group with no limits",
 		},
 		{
@@ -237,7 +237,7 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			rootlimits: quota.NewResources(quantity.SizeMiB, 1, 100, []int{0}, 32),
 			subname:    "zero",
 			sublimits:  quota.NewResources(0, 0, 0, nil, 0),
-			err:        `quota group must have at least one resource quota set`,
+			err:        `quota group must have at least one resource limit set`,
 			comment:    "sub group with no limits",
 		},
 	}

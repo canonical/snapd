@@ -116,11 +116,11 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
 		}
 	}
 	if resourceLimits.Thread != nil {
-		grp.TaskLimit = resourceLimits.Thread.ThreadLimit
+		grp.TaskLimit = resourceLimits.Thread.Limit
 	}
 }
 
-func (grp *Group) GetQuotaResources() QuotaResources {
+func (grp *Group) GetQuotaResources() Resources {
 	if grp.CpuLimit != nil {
 		return NewResources(
 			grp.MemoryLimit, grp.CpuLimit.Count, grp.CpuLimit.Percentage,

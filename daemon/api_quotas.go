@@ -180,7 +180,7 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 	}
 
 	if values.Cpu != nil {
-		quotaResources.Cpu = &resources.QuotaResourceCpu{
+		quotaResources.Cpu = &quota.ResourceCpu{
 			Count:       values.Cpu.Count,
 			Percentage:  values.Cpu.Percentage,
 			AllowedCpus: values.Cpu.AllowedCpus,
@@ -188,8 +188,8 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 	}
 
 	if values.Threads != 0 {
-		quotaResources.Thread = &resources.QuotaResourceThreads{
-			ThreadLimit: values.Threads,
+		quotaResources.Thread = &quota.ResourceThreads{
+			Limit: values.Threads,
 		}
 	}
 	return quotaResources

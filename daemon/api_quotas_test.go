@@ -242,11 +242,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, resources.CreateQuotaResources(5000, 1, 100, nil, 256))
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, quota.NewResources(5000, 1, 100, nil, 256))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, resourceLimits resources.QuotaResources) (*state.TaskSet, error) {
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
 		c.Errorf("should not have called create quota")
 		return nil, fmt.Errorf("broken test")
 	})
@@ -258,7 +258,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpuHappy(c *check.C) {
 		c.Assert(name, check.Equals, "ginger-ale")
 		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
 			AddSnaps:          []string{"some-snap"},
-			NewResourceLimits: resources.CreateQuotaResources(0, 2, 100, nil, 512),
+			NewResourceLimits: quota.NewResources(0, 2, 100, nil, 512),
 		})
 		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
 		return ts, nil
@@ -338,11 +338,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, resources.CreateQuotaResources(5000, 1, 100, nil, 256))
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, quota.NewResources(5000, 1, 100, nil, 256))
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, resourceLimits resources.QuotaResources) (*state.TaskSet, error) {
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
 		c.Errorf("should not have called create quota")
 		return nil, fmt.Errorf("broken test")
 	})
@@ -354,7 +354,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateMemoryHappy(c *check.C) {
 		c.Assert(name, check.Equals, "ginger-ale")
 		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
 			AddSnaps:          []string{"some-snap"},
-			NewResourceLimits: resources.CreateQuotaResources(9000, 0, 0, nil, 0),
+			NewResourceLimits: quota.NewResources(9000, 0, 0, nil, 0),
 		})
 		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
 		return ts, nil

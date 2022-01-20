@@ -282,8 +282,8 @@ TasksMax=%[5]d
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name,
 		resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage,
 		allowedCpusValue,
-		resourceLimits.Memory.MemoryLimit,
-		resourceLimits.Thread.ThreadLimit)
+		resourceLimits.Memory.Limit,
+		resourceLimits.Thread.Limit)
 
 	exp := []changesObservation{
 		{
@@ -662,8 +662,8 @@ MemoryLimit=%[3]d
 TasksAccounting=true
 `
 
-	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage, resourceLimits.Memory.MemoryLimit)
-	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage, resourceLimits.Memory.MemoryLimit)
+	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage, resourceLimits.Memory.Limit)
+	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage, resourceLimits.Memory.Limit)
 
 	svcTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -760,7 +760,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	var err error
-	resourceLimits := resources.CreateQuotaResources(quantity.SizeGiB, 0, 0, []int{0}, 0)
+	resourceLimits := quota.NewResources(quantity.SizeGiB, 0, 0, []int{0}, 0)
 	// make a root quota group without any snaps in it
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
@@ -839,8 +839,8 @@ TasksAccounting=true
 `
 
 	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.Cpu.AllowedCpus)), ","), "[]")
-	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", allowedCpusValue, resourceLimits.Memory.MemoryLimit))
-	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", allowedCpusValue, resourceLimits.Memory.MemoryLimit))
+	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", allowedCpusValue, resourceLimits.Memory.Limit))
+	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", allowedCpusValue, resourceLimits.Memory.Limit))
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
