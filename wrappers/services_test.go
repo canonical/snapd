@@ -686,7 +686,7 @@ WantedBy=multi-user.target
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(sliceTempl, "foogroup", memLimit.String()))
 }
 
-func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
+func (s *servicesTestSuite) testRemoveQuotaGroup(c *C, assertStrings [][]string) {
 	// create the group
 	grp, err := quota.NewGroup("foogroup", quantity.SizeKiB)
 	c.Assert(err, IsNil)
@@ -726,14 +726,38 @@ MemoryLimit=1024
 	err = wrappers.RemoveQuotaGroup(grp, progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Assert(s.sysdLog, DeepEquals, assertStrings)
 
 	c.Assert(sliceFile, testutil.FileAbsent)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsForSnaps(c *C) {
+func (s *servicesTestSuite) TestRemoveQuotaGroupLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testRemoveQuotaGroup(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestRemoveQuotaGroupModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testRemoveQuotaGroup(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foogroup.slice"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesWithSubGroupQuotaGroupsForSnaps(c *C, assertStrings [][]string) {
 	info1 := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	info2 := snaptest.MockSnap(c, `
 name: hello-other-snap
@@ -870,9 +894,7 @@ WantedBy=multi-user.target
 
 	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	s.checkOrdered(c, s.sysdLog, DeepEquals, assertStrings)
 
 	c.Assert(svcFile1, testutil.FileEquals, helloSnapContent)
 
@@ -884,7 +906,33 @@ WantedBy=multi-user.target
 	c.Assert(subSliceFile, testutil.FileEquals, subSliceContent)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsForSnapsLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesWithSubGroupQuotaGroupsForSnaps(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsForSnapsModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesWithSubGroupQuotaGroupsForSnaps(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foogroup-subgroup.slice", "snap.foogroup.slice", "snap.hello-other-snap.svc1.service", "snap.hello-snap.svc1.service"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c *C, assertStrings [][]string) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
@@ -908,9 +956,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 
 	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, assertStrings)
 
 	svcTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -965,6 +1011,32 @@ TasksAccounting=true
 
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))
 	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", memLimit.String()))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroupsLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroupsModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service", "snap.foogroup.slice", "snap.foogroup-subgroup.slice"},
+		},
+	)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
