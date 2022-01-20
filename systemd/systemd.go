@@ -1075,6 +1075,7 @@ loop:
 		case <-check.C:
 			allStopped := true
 			stillRunningServices := []string{}
+		serviceCheck:
 			for _, service := range serviceNames {
 				bs, err := s.systemctl("show", "--property=ActiveState", service)
 				if err != nil {
@@ -1084,14 +1085,12 @@ loop:
 					stillRunningServices = append(stillRunningServices, service)
 					allStopped = false
 				}
+				if !firstCheck {
+					continue serviceCheck
+				}
 			}
 			if allStopped {
 				return nil
-			}
-			if !firstCheck {
-				// do not notify about services waiting on the
-				// first pass
-				continue loop
 			}
 			serviceNames = stillRunningServices
 			firstCheck = false
