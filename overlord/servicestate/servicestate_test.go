@@ -78,6 +78,7 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 Names=%[1]s
 ActiveState=%s
 UnitFileState=%s
+NeedDaemonReload=no
 `, args[2], activeState, unitState)), nil
 			} else {
 				// Units using the extendedProperties query
