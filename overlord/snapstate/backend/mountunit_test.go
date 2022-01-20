@@ -99,7 +99,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	expectedErr := errors.New("creation error")
 
 	var sysd *FakeSystemd
-	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter, legacy bool) systemd.Systemd {
 		sysd = &FakeSystemd{}
 		sysd.AddMountUnitFileResult = ResultForAddMountUnitFile{"", expectedErr}
 		return sysd
@@ -134,7 +134,7 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	expectedErr := errors.New("removal error")
 
 	var sysd *FakeSystemd
-	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter, legacy bool) systemd.Systemd {
 		sysd = &FakeSystemd{}
 		sysd.RemoveMountUnitFileResult = expectedErr
 		return sysd
@@ -160,7 +160,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 	expectedErr := errors.New("listing error")
 
 	var sysd *FakeSystemd
-	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter, legacy bool) systemd.Systemd {
 		sysd = &FakeSystemd{}
 		sysd.ListMountUnitsResult = ResultForListMountUnits{nil, expectedErr}
 		return sysd
@@ -191,7 +191,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	returnedMountPoints := []string{"/here", "/and/there"}
 
 	var sysd *FakeSystemd
-	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter, legacy bool) systemd.Systemd {
 		sysd = &FakeSystemd{}
 		sysd.ListMountUnitsResult = ResultForListMountUnits{returnedMountPoints, nil}
 		sysd.RemoveMountUnitFileResult = expectedErr
@@ -224,7 +224,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 	returnedMountPoints := []string{"/here", "/and/there", "/here/too"}
 
 	var sysd *FakeSystemd
-	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter, legacy bool) systemd.Systemd {
 		sysd = &FakeSystemd{}
 		sysd.ListMountUnitsResult = ResultForListMountUnits{returnedMountPoints, nil}
 		sysd.RemoveMountUnitFileResult = nil
