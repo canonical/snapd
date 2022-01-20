@@ -2005,7 +2005,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 	})
 }
 
-func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
+func (s *servicesTestSuite) testAddSnapServicesWithInterfaceSnippets(c *C, assertStrings []string) {
 	tt := []struct {
 		comment     string
 		plugSnippet string
@@ -2097,9 +2097,7 @@ plugs:
 
 		err := wrappers.AddSnapServices(info, nil, progress.Null)
 		c.Assert(err, IsNil, comment)
-		c.Check(s.sysdLog, DeepEquals, [][]string{
-			{"daemon-reload"},
-		}, comment)
+		c.Check(s.sysdLog, DeepEquals, [][]string{assertStrings}, comment)
 
 		dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 		c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
@@ -2140,14 +2138,35 @@ WantedBy=multi-user.target
 		err = wrappers.RemoveSnapServices(info, progress.Null)
 		c.Assert(err, IsNil, comment)
 		c.Check(osutil.FileExists(svcFile), Equals, false, comment)
-		c.Assert(s.sysdLog, HasLen, 2, comment)
+		c.Assert(s.sysdLog, HasLen, 3, comment)
 		c.Check(s.sysdLog, DeepEquals, [][]string{
 			{"disable", filepath.Base(svcFile)},
-			{"daemon-reload"},
+			{"is-failed", filepath.Base(svcFile)},
+			assertStrings,
 		}, comment)
 
 		s.sysdLog = nil
 	}
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippetsLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testAddSnapServicesWithInterfaceSnippets(c,
+		[]string{"daemon-reload"},
+	)
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippetsModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testAddSnapServicesWithInterfaceSnippets(c,
+		[]string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+	)
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
@@ -2324,7 +2343,7 @@ func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 
 	case "$1" in
 		is-enabled)
-			case "$2" in 
+			case "$2" in
 			"snap.hello-snap.svc1.service")
 				echo "disabled"
 				exit 1
@@ -2411,7 +2430,7 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	})
 }
 
-func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
+func (s *servicesTestSuite) testAddSnapServicesWithDisabledServices(c *C, assertStrings [][]string) {
 	info := snaptest.MockSnap(c, packageHello+`
  svc2:
   command: bin/hello
@@ -2426,7 +2445,7 @@ func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
 
 	case "$1" in
 		enable)
-			case "$2" in 
+			case "$2" in
 				"snap.hello-snap.svc1.service")
 					echo "unexpected enable of disabled service $2"
 					exit 1
@@ -2454,6 +2473,21 @@ func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
 		daemon-reload)
 			exit 0
 			;;
+		show)
+			case $3 in
+				"snap.hello-snap.svc1.service")
+					echo -e "ActiveState=inactive\nId=snap.hello-snap.svc1.service\nNames=snap.hello-snap.svc1.service\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n\nActiveState=inactive\nId=snap.hello-snap.svc2.service\nNames=snap.hello-snap.svc2.service\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no"
+					exit 0
+					;;
+				"snap.hello-snap.svc2.service")
+					echo -e "ActiveState=inactive\nId=snap.hello-snap.svc2.service\nNames=snap.hello-snap.svc2.service\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n\nActiveState=inactive\nId=snap.hello-snap.svc1.service\nNames=snap.hello-snap.svc1.service\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no"
+					exit 0
+					;;
+				*)
+					echo "unexpected service $3"
+					;;
+			esac
+			;;
 	    *)
 	        echo "unexpected op $*"
 	        exit 2
@@ -2468,9 +2502,9 @@ func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Assert(r.Calls(), DeepEquals, [][]string{
-		{"systemctl", "daemon-reload"},
-	})
+	// services are ordered from 3rd position, remove leading systemctl
+	c.Check(r.Calls()[0][0], DeepEquals, "systemctl")
+	s.checkOrdered(c, [][]string{r.Calls()[0][1:]}, DeepEquals, assertStrings)
 
 	r.ForgetCalls()
 
@@ -2482,6 +2516,26 @@ func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
 	c.Assert(r.Calls(), DeepEquals, [][]string{
 		{"systemctl", "enable", "snap.hello-snap.svc2.service"},
 		{"systemctl", "start", "snap.hello-snap.svc2.service"},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServicesLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testAddSnapServicesWithDisabledServices(c, [][]string{
+		{"daemon-reload"},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServicesModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testAddSnapServicesWithDisabledServices(c, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
 	})
 }
 
@@ -2643,7 +2697,7 @@ func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
 	})
 }
 
-func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
+func (s *servicesTestSuite) testAddSnapMultiServicesFailCreateCleanup(c *C, assertStrings [][]string) {
 	// sanity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
@@ -2665,10 +2719,74 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
 	// enabled before the second failed, and disabled after.
 	if len(s.sysdLog) > 0 {
 		// the second service failed validation
-		c.Check(s.sysdLog, DeepEquals, [][]string{
-			{"daemon-reload"},
-		})
+		c.Check(s.sysdLog, DeepEquals, assertStrings)
 	}
+}
+
+func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanupLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testAddSnapMultiServicesFailCreateCleanup(c, [][]string{
+		{"daemon-reload"},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanupModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testAddSnapMultiServicesFailCreateCleanup(c, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+	})
+}
+
+func (s *servicesTestSuite) testAddSnapMultiServicesFailCreateCleanupOld(c *C, assertStrings [][]string) {
+	// sanity check: there are no service files
+	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
+	c.Check(svcFiles, HasLen, 0)
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  daemon: potato
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Assert(err, ErrorMatches, ".*potato.*")
+
+	// the services are cleaned up
+	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
+	c.Check(svcFiles, HasLen, 0)
+
+	// *either* the first service failed validation, and nothing
+	// was done, *or* the second one failed, and the first one was
+	// enabled before the second failed, and disabled after.
+	if len(s.sysdLog) > 0 {
+		// the second service failed validation
+		c.Check(s.sysdLog, DeepEquals, assertStrings)
+	}
+}
+
+func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanupOldLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testAddSnapMultiServicesFailCreateCleanupOld(c, [][]string{
+		{"daemon-reload"},
+	})
+}
+
+func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanupOldModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testAddSnapMultiServicesFailCreateCleanupOld(c, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+	})
 }
 
 func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
