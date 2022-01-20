@@ -20,6 +20,7 @@
 package systemd_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/systemd"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	sysd "github.com/snapcore/snapd/systemd"
 )
@@ -55,7 +57,21 @@ func (s *backendSuite) SetUpTest(c *C) {
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
 	s.systemctlRestorer = sysd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, append([]string{"systemctl"}, args...))
-		return []byte("ActiveState=inactive"), nil
+		switch args[0] {
+		case "show":
+			if args[1] == "--property=ActiveState" {
+				return []byte("ActiveState=inactive"), nil
+			}
+			activeState, unitState := "active", "enabled"
+			return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
+ActiveState=%s
+UnitFileState=%s
+NeedDaemonReload=no
+`, args[2], activeState, unitState)), nil
+		default:
+			return []byte(""), nil
+		}
 	})
 }
 
