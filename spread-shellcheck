@@ -19,9 +19,12 @@ import os
 import subprocess
 import argparse
 import itertools
+import hashlib
+import binascii
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
 from typing import Dict
+from pathlib import Path
 
 import yaml
 
@@ -59,6 +62,7 @@ def parse_arguments():
                         help='run these many shellchecks in parallel (default: %(default)s)')
     parser.add_argument('-e', '--exclude', default=[], action="append",
                         help='path to exclude of the shell check')
+    parser.add_argument('--no-cache', help='disable caching', action='store_true')
     parser.add_argument('paths', nargs='+', help='paths to check')
     return parser.parse_args()
 
@@ -133,15 +137,59 @@ def checksection(data, env: Dict[str, str]):
                             stdout=subprocess.PIPE,
                             stdin=subprocess.PIPE,
                             shell=True)
-    stdout, _ = proc.communicate(input='\n'.join(script_data).encode('utf-8'), timeout=30)
+    stdout, _ = proc.communicate(input='\n'.join(script_data).encode('utf-8'), timeout=60)
     if proc.returncode != 0:
         raise ShellcheckRunError(stdout)
 
 
+class Cacher:
+    _instance = None
+    def __new__(cls):
+        if cls._instance is not None:
+            return cls._instance
+        instance = super().__new__(cls)
+        cls._instance = instance
+        instance.enabled = True
+        return instance
+
+    def disable(self):
+        logging.debug("caching is disabled")
+        self.enabled = False
+
+    @staticmethod
+    def _cache_path_for(digest):
+        prefix = digest[:2]
+        return Path.home().joinpath(".cache", "spread-shellcheck", prefix, digest)
+
+    def is_cached(self, data, path):
+        h = hashlib.sha256()
+        h.update(data)
+        hdg = binascii.b2a_hex(h.digest()).decode()
+        if not self.enabled:
+            return False, hdg
+        prefix = hdg[:2]
+        cachepath = Cacher._cache_path_for(hdg)
+        logging.debug("cache stamp %s, exists? %s", cachepath.as_posix(), cachepath.exists())
+        return cachepath.exists(), hdg
+
+    def cache_success(self, digest, path):
+        if not self.enabled:
+            return
+        cachepath = Cacher._cache_path_for(digest)
+        logging.debug("cache success, path %s", cachepath.as_posix())
+        cachepath.parent.mkdir(parents=True, exist_ok=True)
+        cachepath.touch()
+
+
 def checkfile(path, executor):
     logging.debug("checking file %s", path)
-    with open(path) as inf:
-        data = yaml.safe_load(inf)
+    with open(path, mode='rb') as inf:
+        rawdata = inf.read()
+        cached, digest = Cacher().is_cached(rawdata, path)
+        if cached:
+            logging.debug("entry %s already cached", digest)
+            return
+        data = yaml.safe_load(rawdata)
 
     errors = ShellcheckError(path)
     # TODO: handle stacking of environment from other places that influence it:
@@ -182,6 +230,9 @@ def checkfile(path, executor):
 
     if errors:
         raise errors
+    else:
+        Cacher().cache_success(digest, path)
+
 
 def is_file_in_dirs(file, dirs):
     for dir in dirs:
@@ -190,6 +241,7 @@ def is_file_in_dirs(file, dirs):
             return True
 
     return False
+
 
 def findfiles(locations, exclude):
     for loc in locations:
@@ -300,5 +352,8 @@ if __name__ == '__main__':
         # worker
         opts.max_procs += 1
         logging.warning('workers count bumped to 2 to workaround a deadlock')
+
+    if opts.no_cache:
+        Cacher().disable()
 
     main(opts)
