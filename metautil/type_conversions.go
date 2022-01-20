@@ -51,6 +51,13 @@ func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, 
 	return nullValue, fmt.Errorf(`cannot convert value "%v" into a %v`, value, outputType)
 }
 
+// SetValueFromAttribute attempts to convert the attribute value read from the
+// given snap/interface into the desired type.
+//
+// The snapName, ifaceName and attrName are only used to produce contextual
+// error messages, but are not otherwise significant. This function only
+// operates converting the attrVal parameter into a value which can fit into
+// the val parameter, which therefore must be a pointer.
 func SetValueFromAttribute(snapName string, ifaceName string, attrName string, attrVal interface{}, val interface{}) error {
 	rt := reflect.TypeOf(val)
 	if rt.Kind() != reflect.Ptr || val == nil {
