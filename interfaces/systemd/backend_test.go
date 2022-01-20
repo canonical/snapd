@@ -84,7 +84,7 @@ func (s *backendSuite) TestName(c *C) {
 	c.Check(s.Backend.Name(), Equals, interfaces.SecuritySystemd)
 }
 
-func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
+func (s *backendSuite) testInstallingSnapWritesStartsServices(c *C, assertStrings [][]string) {
 	var sysdLog [][]string
 
 	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, error) {
@@ -105,16 +105,42 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	_, err := os.Stat(service)
 	c.Check(err, IsNil)
 	// the service was also started (whee)
-	c.Check(sysdLog, DeepEquals, [][]string{
+	assertStrings = append(assertStrings,
+		[]string{"enable", "snap.samba.interface.foo.service"},
+		[]string{"stop", "snap.samba.interface.foo.service"},
+		[]string{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
+		[]string{"start", "snap.samba.interface.foo.service"},
+	)
+	c.Check(sysdLog, DeepEquals, assertStrings)
+}
+
+func (s *backendSuite) TestInstallingSnapWritesStartsServicesLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testInstallingSnapWritesStartsServices(c, [][]string{
 		{"daemon-reload"},
-		{"enable", "snap.samba.interface.foo.service"},
-		{"stop", "snap.samba.interface.foo.service"},
-		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
-		{"start", "snap.samba.interface.foo.service"},
 	})
 }
 
-func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
+func (s *backendSuite) TestInstallingSnapWritesStartsServicesModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testInstallingSnapWritesStartsServices(c, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.samba.interface.foo.service"},
+		{"daemon-reload"},
+	})
+}
+
+func (s *backendSuite) testRemovingSnapRemovesAndStopsServices(c *C, assertStrings []string) {
+
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
 		return spec.AddService("foo", &systemd.Service{ExecStart: "/bin/true"})
 	}
@@ -131,12 +157,37 @@ func (s *backendSuite) TestRemovingSnapRemovesAndStopsServices(c *C) {
 			{"systemctl", "disable", "snap.samba.interface.foo.service"},
 			{"systemctl", "stop", "snap.samba.interface.foo.service"},
 			{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
-			{"systemctl", "daemon-reload"},
+			assertStrings,
 		})
 	}
 }
 
-func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
+func (s *backendSuite) TestRemovingSnapRemovesAndStopsServicesLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testRemovingSnapRemovesAndStopsServices(c, []string{
+		"systemctl", "daemon-reload",
+	})
+}
+
+func (s *backendSuite) TestRemovingSnapRemovesAndStopsServicesModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testRemovingSnapRemovesAndStopsServices(c, []string{
+		"systemctl", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.samba.interface.foo.service",
+	})
+
+}
+
+func (s *backendSuite) testSettingUpSecurityWithFewerServices(c *C, assertStrings []string) {
 	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
 		err := spec.AddService("foo", &systemd.Service{ExecStart: "/bin/true"})
 		if err != nil {
@@ -165,7 +216,31 @@ func (s *backendSuite) TestSettingUpSecurityWithFewerServices(c *C) {
 		{"systemctl", "disable", "snap.samba.interface.bar.service"},
 		{"systemctl", "stop", "snap.samba.interface.bar.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
-		{"systemctl", "daemon-reload"},
+		assertStrings,
+	})
+}
+func (s *backendSuite) TestSettingUpSecurityWithFewerServicesLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testSettingUpSecurityWithFewerServices(c, []string{
+		"systemctl", "daemon-reload",
+	})
+
+}
+
+func (s *backendSuite) TestSettingUpSecurityWithFewerServicesModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testSettingUpSecurityWithFewerServices(c, []string{
+		"systemctl", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.samba.interface.bar.service",
 	})
 }
 
