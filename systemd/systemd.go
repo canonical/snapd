@@ -1466,13 +1466,13 @@ func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (st
 		return "", err
 	}
 
-	// we need to do a daemon-reload here to ensure that systemd really
+	units := []string{mountUnitName}
+	// occasionally we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
-	if err := s.daemonReloadNoLock(); err != nil {
+	if err := s.daemonReloadIfNeededWithLock(true, true, units); err != nil {
 		return "", err
 	}
 
-	units := []string{mountUnitName}
 	if err := s.Enable(units); err != nil {
 		return "", err
 	}
@@ -1513,12 +1513,16 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	if err := s.Disable(units); err != nil {
 		return err
 	}
+	if err := s.ResetFailedIfNeeded(units); err != nil {
+		return err
+	}
+
 	if err := os.Remove(unit); err != nil {
 		return err
 	}
-	// daemon-reload to ensure that systemd actually really
+	// daemon-reload if needed to ensure that systemd actually really
 	// forgets about this mount unit
-	if err := s.daemonReloadNoLock(); err != nil {
+	if err := s.daemonReloadIfNeededWithLock(true, false, units); err != nil {
 		return err
 	}
 
