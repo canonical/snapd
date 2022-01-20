@@ -245,7 +245,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveModernSystemd(c *C) {
 	)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
+func (s *servicesTestSuite) testEnsureSnapServicesAdds(c *C, assertStrings [][]string) {
 	// map unit -> new
 	seen := make(map[string]bool)
 	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
@@ -261,9 +261,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 
 	err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, assertStrings)
 	c.Check(seen, DeepEquals, map[string]bool{
 		"hello-snap:svc1:service:svc1": true,
 	})
@@ -296,7 +294,31 @@ WantedBy=multi-user.target
 	))
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesAddsLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testEnsureSnapServicesAdds(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesAddsModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testEnsureSnapServicesAdds(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesWithQuotas(c *C, assertStrings [][]string) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
@@ -376,11 +398,33 @@ TasksAccounting=true
 
 	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, assertStrings)
 
 	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotasLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testEnsureSnapServicesWithQuotas(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotasModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testEnsureSnapServicesWithQuotas(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service", "snap.foogroup.slice"},
+		},
+	)
 }
 
 type changesObservation struct {
@@ -437,7 +481,7 @@ func expChangeObserver(c *C, exp []changesObservation) (restore func(), obs wrap
 	return r, f
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
+func (s *servicesTestSuite) testEnsureSnapServicesRewritesQuotaSlices(c *C, assertStrings [][]string) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
@@ -525,14 +569,38 @@ WantedBy=multi-user.target
 
 	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, assertStrings)
 
 	c.Assert(svcFile, testutil.FileEquals, svcContent)
 
 	c.Assert(sliceFile, testutil.FileEquals, newContent)
 
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlicesLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRewritesQuotaSlices(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlicesModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRewritesQuotaSlices(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foogroup.slice"},
+		},
+	)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoop(c *C) {
@@ -980,7 +1048,7 @@ WantedBy=multi-user.target
 	))
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c *C) {
+func (s *servicesTestSuite) testEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c *C, assertStrings [][]string) {
 	// map unit -> new
 	seen := make(map[string]bool)
 	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
@@ -1023,9 +1091,7 @@ apps:
 	err := wrappers.EnsureSnapServices(m, globalOpts, cb, progress.Null)
 	c.Assert(err, IsNil)
 	// no daemon-reload's since we are preseeding
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	s.checkOrdered(c, s.sysdLog, DeepEquals, assertStrings)
 	c.Check(seen, DeepEquals, map[string]bool{
 		"hello-snap:svc1:service:svc1":       true,
 		"hello-other-snap:svc1:service:svc1": true,
@@ -1074,7 +1140,33 @@ WantedBy=multi-user.target
 	))
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesCallback(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappyLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappyModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-other-snap.svc1.service", "snap.hello-snap.svc1.service"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesCallback(c *C, assertStrings [][]string) {
 	// hava a 2nd new service definition
 	info := snaptest.MockSnap(c, packageHello+` svc2:
   command: bin/hello
@@ -1132,9 +1224,7 @@ WantedBy=multi-user.target
 
 	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	s.checkOrdered(c, s.sysdLog, DeepEquals, assertStrings)
 
 	// svc2 was written as expected
 	svc2New := fmt.Sprintf(template,
@@ -1160,7 +1250,33 @@ WantedBy=multi-user.target
 	})
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesCallbackLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesCallback(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesCallbackModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesCallback(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesAddsNewSvc(c *C, assertStrings [][]string) {
 	// map unit -> new
 	seen := make(map[string]bool)
 	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
@@ -1219,9 +1335,7 @@ WantedBy=multi-user.target
 
 	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, assertStrings)
 	// we only added svc2
 	c.Check(seen, DeepEquals, map[string]bool{
 		"hello-snap:svc2:service:svc2": true,
@@ -1242,6 +1356,32 @@ WantedBy=multi-user.target
 		dirs.GlobalRootDir,
 		"",
 	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvcLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesAddsNewSvc(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvcModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesAddsNewSvc(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc2.service"},
+		},
+	)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesNoChangeNoop(c *C) {
@@ -1306,7 +1446,7 @@ WantedBy=multi-user.target
 	c.Check(cbCalled, Equals, 0)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
+func (s *servicesTestSuite) testEnsureSnapServicesChanges(c *C, assertStrings [][]string) {
 	// map unit -> new
 	seen := make(map[string]bool)
 	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
@@ -1359,9 +1499,7 @@ WantedBy=multi-user.target
 
 	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	c.Check(s.sysdLog, DeepEquals, assertStrings)
 
 	// only modified
 	c.Check(seen, DeepEquals, map[string]bool{
@@ -1376,7 +1514,33 @@ WantedBy=multi-user.target
 	))
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesRollsback(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesChangesLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesChanges(c,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesChangesModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesChanges(c,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesRollsback(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
@@ -1420,6 +1584,16 @@ WantedBy=multi-user.target
 	// then the next time don't return an error
 	systemctlCalls := 0
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// if it's "show" call handle is here, request daemon reload
+		if cmd[0] == "show" {
+			// return correct number of statuses
+			output := []byte(fmt.Sprintf("ActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=yes\n", cmd[2]))
+			for i := 3; i < len(cmd); i++ {
+				output = append(output, []byte(fmt.Sprintf("\nActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=yes\n", cmd[i]))...)
+			}
+
+			return output, nil
+		}
 		systemctlCalls++
 		switch systemctlCalls {
 		case 1:
@@ -1460,7 +1634,30 @@ WantedBy=multi-user.target
 	c.Assert(svcFile, testutil.FileEquals, origContent)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollback(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesRollsbackLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRollsback(c)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRollsbackModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRollsback(c)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesRemovesNewAddOnRollback(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
@@ -1489,7 +1686,10 @@ Type=forking
 [Install]
 WantedBy=multi-user.target
 `
-	// make systemctl fail the first time when we try to do a daemon-reload,
+	// old systemd:
+	//    make systemctl fail the first time when we try to do a daemon-reload,
+	// smart systemd
+	//    make systemctl fail the first two times when we try to do a show and consequend daemon-reload,
 	// then the next time don't return an error
 	systemctlCalls := 0
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
@@ -1507,10 +1707,30 @@ WantedBy=multi-user.target
 			// now return an error to trigger a rollback
 			return nil, fmt.Errorf("oops")
 		case 2:
-			// after the rollback, check that the new file was deleted
-			c.Assert(svcFile, testutil.FileAbsent)
-
-			return nil, nil
+			if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+				// now return an error to trigger a rollback
+				return nil, fmt.Errorf("oops")
+			} else {
+				// after the rollback, check that the new file was deleted
+				c.Assert(svcFile, testutil.FileAbsent)
+				return nil, nil
+			}
+		case 3:
+			if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+				// after the rollback, check that the new file was deleted
+				c.Assert(svcFile, testutil.FileAbsent)
+				// reply correctly to systemctl show --property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload snap.hello-snap.svc1.service
+				if cmd[0] == "show" {
+					// return correct number of statuses
+					output := []byte(fmt.Sprintf("Names=snap.hello-snap.svc1.service\nActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", cmd[2]))
+					return output, nil
+				}
+				return nil, nil
+			} else {
+				// on old systemd we should not get this many calls
+				c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
+				return nil, fmt.Errorf("broken test")
+			}
 		default:
 			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
 			return nil, fmt.Errorf("broken test")
@@ -1530,7 +1750,30 @@ WantedBy=multi-user.target
 	c.Assert(svcFile, testutil.FileAbsent)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollback(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollbackLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRemovesNewAddOnRollback(c)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollbackModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testEnsureSnapServicesRemovesNewAddOnRollback(c)
+}
+
+func (s *servicesTestSuite) testEnsureSnapServicesOnlyRemovesNewAddOnRollback(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
 	info := snaptest.MockSnap(c, packageHello+` svc2:
   command: bin/hello
   stop-command: bin/goodbye
@@ -1626,6 +1869,22 @@ WantedBy=multi-user.target
 	// svc1 is still the same
 	c.Assert(svc2File, testutil.FileAbsent)
 	c.Assert(svc1File, testutil.FileEquals, svc1Content)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollbackLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testEnsureSnapServicesOnlyRemovesNewAddOnRollback(c)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollbackModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testEnsureSnapServicesOnlyRemovesNewAddOnRollback(c)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
