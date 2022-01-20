@@ -226,3 +226,15 @@ func (s *emulation) Mount(what, where string, options ...string) error {
 func (s *emulation) Umount(whatOrWhere string) error {
 	return &notImplementedError{"Umount"}
 }
+
+func (s *emulation) IsFailed(serviceNames []string) bool {
+	return false
+}
+
+func (s *emulation) ResetFailed(serviceNames []string) error {
+	return &notImplementedError{"ResetFailed"}
+}
+
+func (s *emulation) ResetFailedIfNeeded(serviceNames []string) error {
+	return &notImplementedError{"ResetFailedIfNeeded"}
+}

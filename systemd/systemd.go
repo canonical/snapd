@@ -362,6 +362,9 @@ type Systemd interface {
 	// threads if enabled, etc) part of the unit, which can be a service or a
 	// slice.
 	CurrentTasksCount(unit string) (uint64, error)
+	IsFailed(serviceNames []string) bool
+	ResetFailed(serviceNames []string) error
+	ResetFailedIfNeeded(serviceNames []string) error
 }
 
 // A Log is a single entry in the systemd journal.
@@ -626,6 +629,54 @@ func (s *systemd) StartNoBlock(serviceNames []string) error {
 	}
 	_, err := s.systemctl(append([]string{"start", "--no-block"}, serviceNames...)...)
 	return err
+}
+
+// Check if unit is in failed state
+func (s *systemd) IsFailed(serviceNames []string) bool {
+	var err error
+	var out []byte
+	if s.rootDir != "" {
+		out, err = s.systemctl(append([]string{"--root", s.rootDir, "is-failed"}, serviceNames...)...)
+	} else {
+		out, err = s.systemctl(append([]string{"is-failed"}, serviceNames...)...)
+	}
+
+	if err != nil {
+		return false
+	}
+
+	// failed or empty is assumed as failed
+	if ("failed" == strings.TrimSpace(string(out))) || ("" == strings.TrimSpace(string(out))) {
+		return true
+	} else {
+		return false
+	}
+}
+
+// Clean failed state of unit
+func (s *systemd) ResetFailed(serviceNames []string) error {
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl(append([]string{"--root", s.rootDir, "reset-failed"}, serviceNames...)...)
+	} else {
+		_, err = s.systemctl(append([]string{"reset-failed"}, serviceNames...)...)
+	}
+	return err
+}
+
+func (s *systemd) ResetFailedIfNeeded(serviceNames []string) error {
+	failedServices := []string{}
+	for _, service := range serviceNames {
+		if s.IsFailed([]string{service}) {
+			failedServices = append(failedServices, service)
+		}
+	}
+
+	if len(failedServices) > 0 {
+		return s.ResetFailed(failedServices)
+	}
+
+	return nil
 }
 
 func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadCloser, error) {
