@@ -95,7 +95,7 @@ func (s *umountSuite) SetUpTest(c *C) {
 	s.hookTask = task
 
 	s.sysd = &FakeSystemdForUmount{}
-	s.AddCleanup(systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+	s.AddCleanup(systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter, legacy bool) systemd.Systemd {
 		return s.sysd
 	}))
 }
