@@ -8,7 +8,9 @@ environment:
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: false
   NESTED_USE_CLOUD_INIT: false
-  SNAPD_TEST_STORE: test-snapd
+  SNAPD_TEST_BRAND: test-snapd
+  # store we are remodeling from
+  SNAPD_STORE_WHITEBOX: CQvkdMjgbapk821Po2cF
 
 prepare: |
     # shellcheck source=tests/lib/nested.sh
@@ -59,11 +61,13 @@ execute: |
 
     boot_id="$(tests.nested boot-id)"
 
-    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_STORE\$"
+    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
     tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
     tests.nested exec "snap model --assertion --serial" | MATCH 'serial: 1234-snapd-remodel-testing$'
 
-    # none of the new snaps are installed yet
+    # the new model requires hello-world snap to be present, make sure that the
+    # snap and its dependency core aren't installed yet
     not tests.nested exec "snap list hello-world"
     not tests.nested exec "snap list core"
 
@@ -92,8 +96,9 @@ execute: |
         test "$boot_id" == "$current_boot_id"
     fi
 
-    # we are remodeling within the same store
-    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_STORE\$"
+    # we are remodeling within the same brand and store
+    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
     # new model
     tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc-just-model$'
     # but the same serial
