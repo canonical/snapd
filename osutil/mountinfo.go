@@ -25,6 +25,6 @@ import (
 )
 
 var openMountInfoFile = func() (io.ReadCloser, error) {
-	MustNotBeTestBinary("/proc/self/mountinfo must be mocked in tests")
+	mustNotBeTestBinary("/proc/self/mountinfo must be mocked in tests")
 	return os.Open("/proc/self/mountinfo")
 }
