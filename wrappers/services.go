@@ -301,62 +301,63 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			if e := stopService(sysd, app, inter); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
 			}
+			// disabling is expensive, disable in batch
+			var disableServices []string
 			for _, socket := range app.Sockets {
-				socketService := filepath.Base(socket.File())
-				if e := sysd.Disable([]string{socketService}); e != nil {
-					inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", socketService, e))
-				}
+				disableServices = append(disableServices, filepath.Base(socket.File()))
 			}
 			if app.Timer != nil {
-				timerService := filepath.Base(app.Timer.File())
-				if e := sysd.Disable([]string{timerService}); e != nil {
-					inter.Notify(fmt.Sprintf("While trying to disable previously enabled timer service %q: %v", timerService, e))
-				}
+				disableServices = append(disableServices, filepath.Base(app.Timer.File()))
+			}
+			if e := sysd.Disable(disableServices); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", disableServices, e))
 			}
 		}(app)
 
+		// enabling is expensive, enable in batch
+		var enableServices []string
+		var systemServices []string
+		var userServices []string
 		for _, socket := range app.Sockets {
-			socketService := filepath.Base(socket.File())
 			// enable the socket
-			if err = sysd.Enable([]string{socketService}); err != nil {
-				return err
-			}
+			socketService := filepath.Base(socket.File())
+			enableServices = append(enableServices, socketService)
 
 			switch app.DaemonScope {
 			case snap.SystemDaemon:
-				timings.Run(tm, "start-system-socket-service", fmt.Sprintf("start system socket service %q", socketService), func(nested timings.Measurer) {
-					err = sysd.Start([]string{socketService})
-				})
+				systemServices = append(systemServices, socketService)
 			case snap.UserDaemon:
-				timings.Run(tm, "start-user-socket-service", fmt.Sprintf("start user socket service %q", socketService), func(nested timings.Measurer) {
-					err = startUserServices(cli, inter, socketService)
-				})
-			}
-			if err != nil {
-				return err
+				userServices = append(userServices, socketService)
 			}
 		}
 
 		if app.Timer != nil {
-			timerService := filepath.Base(app.Timer.File())
 			// enable the timer
-			if err = sysd.Enable([]string{timerService}); err != nil {
-				return err
-			}
+			timerService := filepath.Base(app.Timer.File())
+			enableServices = append(enableServices, timerService)
 
 			switch app.DaemonScope {
 			case snap.SystemDaemon:
-				timings.Run(tm, "start-system-timer-service", fmt.Sprintf("start system timer service %q", timerService), func(nested timings.Measurer) {
-					err = sysd.Start([]string{timerService})
-				})
+				systemServices = append(systemServices, timerService)
 			case snap.UserDaemon:
-				timings.Run(tm, "start-user-timer-service", fmt.Sprintf("start user timer service %q", timerService), func(nested timings.Measurer) {
-					err = startUserServices(cli, inter, timerService)
-				})
+				userServices = append(userServices, timerService)
 			}
-			if err != nil {
-				return err
-			}
+		}
+		if err = sysd.Enable(enableServices); err != nil {
+			return err
+		}
+		if 0 < len(systemServices) {
+			timings.Run(tm, "start-system-socket-service", fmt.Sprintf("start system socket service %q", systemServices), func(nested timings.Measurer) {
+				err = sysd.Start(systemServices)
+			})
+		}
+		if 0 < len(userServices) {
+			timings.Run(tm, "start-user-timer-service", fmt.Sprintf("start user timer service %q", userServices), func(nested timings.Measurer) {
+				err = startUserServices(cli, inter, userServices...)
+			})
+		}
+		if err != nil {
+			return err
 		}
 	}
 
