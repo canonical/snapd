@@ -38,6 +38,7 @@ import (
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -74,7 +75,19 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), nil
+		if cmd[0] == "show" {
+			// return correct number of statuses
+			output := []byte(fmt.Sprintf("ActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", cmd[2]))
+			for i := 3; i < len(cmd); i++ {
+				output = append(output, []byte(fmt.Sprintf("\nActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", cmd[i]))...)
+			}
+
+			return output, nil
+		} else if cmd[0] == "is-failed" {
+			return []byte("inactive\n"), nil
+		} else {
+			return []byte("ActiveState=inactive\n"), nil
+		}
 	})
 	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
 	s.perfTimings = timings.New(nil)
@@ -96,6 +109,34 @@ func (s *servicesTestSuite) TearDownTest(c *C) {
 	s.delaysRestorer()
 	dirs.SetRootDir("")
 	s.DBusTest.TearDownTest(c)
+}
+
+func (s *servicesTestSuite) checkOrderedWithComment(c *C, obtained [][]string, checker Checker, expected [][]string, comment CommentInterface) bool {
+	// batched calls to systemd when we query status, stopping, enabling, disabling services are not order sensitive
+	// before check order services
+	for i := 0; i < len(obtained); i++ {
+		if obtained[i][0] == "show" || obtained[i][0] == "stop" || obtained[i][0] == "disable" || obtained[i][0] == "enable" {
+			// only order if there is more than 3 strings
+			if len(obtained[i]) > 2 {
+				y := 1
+				// if next string starts with "--", do not order it
+				if strings.HasPrefix(obtained[i][1], "--") {
+					y = 2
+				}
+				// order remaining strings
+				sort.Strings(obtained[i][y:])
+			}
+		}
+	}
+	if comment != nil {
+		return c.Check(obtained, checker, expected, comment)
+	} else {
+		return c.Check(obtained, checker, expected)
+	}
+}
+
+func (s *servicesTestSuite) checkOrdered(c *C, obtained [][]string, checker Checker, expected [][]string) bool {
+	return s.checkOrderedWithComment(c, obtained, checker, expected, nil)
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
