@@ -2563,7 +2563,8 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysServices, userServices []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		if cmd[0] == "stop" {
-			sysServices = append(sysServices, cmd[1])
+			// there can be more than one service/socket being stopped at a time
+			sysServices = append(sysServices, cmd[1:]...)
 		} else if cmd[0] == "--user" && cmd[1] == "stop" {
 			userServices = append(userServices, cmd[2])
 		}
@@ -3939,7 +3940,7 @@ func (s *servicesTestSuite) TestFailedAddSnapCleansUpModernSystemd(c *C) {
 	s.testFailedAddSnapCleansUp(c)
 }
 
-func (s *servicesTestSuite) TestAddServicesDidReload(c *C) {
+func (s *servicesTestSuite) testAddServicesDidReload(c *C) {
 	const base = `name: hello-snap
 version: 1.10
 summary: hello
@@ -3981,11 +3982,32 @@ apps:
 				reloads += 1
 			}
 		}
-		c.Check(reloads >= 1, Equals, true, Commentf("test-case %v did not reload services as expected", i))
+		if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+			// with smart systemd we do not need to reload (mosck returned no need to reload)
+			c.Check(reloads == 0, Equals, true, Commentf("test-case %v did not reload services as expected", i))
+		} else {
+			c.Check(reloads >= 1, Equals, true, Commentf("test-case %v did not reload services as expected", i))
+		}
 	}
 }
 
-func (s *servicesTestSuite) TestSnapServicesActivation(c *C) {
+func (s *servicesTestSuite) TestAddServicesDidReloadLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testAddServicesDidReload(c)
+}
+
+func (s *servicesTestSuite) TestAddServicesDidReloadModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testAddServicesDidReload(c)
+}
+
+func (s *servicesTestSuite) testSnapServicesActivation(c *C, svc3Name, svc1Socket, svc2Timer string, assertStrings [][]string) {
 	const snapYaml = `name: hello-snap
 version: 1.10
 summary: hello
@@ -4007,18 +4029,15 @@ apps:
   command: bin/hello
   daemon: simple
 `
-	svc1Socket := "snap.hello-snap.svc1.sock1.socket"
-	svc2Timer := "snap.hello-snap.svc2.timer"
-	svc3Name := "snap.hello-snap.svc3.service"
 
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(12)})
 
 	// fix the apps order to make the test stable
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	// c.Assert(s.sysdLog, HasLen, 3, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	// // TODO check independently of position
+	s.checkOrdered(c, s.sysdLog, DeepEquals, assertStrings)
 	s.sysdLog = nil
 
 	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
@@ -4035,6 +4054,45 @@ apps:
 		{"start", svc2Timer},
 		{"start", svc3Name},
 	}, Commentf("calls: %v", s.sysdLog))
+}
+
+func (s *servicesTestSuite) TestSnapServicesActivationLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	svc3Name := "snap.hello-snap.svc3.service"
+	svc1Socket := "snap.hello-snap.svc1.sock1.socket"
+	svc2Timer := "snap.hello-snap.svc2.timer"
+
+	s.testSnapServicesActivation(c, svc3Name, svc1Socket, svc2Timer,
+		[][]string{
+			{"daemon-reload"},
+		},
+	)
+}
+
+func (s *servicesTestSuite) TestSnapServicesActivationModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+	svc3Name := "snap.hello-snap.svc3.service"
+	svc1Socket := "snap.hello-snap.svc1.sock1.socket"
+	svc2Timer := "snap.hello-snap.svc2.timer"
+
+	s.testSnapServicesActivation(c, svc3Name, svc1Socket, svc2Timer,
+		[][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", svc1Name, svc2Name, svc3Name},
+			{"show", "--property=Id,ActiveState,UnitFileState,Names", svc1Socket, svc2Timer},
+		},
+	)
 }
 
 func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
@@ -4069,7 +4127,7 @@ func (s *servicesTestSuite) TestAddRemoveSnapServiceWithSnapd(c *C) {
 	c.Check(err, ErrorMatches, "internal error: removing explicit services for snapd snap is unexpected")
 }
 
-func (s *servicesTestSuite) TestReloadOrRestart(c *C) {
+func (s *servicesTestSuite) testReloadOrRestart(c *C) {
 	const surviveYaml = `name: test-snap
 version: 1.0
 apps:
@@ -4121,7 +4179,23 @@ apps:
 	})
 }
 
-func (s *servicesTestSuite) TestRestartInDifferentStates(c *C) {
+func (s *servicesTestSuite) TestReloadOrRestartLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testReloadOrRestart(c)
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testReloadOrRestart(c)
+}
+
+func (s *servicesTestSuite) testRestartInDifferentStates(c *C) {
 	const manyServicesYaml = `name: test-snap
 version: 1.0
 apps:
@@ -4195,6 +4269,22 @@ apps:
 		{"show", "--property=ActiveState", srvFile3},
 		{"start", srvFile3},
 	})
+}
+
+func (s *servicesTestSuite) TestRestartInDifferentStatesLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+	s.testRestartInDifferentStates(c)
+}
+
+func (s *servicesTestSuite) TestRestartInDifferentStatesModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+	s.testRestartInDifferentStates(c)
 }
 
 func (s *servicesTestSuite) testStopAndDisableServices(c *C) {
