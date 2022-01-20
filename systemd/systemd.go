@@ -116,6 +116,10 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	// TODO: including stderr here breaks many things when systemd is in debug
 	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
+	if strings.Contains(string(bs), "changed on disk") {
+		// DETECTED change on disk
+		return nil, &Error{cmd: args, exitCode: 1, msg: bs}
+	}
 	if err != nil {
 		exitCode, runErr := osutil.ExitCode(err)
 		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr, msg: bs}
