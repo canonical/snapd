@@ -2789,11 +2789,10 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanupOldModernSy
 	})
 }
 
-func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
+func (s *servicesTestSuite) testMultiServicesFailEnableCleanup(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
-	numEnables := 0
 
 	// sanity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
@@ -2801,28 +2800,24 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
+		if cmd[0] == "show" {
+			if cmd[1] == "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload" {
+				// return correct number of statuses
+				output := []byte(fmt.Sprintf("ActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", cmd[2]))
+				for i := 3; i < len(cmd); i++ {
+					output = append(output, []byte(fmt.Sprintf("\nActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", cmd[i]))...)
+				}
+
+				return output, nil
+			} else {
+				return []byte("ActiveState=inactive"), nil
+			}
+		}
 		sdcmd := cmd[0]
-		if sdcmd == "show" {
-			return []byte("ActiveState=inactive"), nil
-		}
-		if len(cmd) >= 2 {
-			sdcmd = cmd[len(cmd)-2]
-		}
 		switch sdcmd {
 		case "enable":
-			numEnables++
-			switch numEnables {
-			case 1:
-				if cmd[len(cmd)-1] == svc2Name {
-					// the services are being iterated in the "wrong" order
-					svc1Name, svc2Name = svc2Name, svc1Name
-				}
-				return nil, nil
-			case 2:
-				return nil, fmt.Errorf("failed")
-			default:
-				panic("expected no more than 2 enables")
-			}
+			// fail enable call
+			return nil, fmt.Errorf("failed")
 		case "disable", "daemon-reload", "stop":
 			return nil, nil
 		default:
@@ -2847,15 +2842,42 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 	err = wrappers.StartServices(info.Services(), nil, flags, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"}, // from AddSnapServices
-		{"enable", svc1Name},
-		{"enable", svc2Name}, // this one fails
-		{"disable", svc1Name},
-	})
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		s.checkOrdered(c, sysdLog, DeepEquals, [][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", svc1Name, svc2Name}, // from AddSnapServices
+			{"enable", svc1Name, svc2Name}, // fails
+			{"disable", svc1Name, svc2Name},
+		})
+	} else {
+		s.checkOrdered(c, sysdLog, DeepEquals, [][]string{
+			{"daemon-reload"},              // from AddSnapServices
+			{"enable", svc1Name, svc2Name}, // this one fails
+			{"disable", svc1Name, svc2Name},
+		})
+	}
 }
 
-func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadCleanup(c *C) {
+func (s *servicesTestSuite) TestMultiServicesFailEnableCleanupLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testMultiServicesFailEnableCleanup(c)
+}
+
+func (s *servicesTestSuite) TestMultiServicesFailEnableCleanupModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testMultiServicesFailEnableCleanup(c)
+}
+
+func (s *servicesTestSuite) testAddSnapMultiServicesStartFailOnSystemdReloadCleanup(c *C) {
 	// this test might be overdoing it (it's mostly covering the same ground as the previous one), but ... :-)
 	var sysdLog [][]string
 
@@ -2863,8 +2885,24 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
+	systemctlShowCalls := 0
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
+		// always force daemon-reload
+		if cmd[0] == "show" {
+			// first call reports daemon-reload needed ( that will fail), second no daemon-reload needed
+			// return correct number of statuses
+			reloadNeeded := "no"
+			if systemctlShowCalls == 0 {
+				reloadNeeded = "yes"
+			}
+			systemctlShowCalls++
+			output := []byte(fmt.Sprintf("ActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=%s\n", cmd[2], reloadNeeded))
+			for i := 3; i < len(cmd); i++ {
+				output = append(output, []byte(fmt.Sprintf("\nActiveState=inactive\nId=%s\nNames=%[1]s\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=%s\n", cmd[i], reloadNeeded))...)
+			}
+			return output, nil
+		}
 		if cmd[0] == "daemon-reload" {
 			return nil, fmt.Errorf("failed")
 		}
@@ -2886,10 +2924,38 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	// the services are cleaned up
 	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"}, // this one fails
-		{"daemon-reload"}, // reload as part of cleanup after removal
-	})
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		s.checkOrdered(c, sysdLog, DeepEquals, [][]string{
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"}, // asks for reload
+			{"daemon-reload"}, // this one fails
+			{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service"}, // no reload needed, as part of cleanup after removal
+		})
+	} else {
+		c.Check(sysdLog, DeepEquals, [][]string{
+			{"daemon-reload"}, // this one fails
+			{"daemon-reload"}, // reload as part of cleanup after removal
+		})
+	}
+}
+
+func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadCleanupLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testAddSnapMultiServicesStartFailOnSystemdReloadCleanup(c)
+}
+
+func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadCleanupModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testAddSnapMultiServicesStartFailOnSystemdReloadCleanup(c)
 }
 
 func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) {
@@ -3095,7 +3161,7 @@ ListenStream=%t/snap.hello-snap/sock3.socket
 	c.Check(sock3File, testutil.FileContains, expected)
 }
 
-func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
+func (s *servicesTestSuite) testStartSnapMultiServicesFailStartCleanup(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
@@ -3127,22 +3193,40 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(svcs, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Name},
+		{"enable", svc1Name, svc2Name},
 		{"start", svc1Name},
 		{"start", svc2Name}, // one of the services fails
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name},
-		{"disable", svc2Name},
+		{"disable", svc1Name, svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
-func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSockets(c *C) {
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testStartSnapMultiServicesFailStartCleanup(c)
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testStartSnapMultiServicesFailStartCleanup(c)
+}
+
+func (s *servicesTestSuite) testStartSnapMultiServicesFailStartCleanupWithSockets(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
@@ -3208,7 +3292,27 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	}, Commentf("calls: %v", sysdLog))
 }
 
-func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C) {
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocketsLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testStartSnapMultiServicesFailStartCleanupWithSockets(c)
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocketsModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testStartSnapMultiServicesFailStartCleanupWithSockets(c)
+}
+
+func (s *servicesTestSuite) testStartSnapMultiUserServicesFailStartCleanup(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
@@ -3244,10 +3348,10 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(svcs, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
-	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "enable", svc1Name},
-		{"--user", "--global", "enable", svc2Name},
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	s.checkOrderedWithComment(c, sysdLog, DeepEquals, [][]string{
+		{"--user", "--global", "enable", svc1Name, svc2Name},
+		// {"--user", "--global", "enable", svc2Name},
 		{"--user", "start", svc1Name},
 		{"--user", "start", svc2Name}, // one of the services fails
 		// session agent attempts to stop the non-failed services
@@ -3258,12 +3362,31 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		{"--user", "show", "--property=ActiveState", svc2Name},
 		{"--user", "stop", svc1Name},
 		{"--user", "show", "--property=ActiveState", svc1Name},
-		{"--user", "--global", "disable", svc1Name},
-		{"--user", "--global", "disable", svc2Name},
+		{"--user", "--global", "disable", svc1Name, svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
-func (s *servicesTestSuite) TestStartSnapServicesKeepsOrder(c *C) {
+func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanupLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testStartSnapMultiUserServicesFailStartCleanup(c)
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanupModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testStartSnapMultiUserServicesFailStartCleanup(c)
+}
+
+func (s *servicesTestSuite) testStartSnapServicesKeepsOrder(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.services-snap.svc1.service"
 	svc2Name := "snap.services-snap.svc2.service"
@@ -3297,11 +3420,10 @@ apps:
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err = wrappers.StartServices(sorted, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc3Name},
-		{"enable", svc2Name},
+	c.Assert(sysdLog, HasLen, 4, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	// we enable in batch and then start in order
+	s.checkOrderedWithComment(c, sysdLog, DeepEquals, [][]string{
+		{"enable", svc1Name, svc2Name, svc3Name},
 		{"start", svc1Name},
 		{"start", svc3Name},
 		{"start", svc2Name},
@@ -3313,15 +3435,33 @@ apps:
 	// we should observe the calls done in the same order as services
 	err = wrappers.StartServices(sorted, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
-	c.Check(sysdLog[6:], DeepEquals, [][]string{
-		{"enable", svc3Name},
-		{"enable", svc1Name},
-		{"enable", svc2Name},
+	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	s.checkOrderedWithComment(c, sysdLog[4:], DeepEquals, [][]string{
+		{"enable", svc1Name, svc2Name, svc3Name},
 		{"start", svc3Name},
 		{"start", svc1Name},
 		{"start", svc2Name},
 	}, Commentf("calls: %v", sysdLog))
+}
+
+func (s *servicesTestSuite) TestStartSnapServicesKeepsOrderLegacySystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testStartSnapServicesKeepsOrder(c)
+}
+
+func (s *servicesTestSuite) TestStartSnapServicesKeepsOrderModernSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testStartSnapServicesKeepsOrder(c)
 }
 
 func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
