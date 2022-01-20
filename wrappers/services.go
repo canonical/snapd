@@ -139,11 +139,9 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 
 	switch app.DaemonScope {
 	case snap.SystemDaemon:
-		stopErrors := []error{}
-		for _, service := range extraServices {
-			if err := sysd.Stop([]string{service}, tout); err != nil {
-				stopErrors = append(stopErrors, err)
-			}
+		var stopErrors error
+		if 0 < len(extraServices) {
+			stopErrors = sysd.Stop(extraServices, tout)
 		}
 
 		if err := sysd.Stop([]string{serviceName}, tout); err != nil {
@@ -157,8 +155,8 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 			sysd.Kill(serviceName, "KILL", "")
 		}
 
-		if len(stopErrors) > 0 {
-			return stopErrors[0]
+		if stopErrors != nil {
+			return stopErrors
 		}
 
 	case snap.UserDaemon:
@@ -768,6 +766,8 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 	} else {
 		logger.Debugf("StopServices called for %q", apps)
 	}
+
+	disableServices := []string{}
 	for _, app := range apps {
 		// Handle the case where service file doesn't exist and don't try to stop it as it will fail.
 		// This can happen with snap try when snap.yaml is modified on the fly and a daemon line is added.
@@ -789,7 +789,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		timings.Run(tm, "stop-service", fmt.Sprintf("stop service %q", app.ServiceName()), func(nested timings.Measurer) {
 			err = stopService(sysd, app, inter)
 			if err == nil && flags.Disable {
-				err = sysd.Disable([]string{app.ServiceName()})
+				disableServices = append(disableServices, app.ServiceName())
 			}
 		})
 		if err != nil {
@@ -806,6 +806,9 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 			time.Sleep(killWait)
 			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
+	}
+	if err := sysd.Disable(disableServices); err != nil {
+		return err
 	}
 	return nil
 }
