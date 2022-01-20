@@ -292,6 +292,9 @@ type Systemd interface {
 	Backend() Backend
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
+	// DaemonReload reloads systemd's configuration if required
+	// adding flag if services are added(true) or removed(false), serviceNames list of services
+	DaemonReloadIfNeeded(adding bool, serviceNames []string) error
 	// DaemonRexec reexecutes systemd's system manager, should be
 	// only necessary to apply manager's configuration like
 	// watchdog.
@@ -515,6 +518,41 @@ func (s *systemd) daemonReloadNoLock() error {
 
 	_, err := s.systemctl("daemon-reload")
 	return err
+}
+
+func (s *systemd) DaemonReloadIfNeeded(adding bool, serviceNames []string) error {
+	return s.daemonReloadIfNeededWithLock(false, adding, serviceNames)
+}
+
+func (s *systemd) daemonReloadIfNeededWithLock(locked, adding bool, serviceNames []string) error {
+	needReload := false
+	if s.legacy {
+		needReload = true
+	} else {
+		// for _, service := range serviceNames {
+		// A status error will happen if systemd thinks that the service does
+		// not exist anymore. We force the reload in that case, as we assume
+		// that the unit exists at this point.
+		status, err := s.Status(serviceNames)
+		if err != nil && adding {
+			needReload = true
+		}
+		// check if any unit needs reload
+		if err == nil {
+			for i := 0; i < len(status); i++ {
+				needReload = needReload || status[i].NeedDaemonReload
+			}
+		}
+	}
+
+	if needReload {
+		if locked {
+			return s.daemonReloadNoLock()
+		} else {
+			return s.DaemonReload()
+		}
+	}
+	return nil
 }
 
 func (s *systemd) DaemonReexec() error {

@@ -54,6 +54,10 @@ func (s *emulation) DaemonReload() error {
 	return &notImplementedError{"DaemonReload"}
 }
 
+func (s *emulation) DaemonReloadIfNeeded(adding bool, serviceNames []string) error {
+	return &notImplementedError{"DaemonReloadIfNeeded"}
+}
+
 func (s *emulation) DaemonReexec() error {
 	return &notImplementedError{"DaemonReexec"}
 }
