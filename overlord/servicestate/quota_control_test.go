@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -129,47 +130,96 @@ func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
 	}
 }
 
-func systemctlCallsForSliceStart(name string) []expectedSystemctl {
-	name = systemd.EscapeUnitNamePath(name)
-	slice := "snap." + name + ".slice"
+func systemctlCallsForSliceStart(names ...string) []expectedSystemctl {
+	slices := []string{"start"}
+	for _, name := range names {
+		name = systemd.EscapeUnitNamePath(name)
+		slices = append(slices, "snap."+name+".slice")
+	}
 	return []expectedSystemctl{
-		{expArgs: []string{"start", slice}},
+		{expArgs: slices},
 	}
 }
 
-func systemctlCallsForSliceStop(name string) []expectedSystemctl {
-	name = systemd.EscapeUnitNamePath(name)
-	slice := "snap." + name + ".slice"
+func systemctlCallsForSliceStop(names ...string) []expectedSystemctl {
+	stop_slices := []string{"stop"}
+	show_slices := []string{"show", "--property=ActiveState"}
+	show_out := []string{}
+	for _, name := range names {
+		name = systemd.EscapeUnitNamePath(name)
+		stop_slices = append(stop_slices, "snap."+name+".slice")
+		show_slices = append(show_slices, "snap."+name+".slice")
+		show_out = append(show_out, "ActiveState=inactive", "\n")
+	}
 	return []expectedSystemctl{
-		{expArgs: []string{"stop", slice}},
+		{expArgs: stop_slices},
 		{
-			expArgs: []string{"show", "--property=ActiveState", slice},
-			output:  "ActiveState=inactive",
+			expArgs: show_slices,
+			output:  show_out,
 		},
 	}
 }
 
-func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
-	svc := "snap." + name + ".svc1.service"
+func systemctlCallsForServiceRestart(names ...string) []expectedSystemctl {
+	show_services_in := []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload"}
+	show_services_out := []string{}
+	stop_services := []string{"stop"}
+	show_active_in := []string{"show", "--property=ActiveState"}
+	show_active_out := []string{}
+	start_services := []string{"start"}
+	for _, name := range names {
+		svc := "snap." + name + ".svc1.service"
+		show_services_in = append(show_services_in, svc)
+		show_services_out = append(show_services_out, fmt.Sprintf("Id=%s\nNames=%[1]s\nActiveState=active\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", svc))
+		stop_services = append(stop_services, svc)
+		show_active_in = append(show_active_in, svc)
+		show_active_out = append(show_active_out, "ActiveState=inactive", "\n")
+		start_services = append(start_services, svc)
+	}
 	return []expectedSystemctl{
 		{
-			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", svc},
-			output:  fmt.Sprintf("Id=%s\nNames=%[1]s\nActiveState=active\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", svc),
+			expArgs: show_services_in,
+			output:  show_services_out,
 		},
-		{expArgs: []string{"stop", svc}},
+		{expArgs: stop_services},
 		{
-			expArgs: []string{"show", "--property=ActiveState", svc},
-			output:  "ActiveState=inactive",
+			expArgs: show_active_in,
+			output:  show_active_out,
 		},
-		{expArgs: []string{"start", svc}},
+		{expArgs: start_services},
 	}
 }
 
 func systemctlCallsForCreateQuota(groupName string, snapNames ...string) []expectedSystemctl {
-	calls := join(
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceStart(groupName),
-	)
+	var calls []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		var unitFiles []string
+		var response []string
+		for _, u := range snapNames {
+			unitFiles = append(unitFiles, "snap."+u+".svc1.service")
+			response = append(response, fmt.Sprintf("Id=snap.%s.svc1.service\nNames=snap.%[1]s.svc1.service\nActiveState=inactive\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n", u))
+		}
+		escapedGroupName := systemd.EscapeUnitNamePath(groupName)
+		unitFiles = append(unitFiles, "snap."+escapedGroupName+".slice")
+		response = append(response, fmt.Sprintf("Id=snap.%s.slice\nNames=snap.%[1]s.slice\nActiveState=inactive\nUnitFileState=Type=\nNeedDaemonReload=no\n", escapedGroupName))
+		calls = join(calls,
+			[]expectedSystemctl{
+				{
+					expArgs: []string(append([]string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload"}, unitFiles...)),
+					output:  response,
+				},
+			},
+		)
+	} else {
+		calls = join(
+			[]expectedSystemctl{
+				{
+					expArgs: []string{"daemon-reload"},
+				},
+			},
+		)
+	}
+	calls = join(calls, systemctlCallsForSliceStart(groupName))
 	for _, snapName := range snapNames {
 		calls = join(calls, systemctlCallsForServiceRestart(snapName))
 	}
