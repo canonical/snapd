@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -138,7 +139,7 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 
 type expectedSystemctl struct {
 	expArgs []string
-	output  string
+	output  []string
 	err     error
 }
 
@@ -226,11 +227,49 @@ func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSy
 	allSystemctlCalls := [][]string{}
 	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		systemctlCalls := len(allSystemctlCalls)
-		allSystemctlCalls = append(allSystemctlCalls, args)
 		if systemctlCalls < len(expCalls) {
 			res := expCalls[systemctlCalls]
-			c.Check(args, DeepEquals, res.expArgs)
-			return []byte(res.output), res.err
+			// if we have show command, unit order should not matter
+			var expectedArgs []string
+			var output []string
+			if args[0] == "show" && len(args) > 3 && len(args) == len(res.expArgs) {
+				// we have more than one unit, reorder expected reply array
+				// as unit order should not be dictated for show command
+				expectedArgs = append(expectedArgs, args[0], args[1])
+				i := 2
+				// handle InactiveEnterTimestamp case, which is passed as extra element in array
+				if args[2] == "InactiveEnterTimestamp" {
+					expectedArgs = append(expectedArgs, args[2])
+					i++
+				}
+				offset := i
+				for ; i < len(args); i++ {
+					// take passed args as order to obey for the reply string
+					for ii := offset; ii < len(res.expArgs); ii++ {
+						if args[i] == res.expArgs[ii] {
+							expectedArgs = append(expectedArgs, res.expArgs[ii])
+							if ii-offset < len(res.output) {
+								output = append(output, res.output[ii-offset])
+							}
+							continue
+						}
+					}
+				}
+			} else {
+				expectedArgs = res.expArgs
+				output = res.output
+			}
+			c.Check(args, DeepEquals, expectedArgs)
+			// use expected order for final confirmation, we just validated this step
+			allSystemctlCalls = append(allSystemctlCalls, res.expArgs)
+			// join output strings, add empty line in between for "show" command
+			if args[0] == "show" {
+				return []byte(strings.Join(output[:], "\n")), res.err
+			} else {
+				return []byte(strings.Join(output[:], "")), res.err
+			}
+		} else {
+			allSystemctlCalls = append(allSystemctlCalls, args)
 		}
 		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
 		return nil, fmt.Errorf("broken test")
