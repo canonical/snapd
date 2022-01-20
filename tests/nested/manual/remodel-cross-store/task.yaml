@@ -112,4 +112,4 @@ execute: |
     # new snap is installed
     tests.nested exec "snap list test-snapd-tools-core${variant}"
     # and it's possible to run hello-world
-    tests.nested exec "test-snapd-tools-core${variant}.cmd echo 'Hello World!" | MATCH 'Hello World!'
+    tests.nested exec "test-snapd-tools-core${variant}.cmd echo 'Hello World'" | MATCH 'Hello World'
