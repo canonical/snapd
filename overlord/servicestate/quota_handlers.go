@@ -516,10 +516,15 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	// TODO: should this logic move to wrappers in wrappers.RemoveQuotaGroup()?
 	systemSysd := systemd.New(systemd.SystemMode, meterLocked)
 
-	// now start the slices
+	// now start all the slices at once
+	slices := []string{}
 	for _, grp := range grpsToStart {
+		slices = append(slices, grp.SliceFileName())
+	}
+
+	if len(slices) != 0 {
 		// TODO: what should these timeouts for stopping/restart slices be?
-		if err := systemSysd.Start([]string{grp.SliceFileName()}); err != nil {
+		if err := systemSysd.Start(slices); err != nil {
 			return nil, err
 		}
 	}
