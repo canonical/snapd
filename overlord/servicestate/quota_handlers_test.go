@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -57,7 +58,7 @@ func (s *quotaHandlersSuite) SetUpTest(c *C) {
 	s.AddCleanup(r)
 }
 
-func (s *quotaHandlersSuite) TestDoQuotaControlCreate(c *C) {
+func (s *quotaHandlersSuite) testDoQuotaControlCreate(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// doQuotaControl handler to create the group
 		systemctlCallsForCreateQuota("foo-group", "test-snap"),
@@ -100,8 +101,7 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreate(c *C) {
 		},
 	})
 }
-
-func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
+func (s *quotaHandlersSuite) testDoQuotaControlCreateRestartOK(c *C) {
 	// test a situation where because of restart the task is reentered
 	r := s.mockSystemctlCalls(c, join(
 		// doQuotaControl handler to create the group
@@ -161,7 +161,27 @@ func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOK(c *C) {
 	checkQuotaState(c, st, expectedQuotaState)
 }
 
-func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
+func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOKOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlCreateRestartOK(c)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaControlCreateRestartOKSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlCreateRestartOK(c)
+}
+
+func (s *quotaHandlersSuite) testQuotaStateAlreadyUpdatedBehavior(c *C) {
 	// test a situation where because of restart the task is reentered
 	r := s.mockSystemctlCalls(c, join(
 		// doQuotaControl handler to create the group
@@ -232,13 +252,68 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	c.Check(appsToRestart, HasLen, 0)
 }
 
-func (s *quotaHandlersSuite) TestDoQuotaControlUpdate(c *C) {
+func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehaviorOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testQuotaStateAlreadyUpdatedBehavior(c)
+}
+
+func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehaviorSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testQuotaStateAlreadyUpdatedBehavior(c)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaControlCreateOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlCreate(c)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaControlCreateSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlCreate(c)
+}
+
+func (s *quotaHandlersSuite) testDoQuotaControlUpdate(c *C) {
+	var expectedSdCalls []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo\\x2dgroup.slice"},
+				output:  []string{"Id=snap.foo\\x2dgroup.slice\nNames=snap.foo\\x2dgroup.slice\nActiveState=active\nUnitFileState=\nType=\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo-group
 		systemctlCallsForCreateQuota("foo-group", "test-snap"),
 
 		// doQuotaControl handler which updates the group
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls,
 	))
 	defer r()
 
@@ -298,14 +373,49 @@ func (s *quotaHandlersSuite) TestDoQuotaControlUpdate(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestDoQuotaControlUpdateRestartOK(c *C) {
+func (s *quotaHandlersSuite) TestDoQuotaControlUpdateOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlUpdate(c)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaControlUpdateSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlUpdate(c)
+}
+
+func (s *quotaHandlersSuite) testDoQuotaControlUpdateRestartOK(c *C) {
+	var expectedSdCalls []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo\\x2dgroup.slice"},
+				output:  []string{"Id=snap.foo\\x2dgroup.slice\nNames=snap.foo\\x2dgroup.slice\nActiveState=inactive\nUnitFileState=Type=\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
 	// test a situation where because of restart the task is reentered
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo-group
 		systemctlCallsForCreateQuota("foo-group", "test-snap"),
 
 		// doQuotaControl handler which updates the group
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls,
 	))
 	defer r()
 
@@ -378,15 +488,63 @@ func (s *quotaHandlersSuite) TestDoQuotaControlUpdateRestartOK(c *C) {
 	checkQuotaState(c, st, expectedQuotaState)
 }
 
-func (s *quotaHandlersSuite) TestDoQuotaControlRemove(c *C) {
+func (s *quotaHandlersSuite) TestDoQuotaControlUpdateRestartOKOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlUpdateRestartOK(c)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaControlUpdateRestartOKSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlUpdateRestartOK(c)
+}
+
+func (s *quotaHandlersSuite) testDoQuotaControlRemove(c *C) {
+	var expectedSdCalls1st []expectedSystemctl
+	var expectedSdCalls2nd []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls1st = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+				output:  []string{"Id=snap.test-snap.svc1.service\nNames=snap.test-snap.svc1.service\nActiveState=active\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n"},
+			},
+		}
+		expectedSdCalls2nd = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo\\x2dgroup.slice"},
+				output:  []string{"Id=snap.foo\\x2dgroup.slice\nNames=snap.foo\\x2dgroup.slice\nActiveState=active\nUnitFileState=\nType=\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		expectedSdCalls1st = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+		expectedSdCalls2nd = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
+
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo-group
 		systemctlCallsForCreateQuota("foo-group", "test-snap"),
 
 		// doQuotaControl handler which removes the group
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls1st,
 		systemctlCallsForSliceStop("foo-group"),
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls2nd,
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -441,16 +599,66 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemove(c *C) {
 	checkQuotaState(c, st, nil)
 }
 
-func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
+func (s *quotaHandlersSuite) TestDoQuotaControlRemoveOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlRemove(c)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaControlRemoveSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlRemove(c)
+}
+
+func (s *quotaHandlersSuite) testDoQuotaControlRemoveRestartOK(c *C) {
+	var expectedSdCalls1st []expectedSystemctl
+	var expectedSdCalls2nd []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls1st = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+				output: []string{
+					"Id=snap.test-snap.svc1.service\nNames=snap.test-snap.svc1.service\nActiveState=inactive\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n",
+				},
+			},
+		}
+		expectedSdCalls2nd = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo\\x2dgroup.slice"},
+				output:  []string{"Id=snap.foo\\x2dgroup.slice\nNames=snap.foo\\x2dgroup.slice\nActiveState=active\nUnitFileState=\nType=\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		// doQuotaControl handler which removes the group
+		expectedSdCalls1st = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+		expectedSdCalls2nd = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
 	// test a situation where because of restart the task is reentered
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo-group
 		systemctlCallsForCreateQuota("foo-group", "test-snap"),
 
 		// doQuotaControl handler which removes the group
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls1st,
 		systemctlCallsForSliceStop("foo-group"),
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls2nd,
 		systemctlCallsForServiceRestart("test-snap"),
 		// after task restart
 		systemctlCallsForServiceRestart("test-snap"),
@@ -518,6 +726,26 @@ func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOK(c *C) {
 	checkQuotaState(c, st, nil)
 }
 
+func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOKOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlRemoveRestartOK(c)
+}
+
+func (s *quotaHandlersSuite) TestDoQuotaControlRemoveRestartOKSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoQuotaControlRemoveRestartOK(c)
+}
+
 func (s *quotaHandlersSuite) callDoQuotaControl(action *servicestate.QuotaControlAction) error {
 	st := s.state
 	qcs := []*servicestate.QuotaControlAction{action}
@@ -564,7 +792,7 @@ func (s *quotaHandlersSuite) TestQuotaCreatePreseeding(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
+func (s *quotaHandlersSuite) testQuotaCreate(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for non-installed snap - fails
 
@@ -627,7 +855,47 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
+func (s *quotaHandlersSuite) TestQuotaCreateOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testQuotaCreate(c)
+}
+
+func (s *quotaHandlersSuite) TestQuotaCreateSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testQuotaCreate(c)
+}
+
+func (s *quotaHandlersSuite) testDoCreateSubGroupQuota(c *C) {
+
+	var expectedSdCalls []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service", "snap.foo\\x2dgroup.slice", "snap.foo\\x2dgroup-foo2.slice"},
+				output: []string{
+					"Id=snap.test-snap.svc1.service\nNames=snap.test-snap.svc1.service\nActiveState=inactive\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n",
+					"Id=snap.foo\\x2dgroup.slice\nNames=snap.foo\\x2dgroup.slice\nActiveState=inactive\nUnitFileState=Type=\nNeedDaemonReload=no\n",
+					"Id=snap.foo\\x2dgroup-foo2.slice\nNames=snap.foo\\x2dgroup-foo2.slice\nActiveState=inactive\nUnitFileState=Type=\nNeedDaemonReload=no\n",
+				},
+			},
+		}
+	} else {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo - no systemctl calls since no snaps in it
 
@@ -635,9 +903,8 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 
 		// CreateQuota for foo2 - we don't write anything for the first quota
 		// since there are no snaps in the quota to track
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceStart("foo-group"),
-		systemctlCallsForSliceStart("foo-group/foo2"),
+		expectedSdCalls,
+		systemctlCallsForSliceStart("foo-group", "foo-group/foo2"),
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -714,7 +981,56 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 	checkSliceState(c, systemd.EscapeUnitNamePath("foo-group"), quantity.SizeGiB)
 }
 
-func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
+func (s *quotaHandlersSuite) TestDoCreateSubGroupQuotaOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoCreateSubGroupQuota(c)
+
+}
+
+func (s *quotaHandlersSuite) TestDoCreateSubGroupQuotaSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoCreateSubGroupQuota(c)
+}
+
+func (s *quotaHandlersSuite) testDoQuotaRemove(c *C) {
+	var expectedSdCalls1st []expectedSystemctl
+	var expectedSdCalls2nd []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls1st = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.svc1.service"},
+				output:  []string{"Id=snap.test-snap.svc1.service\nNames=snap.test-snap.svc1.service\nActiveState=active\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n"},
+			},
+		}
+		expectedSdCalls2nd = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo.slice"},
+				output:  []string{"Id=snap.foo.slice\nNames=snap.foo.slice\nActiveState=active\nUnitFileState=\nType=\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		expectedSdCalls1st = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+		expectedSdCalls2nd = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
+
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
@@ -733,9 +1049,9 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		systemctlCallsForSliceStop("foo/foo2"),
 
 		// RemoveQuota for foo
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls1st,
 		systemctlCallsForSliceStop("foo"),
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls2nd,
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -867,6 +1183,26 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 	checkSvcAndSliceState(c, "test-snap.svc1", "foo", 0)
 }
 
+func (s *quotaHandlersSuite) TestDoQuotaRemoveOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testDoQuotaRemove(c)
+}
+
+func (s *quotaHandlersSuite) TestQuotaRemoveSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testDoQuotaRemove(c)
+}
+
 func (s *quotaHandlersSuite) TestQuotaUpdateGroupNotExist(c *C) {
 	st := s.state
 	st.Lock()
@@ -882,7 +1218,23 @@ func (s *quotaHandlersSuite) TestQuotaUpdateGroupNotExist(c *C) {
 	c.Check(err, ErrorMatches, `group "non-existing" does not exist`)
 }
 
-func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
+func (s *quotaHandlersSuite) testQuotaUpdateSubGroupTooBig(c *C) {
+	var expectedSdCalls []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo-foo2.slice"},
+				output:  []string{"Id=snap.foo-foo2.slice\nNames=snap.foo-foo2.slice\nActiveState=active\nUnitFileState=\nType=\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
+
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
@@ -891,7 +1243,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 		systemctlCallsForCreateQuota("foo/foo2", "test-snap2"),
 
 		// UpdateQuota for foo2 - just the slice changes
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls,
 
 		// UpdateQuota for foo2 which fails - no systemctl calls
 	))
@@ -995,14 +1347,50 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
+func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBigOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateSubGroupTooBig(c)
+}
+
+func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBigSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateSubGroupTooBig(c)
+}
+
+func (s *quotaHandlersSuite) testQuotaUpdateChangeMemLimit(c *C) {
+	var expectedSdCalls []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.foo.slice"},
+				output:  []string{"Id=snap.foo.slice\nNames=snap.foo.slice\nActiveState=active\nUnitFileState=\nType=\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
+
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
 
 		// UpdateQuota for foo - an existing slice was changed, so all we need
 		// to is daemon-reload
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls,
 	))
 	defer r()
 
@@ -1060,14 +1448,50 @@ func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
 	c.Assert(err, ErrorMatches, "cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
 }
 
-func (s *quotaHandlersSuite) TestQuotaUpdateAddSnap(c *C) {
+func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimitOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateChangeMemLimit(c)
+}
+
+func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimitSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateChangeMemLimit(c)
+}
+
+func (s *quotaHandlersSuite) testQuotaUpdateAddSnap(c *C) {
+	var expectedSdCalls []expectedSystemctl
+	if "ubuntu-core" == release.ReleaseInfo.ID && release.ReleaseInfo.VersionID == "20" {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap2.svc1.service"},
+				output:  []string{"Id=snap.test-snap2.svc1.service\nNames=snap.test-snap2.svc1.service\nActiveState=active\nUnitFileState=enabled\nType=simple\nNeedDaemonReload=no\n"},
+			},
+		}
+	} else {
+		expectedSdCalls = []expectedSystemctl{
+			{
+				expArgs: []string{"daemon-reload"},
+			},
+		}
+	}
+
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
 
 		// UpdateQuota with just test-snap2 restarted since the group already
 		// exists
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		expectedSdCalls,
 		systemctlCallsForServiceRestart("test-snap2"),
 	))
 	defer r()
@@ -1126,7 +1550,28 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnap(c *C) {
 	})
 }
 
-func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
+func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateAddSnap(c)
+}
+
+func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateAddSnap(c)
+}
+
+func (s *quotaHandlersSuite) testQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
+
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
@@ -1218,4 +1663,24 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
 			Snaps:       []string{"test-snap2"},
 		},
 	})
+}
+
+func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroupOldSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(true)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateAddSnapAlreadyInOtherGroup(c)
+}
+
+func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroupSmartSystemd(c *C) {
+	releaseRestore := release.MockOnClassic(false)
+	defer releaseRestore()
+
+	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	defer releaseRestore()
+
+	s.testQuotaUpdateAddSnapAlreadyInOtherGroup(c)
 }
