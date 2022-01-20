@@ -153,7 +153,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 			continue
 		}
 
-		if connState.Undesired || connState.HotplugGone {
+		if !connState.Active() {
 			continue
 		}
 
@@ -223,7 +223,7 @@ func (m *mountCommand) Execute([]string) error {
 		return fmt.Errorf("cannot create mount unit: %v", err)
 	}
 
-	if err := sysd.Start(name); err != nil {
+	if err := sysd.Start([]string{name}); err != nil {
 		// There's no point in keeping the mount unit if it doesn't work. Even
 		// if the problem is transient, the next invocation of "snapctl mount"
 		// will create a new unit anyway.
