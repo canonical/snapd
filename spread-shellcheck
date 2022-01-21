@@ -22,9 +22,12 @@ import itertools
 import hashlib
 import binascii
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 from multiprocessing import cpu_count
 from typing import Dict
 from pathlib import Path
+from collections import namedtuple
+
 
 import yaml
 
@@ -150,6 +153,9 @@ class Cacher:
         instance = super().__new__(cls)
         cls._instance = instance
         instance._enabled = True
+        instance._lock = Lock()
+        instance._hit =0
+        instance._miss = 0
         return instance
 
     def disable(self):
@@ -170,7 +176,9 @@ class Cacher:
         prefix = hdg[:2]
         cachepath = Cacher._cache_path_for(hdg)
         logging.debug("cache stamp %s, exists? %s", cachepath.as_posix(), cachepath.exists())
-        return cachepath.exists(), hdg
+        hit = cachepath.exists()
+        self._record_cache_event(hit)
+        return hit, hdg
 
     def cache_success(self, digest, path):
         if not self._enabled:
@@ -179,6 +187,17 @@ class Cacher:
         logging.debug("cache success, path %s", cachepath.as_posix())
         cachepath.parent.mkdir(parents=True, exist_ok=True)
         cachepath.touch()
+
+    def _record_cache_event(self, hit):
+        with self._lock:
+            if hit:
+                self._hit += 1
+            else:
+                self._miss += 1
+
+    @property
+    def stats(self):
+        return namedtuple('Stats', ['hit', 'miss'])(self._hit, self._miss)
 
 
 def checkfile(path, executor):
@@ -300,6 +319,10 @@ def main(opts):
             checkpaths(paths, exclude, executor)
         except ShellcheckFailures as sf:
             failures.merge(sf)
+
+    if not opts.no_cache:
+        stats = Cacher().stats
+        logging.info("cache stats: hit %d miss %d", stats.hit, stats.miss)
 
     if failures:
         if opts.can_fail:
