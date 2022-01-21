@@ -10,6 +10,7 @@
 # like a developer would do locally in which case this ends up checking all
 # commits locally - some day that may grow to be unwieldy but for now seems ok.
 
+import os
 import subprocess
 from email.utils import parseaddr
 
@@ -39,6 +40,8 @@ def get_commit_range():
 
 
 if __name__ == "__main__":
+    if not os.path.exists('.git'):
+        exit(0)
     commitrange = get_commit_range()
     args = ["git", "log", "--format=format:%h,%ce%n%h,%ae"]
     if commitrange != "":
