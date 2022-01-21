@@ -62,7 +62,7 @@ func (s *attrMatcherSuite) TestSimple(c *C) {
   bar: BAR`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	values := map[string]interface{}{
@@ -94,7 +94,7 @@ func (s *attrMatcherSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
   bar: BAR|BAZ`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	values := map[string]interface{}{
@@ -136,7 +136,7 @@ func (s *attrMatcherSuite) TestNested(c *C) {
     bar2: BAR2`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -188,7 +188,7 @@ func (s *attrMatcherSuite) TestAlternative(c *C) {
     bar: BAZ`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"])
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"], nil)
 	c.Assert(err, IsNil)
 
 	values := map[string]interface{}{
@@ -226,7 +226,7 @@ func (s *attrMatcherSuite) TestNestedAlternative(c *C) {
       - BAR22`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -264,7 +264,7 @@ write:
   write: /var/(tmp|lib/snapd/snapshots)`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(toMatch, nil)
@@ -276,7 +276,7 @@ write:
     - /var/lib/snapd/snapshots`))
 	c.Assert(err, IsNil)
 
-	domatchLst, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatchLst, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatchLst(toMatch, nil)
@@ -296,7 +296,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
       options: rw|bind|nodev`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(toMatch, nil)
@@ -318,7 +318,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
         - bind`))
 	c.Assert(err, IsNil)
 
-	domatchExtensive, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatchExtensive, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatchExtensive(toMatch, nil)
@@ -340,7 +340,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
         - bind`))
 	c.Assert(err, IsNil)
 
-	domatchExtensiveNoMatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatchExtensiveNoMatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatchExtensiveNoMatch(toMatch, nil)
@@ -353,7 +353,7 @@ func (s *attrMatcherSuite) TestOtherScalars(c *C) {
   bar: true`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -371,47 +371,58 @@ bar: true
 }
 
 func (s *attrMatcherSuite) TestCompileErrors(c *C) {
-	_, err := asserts.CompileAttrMatcher(1)
+	_, err := asserts.CompileAttrMatcher(1, nil)
 	c.Check(err, ErrorMatches, `top constraint must be a key-value map, regexp or a list of alternative constraints: 1`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": 1,
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `constraint "foo" must be a key-value map, regexp or a list of alternative constraints: 1`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": "[",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\[": error parsing regexp:.*`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": []interface{}{"foo", "["},
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `cannot compile "foo/alt#2/" constraint "\[": error parsing regexp:.*`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": []interface{}{"foo", []interface{}{"bar", "baz"}},
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `cannot nest alternative constraints directly at "foo/alt#2/"`)
 
-	_, err = asserts.CompileAttrMatcher("FOO")
+	_, err = asserts.CompileAttrMatcher("FOO", nil)
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
 
-	_, err = asserts.CompileAttrMatcher([]interface{}{"FOO"})
+	_, err = asserts.CompileAttrMatcher([]interface{}{"FOO"}, nil)
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
+
+	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
+		"foo": "$FOO()",
+	}, nil)
+	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\$FOO\(\)": no \$OP\(\) constraints supported`)
 
 	wrongDollarConstraints := []string{
 		"$",
 		"$FOO(a)",
 		"$SLOT",
 		"$SLOT()",
+		"$SLOT(x,y)",
+		"$SLOT(x,y,z)",
 	}
 
 	for _, wrong := range wrongDollarConstraints {
 		_, err := asserts.CompileAttrMatcher(map[string]interface{}{
 			"foo": wrong,
-		})
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\) constraint`, regexp.QuoteMeta(wrong)))
+		}, []string{"SLOT", "OP"})
+		if wrong != "$SLOT(x,y)" {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$OP\(\) constraint`, regexp.QuoteMeta(wrong)))
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": \$SLOT\(\) constraint expects 1 argument`, regexp.QuoteMeta(wrong)))
+		}
 
 	}
 }
@@ -421,7 +432,7 @@ func (s *attrMatcherSuite) TestMatchingListsSimple(c *C) {
   foo: /foo/.*`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -440,7 +451,7 @@ func (s *attrMatcherSuite) TestMissingCheck(c *C) {
   foo: $MISSING`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -461,7 +472,7 @@ func (s *attrMatcherSuite) TestEvalCheck(c *C) {
   bar: $PLUG(bar.baz)`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), []string{"SLOT", "PLUG"})
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -520,7 +531,7 @@ func (s *attrMatcherSuite) TestMatchingListsMap(c *C) {
     p: /foo/.*`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`

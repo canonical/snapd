@@ -25,6 +25,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -34,8 +36,12 @@ const (
 	altAttrMatcherFeature = "alt-attr-matcher"
 )
 
+type attrMatchingContext struct {
+	helper AttrMatchContext
+}
+
 type attrMatcher interface {
-	match(apath string, v interface{}, ctx AttrMatchContext) error
+	match(apath string, v interface{}, ctx *attrMatchingContext) error
 
 	feature(flabel string) bool
 }
@@ -47,10 +53,16 @@ func chain(path, k string) string {
 	return fmt.Sprintf("%s.%s", path, k)
 }
 
+type compileAttrMatcherOptions struct {
+	allowedOperations []string
+}
+
 type compileContext struct {
 	dotted string
 	hadMap bool
 	wasAlt bool
+
+	opts *compileAttrMatcherOptions
 }
 
 func (cc compileContext) String() string {
@@ -62,6 +74,7 @@ func (cc compileContext) keyEntry(k string) compileContext {
 		dotted: chain(cc.dotted, k),
 		hadMap: true,
 		wasAlt: false,
+		opts:   cc.opts,
 	}
 }
 
@@ -70,6 +83,7 @@ func (cc compileContext) alt(alt int) compileContext {
 		dotted: fmt.Sprintf("%s/alt#%d/", cc.dotted, alt+1),
 		hadMap: cc.hadMap,
 		wasAlt: true,
+		opts:   cc.opts,
 	}
 }
 
@@ -119,7 +133,7 @@ func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMat
 	return matcher, nil
 }
 
-func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMatchContext) error {
+func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx *attrMatchingContext) error {
 	apath = chain(apath, k)
 	// every entry matcher expects the attribute to be set except for $MISSING
 	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
@@ -131,7 +145,7 @@ func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMa
 	return nil
 }
 
-func matchList(apath string, matcher attrMatcher, l []interface{}, ctx AttrMatchContext) error {
+func matchList(apath string, matcher attrMatcher, l []interface{}, ctx *attrMatchingContext) error {
 	for i, elem := range l {
 		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
 			return err
@@ -149,7 +163,7 @@ func (matcher mapAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	switch x := v.(type) {
 	case Attrer:
 		// we get Atter from root-level Check (apath is "")
@@ -179,7 +193,7 @@ func (matcher missingAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	if v != nil {
 		return fmt.Errorf("attribute %q is constrained to be missing but is set", apath)
 	}
@@ -193,13 +207,27 @@ type evalAttrMatcher struct {
 }
 
 var (
-	validEvalAttrMatcher = regexp.MustCompile(`^\$(SLOT|PLUG)\((.+)\)$`)
+	validEvalAttrMatcher    = regexp.MustCompile(`^\$([A-Z]+)\(([^,]+)(?:,([^,]+))?\)$`)
+	validEvalAttrMatcherOps = map[string]bool{
+		"PLUG": true,
+		"SLOT": true,
+	}
 )
 
 func compileEvalAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
+	if len(cc.opts.allowedOperations) == 0 {
+		return nil, fmt.Errorf("cannot compile %q constraint %q: no $OP() constraints supported", cc, s)
+	}
 	ops := validEvalAttrMatcher.FindStringSubmatch(s)
-	if len(ops) == 0 {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid $SLOT()/$PLUG() constraint", cc, s)
+	if len(ops) == 0 || !validEvalAttrMatcherOps[ops[1]] || !strutil.ListContains(cc.opts.allowedOperations, ops[1]) {
+		oplst := make([]string, 0, len(cc.opts.allowedOperations))
+		for _, op := range cc.opts.allowedOperations {
+			oplst = append(oplst, fmt.Sprintf("$%s()", op))
+		}
+		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid %s constraint", cc, s, strings.Join(oplst, "/"))
+	}
+	if ops[3] != "" {
+		return nil, fmt.Errorf("cannot compile %q constraint %q: $%s() constraint expects 1 argument", cc, s, ops[1])
 	}
 	return evalAttrMatcher{
 		op:  ops[1],
@@ -211,16 +239,16 @@ func (matcher evalAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
-	if ctx == nil {
+func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+	if ctx.helper == nil {
 		return fmt.Errorf("attribute %q cannot be matched without context", apath)
 	}
 	var comp func(string) (interface{}, error)
 	switch matcher.op {
 	case "SLOT":
-		comp = ctx.SlotAttr
+		comp = ctx.helper.SlotAttr
 	case "PLUG":
-		comp = ctx.PlugAttr
+		comp = ctx.helper.PlugAttr
 	}
 	v1, err := comp(matcher.arg)
 	if err != nil {
@@ -248,7 +276,7 @@ func (matcher regexpAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	var s string
 	switch x := v.(type) {
 	case string:
@@ -298,7 +326,7 @@ func (matcher altAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher altAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	// if the value is a list apply the alternative matcher to each element
 	// like we do for other matchers
 	switch x := v.(type) {
