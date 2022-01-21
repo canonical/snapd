@@ -519,7 +519,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	// now start the slices
 	for _, grp := range grpsToStart {
 		// TODO: what should these timeouts for stopping/restart slices be?
-		if err := systemSysd.Start(grp.SliceFileName()); err != nil {
+		if err := systemSysd.Start([]string{grp.SliceFileName()}); err != nil {
 			return nil, err
 		}
 	}
@@ -531,7 +531,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	if _, ok := allGrps[grp.Name]; !ok {
 		// stop the quota group, then remove it
 		if !ensureOpts.Preseeding {
-			if err := systemSysd.Stop(grp.SliceFileName(), 5*time.Second); err != nil {
+			if err := systemSysd.Stop([]string{grp.SliceFileName()}, 5*time.Second); err != nil {
 				logger.Noticef("unable to stop systemd slice while removing group %q: %v", grp.Name, err)
 			}
 		}

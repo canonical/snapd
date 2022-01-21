@@ -90,6 +90,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
       with:
+        # needed for git commit history
+        fetch-depth: 0
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd

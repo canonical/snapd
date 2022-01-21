@@ -2014,7 +2014,8 @@ func (s *SnapOpSuite) TestInstallMany(c *check.C) {
 
 func (s *SnapOpSuite) TestInstallZeroEmpty(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install"})
-	c.Assert(err, check.ErrorMatches, "cannot install zero snaps")
+	c.Assert(err, check.Not(check.IsNil))
+	c.Assert(err.Error(), check.Equals, "the required argument `<snap> (at least 1 argument)` was not provided")
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"install", ""})
 	c.Assert(err, check.ErrorMatches, "cannot install snap with empty name")
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"install", "", "bar"})
