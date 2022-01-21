@@ -170,6 +170,10 @@ class Cacher:
     def is_cached(self, data, path):
         if not self._enabled:
             return False, ""
+        # the digest only uses script content as input, but consider other
+        # possible inputs: path to the script (so moving the script around
+        # would cause a miss), or shellcheck version (cause a miss when
+        # shellcheck version is changed)
         h = hashlib.sha256()
         h.update(data)
         hdg = binascii.b2a_hex(h.digest()).decode()
@@ -248,6 +252,7 @@ def checkfile(path, executor):
 
     if errors:
         raise errors
+    # only stamp the cache when the script was found to be valid
     Cacher().cache_success(digest, path)
 
 
