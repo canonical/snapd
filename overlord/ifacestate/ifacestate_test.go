@@ -9024,3 +9024,19 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurityFails(c *C) {
 	ifaces := repo.Interfaces()
 	c.Check(ifaces.Connections, HasLen, 0)
 }
+
+func (s *interfaceManagerSuite) TestConnectionStateActive(c *C) {
+	for i, cs := range []struct {
+		undesired      bool
+		hotplugGone    bool
+		expectedActive bool
+	}{
+		{false, false, true},
+		{true, false, false},
+		{false, true, false},
+		{true, true, false},
+	} {
+		connState := ifacestate.ConnectionState{Undesired: cs.undesired, HotplugGone: cs.hotplugGone}
+		c.Assert(connState.Active(), Equals, cs.expectedActive, Commentf("#%d: %v", i, cs))
+	}
+}

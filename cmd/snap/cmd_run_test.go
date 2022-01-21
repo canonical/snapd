@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -1913,4 +1914,28 @@ func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
 	fi, err := os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir))
 	c.Assert(err, check.IsNil)
 	c.Assert(fi.Mode()&os.ModePerm, check.Equals, os.FileMode(0700))
+}
+
+func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
+	root := c.MkDir()
+	dirs.SnapSeqDir = root
+	dirs.FeaturesDir = root
+
+	// write sequence file
+	seqFile := filepath.Join(dirs.SnapSeqDir, "somesnap.json")
+	str := struct {
+		Migrated bool `json:"migrated-hidden"`
+	}{
+		Migrated: true,
+	}
+	data, err := json.Marshal(&str)
+	c.Assert(err, check.IsNil)
+	c.Assert(ioutil.WriteFile(seqFile, data, 0660), check.IsNil)
+
+	// write control file for hidden dir feature
+	c.Assert(ioutil.WriteFile(features.HiddenSnapDataHomeDir.ControlFile(), []byte{}, 0660), check.IsNil)
+
+	opts, err := snaprun.GetSnapDirOptions("somesnap")
+	c.Assert(err, check.IsNil)
+	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 }
