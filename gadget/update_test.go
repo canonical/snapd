@@ -2334,3 +2334,140 @@ volumes:
 		},
 	})
 }
+
+// adapted from https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
+// but without the content
+const uc16YAMLImplicitSystemData = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 50M
+`
+
+var uc16ImplicitSystemDataMockDiskMapping = &disks.MockDiskMapping{
+	DevNode: "/dev/sda",
+	DevPath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda",
+	DevNum:  "600:1",
+	// assume 34 sectors at end for GPT headers backup
+	DiskUsableSectorEnd: 10240*1024*1024/512 - 33,
+	DiskSizeInBytes:     10240 * 1024 * 1024,
+	SectorSizeBytes:     512,
+	DiskSchema:          "gpt",
+	ID:                  "f69dbcfe-1258-4b36-9d1f-817fdeb61aa3",
+	Structure: []disks.Partition{
+		{
+			KernelDeviceNode: "/dev/sda1",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda1",
+			PartitionUUID:    "420e5a20-b888-42e2-b7df-ced5cbf14517",
+			PartitionLabel:   "BIOS\\x20Boot",
+			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
+			StartInBytes:     1024 * 1024,
+			SizeInBytes:      1024 * 1024,
+			Major:            600,
+			Minor:            2,
+			DiskIndex:        1,
+		},
+		{
+			KernelDeviceNode: "/dev/sda2",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda2",
+			PartitionUUID:    "fc8626b9-af30-4b3c-83c4-05bed39bb82e",
+			PartitionLabel:   "EFI\\x20System",
+			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			FilesystemUUID:   "6D21-B3FE",
+			FilesystemLabel:  "system-boot",
+			FilesystemType:   "vfat",
+			StartInBytes:     (1 + 1) * 1024 * 1024,
+			SizeInBytes:      50 * 1024 * 1024,
+			Major:            600,
+			Minor:            3,
+			DiskIndex:        2,
+		},
+		// has writable partition here since it does physically exist on disk
+		{
+			KernelDeviceNode: "/dev/sda3",
+			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda3",
+			PartitionUUID:    "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
+			PartitionLabel:   "writable",
+			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			FilesystemUUID:   "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
+			FilesystemLabel:  "writable",
+			FilesystemType:   "ext4",
+			StartInBytes:     (50 + 1 + 1) * 1024 * 1024,
+			SizeInBytes:      10682875392,
+			Major:            600,
+			Minor:            4,
+			DiskIndex:        3,
+		},
+	},
+}
+
+var uc16ImplicitSystemDataDeviceTraits = gadget.DiskVolumeDeviceTraits{
+	OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda",
+	OriginalKernelPath: "/dev/sda",
+	DiskID:             "f69dbcfe-1258-4b36-9d1f-817fdeb61aa3",
+	Size:               10737418240,
+	SectorSize:         512,
+	Schema:             "gpt",
+	Structure: []gadget.DiskStructureDeviceTraits{
+		{
+			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda1",
+			OriginalKernelPath: "/dev/sda1",
+			PartitionUUID:      "420e5a20-b888-42e2-b7df-ced5cbf14517",
+			PartitionType:      "21686148-6449-6E6F-744E-656564454649",
+			PartitionLabel:     "BIOS\\x20Boot",
+			Offset:             1024 * 1024,
+			Size:               1024 * 1024,
+		},
+		{
+			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda2",
+			OriginalKernelPath: "/dev/sda2",
+			PartitionUUID:      "fc8626b9-af30-4b3c-83c4-05bed39bb82e",
+			PartitionType:      "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			PartitionLabel:     "EFI\\x20System",
+			FilesystemType:     "vfat",
+			FilesystemUUID:     "6D21-B3FE",
+			FilesystemLabel:    "system-boot",
+			Offset:             1024*1024 + 1024*1024,
+			Size:               52428800,
+		},
+		// note no writable structure here - since it's not in the YAML, we
+		// don't save it in the traits either
+	},
+}
+
+func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataHappy(c *C) {
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": uc16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), uc16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+
+	// the volume cannot be found with no opts set
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/sda", nil)
+	c.Assert(err, ErrorMatches, `volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
+
+	// with opts for pc then it can be found
+	opts := &gadget.DiskVolumeValidationOpts{
+		AllowImplicitSystemData: true,
+	}
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/sda", opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(traits, DeepEquals, uc16ImplicitSystemDataDeviceTraits)
+}
