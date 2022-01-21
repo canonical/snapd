@@ -16,6 +16,13 @@ environment:
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
+    # turn debug off so that we don't get errant debug messages while running
+    # tests, and in some cases like on UC20 we have the kernel command line
+    # parameter, snapd.debug=1 turned on to enable early boot debugging before
+    # we have a shell, but then once we get a shell and run spread tests, we
+    # want debug messages to be off for commands we run as part of tests, unless
+    # tests explicitly turn the messages on
+    SNAPD_DEBUG: 0
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
