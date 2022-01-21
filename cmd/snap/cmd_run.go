@@ -1,7 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +20,8 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1023,7 +1024,12 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
-	opts := getSnapDirOptions()
+	snapName, _ := snap.SplitSnapApp(snapApp)
+	opts, err := getSnapDirOptions(snapName)
+	if err != nil {
+		return fmt.Errorf("cannot get snap dir options: %w", err)
+	}
+
 	if err := createUserDataDirs(info, opts); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -1230,10 +1236,25 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-func getSnapDirOptions() *dirs.SnapDirOptions {
-	return &dirs.SnapDirOptions{
-		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
+func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+	var opts dirs.SnapDirOptions
+
+	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return &opts, nil
+	} else if err != nil {
+		return nil, err
 	}
+
+	var seq struct {
+		MigratedToHiddenDir bool `json:"migrated-hidden"`
+	}
+	if err := json.Unmarshal(data, &seq); err != nil {
+		return nil, err
+	}
+
+	opts.HiddenSnapDataDir = seq.MigratedToHiddenDir
+	return &opts, nil
 }
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking

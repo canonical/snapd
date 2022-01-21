@@ -95,6 +95,8 @@ var (
 
 	GetKeypairManager = getKeypairManager
 	GenerateKey       = generateKey
+
+	GetSnapDirOptions = getSnapDirOptions
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -439,5 +441,13 @@ func MockIsGraphicalSession(graphical bool) (restore func()) {
 	}
 	return func() {
 		isGraphicalSession = old
+	}
+}
+
+func MockAutostartSessionApps(f func(string) error) func() {
+	old := autostartSessionApps
+	autostartSessionApps = f
+	return func() {
+		autostartSessionApps = old
 	}
 }
