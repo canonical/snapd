@@ -294,11 +294,10 @@ func isUnknownUserOrEnoent(err error) bool {
 	if _, ok := err.(user.UnknownUserError); ok {
 		return true
 	}
-	// check for ENOENT
-	if strings.HasSuffix(err.Error(), syscall.ENOENT.Error()) {
-		return true
-	}
-	return false
+	// Check for ENOENT, ideally go itself would handle this, see
+	// https://github.com/golang/go/issues/40334 for the upstream
+	// bug
+	return strings.HasSuffix(err.Error(), syscall.ENOENT.Error())
 }
 
 // UserMaybeSudoUser finds the user behind a sudo invocation when root, if
