@@ -470,8 +470,8 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		return res, fmt.Errorf("cannot get partitions for disk device %s: %v", dev, err)
 	}
 
-	// make an map of start offsets to partitions for lookup
-	diskPartitionsByOffset := map[uint64]disks.Partition{}
+	// make a map of start offsets to partitions for lookup
+	diskPartitionsByOffset := make(map[uint64]disks.Partition, len(diskPartitions))
 	for _, p := range diskPartitions {
 		diskPartitionsByOffset[p.StartInBytes] = p
 	}
@@ -549,6 +549,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 
 			if onDiskStructureIsLikelyImplicitSystemDataRole(expLayout, diskLayout, s) {
 				// it is likely the implicit system-data
+				logger.Debugf("Identified implicit system-data role on system as %s", s.Node)
 				break
 			}
 		}
