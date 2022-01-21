@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -665,18 +666,29 @@ func (s *preseedModeSuite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	restoreOnClassic := release.MockOnClassic(false)
 	defer restoreOnClassic()
 
+	var readSysLabel string
+	restore := devicestate.MockLoadDeviceSeed(func(st *state.State, sysLabel string) (seed.Seed, error) {
+		readSysLabel = sysLabel
+		// inject an error, we are only interested in verification of the syslabel
+		return nil, fmt.Errorf("boom")
+	})
+	defer restore()
+
 	s.SetupAssertSigning("canonical")
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
 	_ = s.setupCore20Seed(c, "20220108")
 
+	s.mgr.StartUp()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	_, _, err := devicestate.PreloadGadget(s.mgr)
-	// would fail if modeenv was read (or seed was not valid)
-	c.Assert(err, IsNil)
+	// error from mocked loadDeviceSeed results in ErrNoState from preloadGadget
+	c.Assert(err, Equals, state.ErrNoState)
+	c.Check(readSysLabel, Equals, "20220108")
 }
 
 func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
@@ -698,22 +710,24 @@ func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 
+	s.mgr.StartUp()
+
 	err := devicestate.EnsureSeeded(s.mgr)
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 }
 
 func (s *preseedModeSuite) TestSystemForPreseeding(c *C) {
-	_, err := devicestate.SystemForPreseeding()
-	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 0`)
+	_, err := devicestate.MaybeGetSystemForPreseeding()
+	c.Assert(err, IsNil)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
-	systemLabel, err := devicestate.SystemForPreseeding()
+	systemLabel, err := devicestate.MaybeGetSystemForPreseeding()
 	c.Assert(err, IsNil)
 	c.Check(systemLabel, Equals, "20220105")
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
-	_, err = devicestate.SystemForPreseeding()
+	_, err = devicestate.MaybeGetSystemForPreseeding()
 	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
 }
 
