@@ -1,0 +1,52 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"go.testEnvVars": {"LANG": "C.UTF-8"},
+		"go.testFlags": ["-v","-check.v"]
+	},
+	"extensions": {
+		"recommendations": [
+			"golang.go", 
+			"766b.go-outliner", 
+			"jerrygoyal.shortcut-menu-bar",
+			"eamodio.gitlens", 
+			"aaron-bond.better-comments",
+			"vscodevim.vim",
+			"tuttieee.emacs-mcx",
+			"ms-vscode.cpptools-extension-pack",
+		]
+	},
+	"launch": {
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"name": "Test (package)",
+				"type": "go",
+				"request": "launch",
+				"mode": "test",
+				"cwd": "${fileDirname}",
+				"output": "/tmp/go-build${fileBasenameNoExtension}/${relativeFile}/snap.test",
+				"program": "${fileDirname}",
+				"env": {"LANG": "C.UTF-8"},
+				"args": ["-test.timeout=30m0s"],
+			},
+			{
+				"name": "Test verbose (package)",
+				"type": "go",
+				"request": "launch",
+				"mode": "test",
+				"cwd": "${fileDirname}",
+				"output": "/tmp/go-build${fileBasenameNoExtension}/${relativeFile}/snap.test",
+				"program": "${fileDirname}",
+				"env": {
+					"LANG": "C.UTF-8",
+					"args": ["-v", "-check.vv", "-test.timeout=30m0s"],
+				}
+			},
+		]
+	}
+}
