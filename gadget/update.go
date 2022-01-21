@@ -560,7 +560,12 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		for _, part := range diskPartitionsByOffset {
 			leftovers = append(leftovers, part.KernelDeviceNode)
 		}
-		return res, fmt.Errorf("unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
+		// this is an internal error because to get here we would have had to
+		// pass validation in EnsureLayoutCompatibility but then still have
+		// extra partitions - the only non-buggy situation where that function
+		// passes validation but leaves partitions on disk not in the YAML is
+		// the implicit system-data role handled above
+		return res, fmt.Errorf("internal error: unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
 	}
 
 	return DiskVolumeDeviceTraits{
