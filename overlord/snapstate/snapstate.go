@@ -1171,10 +1171,6 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 // Note that the state must be locked by the caller.
 // TODO implement support for Flags.Transaction
 func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	if flags == nil {
-		flags = &Flags{}
-	}
-
 	// need to have a model set before trying to talk the store
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
