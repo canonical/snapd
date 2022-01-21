@@ -1,23 +1,14 @@
 summary: Check that the experimental hidden dir feature migrates the dir
 
 environment:
-    BLOB_DIR: $(pwd)/fake-store-blobdir
-    SNAP_NAME: test-snapd-tools
+    NAME: test-snapd-tools
+    FILE: test-snapd-tools_1.0_all.snap
 
 prepare: |
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-
-    snap install "$SNAP_NAME"
-
-    setup_fake_store "$BLOB_DIR"
+    snap pack "$TESTSLIB"/snaps/"$SNAP_NAME"
+    snap install --dangerous ./"$FILE"
 
 restore: |
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
-    rm -rf "$BLOB_DIR"
-
     snap set system experimental.hidden-snap-folder!
     snap remove "$SNAP_NAME"
 
@@ -27,7 +18,7 @@ execute: |
 
     echo "Check that nothing has been migrated yet"
     snapEnv=$($SNAP_NAME.env)
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=/root/snap/$SNAP_NAME/6"
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=/root/snap/$SNAP_NAME/x1"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$SNAP_NAME/common"
 
     test -d "$HOME"/snap
@@ -37,32 +28,23 @@ execute: |
     "$SNAP_NAME".cmd echo "data" > "$HOME"/snap/"$SNAP_NAME"/current/data
     "$SNAP_NAME".cmd echo "common" > "$HOME"/snap/"$SNAP_NAME"/common/common
 
-    echo "Sanity check for the fake store"
-    snap refresh 2>&1 | MATCH "All snaps up to date."
-
-    echo "Make snap refreshable"
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    init_fake_refreshes "$BLOB_DIR" "$SNAP_NAME"
-    retry -n 4 --wait 0.5 test -e "$BLOB_DIR/$SNAP_NAME"*fake1*.snap
-
     echo "Refresh the snap"
-    snap refresh "$SNAP_NAME"
+    snap install --dangerous ./"$FILE"
 
     echo "Check snap directory was migrated"
     test -d "$HOME"/.snap/data/"$SNAP_NAME"
     test -d "$HOME"/.snap/data/"$SNAP_NAME"/common
-    test -d "$HOME"/.snap/data/"$SNAP_NAME"/7
+    test -d "$HOME"/.snap/data/"$SNAP_NAME"/x2
     not test -d "$HOME"/snap/"$SNAP_NAME"
 
     echo "Check the env vars point to ~/.snap/data"
     snapEnv="$($SNAP_NAME.env)"
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$SNAP_NAME/7"
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$SNAP_NAME/x2"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$SNAP_NAME/common"
 
     # 'current' symlink is created just before the snap runs, so this check
     # must come after a snap run
-    if [ "$(readlink "$HOME"/.snap/data/"$SNAP_NAME"/current)" != 7 ]; then
+    if [ "$(readlink "$HOME"/.snap/data/"$SNAP_NAME"/current)" != "x2" ]; then
       echo "expected 'current' to point to new revision after refresh"
       exit 1
     fi
@@ -71,7 +53,7 @@ execute: |
     # shellcheck disable=SC2002
     cat "$HOME"/.snap/data/"$SNAP_NAME"/common/common | MATCH "common"
     # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$SNAP_NAME"/7/data | MATCH "data"
+    cat "$HOME"/.snap/data/"$SNAP_NAME"/x2/data | MATCH "data"
 
     echo "Check the snap can write to the new dirs"
     #shellcheck disable=SC2016
@@ -81,14 +63,14 @@ execute: |
     # shellcheck disable=SC2002
     cat "$HOME"/.snap/data/"$SNAP_NAME"/common/new_common | MATCH "new_common"
     # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$SNAP_NAME"/7/new_data | MATCH "new_data"
+    cat "$HOME"/.snap/data/"$SNAP_NAME"/x2/new_data | MATCH "new_data"
 
     echo "Check that snap starts off hidden after a fresh install"
     snap remove --purge "$SNAP_NAME"
-    snap install "$SNAP_NAME"
+    snap install --dangerous "$FILE"
 
     test -d "$HOME"/.snap/data/"$SNAP_NAME"
     not test -d "$HOME"/snap/"$SNAP_NAME"
     snapEnv="$($SNAP_NAME.env)"
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$SNAP_NAME/7"
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$SNAP_NAME/x1"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$SNAP_NAME/common"
