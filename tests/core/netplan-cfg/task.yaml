@@ -6,9 +6,12 @@ systems: [ubuntu-core-20-*]
 
 prepare: |
     snap install jq
+    snap install yq
 
 restore: |
     snap remove jq
+    snap remove yq
+    ip link del br54 || true
 
 execute: |
     echo "Getting version works"
@@ -17,3 +20,33 @@ execute: |
     echo "Getting the full document works and it is valid json"
     snap get -d system system.network.netplan | jq .
 
+    echo "Check that setting adding a br54 interface via netplan works"
+    snap set system system.network.netplan.network.bridges.br54.dhcp4=true
+
+    echo "Check that the interface is really there"
+    netplan get | MATCH br54
+    ip link | MATCH br54
+    res=$(yq e '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
+    [ "$res" = "true" ]
+
+    echo "Now add dhcp6"
+    snap set system system.network.netplan.network.bridges.br54.dhcp6=true
+    res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90-snapd-config.yaml)
+    [ "$res" = "true" ]
+    echo "And the dhcp4 setting is preserved and it is still set"
+    res=$(yq e '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
+    [ "$res" = "true" ]
+
+    echo "Check that unset works"
+    snap unset system system.network.netplan.network.bridges.br54.dhcp6
+    res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90-snapd-config.yaml)
+    if [ "$res" != "null" ]; then
+        echo "getting the .network.bridges.br54.dhcp6 should fail"
+        cat /etc/netplan/90-snapd-config.yaml
+        exit 1
+    fi
+
+    echo "Unset the whole subtree works"
+    snap unset system system.network.netplan.network.bridges.br54
+    snap get -d system system.network.netplan | NOMATCH br54
+    ip link | NOMATCH br54
