@@ -30,6 +30,13 @@ prepare: |
     tests.nested build-image core
     tests.nested create-vm core
 
+restore: |
+    tests.nested exec "sudo rm -f /etc/netplan/90-snapd-config.yaml" || true
+
+debug: |
+    # show if anything went wrong during seeding
+    tests.nested exec "snap change 1"
+
 execute: |
     check_core20_early_config(){
         # sanity - check that defaults were applied; note this doesn't guarantee
@@ -64,6 +71,18 @@ execute: |
         tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "hostname: foo"
         tests.nested exec "cat /etc/hostname" | MATCH "foo"
         tests.nested exec "hostname" | MATCH "foo"
+
+        # netplan config defaults are applied
+        tests.nested exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54
+        tests.nested exec "netplan get bridges.br54.dhcp4" | MATCH true
+        tests.nested exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH true
+        tests.nested exec "netplan get ethernets.ens3.dhcp4" | MATCH false
+        # and updating netplan works
+        tests.nested exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
+        tests.nested exec "netplan get bridges.br54.dhcp4" | MATCH false
+        tests.nested exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
+        # ensure the test can be repeated
+        tests.nested exec "sudo rm -f /etc/netplan/90-snapd-config.yaml"
     }
 
     check_core20_early_config

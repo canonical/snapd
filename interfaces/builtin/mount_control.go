@@ -369,6 +369,12 @@ func validateMountInfo(mountInfo *MountInfo) error {
 		return fmt.Errorf(`mount-control "what" attribute must be "none" with "tmpfs"; found %q instead`, mountInfo.what)
 	}
 
+	// Until we have a clear picture of how this should work, disallow creating
+	// persistent mounts into $SNAP_DATA
+	if mountInfo.persistent && strings.HasPrefix(mountInfo.where, "$SNAP_DATA") {
+		return errors.New(`mount-control "persistent" attribute cannot be used to mount onto $SNAP_DATA`)
+	}
+
 	return nil
 }
 

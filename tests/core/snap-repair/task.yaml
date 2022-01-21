@@ -57,7 +57,7 @@ execute: |
             REPAIR_JSON=uc20-run.json
         fi
 
-        new_repair "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/$REPAIR_JSON"
+        fakestore new-repair --dir "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/$REPAIR_JSON"
 
         setup_fake_store "$BLOB_DIR"
 
@@ -91,7 +91,7 @@ execute: |
         jq '."repair-id" = "2"' < "$PWD/$REPAIR_JSON" > "$PWD/$REPAIR_JSON.tmp"
         mv "$PWD/$REPAIR_JSON.tmp" "$PWD/2-$REPAIR_JSON"
 
-        new_repair "$BLOB_DIR" retry.sh --repair-json="$PWD/2-$REPAIR_JSON"
+        fakestore new-repair --dir "$BLOB_DIR" retry.sh --repair-json="$PWD/2-$REPAIR_JSON"
 
         echo "Adding a new repair ID 2 repair assertion will cause another run to be fetched and executed"
 
@@ -106,7 +106,7 @@ execute: |
         jq '."revision" = "1"' < "$PWD/2-$REPAIR_JSON" > "$PWD/2-$REPAIR_JSON.tmp"
         mv "$PWD/2-$REPAIR_JSON.tmp" "$PWD/2-$REPAIR_JSON"
 
-        new_repair "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/2-$REPAIR_JSON"
+        fakestore new-repair --dir "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/2-$REPAIR_JSON"
 
         snapd.tool exec snap-repair run
 
@@ -127,7 +127,7 @@ execute: |
         snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
         # we have to standup the fakestore again 
-        new_repair "$BLOB_DIR" uc20-recover.sh --repair-json="$PWD/uc20-recover.json"
+        fakestore new-repair --dir "$BLOB_DIR" uc20-recover.sh --repair-json="$PWD/uc20-recover.json"
 
         setup_fake_store "$BLOB_DIR"
 
