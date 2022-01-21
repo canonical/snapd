@@ -40,7 +40,7 @@ type Resources struct {
 func (qr *Resources) validateMemoryQuota() error {
 	// make sure the memory limit is not zero
 	if qr.Memory.Limit == 0 {
-		return fmt.Errorf("cannot create quota group with no memory limit set")
+		return fmt.Errorf("memory quota must have a limit set")
 	}
 
 	// make sure the memory limit is at least 4K, that is the minimum size
