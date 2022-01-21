@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -1862,4 +1863,24 @@ func (s *infoSuite) TestHelpersWithHiddenSnapFolder(c *C) {
 	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1), opts), Equals, "/home/bob/.snap/data/name_instance/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance", opts), Equals, "/home/bob/.snap/data/name_instance/common")
 	c.Check(snap.UserSnapDir("/home/bob", "name_instance", opts), Equals, "/home/bob/.snap/data/name_instance")
+}
+
+func (s *infoSuite) TestGetAttributeUnhappy(c *C) {
+	attrs := map[string]interface{}{}
+	var stringVal string
+	err := snap.GetAttribute("snap0", "iface0", attrs, "non-existent", &stringVal)
+	c.Check(stringVal, Equals, "")
+	c.Check(err, ErrorMatches, `snap "snap0" does not have attribute "non-existent" for interface "iface0"`)
+	c.Check(errors.Is(err, snap.AttributeNotFoundError{}), Equals, true)
+}
+
+func (s *infoSuite) TestGetAttributeHappy(c *C) {
+	attrs := map[string]interface{}{
+		"attr0": "a string",
+		"attr1": 12,
+	}
+	var intVal int
+	err := snap.GetAttribute("snap0", "iface0", attrs, "attr1", &intVal)
+	c.Check(err, IsNil)
+	c.Check(intVal, Equals, 12)
 }
