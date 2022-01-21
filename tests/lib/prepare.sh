@@ -960,15 +960,13 @@ EOF
             # can read more easily than tty1 for example
             for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1"; do
                 echo "$cmd" >> pc-gadget/cmdline.full
-            done 
-            # echo "snapd.debug=1" >> pc-gadget/cmdline.full
+            done
         else
             # but for other backends, just add the additional debugging things
             # on top of whatever the gadget currently is configured to use
             for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1"; do
                 echo "$cmd" >> pc-gadget/cmdline.extra
-            done 
-            # echo "snapd.debug=1" >> pc-gadget/cmdline.extra
+            done
         fi
 
         # TODO: this probably means it's time to move this helper out of 
