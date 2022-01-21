@@ -173,7 +173,6 @@ class Cacher:
         h = hashlib.sha256()
         h.update(data)
         hdg = binascii.b2a_hex(h.digest()).decode()
-        prefix = hdg[:2]
         cachepath = Cacher._cache_path_for(hdg)
         logging.debug("cache stamp %s, exists? %s", cachepath.as_posix(), cachepath.exists())
         hit = cachepath.exists()
@@ -249,8 +248,7 @@ def checkfile(path, executor):
 
     if errors:
         raise errors
-    else:
-        Cacher().cache_success(digest, path)
+    Cacher().cache_success(digest, path)
 
 
 def is_file_in_dirs(file, dirs):
