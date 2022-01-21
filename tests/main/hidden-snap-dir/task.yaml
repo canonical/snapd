@@ -5,72 +5,72 @@ environment:
     FILE: test-snapd-tools_1.0_all.snap
 
 prepare: |
-    snap pack "$TESTSLIB"/snaps/"$SNAP_NAME"
+    snap pack "$TESTSLIB"/snaps/"$NAME"
     snap install --dangerous ./"$FILE"
 
 restore: |
     snap set system experimental.hidden-snap-folder!
-    snap remove "$SNAP_NAME"
+    snap remove "$NAME"
 
 execute: |
     echo "Set experimental hidden snap folder feature"
     snap set system experimental.hidden-snap-folder=true
 
     echo "Check that nothing has been migrated yet"
-    snapEnv=$($SNAP_NAME.env)
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=/root/snap/$SNAP_NAME/x1"
-    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$SNAP_NAME/common"
+    snapEnv=$($NAME.env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=/root/snap/$NAME/x1"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$NAME/common"
 
     test -d "$HOME"/snap
     not test -d "$HOME"/.snap/data
 
     echo "Write data to user data dirs"
-    "$SNAP_NAME".cmd echo "data" > "$HOME"/snap/"$SNAP_NAME"/current/data
-    "$SNAP_NAME".cmd echo "common" > "$HOME"/snap/"$SNAP_NAME"/common/common
+    "$NAME".cmd echo "data" > "$HOME"/snap/"$NAME"/current/data
+    "$NAME".cmd echo "common" > "$HOME"/snap/"$NAME"/common/common
 
     echo "Refresh the snap"
     snap install --dangerous ./"$FILE"
 
     echo "Check snap directory was migrated"
-    test -d "$HOME"/.snap/data/"$SNAP_NAME"
-    test -d "$HOME"/.snap/data/"$SNAP_NAME"/common
-    test -d "$HOME"/.snap/data/"$SNAP_NAME"/x2
-    not test -d "$HOME"/snap/"$SNAP_NAME"
+    test -d "$HOME"/.snap/data/"$NAME"
+    test -d "$HOME"/.snap/data/"$NAME"/common
+    test -d "$HOME"/.snap/data/"$NAME"/x2
+    not test -d "$HOME"/snap/"$NAME"
 
     echo "Check the env vars point to ~/.snap/data"
-    snapEnv="$($SNAP_NAME.env)"
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$SNAP_NAME/x2"
-    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$SNAP_NAME/common"
+    snapEnv="$($NAME.env)"
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x2"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
 
     # 'current' symlink is created just before the snap runs, so this check
     # must come after a snap run
-    if [ "$(readlink "$HOME"/.snap/data/"$SNAP_NAME"/current)" != "x2" ]; then
+    if [ "$(readlink "$HOME"/.snap/data/"$NAME"/current)" != "x2" ]; then
       echo "expected 'current' to point to new revision after refresh"
       exit 1
     fi
 
     echo "Check that the written data is in the new dir"
     # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$SNAP_NAME"/common/common | MATCH "common"
+    cat "$HOME"/.snap/data/"$NAME"/common/common | MATCH "common"
     # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$SNAP_NAME"/x2/data | MATCH "data"
+    cat "$HOME"/.snap/data/"$NAME"/x2/data | MATCH "data"
 
     echo "Check the snap can write to the new dirs"
     #shellcheck disable=SC2016
-    "$SNAP_NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/new_data'
+    "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/new_data'
     #shellcheck disable=SC2016
-    "$SNAP_NAME".cmd sh -c 'echo "new_common" > "$SNAP_USER_COMMON"/new_common'
+    "$NAME".cmd sh -c 'echo "new_common" > "$SNAP_USER_COMMON"/new_common'
     # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$SNAP_NAME"/common/new_common | MATCH "new_common"
+    cat "$HOME"/.snap/data/"$NAME"/common/new_common | MATCH "new_common"
     # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$SNAP_NAME"/x2/new_data | MATCH "new_data"
+    cat "$HOME"/.snap/data/"$NAME"/x2/new_data | MATCH "new_data"
 
     echo "Check that snap starts off hidden after a fresh install"
-    snap remove --purge "$SNAP_NAME"
+    snap remove --purge "$NAME"
     snap install --dangerous "$FILE"
 
-    test -d "$HOME"/.snap/data/"$SNAP_NAME"
-    not test -d "$HOME"/snap/"$SNAP_NAME"
-    snapEnv="$($SNAP_NAME.env)"
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$SNAP_NAME/x1"
-    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$SNAP_NAME/common"
+    test -d "$HOME"/.snap/data/"$NAME"
+    not test -d "$HOME"/snap/"$NAME"
+    snapEnv="$($NAME.env)"
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x1"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
