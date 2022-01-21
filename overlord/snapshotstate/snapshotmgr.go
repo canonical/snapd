@@ -54,6 +54,8 @@ var (
 	backendCleanupAbandondedImports = backend.CleanupAbandondedImports
 
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
+
+	getSnapDirOpts = snapstate.GetSnapDirOpts
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -224,7 +226,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 
 	st.Lock()
-	opts, err := snapstate.GetSnapDirOptions(st)
+	opts, err := getSnapDirOpts(st, snapshot.Snap)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -309,7 +311,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := snapstate.GetSnapDirOptions(st)
+	opts, err := getSnapDirOpts(st, snapshot.Snap)
 	st.Unlock()
 	if err != nil {
 		return err

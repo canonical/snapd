@@ -152,7 +152,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	// hooks). plug and slot names are unique within a snap, so there is no
 	// ambiguity when matching.
 	for refStr, connState := range conns {
-		if connState.Undesired || connState.HotplugGone {
+		if !connState.Active() {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
