@@ -89,3 +89,48 @@ func (s *conversionssSuite) TestConvertUnhappy(c *C) {
 		c.Check(outputValue.IsValid(), Equals, false, testTag)
 	}
 }
+
+func (s *conversionssSuite) TestSetValueFromAttributeHappy(c *C) {
+	interfaceArray := []interface{}{12, -3}
+	var outputValue []int
+	err := metautil.SetValueFromAttribute("snap0", "iface0", "attr0", interfaceArray, &outputValue)
+	c.Assert(err, IsNil)
+	c.Check(outputValue, DeepEquals, []int{12, -3})
+}
+
+func (s *conversionssSuite) TestSetValueFromAttributeUnhappy(c *C) {
+	var outputBool bool
+	data := []struct {
+		snapName      string
+		ifaceName     string
+		attrName      string
+		inputValue    interface{}
+		outputValue   interface{}
+		expectedError string
+	}{
+		// error if output value parameter is not a pointer
+		{
+			"snap1",
+			"iface1",
+			"attr1",
+			"input value",
+			"I'm not a pointer",
+			`internal error: cannot get "attr1" attribute of interface "iface1" with non-pointer value`,
+		},
+
+		// error if value cannot be converted
+		{
+			"snap2",
+			"iface2",
+			"attr2",
+			"input value",
+			&outputBool,
+			`snap "snap2" has interface "iface2" with invalid value type string for "attr2" attribute: \*bool`,
+		},
+	}
+
+	for _, td := range data {
+		err := metautil.SetValueFromAttribute(td.snapName, td.ifaceName, td.attrName, td.inputValue, td.outputValue)
+		c.Check(err, ErrorMatches, td.expectedError, Commentf("input value %v", td.inputValue))
+	}
+}
