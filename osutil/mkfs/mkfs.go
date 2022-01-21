@@ -117,7 +117,6 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		// no need to fake it if we're already root
 		cmd = exec.Command(mkfsArgs[0], mkfsArgs[1:]...)
 	}
-	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(out, err)
