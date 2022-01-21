@@ -149,12 +149,12 @@ class Cacher:
             return cls._instance
         instance = super().__new__(cls)
         cls._instance = instance
-        instance.enabled = True
+        instance._enabled = True
         return instance
 
     def disable(self):
         logging.debug("caching is disabled")
-        self.enabled = False
+        self._enabled = False
 
     @staticmethod
     def _cache_path_for(digest):
@@ -162,18 +162,18 @@ class Cacher:
         return Path.home().joinpath(".cache", "spread-shellcheck", prefix, digest)
 
     def is_cached(self, data, path):
+        if not self._enabled:
+            return False, ""
         h = hashlib.sha256()
         h.update(data)
         hdg = binascii.b2a_hex(h.digest()).decode()
-        if not self.enabled:
-            return False, hdg
         prefix = hdg[:2]
         cachepath = Cacher._cache_path_for(hdg)
         logging.debug("cache stamp %s, exists? %s", cachepath.as_posix(), cachepath.exists())
         return cachepath.exists(), hdg
 
     def cache_success(self, digest, path):
-        if not self.enabled:
+        if not self._enabled:
             return
         cachepath = Cacher._cache_path_for(digest)
         logging.debug("cache success, path %s", cachepath.as_posix())
