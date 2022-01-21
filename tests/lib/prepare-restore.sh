@@ -554,14 +554,14 @@ prepare_project() {
     fi
 
     # eval to prevent expansion errors on opensuse (the variable keeps quotes)
-    eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
+    eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 
     # Build additional utilities we need for testing
-    go get ./tests/lib/fakedevicesvc
-    go get ./tests/lib/systemd-escape
+    go install ./tests/lib/fakedevicesvc
+    go install ./tests/lib/systemd-escape
 
     # Build the tool for signing model assertions
-    go get ./tests/lib/gendeveloper1model
+    go install ./tests/lib/gendeveloper1model
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation

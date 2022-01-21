@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -1597,6 +1598,68 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 	c.Assert(confirmed, check.Equals, true)
 }
 
+func (s *RunSuite) TestSnapRunTrackingServicesWhenRunByUser(c *check.C) {
+	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
+	defer restore()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// pretend to be running from core
+	restore = snaprun.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	var createTransientScopeOpts *cgroup.TrackingOptions
+	var createTransientScopeCalls int
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+		createTransientScopeCalls++
+		createTransientScopeOpts = opts
+		return nil
+	})
+	defer restore()
+
+	confirmCalls := 0
+	restore = snaprun.MockConfirmSystemdServiceTracking(func(securityTag string) error {
+		confirmCalls++
+		c.Assert(securityTag, check.Equals, "snap.snapname.svc")
+		return cgroup.ErrCannotTrackProcess
+	})
+	defer restore()
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restore()
+
+	// invoked as: snap run -- snapname.svc --arg1 arg2
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.svc", "--arg1", "arg2"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.SnapMountDir, "/core/111", dirs.CoreLibExecDir, "snap-confine"),
+		"snap.snapname.svc",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.svc", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Assert(confirmCalls, check.Equals, 1)
+	c.Assert(createTransientScopeCalls, check.Equals, 1)
+	c.Assert(createTransientScopeOpts, check.DeepEquals, &cgroup.TrackingOptions{
+		AllowSessionBus: true,
+	})
+}
+
 func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 	restore := mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))
 	defer restore()
@@ -1883,4 +1946,28 @@ func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
 	fi, err := os.Stat(filepath.Join(s.fakeHome, dirs.UserHomeSnapDir))
 	c.Assert(err, check.IsNil)
 	c.Assert(fi.Mode()&os.ModePerm, check.Equals, os.FileMode(0700))
+}
+
+func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
+	root := c.MkDir()
+	dirs.SnapSeqDir = root
+	dirs.FeaturesDir = root
+
+	// write sequence file
+	seqFile := filepath.Join(dirs.SnapSeqDir, "somesnap.json")
+	str := struct {
+		Migrated bool `json:"migrated-hidden"`
+	}{
+		Migrated: true,
+	}
+	data, err := json.Marshal(&str)
+	c.Assert(err, check.IsNil)
+	c.Assert(ioutil.WriteFile(seqFile, data, 0660), check.IsNil)
+
+	// write control file for hidden dir feature
+	c.Assert(ioutil.WriteFile(features.HiddenSnapDataHomeDir.ControlFile(), []byte{}, 0660), check.IsNil)
+
+	opts, err := snaprun.GetSnapDirOptions("somesnap")
+	c.Assert(err, check.IsNil)
+	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 }

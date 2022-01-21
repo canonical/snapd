@@ -96,6 +96,8 @@ var (
 
 	GetKeypairManager = getKeypairManager
 	GenerateKey       = generateKey
+
+	GetSnapDirOptions = getSnapDirOptions
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -448,5 +450,13 @@ func MockPendingRefreshNotification(f func(refreshInfo *usersessionclient.Pendin
 	pendingRefreshNotification = f
 	return func() {
 		pendingRefreshNotification = old
+	}
+}
+
+func MockAutostartSessionApps(f func(string) error) func() {
+	old := autostartSessionApps
+	autostartSessionApps = f
+	return func() {
+		autostartSessionApps = old
 	}
 }
