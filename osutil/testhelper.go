@@ -38,11 +38,3 @@ func MustBeTestBinary(panicMsg string) {
 		panic(panicMsg)
 	}
 }
-
-// A checker for the logic that shall not run in a test context
-// ! NOTE: Use this judiciously as it might impose a test-skip risk
-func mustNotBeTestBinary(panicMsg string) {
-	if IsTestBinary() {
-		panic(panicMsg)
-	}
-}

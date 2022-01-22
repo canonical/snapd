@@ -24,6 +24,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -88,6 +90,32 @@ func (mi *MountInfoEntry) String() string {
 		escape(mi.MountDir), flattenMap(mi.MountOptions), flattenList(mi.OptionalFields),
 		maybeSpace, escape(mi.FsType), escape(mi.MountSource),
 		flattenMap(mi.SuperOptions))
+}
+
+var openMountInfoFile = func() (io.ReadCloser, error) {
+	if IsTestBinary() {
+		panic("/proc/self/mountinfo must be mocked in tests")
+	}
+	return os.Open("/proc/self/mountinfo")
+}
+
+func mockMountInfo(mock func() (io.ReadCloser, error)) (restore func()) {
+	old := openMountInfoFile
+	openMountInfoFile = mock
+	return func() {
+		openMountInfoFile = old
+	}
+}
+
+// this should not be used except to test the actual implementation logic of
+// LoadMountInfo, if you are trying to mock /proc/self/mountinfo in a test,
+// use MockMountInfo(), which is exported and the right way to do that.
+func MockProcSelfMountInfoLocation(filename string) (restore func()) {
+	return mockMountInfo(func() (io.ReadCloser, error) { return os.Open(filename) })
+}
+
+func MockMountInfo(content string) (restore func()) {
+	return mockMountInfo(func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewBufferString(content)), nil })
 }
 
 // LoadMountInfo loads list of mounted entries from /proc/self/mountinfo. This

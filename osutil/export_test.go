@@ -241,16 +241,3 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	}
 	return ExpandableEnv{OrderedMap: om}, nil
 }
-
-// this should not be used except to test the actual implementation logic of
-// LoadMountInfo, if you are trying to mock /proc/self/mountinfo in a test,
-// use MockMountInfo(), which is exported and the right way to do that.
-func MockProcSelfMountInfoLocation(new string) (restore func()) {
-	old := openMountInfoFile
-	openMountInfoFile = func() (io.ReadCloser, error) {
-		return os.Open(new)
-	}
-	return func() {
-		openMountInfoFile = old
-	}
-}
