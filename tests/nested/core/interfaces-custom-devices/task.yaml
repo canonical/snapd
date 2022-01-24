@@ -1,15 +1,14 @@
 summary: Ensure that the custom-device interface works.
 
-systems: [ubuntu-20.04-64]
-
 details: |
     The custom-device interface allows a gadget snap to provide custom slots
     granting access to the devices it defines.
 
+systems: [ubuntu-20.04-64]
+
 prepare: |
     # Add our interface to the gadget snap
     rm -rf pc-gadget
-    GADGET_SNAP="$(ls "$(tests.nested get assets-path)"/pc_*.snap)"
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
     cat >> pc-gadget/meta/snap.yaml << EOF
