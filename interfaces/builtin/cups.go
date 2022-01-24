@@ -86,6 +86,11 @@ func validateCupsSocketDirAttr(a interfaces.Attrer, snapInfo *snap.Info) (string
 		return "", err
 	}
 
+	// make sure that the cups socket dir is not an AppArmor Regular expression
+	if err := apparmor.ValidateNoAppArmorRegexp(cupsdSocketSourceDir); err != nil {
+		return "", fmt.Errorf("cups-socket-dir is not usable: %v", err)
+	}
+
 	if !cleanSubPath(cupsdSocketSourceDir) {
 		return "", fmt.Errorf("cups-socket-dir is not clean: %q", cupsdSocketSourceDir)
 	}
@@ -149,13 +154,13 @@ func (iface *cupsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
 # are needed for using named sockets within the exported
 # directory.
-%s/** mrwklix,`, cupsdSocketSourceDir))
+"%s/**" mrwklix,`, cupsdSocketSourceDir))
 
 	// setup the snap-update-ns rules for bind mounting for the plugging snap
 	emit := spec.AddUpdateNSf
 
 	emit("  # Mount cupsd socket from cups snap to client snap\n")
-	emit("  mount options=(bind rw) %s -> /var/cups/,\n", cupsdSocketSourceDir)
+	emit("  mount options=(bind rw) \"%s\" -> /var/cups/,\n", cupsdSocketSourceDir)
 	emit("  umount /var/cups/,\n")
 
 	apparmor.GenWritableProfile(emit, cupsdSocketSourceDir, 1)

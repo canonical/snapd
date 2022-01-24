@@ -41,6 +41,9 @@ type cupsSuite struct {
 
 	providerLegacySlotInfo *snap.SlotInfo
 	providerLegacySlot     *interfaces.ConnectedSlot
+
+	invalidSlotInfo *snap.SlotInfo
+	invalidSlot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&cupsSuite{iface: builtin.MustInterface("cups")})
@@ -63,6 +66,18 @@ apps:
   slots: [cups-socket]
 `
 
+const invalidCupsProviderYaml = `name: provider
+version: 0
+slots:
+  cups-socket:
+    interface: cups
+    # regex not allowed
+    cups-socket-dir: $SNAP_COMMON/foo-subdir/*
+apps:
+ app:
+  slots: [cups-socket]
+`
+
 const cupsProviderLegacyYaml = `name: provider
 version: 0
 slots:
@@ -74,6 +89,7 @@ func (s *cupsSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, cupsConsumerYaml, nil, "cups")
 	s.providerSlot, s.providerSlotInfo = MockConnectedSlot(c, cupsProviderYaml, nil, "cups-socket")
 	s.providerLegacySlot, s.providerLegacySlotInfo = MockConnectedSlot(c, cupsProviderLegacyYaml, nil, "cups")
+	s.invalidSlot, s.invalidSlotInfo = MockConnectedSlot(c, invalidCupsProviderYaml, nil, "cups-socket")
 }
 
 func (s *cupsSuite) TestName(c *C) {
@@ -83,6 +99,8 @@ func (s *cupsSuite) TestName(c *C) {
 func (s *cupsSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.providerSlotInfo), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.providerLegacySlotInfo), IsNil)
+	// the regex is not allowed however
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.invalidSlotInfo), ErrorMatches, "cups-socket-dir is not usable: .* contains a reserved apparmor char .*")
 }
 
 func (s *cupsSuite) TestSanitizePlug(c *C) {
@@ -100,7 +118,7 @@ func (s *cupsSuite) TestAppArmorSpec(c *C) {
 		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
 		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
 		// the special mount rules are present
-		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/var/snap/provider/common/foo-subdir/** mrwklix,")
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `"/var/snap/provider/common/foo-subdir/**" mrwklix,`)
 		restore()
 
 		// consumer to legacy provider
