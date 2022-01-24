@@ -34,11 +34,15 @@ import (
 type SharedMemoryInterfaceSuite struct {
 	testutil.BaseTest
 
-	iface    interfaces.Interface
-	slotInfo *snap.SlotInfo
-	slot     *interfaces.ConnectedSlot
-	plugInfo *snap.PlugInfo
-	plug     *interfaces.ConnectedPlug
+	iface            interfaces.Interface
+	slotInfo         *snap.SlotInfo
+	slot             *interfaces.ConnectedSlot
+	plugInfo         *snap.PlugInfo
+	plug             *interfaces.ConnectedPlug
+	wildcardPlugInfo *snap.PlugInfo
+	wildcardPlug     *interfaces.ConnectedPlug
+	wildcardSlotInfo *snap.SlotInfo
+	wildcardSlot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&SharedMemoryInterfaceSuite{
@@ -51,6 +55,9 @@ plugs:
  shmem:
   interface: shared-memory
   shared-memory: foo
+ shmem-wildcard:
+  interface: shared-memory
+  shared-memory: foo-wildcard
 apps:
  app:
   plugs: [shmem]
@@ -64,6 +71,11 @@ slots:
   shared-memory: foo
   write: [ bar ]
   read: [ bar-ro ]
+ shmem-wildcard:
+  interface: shared-memory
+  shared-memory: foo-wildcard
+  write: [ bar* ]
+  read: [ bar-ro* ]
 apps:
  app:
   slots: [shmem]
@@ -74,6 +86,9 @@ func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
 
 	s.plug, s.plugInfo = MockConnectedPlug(c, sharedMemoryConsumerYaml, nil, "shmem")
 	s.slot, s.slotInfo = MockConnectedSlot(c, sharedMemoryProviderYaml, nil, "shmem")
+
+	s.wildcardPlug, s.wildcardPlugInfo = MockConnectedPlug(c, sharedMemoryConsumerYaml, nil, "shmem-wildcard")
+	s.wildcardSlot, s.wildcardSlotInfo = MockConnectedSlot(c, sharedMemoryProviderYaml, nil, "shmem-wildcard")
 }
 
 func (s *SharedMemoryInterfaceSuite) TestName(c *C) {
@@ -83,6 +98,9 @@ func (s *SharedMemoryInterfaceSuite) TestName(c *C) {
 func (s *SharedMemoryInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+
+	c.Check(interfaces.BeforePreparePlug(s.iface, s.wildcardPlugInfo), IsNil)
+	c.Check(interfaces.BeforeConnectPlug(s.iface, s.wildcardPlug), IsNil)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
@@ -152,6 +170,7 @@ apps:
 
 func (s *SharedMemoryInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.wildcardSlotInfo), IsNil)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestSanitizeSlotUnhappy(c *C) {
@@ -198,8 +217,8 @@ apps:
 			`shared-memory interface path is empty`,
 		},
 		{
-			`write: [mem/**]`,
-			`shared-memory interface path is invalid: "mem/\*\*" contains a reserved apparmor char.*`,
+			`write: [mem**]`,
+			`shared-memory interface path is invalid: "mem\*\*" contains \*\* which is unsupported.*`,
 		},
 		{
 			`read: [..]`,
@@ -293,6 +312,22 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	// Slot has read-write permissions to all paths
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" rwk,`)
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" rwk,`)
+
+	wildcardSpec := &apparmor.Specification{}
+	c.Assert(wildcardSpec.AddConnectedPlug(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
+	wildcardPlugSnippet := wildcardSpec.SnippetForTag("snap.consumer.app")
+
+	c.Assert(wildcardSpec.AddConnectedSlot(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
+	wildcardSlotSnippet := wildcardSpec.SnippetForTag("snap.provider.app")
+
+	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
+
+	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" rwk,`)
+	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" r,`)
+
+	// Slot has read-write permissions to all paths
+	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" rwk,`)
+	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" rwk,`)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {
