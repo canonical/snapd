@@ -110,7 +110,7 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		if fakerootLib != "" {
 			// When executing fakeroot from a classic confinement snap the location of
 			// libfakeroot must be specified, or else it will be loaded from the host system
-			mkfsArgs = append([]string{"--lib", fakerootLib}, mkfsArgs...)
+			mkfsArgs = append([]string{"--lib", fakerootLib, "--"}, mkfsArgs...)
 		}
 		cmd = exec.Command("fakeroot", mkfsArgs...)
 	} else {
