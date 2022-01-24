@@ -75,9 +75,9 @@ reset_classic() {
     fi
 
     # Clean root home
-    rm -rf /root/snap /root/.snap/gnupg /root/.{bash_history,local,cache,config}
+    rm -rf /root/snap /root/.snap/gnupg /root/.{bash_history,local,cache,config} /root/.snap/data
     # Clean test home
-    rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config}
+    rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config} /home/test/.snap/data
     # Clean /tmp
     rm -f /tmp/core* /tmp/ubuntu-core*
 
