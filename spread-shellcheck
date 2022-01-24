@@ -147,16 +147,22 @@ def checksection(data, env: Dict[str, str]):
 
 class Cacher:
     _instance = None
-    def __new__(cls):
-        if cls._instance is not None:
-            return cls._instance
-        instance = super().__new__(cls)
-        cls._instance = instance
-        instance._enabled = True
-        instance._lock = Lock()
-        instance._hit =0
-        instance._miss = 0
-        return instance
+
+    def __init__(self):
+        self._enabled = True
+        self._lock = Lock()
+        self._hit =0
+        self._miss = 0
+        self._shellcheck_version = None
+        self._probe_shellcheck_version()
+
+    @classmethod
+    def init(cls):
+        cls._instance = Cacher()
+
+    @classmethod
+    def get(cls):
+        return cls._instance
 
     def disable(self):
         logging.debug("caching is disabled")
@@ -170,11 +176,12 @@ class Cacher:
     def is_cached(self, data, path):
         if not self._enabled:
             return False, ""
-        # the digest only uses script content as input, but consider other
-        # possible inputs: path to the script (so moving the script around
-        # would cause a miss), or shellcheck version (cause a miss when
-        # shellcheck version is changed)
+        # the digest uses script content and shellcheck versions as inputs, but
+        # consider other possible inputs: path to the *.yaml file (so moving
+        # the script around would cause a miss) or even the contents of this
+        # script
         h = hashlib.sha256()
+        h.update(self._shellcheck_version)
         h.update(data)
         hdg = binascii.b2a_hex(h.digest()).decode()
         cachepath = Cacher._cache_path_for(hdg)
@@ -198,6 +205,11 @@ class Cacher:
             else:
                 self._miss += 1
 
+    def _probe_shellcheck_version(self):
+        logging.debug("probing shellcheck version")
+        out = subprocess.check_output("shellcheck --version", shell=True)
+        self._shellcheck_version = out
+
     @property
     def stats(self):
         return namedtuple('Stats', ['hit', 'miss'])(self._hit, self._miss)
@@ -207,7 +219,7 @@ def checkfile(path, executor):
     logging.debug("checking file %s", path)
     with open(path, mode='rb') as inf:
         rawdata = inf.read()
-        cached, digest = Cacher().is_cached(rawdata, path)
+        cached, digest = Cacher.get().is_cached(rawdata, path)
         if cached:
             logging.debug("entry %s already cached", digest)
             return
@@ -253,7 +265,7 @@ def checkfile(path, executor):
     if errors:
         raise errors
     # only stamp the cache when the script was found to be valid
-    Cacher().cache_success(digest, path)
+    Cacher.get().cache_success(digest, path)
 
 
 def is_file_in_dirs(file, dirs):
@@ -324,7 +336,7 @@ def main(opts):
             failures.merge(sf)
 
     if not opts.no_cache:
-        stats = Cacher().stats
+        stats = Cacher.get().stats
         logging.info("cache stats: hit %d miss %d", stats.hit, stats.miss)
 
     if failures:
@@ -379,7 +391,8 @@ if __name__ == '__main__':
         opts.max_procs += 1
         logging.warning('workers count bumped to 2 to workaround a deadlock')
 
+    Cacher.init()
     if opts.no_cache:
-        Cacher().disable()
+        Cacher.get().disable()
 
     main(opts)
