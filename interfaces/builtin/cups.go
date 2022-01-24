@@ -160,7 +160,10 @@ func (iface *cupsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	emit := spec.AddUpdateNSf
 
 	emit("  # Mount cupsd socket from cups snap to client snap\n")
-	emit("  mount options=(bind rw) \"%s\" -> /var/cups/,\n", cupsdSocketSourceDir)
+	// note the trailing "/" is needed - we ensured that cupsdSocketSourceDir is
+	// clean when we validated it, so it will not have a trailing "/" so we are
+	// safe to add this here
+	emit("  mount options=(rw bind) \"%s/\" -> /var/cups/,\n", cupsdSocketSourceDir)
 	emit("  umount /var/cups/,\n")
 
 	apparmor.GenWritableProfile(emit, cupsdSocketSourceDir, 1)
