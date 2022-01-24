@@ -121,6 +121,10 @@ backends:
             - ubuntu-21.10-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-22.04-64:
+                  storage: 12G
+                  workers: 8
+                  image: ubuntu-os-cloud-devel/ubuntu-2204-lts
 
             - debian-10-64:
                   workers: 6
@@ -172,6 +176,8 @@ backends:
             - ubuntu-20.04-64:
                   workers: 6
             - ubuntu-21.04-64:
+                  workers: 6
+            - ubuntu-21.10-64:
                   workers: 6
 
     google-nested:
