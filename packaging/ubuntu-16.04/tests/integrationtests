@@ -74,6 +74,9 @@ backends:
         - adt-local:
             username: ubuntu
             password: ubuntu
+prepare: |
+    # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
 suites:
         tests/smoke/:
             summary: Essenial system level tests for snapd
