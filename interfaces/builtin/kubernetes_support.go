@@ -68,6 +68,14 @@ capability dac_override,
 # https://github.com/projectcalico/cni-plugin/blob/master/pkg/types/types.go
 /{,var/}run/calico/ipam.lock rwk,
 
+# GPU support: the run-nvidia-validations and driver-install-path components
+# declare access to the /run/nvidia/validations and /run/nvidia/driver host
+# paths, respectively.
+# More info (search for "/run/nvidia" in the pages):
+# https://catalog.ngc.nvidia.com/orgs/nvidia/teams/cloud-native/containers/gpu-operator-validator
+# https://docs.nvidia.com/datacenter/cloud-native/driver-containers/overview.html
+/{,var/}run/nvidia/{validations,driver}/{,**} rw,
+
 /{,usr/}bin/systemd-run Cxr -> systemd_run,
 /run/systemd/private r,
 profile systemd_run (attach_disconnected,mediate_deleted) {
