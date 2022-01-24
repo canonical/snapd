@@ -289,9 +289,6 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-21.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
-            ;;
         ubuntu-21.10-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
             ;;
@@ -313,9 +310,6 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
-            ;;
-        ubuntu-21.04-64*)
-            echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
             ;;
         ubuntu-21.10-64*)
             echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
