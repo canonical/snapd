@@ -266,6 +266,12 @@ type ConnectionState struct {
 	HotplugGone      bool
 }
 
+// Active returns true if connection is not undesired and not removed by
+// hotplug.
+func (c ConnectionState) Active() bool {
+	return !(c.Undesired || c.HotplugGone)
+}
+
 // ConnectionStates return the state of connections stored in the state.
 // Note that this includes inactive connections (i.e. referring to non-
 // existing plug/slots), so this map must be cross-referenced with current

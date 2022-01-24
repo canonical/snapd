@@ -264,7 +264,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -283,7 +283,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -359,7 +359,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -417,7 +417,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -529,7 +529,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -546,7 +546,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -694,7 +694,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -838,7 +838,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -909,7 +909,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1408,7 +1408,7 @@ volumes:
 		})
 		tGadgetUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1558,7 +1558,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		})
 		tGadgetUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1604,7 +1604,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1658,7 +1658,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1879,7 +1879,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -2549,12 +2549,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
 	c.Assert(tSwitchChannelBase.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelBase.Summary(), Equals, `Switch core20-new channel to latest/stable`)
-	c.Assert(tSwitchChannelBase.WaitTasks(), HasLen, 0)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
 	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (223) available to the system during remodel`)
 	c.Assert(tSwitchChannelGadget.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelGadget.Summary(), Equals, `Switch pc-new channel to 20/stable`)
-	c.Assert(tSwitchChannelGadget.WaitTasks(), HasLen, 0)
 	c.Assert(tUpdateAssetsFromGadget.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateAssetsFromGadget.Summary(), Equals, `Update assets from gadget "pc-new" (224) for remodel`)
 	c.Assert(tUpdateCmdlineFromGadget.Kind(), Equals, "update-gadget-cmdline")
@@ -2568,19 +2566,29 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 	// check the ordering, prepare/link are part of download edge and come first
 	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
-	c.Check(tUpdateAssetsFromKernel.WaitTasks(), DeepEquals, []*state.Task{
+	c.Assert(tSwitchChannelBase.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchChannelKernel,
+	})
+	c.Assert(tSwitchChannelGadget.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelBase,
+	})
+	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelGadget,
+	})
+	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// recovery system being created
+		tCreateRecovery,
+		tSwitchChannelGadget,
+	})
+	c.Check(tUpdateAssetsFromKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelKernel, tSwitchChannelGadget,
+		tCreateRecovery, tFinalizeRecovery,
 	})
 	c.Check(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
 		tUpdateAssetsFromKernel,
 	})
 	c.Assert(tLinkBase.WaitTasks(), DeepEquals, []*state.Task{
-		tSwitchChannelBase,
-	})
-	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{})
-	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
-		// recovery system being created
-		tCreateRecovery,
+		tSwitchChannelBase, tLinkKernel,
 	})
 	// setModel waits for everything in the change
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
@@ -2596,8 +2604,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":     expectedLabel,
 		"directory": filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		// none of the tasks are downloads so they were not tracked
-		"snap-setup-tasks": nil,
+		// tasks carrying snap-setup are tracked
+		"snap-setup-tasks": []interface{}{
+			tSwitchChannelKernel.ID(),
+			tSwitchChannelBase.ID(),
+			tSwitchChannelGadget.ID(),
+		},
 	})
 }
 
@@ -2618,7 +2630,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -3675,7 +3687,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -3954,7 +3966,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()

@@ -71,6 +71,13 @@ execute: |
             not os.query is-core
             os.query is-ubuntu
             ;;
+        ubuntu-22.04-*)
+            os.query is-classic
+            os.query is-jammy
+            not os.query is-focal
+            not os.query is-core
+            os.query is-ubuntu
+            ;;
         *)
             os.query is-classic
             not os.query is-focal

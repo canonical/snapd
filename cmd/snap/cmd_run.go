@@ -1,7 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +20,8 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -329,9 +330,9 @@ func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err 
 	return info, err
 }
 
-func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
+func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User, opts *dirs.SnapDirOptions) error {
 	// 'current' symlink for user data (SNAP_USER_DATA)
-	userData := info.UserDataDir(usr.HomeDir)
+	userData := info.UserDataDir(usr.HomeDir, opts)
 	wantedSymlinkValue := filepath.Base(userData)
 	currentActiveSymlink := filepath.Join(userData, "..", "current")
 
@@ -373,7 +374,11 @@ func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User) error {
 	return nil
 }
 
-func createUserDataDirs(info *snap.Info) error {
+func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
 	// Adjust umask so that the created directories have the permissions we
 	// expect and are unaffected by the initial umask. While go runtime creates
 	// threads at will behind the scenes, the setting of umask applies to the
@@ -392,15 +397,15 @@ func createUserDataDirs(info *snap.Info) error {
 		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
 	}
 	// see snapenv.User
-	instanceUserData := info.UserDataDir(usr.HomeDir)
-	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir)
+	instanceUserData := info.UserDataDir(usr.HomeDir, opts)
+	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
 		// namespace, namely /home/joe/snap/foo_bar ->
 		// /home/joe/snap/foo, make sure that the mount point exists and
 		// is owned by the user
-		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName())
+		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName(), opts)
 		createDirs = append(createDirs, snapUserDir)
 	}
 	for _, d := range createDirs {
@@ -410,17 +415,17 @@ func createUserDataDirs(info *snap.Info) error {
 		}
 	}
 
-	if err := createOrUpdateUserDataSymlink(info, usr); err != nil {
+	if err := createOrUpdateUserDataSymlink(info, usr, opts); err != nil {
 		return err
 	}
 
-	return maybeRestoreSecurityContext(usr)
+	return maybeRestoreSecurityContext(usr, opts)
 }
 
 // maybeRestoreSecurityContext attempts to restore security context of ~/snap on
 // systems where it's applicable
-func maybeRestoreSecurityContext(usr *user.User) error {
-	snapUserHome := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+func maybeRestoreSecurityContext(usr *user.User, opts *dirs.SnapDirOptions) error {
+	snapUserHome := snap.SnapDir(usr.HomeDir, opts)
 	enabled, err := selinuxIsEnabled()
 	if err != nil {
 		return fmt.Errorf("cannot determine SELinux status: %v", err)
@@ -1019,7 +1024,13 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
-	if err := createUserDataDirs(info); err != nil {
+	snapName, _ := snap.SplitSnapApp(snapApp)
+	opts, err := getSnapDirOptions(snapName)
+	if err != nil {
+		return fmt.Errorf("cannot get snap dir options: %w", err)
+	}
+
+	if err := createUserDataDirs(info, opts); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
@@ -1100,7 +1111,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	if err != nil {
 		return err
 	}
-	snapenv.ExtendEnvForRun(env, info)
+	snapenv.ExtendEnvForRun(env, info, opts)
 
 	if len(xauthPath) > 0 {
 		// Environment is not nil here because it comes from
@@ -1170,26 +1181,37 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		// tracking cgroup, named after the systemd unit name, and those are
 		// sufficient to identify both the snap name and the app name.
 		needsTracking = false
+		// however it is still possible that the app (which is a
+		// service) was invoked by the user, so it may be running inside
+		// a user's scope cgroup, in which case separate tracking group
+		// needs to be established
+		if err := cgroupConfirmSystemdServiceTracking(securityTag); err != nil {
+			if err == cgroup.ErrCannotTrackProcess {
+				// we are not being tracked in a service cgroup
+				// after all, go ahead and create a transient
+				// scope
+				needsTracking = true
+				logger.Debugf("service app not tracked by systemd")
+			} else {
+				return err
+			}
+		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
 	// Track, or confirm existing tracking from systemd.
-	var trackingErr error
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
-		trackingErr = cgroupCreateTransientScopeForTracking(securityTag, opts)
-	} else {
-		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
-	}
-	if trackingErr != nil {
-		if trackingErr != cgroup.ErrCannotTrackProcess {
-			return trackingErr
+		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
+			if err != cgroup.ErrCannotTrackProcess {
+				return err
+			}
+			// If we cannot track the process then log a debug message.
+			// TODO: if we could, create a warning. Currently this is not possible
+			// because only snapd can create warnings, internally.
+			logger.Debugf("snapd cannot track the started application")
+			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
-		// If we cannot track the process then log a debug message.
-		// TODO: if we could, create a warning. Currently this is not possible
-		// because only snapd can create warnings, internally.
-		logger.Debugf("snapd cannot track the started application")
-		logger.Debugf("snap refreshes will not be postponed by this process")
 	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
@@ -1212,6 +1234,27 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else {
 		return syscallExec(cmd[0], cmd, envForExec(nil))
 	}
+}
+
+func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+	var opts dirs.SnapDirOptions
+
+	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return &opts, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	var seq struct {
+		MigratedToHiddenDir bool `json:"migrated-hidden"`
+	}
+	if err := json.Unmarshal(data, &seq); err != nil {
+		return nil, err
+	}
+
+	opts.HiddenSnapDataDir = seq.MigratedToHiddenDir
+	return &opts, nil
 }
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking

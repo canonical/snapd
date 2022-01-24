@@ -1,5 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //
+//go:build riscv64
 // +build riscv64
 
 /*

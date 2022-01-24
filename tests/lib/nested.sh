@@ -295,6 +295,9 @@ nested_get_google_image_url_for_vm() {
         ubuntu-21.10-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
             ;;
+        ubuntu-22.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -319,6 +322,9 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-21.10-64*)
             echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-22.04-64*)
+            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -590,7 +596,11 @@ nested_create_core_vm() {
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
             # create the ubuntu-core image
-            local UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+            if os.query is-xenial; then
+                # ubuntu-image on 16.04 needs to be installed from a snap
+                UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            fi
             local EXTRA_FUNDAMENTAL=""
             local EXTRA_SNAPS=""
             for mysnap in $(nested_get_extra_snaps); do
@@ -606,11 +616,17 @@ nested_create_core_vm() {
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
-                    snap download --channel="$CORE_CHANNEL" --basename=core18 core18
-                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
-
-                    repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                    # allow tests to provide their own core18 snap
+                    local CORE18_SNAP
+                    CORE18_SNAP=""
+                    if [ -d "$(nested_get_extra_snaps_path)" ]; then
+                        CORE18_SNAP=$(find extra-snaps -name 'core18*.snap')
+                    fi
+                    if [ -z "$CORE18_SNAP" ]; then
+                        snap download --channel="$CORE_CHANNEL" --basename=core18 core18
+                        repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+                    fi
 
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
                         make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
@@ -739,11 +755,22 @@ EOF
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
             # ubuntu-image creates sparse image files
+            # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
-                "$UBUNTU_IMAGE_CHANNEL_ARG" \
-                --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
-                "$EXTRA_FUNDAMENTAL" \
-                "$EXTRA_SNAPS"
+                $UBUNTU_IMAGE_CHANNEL_ARG \
+                --output-dir "$NESTED_IMAGES_DIR" \
+                $EXTRA_FUNDAMENTAL \
+                $EXTRA_SNAPS
+            # ubuntu-image dropped the --output parameter, so we have to rename
+            # the image ourselves, the images are named after volumes listed in
+            # gadget.yaml
+            find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
+                if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+                    echo "Image $IMAGE_NAME file already present"
+                    exit 1
+                fi
+                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            done
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
@@ -1431,7 +1458,7 @@ nested_fetch_spread() {
         mkdir -p "$NESTED_WORK_DIR"
         curl -s https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C "$NESTED_WORK_DIR"
         # make sure spread really exists
-        test -x "$NESTED_WORK_DIR/spread"        
+        test -x "$NESTED_WORK_DIR/spread"
     fi
     echo "$NESTED_WORK_DIR/spread"
 }
@@ -1445,7 +1472,21 @@ nested_build_seed_cdrom() {
 
     local ORIG_DIR=$PWD
 
-    pushd "$SEED_DIR" || return 1 
+    pushd "$SEED_DIR" || return 1
     genisoimage -output "$ORIG_DIR/$SEED_NAME" -volid "$LABEL" -joliet -rock "$@"
-    popd || return 1 
+    popd || return 1
+}
+
+nested_wait_for_device_initialized_change() {
+    local retry=60
+    local wait=1
+
+    while ! nested_exec "snap changes" | MATCH "Done.*Initialize device"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for device to be fully initialized. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }

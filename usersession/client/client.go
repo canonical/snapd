@@ -52,6 +52,7 @@ func dialSessionAgent(network, address string) (net.Conn, error) {
 
 type Client struct {
 	doer *http.Client
+	uids []int
 }
 
 func New() *Client {
@@ -59,6 +60,14 @@ func New() *Client {
 	return &Client{
 		doer: &http.Client{Transport: transport},
 	}
+}
+
+// NewForUids creates a Client that sends requests to a specific list of uids
+// only.
+func NewForUids(uids ...int) *Client {
+	cli := New()
+	cli.uids = append(cli.uids, uids...)
+	return cli
 }
 
 type Error struct {
@@ -132,11 +141,11 @@ func (client *Client) sendRequest(ctx context.Context, socket string, method, ur
 	return response
 }
 
-// doMany sends the given request to all active user sessions. Please be
-// careful when using this method, because it is not aware of the physical user
-// who triggered the request and blindly forwards it to all logged in users.
-// Some of them might not have the right to see the request (let alone to
-// respond to it).
+// doMany sends the given request to all active user sessions or a subset of them
+// defined by optional client.uids field. Please be careful when using this
+// method, because it is not aware of the physical user who triggered the request
+// and blindly forwards it to all logged in users. Some of them might not have
+// the right to see the request (let alone to respond to it).
 func (client *Client) doMany(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body []byte) ([]*response, error) {
 	sockets, err := filepath.Glob(filepath.Join(dirs.XdgRuntimeDirGlob, "snapd-session-agent.socket"))
 	if err != nil {
@@ -147,7 +156,26 @@ func (client *Client) doMany(ctx context.Context, method, urlpath string, query 
 		mu        sync.Mutex
 		responses []*response
 	)
+
+	var uids map[string]bool
+	if len(client.uids) > 0 {
+		uids = make(map[string]bool)
+		for _, uid := range client.uids {
+			uids[fmt.Sprintf("%d", uid)] = true
+		}
+	}
+
 	for _, socket := range sockets {
+		// filter out sockets based on uids
+		if len(uids) > 0 {
+			// XXX: alternatively we could Stat() the socket and
+			// and check Uid field of stat.Sys().(*syscall.Stat_t), but it's
+			// more annyoing to unit-test.
+			userPart := filepath.Base(filepath.Dir(socket))
+			if !uids[userPart] {
+				continue
+			}
+		}
 		wg.Add(1)
 		go func(socket string) {
 			defer wg.Done()
@@ -295,5 +323,21 @@ func (client *Client) PendingRefreshNotification(ctx context.Context, refreshInf
 		return err
 	}
 	_, err = client.doMany(ctx, "POST", "/v1/notifications/pending-refresh", nil, headers, reqBody)
+	return err
+}
+
+// FinishedSnapRefreshInfo holds information about a finished refresh provided to userd.
+type FinishedSnapRefreshInfo struct {
+	InstanceName string `json:"instance-name"`
+}
+
+// FinishRefreshNotification closes notification about a snap refresh.
+func (client *Client) FinishRefreshNotification(ctx context.Context, closeInfo *FinishedSnapRefreshInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(closeInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/finish-refresh", nil, headers, reqBody)
 	return err
 }
