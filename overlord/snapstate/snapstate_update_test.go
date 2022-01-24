@@ -7108,6 +7108,54 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigration(c *C) {
 	assertMigrationState(c, s.state, "some-snap", true)
 }
 
+func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateFailsAfterSettingState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fail the change after the link-snap task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Err(), Not(IsNil))
+
+	// check migration is undone
+	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// check migration status was reverted in state and seq file
+	assertMigrationState(c, s.state, "some-snap", false)
+}
+
 func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

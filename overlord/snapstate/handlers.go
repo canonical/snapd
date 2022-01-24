@@ -1157,10 +1157,10 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			// undo the migration. In contrast to copy data for which the new revision
 			// directory can just be discarded, the snap data migration introduces
 			// a change that affects all revisions of the snap and thus needs to be reverted
-			if undoErr := m.backend.UndoHideSnapData(snapsup.InstanceName()); undoErr != nil {
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 				st.Lock()
 				t.Logf("cannot undo snap dir migration (must manually restore %s's dirs from %s to %s): %v",
-					snapsup.InstanceName(), dirs.HiddenSnapDataHomeDir, dirs.UserHomeSnapDir, undoErr)
+					snapsup.InstanceName(), dirs.HiddenSnapDataHomeDir, dirs.UserHomeSnapDir, err)
 				st.Unlock()
 			}
 
@@ -1204,16 +1204,10 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
-		snapsup.MigratedHidden = false
-		st.Lock()
-		err := SetTaskSnapSetup(t, snapsup)
-		st.Unlock()
-		if err != nil {
+		snapst.MigratedHidden = false
+		if err := writeMigrationStatus(t, snapst, snapsup.InstanceName()); err != nil {
 			return err
 		}
-
-		// persist the undone migration status before allowing the snap to be run
-		writeSeqFile(snapsup.InstanceName(), snapst)
 	}
 
 	st.Lock()
@@ -1248,6 +1242,20 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	return nil
+}
+
+func writeMigrationStatus(t *state.Task, snapst *SnapState, snapName string) error {
+	st := t.State()
+
+	// we can only set the migration status here because we may have failed before
+	// or after setting it in 'link-snap' and we may have succeeded or failed in
+	// undoing the hiding/exposing. At this point, we know the migration's final state
+	st.Lock()
+	Set(st, snapName, snapst)
+	st.Unlock()
+
+	// persist the undone migration status before allowing the snap to be run
+	return writeSeqFile(snapName, snapst)
 }
 
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -1460,10 +1468,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// keep instance key
 	snapst.InstanceKey = snapsup.InstanceKey
 
-	// this flag means that the migration happened in this change (later there
-	// will be another flag to signal that it's been undone). If it meant that
-	// the migration is "on" then we'd always have to set it for every change
-	// w/ a SnapSetup and link-snap (it'd be easy to forget and break state)
+	// don't keep the old state because, if we fail, we may or may not be able to
+	// revert the migration. We set the migration status after undoing any
+	// migration related ops
 	if snapsup.MigratedHidden {
 		snapst.MigratedHidden = true
 	}
