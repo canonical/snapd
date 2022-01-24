@@ -1,5 +1,7 @@
 summary: Check that the experimental hidden dir feature migrates the dir
 
+systems: [-centos-*]
+
 environment:
     NAME: test-snapd-tools
 
