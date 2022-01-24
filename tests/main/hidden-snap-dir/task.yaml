@@ -8,7 +8,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
 restore: |
-    snap set system experimental.hidden-snap-folder!
+    snap unset system experimental.hidden-snap-folder
 
 execute: |
     echo "Set experimental hidden snap folder feature"
@@ -24,11 +24,12 @@ execute: |
 
     echo "Take a snapshot"
     "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data
+    # get the snapshot number from the 2nd line (the 1st line is the header)
     snapshot=$(snap save "$NAME" | awk 'FNR == 2 {print $1}')
 
     echo "Write data to user data dirs"
-    "$NAME".cmd echo "data" > "$HOME"/snap/"$NAME"/current/data
-    "$NAME".cmd echo "common" > "$HOME"/snap/"$NAME"/common/common
+    "$NAME".echo "data" > "$HOME"/snap/"$NAME"/current/data
+    "$NAME".echo "common" > "$HOME"/snap/"$NAME"/common/common
 
     echo "Refresh the snap"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
@@ -52,25 +53,20 @@ execute: |
     fi
 
     echo "Check that the written data is in the new dir"
-    # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$NAME"/common/common | MATCH "common"
-    # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$NAME"/x2/data | MATCH "data"
+    MATCH "common" < "$HOME"/.snap/data/"$NAME"/common/common
+    MATCH "data" < "$HOME"/.snap/data/"$NAME"/x2/data
 
     echo "Check the snap can write to the new dirs"
     #shellcheck disable=SC2016
     "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/new_data'
     #shellcheck disable=SC2016
     "$NAME".cmd sh -c 'echo "new_common" > "$SNAP_USER_COMMON"/new_common'
-    # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$NAME"/common/new_common | MATCH "new_common"
-    # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$NAME"/x2/new_data | MATCH "new_data"
+    MATCH "new_common" < "$HOME"/.snap/data/"$NAME"/common/new_common
+    MATCH "new_data" < "$HOME"/.snap/data/"$NAME"/x2/new_data
 
     echo "Restore snapshot and check data was restored"
     snap restore "$snapshot"
-    # shellcheck disable=SC2002
-    cat "$HOME"/.snap/data/"$NAME"/x2/data | MATCH "prev_data"
+    MATCH "prev_data" < "$HOME"/.snap/data/"$NAME"/x2/data
 
     echo "Check that snap starts off hidden after a fresh install"
     snap remove --purge "$NAME"
