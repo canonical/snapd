@@ -44,8 +44,8 @@ export AA_SFS="$SECURITYFS/apparmor"
 is_container_with_internal_policy() {
 	ns_stacked_path="${AA_SFS}/.ns_stacked"
 	ns_name_path="${AA_SFS}/.ns_name"
-	ns_stacked
-	ns_name
+	ns_stacked=""
+	ns_name=""
 
 	if ! [ -f "$ns_stacked_path" ] || ! [ -f "$ns_name_path" ]; then
 		return 1
