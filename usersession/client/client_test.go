@@ -22,6 +22,7 @@ package client_test
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -459,6 +460,22 @@ func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 	})
 	err := s.cli.PendingRefreshNotification(context.Background(), &client.PendingSnapRefreshInfo{})
 	c.Assert(err, IsNil)
+	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
+}
+
+func (s *clientSuite) TestFinishRefreshNotification(c *C) {
+	var n int32
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&n, 1)
+		c.Assert(r.URL.Path, Equals, "/v1/notifications/finish-refresh")
+		body, err := ioutil.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(string(body), DeepEquals, `{"instance-name":"some-snap"}`)
+	})
+	err := s.cli.FinishRefreshNotification(context.Background(), &client.FinishedSnapRefreshInfo{InstanceName: "some-snap"})
+	c.Assert(err, IsNil)
+	// two calls because clientSuite simulates two user sessions (two
+	// snapd-session-agent.socket sockets).
 	c.Check(atomic.LoadInt32(&n), Equals, int32(2))
 }
 

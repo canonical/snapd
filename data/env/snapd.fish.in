@@ -6,6 +6,7 @@ fish_add_path -aP $snap_bin_path
 # looked for in XDG_DATA_DIRS; make sure it includes the relevant directory for
 # snappy applications' desktop files.
 set -u snap_xdg_path /var/lib/snapd/desktop
+set --path XDG_DATA_DIRS $XDG_DATA_DIRS
 if ! contains $snap_xdg_path $XDG_DATA_DIRS
     set XDG_DATA_DIRS $XDG_DATA_DIRS $snap_xdg_path
 end

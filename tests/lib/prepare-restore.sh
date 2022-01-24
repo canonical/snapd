@@ -423,26 +423,11 @@ prepare_project() {
     esac
 
     restart_logind=
-    restart_networkd=
     if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -lt 246 ]; then
         restart_logind=maybe
-        restart_networkd=maybe
     fi
 
-
-    # Try installing package dependencies. Because we pull in some systemd
-    # development packages we can easily pull in a whole systemd upgrade. Most
-    # of the time that's okay but, well, not always.
-    if ! install_pkg_dependencies; then
-        # If this failed, maybe systemd-networkd got busted during the 245-246
-        # upgrade? If so we can just restart it and try again.
-        # This is related to https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=966612
-        if [ "$restart_networkd" = maybe ]; then
-            systemctl reset-failed systemd-networkd.service
-            systemctl try-restart systemd-networkd.service
-            install_pkg_dependencies
-        fi
-    fi
+    install_pkg_dependencies
 
     if [ "$restart_logind" = maybe ]; then
         if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 246 ]; then
@@ -569,14 +554,14 @@ prepare_project() {
     fi
 
     # eval to prevent expansion errors on opensuse (the variable keeps quotes)
-    eval "go get $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
+    eval "go install $fakestore_tags ./tests/lib/fakestore/cmd/fakestore"
 
     # Build additional utilities we need for testing
-    go get ./tests/lib/fakedevicesvc
-    go get ./tests/lib/systemd-escape
+    go install ./tests/lib/fakedevicesvc
+    go install ./tests/lib/systemd-escape
 
     # Build the tool for signing model assertions
-    go get ./tests/lib/gendeveloper1model
+    go install ./tests/lib/gendeveloper1model
 
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation

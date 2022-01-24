@@ -682,7 +682,7 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
-			Index:           idx,
+			YamlIndex:       idx,
 		}
 		structures[idx] = ps
 		if s.Name != "" {
@@ -1180,6 +1180,7 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err
 	}
+	// TODO: should we enforce the maximum kernel command line for cmdline.full?
 	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err

@@ -746,6 +746,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"polkit":                true,
 		"sd-control":            true,
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
@@ -754,6 +755,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"tee":                   true,
 		"uinput":                true,
 		"unity8":                true,
+		"xilinx-dma":            true,
 	}
 
 	for _, iface := range all {
@@ -989,6 +991,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"polkit":                true,
 		"sd-control":            true,
 		"shared-memory":         true,
 		"snap-refresh-control":  true,
@@ -1000,6 +1003,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"uinput":                true,
 		"unity8":                true,
 		"wayland":               true,
+		"xilinx-dma":            true,
 	}
 
 	for _, iface := range all {
