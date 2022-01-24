@@ -161,9 +161,9 @@ execute: |
     {"snap-id": "$SNAP_ID", "snap-revision": "$START_REVISION"}
     EOF
 
-        p=$(new_snap_declaration "$BLOB_DIR" failing.snap --snap-decl-json decl-headers.json)
+        p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" failing.snap --snap-decl-json decl-headers.json)
         snap ack "$p"
-        p=$(new_snap_revision "$BLOB_DIR" failing.snap --snap-rev-json rev-headers.json)
+        p=$(fakestore new-snap-revision --dir "$BLOB_DIR" failing.snap --snap-rev-json rev-headers.json)
         snap ack "$p"
 
         # use journalctl wrapper to grep only the logs collected while the test is running
