@@ -91,9 +91,9 @@ type Flags struct {
 	// assertion for non-dangerous grade models too.
 	ApplySnapDevMode bool `json:"apply-snap-devmode,omitempty"`
 
-	// Transaction will be true if the snap is required to
-	// transactionally install/update jointly with other snaps.
-	Transaction bool `json:"transaction,omitempty"`
+	// Transactional is set to true to request that the set of
+	// snaps is transactionally installed/updated jointly.
+	Transactional bool `json:"transaction,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
@@ -110,6 +110,6 @@ func (f Flags) ForSnapSetup() Flags {
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
 	f.ApplySnapDevMode = false
-	f.Transaction = false
+	f.Transactional = false
 	return f
 }
