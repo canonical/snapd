@@ -615,6 +615,7 @@ var (
 		"core-support":              {"core"},
 		"cups":                      {"app"},
 		"cups-control":              {"app", "core"},
+		"custom-device":             {"gadget"},
 		"dbus":                      {"app"},
 		"docker-support":            {"core"},
 		"desktop-launch":            {"core"},
@@ -796,6 +797,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	noconnect := map[string]bool{
 		"content":                   true,
 		"cups":                      true,
+		"custom-device":             true,
 		"docker":                    true,
 		"fwupd":                     true,
 		"location-control":          true,
@@ -976,6 +978,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
+		"custom-device":         true,
 		"desktop-launch":        true,
 		"dm-crypt":              true,
 		"docker-support":        true,

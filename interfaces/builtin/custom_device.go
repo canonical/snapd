@@ -42,6 +42,7 @@ const customDeviceBaseDeclarationPlugs = `
     allow-connection:
       slot-attributes:
         custom-device: $PLUG(custom-device)
+    allow-auto-connection: false
 `
 
 const customDeviceBaseDeclarationSlots = `
