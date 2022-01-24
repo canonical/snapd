@@ -126,11 +126,12 @@ check_leftover_defer_sh() {
 check_broken_snaps() {
 	n="$1" # invariant name
 	(
-		# fist column is the snap name, revision is 3rd
+		SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+		# first column is the snap name, revision is 3rd
 		snap list --all | awk '/,?broken,?/ {print $1,$3}' | while read -r name rev; do
 			echo "snap $name ($rev) is broken:"
-			systemctl status "snap-${name}-${rev}.mount" || true
-			ls -l "/snap/${name}/" || true
+			systemctl status "$(systemd-escape -p "$SNAP_MOUNT_DIR/${name}/${rev}).mount")" || true
+			ls -l "/${SNAP_MOUNT_DIR}/${name}/" || true
 			echo "---"
 		done
 	) > "$TESTSTMP/tests.invariant.$n"
