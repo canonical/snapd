@@ -2,34 +2,36 @@ summary: Check that the experimental hidden dir feature migrates the dir
 
 environment:
     NAME: test-snapd-tools
-    FILE: test-snapd-tools_1.0_all.snap
 
 prepare: |
     snap pack "$TESTSLIB"/snaps/"$NAME"
-    snap install --dangerous ./"$FILE"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
 restore: |
     snap set system experimental.hidden-snap-folder!
-    snap remove "$NAME"
 
 execute: |
     echo "Set experimental hidden snap folder feature"
     snap set system experimental.hidden-snap-folder=true
 
     echo "Check that nothing has been migrated yet"
-    snapEnv=$($NAME.env)
+    snapEnv=$("$NAME".env)
     echo "$snapEnv" | MATCH "SNAP_USER_DATA=/root/snap/$NAME/x1"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$NAME/common"
 
     test -d "$HOME"/snap
     not test -d "$HOME"/.snap/data
 
+    echo "Take a snapshot"
+    "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data
+    snapshot=$(snap save "$NAME" | awk 'FNR == 2 {print $1}')
+
     echo "Write data to user data dirs"
     "$NAME".cmd echo "data" > "$HOME"/snap/"$NAME"/current/data
     "$NAME".cmd echo "common" > "$HOME"/snap/"$NAME"/common/common
 
     echo "Refresh the snap"
-    snap install --dangerous ./"$FILE"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     echo "Check snap directory was migrated"
     test -d "$HOME"/.snap/data/"$NAME"
@@ -38,7 +40,7 @@ execute: |
     not test -d "$HOME"/snap/"$NAME"
 
     echo "Check the env vars point to ~/.snap/data"
-    snapEnv="$($NAME.env)"
+    snapEnv=$("$NAME".env)
     echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x2"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
 
@@ -65,12 +67,17 @@ execute: |
     # shellcheck disable=SC2002
     cat "$HOME"/.snap/data/"$NAME"/x2/new_data | MATCH "new_data"
 
+    echo "Restore snapshot and check data was restored"
+    snap restore "$snapshot"
+    # shellcheck disable=SC2002
+    cat "$HOME"/.snap/data/"$NAME"/x2/data | MATCH "prev_data"
+
     echo "Check that snap starts off hidden after a fresh install"
     snap remove --purge "$NAME"
-    snap install --dangerous "$FILE"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     test -d "$HOME"/.snap/data/"$NAME"
     not test -d "$HOME"/snap/"$NAME"
-    snapEnv="$($NAME.env)"
+    snapEnv=$("$NAME".env)
     echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x1"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
