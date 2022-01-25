@@ -223,10 +223,10 @@ plugs:
 		errStr string
 	}{
 		{"", `snap "polkit-plug-snap" does not have attribute "action-prefix" for interface "polkit"`},
-		{`action-prefix: true`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type for "action-prefix" attribute`},
-		{`action-prefix: 42`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type for "action-prefix" attribute`},
-		{`action-prefix: []`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type for "action-prefix" attribute`},
-		{`action-prefix: {}`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type for "action-prefix" attribute`},
+		{`action-prefix: true`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`},
+		{`action-prefix: 42`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type int64 for "action-prefix" attribute: \*string`},
+		{`action-prefix: []`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type \[\]interface {} for "action-prefix" attribute: \*string`},
+		{`action-prefix: {}`, `snap "polkit-plug-snap" has interface "polkit" with invalid value type map\[string\]interface {} for "action-prefix" attribute: \*string`},
 
 		{`action-prefix: ""`, `plug has invalid action-prefix: ""`},
 		{`action-prefix: "org"`, `plug has invalid action-prefix: "org"`},
