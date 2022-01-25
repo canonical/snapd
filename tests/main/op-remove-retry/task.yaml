@@ -37,6 +37,7 @@ execute: |
     # cleanup umount blocker
     systemctl stop unmount-blocker
 
+    # TODO: remove this line once snaps are able to remove the user-session services
     # clean the scope units created
     for scope in $(systemctl list-units --state=running --type=scope --user snap.* | grep "\.scope" | awk '{ print $1}'); do
         systemctl stop --user "$scope"
