@@ -1058,7 +1058,7 @@ func makeMockFile(c *C, path string) {
 	c.Assert(err, IsNil)
 }
 
-func (s *SystemdTestSuite) testAddMountUnit(c *C, assertStrings [][]string) {
+func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
 	restore := squashfs.MockNeedsFuse(false)
@@ -1087,36 +1087,15 @@ LazyUnmount=yes
 [Install]
 WantedBy=multi-user.target
 `[1:], mockSnapPath))
-	assertStrings = append(assertStrings, []string{"--root", rootDir, "enable", "snap-snapname-123.mount"})
-	assertStrings = append(assertStrings, []string{"start", "snap-snapname-123.mount"})
-	c.Assert(s.argses, DeepEquals, assertStrings)
-}
 
-func (s *SystemdTestSuite) TestAddMountUnitLegacySystemd(c *C) {
-	releaseRestore := release.MockOnClassic(true)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
-	defer releaseRestore()
-
-	s.testAddMountUnit(c, [][]string{{"daemon-reload"}})
-}
-
-func (s *SystemdTestSuite) TestAddMountUnitModernSystemd(c *C) {
-	releaseRestore := release.MockOnClassic(false)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
-	defer releaseRestore()
-
-	s.testAddMountUnit(c, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-123.mount"},
+	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
-	},
-	)
+		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
+		{"start", "snap-snapname-123.mount"},
+	})
 }
 
-func (s *SystemdTestSuite) testAddMountUnitForDirs(c *C, assertStrings [][]string) {
+func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
@@ -1143,37 +1122,14 @@ LazyUnmount=yes
 WantedBy=multi-user.target
 `[1:], snapDir))
 
-	assertStrings = append(assertStrings, []string{"enable", "snap-snapname-x1.mount"})
-	assertStrings = append(assertStrings, []string{"start", "snap-snapname-x1.mount"})
-	c.Check(s.argses, DeepEquals, assertStrings)
-}
-
-func (s *SystemdTestSuite) TestAddMountUnitForDirsLegacySystemd(c *C) {
-	releaseRestore := release.MockOnClassic(true)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
-	defer releaseRestore()
-
-	s.testAddMountUnitForDirs(c, [][]string{{"daemon-reload"}})
-}
-
-func (s *SystemdTestSuite) TestAddMountUnitForDirsModernSystemd(c *C) {
-	releaseRestore := release.MockOnClassic(false)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
-	defer releaseRestore()
-	restore := squashfs.MockNeedsFuse(false)
-	defer restore()
-
-	s.testAddMountUnitForDirs(c, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-x1.mount"},
+	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
+		{"enable", "snap-snapname-x1.mount"},
+		{"start", "snap-snapname-x1.mount"},
 	})
 }
 
-func (s *SystemdTestSuite) testAddMountUnitTransient(c *C, assertStrings [][]string) {
+func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 	rootDir := dirs.GlobalRootDir
 
 	restore := squashfs.MockNeedsFuse(false)
@@ -1213,33 +1169,10 @@ WantedBy=multi-user.target
 X-SnapdOrigin=bar
 `[1:], mockSnapPath))
 
-	assertStrings = append(assertStrings, []string{"--root", rootDir, "enable", "snap-snapname-345.mount"})
-	assertStrings = append(assertStrings, []string{"start", "snap-snapname-345.mount"})
-	c.Check(s.argses, DeepEquals, assertStrings)
-}
-
-func (s *SystemdTestSuite) TestAddMountUnitTransientLegacySystemd(c *C) {
-	releaseRestore := release.MockOnClassic(true)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
-	defer releaseRestore()
-
-	s.testAddMountUnitTransient(c, [][]string{{"daemon-reload"}})
-}
-
-func (s *SystemdTestSuite) TestAddMountUnitTransientModernSystemd(c *C) {
-	releaseRestore := release.MockOnClassic(false)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
-	defer releaseRestore()
-	restore := squashfs.MockNeedsFuse(false)
-	defer restore()
-
-	s.testAddMountUnitTransient(c, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-345.mount"},
+	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
+		{"start", "snap-snapname-345.mount"},
 	})
 }
 
@@ -1466,7 +1399,7 @@ func makeMockMountUnit(c *C, mountDir string) string {
 }
 
 // FIXME: also test for the "IsMounted" case
-func (s *SystemdTestSuite) testRemoveMountUnit(c *C, assertStrings []string) {
+func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 	rootDir := dirs.GlobalRootDir
 
 	restore := osutil.MockMountInfo("")
@@ -1482,29 +1415,8 @@ func (s *SystemdTestSuite) testRemoveMountUnit(c *C, assertStrings []string) {
 	// and the unit is disabled and the daemon reloaded
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", rootDir, "disable", "snap-foo-42.mount"},
-		{"--root", rootDir, "is-failed", "snap-foo-42.mount"},
-		{"--root", rootDir, "reset-failed", "snap-foo-42.mount"},
-		assertStrings,
+		{"daemon-reload"},
 	})
-}
-func (s *SystemdTestSuite) TestRemoveMountUnitLegacySystemd(c *C) {
-	releaseRestore := release.MockOnClassic(true)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
-	defer releaseRestore()
-
-	s.testRemoveMountUnit(c, []string{"daemon-reload"})
-}
-
-func (s *SystemdTestSuite) TestRemoveMountUnitModernSystemd(c *C) {
-	releaseRestore := release.MockOnClassic(false)
-	defer releaseRestore()
-
-	releaseRestore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
-	defer releaseRestore()
-
-	s.testRemoveMountUnit(c, []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-foo-42.mount"})
 }
 
 func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
