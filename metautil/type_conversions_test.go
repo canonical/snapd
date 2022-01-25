@@ -48,6 +48,9 @@ func (s *conversionssSuite) TestConvertHappy(c *C) {
 		// Complex types with conversion
 		{[]interface{}{"one", "two"}, []string{"one", "two"}},
 		{[]interface{}{24, 42}, []int{24, 42}},
+		{[]interface{}{[]string{"one"}, []string{"two"}}, [][]string{{"one"}, {"two"}}},
+		{[]interface{}{map[string]int{"one": 1}, map[string]int{"two": 2}}, []map[string]int{{"one": 1}, {"two": 2}}},
+		{map[interface{}]interface{}{"one": 1, "two": 2}, map[string]int{"one": 1, "two": 2}},
 	}
 
 	for _, testData := range data {
@@ -77,6 +80,9 @@ func (s *conversionssSuite) TestConvertUnhappy(c *C) {
 		{[]interface{}{1, "two", 3}, t([]int{}), `cannot convert value "two" into a int`},
 		{[]int{1, 2}, t([]string{}), `cannot convert value "1" into a string`},
 		{[]int{1, 2}, t(1), `cannot convert value "\[1 2\]" into a int`},
+		{map[interface{}]interface{}{"one": 1}, t(map[int]int{}), `cannot convert value "one" into a int`},
+		{map[interface{}]interface{}{1: 2}, t(map[int]string{}), `cannot convert value "2" into a string`},
+		{map[interface{}]interface{}{"one": 1}, t([]string{}), `cannot convert value "map\[one:1\]" into a \[\]string`},
 	}
 
 	for _, testData := range data {

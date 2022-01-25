@@ -47,6 +47,24 @@ func convertValue(value reflect.Value, outputType reflect.Type) (reflect.Value, 
 		return outputValue, nil
 	case reflect.Interface:
 		return convertValue(value.Elem(), outputType)
+	case reflect.Map:
+		if outputType.Kind() != reflect.Map {
+			break
+		}
+		outputValue := reflect.MakeMapWithSize(outputType, value.Len())
+		iter := value.MapRange()
+		for iter.Next() {
+			convertedKey, err := convertValue(iter.Key(), outputType.Key())
+			if err != nil {
+				return nullValue, err
+			}
+			convertedValue, err := convertValue(iter.Value(), outputType.Elem())
+			if err != nil {
+				return nullValue, err
+			}
+			outputValue.SetMapIndex(convertedKey, convertedValue)
+		}
+		return outputValue, nil
 	}
 	return nullValue, fmt.Errorf(`cannot convert value "%v" into a %v`, value, outputType)
 }
