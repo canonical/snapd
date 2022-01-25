@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -331,7 +332,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -544,7 +545,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	})
 
 	// and snapd stop was requested
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.StopDaemon})
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.StopDaemon})
 
 	s.cmdUmount.ForgetCalls()
 

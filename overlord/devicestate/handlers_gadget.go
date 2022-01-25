@@ -191,7 +191,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// modify modeenv inside, which implicitly is guarded by the state lock;
 	// on top of that we do not expect the update to be moving large amounts
 	// of data
-	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
+	err = gadgetUpdate(model, *currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
 			// no update needed
@@ -209,7 +209,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
-	st.RequestRestart(state.RestartSystem)
+	snapstate.RestartSystem(t)
 
 	return nil
 }
@@ -284,7 +284,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// kernel command line
 
 	// kernel command line was updated, request a reboot to make it effective
-	st.RequestRestart(state.RestartSystem)
+	snapstate.RestartSystem(t)
 	return nil
 }
 
@@ -321,6 +321,6 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	t.SetStatus(state.UndoneStatus)
 
 	// kernel command line was updated, request a reboot to make it effective
-	st.RequestRestart(state.RestartSystem)
+	snapstate.RestartSystem(t)
 	return nil
 }

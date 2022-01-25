@@ -237,26 +237,26 @@ static void sc_cleanup_udev_enumerate(struct udev_enumerate **enumerate)
  * when the binary itself is build with recent enough toolchain (eg. gcc &
  * binutils on Ubuntu 20.04)
  */
-static int (*__sc_udev_device_has_current_tag)(struct udev_device *udev_device,
-											   const char *tag) = NULL;
+static int (*__sc_udev_device_has_current_tag)(struct udev_device * udev_device,
+					       const char *tag) = NULL;
 static void setup_current_tags_support(void)
 {
-    void *lib = dlopen("libudev.so.1", RTLD_NOW);
-    if (lib == NULL) {
-        debug("cannot load libudev.so.1: %s", dlerror());
-        /* bit unexpected as we use the library from the host and it's stable */
-        return;
-    }
-    /* check whether we have the symbol introduced in systemd v247 to inspect
-     * the CURRENT_TAGS property */
-    void *sym = dlsym(lib, "udev_device_has_current_tag");
-    if (sym == NULL) {
-        debug("cannot find current tags symbol: %s", dlerror());
-        /* symbol is not found in the library version */
-        return;
-    }
-    debug("libudev has current tags support");
-    __sc_udev_device_has_current_tag = sym;
+	void *lib = dlopen("libudev.so.1", RTLD_NOW);
+	if (lib == NULL) {
+		debug("cannot load libudev.so.1: %s", dlerror());
+		/* bit unexpected as we use the library from the host and it's stable */
+		return;
+	}
+	/* check whether we have the symbol introduced in systemd v247 to inspect
+	 * the CURRENT_TAGS property */
+	void *sym = dlsym(lib, "udev_device_has_current_tag");
+	if (sym == NULL) {
+		debug("cannot find current tags symbol: %s", dlerror());
+		/* symbol is not found in the library version */
+		return;
+	}
+	debug("libudev has current tags support");
+	__sc_udev_device_has_current_tag = sym;
 }
 
 void sc_setup_device_cgroup(const char *security_tag)
@@ -306,13 +306,9 @@ void sc_setup_device_cgroup(const char *security_tag)
 		return;
 	}
 
-	/* Note that -1 is the neutral value for a file descriptor.
-	 * The cleanup function associated with this variable closes
-	 * descriptors other than -1. */
-	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
-	    sc_device_cgroup_new(security_tag, 0);
-	/* Setup the device group access control list */
-	sc_udev_setup_acls_common(cgroup);
+	/* cgroup wrapper is lazily initialized when devices are actually
+	 * assigned */
+	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) = NULL;
 	for (struct udev_list_entry * entry = assigned; entry != NULL;
 	     entry = udev_list_entry_get_next(entry)) {
 		const char *path = udev_list_entry_get_name(entry);
@@ -338,7 +334,8 @@ void sc_setup_device_cgroup(const char *security_tag)
 		 * previously created/setup but should no longer be setup due
 		 * to interface disconnection, etc. */
 		if (__sc_udev_device_has_current_tag != NULL) {
-			if (__sc_udev_device_has_current_tag(device, udev_tag) <= 0) {
+			if (__sc_udev_device_has_current_tag(device, udev_tag)
+			    <= 0) {
 				debug("device %s has no matching current tag",
 				      path);
 				udev_device_unref(device);
@@ -347,11 +344,24 @@ void sc_setup_device_cgroup(const char *security_tag)
 			debug("device %s has matching current tag", path);
 		}
 
+		if (cgroup == NULL) {
+			/* initialize cgroup wrapper only when we are sure that there are
+			 * devices assigned to this snap */
+			cgroup = sc_device_cgroup_new(security_tag, 0);
+			/* Setup the device group access control list */
+			sc_udev_setup_acls_common(cgroup);
+		}
 		sc_udev_allow_assigned_device(cgroup, device);
 		udev_device_unref(device);
 	}
-	/* Move ourselves to the device cgroup */
-	sc_device_cgroup_attach_pid(cgroup, getpid());
-	debug("associated snap application process %i with device cgroup %s",
-	      getpid(), security_tag);
+	if (cgroup != NULL) {
+		/* Move ourselves to the device cgroup */
+		sc_device_cgroup_attach_pid(cgroup, getpid());
+		debug
+		    ("associated snap application process %i with device cgroup %s",
+		     getpid(), security_tag);
+	} else {
+		debug("no devices tagged with %s, skipping device cgroup setup",
+		      udev_tag);
+	}
 }

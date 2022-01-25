@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -85,6 +86,10 @@ var (
 	secbootLockSealedKeys func() error
 
 	bootFindPartitionUUIDForBootedKernelDisk = boot.FindPartitionUUIDForBootedKernelDisk
+
+	mountReadOnlyOptions = &systemdMountOptions{
+		ReadOnly: true,
+	}
 )
 
 func stampedAction(stamp string, action func() error) error {
@@ -1213,6 +1218,18 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
+// waitFile waits for the given file/device-node/directory to appear.
+var waitFile = func(path string, wait time.Duration, n int) error {
+	for i := 0; i < n; i++ {
+		if osutil.FileExists(path) {
+			return nil
+		}
+		time.Sleep(wait)
+	}
+
+	return fmt.Errorf("no %v after waiting for %v", path, time.Duration(n)*wait)
+}
+
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
 // dir, using the boot package function FindPartitionUUIDForBootedKernelDisk to
 // determine what partition the booted kernel came from. If which disk the
@@ -1226,6 +1243,18 @@ func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	if err != nil {
 		// no luck, try mounting by label instead
 		partSrc = filepath.Join("/dev/disk/by-label", fallbacklabel)
+	}
+
+	// The partition uuid is read from the EFI variables. At this point
+	// the kernel may not have initialized the storage HW yet so poll
+	// here.
+	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, partSrc)) {
+		pollWait := 50 * time.Millisecond
+		pollIterations := 1200
+		logger.Noticef("waiting up to %v for %v to appear", time.Duration(pollIterations)*pollWait, partSrc)
+		if err := waitFile(filepath.Join(dirs.GlobalRootDir, partSrc), pollWait, pollIterations); err != nil {
+			return fmt.Errorf("cannot mount source: %v", err)
+		}
 	}
 
 	opts := &systemdMountOptions{
@@ -1284,7 +1313,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 
 		dir := snapTypeToMountDir[essentialSnap.EssentialType]
 		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
+		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -1532,7 +1561,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if sn, ok := mounts[typ]; ok {
 			dir := snapTypeToMountDir[typ]
 			snapPath := filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
-			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), nil); err != nil {
+			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
 				return err
 			}
 		}
@@ -1545,8 +1574,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if err != nil {
 			return fmt.Errorf("cannot load metadata and verify snapd snap: %v", err)
 		}
-
-		return doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), nil)
+		return doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), mountReadOnlyOptions)
 	}
 
 	return nil

@@ -68,3 +68,8 @@ func readEntry(top string, subpath ...string) ([]byte, error) {
 	fpath := filepath.Join(top, filepath.Join(subpath...))
 	return ioutil.ReadFile(fpath)
 }
+
+func removeEntry(top string, subpath ...string) error {
+	fpath := filepath.Join(top, filepath.Join(subpath...))
+	return os.Remove(fpath)
+}

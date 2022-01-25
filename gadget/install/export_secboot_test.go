@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -25,9 +26,8 @@ import (
 )
 
 var (
-	EnsureLayoutCompatibility = ensureLayoutCompatibility
-	DeviceFromRole            = deviceFromRole
-	NewEncryptedDevice        = newEncryptedDevice
+	DiskWithSystemSeed     = diskWithSystemSeed
+	NewEncryptedDeviceLUKS = newEncryptedDeviceLUKS
 )
 
 func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, node string) error) (restore func()) {

@@ -20,6 +20,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -28,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
@@ -59,9 +62,12 @@ func (c uc20Constraints) Classic() bool             { return false }
 func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
+	if err := logger.SimpleSetup(); err != nil {
+		fmt.Fprintf(os.Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
+	}
+
 	args := &cmdCreatePartitions{}
-	_, err := flags.ParseArgs(args, os.Args[1:])
-	if err != nil {
+	if _, err := flags.ParseArgs(args, os.Args[1:]); err != nil {
 		panic(err)
 	}
 

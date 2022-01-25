@@ -22,6 +22,7 @@ package gadget
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -147,7 +148,8 @@ type VolumeStructure struct {
 	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
-	// ID is the GPT partition ID
+	// ID is the GPT partition ID, this should always be made upper case for
+	// comparison purposes.
 	ID string `yaml:"id"`
 	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
 	// structures of type 'bare'
@@ -204,6 +206,124 @@ func (vc VolumeContent) String() string {
 type VolumeUpdate struct {
 	Edition  edition.Number `yaml:"edition"`
 	Preserve []string       `yaml:"preserve"`
+}
+
+// DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
+// a previous point in time on the same device, and is used primarily to try and
+// map a volume in the gadget.yaml to a physical device on the system after the
+// initial installation is done. We don't have a steadfast and predictable way
+// to always find the device again, so we need to do a search, trying to find a
+// device which matches each trait in turn, and verify it matches the  physical
+// structure layout and if not move on to using the next trait.
+type DiskVolumeDeviceTraits struct {
+	// each member here is presented in descending order of certainty about the
+	// likelihood of being compatible if a candidate physical device matches the
+	// member. I.e. OriginalDevicePath is more trusted than OriginalKernelPath is
+	// more trusted than DiskID is more trusted than using the MappedStructures
+
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path
+	// the volume was measured and observed at during UC20+ install mode.
+	OriginalDevicePath string `json:"device-path"`
+
+	// OriginalKernelPath is the device path like /dev/vda the volume was
+	// measured and observed at during UC20+ install mode.
+	OriginalKernelPath string `json:"kernel-path"`
+
+	// DiskID is the disk's identifier, it is a UUID for GPT disks or an
+	// unsigned integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	DiskID string `json:"disk-id"`
+
+	// Size is the physical size of the disk, regardless of usable space
+	// considerations.
+	Size quantity.Size `json:"size"`
+
+	// SectorSize is the physical sector size of the disk, typically 512 or
+	// 4096.
+	SectorSize quantity.Size `json:"sector-size"`
+
+	// Schema is the disk schema, either dos or gpt in lowercase.
+	Schema string `json:"schema"`
+
+	// Structure contains trait information about each individual structure in
+	// the volume that may be useful in identifying whether a disk matches a
+	// volume or not.
+	Structure []DiskStructureDeviceTraits `json:"structure"`
+}
+
+// DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
+// set of traits for a specific structure on a disk rather than the full disk
+// itself. Structures can be full partitions or just raw slices on a disk like
+// the "BIOS Boot" structure on default amd64 grub Ubuntu Core systems.
+type DiskStructureDeviceTraits struct {
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path the
+	// partition was measured and observed at during UC20+ install mode.
+	OriginalDevicePath string `json:"device-path"`
+	// OriginalKernelPath is the device path like /dev/vda1 the partition was
+	// measured and observed at during UC20+ install mode.
+	OriginalKernelPath string `json:"kernel-path"`
+	// PartitionUUID is the partuuid as defined by i.e. /dev/disk/by-partuuid
+	PartitionUUID string `json:"partition-uuid"`
+	// PartitionLabel is the label of the partition for GPT disks, i.e.
+	// /dev/disk/by-partlabel
+	PartitionLabel string `json:"partition-label"`
+	// PartitionType is the type of the partition i.e. 0x83 for a
+	// Linux native partition on DOS, or
+	// 0FC63DAF-8483-4772-8E79-3D69D8477DE4 for a Linux filesystem
+	// data partition on GPT.
+	PartitionType string `json:"partition-type"`
+	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
+	// /dev/disk/by-uuid
+	FilesystemUUID string `json:"filesystem-uuid"`
+	// FilesystemLabel is the label of the filesystem for structures that have
+	// filesystems, i.e. /dev/disk/by-label
+	FilesystemLabel string `json:"filesystem-label"`
+	// FilesystemType is the type of the filesystem, i.e. vfat or ext4, etc.
+	FilesystemType string `json:"filesystem-type"`
+	// Offset is the offset of the structure
+	Offset quantity.Offset `json:"offset"`
+	// Size is the size of the structure
+	Size quantity.Size `json:"size"`
+}
+
+// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume /
+// device traits to a file inside the provided directory on disk for
+// later loading and verification.
+func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDeviceTraits) error {
+	b, err := json.Marshal(mapping)
+	if err != nil {
+		return err
+	}
+
+	filename := filepath.Join(dir, "disk-mapping.json")
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(filename, b, 0644, 0)
+}
+
+// LoadDiskVolumesDeviceTraits loads the mapping of volumes to disk traits if
+// there is any. If there is no file with the mapping available, nil is
+// returned.
+func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits, error) {
+	var mapping map[string]DiskVolumeDeviceTraits
+
+	filename := filepath.Join(dir, "disk-mapping.json")
+	if !osutil.FileExists(filename) {
+		return nil, nil
+	}
+
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(b, &mapping); err != nil {
+		return nil, err
+	}
+
+	return mapping, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
@@ -342,7 +462,11 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
-	for name, v := range gi.Volumes {
+	for name := range gi.Volumes {
+		v := gi.Volumes[name]
+		if v == nil {
+			return nil, fmt.Errorf("volume %q stanza is empty", name)
+		}
 		// set the VolumeName for the volume
 		v.Name = name
 		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
@@ -558,7 +682,7 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
-			Index:           idx,
+			YamlIndex:       idx,
 		}
 		structures[idx] = ps
 		if s.Name != "" {
@@ -1056,6 +1180,7 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err
 	}
+	// TODO: should we enforce the maximum kernel command line for cmdline.full?
 	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err

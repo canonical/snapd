@@ -61,6 +61,7 @@ network netlink raw,
 # access same ports.
 /dev/tty[^0-9]* rw,
 /dev/cdc-* rw,
+/dev/wwan[0-9]* rw,
 
 # For ioctl TIOCSSERIAL ASYNC_CLOSING_WAIT_NONE
 capability sys_admin,
@@ -70,6 +71,8 @@ unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
 /sys/devices/**/usb**/{descriptors,manufacturer,product,bInterfaceClass,bInterfaceSubClass,bInterfaceProtocol,bInterfaceNumber} r,
 # See https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-net-qmi
 /sys/devices/**/net/*/qmi/* rw,
+# PCIe modems
+/sys/devices/pci**/{vendor,device,revision} r,
 
 include <abstractions/nameservice>
 /run/systemd/resolve/stub-resolv.conf r,
@@ -151,6 +154,12 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=###PLUG_SECURITY_TAGS###),
+
+# allow communicating with the mbim and qmi proxy servers, which provide
+# support for talking to WWAN modems and devices which speak the Mobile
+# Interface Broadband Model (MBIM) and Qualcomm MSM Interface (QMI)
+# protocols respectively
+unix (accept, receive, send) type=stream peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
 const modemManagerConnectedPlugAppArmor = `
@@ -1218,12 +1227,28 @@ LABEL="mm_zte_port_types_end"
 # that don't have this tag.  MM will still get the udev 'add' event for the
 # device a short while later and then process it as normal.
 
-ACTION!="add|change|move", GOTO="mm_candidate_end"
+ACTION!="add|change|move|bind", GOTO="mm_candidate_end"
+
+# Opening bound but disconnected Bluetooth RFCOMM ttys would initiate the
+# connection. Don't do that.
+KERNEL=="rfcomm*", DEVPATH=="*/virtual/*", GOTO="mm_candidate_end"
 
 SUBSYSTEM=="tty", ENV{ID_MM_CANDIDATE}="1"
 SUBSYSTEM=="net", ENV{ID_MM_CANDIDATE}="1"
-KERNEL=="cdc-wdm*", SUBSYSTEM=="usb", ENV{ID_MM_CANDIDATE}="1"
-KERNEL=="cdc-wdm*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
+KERNEL=="cdc-wdm[0-9]*", SUBSYSTEM=="usb", ENV{ID_MM_CANDIDATE}="1"
+KERNEL=="cdc-wdm[0-9]*", SUBSYSTEM=="usbmisc", ENV{ID_MM_CANDIDATE}="1"
+
+# WWAN subsystem port handling
+#  - All USB devices ignored for now, only PCI devices expected
+#  - Only "wwan_port" device types processed (single ports); we fully ignore
+#    the "wwan_dev" device type (full device, not just one port)
+SUBSYSTEMS=="usb", GOTO="mm_candidate_end"
+SUBSYSTEM=="wwan", ENV{DEVTYPE}=="wwan_dev", GOTO="mm_candidate_end"
+SUBSYSTEM=="wwan", ENV{ID_MM_CANDIDATE}="1"
+SUBSYSTEM=="wwan", KERNEL=="*MBIM", ENV{ID_MM_PORT_TYPE_MBIM}="1"
+SUBSYSTEM=="wwan", KERNEL=="*QMI", ENV{ID_MM_PORT_TYPE_QMI}="1"
+SUBSYSTEM=="wwan", KERNEL=="*AT", ENV{ID_MM_PORT_TYPE_AT_PRIMARY}="1"
+SUBSYSTEM=="wwan", KERNEL=="*QCDM", ENV{ID_MM_PORT_TYPE_QCDM}="1"
 
 LABEL="mm_candidate_end"
 `
@@ -1270,7 +1295,7 @@ func (iface *modemManagerInterface) DBusPermanentSlot(spec *dbus.Specification, 
 
 func (iface *modemManagerInterface) UDevPermanentSlot(spec *udev.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(modemManagerPermanentSlotUDev)
-	spec.TagDevice(`KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*"`)
+	spec.TagDevice(`KERNEL=="rfcomm*|tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*|*MBIM|*QMI|*AT|*QCDM"`)
 	return nil
 }
 

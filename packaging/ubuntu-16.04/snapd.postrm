@@ -91,6 +91,7 @@ if [ "$1" = "purge" ]; then
             fi
             # modules
             rm -f "/etc/modules-load.d/snap.${snap}.conf"
+            rm -f "/etc/modprobe.d/snap.${snap}.conf"
             # timer and socket units
             find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                 systemctl_stop "$(basename "$f")"
@@ -142,7 +143,7 @@ if [ "$1" = "purge" ]; then
     echo "Final directory cleanup"
     for d in "/snap/bin" "/snap" "/var/snap"; do
         # Force remove due to directories for old revisions could still exist
-        rm -rf "$d"
+        rm -rf "$d" || true
         if [ -d "$d" ]; then
             echo "Cannot remove directory $d"
         fi

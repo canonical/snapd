@@ -23,8 +23,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"syscall"
@@ -42,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -1133,38 +1136,46 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 
-	o.State().RequestRestart(state.RestartDaemon)
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	restart.Request(st, restart.RestartDaemon)
 }
 
-type testRestartBehavior struct {
-	restartRequested  state.RestartType
+type testRestartHandler struct {
+	restartRequested  restart.RestartType
 	rebootState       string
 	rebootVerifiedErr error
 }
 
-func (rb *testRestartBehavior) HandleRestart(t state.RestartType) {
+func (rb *testRestartHandler) HandleRestart(t restart.RestartType) {
 	rb.restartRequested = t
 }
 
-func (rb *testRestartBehavior) RebootAsExpected(_ *state.State) error {
+func (rb *testRestartHandler) RebootAsExpected(_ *state.State) error {
 	rb.rebootState = "as-expected"
 	return rb.rebootVerifiedErr
 }
 
-func (rb *testRestartBehavior) RebootDidNotHappen(_ *state.State) error {
+func (rb *testRestartHandler) RebootDidNotHappen(_ *state.State) error {
 	rb.rebootState = "did-not-happen"
 	return rb.rebootVerifiedErr
 }
 
 func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	o, err := overlord.New(rb)
 	c.Assert(err, IsNil)
 
-	o.State().RequestRestart(state.RestartDaemon)
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
 
-	c.Check(rb.restartRequested, Equals, state.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon)
+
+	c.Check(rb.restartRequested, Equals, restart.RestartDaemon)
 }
 
 func (ovs *overlordSuite) TestVerifyRebootNoPendingReboot(c *C) {
@@ -1172,7 +1183,7 @@ func (ovs *overlordSuite) TestVerifyRebootNoPendingReboot(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
@@ -1185,7 +1196,7 @@ func (ovs *overlordSuite) TestVerifyRebootOK(c *C) {
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
@@ -1199,7 +1210,7 @@ func (ovs *overlordSuite) TestVerifyRebootOKButError(c *C) {
 	c.Assert(err, IsNil)
 
 	e := errors.New("boom")
-	rb := &testRestartBehavior{rebootVerifiedErr: e}
+	rb := &testRestartHandler{rebootVerifiedErr: e}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, Equals, e)
@@ -1215,7 +1226,7 @@ func (ovs *overlordSuite) TestVerifyRebootDidNotHappen(c *C) {
 	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
-	rb := &testRestartBehavior{}
+	rb := &testRestartHandler{}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, IsNil)
@@ -1232,7 +1243,7 @@ func (ovs *overlordSuite) TestVerifyRebootDidNotHappenError(c *C) {
 	c.Assert(err, IsNil)
 
 	e := errors.New("boom")
-	rb := &testRestartBehavior{rebootVerifiedErr: e}
+	rb := &testRestartHandler{rebootVerifiedErr: e}
 
 	_, err = overlord.New(rb)
 	c.Assert(err, Equals, e)
@@ -1305,4 +1316,66 @@ func (ovs *overlordSuite) TestStartupTimeout(c *C) {
 
 	c.Check(to, Equals, (30+5+5)*time.Second)
 	c.Check(reasoning, Equals, "pessimistic estimate of 30s plus 5s per snap")
+}
+
+func (ovs *overlordSuite) TestLockWithTimeoutHappy(c *C) {
+	f, err := ioutil.TempFile("", "testlock-*")
+	defer func() {
+		f.Close()
+		os.Remove(f.Name())
+	}()
+	c.Assert(err, IsNil)
+	flock, err := osutil.NewFileLock(f.Name())
+	c.Assert(err, IsNil)
+
+	err = overlord.LockWithTimeout(flock, time.Second)
+	c.Check(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestLockWithTimeoutFailed(c *C) {
+	// Set the state lock retry interval to 0.1 ms; the timeout is not used in
+	// this test (we specify the timeout when calling the lockWithTimeout()
+	// function below); we set it to a big value in order to trigger a test
+	// failure in case the logic gets modified and it suddenly becomes
+	// relevant.
+	restoreTimeout := overlord.MockStateLockTimeout(time.Hour, 100*time.Microsecond)
+	defer restoreTimeout()
+
+	var notifyCalls []string
+	restoreNotify := overlord.MockSystemdSdNotify(func(notifyState string) error {
+		notifyCalls = append(notifyCalls, notifyState)
+		return nil
+	})
+	defer restoreNotify()
+
+	f, err := ioutil.TempFile("", "testlock-*")
+	defer func() {
+		f.Close()
+		os.Remove(f.Name())
+	}()
+	c.Assert(err, IsNil)
+	flock, err := osutil.NewFileLock(f.Name())
+	c.Assert(err, IsNil)
+
+	cmd := exec.Command("flock", "-w", "2", f.Name(), "-c", "echo acquired && sleep 5")
+	stdout, err := cmd.StdoutPipe()
+	c.Assert(err, IsNil)
+	err = cmd.Start()
+	c.Assert(err, IsNil)
+	defer func() {
+		cmd.Process.Kill()
+		cmd.Wait()
+	}()
+
+	// Wait until the shell command prints "acquired"
+	buf := make([]byte, 8)
+	bytesRead, err := io.ReadAtLeast(stdout, buf, len(buf))
+	c.Assert(err, IsNil)
+	c.Assert(bytesRead, Equals, len(buf))
+
+	err = overlord.LockWithTimeout(flock, 5*time.Millisecond)
+	c.Check(err, ErrorMatches, "timeout for state lock file expired")
+	c.Check(notifyCalls, DeepEquals, []string{
+		"EXTEND_TIMEOUT_USEC=5000",
+	})
 }

@@ -55,6 +55,11 @@ endif
 # The list of go binaries we are expected to build.
 go_binaries = $(addprefix $(builddir)/, snap snapctl snap-seccomp snap-update-ns snap-exec snapd)
 
+GO_TAGS = nosecboot
+ifeq ($(with_testkeys),1)
+GO_TAGS += withtestkeys
+endif
+
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
@@ -62,7 +67,7 @@ all: $(go_binaries)
 
 $(builddir)/snap: GO_TAGS += nomanagers
 $(builddir)/snap $(builddir)/snap-seccomp:
-	go build -o $@ $(if $(GO_TAGS),-tags $(GO_TAGS)) \
+	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie -ldflags=-w -mod=vendor \
 		$(import_path)/cmd/$(notdir $@)
 
@@ -73,6 +78,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 	# Explicit request to use an external linker, otherwise extldflags may not be
 	# used
 	go build -o $@ -buildmode=default -mod=vendor \
+		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-ldflags '-linkmode external -extldflags "-static"' \
 		$(import_path)/cmd/$(notdir $@)
 
@@ -80,7 +86,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 # suite to add test assertions. Do not enable this in distribution packages.
 $(builddir)/snapd:
 	go build -o $@ -buildmode=pie -ldflags=-w -mod=vendor \
-		$(if $(with_testkeys),-tags withtestkeys,) \
+		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		$(import_path)/cmd/$(notdir $@)
 
 # Know how to create certain directories.
@@ -188,7 +194,7 @@ endif
 # output that unit tests do not mock.
 .PHONY: check
 check:
-	LC_ALL=C.UTF-8 go test $(import_path)/...
+	LC_ALL=C.UTF-8 go test -mod=vendor $(import_path)/...
 
 .PHONY: clean
 clean:

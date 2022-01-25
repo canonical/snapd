@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -52,7 +53,7 @@ var mockDeviceStructure = gadget.OnDiskStructure{
 			Size: 0x100000,
 		},
 		StartOffset: 0,
-		Index:       1,
+		YamlIndex:   1,
 	},
 	Node: "/dev/node1",
 }
@@ -69,7 +70,7 @@ func (s *encryptSuite) SetUpTest(c *C) {
 	s.mockedRecoveryKey = secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 }
 
-func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
+func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 	for _, tc := range []struct {
 		mockedFormatErr error
 		mockedOpenErr   string
@@ -109,7 +110,7 @@ func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
@@ -117,7 +118,7 @@ func (s *encryptSuite) TestNewEncryptedDevice(c *C) {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 			continue
 		}
-		c.Assert(dev.Node, Equals, "/dev/mapper/some-label")
+		c.Assert(dev.Node(), Equals, "/dev/mapper/some-label")
 
 		err = dev.Close()
 		c.Assert(err, IsNil)
@@ -155,7 +156,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		})
 		defer restore()
 
-		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
+		dev, err := install.NewEncryptedDeviceLUKS(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
 		c.Assert(err, IsNil)
 
 		err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)

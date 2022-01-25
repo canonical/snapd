@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -60,7 +61,7 @@ func (d *Daemon) Overlord() *overlord.Overlord {
 	return d.overlord
 }
 
-func (d *Daemon) RequestedRestart() state.RestartType {
+func (d *Daemon) RequestedRestart() restart.RestartType {
 	return d.requestedRestart
 }
 
@@ -194,6 +195,14 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 	}
 }
 
+func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.SideInfo, []string, int, *snapstate.Flags) ([]*state.TaskSet, error)) func() {
+	old := snapstateInstallPathMany
+	snapstateInstallPathMany = f
+	return func() {
+		snapstateInstallPathMany = old
+	}
+}
+
 type (
 	RespJSON        = respJSON
 	FileResponse    = fileResponse
@@ -228,4 +237,6 @@ var (
 
 	MakeErrorResponder = makeErrorResponder
 	ErrToResponse      = errToResponse
+
+	MaxReadBuflen = maxReadBuflen
 )

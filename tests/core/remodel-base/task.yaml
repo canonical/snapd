@@ -28,27 +28,35 @@ prepare: |
     wait_for_device_initialized_change
 
 restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
-    systemctl stop snapd.service snapd.socket
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        systemctl stop snapd.service snapd.socket
 
-    clean_snapd_lib
-    restore_test_account valid-for-testing
-    restore_test_model valid-for-testing-pc
-    restore_core_model
+        clean_snapd_lib
+        restore_test_account valid-for-testing
+        restore_test_model valid-for-testing-pc
+        restore_core_model
 
-    # kick first boot again
-    systemctl start snapd.service snapd.socket
+        # kick first boot again
+        systemctl start snapd.service snapd.socket
+
+        echo "reboot when the system is ready"
+        for _ in $(seq 30); do
+            if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
+                 break
+            fi
+            sleep 1
+        done
+        REBOOT
+    fi
 
     # wait for first boot to be done
     wait_for_first_boot_change
+
     # extra paranoia because failure to cleanup earlier took us a long time
     # to find
     if [ -e /var/snap/$NEW_BASE/current ]; then

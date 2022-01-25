@@ -39,22 +39,32 @@ func (s *mockDiskSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
+func (s *mockDiskSuite) TestMockDeviceNameToDiskMapping(c *C) {
 	// one disk with different device names
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
+		DevNode:           "/dev/vda",
+		DevPath:           "/sys/devices/foo1",
 	}
 
 	d2 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label2": "part2",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label2",
+				PartitionUUID:   "part2",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d2",
+		DevNode:           "/dev/vdb",
+		DevPath:           "/sys/devices/foo2",
 	}
 
 	m := map[string]*disks.MockDiskMapping{
@@ -63,15 +73,25 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 		"other-disk": d2,
 	}
 
-	r := disks.MockDeviceNameDisksToPartitionMapping(m)
+	r := disks.MockDeviceNameToDiskMapping(m)
 	defer r()
 
 	res, err := disks.DiskFromDeviceName("devName1")
 	c.Assert(err, IsNil)
+	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/foo1")
+	parts, err := res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res, DeepEquals, d1)
 
 	res2, err := disks.DiskFromDeviceName("devName2")
 	c.Assert(err, IsNil)
+	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/foo1")
+	parts, err = res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
 	c.Assert(res2, DeepEquals, d1)
 
 	_, err = disks.DiskFromDeviceName("devName3")
@@ -79,22 +99,174 @@ func (s *mockDiskSuite) TestMockDeviceNameDisksToPartitionMapping(c *C) {
 
 	res3, err := disks.DiskFromDeviceName("other-disk")
 	c.Assert(err, IsNil)
+	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
+	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
+	parts, err = res3.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label2", PartitionUUID: "part2"}})
+	c.Assert(res3, DeepEquals, d2)
+}
+
+func (s *mockDiskSuite) TestMockDevicePathToDiskMapping(c *C) {
+	// one disk with different device paths
+	d1 := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d1",
+		DevNode:           "/dev/vda",
+		DevPath:           "/sys/devices/pci/foo/dev1",
+	}
+
+	d2 := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label2",
+				PartitionUUID:   "part2",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d2",
+		DevNode:           "/dev/vdb",
+		DevPath:           "/sys/devices/foo2",
+	}
+
+	m := map[string]*disks.MockDiskMapping{
+		"/sys/devices/pci/foo/dev1": d1,
+		// this simulates a symlink in /sys/block which points to the above path
+		"/sys/block/dev1": d1,
+
+		// a totally different disk
+		"/sys/device/mmc/bar/dev2": d2,
+	}
+
+	r := disks.MockDevicePathToDiskMapping(m)
+	defer r()
+
+	res, err := disks.DiskFromDevicePath("/sys/devices/pci/foo/dev1")
+	c.Assert(err, IsNil)
+	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/pci/foo/dev1")
+	parts, err := res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
+	c.Assert(res, DeepEquals, d1)
+
+	res2, err := disks.DiskFromDevicePath("/sys/block/dev1")
+	c.Assert(err, IsNil)
+	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/pci/foo/dev1")
+	parts, err = res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
+	c.Assert(res2, DeepEquals, d1)
+
+	_, err = disks.DiskFromDevicePath("/sys/device/nvme/foo/dev3")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("device path %q not mocked", "/sys/device/nvme/foo/dev3"))
+
+	res3, err := disks.DiskFromDevicePath("/sys/device/mmc/bar/dev2")
+	c.Assert(err, IsNil)
+	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
+	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
+	parts, err = res3.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label2", PartitionUUID: "part2"}})
+	c.Assert(res3, DeepEquals, d2)
+}
+
+func (s *mockDiskSuite) TestMockPartitionDeviceNodeToDiskMapping(c *C) {
+	// two disks
+	d1 := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d1",
+		DevNode:           "/dev/vda",
+		DevPath:           "/sys/devices/foo1",
+	}
+
+	d2 := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label2",
+				PartitionUUID:   "part2",
+			},
+		},
+		DiskHasPartitions: true,
+		DevNum:            "d2",
+		DevNode:           "/dev/vdb",
+		DevPath:           "/sys/devices/foo2",
+	}
+
+	m := map[string]*disks.MockDiskMapping{
+		// two partitions on vda
+		"/dev/vda1": d1,
+		"/dev/vda2": d1,
+		// one partition on vdb
+		"/dev/vdb1": d2,
+	}
+
+	r := disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer r()
+
+	res, err := disks.DiskFromPartitionDeviceNode("/dev/vda1")
+	c.Assert(err, IsNil)
+	c.Assert(res.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res.KernelDevicePath(), Equals, "/sys/devices/foo1")
+	parts, err := res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
+	c.Assert(res, DeepEquals, d1)
+
+	res2, err := disks.DiskFromPartitionDeviceNode("/dev/vda2")
+	c.Assert(err, IsNil)
+	c.Assert(res2.KernelDeviceNode(), Equals, "/dev/vda")
+	c.Assert(res2.KernelDevicePath(), Equals, "/sys/devices/foo1")
+	parts, err = res.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label1", PartitionUUID: "part1"}})
+	c.Assert(res2, DeepEquals, d1)
+
+	_, err = disks.DiskFromPartitionDeviceNode("/dev/vda3")
+	c.Assert(err, ErrorMatches, fmt.Sprintf("partition device node %q not mocked", "/dev/vda3"))
+
+	res3, err := disks.DiskFromPartitionDeviceNode("/dev/vdb1")
+	c.Assert(err, IsNil)
+	c.Assert(res3.KernelDeviceNode(), Equals, "/dev/vdb")
+	c.Assert(res3.KernelDevicePath(), Equals, "/sys/devices/foo2")
+	parts, err = res3.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{{FilesystemLabel: "label2", PartitionUUID: "part2"}})
 	c.Assert(res3, DeepEquals, d2)
 }
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniqueness(c *C) {
 	// two different disks with different DevNum's
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
 	}
 
 	d2 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: false,
 		DevNum:            "d2",
@@ -133,8 +305,11 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesUniquen
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesConsistency(c *C) {
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
@@ -158,22 +333,24 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingVerifiesConsist
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label1": "part1",
-		},
-		PartitionLabelToPartUUID: map[string]string{
-			"part-label1": "part1",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label1",
+				PartitionUUID:   "part1",
+				PartitionLabel:  "part-label1",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
 	}
 
 	d2 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"label2": "part2",
-		},
-		PartitionLabelToPartUUID: map[string]string{
-			"part-label2": "part2",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "label2",
+				PartitionUUID:   "part2",
+				PartitionLabel:  "part-label2",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d2",
@@ -201,6 +378,29 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	uuid, err = foundDisk.FindMatchingPartitionUUIDWithPartLabel("part-label1")
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "part1")
+
+	part, err := foundDisk.FindMatchingPartitionWithFsLabel("label1")
+	c.Assert(err, IsNil)
+	c.Assert(part, DeepEquals, disks.Partition{
+		PartitionLabel:  "part-label1",
+		FilesystemLabel: "label1",
+		PartitionUUID:   "part1",
+	})
+
+	part, err = foundDisk.FindMatchingPartitionWithPartLabel("part-label1")
+	c.Assert(err, IsNil)
+	c.Assert(part, DeepEquals, disks.Partition{
+		PartitionLabel:  "part-label1",
+		FilesystemLabel: "label1",
+		PartitionUUID:   "part1",
+	})
+
+	// and it has the right set of partitions
+	parts, err := foundDisk.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{
+		{PartitionLabel: "part-label1", FilesystemLabel: "label1", PartitionUUID: "part1"},
+	})
 
 	// the same mount point is always from the same disk
 	matches, err := foundDisk.MountPointIsFromDisk("mount1", nil)
@@ -231,6 +431,29 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(uuid, Equals, "part2")
 
+	part, err = foundDisk2.FindMatchingPartitionWithFsLabel("label2")
+	c.Assert(err, IsNil)
+	c.Assert(part, DeepEquals, disks.Partition{
+		PartitionLabel:  "part-label2",
+		FilesystemLabel: "label2",
+		PartitionUUID:   "part2",
+	})
+
+	part, err = foundDisk2.FindMatchingPartitionWithPartLabel("part-label2")
+	c.Assert(err, IsNil)
+	c.Assert(part, DeepEquals, disks.Partition{
+		PartitionLabel:  "part-label2",
+		FilesystemLabel: "label2",
+		PartitionUUID:   "part2",
+	})
+
+	// and it has the right set of partitions
+	parts, err = foundDisk2.Partitions()
+	c.Assert(err, IsNil)
+	c.Assert(parts, DeepEquals, []disks.Partition{
+		{PartitionLabel: "part-label2", FilesystemLabel: "label2", PartitionUUID: "part2"},
+	})
+
 	// we can't find label1 from mount1's or mount2's disk
 	_, err = foundDisk2.FindMatchingPartitionUUIDWithFsLabel("label1")
 	c.Assert(err, ErrorMatches, "filesystem label \"label1\" not found")
@@ -257,10 +480,19 @@ func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMapping(c *C) {
 
 func (s *mockDiskSuite) TestMockMountPointDisksToPartitionMappingDecryptedDevices(c *C) {
 	d1 := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-seed":     "ubuntu-seed-part",
-			"ubuntu-boot":     "ubuntu-boot-part",
-			"ubuntu-data-enc": "ubuntu-data-enc-part",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "ubuntu-seed",
+				PartitionUUID:   "ubuntu-seed-part",
+			},
+			{
+				FilesystemLabel: "ubuntu-boot",
+				PartitionUUID:   "ubuntu-boot-part",
+			},
+			{
+				FilesystemLabel: "ubuntu-data-enc",
+				PartitionUUID:   "ubuntu-data-enc-part",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "d1",
