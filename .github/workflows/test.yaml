@@ -276,7 +276,6 @@ jobs:
         - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-21.04-64
         - ubuntu-21.10-64
         - ubuntu-22.04-64
         - ubuntu-core-16-64
@@ -364,7 +363,6 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-21.04-64
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
