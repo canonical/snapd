@@ -754,9 +754,7 @@ func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
 	v, ok := lookupAttr(attrs, key)
 	if !ok {
-		return AttributeNotFoundError{
-			fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName),
-		}
+		return AttributeNotFoundError{fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)}
 	}
 
 	return metautil.SetValueFromAttribute(snapName, ifaceName, key, v, val)
