@@ -648,6 +648,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                  bpftool
                  strace
+                 systemd-timesyncd
                  "
             ;;
     esac
