@@ -123,3 +123,15 @@ execute: |
     # since the service is up, we'll observe that a new program was loaded
     dump_cgroup_device_progs > cgroup_device.progs-4
     test "$(wc -l < cgroup_device.progs-1)" -lt "$(wc -l < cgroup_device.progs-4)"
+
+    # unmount /sys/fs/bpf and observe how s-c- restores it
+    echo "Verify the bpffs mount is created when needed"
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-service_sh
+    umount /sys/fs/bpf
+    NOMATCH /sys/fs/bpf < /proc/self/mountinfo
+    snap run test-snapd-service.sh -c '/bin/true'
+    # the mount has been restored
+    MATCH /sys/fs/bpf < /proc/self/mountinfo
+    # and the map pin is present
+    echo "Verify that device access map for the application is present and is pinned to a file"
+    test -e /sys/fs/bpf/snap/snap_test-snapd-service_sh
