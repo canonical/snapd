@@ -41,7 +41,6 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -103,7 +102,7 @@ func (m *extMutex) Taken(errMsg string) {
 
 // MockNewSystemd can be used to replace the constructor of the
 // Systemd types with a function that returns a mock object.
-func MockNewSystemd(f func(be Backend, rootDir string, mode InstanceMode, rep Reporter, legacy bool) Systemd) func() {
+func MockNewSystemd(f func(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
 	oldNewSystemd := newSystemd
 	newSystemd = f
 	return func() {
@@ -411,10 +410,10 @@ type Reporter interface {
 	Notify(string)
 }
 
-func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter, legacy bool) Systemd {
+func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd {
 	switch be {
 	case RunningSystemdBackend:
-		return &systemd{rootDir: rootDir, mode: mode, reporter: rep, legacy: legacy}
+		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 	case EmulationModeBackend:
 		return &emulation{rootDir: rootDir}
 	default:
@@ -422,40 +421,15 @@ func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter,
 	}
 }
 
-// MIN_UBUNTU_RELEASE is the Ubuntu release from where we consider systemd being legacy version
-const MIN_UBUNTU_RELEASE = 18
-
-// Based on the release info, determine if systemd should be run in legacy mode
-// or in "smart" mode when we try to avoid daemon-reload calls
-// staying on the safe side, any other than Ubuntu systems are by default in legacy mode
-func legacySystemd() bool {
-	legacy := true
-	// we act smart on Ubuntu Core 20 and Ubuntu 20.04 and newer
-	if "ubuntu-core" == release.ReleaseInfo.ID {
-		ver, err := strconv.Atoi(release.ReleaseInfo.VersionID)
-		if err == nil && ver >= MIN_UBUNTU_RELEASE {
-			legacy = false
-		}
-	} else if "ubuntu" == release.ReleaseInfo.ID {
-		if 2 < len(release.ReleaseInfo.VersionID) {
-			ver, err := strconv.Atoi(release.ReleaseInfo.VersionID[0:2])
-			if err == nil && ver >= MIN_UBUNTU_RELEASE {
-				legacy = false
-			}
-		}
-	}
-	return legacy
-}
-
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
 func New(mode InstanceMode, rep Reporter) Systemd {
-	return newSystemd(RunningSystemdBackend, "", mode, rep, legacySystemd())
+	return newSystemd(RunningSystemdBackend, "", mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
 func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
-	return newSystemd(RunningSystemdBackend, rootDir, mode, rep, legacySystemd())
+	return newSystemd(RunningSystemdBackend, rootDir, mode, rep)
 }
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
@@ -465,7 +439,7 @@ func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
 		rootDir = dirs.GlobalRootDir
 	}
-	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil, legacySystemd())
+	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -490,7 +464,6 @@ type systemd struct {
 	rootDir  string
 	reporter Reporter
 	mode     InstanceMode
-	legacy   bool
 }
 
 func (s *systemd) systemctl(args ...string) ([]byte, error) {
