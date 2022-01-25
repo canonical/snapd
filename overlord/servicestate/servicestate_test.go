@@ -86,6 +86,7 @@ Names=%[1]s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
+NeedDaemonReload=no
 `, args[2], activeState, unitState)), nil
 			}
 		case "--user":
@@ -312,7 +313,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	defer st.Unlock()
 
 	// make a quota group
-	grp, err := quota.NewGroup("foogroup", quantity.SizeGiB)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	grp.Snaps = []string{"foosnap"}

@@ -304,3 +304,14 @@ override_dh_auto_clean:
 
 override_dh_gencontrol:
 	dh_gencontrol -- -VBuilt-Using="$(BUILT_USING)" $(SUBSTVARS)
+
+override_dh_systemd_start:
+	# Due to https://github.com/systemd/systemd/issues/8102
+	# debhelper supporting --remaining like behaviour here would
+	# have been useful
+	# (Re-)start socket first
+	dh_systemd_start snapd.socket
+	# Then service
+	dh_systemd_start snapd.service
+	# Then the rest
+	dh_systemd_start $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))

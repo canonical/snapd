@@ -29,7 +29,7 @@ import (
 
 type cmdNewSnapRevision struct {
 	Positional struct {
-		Snap string
+		Snap string `description:"Snap file"`
 	} `positional-args:"yes"`
 
 	TopDir          string `long:"dir" description:"Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions"`
@@ -58,6 +58,14 @@ func (x *cmdNewSnapRevision) Execute(args []string) error {
 
 var shortNewSnapRevisionHelp = "Make new snap revision"
 
+var longNewSnapRevisionHelp = `
+Generate snap revision signed with test keys. By default the snap
+name and snap ID are derived from the file name. If not overriding
+the snap name or ID via JSON, make sure to use the same file name
+as when generating snap declaration.
+`
+
 func init() {
-	parser.AddCommand("new-snap-revision", shortNewSnapRevisionHelp, "", &cmdNewSnapRevision{})
+	parser.AddCommand("new-snap-revision", shortNewSnapRevisionHelp, longNewSnapRevisionHelp,
+		&cmdNewSnapRevision{})
 }

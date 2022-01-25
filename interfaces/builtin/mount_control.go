@@ -211,21 +211,13 @@ func parseStringList(mountEntry map[string]interface{}, fieldName string) ([]str
 }
 
 func enumerateMounts(plug interfaces.Attrer, fn func(mountInfo *MountInfo) error) error {
-	mountAttr, ok := plug.Lookup("mount")
-	if !ok {
-		return nil
-	}
-	mounts, ok := mountAttr.([]interface{})
-	if !ok {
+	var mounts []map[string]interface{}
+	err := plug.Attr("mount", &mounts)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return mountAttrTypeError
 	}
 
-	for _, m := range mounts {
-		mount, ok := m.(map[string]interface{})
-		if !ok {
-			return mountAttrTypeError
-		}
-
+	for _, mount := range mounts {
 		what, ok := mount["what"].(string)
 		if !ok {
 			return fmt.Errorf(`mount-control "what" must be a string`)
@@ -375,6 +367,12 @@ func validateMountInfo(mountInfo *MountInfo) error {
 		}
 	} else if isTmpfs {
 		return fmt.Errorf(`mount-control "what" attribute must be "none" with "tmpfs"; found %q instead`, mountInfo.what)
+	}
+
+	// Until we have a clear picture of how this should work, disallow creating
+	// persistent mounts into $SNAP_DATA
+	if mountInfo.persistent && strings.HasPrefix(mountInfo.where, "$SNAP_DATA") {
+		return errors.New(`mount-control "persistent" attribute cannot be used to mount onto $SNAP_DATA`)
 	}
 
 	return nil

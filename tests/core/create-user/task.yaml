@@ -21,7 +21,7 @@ debug: |
     fi
 
 execute: |
-    if [ "$MANAGED_DEVICE" = "true" ]; then
+    if [ "$(snap managed)" = "true" ]; then
         # Leave a file indicating the device was initially managed
         touch managed.device
 

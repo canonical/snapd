@@ -289,11 +289,11 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-21.04-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
-            ;;
         ubuntu-21.10-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-22.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/jammy-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -314,11 +314,11 @@ nested_get_ubuntu_image_url_for_vm() {
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-21.04-64*)
-            echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
-            ;;
         ubuntu-21.10-64*)
             echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-22.04-64*)
+            echo "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -590,7 +590,11 @@ nested_create_core_vm() {
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
             # create the ubuntu-core image
-            local UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+            if os.query is-xenial; then
+                # ubuntu-image on 16.04 needs to be installed from a snap
+                UBUNTU_IMAGE=/snap/bin/ubuntu-image
+            fi
             local EXTRA_FUNDAMENTAL=""
             local EXTRA_SNAPS=""
             for mysnap in $(nested_get_extra_snaps); do
@@ -745,11 +749,22 @@ EOF
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
             # ubuntu-image creates sparse image files
+            # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
-                "$UBUNTU_IMAGE_CHANNEL_ARG" \
-                --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
-                "$EXTRA_FUNDAMENTAL" \
-                "$EXTRA_SNAPS"
+                $UBUNTU_IMAGE_CHANNEL_ARG \
+                --output-dir "$NESTED_IMAGES_DIR" \
+                $EXTRA_FUNDAMENTAL \
+                $EXTRA_SNAPS
+            # ubuntu-image dropped the --output parameter, so we have to rename
+            # the image ourselves, the images are named after volumes listed in
+            # gadget.yaml
+            find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
+                if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+                    echo "Image $IMAGE_NAME file already present"
+                    exit 1
+                fi
+                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+            done
             unset SNAPPY_FORCE_SAS_URL
             unset UBUNTU_IMAGE_SNAP_CMD
         fi
