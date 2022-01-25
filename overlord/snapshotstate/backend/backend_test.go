@@ -54,6 +54,7 @@ import (
 )
 
 type snapshotSuite struct {
+	testutil.BaseTest
 	root      string
 	restore   []func()
 	tarPath   string
@@ -99,6 +100,7 @@ func table(si snap.PlaceInfo, homeDir string) []tableT {
 }
 
 func (s *snapshotSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
 	s.root = c.MkDir()
 
 	dirs.SetRootDir(s.root)

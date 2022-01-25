@@ -45,6 +45,11 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
+        ubuntu-22.04-64)
+            os.query is-jammy
+            os.query is-classic
+            ! os.query is-core
+            ;;
         debian-10-64)
             os.query is-debian
             os.query is-debian-10
