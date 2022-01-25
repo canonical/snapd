@@ -8,8 +8,7 @@ systems:
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*
   - -ubuntu-20.04-*
-  # using ubuntu-21.10-* would also disable ubuntu-21.10-64-cgroupv2
-  - -ubuntu-21.10-64
+  - -ubuntu-21.04-*
   - -ubuntu-core-*
   - -debian-9-*
   - -debian-10-*
