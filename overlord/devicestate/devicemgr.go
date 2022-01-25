@@ -187,7 +187,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 }
 
 func ensureFileDirPermissions() error {
-	// ensure the void dir has correct permissions
+	// Ensure the /var/lib/snapd/void dir has correct permissions, we
+	// do this in the postinst for classic systems already but it's
+	// needed here for Core systems.
 	st, err := os.Stat(dirs.SnapVoidDir)
 	if err == nil && st.Mode().Perm() != 0111 {
 		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
