@@ -79,14 +79,14 @@ func (s *attrMatcherSuite) TestSimple(c *C) {
 		"baz": "BAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^\(BAR\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BAZ" does not match \^\(BAR\)\$`)
 
 	values = map[string]interface{}{
 		"foo": "FOO",
 		"baz": "BAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" has constraints but is unset`)
+	c.Check(err, ErrorMatches, `field "bar" has constraints but is unset`)
 }
 
 func (s *attrMatcherSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
@@ -107,25 +107,25 @@ func (s *attrMatcherSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
 		"bar": "BARR",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
 
 	values = map[string]interface{}{
 		"bar": "BBAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
 
 	values = map[string]interface{}{
 		"bar": "BABAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
 
 	values = map[string]interface{}{
 		"bar": "BARAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
 }
 
 func (s *attrMatcherSuite) TestNested(c *C) {
@@ -154,7 +154,7 @@ foo: FOO
 bar: BAZ
 baz: BAZ
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "bar" must be a map`)
+	c.Check(err, ErrorMatches, `field "bar" must be a map`)
 
 	err = domatch(vals(`
 foo: FOO
@@ -164,7 +164,7 @@ bar:
   bar3: BAR3
 baz: BAZ
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "bar\.bar2" value "BAR22" does not match \^\(BAR2\)\$`)
+	c.Check(err, ErrorMatches, `field "bar\.bar2" value "BAR22" does not match \^\(BAR2\)\$`)
 
 	err = domatch(vals(`
 foo: FOO
@@ -175,7 +175,7 @@ bar:
   bar3: BAR3
 baz: BAZ
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "bar\.bar2" must be a scalar or list`)
+	c.Check(err, ErrorMatches, `field "bar\.bar2" must be a scalar or list`)
 }
 
 func (s *attrMatcherSuite) TestAlternative(c *C) {
@@ -213,7 +213,7 @@ func (s *attrMatcherSuite) TestAlternative(c *C) {
 		"baz": "BAR",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^\(BAR\)\$`)
+	c.Check(err, ErrorMatches, `no alternative matches: field "bar" value "BARR" does not match \^\(BAR\)\$`)
 }
 
 func (s *attrMatcherSuite) TestNestedAlternative(c *C) {
@@ -251,7 +251,7 @@ bar:
   bar1: BAR1
   bar2: BAR3
 `), nil)
-	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
+	c.Check(err, ErrorMatches, `no alternative for field "bar\.bar2" matches: field "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
 }
 
 func (s *attrMatcherSuite) TestAlternativeMatchingStringList(c *C) {
@@ -344,7 +344,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
 	c.Assert(err, IsNil)
 
 	err = domatchExtensiveNoMatch(toMatch, nil)
-	c.Check(err, ErrorMatches, `no alternative for attribute "mnt\.0" matches: no alternative for attribute "mnt\.0.options\.1" matches:.*`)
+	c.Check(err, ErrorMatches, `no alternative for field "mnt\.0" matches: no alternative for field "mnt\.0.options\.1" matches:.*`)
 }
 
 func (s *attrMatcherSuite) TestOtherScalars(c *C) {
@@ -443,7 +443,7 @@ foo: ["/foo/x", "/foo/y"]
 	err = domatch(vals(`
 foo: ["/foo/x", "/foo"]
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "foo\.1" value "/foo" does not match \^\(/foo/\.\*\)\$`)
+	c.Check(err, ErrorMatches, `field "foo\.1" value "/foo" does not match \^\(/foo/\.\*\)\$`)
 }
 
 func (s *attrMatcherSuite) TestMissingCheck(c *C) {
@@ -462,7 +462,7 @@ bar: baz
 	err = domatch(vals(`
 foo: ["x"]
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "foo" is constrained to be missing but is set`)
+	c.Check(err, ErrorMatches, `field "foo" is constrained to be missing but is set`)
 }
 
 func (s *attrMatcherSuite) TestEvalCheck(c *C) {
@@ -479,7 +479,7 @@ func (s *attrMatcherSuite) TestEvalCheck(c *C) {
 foo: foo
 bar: bar
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "(foo|bar)" cannot be matched without context`)
+	c.Check(err, ErrorMatches, `field "(foo|bar)" cannot be matched without context`)
 
 	calls := make(map[[2]string]bool)
 	comp1 := func(op string, arg string) (interface{}, error) {
@@ -509,7 +509,7 @@ bar: bar.baz
 foo: foo
 bar: bar.baz
 `), testEvalAttr{comp2})
-	c.Check(err, ErrorMatches, `attribute "bar" constraint \$PLUG\(bar\.baz\) cannot be evaluated: boom`)
+	c.Check(err, ErrorMatches, `field "bar" constraint \$PLUG\(bar\.baz\) cannot be evaluated: boom`)
 
 	comp3 := func(op string, arg string) (interface{}, error) {
 		if op == "slot" {
@@ -522,7 +522,7 @@ bar: bar.baz
 foo: foo
 bar: bar.baz
 `), testEvalAttr{comp3})
-	c.Check(err, ErrorMatches, `attribute "foo" does not match \$SLOT\(foo\): foo != other-value`)
+	c.Check(err, ErrorMatches, `field "foo" does not match \$SLOT\(foo\): foo != other-value`)
 }
 
 func (s *attrMatcherSuite) TestMatchingListsMap(c *C) {
@@ -542,5 +542,5 @@ foo: [{p: "/foo/x"}, {p: "/foo/y"}]
 	err = domatch(vals(`
 foo: [{p: "zzz"}, {p: "/foo/y"}]
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
+	c.Check(err, ErrorMatches, `field "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
 }

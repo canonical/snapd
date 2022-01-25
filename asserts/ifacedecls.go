@@ -90,7 +90,10 @@ type Attrer interface {
 
 // Check checks whether attrs don't match the constraints.
 func (c *AttributeConstraints) Check(attrer Attrer, helper AttrMatchContext) error {
-	return c.matcher.match("", attrer, &attrMatchingContext{helper: helper})
+	return c.matcher.match("", attrer, &attrMatchingContext{
+		attrWord: "attribute",
+		helper:   helper,
+	})
 }
 
 // SideArityConstraint specifies a constraint for the overall arity of

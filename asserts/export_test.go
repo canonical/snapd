@@ -303,7 +303,10 @@ func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (fu
 		return nil, err
 	}
 	domatch := func(attrs map[string]interface{}, helper AttrMatchContext) error {
-		return matcher.match("", attrs, &attrMatchingContext{helper: helper})
+		return matcher.match("", attrs, &attrMatchingContext{
+			attrWord: "field",
+			helper:   helper,
+		})
 	}
 	return domatch, nil
 }

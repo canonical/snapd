@@ -37,7 +37,9 @@ const (
 )
 
 type attrMatchingContext struct {
-	helper AttrMatchContext
+	// attrWord is the usage context word for "attribute"
+	attrWord string
+	helper   AttrMatchContext
 }
 
 type attrMatcher interface {
@@ -137,7 +139,7 @@ func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx *attrM
 	apath = chain(apath, k)
 	// every entry matcher expects the attribute to be set except for $MISSING
 	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
-		return fmt.Errorf("attribute %q has constraints but is unset", apath)
+		return fmt.Errorf("%s %q has constraints but is unset", ctx.attrWord, apath)
 	}
 	if err := matcher1.match(apath, v, ctx); err != nil {
 		return err
@@ -182,7 +184,7 @@ func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx *attrMatchi
 	case []interface{}:
 		return matchList(apath, matcher, x, ctx)
 	default:
-		return fmt.Errorf("attribute %q must be a map", apath)
+		return fmt.Errorf("%s %q must be a map", ctx.attrWord, apath)
 	}
 	return nil
 }
@@ -195,7 +197,7 @@ func (matcher missingAttrMatcher) feature(flabel string) bool {
 
 func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	if v != nil {
-		return fmt.Errorf("attribute %q is constrained to be missing but is set", apath)
+		return fmt.Errorf("%s %q is constrained to be missing but is set", ctx.attrWord, apath)
 	}
 	return nil
 }
@@ -241,7 +243,7 @@ func (matcher evalAttrMatcher) feature(flabel string) bool {
 
 func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	if ctx.helper == nil {
-		return fmt.Errorf("attribute %q cannot be matched without context", apath)
+		return fmt.Errorf("%s %q cannot be matched without context", ctx.attrWord, apath)
 	}
 	var comp func(string) (interface{}, error)
 	switch matcher.op {
@@ -252,10 +254,10 @@ func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx *attrMatch
 	}
 	v1, err := comp(matcher.arg)
 	if err != nil {
-		return fmt.Errorf("attribute %q constraint $%s(%s) cannot be evaluated: %v", apath, matcher.op, matcher.arg, err)
+		return fmt.Errorf("%s %q constraint $%s(%s) cannot be evaluated: %v", ctx.attrWord, apath, matcher.op, matcher.arg, err)
 	}
 	if !reflect.DeepEqual(v, v1) {
-		return fmt.Errorf("attribute %q does not match $%s(%s): %v != %v", apath, matcher.op, matcher.arg, v, v1)
+		return fmt.Errorf("%s %q does not match $%s(%s): %v != %v", ctx.attrWord, apath, matcher.op, matcher.arg, v, v1)
 	}
 	return nil
 }
@@ -288,10 +290,10 @@ func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx *attrMat
 	case []interface{}:
 		return matchList(apath, matcher, x, ctx)
 	default:
-		return fmt.Errorf("attribute %q must be a scalar or list", apath)
+		return fmt.Errorf("%s %q must be a scalar or list", ctx.attrWord, apath)
 	}
 	if !matcher.Regexp.MatchString(s) {
-		return fmt.Errorf("attribute %q value %q does not match %v", apath, s, matcher.Regexp)
+		return fmt.Errorf("%s %q value %q does not match %v", ctx.attrWord, apath, s, matcher.Regexp)
 	}
 	return nil
 
@@ -347,7 +349,7 @@ func (matcher altAttrMatcher) match(apath string, v interface{}, ctx *attrMatchi
 	}
 	apathDescr := ""
 	if apath != "" {
-		apathDescr = fmt.Sprintf(" for attribute %q", apath)
+		apathDescr = fmt.Sprintf(" for %s %q", ctx.attrWord, apath)
 	}
 	return fmt.Errorf("no alternative%s matches: %v", apathDescr, firstErr)
 }
