@@ -10,6 +10,7 @@ show_help() {
 	echo "    stray-dbus-daemon: at most one dbus-daemon is running"
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
+	echo "    leftover-user-units: no systemd user unit should be left behind"
 }
 
 if [ $# -eq 0 ]; then
@@ -173,7 +174,7 @@ check_invariant() {
 		broken-snaps)
 			check_broken_snaps "$1"
 			;;
-		leftover_user_units)
+		leftover-user-units)
 			check_leftover_user_units "$1"
 			;;
 		*)
@@ -184,7 +185,7 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps leftover_user_units"
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps leftover-user-units"
 
 	case "$action" in
 		check)
