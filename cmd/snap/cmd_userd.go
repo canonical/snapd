@@ -1,8 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !darwin
 // +build !darwin
 
 /*
- * Copyright (C) 2017-2019 Canonical Ltd
+ * Copyright (C) 2017-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,17 +25,22 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/usersession/autostart"
 	"github.com/snapcore/snapd/usersession/userd"
 )
+
+var autostartSessionApps = autostart.AutostartSessionApps
 
 type cmdUserd struct {
 	Autostart bool `long:"autostart"`
@@ -87,19 +93,21 @@ func (x *cmdUserd) Execute(args []string) error {
 	}
 
 	if x.Autostart {
-		// get the user's snap dir ($HOME/snap or $HOME/.snap/data)
-		usrSnapDir, err := getUserSnapDir()
+		// there may be two snap dirs (~/snap and ~/.snap/data)
+		usrSnapDirs, err := getUserSnapDirs()
 		if err != nil {
 			return err
 		}
 
-		// autostart is called when starting the graphical session, use that as
-		// an opportunity to fix ~/snap permission bits
-		if err := maybeFixupUsrSnapPermissions(usrSnapDir); err != nil {
-			fmt.Fprintf(Stderr, "failure fixing ~/snap permissions: %v\n", err)
+		for _, usrSnapDir := range usrSnapDirs {
+			// autostart is called when starting the graphical session, use that as
+			// an opportunity to fix snap dir permission bits
+			if err := maybeFixupUsrSnapPermissions(usrSnapDir); err != nil {
+				fmt.Fprintf(Stderr, "failure fixing %s permissions: %v\n", usrSnapDir, err)
+			}
 		}
 
-		return x.runAutostart(usrSnapDir)
+		return x.runAutostart(usrSnapDirs)
 	}
 
 	if x.Agent {
@@ -152,10 +160,20 @@ func (x *cmdUserd) runAgent() error {
 	return agent.Stop()
 }
 
-func (x *cmdUserd) runAutostart(usrSnapDir string) error {
-	if err := autostart.AutostartSessionApps(usrSnapDir); err != nil {
-		return fmt.Errorf("autostart failed for the following apps:\n%v", err)
+func (x *cmdUserd) runAutostart(usrSnapDirs []string) error {
+	var sb strings.Builder
+	for _, usrSnapDir := range usrSnapDirs {
+		if err := autostartSessionApps(usrSnapDir); err != nil {
+			// try to run autostart for others
+			sb.WriteString(err.Error())
+			sb.WriteRune('\n')
+		}
 	}
+
+	if sb.Len() > 0 {
+		return fmt.Errorf("autostart failed:\n%s", sb.String())
+	}
+
 	return nil
 }
 
@@ -166,12 +184,23 @@ func signalNotifyImpl(sig ...os.Signal) (ch chan os.Signal, stop func()) {
 	return ch, stop
 }
 
-func getUserSnapDir() (string, error) {
+func getUserSnapDirs() ([]string, error) {
 	usr, err := userCurrent()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	opts := getSnapDirOptions()
-	return snap.SnapDir(usr.HomeDir, opts), nil
+	var snapDirsInUse []string
+	exposedSnapDir := snap.SnapDir(usr.HomeDir, nil)
+	hiddenSnapDir := snap.SnapDir(usr.HomeDir, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+
+	for _, dir := range []string{exposedSnapDir, hiddenSnapDir} {
+		if exists, _, err := osutil.DirExists(dir); err != nil {
+			return nil, err
+		} else if exists {
+			snapDirsInUse = append(snapDirsInUse, dir)
+		}
+	}
+
+	return snapDirsInUse, nil
 }

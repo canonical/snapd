@@ -603,6 +603,7 @@ Names=%[1]s
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `, args[2])), nil
 		case "--user":
 			c.Check(args[1], Equals, "--global")
@@ -635,6 +636,7 @@ Names=snap.test-snap.test-service.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `), nil
 	})
 	defer restore()

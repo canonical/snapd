@@ -294,6 +294,9 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 }
 
 func (s *apiBaseSuite) resetDaemon() {
+	if s.d != nil {
+		s.d.Overlord().Stop()
+	}
 	s.d = nil
 }
 

@@ -26,12 +26,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap/naming"
@@ -303,7 +303,7 @@ type Info struct {
 	Broken string
 
 	// The information in these fields is ephemeral, available only from the
-	// store.
+	// store or when read from a snap file.
 	DownloadInfo
 
 	Prices  map[string]float64
@@ -707,6 +707,17 @@ type DeltaInfo struct {
 // sanity check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
 
+type AttributeNotFoundError struct{ Err error }
+
+func (e AttributeNotFoundError) Error() string {
+	return e.Err.Error()
+}
+
+func (e AttributeNotFoundError) Is(target error) bool {
+	_, ok := target.(AttributeNotFoundError)
+	return ok
+}
+
 // PlugInfo provides information about a plug.
 type PlugInfo struct {
 	Snap *Info
@@ -743,21 +754,10 @@ func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
 func getAttribute(snapName string, ifaceName string, attrs map[string]interface{}, key string, val interface{}) error {
 	v, ok := lookupAttr(attrs, key)
 	if !ok {
-		return fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)
+		return AttributeNotFoundError{fmt.Errorf("snap %q does not have attribute %q for interface %q", snapName, key, ifaceName)}
 	}
 
-	rt := reflect.TypeOf(val)
-	if rt.Kind() != reflect.Ptr || val == nil {
-		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", key, ifaceName)
-	}
-
-	if reflect.TypeOf(v) != rt.Elem() {
-		return fmt.Errorf("snap %q has interface %q with invalid value type for %q attribute", snapName, ifaceName, key)
-	}
-	rv := reflect.ValueOf(val)
-	rv.Elem().Set(reflect.ValueOf(v))
-
-	return nil
+	return metautil.SetValueFromAttribute(snapName, ifaceName, key, v, val)
 }
 
 func (plug *PlugInfo) Attr(key string, val interface{}) error {

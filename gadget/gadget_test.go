@@ -621,6 +621,19 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	})
 }
 
+var mockGadgetWithEmptyVolumes = `device-tree-origin: kernel
+volumes:
+  lun-0:
+`
+
+func (s *gadgetYamlTestSuite) TestRegressionGadgetWithEmptyVolume(c *C) {
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(mockGadgetWithEmptyVolumes), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, ErrorMatches, `volume "lun-0" stanza is empty`)
+}
+
 func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
@@ -2927,8 +2940,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 		gadget.OnDiskStructure{
 			LaidOutStructure: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{
-					Name: "Writable",
-					// Role:       "system-data",
+					Name:       "Writable",
 					Size:       1200 * quantity.SizeMiB,
 					Label:      "writable",
 					Filesystem: "something_else",
@@ -2947,7 +2959,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// have already been created will fail
 	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, opts)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match: declared as ext4, got something_else`)
 
 	// we are going to manipulate last structure, which has system-data role
 	c.Assert(gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role, Equals, gadget.SystemData)
@@ -2961,7 +2973,12 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// now we fail to find the /dev/node2 structure from the gadget on disk
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match and the partition is not creatable at install`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match \(and the partition is not creatable at install\): declared as ext4, got something_else`)
+
+	// note that we don't get the bit about "and the partition is not creatable at install"
+	// if we set the strict option, which is not set at install
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, opts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match: declared as ext4, got something_else`)
 
 	// undo the role change
 	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemData
@@ -2984,6 +3001,60 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 	// but a smaller partition on disk for SystemData role is okay
 	gadgetLayoutWithExtras.Structure[len(gadgetLayoutWithExtras.Structure)-1].Role = gadget.SystemData
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayout, nil)
+	c.Assert(err, IsNil)
+}
+
+const mockExtraNonInstallableStructureWithoutFilesystem = `
+      - name: foobar
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1200M
+`
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesystemOnDiskHasFilesystem(c *C) {
+	gadgetLayoutWithNonInstallableStructureWithoutFs, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraNonInstallableStructureWithoutFilesystem, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockDeviceLayout
+
+	// device matches, but it has a filesystem
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		gadget.OnDiskStructure{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "foobar",
+					Size:       1200 * quantity.SizeMiB,
+					Label:      "whatever",
+					Filesystem: "something",
+				},
+				StartOffset: 2 * quantity.OffsetMiB,
+			},
+			Node: "/dev/node2",
+		},
+	)
+
+	// with no/default opts, then they are compatible
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithNonInstallableStructureWithoutFs, &deviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// still compatible with strict opts
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithNonInstallableStructureWithoutFs, &deviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithImplicitSystemData(c *C) {
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := uc16DeviceLayout
+
+	// with no/default opts, then they are not compatible
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
+
+	// compatible with AllowImplicitSystemData however
+	opts := &gadget.EnsureLayoutCompatibilityOptions{
+		AllowImplicitSystemData: true,
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, opts)
 	c.Assert(err, IsNil)
 }
 
@@ -3072,7 +3143,7 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 					OriginalDevicePath: "/dev/vdb1",
 					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb/vdb1",
 					PartitionUUID:      "C06F16ED-A587-4D0E-8EE4-2C3AE8BECE68",
-					PartitionLabel:     "barething",
+					PartitionLabel:     "nofspart",
 					PartitionType:      "EBBEADAF-22C9-E33B-8F5D-0E81686A68CB",
 					Offset:             0x100000,
 					Size:               0x1000,
@@ -3313,4 +3384,168 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(m3, DeepEquals, expPiMap)
+}
+
+// adapted from https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
+// but without the content
+const mockUC16YAMLImplicitSystemData = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        filesystem-label: system-boot
+        size: 50M
+`
+
+// uc16 layout from a VM that has an implicit system-data as the third
+// partition
+var uc16DeviceLayout = gadget.OnDiskVolume{
+	Structure: []gadget.OnDiskStructure{
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "BIOS Boot",
+					Type: "21686148-6449-6E6F-744E-656564454649",
+					ID:   "b2e891ee-b971-4a2b-b874-694bbf9b821a",
+					Size: 1048576,
+				},
+				StartOffset: 1048576,
+			},
+			DiskIndex: 1,
+			Node:      "/dev/sda1",
+			Size:      1048576,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "EFI System",
+					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+					ID:         "a87e9dcb-b1e1-4eab-89cf-1c2fc057b038",
+					Label:      "system-boot",
+					Filesystem: "vfat",
+					Size:       52428800,
+				},
+				StartOffset: 2097152,
+			},
+			DiskIndex: 2,
+			Node:      "/dev/sda2",
+			Size:      52428800,
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "writable",
+					Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+					ID:         "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
+					Label:      "writable",
+					Filesystem: "ext4",
+					Size:       10682875392,
+				},
+				StartOffset: 54525952,
+			},
+			DiskIndex: 3,
+			Node:      "/dev/sda3",
+			Size:      10682875392,
+		},
+	},
+	ID:               "2a9b0671-4597-433b-b3ad-be99950e8c5e",
+	Device:           "/dev/sda",
+	Schema:           "gpt",
+	Size:             10737418240,
+	UsableSectorsEnd: 20971487,
+	SectorSize:       512,
+}
+
+func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Implicit(c *C) {
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := uc16DeviceLayout
+
+	// bios boot is not implicit system-data
+	matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[0])
+	c.Assert(matches, Equals, false)
+
+	// EFI system / system-boot is not implicit system-data
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[1])
+	c.Assert(matches, Equals, false)
+
+	// system-data is though
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, true)
+
+	// the size of the partition does not matter when it comes to being a
+	// candidate implicit system-data
+	oldSize := deviceLayout.Structure[2].Size
+	deviceLayout.Structure[2].Size = 10
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, true)
+	deviceLayout.Structure[2].Size = oldSize
+
+	// very large okay too
+	deviceLayout.Structure[2].Size = 1000000000000000000
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, true)
+	deviceLayout.Structure[2].Size = oldSize
+
+	// if we make system-data not ext4 then it is not
+	deviceLayout.Structure[2].Filesystem = "zfs"
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, false)
+	deviceLayout.Structure[2].Filesystem = "ext4"
+
+	// if we make the partition type not "Linux filesystem data", then it is not
+	deviceLayout.Structure[2].Type = "foo"
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, false)
+	deviceLayout.Structure[2].Type = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
+
+	// if we make the Label not writable, then it is not
+	deviceLayout.Structure[2].Label = "foo"
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, false)
+	deviceLayout.Structure[2].Label = "writable"
+
+	// if we add another LaidOutStructure Partition to the YAML so that there is
+	// not exactly one extra partition on disk compated to the YAML, then it is
+	// not
+	gadgetLayout.Structure = append(gadgetLayout.Structure, gadget.VolumeStructure{Type: "foo"})
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, false)
+	gadgetLayout.Structure = gadgetLayout.Structure[:len(gadgetLayout.Structure)-1]
+
+	// if we make the partition not the last partition, then it is not
+	deviceLayout.Structure[2].DiskIndex = 1
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	c.Assert(matches, Equals, false)
+}
+
+const explicitSystemData = `
+      - name: writable
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        filesystem: ext4
+        size: 1G
+`
+
+func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Explicit(c *C) {
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData+explicitSystemData, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := uc16DeviceLayout
+
+	// none of the structures are implicit because we have an explicit
+	// system-data role
+	for _, volStruct := range deviceLayout.Structure {
+		matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, volStruct)
+		c.Assert(matches, Equals, false)
+	}
 }
