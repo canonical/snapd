@@ -116,7 +116,10 @@ func (s *cupsSuite) TestAppArmorSpec(c *C) {
 		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 		c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
-		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
+		// no cups abstractions
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "#include <abstractions/cups-client>")
+		// but has the lpoptions config file though
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner @{HOME}/.cups/lpoptions r,`)
 		// the special mount rules are present
 		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `"/var/snap/provider/common/foo-subdir/**" mrwklix,`)
 		restore()
@@ -126,7 +129,10 @@ func (s *cupsSuite) TestAppArmorSpec(c *C) {
 		c.Assert(specLegacy.AddConnectedPlug(s.iface, s.plug, s.providerLegacySlot), IsNil)
 		c.Assert(specLegacy.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 		c.Assert(specLegacy.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
-		c.Assert(specLegacy.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
+		// no cups abstractions
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "#include <abstractions/cups-client>")
+		// but has the lpoptions config file though
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner @{HOME}/.cups/lpoptions r,`)
 		// no special mounting rules
 		c.Assert(specLegacy.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "/var/snap/provider/common/foo-subdir/** mrwklix,")
 	}
