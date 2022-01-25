@@ -132,7 +132,7 @@ func InitramfsReboot() error {
 // bootloader, but that it is not possible to implement in, for
 // instance, piboot. See handling of kernel_status in
 // bootloader/assets/data/grub.cfg.
-func updatePibootKernelStatus(bl bootloader.NotScriptableBootloader) error {
+func updateNotScriptableBootloaderStatus(bl bootloader.NotScriptableBootloader) error {
 	blVars, err := bl.GetBootVars("kernel_status")
 	if err != nil {
 		return err
@@ -156,8 +156,8 @@ func updatePibootKernelStatus(bl bootloader.NotScriptableBootloader) error {
 		}
 	}
 
-	logger.Debugf("setting piboot's kernel_status from %s to %s",
-		curKernStatus, newStatus)
+	logger.Debugf("setting %s kernel_status from %s to %s",
+		bl.Name(), curKernStatus, newStatus)
 	return bl.SetBootVarsFromInitramfs(map[string]string{"kernel_status": newStatus})
 }
 
@@ -165,7 +165,7 @@ func updatePibootKernelStatus(bl bootloader.NotScriptableBootloader) error {
 // from the initramfs. This is necessary only for piboot at the
 // moment.
 func InitramfsRunModeUpdateBootloaderVars() error {
-	// piboot is very limited, so we need to change the kernel
+	// For very limited bootloaders we need to change the kernel
 	// status from the initramfs as we cannot do that from the
 	// bootloader
 	blOpts := &bootloader.Options{
@@ -176,8 +176,8 @@ func InitramfsRunModeUpdateBootloaderVars() error {
 	bl, err := bootloader.Find(InitramfsUbuntuBootDir, blOpts)
 	if err == nil {
 		if nsb, ok := bl.(bootloader.NotScriptableBootloader); ok {
-			if err := updatePibootKernelStatus(nsb); err != nil {
-				logger.Noticef("cannot update piboot kernel status: %v", err)
+			if err := updateNotScriptableBootloaderStatus(nsb); err != nil {
+				logger.Noticef("cannot update %s kernel status: %v", bl.Name(), err)
 				return err
 			}
 		}
