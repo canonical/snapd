@@ -33,6 +33,10 @@ import (
 
 const sharedMemorySummary = `allows two snaps to use predefined shared memory objects`
 
+// The plug side of shared-memory implements auto-connect to a matching slot -
+// this is permitted even though the interface is super-privileged because using
+// a slot requires a store declaration anyways so just declaring a plug will not
+// grant access unless a slot was also granted at some point.
 const sharedMemoryBaseDeclarationPlugs = `
   shared-memory:
     allow-installation: true
@@ -46,6 +50,9 @@ const sharedMemoryBaseDeclarationPlugs = `
         shared-memory: $PLUG(shared-memory)
 `
 
+// shared-memory slots are super-privileged and thus denied to any snap except
+// those that get a store declaration to do so, but the intent is for
+// application or gadget snaps to use the slot much like the content interface.
 const sharedMemoryBaseDeclarationSlots = `
   shared-memory:
     allow-installation: false
@@ -62,9 +69,19 @@ func validateSharedMemoryPath(path string) error {
 		return fmt.Errorf("shared-memory interface path has leading or trailing spaces: %q", path)
 	}
 
-	// TODO: allow "*" as a globbing character; figure out if more AARE should be allowed
-	if err := apparmor.ValidateNoAppArmorRegexp(path); err != nil {
-		return fmt.Errorf("shared-memory interface path is invalid: %v", err)
+	// allow specifically only "*" globbing character, but disallow all other
+	// AARE characters
+
+	// same as from ValidateNoAppArmorRegexp, but with globbing
+	const aareWithoutGlob = `?[]{}^"` + "\x00"
+	if strings.ContainsAny(path, aareWithoutGlob) {
+		return fmt.Errorf("shared-memory interface path is invalid: %q contains a reserved apparmor char from %s", path, aareWithoutGlob)
+	}
+
+	// in addition to only allowing "*", we don't want to allow double "**"
+	// because "**" can traverse sub-directories as well which we don't want
+	if strings.Contains(path, "**") {
+		return fmt.Errorf("shared-memory interface path is invalid: %q contains ** which is unsupported", path)
 	}
 
 	// TODO: consider whether we should remove this check and allow full SHM path

@@ -1180,6 +1180,7 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err
 	}
+	// TODO: should we enforce the maximum kernel command line for cmdline.full?
 	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err

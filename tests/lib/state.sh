@@ -131,3 +131,9 @@ restore_snapd_lib() {
     fi
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/cache /var/lib/snapd
 }
+
+remove_disabled_snaps() {
+    snap list --all | grep disabled | while read -r name _ revision _ ; do
+        snap remove "$name" --revision="$revision"
+    done
+}
