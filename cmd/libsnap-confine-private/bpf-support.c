@@ -178,7 +178,8 @@ bool bpf_path_is_bpffs(const char *path) {
         }
         die("cannot check filesystem type of %s", path);
     }
-    if (fs.f_type == BPF_FS_MAGIC) {
+    /* see statfs(2) notes on  __fsword_t */
+    if ((unsigned int)fs.f_type == BPF_FS_MAGIC) {
         return true;
     }
     return false;
