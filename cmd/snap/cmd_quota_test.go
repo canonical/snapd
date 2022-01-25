@@ -43,13 +43,13 @@ func makeFakeGetQuotaGroupNotFoundHandler(c *check.C, group string) func(w http.
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(404)
 		fmt.Fprintln(w, `{
-			 "result": {
-				 "message": "not found"
-			 },
-			 "status": "Not Found",
-			 "status-code": 404,
-			 "type": "error"
-		 }`)
+			"result": {
+				"message": "not found"
+			},
+			"status": "Not Found",
+			"status-code": 404,
+			"type": "error"
+		}`)
 	}
 
 }
@@ -226,17 +226,17 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 	defer restore()
 
 	const json = `{
-		 "type": "sync",
-		 "status-code": 200,
-		 "result": {
-			 "group-name":"foo",
-			 "parent":"bar",
-			 "subgroups":["subgrp1"],
-			 "snaps":["snap-a","snap-b"],
-			 "constraints": { "memory": 1000 },
-			 "current": { "memory": 900 }
-		 }
-	 }`
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name":"foo",
+			"parent":"bar",
+			"subgroups":["subgrp1"],
+			"snaps":["snap-a","snap-b"],
+			"constraints": { "memory": 1000 },
+			"current": { "memory": 900 }
+		}
+	}`
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, json))
 
@@ -265,14 +265,14 @@ func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 	defer restore()
 
 	const jsonTemplate = `{
-		 "type": "sync",
-		 "status-code": 200,
-		 "result": {
-			 "group-name": "foo",
-			 "constraints": {"memory": 1000},
-			 "current": {"memory": %d}
-		 }
-	 }`
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name": "foo",
+			"constraints": {"memory": 1000},
+			"current": {"memory": %d}
+		}
+	}`
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 0)))
 
@@ -358,18 +358,18 @@ func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPatte
 	if exists {
 		// existing group has 1000 memory limit
 		const getJson = `{
-			 "type": "sync",
-			 "status-code": 200,
-			 "result": {
-				 "group-name":"foo",
-				 "current": {
-					 "memory": 500
-				 },
-				 "constraints": {
-					 "memory": 1000
-				 }
-			 }
-		 }`
+			"type": "sync",
+			"status-code": 200,
+			"result": {
+				"group-name":"foo",
+				"current": {
+					"memory": 500
+				},
+				"constraints": {
+					"memory": 1000
+				}
+			}
+		}`
 
 		s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, getJson))
 	} else {
@@ -392,14 +392,14 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 	}
 
 	const getJsonTemplate = `{
-		 "type": "sync",
-		 "status-code": 200,
-		 "result": {
-			 "group-name":"foo",
-			 "constraints": { "memory": %d },
-			 "current": { "memory": 500 }
-		 }
-	 }`
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name":"foo",
+			"constraints": { "memory": %d },
+			"current": { "memory": 500 }
+		}
+	}`
 
 	routes := map[string]http.HandlerFunc{
 		"/v2/quotas": makeFakeQuotaPostHandler(
@@ -479,15 +479,15 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
 		`{"type": "sync", "status-code": 200, "result": [
-			 {"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":1000}},
-			 {"group-name":"ddd","parent":"aaa","constraints":{"memory":400}},
-			 {"group-name":"bbb","parent":"zzz","constraints":{"memory":1000},"current":{"memory":400}},
-			 {"group-name":"yyyyyyy","constraints":{"memory":1000}},
-			 {"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
-			 {"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
-			 {"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
-			 {"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
-			 ]}`))
+			{"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":1000}},
+			{"group-name":"ddd","parent":"aaa","constraints":{"memory":400}},
+			{"group-name":"bbb","parent":"zzz","constraints":{"memory":1000},"current":{"memory":400}},
+			{"group-name":"yyyyyyy","constraints":{"memory":1000}},
+			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
+			{"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
+			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
+			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
+			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
 	c.Assert(err, check.IsNil)
@@ -512,7 +512,7 @@ func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
 		`{"type": "sync", "status-code": 200, "result": [
-			 {"group-name":"aaa","subgroups":["ccc"],"max-memory":1000}]}`))
+			{"group-name":"aaa","subgroups":["ccc"],"max-memory":1000}]}`))
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
 	c.Assert(err, check.ErrorMatches, `internal error: inconsistent groups received, unknown subgroup "ccc"`)
