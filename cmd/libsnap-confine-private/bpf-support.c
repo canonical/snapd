@@ -168,7 +168,7 @@ int bpf_map_delete_elem(int map_fd, const void *key) {
 #define BPF_FS_MAGIC 0xcafe4a11
 #endif
 
-bool bpf_is_bpffs(const char *path) {
+bool bpf_path_is_bpffs(const char *path) {
     struct statfs fs;
     int res = statfs(path, &fs);
     if (res < 0) {

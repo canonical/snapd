@@ -84,9 +84,9 @@ int bpf_map_delete_batch(int map_fd, const void *keys, size_t cnt);
 int bpf_map_delete_elem(int map_fd, const void *key);
 
 /**
- * bpf_is_bpffs returns true when given path is a bpffs filesystem.
+ * bpf_path_is_bpffs returns true when given path is a bpffs filesystem.
  */
-bool bpf_is_bpffs(const char *path);
+bool bpf_path_is_bpffs(const char *path);
 
 /**
  * bpf_mount_bpffs mounts a bpf filesystem at a given path.
