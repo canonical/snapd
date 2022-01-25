@@ -140,6 +140,9 @@
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
 
+    # adding a missing bpf mount
+    mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,
+
     # LP: #1668659 and parallel instaces of classic snaps
     mount options=(rw rbind) /snap/ -> /snap/,
     mount options=(rw rshared) -> /snap/,
