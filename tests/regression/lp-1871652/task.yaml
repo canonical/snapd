@@ -25,7 +25,6 @@ prepare: |
     lxc exec bionic -- snap install lxd --channel="$LXD_SNAP_CHANNEL"
     lxc exec bionic -- lxc info >/dev/null
 
-
     # Overwrite the snap binary inside the container with the one from this
     # system. Given that snapd on the system has just been built from source it
     # will have the custom 1337 version string.
