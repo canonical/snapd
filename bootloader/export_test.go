@@ -248,6 +248,10 @@ func NewPiboot(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootlo
 }
 
 func MockPibootFiles(c *C, rootdir string, blOpts *Options) {
+	// Override absolute paths - no need to revert while testing
+	getSeedPartDir = func() string { return rootdir }
+	getRebootParamPath = func() string { return filepath.Join(rootdir, "reboot-param") }
+
 	p := &piboot{rootdir: rootdir}
 	p.setDefaults()
 	p.processBlOpts(blOpts)
@@ -260,13 +264,13 @@ func MockPibootFiles(c *C, rootdir string, blOpts *Options) {
 	err = env.Save()
 	c.Assert(err, IsNil)
 
-	// Create template files expected to come from the gadget
-	cmdLineTempl, err := os.Create(filepath.Join(rootdir, "cmdline.templ.txt"))
+	// Create configuration files expected to come from the gadget
+	cmdLineFile, err := os.Create(filepath.Join(rootdir, "cmdline.txt"))
 	c.Assert(err, IsNil)
-	cmdLineTempl.Close()
-	cfgTempl, err := os.Create(filepath.Join(rootdir, "config.templ.txt"))
+	cmdLineFile.Close()
+	cfgFile, err := os.Create(filepath.Join(rootdir, "config.txt"))
 	c.Assert(err, IsNil)
-	cfgTempl.Close()
+	cfgFile.Close()
 }
 
 func PibootConfigFile(b Bootloader) string {

@@ -27,8 +27,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -247,5 +249,103 @@ func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
 			ubootenv.OpenBestEffort)
 		c.Assert(err, IsNil)
 		c.Assert(env.Get("hello"), Equals, "there")
+	}
+}
+
+func (s *pibootTestSuite) TestCreateConfig(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+
+	err := p.SetBootVars(map[string]string{
+		"snap_kernel":         "pi-kernel_1",
+		"snapd_recovery_mode": "run",
+		"kernel_status":       boot.DefaultStatus})
+	c.Assert(err, IsNil)
+
+	files := []struct {
+		path string
+		data string
+	}{
+		{
+			path: filepath.Join(s.rootdir, "config.txt"),
+			data: "\nos_prefix=/piboot/ubuntu/pi-kernel_1/\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_1/cmdline.txt"),
+			data: "  snapd_recovery_mode=run\n",
+		},
+	}
+	for _, fInfo := range files {
+		readData, err := ioutil.ReadFile(fInfo.path)
+		c.Assert(err, IsNil)
+		c.Assert(string(readData), Equals, fInfo.data)
+	}
+}
+
+func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+
+	err := p.SetBootVars(map[string]string{
+		"snap_kernel":         "pi-kernel_1",
+		"snap_try_kernel":     "pi-kernel_2",
+		"snapd_recovery_mode": "run",
+		"kernel_status":       boot.TryStatus})
+	c.Assert(err, IsNil)
+
+	files := []struct {
+		path string
+		data string
+	}{
+		{
+			path: filepath.Join(s.rootdir, "tryboot.txt"),
+			data: "\nos_prefix=/piboot/ubuntu/pi-kernel_2/\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_2/cmdline.txt"),
+			data: "  snapd_recovery_mode=run kernel_status=trying\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "reboot-param"),
+			data: "0 tryboot\n",
+		},
+	}
+	for _, fInfo := range files {
+		readData, err := ioutil.ReadFile(fInfo.path)
+		c.Assert(err, IsNil)
+		c.Assert(string(readData), Equals, fInfo.data)
+	}
+
+	// Now set variables like in an after update reboot
+	err = p.SetBootVars(map[string]string{
+		"snap_kernel":         "pi-kernel_2",
+		"snap_try_kernel":     "",
+		"snapd_recovery_mode": "run",
+		"kernel_status":       boot.DefaultStatus})
+	c.Assert(err, IsNil)
+
+	c.Assert(osutil.FileExists(filepath.Join(s.rootdir, "tryboot.txt")), Equals, false)
+
+	files = []struct {
+		path string
+		data string
+	}{
+		{
+			path: filepath.Join(s.rootdir, "config.txt"),
+			data: "\nos_prefix=/piboot/ubuntu/pi-kernel_2/\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_2/cmdline.txt"),
+			data: "  snapd_recovery_mode=run\n",
+		},
+	}
+	for _, fInfo := range files {
+		readData, err := ioutil.ReadFile(fInfo.path)
+		c.Assert(err, IsNil)
+		c.Assert(string(readData), Equals, fInfo.data)
 	}
 }
