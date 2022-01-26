@@ -2462,7 +2462,7 @@ func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemD
 	c.Assert(err, ErrorMatches, `volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
 
 	// with opts for pc then it can be found
-	opts := &gadget.DiskVolumeValidationOpts{
+	opts := &gadget.DiskVolumeValidationOptions{
 		AllowImplicitSystemData: true,
 	}
 
