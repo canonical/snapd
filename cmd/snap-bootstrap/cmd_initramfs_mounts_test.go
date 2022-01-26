@@ -2677,6 +2677,58 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 	}
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run kernel_status=trying")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-boot", "run"),
+		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenvNotScript(bootloadertest.Mock("mock", c.MkDir()))
+	bloader.SetBootVars(map[string]string{"kernel_status": boot.TryStatus})
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+	restore = bloader.SetEnabledTryKernel(s.kernelr2)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.core20, s.kernel, s.kernelr2)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	vars, err := bloader.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": boot.TryingStatus})
+}
+
 func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
