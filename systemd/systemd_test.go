@@ -834,15 +834,6 @@ func (s *SystemdTestSuite) TestIsFailedFails(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"is-failed", "foo"}})
 }
 
-func (s *SystemdTestSuite) TestIsFailedEmpty(c *C) {
-	s.outs = [][]byte{
-		nil, // systemd fails to reply, assume failed
-	}
-	isFailed := New(SystemMode, s.rep).IsFailed([]string{"foo"})
-	c.Assert(isFailed, Equals, true)
-	c.Check(s.argses, DeepEquals, [][]string{{"is-failed", "foo"}})
-}
-
 func (s *SystemdTestSuite) TestIsFailedUnderRoot(c *C) {
 	s.outs = [][]byte{
 		[]byte("active\n"),

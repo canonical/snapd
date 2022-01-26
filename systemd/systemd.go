@@ -623,17 +623,14 @@ func (s *systemd) IsFailed(serviceNames []string) bool {
 	} else {
 		out, err = s.systemctl(append([]string{"is-failed"}, serviceNames...)...)
 	}
-
 	if err != nil {
+		// is-failed returns non-0 if the unit is not in the failed
+		// state, eg. active, inactive etc.
 		return false
 	}
 
-	// failed or empty is assumed as failed
-	if ("failed" == strings.TrimSpace(string(out))) || ("" == strings.TrimSpace(string(out))) {
-		return true
-	} else {
-		return false
-	}
+	// failed is reported only for units in the failed state
+	return "failed" == strings.TrimSpace(string(out))
 }
 
 // Clean failed state of unit
