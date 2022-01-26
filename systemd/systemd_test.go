@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -190,6 +191,98 @@ func (s *SystemdTestSuite) TestEnsureAtLeastFail(c *C) {
 
 func (s *SystemdTestSuite) TestBackend(c *C) {
 	c.Check(New(SystemMode, s.rep).Backend(), Equals, RunningSystemdBackend)
+}
+
+func (s *SystemdTestSuite) TestDaemonReloadIfNeededSomeNeed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+Names=foo.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=yes
+
+Type=simple
+Id=bar.service
+Names=bar.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+
+Type=simple
+Id=baz.service
+Names=baz.service
+ActiveState=inactive
+UnitFileState=disabled
+NeedDaemonReload=yes
+
+Type=
+Id=missing.service
+Names=missing.service
+ActiveState=inactive
+UnitFileState=
+NeedDaemonReload=no
+`[1:]),
+	}
+	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReason{
+		UnitsChanged: []string{"foo.service", "bar.service", "baz.service", "missing.service"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "foo.service", "bar.service", "baz.service", "missing.service"},
+		{"daemon-reload"},
+	})
+}
+
+func (s *SystemdTestSuite) TestDaemonReloadIfNeededNoneNeed(c *C) {
+	// none of the units needs a daemon-reload
+	s.outs = [][]byte{
+		[]byte(`
+Type=simple
+Id=foo.service
+Names=foo.service
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+
+Type=simple
+Id=bar.service
+Names=bar.service
+ActiveState=active
+UnitFileState=disabled
+NeedDaemonReload=no
+
+Type=simple
+Id=baz.service
+Names=baz.service
+ActiveState=inactive
+UnitFileState=disabled
+NeedDaemonReload=no
+
+Type=
+Id=missing.service
+Names=missing.service
+ActiveState=inactive
+UnitFileState=
+NeedDaemonReload=no
+`[1:]),
+	}
+	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReason{
+		UnitsChanged: []string{"foo.service", "bar.service", "baz.service", "missing.service"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "foo.service", "bar.service", "baz.service", "missing.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestDaemonReloadIfNeededAlways(c *C) {
+	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReason{})
+	c.Assert(err, IsNil)
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
@@ -462,7 +555,7 @@ NeedDaemonReload=no
 
 Type=simple
 Id=bar.service
-Names=foo.service
+Names=bar.service
 ActiveState=active
 UnitFileState=enabled
 NeedDaemonReload=no
@@ -1066,6 +1159,17 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
+	s.outs = [][]byte{
+		[]byte(`
+Id=snap-snapname-123.mount
+Names=snap-snapname-123.mount
+Type=squashfs
+UnitFileState=static
+ActiveState=inactive
+NeedDaemonReload=yes
+`)[1:],
+	}
+
 	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -1099,6 +1203,16 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
+	s.outs = [][]byte{
+		[]byte(`
+Id=snap-snapname-x1.mount
+Names=snap-snapname-x1.mount
+Type=dir
+UnitFileState=static
+ActiveState=inactive
+NeedDaemonReload=yes
+`)[1:],
+	}
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
@@ -1121,7 +1235,6 @@ LazyUnmount=yes
 [Install]
 WantedBy=multi-user.target
 `[1:], snapDir))
-
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-x1.mount"},
 		{"daemon-reload"},
@@ -1147,6 +1260,16 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 		Fstype:   "squashfs",
 		Options:  []string{"remount,ro"},
 		Origin:   "bar",
+	}
+	s.outs = [][]byte{
+		[]byte(`
+Id=snap-snapname-345.mount
+Names=snap-snapname-345.mount
+Type=squashfs
+UnitFileState=static
+ActiveState=inactive
+NeedDaemonReload=yes
+`)[1:],
 	}
 	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFileWithOptions(addMountUnitOptions)
 	c.Assert(err, IsNil)
@@ -1192,6 +1315,16 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
+	s.outs = [][]byte{
+		[]byte(`
+Id=snap-snapname-123.mount
+Names=snap-snapname-123.mount
+Type=squashfs
+UnitFileState=static
+ActiveState=inactive
+NeedDaemonReload=yes
+`)[1:],
+	}
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -1236,6 +1369,16 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
+	statusOut := []byte(`Type=squashfs
+Id=snap-snapname-123.mount
+Names=snap-snapname-123.mount
+ActiveState=active
+UnitFileState=
+NeedDaemonReload=yes
+`)
+	s.outs = [][]byte{
+		statusOut, // status check
+	}
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -1275,6 +1418,17 @@ exit 0
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
+
+	statusOut := []byte(`Type=squashfs
+Id=snap-snapname-123.mount
+Names=snap-snapname-123.mount
+ActiveState=active
+UnitFileState=
+NeedDaemonReload=yes
+`)
+	s.outs = [][]byte{
+		statusOut, // status check
+	}
 
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
@@ -1450,6 +1604,21 @@ func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) erro
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
+	statusOut := []byte(`
+Id=snap-foo-42.mount
+Names=snap-foo-42.mount
+Type=squashfs
+UnitFileState=static
+ActiveState=inactive
+NeedDaemonReload=yes
+`)[1:]
+	r := MockSystemctl(func(args ...string) (out []byte, err error) {
+		if len(args) >= 3 && args[0] == "show" && strings.HasSuffix(args[2], ".mount") {
+			return statusOut, nil
+		}
+		return nil, nil
+	})
+	defer r()
 	// create a go-routine that will try to daemon-reload like crazy
 	stopCh := make(chan bool, 1)
 	stoppedCh := make(chan bool, 1)

@@ -295,9 +295,8 @@ type Systemd interface {
 	Backend() Backend
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
-	// DaemonReload reloads systemd's configuration if required
-	// adding flag if services are added(true) or removed(false), serviceNames list of services
-	DaemonReloadIfNeeded(adding bool, serviceNames []string) error
+	// DaemonReload reloads systemd's configuration if required.
+	DaemonReloadIfNeeded(reason ReloadReason) error
 	// DaemonRexec reexecutes systemd's system manager, should be
 	// only necessary to apply manager's configuration like
 	// watchdog.
@@ -500,31 +499,37 @@ func (s *systemd) daemonReloadNoLock() error {
 	return err
 }
 
-func (s *systemd) DaemonReloadIfNeeded(adding bool, serviceNames []string) error {
-	return s.daemonReloadIfNeededWithLock(false, adding, serviceNames)
+type ReloadReason struct {
+	UnitsAdded   []string
+	UnitsChanged []string
 }
 
-func (s *systemd) daemonReloadIfNeededWithLock(locked, adding bool, serviceNames []string) error {
+func (s *systemd) DaemonReloadIfNeeded(reason ReloadReason) error {
+	const locked = false
+	return s.daemonReloadIfNeededWithLock(locked, reason)
+}
+
+func (s *systemd) daemonReloadIfNeededWithLock(locked bool, reason ReloadReason) error {
 	needReload := false
-	// A status error will happen if systemd thinks that the service does
-	// not exist anymore. We force the reload in that case, as we assume
-	// that the unit exists at this point.
-	status, err := s.Status(serviceNames)
-	if err != nil {
-		if adding {
-			needReload = true
-		} else {
+	if len(reason.UnitsChanged) > 0 {
+		status, err := s.Status(reason.UnitsChanged)
+		if err != nil {
 			return err
 		}
-	}
-	// check if any unit needs reload
-	if err == nil {
+		// check if any unit needs reload
 		for i := 0; i < len(status); i++ {
 			if status[i].NeedDaemonReload {
 				needReload = true
 				break
 			}
+			// TODO: check if unit is gone by inspecting its
+			// Installed state, this needs to be coupled with
+			// --no-reload for disable/enable such that we do not
+			// execute the reload twice
 		}
+	} else {
+		// unconditional reload
+		needReload = true
 	}
 	if needReload {
 		if locked {
@@ -1443,7 +1448,9 @@ func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (st
 	units := []string{mountUnitName}
 	// occasionally we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
-	if err := s.daemonReloadIfNeededWithLock(true, true, units); err != nil {
+	const locked = true
+	reason := ReloadReason{UnitsChanged: units}
+	if err := s.daemonReloadIfNeededWithLock(locked, reason); err != nil {
 		return "", err
 	}
 
@@ -1492,7 +1499,9 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 	// daemon-reload if needed to ensure that systemd actually really
 	// forgets about this mount unit
-	if err := s.daemonReloadIfNeededWithLock(true, false, units); err != nil {
+	const locked = true
+	reason := ReloadReason{UnitsChanged: units}
+	if err := s.daemonReloadIfNeededWithLock(locked, reason); err != nil {
 		return err
 	}
 

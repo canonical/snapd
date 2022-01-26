@@ -54,7 +54,7 @@ func (s *emulation) DaemonReload() error {
 	return &notImplementedError{"DaemonReload"}
 }
 
-func (s *emulation) DaemonReloadIfNeeded(adding bool, serviceNames []string) error {
+func (s *emulation) DaemonReloadIfNeeded(reason ReloadReason) error {
 	return &notImplementedError{"DaemonReloadIfNeeded"}
 }
 
