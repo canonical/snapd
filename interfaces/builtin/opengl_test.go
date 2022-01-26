@@ -82,6 +82,7 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/nvidia* rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/dri/renderD[0-9]* rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/mali[0-9]* rw,`)
 }
 
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
