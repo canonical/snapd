@@ -49,6 +49,20 @@ const (
 	ubuntuSeedDir = runMntDir + "ubuntu-seed/"
 )
 
+func getSeedPartDirRuntime() string {
+	return ubuntuSeedDir
+}
+
+func getRebootParamPathRuntime() string {
+	return "/run/systemd/reboot-param"
+}
+
+// Get absolute dirs via variables so we can mock in tests
+var (
+	getSeedPartDir     = getSeedPartDirRuntime
+	getRebootParamPath = getRebootParamPathRuntime
+)
+
 type piboot struct {
 	rootdir string
 	basedir string
@@ -66,7 +80,7 @@ func (p *piboot) processBlOpts(blOpts *Options) {
 	switch {
 	case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
 		if !blOpts.PrepareImageTime {
-			p.rootdir = ubuntuSeedDir
+			p.rootdir = getSeedPartDir()
 		}
 		// RoleRecovery or NoSlashBoot imply we use
 		// the environment file in /piboot/ubuntu as
@@ -142,7 +156,7 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 			// refresh (ok or not) finished, remove tryboot.txt
 			// (os_prefix in config.txt will be changed now in
 			// loadAndApplyConfig in the ok case)
-			trybootPath := filepath.Join(ubuntuSeedDir, "tryboot.txt")
+			trybootPath := filepath.Join(getSeedPartDir(), "tryboot.txt")
 			if err := os.Remove(trybootPath); err != nil {
 				logger.Noticef("cannot remove %s: %v", trybootPath, err)
 			}
@@ -203,8 +217,8 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 			cfgFile = "tryboot.txt"
 		}
 		prefix = filepath.Join(pibootPartFolder, kernelSnap)
-		cfgDir = ubuntuSeedDir
-		dstDir = filepath.Join(ubuntuSeedDir, prefix)
+		cfgDir = getSeedPartDir()
+		dstDir = filepath.Join(getSeedPartDir(), prefix)
 	} else {
 		// install/recovery modes, use recovery kernel
 		prefix = filepath.Join("/systems", env.Get("snapd_recovery_system"),
@@ -305,7 +319,7 @@ func (p *piboot) applyConfig(env *ubootenv.Env,
 	if kernStat == "try" {
 		// The reboot parameter makes sure we use tryboot.cfg config
 		// TODO Maybe this should be done somewhere else in snapd?
-		if err := osutil.AtomicWriteFile("/run/systemd/reboot-param",
+		if err := osutil.AtomicWriteFile(getRebootParamPath(),
 			[]byte("0 tryboot\n"), 0644, 0); err != nil {
 			return err
 		}
@@ -391,7 +405,7 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 
 func (p *piboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// Rootdir will point to ubuntu-boot, but we need to put things in ubuntu-seed
-	dstDir := filepath.Join(ubuntuSeedDir, pibootPartFolder, s.Filename())
+	dstDir := filepath.Join(getSeedPartDir(), pibootPartFolder, s.Filename())
 
 	logger.Debugf("ExtractKernelAssets to %s", dstDir)
 
@@ -413,5 +427,5 @@ func (p *piboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pl
 
 func (p *piboot) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return removeKernelAssetsFromBootDir(
-		filepath.Join(ubuntuSeedDir, pibootPartFolder), s)
+		filepath.Join(getSeedPartDir(), pibootPartFolder), s)
 }
