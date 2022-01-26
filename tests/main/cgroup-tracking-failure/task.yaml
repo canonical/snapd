@@ -25,6 +25,13 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     tests.cleanup defer snap remove --purge test-snapd-sh
 
+    # This is to make this test have the same environment whether it
+    # is run alone or after other tests using "tests.session -u root
+    # prepare". "tests.session -u root restore" does not properly
+    # cleanup the root session.
+    tests.session -u root prepare
+    tests.session -u root restore
+
 restore: |
     systemctl --user stop dbus.service || true
 
