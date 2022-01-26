@@ -1356,10 +1356,10 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 }
 
 func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
-	s.testDaemonReloadMutex(c, Systemd.DaemonReload)
+	s.testDaemonOpWithMutex(c, Systemd.DaemonReload)
 }
 
-func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) error) {
+func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) error) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, SystemMode, nil)
 
@@ -1371,7 +1371,7 @@ func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) erro
 	stoppedCh := make(chan bool, 1)
 	go func() {
 		for {
-			sysd.DaemonReload()
+			testFunc(sysd)
 			select {
 			case <-stopCh:
 				close(stoppedCh)
@@ -1393,7 +1393,7 @@ func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) erro
 }
 
 func (s *SystemdTestSuite) TestDaemonReexecMutex(c *C) {
-	s.testDaemonReloadMutex(c, Systemd.DaemonReexec)
+	s.testDaemonOpWithMutex(c, Systemd.DaemonReexec)
 }
 
 func (s *SystemdTestSuite) TestUserMode(c *C) {
