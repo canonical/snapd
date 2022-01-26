@@ -28,7 +28,11 @@ import (
 
 // expose test-only things here
 
-var NumAssertionType = len(typeRegistry)
+var NumAssertionType int
+
+func init() {
+	NumAssertionType = len(typeRegistry)
+}
 
 // v1FixedTimestamp exposed for tests
 var V1FixedTimestamp = v1FixedTimestamp

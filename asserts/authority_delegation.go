@@ -28,7 +28,7 @@ import (
 // of assertion for a given account.
 type AuthorityDelegation struct {
 	assertionBase
-	// assertionConstraints
+	assertionConstraints []*AssertionConstraints
 }
 
 // AccountID returns the account-id of this this authority-delegation.
@@ -41,9 +41,22 @@ func (ad *AuthorityDelegation) DelegateID() string {
 	return ad.HeaderString("delegate-id")
 }
 
+// MatchingConstraints returns all the delegation constraints that match the given assertion.
+func (ad *AuthorityDelegation) MatchingConstraints(a Assertion) []*AssertionConstraints {
+	res := make([]*AssertionConstraints, 0, 1)
+	for _, ac := range ad.assertionConstraints {
+		if ac.Check(a) == nil {
+			res = append(res, ac)
+		}
+	}
+	if len(res) == 0 {
+		return nil
+	}
+	return res
+}
+
 // Implement further consistency checks.
 func (ad *AuthorityDelegation) checkConsistency(db RODatabase, acck *AccountKey) error {
-	// XXX test this
 	if !db.IsTrustedAccount(ad.AuthorityID()) {
 		// XXX if this is relaxed then authority-id must otherwise
 		// match account-id
@@ -75,7 +88,6 @@ var _ consistencyChecker = (*AuthorityDelegation)(nil)
 
 // Prerequisites returns references to this authority-delegation's prerequisite assertions.
 func (ad *AuthorityDelegation) Prerequisites() []*Ref {
-	// XXX test this
 	return []*Ref{
 		{Type: AccountType, PrimaryKey: []string{ad.AccountID()}},
 		{Type: AccountType, PrimaryKey: []string{ad.DelegateID()}},
@@ -83,21 +95,72 @@ func (ad *AuthorityDelegation) Prerequisites() []*Ref {
 }
 
 func assembleAuthorityDelegation(assert assertionBase) (Assertion, error) {
-	// XXX test errors
-	_, err := checkNotEmptyString(assert.headers, "account-id")
-	if err != nil {
-		return nil, err
-	}
-	_, err = checkNotEmptyString(assert.headers, "delegate-id")
-	if err != nil {
-		return nil, err
-	}
+	// account-id and delegate-id are checked by the general
+	// primary key code
 
-	// XXX parse assertion constraints
+	cs, ok := assert.headers["assertions"]
+	if !ok {
+		return nil, fmt.Errorf("assertions constraints are mandatory")
+	}
+	csmaps, ok := cs.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("assertions constraints must be a list of maps")
+	}
+	if len(csmaps) == 0 {
+		// there is no syntax producing this scenario but be robust
+		return nil, fmt.Errorf("assertions constraints cannot be empty")
+	}
+	acs := make([]*AssertionConstraints, 0, len(csmaps))
+	for _, csmap := range csmaps {
+		m, ok := csmap.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("assertions constraints must be a list of maps")
+		}
+		typeName, err := checkNotEmptyStringWhat(m, "type", "constraint")
+		if err != nil {
+			return nil, err
+		}
+		t := Type(typeName)
+		if t == nil {
+			return nil, fmt.Errorf("%q is not a valid assertion type", typeName)
+		}
+		hm, err := checkMapWhat(m, "headers", "constraint")
+		if err != nil {
+			return nil, err
+		}
+		cc := compileContext{
+			opts: &compileAttrMatcherOptions{},
+		}
+		matcher, err := compileAttrMatcher(cc, hm)
+		if err != nil {
+			return nil, fmt.Errorf("cannot compile \"headers\" constraint: %v", err)
+		}
+		acs = append(acs, &AssertionConstraints{
+			assertType: t,
+			matcher:    matcher,
+		})
+	}
 
 	// ignore extra headers for future compatibility
 	return &AuthorityDelegation{
-		assertionBase: assert,
+		assertionBase:        assert,
+		assertionConstraints: acs,
 	}, nil
 
+}
+
+// AssertionConstraints constraints a set of assertions of a given type.
+type AssertionConstraints struct {
+	assertType *AssertionType
+	matcher    attrMatcher
+	// XXX since/until
+	// XXX device scoping
+}
+
+// Check checks whether the assertion matches the constraints.
+// It returns an error otherwise.
+func (ac *AssertionConstraints) Check(a Assertion) error {
+	return ac.matcher.match("", a.Headers(), &attrMatchingContext{
+		attrWord: "header",
+	})
 }

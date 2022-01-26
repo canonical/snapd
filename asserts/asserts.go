@@ -105,21 +105,20 @@ var (
 )
 
 var typeRegistry = map[string]*AssertionType{
-	AccountType.Name:             AccountType,
-	AccountKeyType.Name:          AccountKeyType,
-	ModelType.Name:               ModelType,
-	SerialType.Name:              SerialType,
-	BaseDeclarationType.Name:     BaseDeclarationType,
-	SnapDeclarationType.Name:     SnapDeclarationType,
-	SnapBuildType.Name:           SnapBuildType,
-	SnapRevisionType.Name:        SnapRevisionType,
-	SnapDeveloperType.Name:       SnapDeveloperType,
-	SystemUserType.Name:          SystemUserType,
-	ValidationType.Name:          ValidationType,
-	ValidationSetType.Name:       ValidationSetType,
-	RepairType.Name:              RepairType,
-	StoreType.Name:               StoreType,
-	AuthorityDelegationType.Name: AuthorityDelegationType,
+	AccountType.Name:         AccountType,
+	AccountKeyType.Name:      AccountKeyType,
+	ModelType.Name:           ModelType,
+	SerialType.Name:          SerialType,
+	BaseDeclarationType.Name: BaseDeclarationType,
+	SnapDeclarationType.Name: SnapDeclarationType,
+	SnapBuildType.Name:       SnapBuildType,
+	SnapRevisionType.Name:    SnapRevisionType,
+	SnapDeveloperType.Name:   SnapDeveloperType,
+	SystemUserType.Name:      SystemUserType,
+	ValidationType.Name:      ValidationType,
+	ValidationSetType.Name:   ValidationSetType,
+	RepairType.Name:          RepairType,
+	StoreType.Name:           StoreType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
@@ -157,6 +156,9 @@ func init() {
 
 	// 1: support to limit to device serials
 	maxSupportedFormat[SystemUserType.Name] = 1
+
+	// done here to untangle initialization loop via Type()
+	typeRegistry[AuthorityDelegationType.Name] = AuthorityDelegationType
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
