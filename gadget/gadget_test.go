@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -3257,4 +3258,196 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 		matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, volStruct)
 		c.Assert(matches, Equals, false)
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsHappy(c *C) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakedevicepart: gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"foo": gadgettest.MockExtraVolumeDeviceTraits,
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsTriesAllStructures(c *C) {
+	// make a symlink from the filesystem label to /dev/foo2 - note that in
+	// reality we would have a symlink for /dev/foo1, since that partition
+	// exists, but here we pretend that we for whatever reason don't find
+	// /dev/foo1 but we keep going and check /dev/foo2 and at that point
+	// everything matches up
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo2")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/some-filesystem"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakedevicepart: gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"foo": gadgettest.MockExtraVolumeDeviceTraits,
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c *C) {
+	// make a symlink for the partition label for nofspart to /dev/vdb1
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fooVolDevicePart := filepath.Join(dirs.GlobalRootDir, "/dev/vdb1")
+	err = os.Symlink(fooVolDevicePart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fooVolDevicePart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// make a symlink for the partition label for "BIOS Boot" to /dev/vda1
+	fakepcdevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakepcdevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakepcdevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device nodes going to a particular disks
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakepcdevicepart: gadgettest.VMSystemVolumeDiskMapping,
+		fooVolDevicePart: gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	mod := &modelCharateristics{
+		systemSeed: true,
+	}
+	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+		c.MkDir(),
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		mod,
+	)
+	c.Assert(err, IsNil)
+
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(vols, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, multipleUC20DisksDeviceTraitsMap)
+
+	// check that an expected json serialization still equals the map we
+	// constructed
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	traitsDeviceMap2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsDeviceMap2, DeepEquals, traitsMap)
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHappy(c *C) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	biosBootPart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
+	err = os.Symlink(biosBootPart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(biosBootPart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		biosBootPart: gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"pc": vol,
+	}
+
+	// the volume cannot be found with no opts set
+	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, ErrorMatches, `cannot gather disk traits for device /dev/sda to use with volume pc: volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
+
+	// with opts for pc then it can be found
+	optsMap := map[string]*gadget.DiskVolumeValidationOptions{
+		"pc": {
+			AllowImplicitSystemData: true,
+		},
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, optsMap)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
+	})
 }
