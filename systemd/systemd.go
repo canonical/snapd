@@ -1487,10 +1487,6 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	if err := s.Disable(units); err != nil {
 		return err
 	}
-	if err := s.ResetFailedIfNeeded(units); err != nil {
-		return err
-	}
-
 	if err := os.Remove(unit); err != nil {
 		return err
 	}
