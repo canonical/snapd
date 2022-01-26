@@ -88,12 +88,14 @@ execute: |
     fi
 
     echo "The plug can write to the special cups snap specific socket"
-    echo hello | sudo snap run --shell test-snapd-cups-consumer.cups -c 'nc -q 1 -U $CUPS_SERVER' > cups-server-response.txt
+    #shellcheck disable=SC2016
+    echo hello | test-snapd-cups-consumer.cups -c 'nc -q 1 -U $CUPS_SERVER' > cups-server-response.txt
 
     echo "And the cups server on the other side of the socket sends a response"
     MATCH hello < cups-server-response.txt
 
     echo "The plug has CUPS_SERVER environment variable set automatically"
+    #shellcheck disable=SC2016
     test-snapd-cups-consumer.cups -c 'echo $CUPS_SERVER' | MATCH /var/cups/cups.sock
 
     echo "And the the cups interface can be disconnected again"
@@ -104,4 +106,5 @@ execute: |
     fi
 
     echo "And the environment variable is not set"
+    #shellcheck disable=SC2016
     test-snapd-cups-consumer.bin -c 'echo $CUPS_SERVER' | NOMATCH /var/cups/cups.sock
