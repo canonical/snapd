@@ -30,7 +30,7 @@ type resourcesTestSuite struct{}
 
 var _ = Suite(&resourcesTestSuite{})
 
-func (s *resourcesTestSuite) TestQuotaValidation(c *C) {
+func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 	tests := []struct {
 		limits quota.Resources
 		err    string
@@ -45,7 +45,20 @@ func (s *resourcesTestSuite) TestQuotaValidation(c *C) {
 	}
 }
 
-func (s *resourcesTestSuite) TestQuotaChangeValidation(c *C) {
+func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
+	tests := []struct {
+		limits quota.Resources
+	}{
+		{quota.NewResources(quantity.SizeMiB)},
+	}
+
+	for _, t := range tests {
+		err := t.limits.Validate()
+		c.Check(err, IsNil)
+	}
+}
+
+func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 	tests := []struct {
 		limits       quota.Resources
 		updateLimits quota.Resources
@@ -58,5 +71,19 @@ func (s *resourcesTestSuite) TestQuotaChangeValidation(c *C) {
 	for _, t := range tests {
 		err := t.limits.Change(t.updateLimits)
 		c.Check(err, ErrorMatches, t.err)
+	}
+}
+
+func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
+	tests := []struct {
+		limits       quota.Resources
+		updateLimits quota.Resources
+	}{
+		{quota.NewResources(quantity.SizeMiB), quota.NewResources(quantity.SizeGiB)},
+	}
+
+	for _, t := range tests {
+		err := t.limits.Change(t.updateLimits)
+		c.Check(err, IsNil)
 	}
 }
