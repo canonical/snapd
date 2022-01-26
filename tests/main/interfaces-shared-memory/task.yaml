@@ -11,6 +11,7 @@ prepare: |
 execute: |
     echo "When the interface is connected"
     snap connect shm-plug:shmem shm-slot:shmem
+    snap connect shm-plug:shmem-wildcard shm-slot:shmem-wildcard
 
     # Test writable SHM areas
 
@@ -18,14 +19,23 @@ execute: |
     shm-slot.cmd sh -c 'echo "writable area" > /dev/shm/writable-bar'
     shm-plug.cmd cat /dev/shm/writable-bar | MATCH "writable area"
 
+    shm-slot.cmd sh -c 'echo "writable area" > /dev/shm/any-writable-ANYTHING'
+    shm-plug.cmd cat /dev/shm/any-writable-ANYTHING | MATCH "writable area"
+
     echo "Plug can also write to it"
     shm-plug.cmd sh -c 'echo "client can also write" > /dev/shm/writable-bar'
     shm-slot.cmd cat /dev/shm/writable-bar | MATCH "client can also write"
 
+    shm-plug.cmd sh -c 'echo "client can also write" > /dev/shm/any-writable-ANYTHING'
+    shm-slot.cmd cat /dev/shm/any-writable-ANYTHING | MATCH "client can also write"
+
     echo "And vice-versa: plug creates, slot reads"
     shm-slot.cmd rm /dev/shm/writable-bar
+    shm-slot.cmd rm /dev/shm/any-writable-ANYTHING
     shm-plug.cmd sh -c 'echo "another test" > /dev/shm/writable-bar'
     shm-slot.cmd cat /dev/shm/writable-bar | MATCH "another test"
+    shm-plug.cmd sh -c 'echo "another test" > /dev/shm/any-writable-OTHER-THING'
+    shm-slot.cmd cat /dev/shm/any-writable-OTHER-THING | MATCH "another test"
 
     # Test read-only SHM areas
 
@@ -33,23 +43,33 @@ execute: |
     shm-slot.cmd sh -c 'echo "read-only area" > /dev/shm/readable-foo'
     shm-plug.cmd cat /dev/shm/readable-foo | MATCH "read-only area"
 
+    shm-slot.cmd sh -c 'echo "read-only area" > /dev/shm/any-readable-FOO'
+    shm-plug.cmd cat /dev/shm/any-readable-FOO | MATCH "read-only area"
+
     if [ "$(snap debug confinement)" = strict ] ; then
         echo "Plug cannot write to it"
         if shm-plug.cmd sh -c 'echo "I cannot write this" > /dev/shm/readable-foo'; then
             echo "Plug snap should not be able to write to read-only SHM area"
             exit 1
         fi
+        if shm-plug.cmd sh -c 'echo "I cannot write this" > /dev/shm/any-readable-FOO'; then
+            echo "Plug snap should not be able to write to read-only SHM area"
+            exit 1
+        fi
+        
         echo "Double-check that the data was not changed"
         shm-slot.cmd cat /dev/shm/readable-foo | MATCH "read-only area"
+        shm-slot.cmd cat /dev/shm/any-readable-FOO | MATCH "read-only area"
     else
         echo "Skipping check on disallowed write, because of partial confinement"
     fi
 
     # cleanup
-    shm-slot.cmd rm /dev/shm/writable-bar /dev/shm/readable-foo
+    shm-slot.cmd rm /dev/shm/writable-bar /dev/shm/readable-foo /dev/shm/any-writable-OTHER-THING /dev/shm/any-readable-FOO
 
     echo "Disconnect the interface"
     snap disconnect shm-plug:shmem
+    snap disconnect shm-plug:shmem-wildcard
 
     if [ "$(snap debug confinement)" = partial ] ; then
         echo "Do not execute checks with disconnected plug on systems where confinement doesn't work"

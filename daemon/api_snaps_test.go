@@ -680,7 +680,7 @@ func (s *snapsSuite) TestRefreshMany1(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallMany(c *check.C) {
-	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-install-2", "Install two")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -698,7 +698,7 @@ func (s *snapsSuite) TestInstallMany(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallManyEmptyName(c *check.C) {
-	defer daemon.MockSnapstateInstallMany(func(_ *state.State, _ []string, _ int) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallMany(func(_ *state.State, _ []string, _ int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		return nil, nil, errors.New("should not be called")
 	})()
 	d := s.daemon(c)

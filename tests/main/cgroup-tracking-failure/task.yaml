@@ -25,6 +25,13 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     tests.cleanup defer snap remove --purge test-snapd-sh
 
+    # This is to make this test have the same environment whether it
+    # is run alone or after other tests using "tests.session -u root
+    # prepare". "tests.session -u root restore" does not properly
+    # cleanup the root session.
+    tests.session -u root prepare
+    tests.session -u root restore
+
 restore: |
     systemctl --user stop dbus.service || true
 
@@ -106,13 +113,6 @@ execute: |
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
-            ;;
-        ubuntu-21.04-*)
-            # Same as Ubuntu 20.04, but the cgroup path is slightly different
-            # with that version of systemd
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-21.10-*)
             # Ubuntu 21.10 uses unified cgroup hierarchy, where we wait
@@ -221,13 +221,6 @@ execute: |
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
-            ;;
-        ubuntu-21.04-*)
-            # Same as Ubuntu 20.04, but the cgroup path is slightly different
-            # with that version of systemd
-            MATCH 'DEBUG: using session bus' <debug.txt
-            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-            MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         ubuntu-21.10-*)
             # Same as Ubuntu 20.04, but the system uses a unified cgroup hierarchy
