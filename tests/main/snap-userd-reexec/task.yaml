@@ -16,6 +16,11 @@ restore: |
     fi
 
 execute: |
+    if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = 0 ]; then
+        echo "Reexec is not enabled, exiting..."
+        exit 0
+    fi
+
     snap list | awk "/^core / {print(\$3)}" > prevBoot
 
     echo "Ensure service file is created if missing (e.g. on re-exec)"
