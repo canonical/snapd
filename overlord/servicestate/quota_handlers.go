@@ -596,6 +596,16 @@ func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *en
 }
 
 func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, allGrps map[string]*quota.Group) error {
+	grp, ok := allGrps[group]
+	if ok {
+		// With the new quotas we do not support groups that have a mixture of snaps and
+		// subgroups, as this will cause issues with nesting. Groups/subgroups may now
+		// only consist of either snaps or subgroups.
+		if len(grp.SubGroups) != 0 {
+			return fmt.Errorf("cannot mix snaps and sub groups in the group %q", group)
+		}
+	}
+
 	for _, name := range snaps {
 		// validate that the snap exists
 		_, err := snapstate.CurrentInfo(st, name)
