@@ -37,13 +37,14 @@ import (
 var (
 	_ Bootloader                             = (*piboot)(nil)
 	_ ExtractedRecoveryKernelImageBootloader = (*piboot)(nil)
+	_ NotScriptableBootloader                = (*piboot)(nil)
 )
 
 const (
 	pibootCfgFilename = "piboot.conf"
 	pibootPartFolder  = "/piboot/ubuntu/"
-	// TODO Use boot.InitramfsUbuntuSeedDir
-	// Need to solve circular dependency
+	// TODO The ubuntu-seed folder should be eventually passed
+	// around when creating the bootloader
 	runMntDir     = "/run/mnt/"
 	ubuntuSeedDir = runMntDir + "ubuntu-seed/"
 )
@@ -290,13 +291,13 @@ func (p *piboot) applyConfig(env *ubootenv.Env,
 	kernStat := env.Get("kernel_status")
 	cmdlineFile := filepath.Join(dstDir, "cmdline.txt")
 	// These two files are part of the gadget
-	templCmdlineFile := filepath.Join(cfgDir, "cmdline.templ.txt")
-	templConfigFile := filepath.Join(cfgDir, "config.templ.txt")
+	gadgetCmdlineFile := filepath.Join(cfgDir, "cmdline.txt")
+	gadgetConfigFile := filepath.Join(cfgDir, "config.txt")
 
-	if err := p.createCmdline(env, templCmdlineFile, cmdlineFile); err != nil {
+	if err := p.createCmdline(env, gadgetCmdlineFile, cmdlineFile); err != nil {
 		return err
 	}
-	if err := p.setRPiCfgOsPrefix(prefix, templConfigFile,
+	if err := p.setRPiCfgOsPrefix(prefix, gadgetConfigFile,
 		filepath.Join(cfgDir, configFile)); err != nil {
 		return err
 	}
