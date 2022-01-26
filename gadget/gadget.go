@@ -461,7 +461,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			bootloadersFound += 1
 		case "piboot":
 			if model.Grade() == asserts.ModelGradeUnset {
-				return nil, errors.New("piboot bootloader valid only for core20 onwards")
+				return nil, errors.New("piboot bootloader valid only for UC20 onwards")
 			}
 			bootloadersFound += 1
 		default:
