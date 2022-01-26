@@ -85,6 +85,12 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 
 	r := release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
 	s.AddCleanup(r)
+	s.AddCleanup(systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		if len(cmd) >= 3 && cmd[0] == "show" && strings.HasSuffix(cmd[2], ".mount") {
+			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	}))
 }
 
 func (s *firstBoot20Suite) snapYaml(snp string) string {
@@ -252,6 +258,9 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	var sysdLog [][]string
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
+		if len(cmd) >= 3 && cmd[0] == "show" && cmd[1] != "--property=ActiveState" && strings.HasSuffix(cmd[2], ".mount") {
+			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer systemctlRestorer()

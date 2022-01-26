@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	. "github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -1089,6 +1088,7 @@ WantedBy=multi-user.target
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-123.mount"},
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
 		{"start", "snap-snapname-123.mount"},
@@ -1123,6 +1123,7 @@ WantedBy=multi-user.target
 `[1:], snapDir))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-x1.mount"},
 		{"daemon-reload"},
 		{"enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
@@ -1170,6 +1171,7 @@ X-SnapdOrigin=bar
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-345.mount"},
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
 		{"start", "snap-snapname-345.mount"},
@@ -1407,14 +1409,32 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 
 	mountDir := rootDir + "/snap/foo/42"
 	mountUnit := makeMockMountUnit(c, mountDir)
-	err := NewUnderRoot(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir)
+	statusOut := []byte(`Type=squashfs
+Id=snap-foo-42.mount
+Names=snap-foo-42.mount
+ActiveState=active
+UnitFileState=
+NeedDaemonReload=yes
+`)
+	s.outs = [][]byte{
+		nil,       // disable
+		statusOut, // status check
+		nil,       // reload
+	}
+	s.errors = []error{
+		nil, // disable
+		nil, // status
+		nil, // reload
+	}
 
-	c.Assert(err, IsNil)
+	err := NewUnderRoot(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir)
+	c.Check(err, IsNil)
 	// the file is gone
 	c.Check(osutil.FileExists(mountUnit), Equals, false)
 	// and the unit is disabled and the daemon reloaded
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", rootDir, "disable", "snap-foo-42.mount"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-foo-42.mount"},
 		{"daemon-reload"},
 	})
 }
