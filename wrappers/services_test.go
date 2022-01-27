@@ -2096,9 +2096,9 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysServices, userServices []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		if cmd[0] == "stop" {
-			sysServices = append(sysServices, cmd[1])
+			sysServices = append(sysServices, cmd[1:]...)
 		} else if cmd[0] == "--user" && cmd[1] == "stop" {
-			userServices = append(userServices, cmd[2])
+			userServices = append(userServices, cmd[2:]...)
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -2137,10 +2137,14 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 
 	sort.Strings(sysServices)
 	c.Check(sysServices, DeepEquals, []string{
-		"snap.hello-snap.svc1.service", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"})
+		"snap.hello-snap.svc1.service",
+		"snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket",
+	})
 	sort.Strings(userServices)
 	c.Check(userServices, DeepEquals, []string{
-		"snap.hello-snap.svc2.service", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"})
+		"snap.hello-snap.svc2.service",
+		"snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket",
+	})
 }
 
 func (s *servicesTestSuite) TestStartServices(c *C) {
@@ -2269,33 +2273,24 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 	c.Check(svcFiles, HasLen, 0)
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		c.Logf("cmd: %q", cmd)
 		sysdLog = append(sysdLog, cmd)
 		sdcmd := cmd[0]
 		if sdcmd == "show" {
 			return []byte("ActiveState=inactive"), nil
 		}
-		if len(cmd) >= 2 {
-			sdcmd = cmd[len(cmd)-2]
-		}
 		switch sdcmd {
 		case "enable":
 			numEnables++
-			switch numEnables {
-			case 1:
-				if cmd[len(cmd)-1] == svc2Name {
-					// the services are being iterated in the "wrong" order
-					svc1Name, svc2Name = svc2Name, svc1Name
-				}
-				return nil, nil
-			case 2:
-				return nil, fmt.Errorf("failed")
-			default:
-				panic("expected no more than 2 enables")
+			c.Assert(cmd, HasLen, 3)
+			if cmd[1] == svc2Name {
+				svc1Name, svc2Name = svc2Name, svc1Name
 			}
+			return nil, fmt.Errorf("failed")
 		case "disable", "daemon-reload", "stop":
 			return nil, nil
 		default:
-			panic("unexpected systemctl command " + sdcmd)
+			panic(fmt.Sprintf("unexpected systemctl command %q", cmd))
 		}
 	})
 	defer r()
@@ -2318,9 +2313,8 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"}, // from AddSnapServices
-		{"enable", svc1Name},
-		{"enable", svc2Name}, // this one fails
-		{"disable", svc1Name},
+		{"enable", svc1Name, svc2Name},
+		{"disable", svc1Name, svc2Name},
 	})
 }
 
@@ -2596,18 +2590,16 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(svcs, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Name},
+		{"enable", svc1Name, svc2Name},
 		{"start", svc1Name},
 		{"start", svc2Name}, // one of the services fails
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name},
-		{"disable", svc2Name},
+		{"disable", svc1Name, svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -2713,10 +2705,9 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(svcs, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
-	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "enable", svc1Name},
-		{"--user", "--global", "enable", svc2Name},
+		{"--user", "--global", "enable", svc1Name, svc2Name},
 		{"--user", "start", svc1Name},
 		{"--user", "start", svc2Name}, // one of the services fails
 		// session agent attempts to stop the non-failed services
@@ -2727,8 +2718,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		{"--user", "show", "--property=ActiveState", svc2Name},
 		{"--user", "stop", svc1Name},
 		{"--user", "show", "--property=ActiveState", svc1Name},
-		{"--user", "--global", "disable", svc1Name},
-		{"--user", "--global", "disable", svc2Name},
+		{"--user", "--global", "disable", svc1Name, svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -2766,11 +2756,9 @@ apps:
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err = wrappers.StartServices(sorted, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 4, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc3Name},
-		{"enable", svc2Name},
+		{"enable", svc1Name, svc3Name, svc2Name},
 		{"start", svc1Name},
 		{"start", svc3Name},
 		{"start", svc2Name},
@@ -2782,11 +2770,9 @@ apps:
 	// we should observe the calls done in the same order as services
 	err = wrappers.StartServices(sorted, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
-	c.Check(sysdLog[6:], DeepEquals, [][]string{
-		{"enable", svc3Name},
-		{"enable", svc1Name},
-		{"enable", svc2Name},
+	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog[4:], DeepEquals, [][]string{
+		{"enable", svc3Name, svc1Name, svc2Name},
 		{"start", svc3Name},
 		{"start", svc1Name},
 		{"start", svc2Name},
