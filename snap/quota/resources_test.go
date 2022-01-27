@@ -80,7 +80,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 		limits       quota.Resources
 		updateLimits quota.Resources
 
-		// this is not strictly neccessary as we only have one limit right now
+		// this is not strictly necessary as we only have one limit right now
 		// but as we add additional limits, the updateLimits will not
 		// equal limits or newLimits as it can contain partial updates.
 		newLimits quota.Resources
