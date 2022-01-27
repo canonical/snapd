@@ -469,9 +469,9 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	_, err = cs.cli.Install("foo", &opts)
 	c.Assert(err, check.Equals, client.ErrDangerousNotApplicable)
 
-	// nor does InstallMany
+	// InstallMany just ignores it without error for the moment
 	_, err = cs.cli.InstallMany([]string{"foo"}, &opts)
-	c.Assert(err, check.NotNil)
+	c.Assert(err, check.IsNil)
 }
 
 func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {

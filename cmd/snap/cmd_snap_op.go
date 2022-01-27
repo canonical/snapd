@@ -828,19 +828,24 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
-	opts := &client.SnapOptions{
-		Amend:            x.Amend,
-		Channel:          x.Channel,
-		IgnoreValidation: x.IgnoreValidation,
-		IgnoreRunning:    x.IgnoreRunning,
-		Revision:         x.Revision,
-		CohortKey:        x.Cohort,
-		LeaveCohort:      x.LeaveCohort,
-		Transactional:    x.Transactional,
-	}
-	x.setModes(opts)
 	if len(names) == 1 {
+		opts := &client.SnapOptions{
+			Amend:            x.Amend,
+			Channel:          x.Channel,
+			IgnoreValidation: x.IgnoreValidation,
+			IgnoreRunning:    x.IgnoreRunning,
+			Revision:         x.Revision,
+			CohortKey:        x.Cohort,
+			LeaveCohort:      x.LeaveCohort,
+			Transactional:    x.Transactional,
+		}
+		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
+	}
+	// transactional flag is the only one with meaning when
+	// refreshing many snaps
+	opts := &client.SnapOptions{
+		Transactional: x.Transactional,
 	}
 
 	if x.asksForMode() || x.asksForChannel() {

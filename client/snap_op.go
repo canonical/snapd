@@ -61,8 +61,8 @@ type field struct {
 	value bool
 }
 
-func writeFields(mw *multipart.Writer, fields *[]field) error {
-	for _, fd := range *fields {
+func writeFields(mw *multipart.Writer, fields []field) error {
+	for _, fd := range fields {
 		if err := writeFieldBool(mw, fd.field, fd.value); err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func writeFields(mw *multipart.Writer, fields *[]field) error {
 }
 
 func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
-	fields := &[]field{
+	fields := []field{
 		{"devmode", opts.DevMode},
 		{"classic", opts.Classic},
 		{"jailmode", opts.JailMode},
@@ -82,7 +82,7 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 }
 
 func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
-	fields := &[]field{
+	fields := []field{
 		{"ignore-running", opts.IgnoreRunning},
 		{"unaliased", opts.Unaliased},
 		{"transactional", opts.Transactional},
@@ -204,9 +204,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		Snaps:  snaps,
 	}
 	if options != nil {
-		if options.Dangerous {
-			return nil, "", ErrDangerousNotApplicable
-		}
+		// TODO consider returning error when options.Dangerous is set
 		action.Users = options.Users
 		action.Transactional = options.Transactional
 	}

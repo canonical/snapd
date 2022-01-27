@@ -625,7 +625,7 @@ func (s *snapsSuite) TestRefreshAllRestoresValidationSets(c *check.C) {
 	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, true)
 }
 
-func (s *snapsSuite) TestRefreshMany(c *check.C) {
+func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
 	var calledFlags *snapstate.Flags
 
 	refreshSnapAssertions := false
@@ -664,7 +664,7 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	c.Check(calledFlags.Transactional, check.Equals, true)
 }
 
-func (s *snapsSuite) TestRefreshManyTransactionally(c *check.C) {
+func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	refreshSnapAssertions := false
 	var refreshAssertionsOpts *assertstate.RefreshAssertionsOptions
 	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
