@@ -60,6 +60,7 @@ var (
 	SnapRunNsDir              string
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
+	SnapVoidDir               string
 
 	SnapdMaintenanceFile string
 
@@ -353,6 +354,7 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
+	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
 	// freedesktop.org specifications
