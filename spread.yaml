@@ -196,6 +196,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
+            - ubuntu-21.10-64:
+                  image: ubuntu-2110-64-virt-enabled
+                  storage: 20G
+                  workers: 3
 
     qemu-nested:
         memory: 4G
@@ -908,11 +912,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested, qemu-nested]
-        systems:
-            - ubuntu-16.04-64
-            - ubuntu-18.04-64
-            - ubuntu-20.04-64
-            - ubuntu-20.10-64
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -961,7 +961,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
