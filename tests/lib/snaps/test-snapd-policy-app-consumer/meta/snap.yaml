@@ -347,6 +347,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  pkcs11:
+    command: bin/run
+    plugs: [ pkcs11 ]
   polkit:
     command: bin/run
     plugs: [ polkit ]
