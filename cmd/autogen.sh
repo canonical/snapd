@@ -53,6 +53,9 @@ case "$ID" in
 	solus)
 		extra_opts="--enable-nvidia-biarch"
 		;;
+	altlinux)
+		extra_opts="--libexecdir=/usr/lib/snapd --with-snap-mount-dir=/var/lib/snapd/snap --disable-apparmor --enable-selinux --enable-nvidia-biarch --with-32bit-libdir=/usr/lib"
+		;;
 esac
 
 echo "Configuring in build directory $BUILD_DIR with: $extra_opts"
