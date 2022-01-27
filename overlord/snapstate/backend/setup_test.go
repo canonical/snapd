@@ -49,16 +49,6 @@ type setupSuite struct {
 
 var _ = Suite(&setupSuite{})
 
-func mockSystemctlShowForMountUnit(name, active, needReload string) []byte {
-	return []byte(fmt.Sprintf(`Id=%s
-Names=%s
-Type=squashfs
-UnitFileState=
-NeedDaemonReload=%s
-ActiveState=%s
-`, name, name, active, needReload))
-}
-
 func (s *setupSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -73,10 +63,6 @@ func (s *setupSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		c.Logf("cmd: %q", cmd)
-		if len(cmd) >= 3 && cmd[0] == "show" && strings.HasSuffix(cmd[2], ".mount") {
-			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
-		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 
@@ -376,13 +362,9 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	}
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		c.Logf("cmd: %q", cmd)
 		// mount unit start fails
 		if len(cmd) >= 2 && cmd[0] == "start" && strings.HasSuffix(cmd[1], ".mount") {
 			return nil, fmt.Errorf("failed")
-		}
-		if len(cmd) >= 3 && cmd[0] == "show" && strings.HasSuffix(cmd[2], ".mount") {
-			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})

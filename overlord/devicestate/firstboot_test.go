@@ -165,16 +165,6 @@ type firstBoot16Suite struct {
 
 var _ = Suite(&firstBoot16Suite{})
 
-func mockSystemctlShowForMountUnit(name, active, needReload string) []byte {
-	return []byte(fmt.Sprintf(`Id=%s
-Names=%s
-Type=squashfs
-UnitFileState=
-NeedDaemonReload=%s
-ActiveState=%s
-`, name, name, active, needReload))
-}
-
 func (s *firstBoot16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.setup16BaseTest(c, &s.firstBootBaseTest)
@@ -187,12 +177,6 @@ func (s *firstBoot16Suite) SetUpTest(c *C) {
 	// mock the snap mapper as core here to make sure that other tests don't
 	// set it inadvertently to the snapd mapper and break the 16 tests
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreCoreSystemMapper{}))
-	s.AddCleanup(systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		if len(cmd) >= 3 && cmd[0] == "show" && cmd[1] != "--property=ActiveState" && strings.HasSuffix(cmd[2], ".mount") {
-			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
-		}
-		return []byte("ActiveState=inactive\n"), nil
-	}))
 }
 
 func checkTrivialSeeding(c *C, tsAll []*state.TaskSet) {
@@ -1387,10 +1371,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	var sysdLog [][]string
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if len(cmd) >= 3 && cmd[0] == "show" && cmd[1] != "--property=ActiveState" && strings.HasSuffix(cmd[2], ".mount") {
-			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
-		}
-		return []byte("ActiveState=inactive"), nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer systemctlRestorer()
 
@@ -1738,9 +1719,6 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithSnapdOnlyHappy(c *C)
 	var sysdLog [][]string
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if len(cmd) >= 3 && cmd[0] == "show" && strings.HasSuffix(cmd[2], ".mount") {
-			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
-		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer systemctlRestorer()
@@ -1878,9 +1856,6 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithSnapdOnlyAndGadgetHa
 	var sysdLog [][]string
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		if len(cmd) >= 3 && cmd[0] == "show" && strings.HasSuffix(cmd[2], ".mount") {
-			return mockSystemctlShowForMountUnit(cmd[2], "inactive", "yes"), nil
-		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer systemctlRestorer()
