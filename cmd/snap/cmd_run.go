@@ -86,8 +86,12 @@ type cmdRun struct {
 
 	// not a real option, used to check if cmdRun is initialized by
 	// the parser
-	ParserRan int    `long:"parser-ran" default:"1" hidden:"yes"`
-	Timer     string `long:"timer" hidden:"yes"`
+	ParserRan  int    `long:"parser-ran" default:"1" hidden:"yes"`
+	Timer      string `long:"timer" hidden:"yes"`
+	Positional struct {
+		Command     installedCommand `positional-arg-name:"<snap-command>" required:"1" `
+		CommandArgs []string         `positional-arg-name:"<snap-app-args>" optional:"true"`
+	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
@@ -204,16 +208,9 @@ func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
 	return fmt.Errorf("timeout waiting for snap system profiles to get updated")
 }
 
-func (x *cmdRun) Usage() string {
-	return "[run-OPTIONS] <NAME-OF-SNAP>.<NAME-OF-APP> [<SNAP-APP-ARG>...]"
-}
-
 func (x *cmdRun) Execute(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf(i18n.G("need the application to run as argument"))
-	}
-	snapApp := args[0]
-	args = args[1:]
+	snapApp := string(x.Positional.Command)
+	snapArgs := x.Positional.CommandArgs
 
 	// Catch some invalid parameter combinations, provide helpful errors
 	optionsSet := 0
@@ -229,9 +226,9 @@ func (x *cmdRun) Execute(args []string) error {
 	if x.Revision != "unset" && x.Revision != "" && x.HookName == "" {
 		return fmt.Errorf(i18n.G("-r can only be used with --hook"))
 	}
-	if x.HookName != "" && len(args) > 0 {
+	if x.HookName != "" && len(snapArgs) > 0 {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
-		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
+		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(snapArgs, " "))
 	}
 
 	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
@@ -244,14 +241,14 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 
 	if x.Command == "complete" {
-		snapApp, args = antialias(snapApp, args)
+		snapApp, snapArgs = antialias(snapApp, snapArgs)
 	}
 
 	if x.Timer != "" {
-		return x.snapRunTimer(snapApp, x.Timer, args)
+		return x.snapRunTimer(snapApp, x.Timer, snapArgs)
 	}
 
-	return x.snapRunApp(snapApp, args)
+	return x.snapRunApp(snapApp, snapArgs)
 }
 
 func maybeWaitWhileInhibited(snapName string) error {

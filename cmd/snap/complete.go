@@ -61,6 +61,39 @@ func installedSnapNames(snaps []installedSnapName) []string {
 	return names
 }
 
+type installedCommand string
+
+func (s installedCommand) Complete(match string) []flags.Completion {
+	cli := mkClient()
+	apps, err := cli.Apps(nil, client.AppOptions{Service: false})
+	if err != nil {
+		return nil
+	}
+
+	snaps := map[string]int{}
+	var ret []flags.Completion
+	for _, app := range apps {
+		if app.IsService() {
+			continue
+		}
+		name := snap.JoinSnapApp(app.Snap, app.Name)
+		if !strings.HasPrefix(name, match) {
+			continue
+		}
+		ret = append(ret, flags.Completion{Item: name})
+		if len(match) <= len(app.Snap) {
+			snaps[app.Snap]++
+		}
+	}
+	for snap, n := range snaps {
+		if n > 1 {
+			ret = append(ret, flags.Completion{Item: snap})
+		}
+	}
+
+	return ret
+}
+
 func completeFromSortedFile(filename, match string) ([]flags.Completion, error) {
 	file, err := os.Open(filename)
 	if err != nil {
