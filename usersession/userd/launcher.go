@@ -80,10 +80,6 @@ var (
 		//   - scheme: apt:<name of package>
 		//   - https://github.com/snapcore/snapd/pull/7731
 		"apt",
-		// com.cloudflare.warp: the scheme allows for specifying a package for
-		//   xdg-open to pass to the Cloudflare Teams client so that users can
-		//   sign into their team
-		"com.cloudflare.warp",
 		// help: the scheme allows for specifying a help URL. This code ensures that
 		//   the url is parseable
 		//   - scheme: help://topic
@@ -119,6 +115,10 @@ var (
 		// zoomus: alternative name for zoommtg
 		//   - https://github.com/snapcore/snapd/pull/8910
 		"zoomus",
+		// com.cloudflare.warp: the scheme allows for specifying a package for
+		//   xdg-open to pass to the Cloudflare Teams client so that users can
+		//   sign into their team
+		"com.cloudflare.warp",
 	}
 )
 
