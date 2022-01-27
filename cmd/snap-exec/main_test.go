@@ -208,25 +208,11 @@ func (s *snapExecSuite) TestSnapExecAppIntegrationCupsServerWorkaround(c *C) {
 	})
 	defer restore()
 
-	// FIXME: TEST_PATH was meant to be just PATH but this uncovers another
-	// bug in the test suite where mocking binaries misbehaves.
-	oldPath := os.Getenv("TEST_PATH")
-	os.Setenv("TEST_PATH", "/vanilla")
-	defer os.Setenv("TEST_PATH", oldPath)
-
 	// launch and verify its run the right way
 	err = snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
-	c.Check(execEnv, testutil.Contains, "BASE_PATH=/some/path")
-	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path/lib")
-	c.Check(execEnv, testutil.Contains, fmt.Sprintf("MY_PATH=%s", os.Getenv("PATH")))
-	// TEST_PATH is properly handled and we only see one value, /custom, defined
-	// as an app-specific override.
-	// See also https://bugs.launchpad.net/snapd/+bug/1860369
-	c.Check(execEnv, Not(testutil.Contains), "TEST_PATH=/vanilla")
-	c.Check(execEnv, testutil.Contains, "TEST_PATH=/custom")
 
 	// ensure that CUPS_SERVER is now set since we did mock the /var/cups dir
 	c.Check(execEnv, testutil.Contains, "CUPS_SERVER=/var/cups/cups.sock")
