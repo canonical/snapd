@@ -1174,6 +1174,26 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return fmt.Errorf("cannot set migration status to done (migration won't be undone if change fails): %w", err)
 		}
+	} else if !opts.UseHidden && opts.MigratedToHidden {
+		// migration was done but user turned the feature off, so undo migration
+		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+				st.Lock()
+				t.Logf("cannot revert snap dir unhiding (must manually restore %s's dirs from %s to %s): %v",
+					snapsup.InstanceName(), dirs.HiddenSnapDataHomeDir, dirs.UserHomeSnapDir, err)
+				st.Unlock()
+			}
+
+			return err
+		}
+
+		snapsup.MigratedExposed = true
+		st.Lock()
+		err := SetTaskSnapSetup(t, snapsup)
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot set migration status to undone (migration won't be redone if change fails): %w", err)
+		}
 	}
 
 	return nil
@@ -1205,6 +1225,16 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		snapst.MigratedHidden = false
+		if err := writeMigrationStatus(t, snapst, snapsup.InstanceName()); err != nil {
+			return err
+		}
+	} else if snapsup.MigratedExposed {
+		// we reverted the migration in this run - undo that
+		if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+			return err
+		}
+
+		snapst.MigratedHidden = true
 		if err := writeMigrationStatus(t, snapst, snapsup.InstanceName()); err != nil {
 			return err
 		}
@@ -1491,6 +1521,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// migration related ops
 	if snapsup.MigratedHidden {
 		snapst.MigratedHidden = true
+	} else if snapsup.MigratedExposed {
+		snapst.MigratedHidden = false
 	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
