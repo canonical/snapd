@@ -85,35 +85,35 @@ func (iface *cupsInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	return nil
 }
 
-func validateCupsSocketDirAttr(a interfaces.Attrer, snapInfo *snap.Info) (string, error) {
+func validateCupsSocketDirSlotAttr(a interfaces.Attrer, snapInfo *snap.Info) (string, error) {
 	// Allow an empty specification for the slot, in which case we don't perform
 	// any mounts, etc. This is mainly to prevent errors in systems which still
 	// have the old cups snap installed that haven't been updated to use the new
 	// snap with the new slot declaration
-	if _, ok := a.Lookup("cups-socket-dir"); !ok {
+	if _, ok := a.Lookup("cups-socket-directory"); !ok {
 		return "", nil
 	}
 
 	var cupsdSocketSourceDir string
-	if err := a.Attr("cups-socket-dir", &cupsdSocketSourceDir); err != nil {
+	if err := a.Attr("cups-socket-directory", &cupsdSocketSourceDir); err != nil {
 		return "", err
 	}
 
 	// make sure that the cups socket dir is not an AppArmor Regular expression
 	if err := apparmor.ValidateNoAppArmorRegexp(cupsdSocketSourceDir); err != nil {
-		return "", fmt.Errorf("cups-socket-dir is not usable: %v", err)
+		return "", fmt.Errorf("cups-socket-directory is not usable: %v", err)
 	}
 
 	if !cleanSubPath(cupsdSocketSourceDir) {
-		return "", fmt.Errorf("cups-socket-dir is not clean: %q", cupsdSocketSourceDir)
+		return "", fmt.Errorf("cups-socket-directory is not clean: %q", cupsdSocketSourceDir)
 	}
 
-	// validate that the setting for cups-socket-dir is in $SNAP_DATA or
+	// validate that the setting for cups-socket-directory is in $SNAP_DATA or
 	// $SNAP_COMMON, we don't allow any other directories for the slot socket
 	// dir
 	// TODO: should we also allow /run/$SNAP_INSTANCE_NAME/ too ?
 	if !strings.HasPrefix(cupsdSocketSourceDir, "$SNAP_COMMON") && !strings.HasPrefix(cupsdSocketSourceDir, "$SNAP_DATA") {
-		return "", fmt.Errorf("cups-socket-dir must be a directory of $SNAP_COMMON or $SNAP_DATA")
+		return "", fmt.Errorf("cups-socket-directory must be a directory of $SNAP_COMMON or $SNAP_DATA")
 	}
 	// otherwise it must have a prefix of either SNAP_COMMON or SNAP_DATA,
 	// validate that it has no other variables in it
@@ -131,15 +131,15 @@ func validateCupsSocketDirAttr(a interfaces.Attrer, snapInfo *snap.Info) (string
 }
 
 func (iface *cupsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	// verify that the snap has a cups-socket-dir interface attribute, which is
+	// verify that the snap has a cups-socket-directory interface attribute, which is
 	// needed to identify where to find the cups socket is located in the snap
 	// providing the cups socket
-	_, err := validateCupsSocketDirAttr(slot, slot.Snap)
+	_, err := validateCupsSocketDirSlotAttr(slot, slot.Snap)
 	return err
 }
 
 func (iface *cupsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cupsdSocketSourceDir, err := validateCupsSocketDirAttr(slot, slot.Snap())
+	cupsdSocketSourceDir, err := validateCupsSocketDirSlotAttr(slot, slot.Snap())
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (iface *cupsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 }
 
 func (iface *cupsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	cupsdSocketSourceDir, err := validateCupsSocketDirAttr(slot, slot.Snap())
+	cupsdSocketSourceDir, err := validateCupsSocketDirSlotAttr(slot, slot.Snap())
 	if err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func (iface *cupsInterface) MountConnectedPlug(spec *mount.Specification, plug *
 		return nil
 	}
 
-	// add a bind mount of the cups-socket-dir to /var/cups of the plugging snap
+	// add a bind mount of the cups-socket-directory to /var/cups of the plugging snap
 	return spec.AddMountEntry(osutil.MountEntry{
 		Name:    cupsdSocketSourceDir,
 		Dir:     "/var/cups/",
