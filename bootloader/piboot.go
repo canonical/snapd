@@ -187,7 +187,6 @@ func (p *piboot) SetBootVarsFromInitramfs(values map[string]string) error {
 	dirtyEnv := false
 	for k, v := range values {
 		// already set to the right value, nothing to do
-		logger.Noticef("Setting %s=%s", k, v)
 		if env.Get(k) == v {
 			continue
 		}
