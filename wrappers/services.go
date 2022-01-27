@@ -937,19 +937,9 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		}
 	}
 
-	// When a service is in failed state, simply disabling it does not make
-	// systemd 'forget' about it: the state is kept for administrators to
-	// take a look at it. To remove it, we use the reset-failed systemctl
-	// command - otherwise we would need a daemon-reload if we reinstall the
-	// same snap, which is much more costly.
-	if err := systemSysd.ResetFailedIfNeeded(systemUnits); err != nil {
-		logger.Noticef("RemoveSnapServices - ResetFailedIfNeeded %v", err)
-		return err
-	}
-
 	// only reload if we actually had services
 	if removedSystem {
-		if err := systemSysd.DaemonReloadIfNeeded(false, systemUnits); err != nil {
+		if err := systemSysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
