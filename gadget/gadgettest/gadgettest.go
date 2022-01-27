@@ -29,6 +29,10 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
+// LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
+// gadget.yaml string and works for either single or multiple volume
+// gadget.yaml's. An empty directory to use to create a gadget.yaml file should
+// be provided, such as c.MkDir() in tests.
 func LayoutMultiVolumeFromYaml(newDir, gadgetYaml string, model gadget.Model) (map[string]*gadget.LaidOutVolume, error) {
 	gadgetRoot := filepath.Join(newDir, "gadget")
 	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,8 @@ package gadget
 
 import "errors"
 
-var ErrDeviceNotFound = errors.New("device not found")
-var ErrMountNotFound = errors.New("mount point not found")
-var ErrNoFilesystemDefined = errors.New("no filesystem defined")
+var (
+	ErrDeviceNotFound      = errors.New("device not found")
+	ErrMountNotFound       = errors.New("mount point not found")
+	ErrNoFilesystemDefined = errors.New("no filesystem defined")
+)

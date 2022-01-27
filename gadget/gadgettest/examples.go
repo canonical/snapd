@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -790,13 +790,13 @@ var UC16DeviceLayout = gadget.OnDiskVolume{
 					Name: "BIOS Boot",
 					Type: "21686148-6449-6E6F-744E-656564454649",
 					ID:   "b2e891ee-b971-4a2b-b874-694bbf9b821a",
-					Size: 1048576,
+					Size: quantity.SizeMiB,
 				},
-				StartOffset: 1048576,
+				StartOffset: quantity.OffsetMiB,
 			},
 			DiskIndex: 1,
 			Node:      "/dev/sda1",
-			Size:      1048576,
+			Size:      quantity.SizeMiB,
 		},
 		{
 			LaidOutStructure: gadget.LaidOutStructure{
@@ -844,8 +844,8 @@ var UC16ImplicitSystemDataMockDiskMapping = &disks.MockDiskMapping{
 	DevPath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda",
 	DevNum:  "600:1",
 	// assume 34 sectors at end for GPT headers backup
-	DiskUsableSectorEnd: 10240*1024*1024/512 - 33,
-	DiskSizeInBytes:     10240 * 1024 * 1024,
+	DiskUsableSectorEnd: 10240*oneMeg/512 - 33,
+	DiskSizeInBytes:     10240 * oneMeg,
 	SectorSizeBytes:     512,
 	DiskSchema:          "gpt",
 	ID:                  "f69dbcfe-1258-4b36-9d1f-817fdeb61aa3",
@@ -856,8 +856,8 @@ var UC16ImplicitSystemDataMockDiskMapping = &disks.MockDiskMapping{
 			PartitionUUID:    "420e5a20-b888-42e2-b7df-ced5cbf14517",
 			PartitionLabel:   "BIOS\\x20Boot",
 			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
-			StartInBytes:     1024 * 1024,
-			SizeInBytes:      1024 * 1024,
+			StartInBytes:     oneMeg,
+			SizeInBytes:      oneMeg,
 			Major:            600,
 			Minor:            2,
 			DiskIndex:        1,
@@ -871,11 +871,12 @@ var UC16ImplicitSystemDataMockDiskMapping = &disks.MockDiskMapping{
 			FilesystemUUID:   "6D21-B3FE",
 			FilesystemLabel:  "system-boot",
 			FilesystemType:   "vfat",
-			StartInBytes:     (1 + 1) * 1024 * 1024,
-			SizeInBytes:      50 * 1024 * 1024,
-			Major:            600,
-			Minor:            3,
-			DiskIndex:        2,
+			// size of first structure + offset of first structure
+			StartInBytes: (1 + 1) * oneMeg,
+			SizeInBytes:  50 * oneMeg,
+			Major:        600,
+			Minor:        3,
+			DiskIndex:    2,
 		},
 		// has writable partition here since it does physically exist on disk
 		{
@@ -887,11 +888,12 @@ var UC16ImplicitSystemDataMockDiskMapping = &disks.MockDiskMapping{
 			FilesystemUUID:   "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
 			FilesystemLabel:  "writable",
 			FilesystemType:   "ext4",
-			StartInBytes:     (50 + 1 + 1) * 1024 * 1024,
-			SizeInBytes:      10682875392,
-			Major:            600,
-			Minor:            4,
-			DiskIndex:        3,
+			// size of first structure + offset of first structure and size + offset of second structure
+			StartInBytes: (50 + 1 + 1) * oneMeg,
+			SizeInBytes:  10682875392,
+			Major:        600,
+			Minor:        4,
+			DiskIndex:    3,
 		},
 	},
 }
@@ -910,8 +912,8 @@ var UC16ImplicitSystemDataDeviceTraits = gadget.DiskVolumeDeviceTraits{
 			PartitionUUID:      "420e5a20-b888-42e2-b7df-ced5cbf14517",
 			PartitionType:      "21686148-6449-6E6F-744E-656564454649",
 			PartitionLabel:     "BIOS\\x20Boot",
-			Offset:             1024 * 1024,
-			Size:               1024 * 1024,
+			Offset:             quantity.OffsetMiB,
+			Size:               quantity.SizeMiB,
 		},
 		{
 			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda2",
@@ -922,8 +924,8 @@ var UC16ImplicitSystemDataDeviceTraits = gadget.DiskVolumeDeviceTraits{
 			FilesystemType:     "vfat",
 			FilesystemUUID:     "6D21-B3FE",
 			FilesystemLabel:    "system-boot",
-			Offset:             1024*1024 + 1024*1024,
-			Size:               52428800,
+			Offset:             quantity.OffsetMiB + quantity.OffsetMiB,
+			Size:               50 * quantity.SizeMiB,
 		},
 		// note no writable structure here - since it's not in the YAML, we
 		// don't save it in the traits either
