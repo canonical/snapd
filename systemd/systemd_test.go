@@ -29,7 +29,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -1150,17 +1149,6 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	s.outs = [][]byte{
-		[]byte(`
-Id=snap-snapname-123.mount
-Names=snap-snapname-123.mount
-Type=squashfs
-UnitFileState=static
-ActiveState=inactive
-NeedDaemonReload=yes
-`)[1:],
-	}
-
 	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -1183,7 +1171,6 @@ WantedBy=multi-user.target
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-123.mount"},
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
 		{"start", "snap-snapname-123.mount"},
@@ -1194,16 +1181,6 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
-	s.outs = [][]byte{
-		[]byte(`
-Id=snap-snapname-x1.mount
-Names=snap-snapname-x1.mount
-Type=dir
-UnitFileState=static
-ActiveState=inactive
-NeedDaemonReload=yes
-`)[1:],
-	}
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foodir", "x1", snapDir, "/snap/snapname/x1", "squashfs")
@@ -1227,7 +1204,6 @@ LazyUnmount=yes
 WantedBy=multi-user.target
 `[1:], snapDir))
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-x1.mount"},
 		{"daemon-reload"},
 		{"enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
@@ -1252,16 +1228,6 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 		Options:  []string{"remount,ro"},
 		Origin:   "bar",
 	}
-	s.outs = [][]byte{
-		[]byte(`
-Id=snap-snapname-345.mount
-Names=snap-snapname-345.mount
-Type=squashfs
-UnitFileState=static
-ActiveState=inactive
-NeedDaemonReload=yes
-`)[1:],
-	}
 	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFileWithOptions(addMountUnitOptions)
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -1285,7 +1251,6 @@ X-SnapdOrigin=bar
 `[1:], mockSnapPath))
 
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-snapname-345.mount"},
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
 		{"start", "snap-snapname-345.mount"},
@@ -1306,16 +1271,6 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	s.outs = [][]byte{
-		[]byte(`
-Id=snap-snapname-123.mount
-Names=snap-snapname-123.mount
-Type=squashfs
-UnitFileState=static
-ActiveState=inactive
-NeedDaemonReload=yes
-`)[1:],
-	}
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -1360,16 +1315,6 @@ exit 0
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	statusOut := []byte(`Type=squashfs
-Id=snap-snapname-123.mount
-Names=snap-snapname-123.mount
-ActiveState=active
-UnitFileState=
-NeedDaemonReload=yes
-`)
-	s.outs = [][]byte{
-		statusOut, // status check
-	}
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
@@ -1409,17 +1354,6 @@ exit 0
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
-
-	statusOut := []byte(`Type=squashfs
-Id=snap-snapname-123.mount
-Names=snap-snapname-123.mount
-ActiveState=active
-UnitFileState=
-NeedDaemonReload=yes
-`)
-	s.outs = [][]byte{
-		statusOut, // status check
-	}
 
 	mountUnitName, err := New(SystemMode, nil).AddMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
@@ -1554,24 +1488,6 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 
 	mountDir := rootDir + "/snap/foo/42"
 	mountUnit := makeMockMountUnit(c, mountDir)
-	statusOut := []byte(`Type=squashfs
-Id=snap-foo-42.mount
-Names=snap-foo-42.mount
-ActiveState=active
-UnitFileState=
-NeedDaemonReload=yes
-`)
-	s.outs = [][]byte{
-		nil,       // disable
-		statusOut, // status check
-		nil,       // reload
-	}
-	s.errors = []error{
-		nil, // disable
-		nil, // status
-		nil, // reload
-	}
-
 	err := NewUnderRoot(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir)
 	c.Check(err, IsNil)
 	// the file is gone
@@ -1579,7 +1495,6 @@ NeedDaemonReload=yes
 	// and the unit is disabled and the daemon reloaded
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", rootDir, "disable", "snap-foo-42.mount"},
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap-foo-42.mount"},
 		{"daemon-reload"},
 	})
 }
@@ -1595,18 +1510,7 @@ func (s *SystemdTestSuite) testDaemonReloadMutex(c *C, reload func(Systemd) erro
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	statusOut := []byte(`
-Id=snap-foo-42.mount
-Names=snap-foo-42.mount
-Type=squashfs
-UnitFileState=static
-ActiveState=inactive
-NeedDaemonReload=yes
-`)[1:]
 	r := MockSystemctl(func(args ...string) (out []byte, err error) {
-		if len(args) >= 3 && args[0] == "show" && strings.HasSuffix(args[2], ".mount") {
-			return statusOut, nil
-		}
 		return nil, nil
 	})
 	defer r()
