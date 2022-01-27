@@ -224,7 +224,7 @@ UnitFileState=
 NeedDaemonReload=no
 `[1:]),
 	}
-	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReason{
+	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReasons{
 		UnitsChanged: []string{"foo.service", "bar.service", "baz.service", "missing.service"},
 	})
 	c.Assert(err, IsNil)
@@ -267,7 +267,7 @@ UnitFileState=
 NeedDaemonReload=no
 `[1:]),
 	}
-	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReason{
+	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReasons{
 		UnitsChanged: []string{"foo.service", "bar.service", "baz.service", "missing.service"},
 	})
 	c.Assert(err, IsNil)
@@ -277,7 +277,7 @@ NeedDaemonReload=no
 }
 
 func (s *SystemdTestSuite) TestDaemonReloadIfNeededAlways(c *C) {
-	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReason{})
+	err := New(SystemMode, s.rep).DaemonReloadIfNeeded(ReloadReasons{})
 	c.Assert(err, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},

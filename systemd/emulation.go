@@ -54,7 +54,7 @@ func (s *emulation) DaemonReload() error {
 	return &notImplementedError{"DaemonReload"}
 }
 
-func (s *emulation) DaemonReloadIfNeeded(reason ReloadReason) error {
+func (s *emulation) DaemonReloadIfNeeded(reason ReloadReasons) error {
 	return &notImplementedError{"DaemonReloadIfNeeded"}
 }
 

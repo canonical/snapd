@@ -296,7 +296,7 @@ type Systemd interface {
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
 	// DaemonReload reloads systemd's configuration if required.
-	DaemonReloadIfNeeded(reason ReloadReason) error
+	DaemonReloadIfNeeded(reason ReloadReasons) error
 	// DaemonRexec reexecutes systemd's system manager, should be
 	// only necessary to apply manager's configuration like
 	// watchdog.
@@ -499,20 +499,19 @@ func (s *systemd) daemonReloadNoLock() error {
 	return err
 }
 
-type ReloadReason struct {
-	UnitsAdded   []string
+type ReloadReasons struct {
 	UnitsChanged []string
 }
 
-func (s *systemd) DaemonReloadIfNeeded(reason ReloadReason) error {
+func (s *systemd) DaemonReloadIfNeeded(reasons ReloadReasons) error {
 	const locked = false
-	return s.daemonReloadIfNeededWithLock(locked, reason)
+	return s.daemonReloadIfNeededWithLock(reasons, locked)
 }
 
-func (s *systemd) daemonReloadIfNeededWithLock(locked bool, reason ReloadReason) error {
+func (s *systemd) daemonReloadIfNeededWithLock(reasons ReloadReasons, locked bool) error {
 	needReload := false
-	if len(reason.UnitsChanged) > 0 {
-		status, err := s.Status(reason.UnitsChanged)
+	if len(reasons.UnitsChanged) > 0 {
+		status, err := s.Status(reasons.UnitsChanged)
 		if err != nil {
 			return err
 		}
@@ -534,9 +533,8 @@ func (s *systemd) daemonReloadIfNeededWithLock(locked bool, reason ReloadReason)
 	if needReload {
 		if locked {
 			return s.daemonReloadNoLock()
-		} else {
-			return s.DaemonReload()
 		}
+		return s.DaemonReload()
 	}
 	return nil
 }
@@ -630,7 +628,7 @@ func (s *systemd) IsFailed(serviceNames []string) bool {
 	}
 
 	// failed is reported only for units in the failed state
-	return "failed" == strings.TrimSpace(string(out))
+	return strings.TrimSpace(string(out)) == "failed"
 }
 
 // Clean failed state of unit
