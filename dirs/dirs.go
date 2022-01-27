@@ -323,6 +323,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	altDirDistros := []string{
+		"altlinux",
 		"antergos",
 		"arch",
 		"archlinux",
