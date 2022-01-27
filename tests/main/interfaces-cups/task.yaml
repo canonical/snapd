@@ -18,15 +18,20 @@ systems:
 prepare: |
     # install the test snaps
 
+    # source for this snap:
+    # https://github.com/anonymouse64/test-snapd-cups-consumer
+    # needs to be built with snapcraft and hence cannot be snap pack'd here
+    snap install --edge test-snapd-cups-consumer
+
     # the provider snap needs an assertion in order to have it's slot connected,
     # but since this PR has not yet landed, we simply use the store as a way to
     # download the built artifact - when this is fully supported in the 
     # review-tools, etc. then this can install the provider from the store 
     # directly instead
+    # source for this snap: https://github.com/anonymouse64/test-snapd-cups-provider
     snap download --edge test-snapd-cups-provider --basename=test-snapd-cups-provider
     snap install --dangerous test-snapd-cups-provider.snap
 
-    snap install --edge test-snapd-cups-consumer
 
     if [ -e /run/cups ]; then
         mv /run/cups /run/cups.orig
