@@ -267,6 +267,12 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
 	}
 
+	// ensure that the group we are modifying does not contain a mix of snaps and sub-groups
+	// as we no longer support this, and existing quota groups might have this
+	if err := ensureGroupIsNotMixed(name, allGrps); err != nil {
+		return nil, err
+	}
+
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
 	if err := validateSnapForAddingToGroup(st, updateOpts.AddSnaps, name, allGrps); err != nil {
