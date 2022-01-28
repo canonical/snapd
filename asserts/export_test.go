@@ -291,13 +291,22 @@ func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name stri
 
 // constraint tests
 
-func CompileAttrMatcher(constraints interface{}) (func(attrs map[string]interface{}, ctx AttrMatchContext) error, error) {
-	matcher, err := compileAttrMatcher(compileContext{}, constraints)
+func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (func(attrs map[string]interface{}, helper AttrMatchContext) error, error) {
+	// XXX adjust
+	cc := compileContext{
+		opts: &compileAttrMatcherOptions{
+			allowedOperations: allowedOperations,
+		},
+	}
+	matcher, err := compileAttrMatcher(cc, constraints)
 	if err != nil {
 		return nil, err
 	}
-	domatch := func(attrs map[string]interface{}, ctx AttrMatchContext) error {
-		return matcher.match("", attrs, ctx)
+	domatch := func(attrs map[string]interface{}, helper AttrMatchContext) error {
+		return matcher.match("", attrs, &attrMatchingContext{
+			attrWord: "field",
+			helper:   helper,
+		})
 	}
 	return domatch, nil
 }

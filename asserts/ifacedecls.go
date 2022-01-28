@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,7 +54,12 @@ func (ac *AttributeConstraints) feature(flabel string) bool {
 // compileAttributeConstraints checks and compiles a mapping or list
 // from the assertion format into AttributeConstraints.
 func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
-	matcher, err := compileAttrMatcher(compileContext{}, constraints)
+	cc := compileContext{
+		opts: &compileAttrMatcherOptions{
+			allowedOperations: []string{"SLOT", "PLUG"},
+		},
+	}
+	matcher, err := compileAttrMatcher(cc, constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +74,7 @@ func (matcher fixedAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	return matcher.result
 }
 
@@ -84,8 +89,11 @@ type Attrer interface {
 }
 
 // Check checks whether attrs don't match the constraints.
-func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error {
-	return c.matcher.match("", attrer, ctx)
+func (c *AttributeConstraints) Check(attrer Attrer, helper AttrMatchContext) error {
+	return c.matcher.match("", attrer, &attrMatchingContext{
+		attrWord: "attribute",
+		helper:   helper,
+	})
 }
 
 // SideArityConstraint specifies a constraint for the overall arity of
