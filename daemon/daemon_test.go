@@ -36,6 +36,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -925,24 +926,24 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	oldRebootNoticeWait := rebootNoticeWait
 	oldRebootWaitTimeout := rebootWaitTimeout
 	defer func() {
-		reboot = rebootImpl
+		reboot = boot.Reboot
 		rebootNoticeWait = oldRebootNoticeWait
 		rebootWaitTimeout = oldRebootWaitTimeout
 	}()
 	rebootWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	expectedAction := rebootReboot
+	expectedAction := boot.RebootReboot
 	expectedOp := "reboot"
 	if restartKind == restart.RestartSystemHaltNow {
-		expectedAction = rebootHalt
+		expectedAction = boot.RebootHalt
 		expectedOp = "halt"
 	} else if restartKind == restart.RestartSystemPoweroffNow {
-		expectedAction = rebootPoweroff
+		expectedAction = boot.RebootPoweroff
 		expectedOp = "poweroff"
 	}
 	var delays []time.Duration
-	reboot = func(a rebootAction, d time.Duration) error {
+	reboot = func(a boot.RebootAction, d time.Duration) error {
 		c.Check(a, check.Equals, expectedAction)
 		delays = append(delays, d)
 		return nil
@@ -1099,44 +1100,6 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 	s.testRestartSystemWiring(c, prep, nop, restart.RestartSystemNow, 0)
 
 	c.Check(wm.ensureCalled, check.Equals, 1)
-}
-
-func (s *daemonSuite) TestRebootHelper(c *check.C) {
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
-
-	tests := []struct {
-		delay    time.Duration
-		delayArg string
-	}{
-		{-1, "+0"},
-		{0, "+0"},
-		{time.Minute, "+1"},
-		{10 * time.Minute, "+10"},
-		{30 * time.Second, "+0"},
-	}
-
-	args := []struct {
-		a   rebootAction
-		arg string
-		msg string
-	}{
-		{rebootReboot, "-r", "reboot scheduled to update the system"},
-		{rebootHalt, "--halt", "system halt scheduled"},
-		{rebootPoweroff, "--poweroff", "system poweroff scheduled"},
-	}
-
-	for _, arg := range args {
-		for _, t := range tests {
-			err := reboot(arg.a, t.delay)
-			c.Assert(err, check.IsNil)
-			c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-				{"shutdown", arg.arg, t.delayArg, arg.msg},
-			})
-
-			cmd.ForgetCalls()
-		}
-	}
 }
 
 func makeDaemonListeners(c *check.C, d *Daemon) {

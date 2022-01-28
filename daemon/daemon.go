@@ -28,7 +28,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -37,8 +36,8 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
 	"github.com/snapcore/snapd/osutil"
@@ -391,7 +390,7 @@ func (d *Daemon) HandleRestart(t restart.RestartType) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	scheduleFallback := func(a rebootAction) {
+	scheduleFallback := func(a boot.RebootAction) {
 		if err := reboot(a, rebootWaitTimeout); err != nil {
 			logger.Noticef("%s", err)
 		}
@@ -407,13 +406,13 @@ func (d *Daemon) HandleRestart(t restart.RestartType) {
 		// in case we get stuck shutting down
 
 		// save the restart kind to write out a maintenance.json in a bit
-		scheduleFallback(rebootReboot)
+		scheduleFallback(boot.RebootReboot)
 		d.requestedRestart = t
 	case restart.RestartSystemHaltNow:
-		scheduleFallback(rebootHalt)
+		scheduleFallback(boot.RebootHalt)
 		d.requestedRestart = t
 	case restart.RestartSystemPoweroffNow:
-		scheduleFallback(rebootPoweroff)
+		scheduleFallback(boot.RebootPoweroff)
 		d.requestedRestart = t
 	case restart.RestartSocket:
 		// save the restart kind to write out a maintenance.json in a bit
@@ -611,12 +610,12 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immed
 	if err != nil {
 		return err
 	}
-	action := rebootReboot
+	action := boot.RebootReboot
 	switch rst {
 	case restart.RestartSystemHaltNow:
-		action = rebootHalt
+		action = boot.RebootHalt
 	case restart.RestartSystemPoweroffNow:
-		action = rebootPoweroff
+		action = boot.RebootPoweroff
 	}
 	// ask for shutdown and wait for it to happen.
 	// if we exit snapd will be restared by systemd
@@ -637,60 +636,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immed
 	return fmt.Errorf("expected %s did not happen", action)
 }
 
-var (
-	shutdownMsg = i18n.G("reboot scheduled to update the system")
-	haltMsg     = i18n.G("system halt scheduled")
-	poweroffMsg = i18n.G("system poweroff scheduled")
-)
-
-type rebootAction int
-
-func (a rebootAction) String() string {
-	switch a {
-	case rebootReboot:
-		return "system reboot"
-	case rebootHalt:
-		return "system halt"
-	case rebootPoweroff:
-		return "system poweroff"
-	default:
-		panic(fmt.Sprintf("unknown reboot action %d", a))
-	}
-}
-
-const (
-	rebootReboot rebootAction = iota
-	rebootHalt
-	rebootPoweroff
-)
-
-func rebootImpl(action rebootAction, rebootDelay time.Duration) error {
-	if rebootDelay < 0 {
-		rebootDelay = 0
-	}
-	mins := int64(rebootDelay / time.Minute)
-	var arg, msg string
-	switch action {
-	case rebootReboot:
-		arg = "-r"
-		msg = shutdownMsg
-	case rebootHalt:
-		arg = "--halt"
-		msg = haltMsg
-	case rebootPoweroff:
-		arg = "--poweroff"
-		msg = poweroffMsg
-	default:
-		return fmt.Errorf("unknown reboot action: %v", action)
-	}
-	cmd := exec.Command("shutdown", arg, fmt.Sprintf("+%d", mins), msg)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return osutil.OutputErr(out, err)
-	}
-	return nil
-}
-
-var reboot = rebootImpl
+var reboot = boot.Reboot
 
 // Dying is a tomb-ish thing
 func (d *Daemon) Dying() <-chan struct{} {
