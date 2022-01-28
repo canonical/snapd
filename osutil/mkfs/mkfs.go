@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
@@ -106,11 +107,12 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	var cmd *exec.Cmd
 	if os.Geteuid() != 0 {
 		// run through fakeroot so that files are owned by root
-		fakerootLib := os.Getenv("FAKEROOT_LIB")
-		if fakerootLib != "" {
+		fakerootFlags := os.Getenv("FAKEROOT_FLAGS")
+		if fakerootFlags != "" {
 			// When executing fakeroot from a classic confinement snap the location of
 			// libfakeroot must be specified, or else it will be loaded from the host system
-			mkfsArgs = append([]string{"--lib", fakerootLib, "--"}, mkfsArgs...)
+			fakerootArgs := append(strings.Split(fakerootFlags, " "), "--")
+			mkfsArgs = append(fakerootArgs, mkfsArgs...)
 		}
 		cmd = exec.Command("fakeroot", mkfsArgs...)
 	} else {
