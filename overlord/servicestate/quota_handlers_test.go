@@ -58,6 +58,37 @@ func (s *quotaHandlersSuite) SetUpTest(c *C) {
 	s.AddCleanup(r)
 }
 
+// mockMixedQuotaGroup creates a new quota group mixed with the provided snaps and
+// a single sub-group with the same name appended with 'sub'. The group is created with
+// the memory limit of 1GB, and the subgroup has a limit of 512MB.
+func mockMixedQuotaGroup(st *state.State, name string, snaps []string) error {
+	// create the quota group
+	grp, err := quota.NewGroup(name, quota.NewResources(quantity.SizeGiB))
+	if err != nil {
+		return err
+	}
+
+	subGrpName := name + "-sub"
+	subGrp, err := grp.NewSubGroup(subGrpName, quota.NewResources(quantity.SizeGiB/2))
+	if err != nil {
+		return err
+	}
+
+	grp.Snaps = snaps
+
+	var quotas map[string]*quota.Group
+	if err := st.Get("quotas", &quotas); err != nil {
+		if err != state.ErrNoState {
+			return err
+		}
+		quotas = make(map[string]*quota.Group)
+	}
+	quotas[name] = grp
+	quotas[subGrpName] = subGrp
+	st.Set("quotas", quotas)
+	return nil
+}
+
 func (s *quotaHandlersSuite) TestDoQuotaControlCreate(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// doQuotaControl handler to create the group
@@ -868,39 +899,6 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 	checkSvcAndSliceState(c, "test-snap.svc1", "foo", 0)
 }
 
-// mockMixedQuotaGroup creates a new quota group mixed with the provided snaps and
-// a single sub-group with the same name appended with 'sub'. The group is created with
-// the memory limit of 1GB, and the subgroup has a limit of 512MB.
-func (s *quotaHandlersSuite) mockMixedQuotaGroup(name string, snaps []string) error {
-	st := s.state
-
-	// create the quota group
-	grp, err := quota.NewGroup(name, quota.NewResources(quantity.SizeGiB))
-	if err != nil {
-		return err
-	}
-
-	subGrpName := name + "-sub"
-	subGrp, err := grp.NewSubGroup(subGrpName, quota.NewResources(quantity.SizeGiB/2))
-	if err != nil {
-		return err
-	}
-
-	grp.Snaps = snaps
-
-	var quotas map[string]*quota.Group
-	if err := st.Get("quotas", &quotas); err != nil {
-		if err != state.ErrNoState {
-			return err
-		}
-		quotas = make(map[string]*quota.Group)
-	}
-	quotas[name] = grp
-	quotas[subGrpName] = subGrp
-	st.Set("quotas", quotas)
-	return nil
-}
-
 func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 	st := s.state
 	st.Lock()
@@ -910,7 +908,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	err := s.mockMixedQuotaGroup("mixed-grp", []string{"test-snap"})
+	err := mockMixedQuotaGroup(st, "mixed-grp", []string{"test-snap"})
 	c.Assert(err, IsNil)
 
 	// try to update the memory limit for the mixed group
@@ -924,6 +922,17 @@ func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapCanRemoveMixed(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// handle the removal of the sub-group
+		systemctlCallsForSliceStop("mixed-grp/mixed-grp-sub"),
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+
+		// handle removal of parent group with snap in
+		systemctlCallsForSliceStop("mixed-grp"),
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -932,7 +941,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapCanRemoveMixed(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	err := s.mockMixedQuotaGroup("mixed-grp", []string{"test-snap"})
+	err := mockMixedQuotaGroup(st, "mixed-grp", []string{"test-snap"})
 	c.Assert(err, IsNil)
 
 	// first we remove the sub-group

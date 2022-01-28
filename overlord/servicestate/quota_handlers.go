@@ -603,23 +603,20 @@ func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *en
 
 func ensureGroupIsNotMixed(group string, allGrps map[string]*quota.Group) error {
 	grp, ok := allGrps[group]
-	if ok {
-		if len(grp.SubGroups) != 0 && len(grp.Snaps) != 0 {
-			return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications", group)
-		}
+	if ok && len(grp.SubGroups) != 0 && len(grp.Snaps) != 0 {
+		return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications", group)
 	}
 	return nil
 }
 
-func ensureGroupHasNoSubgroups(group string, allGrps map[string]*quota.Group) error {
+// ensureGroupHasNoSubgroups returns true if the group has no sub-groups or it doesn't exist,
+// otherwise turns false.
+func ensureGroupHasNoSubgroups(group string, allGrps map[string]*quota.Group) bool {
 	grp, ok := allGrps[group]
-	if ok {
-		if len(grp.SubGroups) != 0 {
-			return fmt.Errorf("cannot mix snaps and sub groups in the group %q", group)
-		}
+	if ok && len(grp.SubGroups) != 0 {
+		return false
 	}
-	// if ok is false it's a new group, which is ok
-	return nil
+	return true
 }
 
 func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, allGrps map[string]*quota.Group) error {
@@ -627,8 +624,8 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 	// subgroups, as this will cause issues with nesting. Groups/subgroups may now
 	// only consist of either snaps or subgroups.
 	if len(snaps) > 0 {
-		if err := ensureGroupHasNoSubgroups(group, allGrps); err != nil {
-			return err
+		if !ensureGroupHasNoSubgroups(group, allGrps) {
+			return fmt.Errorf("cannot mix snaps and sub groups in the group %q", group)
 		}
 	}
 

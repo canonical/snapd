@@ -1170,39 +1170,6 @@ devices	10	135	1`)
 	c.Assert(err, ErrorMatches, errExpected)
 }
 
-// mockMixedQuotaGroup creates a new quota group mixed with the provided snaps and
-// a single sub-group with the same name appended with 'sub'. The group is created with
-// the memory limit of 1GB, and the subgroup has a limit of 512MB.
-func (s *quotaControlSuite) mockMixedQuotaGroup(name string, snaps []string) error {
-	st := s.state
-
-	// create the quota group
-	grp, err := quota.NewGroup(name, quota.NewResources(quantity.SizeGiB))
-	if err != nil {
-		return err
-	}
-
-	subGrpName := name + "-sub"
-	subGrp, err := grp.NewSubGroup(subGrpName, quota.NewResources(quantity.SizeGiB/2))
-	if err != nil {
-		return err
-	}
-
-	grp.Snaps = snaps
-
-	var quotas map[string]*quota.Group
-	if err := st.Get("quotas", &quotas); err != nil {
-		if err != state.ErrNoState {
-			return err
-		}
-		quotas = make(map[string]*quota.Group)
-	}
-	quotas[name] = grp
-	quotas[subGrpName] = subGrp
-	st.Set("quotas", quotas)
-	return nil
-}
-
 func (s *quotaControlSuite) TestUpdateQuotaModifyExistingMixable(c *C) {
 	st := s.state
 	st.Lock()
@@ -1212,7 +1179,7 @@ func (s *quotaControlSuite) TestUpdateQuotaModifyExistingMixable(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	err := s.mockMixedQuotaGroup("mixed-grp", []string{"test-snap"})
+	err := mockMixedQuotaGroup(st, "mixed-grp", []string{"test-snap"})
 	c.Assert(err, IsNil)
 
 	// try to update a quota value, this must fail
