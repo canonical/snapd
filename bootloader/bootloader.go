@@ -226,6 +226,15 @@ type TrustedAssetsBootloader interface {
 	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
 }
 
+// RebootArgumentsBootloader needs arguments to the reboot syscall when snaps
+// are being updated.
+type RebootArgumentsBootloader interface {
+	Bootloader
+
+	// GetRebootArguments returns the needed reboot arguments
+	GetRebootArguments() string
+}
+
 func genericInstallBootConfig(gadgetFile, systemFile string) error {
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
 		return err

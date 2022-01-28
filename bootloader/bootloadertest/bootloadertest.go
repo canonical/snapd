@@ -518,3 +518,27 @@ func (b *MockBootloader) WithRecoveryAwareTrustedAssets() *MockRecoveryAwareTrus
 		MockBootloader: b,
 	}
 }
+
+// MockRebootArgumentsBootloaderMixin implements the bootloader.RebootArgumentsBootloader
+// interface.
+type MockRebootArgumentsBootloaderMixin struct {
+	RebootArgs string
+}
+
+// MockRebootArgumentsBootloader mocks a bootloader implementing the
+// bootloader.RebootArgumentsBootloader interface.
+type MockRebootArgumentsBootloader struct {
+	*MockBootloader
+
+	MockRebootArgumentsBootloaderMixin
+}
+
+func (b *MockRebootArgumentsBootloaderMixin) GetRebootArguments() string {
+	return b.RebootArgs
+}
+
+func (b *MockBootloader) WithRebootArguments() *MockRebootArgumentsBootloader {
+	return &MockRebootArgumentsBootloader{
+		MockBootloader: b,
+	}
+}
