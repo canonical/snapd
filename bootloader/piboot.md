@@ -97,7 +97,7 @@ basically the same thing has been implemented in the initramfs, and it
 is run as part of the snap bootstrap code (see
 `boot.updatePibootKernelStatus()` function). Running it from the
 initramfs ensures that the code is run only once in boot. This code
-looks at the kernel command and checks if `kernel_status=trying` is
+looks at the kernel command line and checks if `kernel_status=trying` is
 present to change the status in the environment file to `try`. Once
 snapd starts, it will check and set `kernel_status` in the usual way
 for any bootloader.
@@ -106,14 +106,14 @@ for any bootloader.
 
 Gadgets of the “bootloader: piboot” type need to have
 
-1. An empty `piboot.conf file` (which contains environment variables
-   as explained above, and will be filled with values by snapd during
-   image preparation, installation and kernel updates)
+1. An empty `piboot.conf file` (which will contain environment variables
+   at runtime as explained above, and will be filled with values by
+   snapd during image preparation, installation and kernel updates)
 1. Reference configuration file for the bootloader, named
-   `config.templ.txt`. It will be used to create `config.txt`, with a
-   different `os_prefix`.
+   `config.txt`. It will be used to create `config.txt` in the seed
+   partition, with a different `os_prefix`.
 1. Reference kernel command line file for the bootloader, named
-   `cmdline.templ.txt`. It will be used to generate the UC kernel
+   `cmdline.txt`. It will be used to generate the UC kernel
    command line.
 
 The reference files will be used while configuring the bootloader from

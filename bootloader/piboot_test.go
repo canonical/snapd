@@ -349,3 +349,77 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
 }
+
+func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+
+	// Introuce two os_prefix lines
+	err := ioutil.WriteFile(filepath.Join(s.rootdir, "config.txt"),
+		[]byte("rpi.option1=val\nos_prefix=1\nrpi.option2=val\n"), 0644)
+	c.Assert(err, IsNil)
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+
+	err = p.SetBootVars(map[string]string{
+		"snap_kernel":         "pi-kernel_1",
+		"snapd_recovery_mode": "run",
+		"kernel_status":       boot.DefaultStatus})
+	c.Assert(err, IsNil)
+
+	files := []struct {
+		path string
+		data string
+	}{
+		{
+			path: filepath.Join(s.rootdir, "config.txt"),
+			data: "rpi.option1=val\nos_prefix=/piboot/ubuntu/pi-kernel_1/\nrpi.option2=val\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_1/cmdline.txt"),
+			data: "  snapd_recovery_mode=run\n",
+		},
+	}
+	for _, fInfo := range files {
+		readData, err := ioutil.ReadFile(fInfo.path)
+		c.Assert(err, IsNil)
+		c.Assert(string(readData), Equals, fInfo.data)
+	}
+}
+
+func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+
+	// Introuce two os_prefix lines
+	err := ioutil.WriteFile(filepath.Join(s.rootdir, "config.txt"),
+		[]byte("os_prefix=1\nos_prefix=2\n"), 0644)
+	c.Assert(err, IsNil)
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+
+	err = p.SetBootVars(map[string]string{
+		"snap_kernel":         "pi-kernel_1",
+		"snapd_recovery_mode": "run",
+		"kernel_status":       boot.DefaultStatus})
+	c.Assert(err, IsNil)
+
+	files := []struct {
+		path string
+		data string
+	}{
+		{
+			path: filepath.Join(s.rootdir, "config.txt"),
+			data: "os_prefix=/piboot/ubuntu/pi-kernel_1/\n# os_prefix=2\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_1/cmdline.txt"),
+			data: "  snapd_recovery_mode=run\n",
+		},
+	}
+	for _, fInfo := range files {
+		readData, err := ioutil.ReadFile(fInfo.path)
+		c.Assert(err, IsNil)
+		c.Assert(string(readData), Equals, fInfo.data)
+	}
+}

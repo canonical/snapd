@@ -153,9 +153,12 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 			reconfigBootloader = true
 		}
 		if k == "snap_try_kernel" && v == "" {
-			// refresh (ok or not) finished, remove tryboot.txt
-			// (os_prefix in config.txt will be changed now in
-			// loadAndApplyConfig in the ok case)
+			// Refresh (ok or not) finished, remove tryboot.txt.
+			// os_prefix in config.txt will be changed now in
+			// loadAndApplyConfig in the ok case. Note that removing
+			// it is safe as tryboot.txt is used only when a special
+			// volatile boot flag is set, so we always have a valid
+			// config.txt that will allow booting.
 			trybootPath := filepath.Join(getSeedPartDir(), "tryboot.txt")
 			if err := os.Remove(trybootPath); err != nil {
 				logger.Noticef("cannot remove %s: %v", trybootPath, err)
@@ -248,9 +251,13 @@ func (p *piboot) setRPiCfgOsPrefix(prefix, inFile, outFile string) error {
 	newOsPrefix := "os_prefix=" + prefix + "/"
 	for i, line := range lines {
 		if strings.HasPrefix(line, "os_prefix=") {
+			if replaced {
+				logger.Noticef("unexpected extra os_prefix line: %q", line)
+				lines[i] = "# " + lines[i]
+				continue
+			}
 			lines[i] = newOsPrefix
 			replaced = true
-			break
 		}
 	}
 	if !replaced {
@@ -303,14 +310,13 @@ func (p *piboot) applyConfig(env *ubootenv.Env,
 
 	kernStat := env.Get("kernel_status")
 	cmdlineFile := filepath.Join(dstDir, "cmdline.txt")
-	// These two files are part of the gadget
-	gadgetCmdlineFile := filepath.Join(cfgDir, "cmdline.txt")
-	gadgetConfigFile := filepath.Join(cfgDir, "config.txt")
+	refCmdlineFile := filepath.Join(cfgDir, "cmdline.txt")
+	currentConfigFile := filepath.Join(cfgDir, "config.txt")
 
-	if err := p.createCmdline(env, gadgetCmdlineFile, cmdlineFile); err != nil {
+	if err := p.createCmdline(env, refCmdlineFile, cmdlineFile); err != nil {
 		return err
 	}
-	if err := p.setRPiCfgOsPrefix(prefix, gadgetConfigFile,
+	if err := p.setRPiCfgOsPrefix(prefix, currentConfigFile,
 		filepath.Join(cfgDir, configFile)); err != nil {
 		return err
 	}
