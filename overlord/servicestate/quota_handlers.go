@@ -605,7 +605,7 @@ func ensureGroupIsNotMixed(group string, allGrps map[string]*quota.Group) error 
 	grp, ok := allGrps[group]
 	if ok {
 		if len(grp.SubGroups) != 0 && len(grp.Snaps) != 0 {
-			return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is not supported anymore. please remove either snaps or sub-groups to modify this group", group)
+			return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications", group)
 		}
 	}
 	return nil
