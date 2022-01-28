@@ -122,7 +122,6 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-                  image: ubuntu-os-cloud-devel/ubuntu-2204-lts
 
             - debian-10-64:
                   workers: 6
