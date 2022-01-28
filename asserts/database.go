@@ -703,7 +703,7 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB 
 		// (e.g. account-key-request)
 		return nil
 	}
-	if !signingKey.isKeyValidAssumingCurTimeWithin(checkTimeEarliest, checkTimeLatest) {
+	if !signingKey.isValidAssumingCurTimeWithin(checkTimeEarliest, checkTimeLatest) {
 		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
 	}
 	return nil
@@ -752,7 +752,7 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 	}
 	if tstamped, ok := assert.(timestamped); ok {
 		checkTime := tstamped.Timestamp()
-		if !signingKey.isKeyValidAt(checkTime) {
+		if !signingKey.isValidAt(checkTime) {
 			until := ""
 			if !signingKey.Until().IsZero() {
 				until = fmt.Sprintf(" until %q", signingKey.Until())
