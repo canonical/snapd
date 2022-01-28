@@ -204,7 +204,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		Snaps:  snaps,
 	}
 	if options != nil {
-		// TODO consider returning error when options.Dangerous is set
+		// TODO: consider returning error when options.Dangerous is set
 		action.Users = options.Users
 		action.Transactional = options.Transactional
 	}
