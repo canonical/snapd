@@ -135,9 +135,14 @@ func assembleAuthorityDelegation(assert assertionBase) (Assertion, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot compile headers constraint: %v", err)
 		}
+		sinceUntil, err := checkSinceUntilWhat(m, "constraint")
+		if err != nil {
+			return nil, err
+		}
 		acs = append(acs, &AssertionConstraints{
 			assertType: t,
 			matcher:    matcher,
+			sinceUntil: *sinceUntil,
 		})
 	}
 
@@ -153,7 +158,7 @@ func assembleAuthorityDelegation(assert assertionBase) (Assertion, error) {
 type AssertionConstraints struct {
 	assertType *AssertionType
 	matcher    attrMatcher
-	// XXX since/until
+	sinceUntil
 	// XXX device scoping
 }
 

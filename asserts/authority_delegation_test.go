@@ -21,6 +21,7 @@ package asserts_test
 
 import (
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -30,6 +31,7 @@ import (
 
 type authorityDelegationSuite struct {
 	assertionsLines string
+	since, until    time.Time
 	validEncoded    string
 }
 
@@ -47,6 +49,12 @@ func (s *authorityDelegationSuite) SetUpSuite(c *C) {
     since: 2022-01-12T00:00:00.0Z
     until: 2032-01-01T00:00:00.0Z
 `
+	var err error
+	s.since, err = time.Parse(time.RFC3339, "2022-01-12T00:00:00.0Z")
+	c.Assert(err, IsNil)
+	s.until, err = time.Parse(time.RFC3339, "2032-01-01T00:00:00.0Z")
+	c.Assert(err, IsNil)
+
 	s.validEncoded = `type: authority-delegation
 authority-id: canonical
 account-id: canonical
@@ -88,7 +96,8 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckUntrustedAuthorit
 		"delegate-id": "other",
 		"assertions": []interface{}{
 			map[string]interface{}{
-				"type": "snap-declaration",
+				"type":  "snap-declaration",
+				"since": time.Now().Format(time.RFC3339),
 			},
 		},
 	}
@@ -107,7 +116,8 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckAccountReferences
 		"delegate-id": "other2",
 		"assertions": []interface{}{
 			map[string]interface{}{
-				"type": "model",
+				"type":  "model",
+				"since": time.Now().Format(time.RFC3339),
 			},
 		},
 	}
@@ -134,7 +144,8 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckHappy(c *C) {
 		"delegate-id": "other2",
 		"assertions": []interface{}{
 			map[string]interface{}{
-				"type": "model",
+				"type":  "model",
+				"since": time.Now().Format(time.RFC3339),
 			},
 		},
 	}
@@ -171,6 +182,20 @@ func (s *authorityDelegationSuite) TestMatchingConstraints(c *C) {
 
 	acs := ad.MatchingConstraints(snapRevWProvenance)
 	c.Check(acs, HasLen, 1)
+	// probe since-until
+	ac := acs[0]
+	tests := []struct {
+		earliest time.Time
+		latest   time.Time
+		valid    bool
+	}{
+		{s.since, s.until, true},
+		{s.until, s.until.AddDate(0, 3, 0), false},
+		{s.since.AddDate(0, -2, 0), s.since.AddDate(0, -2, 0), false},
+	}
+	for _, t := range tests {
+		c.Check(asserts.IsValidAssumingCurTimeWithin(ac, t.earliest, t.latest), Equals, t.valid)
+	}
 
 	// no provenance => no match
 	headers = makeSnapRevisionHeaders(map[string]interface{}{
@@ -232,6 +257,8 @@ func (s *authorityDelegationSuite) TestDecodeInvalid(c *C) {
 		{hdrs, `headers:
       provenance: $FOO
 `, `cannot compile headers constraint:.*`},
+		{"    since: 2022-01-12T00:00:00.0Z\n", "", `"since" constraint is mandatory`},
+		{"    until: 2032-01-01T00:00:00.0Z", "    until: 2012-01-01T00:00:00.0Z", `'until' time cannot be before 'since' time`},
 	}
 
 	for _, test := range invalidTests {
