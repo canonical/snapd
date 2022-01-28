@@ -920,7 +920,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 		ResourceLimits: quota.NewResources(2 * quantity.SizeGiB),
 	}
 	err = s.callDoQuotaControl(&qc)
-	c.Assert(err, ErrorMatches, `quota group \"mixed-grp\" has mixed snaps and sub-groups, which is not supported anymore. please remove either snaps or sub-groups to modify this group`)
+	c.Assert(err, ErrorMatches, `quota group \"mixed-grp\" has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapSubgroupUnmixable(c *C) {
