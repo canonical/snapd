@@ -2646,26 +2646,23 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 18, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 15, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2SocketName},
+		{"enable", svc1Name, svc2SocketName, svc3SocketName},
+		{"start", svc1Name},
 		{"start", svc2SocketName},
-		{"enable", svc3SocketName},
 		{"start", svc3SocketName}, // start failed, what follows is the cleanup
 		{"stop", svc3SocketName},
 		{"show", "--property=ActiveState", svc3SocketName},
 		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"disable", svc3SocketName},
 		{"stop", svc2SocketName},
 		{"show", "--property=ActiveState", svc2SocketName},
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
-		{"disable", svc2SocketName},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name},
+		{"disable", svc1Name, svc2SocketName, svc3SocketName},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -3029,14 +3026,13 @@ func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Assert(s.sysdLog, HasLen, 5, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Sock},
-		{"start", svc2Sock},
+		{"enable", svc1Name, svc2Sock},
 		{"--user", "--global", "enable", svc3Sock},
-		{"--user", "start", svc3Sock},
 		{"start", svc1Name},
+		{"start", svc2Sock},
+		{"--user", "start", svc3Sock},
 	}, Commentf("calls: %v", s.sysdLog))
 }
 
@@ -3063,14 +3059,13 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Assert(s.sysdLog, HasLen, 5, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Timer},
-		{"start", svc2Timer},
+		{"enable", svc1Name, svc2Timer},
 		{"--user", "--global", "enable", svc3Timer},
-		{"--user", "start", svc3Timer},
 		{"start", svc1Name},
+		{"start", svc2Timer},
+		{"--user", "start", svc3Timer},
 	}, Commentf("calls: %v", s.sysdLog))
 }
 
@@ -3101,19 +3096,18 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Timer},
+		{"enable", svc1Name, svc2Timer},
+		{"start", svc1Name},
 		{"start", svc2Timer}, // this call fails
 		{"stop", svc2Timer},
 		{"show", "--property=ActiveState", svc2Timer},
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
-		{"disable", svc2Timer},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name},
+		{"disable", svc1Name, svc2Timer},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -3268,12 +3262,10 @@ apps:
 	err = wrappers.StartServices(apps, nil, flags, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Assert(s.sysdLog, HasLen, 4, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc3Name},
-		{"enable", svc1Socket},
+		{"enable", svc1Socket, svc2Timer, svc3Name},
 		{"start", svc1Socket},
-		{"enable", svc2Timer},
 		{"start", svc2Timer},
 		{"start", svc3Name},
 	}, Commentf("calls: %v", s.sysdLog))

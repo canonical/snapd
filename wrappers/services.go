@@ -168,51 +168,6 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	return nil
 }
 
-// enableServices enables services specified by apps. On success the returned
-// disable function can be used to undo all the actions. On error all the
-// services get disabled automatically (disable is nil).
-func enableServices(apps []*snap.AppInfo, inter interacter) (disable func(), err error) {
-	var enabled []string
-	var userEnabled []string
-
-	systemSysd := systemd.New(systemd.SystemMode, inter)
-	userSysd := systemd.New(systemd.GlobalUserMode, inter)
-
-	disableEnabledServices := func() {
-		if e := systemSysd.Disable(enabled); e != nil {
-			inter.Notify(fmt.Sprintf("While trying to disable previously enabled service %q: %v", enabled, e))
-		}
-		if e := userSysd.Disable(userEnabled); e != nil {
-			inter.Notify(fmt.Sprintf("while trying to disable %q due to previous failure: %v", userEnabled, e))
-		}
-	}
-
-	defer func() {
-		if err != nil {
-			disableEnabledServices()
-		}
-	}()
-
-	for _, app := range apps {
-		svcName := app.ServiceName()
-
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			enabled = append(enabled, svcName)
-		case snap.UserDaemon:
-			userEnabled = append(userEnabled, svcName)
-		}
-	}
-	if e := systemSysd.Enable(enabled); e != nil {
-		return nil, e
-	}
-	if e := userSysd.Enable(userEnabled); e != nil {
-		return nil, e
-	}
-
-	return disableEnabledServices, nil
-}
-
 // StartServicesFlags carries extra flags for StartServices.
 type StartServicesFlags struct {
 	Enable bool
@@ -230,30 +185,42 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	userSysd := systemd.New(systemd.GlobalUserMode, inter)
 	cli := client.New()
 
-	var disableEnabledServices func()
+	var toEnableSystem []string
+	var toEnableUser []string
+	systemServices := make([]string, 0, len(apps))
+	userServices := make([]string, 0, len(apps))
+	servicesStarted := false
 
 	defer func() {
 		if err == nil {
 			return
 		}
-		if disableEnabledServices != nil {
-			disableEnabledServices()
+		// apps could have been sorted according to their startup
+		// ordering, stop them in reverse order
+		if servicesStarted {
+			for i := len(apps) - 1; i >= 0; i-- {
+				app := apps[i]
+				if e := stopService(systemSysd, app, inter); e != nil {
+					inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
+				}
+			}
 		}
+		if e := systemSysd.Disable(toEnableSystem); e != nil {
+			inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
+		}
+		if e := userSysd.Disable(toEnableUser); e != nil {
+			inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
+		}
+
 	}()
 
-	var toEnable []*snap.AppInfo
-	systemServices := make([]string, 0, len(apps))
-	userServices := make([]string, 0, len(apps))
-
-	// gather all non-sockets, non-timers, and non-dbus activated
-	// services to enable first
+	// gather all services, sockets, timers, units are collected in the
+	// order of appearance of apps as passed by the caller
 	for _, app := range apps {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
 			continue
 		}
-		// sockets and timers are enabled and started separately (and unconditionally) further down.
-		// dbus activatable services are started on first use.
 		if len(app.Sockets) == 0 && app.Timer == nil && len(app.ActivatesOn) == 0 {
 			if strutil.ListContains(disabledSvcs, app.Name) {
 				continue
@@ -266,121 +233,88 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 				userServices = append(userServices, svcName)
 			}
 			if flags.Enable {
-				toEnable = append(toEnable, app)
+				if app.DaemonScope == snap.SystemDaemon {
+					toEnableSystem = append(toEnableSystem, svcName)
+				} else {
+					toEnableUser = append(toEnableUser, svcName)
+				}
+			}
+			continue
+		}
+
+		for _, socket := range app.Sockets {
+			// socket unit
+			socketService := filepath.Base(socket.File())
+
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				systemServices = append(systemServices, socketService)
+				toEnableSystem = append(toEnableSystem, socketService)
+			case snap.UserDaemon:
+				userServices = append(userServices, socketService)
+				toEnableUser = append(toEnableUser, socketService)
 			}
 		}
+
+		if app.Timer != nil {
+			// timer unit
+			timerService := filepath.Base(app.Timer.File())
+
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				systemServices = append(systemServices, timerService)
+				toEnableSystem = append(toEnableSystem, timerService)
+			case snap.UserDaemon:
+				userServices = append(userServices, timerService)
+				toEnableUser = append(toEnableUser, timerService)
+			}
+		}
+
 	}
 
-	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnable), func(nested timings.Measurer) {
-		disableEnabledServices, err = enableServices(toEnable, inter)
+	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {
+		if len(toEnableSystem) > 0 {
+			if err = systemSysd.Enable(toEnableSystem); err != nil {
+				return
+			}
+		}
+		if len(toEnableUser) > 0 {
+			err = userSysd.Enable(toEnableUser)
+		}
 	})
 	if err != nil {
 		return err
 	}
 
-	// handle sockets and timers
-	for _, app := range apps {
-		// they're *supposed* to be all services, but checking doesn't hurt
-		if !app.IsService() {
-			continue
-		}
-
-		var sysd systemd.Systemd
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			sysd = systemSysd
-		case snap.UserDaemon:
-			sysd = userSysd
-		}
-
-		defer func(app *snap.AppInfo) {
-			if err == nil {
+	timings.Run(tm, "start-services", "start services", func(nested timings.Measurer) {
+		for _, srv := range systemServices {
+			// starting all services at once does not create a
+			// single transaction, but instead spawns multiple jobs,
+			// make sure the services started in the original order
+			// by bringing them up one by one, see:
+			// https://github.com/systemd/systemd/issues/8102
+			// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
+			timings.Run(tm, "start-service", fmt.Sprintf("start service %q", srv), func(nested timings.Measurer) {
+				err = systemSysd.Start([]string{srv})
+			})
+			if err != nil {
 				return
 			}
-
-			if e := stopService(sysd, app, inter); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to stop previously started service %q: %v", app.ServiceName(), e))
-			}
-			// disabling is expensive, disable in batch
-			var disableServices []string
-			for _, socket := range app.Sockets {
-				disableServices = append(disableServices, filepath.Base(socket.File()))
-			}
-			if app.Timer != nil {
-				disableServices = append(disableServices, filepath.Base(app.Timer.File()))
-			}
-			if e := sysd.Disable(disableServices); e != nil {
-				inter.Notify(fmt.Sprintf("While trying to disable previously enabled socket service %q: %v", disableServices, e))
-			}
-		}(app)
-
-		// enabling is expensive, enable in batch
-		var enableServices []string
-		var systemServices []string
-		var userServices []string
-		for _, socket := range app.Sockets {
-			// enable the socket
-			socketService := filepath.Base(socket.File())
-			enableServices = append(enableServices, socketService)
-
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				systemServices = append(systemServices, socketService)
-			case snap.UserDaemon:
-				userServices = append(userServices, socketService)
-			}
 		}
-
-		if app.Timer != nil {
-			// enable the timer
-			timerService := filepath.Base(app.Timer.File())
-			enableServices = append(enableServices, timerService)
-
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				systemServices = append(systemServices, timerService)
-			case snap.UserDaemon:
-				userServices = append(userServices, timerService)
-			}
-		}
-		if err = sysd.Enable(enableServices); err != nil {
-			return err
-		}
-		if 0 < len(systemServices) {
-			timings.Run(tm, "start-system-socket-service", fmt.Sprintf("start system socket service %q", systemServices), func(nested timings.Measurer) {
-				err = sysd.Start(systemServices)
-			})
-		}
-		if 0 < len(userServices) {
-			timings.Run(tm, "start-user-timer-service", fmt.Sprintf("start user timer service %q", userServices), func(nested timings.Measurer) {
-				err = startUserServices(cli, inter, userServices...)
-			})
-		}
-		if err != nil {
-			return err
-		}
-	}
-
-	for _, srv := range systemServices {
-		// starting all services at once does not create a single
-		// transaction, but instead spawns multiple jobs, make sure the
-		// services started in the original order by bring them up one
-		// by one, see:
-		// https://github.com/systemd/systemd/issues/8102
-		// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
-		timings.Run(tm, "start-service", fmt.Sprintf("start service %q", srv), func(nested timings.Measurer) {
-			err = systemSysd.Start([]string{srv})
-		})
-		if err != nil {
-			// cleanup was set up by iterating over apps
-			return err
-		}
+	})
+	// let the cleanup know some services may have been started
+	servicesStarted = true
+	if err != nil {
+		// cleanup is handled in a defer
+		return err
 	}
 
 	if len(userServices) != 0 {
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
 			err = startUserServices(cli, inter, userServices...)
 		})
+		// let the cleanup know some services may have been started
+		servicesStarted = true
 		if err != nil {
 			return err
 		}
