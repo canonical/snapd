@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -196,6 +197,8 @@ func (s *authorityDelegationSuite) TestMatchingConstraints(c *C) {
 	for _, t := range tests {
 		c.Check(asserts.IsValidAssumingCurTimeWithin(ac, t.earliest, t.latest), Equals, t.valid)
 	}
+	c.Check(ac.Check(snapRevWProvenance), IsNil)
+	c.Check(ac.Check(storeDB.TrustedAccount), ErrorMatches, `assertion "account" does not match constraint for assertion type "snap-revision"`)
 
 	// no provenance => no match
 	headers = makeSnapRevisionHeaders(map[string]interface{}{
@@ -265,5 +268,19 @@ func (s *authorityDelegationSuite) TestDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, authDelegErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *authorityDelegationSuite) TestDecodeDeviceScope(c *C) {
+	// XXX: for now we fail on device scope constraints
+	// to avoid misinterpreting assertions until it is properly implemented
+	encoded := s.validEncoded
+	sinceFrag := "    since: 2022-01-12T00:00:00.0Z\n"
+	for _, deviceScoping := range []string{
+		"on-store: store1",
+	} {
+		withDeviceScope := strings.Replace(encoded, sinceFrag, fmt.Sprintf("    %s\n", deviceScoping)+sinceFrag, 1)
+		_, err := asserts.Decode([]byte(withDeviceScope))
+		c.Check(err, ErrorMatches, `assertion authority-delegation: device scope constraints not yet implemented`)
 	}
 }

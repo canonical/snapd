@@ -334,7 +334,7 @@ func (chks *checkSuite) TestCheckMismatchedAccountIDandKey(c *C) {
 	err = db.Check(a)
 	c.Check(err, ErrorMatches, `error finding matching public key for signature: found public key ".*" from "canonical" but expected it from: random`)
 
-	err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), db, time.Time{}, time.Time{})
+	_, err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), nil, db, time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "canonical"`)
 }
 
@@ -666,6 +666,165 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 
 	err = safs.db.Check(a1)
 	c.Check(err, IsNil)
+
+	// test CheckDelegation directly as well, first retrieve the constraints
+	acs := ad.(*asserts.AuthorityDelegation).MatchingConstraints(a1)
+
+	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db, time.Time{}, time.Time{})
+	c.Check(err, IsNil)
+	// the constraints are consumed and not passed further along
+	c.Check(acs, HasLen, 0)
+}
+
+func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
+	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
+	delegatedKeyID := testPrivKey1.PublicKey().ID()
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "delegated-acct",
+		"display-name": "delegated",
+		"validation":   "verified",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	since := time.Now()
+	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+	headers = map[string]interface{}{
+		"type":                "account-key",
+		"authority-id":        "canonical",
+		"account-id":          "delegated-acct",
+		"name":                "default",
+		"public-key-sha3-384": delegatedKeyID,
+		"since":               since.Format(time.RFC3339),
+	}
+	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
+	c.Assert(err, IsNil)
+	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	c.Assert(safs.db.Add(delegatedAcct), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "delegated-acct",
+		"primary-key":  "k1",
+		"anchor":       "A",
+	}
+	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
+	c.Assert(err, IsNil)
+
+	// now add authority-delegation
+	headers = map[string]interface{}{
+		"type":         "account-key",
+		"authority-id": "canonical",
+		"account-id":   "canonical",
+		"delegate-id":  "delegated-acct",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": asserts.TestOnlyType.Name,
+				"headers": map[string]interface{}{
+					"primary-key": "k1",
+					"anchor":      "B",
+				},
+				"since": since.Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	c.Assert(safs.db.Add(ad), IsNil)
+
+	err = safs.db.Check(a1)
+	c.Check(err, ErrorMatches, `no matching constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
+
+	// test CheckDelegation directly as well, first retrieve the constraints
+	acs := ad.(*asserts.AuthorityDelegation).MatchingConstraints(assertstest.FakeAssertion(map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "delegated-acct",
+		"type":         "test-only",
+		"primary-key":  "k1",
+		"anchor":       "B",
+	}))
+	c.Assert(acs, HasLen, 1)
+
+	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db, time.Time{}, time.Time{})
+	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
+
+	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db, time.Time{}, time.Time{})
+	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
+}
+
+func (safs *signAddFindSuite) TestSignDelegationExpired(c *C) {
+	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
+	delegatedKeyID := testPrivKey1.PublicKey().ID()
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "delegated-acct",
+		"display-name": "delegated",
+		"validation":   "verified",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	since := time.Now()
+	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+	headers = map[string]interface{}{
+		"type":                "account-key",
+		"authority-id":        "canonical",
+		"account-id":          "delegated-acct",
+		"name":                "default",
+		"public-key-sha3-384": delegatedKeyID,
+		"since":               since.Format(time.RFC3339),
+	}
+	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
+	c.Assert(err, IsNil)
+	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	c.Assert(safs.db.Add(delegatedAcct), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "delegated-acct",
+		"primary-key":  "k1",
+		"anchor":       "A",
+	}
+	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
+	c.Assert(err, IsNil)
+
+	// add expired authority-delegation
+	headers = map[string]interface{}{
+		"type":         "account-key",
+		"authority-id": "canonical",
+		"account-id":   "canonical",
+		"delegate-id":  "delegated-acct",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": asserts.TestOnlyType.Name,
+				"headers": map[string]interface{}{
+					"primary-key": "k1",
+					"anchor":      "A",
+				},
+				"since": since.AddDate(0, -2, 0).Format(time.RFC3339),
+				"until": since.AddDate(0, -1, 0).Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	c.Assert(safs.db.Add(ad), IsNil)
+
+	err = safs.db.Check(a1)
+	c.Check(err, ErrorMatches, `all constraints supporting delegated test-only assertion from "canonical" to "delegated-acct" are expired`)
 }
 
 func (safs *signAddFindSuite) TestAddRefusesSelfSignedKey(c *C) {

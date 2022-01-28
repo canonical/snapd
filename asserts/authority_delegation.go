@@ -139,6 +139,12 @@ func assembleAuthorityDelegation(assert assertionBase) (Assertion, error) {
 		if err != nil {
 			return nil, err
 		}
+		_, onStore := m["on-store"]
+		_, onBrand := m["on-brand"]
+		_, onModel := m["on-model"]
+		if onStore || onBrand || onModel {
+			return nil, fmt.Errorf("device scope constraints not yet implemented")
+		}
 		acs = append(acs, &AssertionConstraints{
 			assertType: t,
 			matcher:    matcher,
@@ -165,6 +171,9 @@ type AssertionConstraints struct {
 // Check checks whether the assertion matches the constraints.
 // It returns an error otherwise.
 func (ac *AssertionConstraints) Check(a Assertion) error {
+	if a.Type() != ac.assertType {
+		return fmt.Errorf("assertion %q does not match constraint for assertion type %q", a.Type().Name, ac.assertType.Name)
+	}
 	return ac.matcher.match("", a.Headers(), &attrMatchingContext{
 		attrWord: "header",
 	})
