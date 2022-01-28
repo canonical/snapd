@@ -923,7 +923,36 @@ func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 	c.Assert(err, ErrorMatches, `quota group \"mixed-grp\" has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications`)
 }
 
-func (s *quotaHandlersSuite) TestQuotaSnapSubgroupUnmixable(c *C) {
+func (s *quotaHandlersSuite) TestQuotaSnapCanRemoveMixed(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	err := s.mockMixedQuotaGroup("mixed-grp", []string{"test-snap"})
+	c.Assert(err, IsNil)
+
+	// first we remove the sub-group
+	qc := servicestate.QuotaControlAction{
+		Action:    "remove",
+		QuotaName: "mixed-grp-sub",
+	}
+	err = s.callDoQuotaControl(&qc)
+	c.Assert(err, IsNil)
+
+	// then we remove the parent group
+	qc2 := servicestate.QuotaControlAction{
+		Action:    "remove",
+		QuotaName: "mixed-grp",
+	}
+	err = s.callDoQuotaControl(&qc2)
+	c.Assert(err, IsNil)
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSubgroupWithSnaps(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
@@ -938,34 +967,25 @@ func (s *quotaHandlersSuite) TestQuotaSnapSubgroupUnmixable(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	// trying to remove a group that does not exist fails
 	qc := servicestate.QuotaControlAction{
-		Action:    "remove",
-		QuotaName: "not-exists",
-	}
-
-	err := s.callDoQuotaControl(&qc)
-	c.Assert(err, ErrorMatches, `cannot remove non-existent quota group "not-exists"`)
-
-	qc2 := servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
 		ResourceLimits: quota.NewResources(quantity.SizeGiB),
 		AddSnaps:       []string{"test-snap"},
 	}
 
-	err = s.callDoQuotaControl(&qc2)
+	err := s.callDoQuotaControl(&qc)
 	c.Assert(err, IsNil)
 
 	// try to create a subgroup in a group that already has snaps, this call should fail
-	qc3 := servicestate.QuotaControlAction{
+	qc2 := servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo2",
 		ResourceLimits: quota.NewResources(quantity.SizeGiB / 2),
 		ParentName:     "foo",
 	}
 
-	err = s.callDoQuotaControl(&qc3)
+	err = s.callDoQuotaControl(&qc2)
 	c.Assert(err, ErrorMatches, `cannot mix sub groups with snaps in the same group`)
 
 	// check that the quota groups was created in the state
@@ -973,6 +993,58 @@ func (s *quotaHandlersSuite) TestQuotaSnapSubgroupUnmixable(c *C) {
 		"foo": {
 			ResourceLimits: quota.NewResources(quantity.SizeGiB),
 			Snaps:          []string{"test-snap"},
+		},
+	})
+}
+
+func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSnapsWithSubgroups(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	qc := servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo",
+		ResourceLimits: quota.NewResources(quantity.SizeGiB),
+	}
+
+	err := s.callDoQuotaControl(&qc)
+	c.Assert(err, IsNil)
+
+	// create a subgroup for the foo group, which has neither snaps or subgroups
+	qc2 := servicestate.QuotaControlAction{
+		Action:         "create",
+		QuotaName:      "foo2",
+		ResourceLimits: quota.NewResources(quantity.SizeGiB / 2),
+		ParentName:     "foo",
+	}
+
+	err = s.callDoQuotaControl(&qc2)
+	c.Assert(err, IsNil)
+
+	// now we try to add snaps to the foo group which already has subgroups, this should fail
+	qc3 := servicestate.QuotaControlAction{
+		Action:    "update",
+		QuotaName: "foo",
+		AddSnaps:  []string{"test-snap"},
+	}
+
+	err = s.callDoQuotaControl(&qc3)
+	c.Assert(err, ErrorMatches, `cannot mix snaps and sub groups in the group \"foo\"`)
+
+	// check that the quota groups was created in the state
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			ResourceLimits: quota.NewResources(quantity.SizeGiB),
+			SubGroups:      []string{"foo2"},
+		},
+		"foo2": {
+			ResourceLimits: quota.NewResources(quantity.SizeGiB / 2),
+			ParentGroup:    "foo",
 		},
 	})
 }
