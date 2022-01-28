@@ -439,11 +439,7 @@ func exitCodeFromError(err error) int {
 	}
 }
 
-func main() {
-	snapdtool.ExecInSnapdOrCoreSnap()
-
-	// check for magic symlink to /usr/bin/snap:
-	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
+func maybeExecAsCommandNotFound() (done bool) {
 	if os.Args[0] == filepath.Join(dirs.GlobalRootDir, "/usr/lib/command-not-found") {
 		cmd := &cmdAdviseSnap{
 			Command: true,
@@ -461,10 +457,13 @@ func main() {
 		if err := cmd.Execute(nil); err != nil {
 			fmt.Fprintln(Stderr, err)
 		}
-		return
+		return true
 	}
+	return false
+}
 
-	// 2. symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
+// the returnInsteadOfExit parameter is only for testing
+func maybeExecAsSnapBinSymlink(returnInsteadOfExit bool) (done bool) {
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
 		var err error
@@ -474,14 +473,39 @@ func main() {
 			os.Exit(46)
 		}
 		cmd := &cmdRun{}
+		cmd.Positional.Command = installedCommand(snapApp)
+		if len(os.Args) > 1 {
+			cmd.Positional.CommandArgs = os.Args[1:]
+		}
 		cmd.client = mkClient()
-		os.Args[0] = snapApp
 		// this will call syscall.Exec() so it does not return
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
 		err = cmd.Execute(os.Args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
-		os.Exit(46)
+		if !returnInsteadOfExit {
+			os.Exit(46)
+		}
+
+		// impossible to reach except in tests
+		return true
+	}
+
+	return false
+}
+
+func main() {
+	snapdtool.ExecInSnapdOrCoreSnap()
+
+	// check for magic symlink to /usr/bin/snap:
+	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
+	if done := maybeExecAsCommandNotFound(); done {
+		return
+	}
+
+	// 2. symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
+	if done := maybeExecAsSnapBinSymlink(false); done {
+		return
 	}
 
 	defer func() {

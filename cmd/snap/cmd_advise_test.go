@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -96,6 +97,41 @@ func (s *SnapSuite) TestAdviseCommandHappyJSON(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, `[{"Snap":"hello","Command":"hello"},{"Snap":"hello-wcm","Command":"hello"}]`+"\n")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestUsrLibCommandNotFoundSymlink(c *C) {
+	restore := advisor.ReplaceCommandsFinder(mkSillyFinder)
+	defer restore()
+	origArgs := os.Args
+	defer func() {
+		os.Args = origArgs
+	}()
+
+	// doesn't execute snap advise
+	os.Args = []string{"/usr/bin/snap", "foo"}
+	done := snap.MaybeExecAsCommandNotFound()
+	c.Assert(done, Equals, false)
+
+	// nothing was executed and thus nothing was printed out
+	c.Assert(s.Stdout(), Equals, "")
+	c.Assert(s.Stderr(), Equals, "")
+
+	// does execute snap advise
+	os.Args = []string{filepath.Join(dirs.GlobalRootDir, "/usr/lib/command-not-found"), "--", "hell0"}
+	done = snap.MaybeExecAsCommandNotFound()
+	c.Assert(done, Equals, true)
+
+	c.Assert(s.Stdout(), Equals, `
+Command "hell0" not found, did you mean:
+
+ command "hello" from snap "hello"
+ command "hello" from snap "hello-wcm"
+
+See 'snap info <snap name>' for additional versions.
+
+`)
+
 	c.Assert(s.Stderr(), Equals, "")
 }
 

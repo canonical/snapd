@@ -215,6 +215,65 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("TMPDIR=%s", tmpdir))
 }
 
+func (s *RunSuite) TestSnapBinSymlink(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	origArgs := os.Args
+	defer func() {
+		os.Args = origArgs
+	}()
+
+	tmpdir := os.Getenv("TMPDIR")
+	if tmpdir == "" {
+		tmpdir = "/var/tmp"
+		os.Setenv("TMPDIR", tmpdir)
+		defer os.Unsetenv("TMPDIR")
+	}
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		fmt.Println("syscall exec mocked")
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// doesn't execute snap run due to symlink
+	os.Args = []string{"/usr/bin/snap", "foo"}
+	done := snaprun.MaybeExecAsSnapBinSymlink(true)
+	c.Assert(done, check.Equals, false)
+
+	// does execute snap run
+	// make it a symlink to /usr/bin/snap
+	err := os.MkdirAll(dirs.SnapBinariesDir, 0755)
+	c.Assert(err, check.IsNil)
+	err = os.Symlink("/usr/bin/snap", filepath.Join(dirs.SnapBinariesDir, "snapname.app"))
+	c.Assert(err, check.IsNil)
+
+	os.Args = []string{filepath.Join(dirs.SnapBinariesDir, "snapname.app"), "--arg1", "arg2"}
+	done = snaprun.MaybeExecAsSnapBinSymlink(true)
+	c.Assert(done, check.Equals, true)
+
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Check(execEnv, testutil.Contains, fmt.Sprintf("TMPDIR=%s", tmpdir))
+}
+
 func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
