@@ -276,6 +276,18 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
 
+func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
+	parent, err := quota.NewGroup("parent", quota.NewResources(quantity.SizeMiB))
+	c.Assert(err, IsNil)
+
+	// now we add a snap to the parent group
+	parent.Snaps = []string{"test-snap"}
+
+	// add a subgroup to the parent group, this should fail as the group now has snaps
+	_, err = parent.NewSubGroup("sub", quota.NewResources(quantity.SizeMiB/2))
+	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
+}
+
 func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 	tt := []struct {
 		grps    map[string]*quota.Group
