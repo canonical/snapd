@@ -37,7 +37,8 @@ const (
 )
 
 type attrMatchingContext struct {
-	// attrWord is the usage context word for "attribute"
+	// attrWord is the usage context word for "attribute", mainly
+	// useful in errors
 	attrWord string
 	helper   AttrMatchContext
 }
