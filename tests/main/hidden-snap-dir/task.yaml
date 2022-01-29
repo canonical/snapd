@@ -1,9 +1,5 @@
 summary: Check that the experimental hidden dir feature migrates the dir
 
-# this test is flaky on CentOS and openSUSE due to an issue w/ 'snap remove'
-# https://bugs.launchpad.net/snapd/+bug/1959036
-systems: [-centos-*, -opensuse-*]
-
 environment:
     NAME: test-snapd-tools
 
