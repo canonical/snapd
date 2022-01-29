@@ -170,7 +170,7 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 
 	for _, task := range st.Tasks() {
 		chg := task.Change()
-		if chg == nil || chg.Status().Ready() {
+		if chg == nil || (chg.Status().Ready() && task.IsClean()) {
 			continue
 		}
 		if ignoreChangeID != "" && chg.ID() == ignoreChangeID {

@@ -260,7 +260,11 @@ func (r *TaskRunner) run(t *Task) {
 			case UndoneStatus:
 				next = t.WaitTasks()
 			}
-			if len(next) > 0 {
+			chg := t.Change()
+			if len(next) > 0 ||
+				// We also want to trigger one Ensure iteration if the change
+				// is ready but not yet clean, in order to perform the cleanup
+				(chg != nil && chg.IsReady() && !chg.IsClean()) {
 				r.state.EnsureBefore(0)
 			}
 		default:

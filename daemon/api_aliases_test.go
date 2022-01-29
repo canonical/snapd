@@ -343,6 +343,8 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
+	s.waitUntilClean(c, chg)
+
 	// unalias
 	action = &daemon.AliasAction{
 		Action: "unalias",
@@ -424,6 +426,8 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	err = chg.Err()
 	st.Unlock()
 	c.Assert(err, check.IsNil)
+
+	s.waitUntilClean(c, chg)
 
 	// DWIM unalias an alias
 	action = &daemon.AliasAction{

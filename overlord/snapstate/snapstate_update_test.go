@@ -3832,15 +3832,6 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "other-snap", SnapID: "other-snap-id", Revision: snap.R(2)},
-		},
-		Current:  snap.R(2),
-		SnapType: "app",
-	})
-
 	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
 		switch info.InstanceName() {
 		case "some-snap":
@@ -3850,15 +3841,6 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		return nil, nil
 	}
-
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
-		},
-		Current:  snap.R(4),
-		SnapType: "app",
-	})
 
 	expectedSet := func(aliases []string) map[string]bool {
 		res := make(map[string]bool, len(aliases))
@@ -3872,6 +3854,24 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		if len(scenario.names) != 1 {
 			continue
 		}
+
+		snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+			Active: true,
+			Sequence: []*snap.SideInfo{
+				{RealName: "other-snap", SnapID: "other-snap-id", Revision: snap.R(2)},
+			},
+			Current:  snap.R(2),
+			SnapType: "app",
+		})
+
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			Active: true,
+			Sequence: []*snap.SideInfo{
+				{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+			},
+			Current:  snap.R(4),
+			SnapType: "app",
+		})
 
 		for _, instanceName := range []string{"some-snap", "other-snap"} {
 			var snapst snapstate.SnapState
@@ -3969,6 +3969,9 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		err = snapstate.CheckChangeConflict(s.state, scenario.names[0], nil)
 		c.Check(err, ErrorMatches, `.* has "update" change in progress`)
 		chg.SetStatus(state.DoneStatus)
+
+		// Do not leak active tasks into the next iteration
+		s.settle(c)
 	}
 }
 

@@ -667,3 +667,28 @@ func (s *apiBaseSuite) simulateConflict(name string) {
 	chg := st.NewChange("manip", "...")
 	chg.AddTask(t)
 }
+
+func (s *apiBaseSuite) waitUntilClean(c *check.C, chg *state.Change) {
+	if s.d == nil {
+		panic("call s.daemon(c) etc in your test first")
+	}
+
+	o := s.d.Overlord()
+	st := o.State()
+
+	testTimeout := time.After(time.Second * 2)
+Loop:
+	for {
+		select {
+		case <-testTimeout:
+			c.Fatalf("timeout waiting for change to be clean")
+		case <-time.After(1 * time.Millisecond):
+			st.Lock()
+			done := chg.IsClean()
+			st.Unlock()
+			if done {
+				break Loop
+			}
+		}
+	}
+}

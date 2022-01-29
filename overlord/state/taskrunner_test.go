@@ -43,18 +43,16 @@ type taskRunnerSuite struct {
 var _ = Suite(&taskRunnerSuite{})
 
 type stateBackend struct {
-	mu               sync.Mutex
-	ensureBefore     time.Duration
-	ensureBeforeSeen chan<- bool
+	mu                      sync.Mutex
+	ensureBeforeInvocations []time.Duration
+	ensureBeforeSeen        chan<- bool
 }
 
 func (b *stateBackend) Checkpoint([]byte) error { return nil }
 
 func (b *stateBackend) EnsureBefore(d time.Duration) {
 	b.mu.Lock()
-	if d < b.ensureBefore {
-		b.ensureBefore = d
-	}
+	b.ensureBeforeInvocations = append(b.ensureBeforeInvocations, d)
 	b.mu.Unlock()
 	if b.ensureBeforeSeen != nil {
 		b.ensureBeforeSeen <- true
@@ -63,7 +61,7 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 
 func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
 	for i := 0; i < 20; i++ {
-		sb.ensureBefore = time.Hour
+		sb.ensureBeforeInvocations = nil
 		r.Ensure()
 		r.Wait()
 		chg.State().Lock()
@@ -72,7 +70,7 @@ func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change
 		if s.Ready() {
 			return
 		}
-		if sb.ensureBefore > 0 {
+		if len(sb.ensureBeforeInvocations) == 0 {
 			break
 		}
 	}
@@ -717,7 +715,6 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	ensureBeforeTick := make(chan bool, 1)
 	sb := &stateBackend{
-		ensureBefore:     time.Hour,
 		ensureBeforeSeen: ensureBeforeTick,
 	}
 	st := state.New(sb)
@@ -756,23 +753,23 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 
 	c.Check(ask, Equals, 1)
-	c.Check(sb.ensureBefore, Equals, 1*time.Minute)
+	c.Check(sb.ensureBeforeInvocations, DeepEquals, []time.Duration{1 * time.Minute})
 	schedule := t.AtTime()
 	c.Check(schedule.IsZero(), Equals, false)
 
 	state.MockTime(tock.Add(5 * time.Second))
-	sb.ensureBefore = time.Hour
+	sb.ensureBeforeInvocations = nil
 	st.Unlock()
 	r.Ensure() // too soon
 	st.Lock()
 
 	c.Check(t.Status(), Equals, state.DoingStatus)
 	c.Check(ask, Equals, 1)
-	c.Check(sb.ensureBefore, Equals, 55*time.Second)
+	c.Check(sb.ensureBeforeInvocations, DeepEquals, []time.Duration{55 * time.Second})
 	c.Check(t.AtTime().Equal(schedule), Equals, true)
 
 	state.MockTime(schedule)
-	sb.ensureBefore = time.Hour
+	sb.ensureBeforeInvocations = nil
 	st.Unlock()
 	r.Ensure() // time to run again
 	select {
@@ -780,6 +777,17 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("handler wasn't called")
 	}
+	ensureCount := 0
+	for ensureCount < 2 {
+		select {
+		case <-ensureBeforeTick:
+			ensureCount++
+		case <-time.After(2 * time.Second):
+			c.Fatal("handler wasn't called")
+		}
+	}
+
+	//sb.ensureBeforeSeen = nil
 
 	// wait for handler to finish
 	r.Wait()
@@ -787,14 +795,13 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	st.Lock()
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(ask, Equals, 2)
-	c.Check(sb.ensureBefore, Equals, time.Hour)
+	c.Check(sb.ensureBeforeInvocations, DeepEquals, []time.Duration{0})
 	c.Check(t.AtTime().IsZero(), Equals, true)
 }
 
 func (ts *taskRunnerSuite) testTaskSerialization(c *C, setupBlocked func(r *state.TaskRunner)) {
 	ensureBeforeTick := make(chan bool, 1)
 	sb := &stateBackend{
-		ensureBefore:     time.Hour,
 		ensureBeforeSeen: ensureBeforeTick,
 	}
 	st := state.New(sb)
@@ -853,7 +860,7 @@ func (ts *taskRunnerSuite) testTaskSerialization(c *C, setupBlocked func(r *stat
 	case <-time.After(2 * time.Second):
 		c.Fatal("EnsureBefore wasn't called")
 	}
-	c.Check(sb.ensureBefore, Equals, time.Duration(0))
+	c.Check(sb.ensureBeforeInvocations, NotNil)
 
 	r.Ensure() // will start do2
 
@@ -863,8 +870,16 @@ func (ts *taskRunnerSuite) testTaskSerialization(c *C, setupBlocked func(r *stat
 		c.Fatal("do2 wasn't called")
 	}
 
-	// no more EnsureBefore calls
-	c.Check(ensureBeforeTick, HasLen, 0)
+	// getting an EnsureBefore 0 call
+	select {
+	case <-ensureBeforeTick:
+	case <-time.After(2 * time.Second):
+		c.Fatal("EnsureBefore wasn't called")
+	}
+
+	for _, duration := range sb.ensureBeforeInvocations {
+		c.Check(duration, Equals, time.Duration(0))
+	}
 }
 
 func (ts *taskRunnerSuite) TestTaskSerializationSetBlocked(c *C) {
