@@ -140,7 +140,7 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	switch app.DaemonScope {
 	case snap.SystemDaemon:
 		var stopErrors error
-		if 0 < len(extraServices) {
+		if len(extraServices) > 0 {
 			stopErrors = sysd.Stop(extraServices, tout)
 		}
 
