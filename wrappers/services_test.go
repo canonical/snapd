@@ -2665,6 +2665,74 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	}, Commentf("calls: %v", sysdLog))
 }
 
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable(c *C) {
+	// start services is called without the enable flag (eg. as during snap
+	// start foo), in which case, the cleanup does not call disable (unless
+	// there are timers and socket, in which the buggy behavior kicks in,
+	// but only for those units)
+	var sysdLog [][]string
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+	svc2SocketName := "snap.hello-snap.svc2.sock1.socket"
+	svc3Name := "snap.hello-snap.svc3.service"
+	svc3SocketName := "snap.hello-snap.svc3.sock1.socket"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		c.Logf("call: %v", cmd)
+		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc1Name {
+			// svc1 fails
+			return nil, fmt.Errorf("failed")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: simple
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+ svc3:
+  command: bin/hello
+  daemon: simple
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	// ensure desired order
+	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
+
+	// no enable
+	flags := &wrappers.StartServicesFlags{Enable: false}
+	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, "failed")
+	c.Logf("sysdlog: %v", sysdLog)
+	c.Assert(sysdLog, HasLen, 15, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"enable", svc2SocketName, svc3SocketName},
+		{"start", svc2SocketName},
+		{"start", svc3SocketName},
+		{"start", svc1Name}, // start failed, what follows is the cleanup
+		{"stop", svc3SocketName},
+		{"show", "--property=ActiveState", svc3SocketName},
+		{"stop", svc3Name},
+		{"show", "--property=ActiveState", svc3Name},
+		{"stop", svc2SocketName},
+		{"show", "--property=ActiveState", svc2SocketName},
+		{"stop", svc2Name},
+		{"show", "--property=ActiveState", svc2Name},
+		{"stop", svc1Name},
+		{"show", "--property=ActiveState", svc1Name},
+		{"disable", svc2SocketName, svc3SocketName},
+	}, Commentf("calls: %v", sysdLog))
+}
+
 func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C) {
 	var sysdLog [][]string
 	svc1Name := "snap.hello-snap.svc1.service"

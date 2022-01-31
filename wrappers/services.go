@@ -205,10 +205,12 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 				}
 			}
 		}
-		if flags.Enable {
+		if len(toEnableSystem) > 0 {
 			if e := systemSysd.Disable(toEnableSystem); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
 			}
+		}
+		if len(toEnableUser) > 0 {
 			if e := userSysd.Disable(toEnableUser); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
 			}
@@ -220,6 +222,22 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	// were started first, followed by other non-activated services
 
 	// first, gather all socket and timer units
+	startService := func(svc string, scope snap.DaemonScope) {
+		switch scope {
+		case snap.SystemDaemon:
+			systemServices = append(systemServices, svc)
+		case snap.UserDaemon:
+			userServices = append(userServices, svc)
+		}
+	}
+	enableService := func(svc string, scope snap.DaemonScope) {
+		switch scope {
+		case snap.SystemDaemon:
+			toEnableSystem = append(toEnableSystem, svc)
+		case snap.UserDaemon:
+			toEnableUser = append(toEnableUser, svc)
+		}
+	}
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
@@ -227,31 +245,19 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		for _, socket := range app.Sockets {
 			// socket unit
 			socketService := filepath.Base(socket.File())
-
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				systemServices = append(systemServices, socketService)
-				toEnableSystem = append(toEnableSystem, socketService)
-			case snap.UserDaemon:
-				userServices = append(userServices, socketService)
-				toEnableUser = append(toEnableUser, socketService)
-			}
+			startService(socketService, app.DaemonScope)
+			// TODO: look at enable flag
+			enableService(socketService, app.DaemonScope)
 		}
 
 		if app.Timer != nil {
 			// timer unit
 			timerService := filepath.Base(app.Timer.File())
 
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				systemServices = append(systemServices, timerService)
-				toEnableSystem = append(toEnableSystem, timerService)
-			case snap.UserDaemon:
-				userServices = append(userServices, timerService)
-				toEnableUser = append(toEnableUser, timerService)
-			}
+			startService(timerService, app.DaemonScope)
+			// TODO: look at enable flag
+			enableService(timerService, app.DaemonScope)
 		}
-
 	}
 	// not collect all services
 	for _, app := range apps {
@@ -265,18 +271,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			continue
 		}
 		svcName := app.ServiceName()
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			systemServices = append(systemServices, svcName)
-		case snap.UserDaemon:
-			userServices = append(userServices, svcName)
-		}
+		startService(svcName, app.DaemonScope)
 		if flags.Enable {
-			if app.DaemonScope == snap.SystemDaemon {
-				toEnableSystem = append(toEnableSystem, svcName)
-			} else {
-				toEnableUser = append(toEnableUser, svcName)
-			}
+			enableService(svcName, app.DaemonScope)
 		}
 	}
 
