@@ -1244,9 +1244,9 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// writeMigrationStatus is used to re-write the state and sequence file (if they
-// exist). This must be called after the migration undo procedure is done
-// since it only then we know the actual final state of the migration.
+// writeMigrationStatus writes the state and sequence file (if they exist).
+// This must be called after the migration undo procedure is done since only
+// then do we know the actual final state of the migration.
 func writeMigrationStatus(t *state.Task, snapst *SnapState, snapName string) error {
 	st := t.State()
 
@@ -1255,7 +1255,6 @@ func writeMigrationStatus(t *state.Task, snapst *SnapState, snapName string) err
 	st.Unlock()
 	if err != nil && err != state.ErrNoState {
 		return err
-
 	}
 
 	if err == nil {
