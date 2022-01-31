@@ -1,0 +1,20 @@
+summary: Stress test snap services handling
+details: |
+    Install snap which carries many services and make sure that service
+    operations work correctly.
+
+execute: |
+    echo "Install a snap with multiple services"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service-many
+
+    echo "Restart all services"
+    snap restart test-snapd-service-many
+
+    echo "Stop all services"
+    snap stop test-snapd-service-many
+
+    echo "Start them again"
+    snap start test-snapd-service-many
+
+    echo "Remove the snap"
+    snap remove test-snapd-service-many --purge
