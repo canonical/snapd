@@ -205,11 +205,13 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 				}
 			}
 		}
-		if e := systemSysd.Disable(toEnableSystem); e != nil {
-			inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
-		}
-		if e := userSysd.Disable(toEnableUser); e != nil {
-			inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
+		if flags.Enable {
+			if e := systemSysd.Disable(toEnableSystem); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
+			}
+			if e := userSysd.Disable(toEnableUser); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
+			}
 		}
 
 	}()
