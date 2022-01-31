@@ -650,7 +650,7 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 
 func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
-	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true}
+	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transactional: true}
 
 	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
@@ -680,6 +680,10 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 
 	body := "----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	body += "Content-Disposition: form-data; name=\"transactional\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
