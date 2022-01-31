@@ -260,7 +260,7 @@ snaps:
 `[1:])
 }
 
-func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
+func (s *quotaSuite) TestGetMemoryQuotaGroupSimple(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
@@ -290,6 +290,52 @@ current:
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 0))
+
+	s.stdout.Reset()
+	s.stderr.Reset()
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 500)))
+
+	rest, err = main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 500))
+}
+
+func (s *quotaSuite) TestGetCpuQuotaGroupSimple(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	const jsonTemplate = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name": "foo",
+			"constraints": {"cpu":{"count":1,"percentage":50,"allowed-cpus":[0,1]},"threads":32},
+			"current": {"threads": %d}
+		}
+	}`
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 16)))
+
+	outputTemplate := `
+name:  foo
+constraints:
+  memory:          0B
+  cpu-count:       1
+  cpu-percentage:  50
+  allowed-cpus:    0,1
+current:
+  memory:   0B
+  threads:  %d
+`[1:]
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 16))
 
 	s.stdout.Reset()
 	s.stderr.Reset()
@@ -486,7 +532,12 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
 			{"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
 			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
-			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
+			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}},
+			{"group-name":"cp0","constraints":{"memory":9900, "cpu":{"percentage":90}},"current":{"memory":10000}},
+			{"group-name":"cp1","subgroups":["cps0"],"constraints":{"cpu":{"count":2, "percentage":90}}},
+			{"group-name":"cps0","parent":"cp1","constraints":{"cpu":{"percentage":40}}},
+			{"group-name":"cp2","subgroups":["cps1"],"constraints":{"cpu":{"count":2,"percentage":100,"allowed-cpus":[0,1]}}},
+			{"group-name":"cps1","parent":"cp2","constraints":{"memory":9900,"cpu":{"percentage":50,"allowed-cpus":[1]}},"current":{"memory":10000}}
 			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
@@ -494,15 +545,20 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-Quota    Parent  Constraints   Current
-xxx              memory=9.9kB  memory=10.0kB
-yyyyyyy          memory=1000B  
-zzz              memory=5000B  
-aaa      zzz     memory=1000B  
-ccc      aaa     memory=400B   
-ddd      aaa     memory=400B   
-fff      aaa     memory=1000B  
-bbb      zzz     memory=1000B  memory=400B
+Quota    Parent  Constraints                          Current
+cp0              memory=9.9kB,cpu=90%                 memory=10.0kB
+cp1              cpu=2x,cpu=90%                       
+cps0     cp1     cpu=40%                              
+cp2              cpu=2x,cpu=100%,allowed-cpus=0,1     
+cps1     cp2     memory=9.9kB,cpu=50%,allowed-cpus=1  memory=10.0kB
+xxx              memory=9.9kB                         memory=10.0kB
+yyyyyyy          memory=1000B                         
+zzz              memory=5000B                         
+aaa      zzz     memory=1000B                         
+ccc      aaa     memory=400B                          
+ddd      aaa     memory=400B                          
+fff      aaa     memory=1000B                         
+bbb      zzz     memory=1000B                         memory=400B
 `[1:])
 }
 

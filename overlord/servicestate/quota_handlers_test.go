@@ -67,13 +67,13 @@ func (s *quotaHandlersSuite) SetUpTest(c *C) {
 // this type of mixed groups were supported when the feature was experimental.
 func mockMixedQuotaGroup(st *state.State, name string, snaps []string) error {
 	// create the quota group
-	grp, err := quota.NewGroup(name, quota.NewResources(quantity.SizeGiB))
+	grp, err := quota.NewGroup(name, quota.NewResources(quantity.SizeGiB, 0, 0, nil, 0))
 	if err != nil {
 		return err
 	}
 
 	subGrpName := name + "-sub"
-	subGrp, err := grp.NewSubGroup(subGrpName, quota.NewResources(quantity.SizeGiB/2))
+	subGrp, err := grp.NewSubGroup(subGrpName, quota.NewResources(quantity.SizeGiB/2, 0, 0, nil, 0))
 	if err != nil {
 		return err
 	}
@@ -919,7 +919,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 	qc := servicestate.QuotaControlAction{
 		Action:         "update",
 		QuotaName:      "mixed-grp",
-		ResourceLimits: quota.NewResources(2 * quantity.SizeGiB),
+		ResourceLimits: quota.NewResources(2*quantity.SizeGiB, 0, 0, nil, 0),
 	}
 	err = s.callDoQuotaControl(&qc)
 	c.Assert(err, ErrorMatches, `quota group "mixed-grp" has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it`)
@@ -983,8 +983,8 @@ func (s *quotaHandlersSuite) TestQuotaSnapFailToMixSubgroupWithSnaps(c *C) {
 	qc := servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
-		ResourceLimits: quota.NewResources(quantity.SizeGiB), 0, 0, nil, 0,
-		AddSnaps: []string{"test-snap"},
+		ResourceLimits: quota.NewResources(quantity.SizeGiB, 0, 0, nil, 0),
+		AddSnaps:       []string{"test-snap"},
 	}
 
 	err := s.callDoQuotaControl(&qc)

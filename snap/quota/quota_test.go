@@ -298,14 +298,14 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 }
 
 func (ts *quotaTestSuite) TestGroupUnmixableSnapsSubgroups(c *C) {
-	parent, err := quota.NewGroup("parent", quota.NewResources(quantity.SizeMiB))
+	parent, err := quota.NewGroup("parent", quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0))
 	c.Assert(err, IsNil)
 
 	// now we add a snap to the parent group
 	parent.Snaps = []string{"test-snap"}
 
 	// add a subgroup to the parent group, this should fail as the group now has snaps
-	_, err = parent.NewSubGroup("sub", quota.NewResources(quantity.SizeMiB/2))
+	_, err = parent.NewSubGroup("sub", quota.NewResources(quantity.SizeMiB/2, 0, 0, nil, 0))
 	c.Assert(err, ErrorMatches, "cannot mix sub groups with snaps in the same group")
 }
 
