@@ -1257,6 +1257,7 @@ func writeMigrationStatus(t *state.Task, snapst *SnapState, snapName string) err
 		return err
 	}
 
+	// snap state was persisted, re-write it
 	if err == nil {
 		// migration state might've been written in the change; update it after undo
 		st.Lock()
