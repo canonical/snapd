@@ -215,35 +215,15 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		}
 
 	}()
+	// process all services of the snap in the order specified by the
+	// caller; before batched calls were introduced, the sockets and timers
+	// were started first, followed by other non-activated services
 
-	// gather all services, sockets, timers, units are collected in the
-	// order of appearance of apps as passed by the caller
+	// first, gather all socket and timer units
 	for _, app := range apps {
-		// they're *supposed* to be all services, but checking doesn't hurt
 		if !app.IsService() {
 			continue
 		}
-		if len(app.Sockets) == 0 && app.Timer == nil && len(app.ActivatesOn) == 0 {
-			if strutil.ListContains(disabledSvcs, app.Name) {
-				continue
-			}
-			svcName := app.ServiceName()
-			switch app.DaemonScope {
-			case snap.SystemDaemon:
-				systemServices = append(systemServices, svcName)
-			case snap.UserDaemon:
-				userServices = append(userServices, svcName)
-			}
-			if flags.Enable {
-				if app.DaemonScope == snap.SystemDaemon {
-					toEnableSystem = append(toEnableSystem, svcName)
-				} else {
-					toEnableUser = append(toEnableUser, svcName)
-				}
-			}
-			continue
-		}
-
 		for _, socket := range app.Sockets {
 			// socket unit
 			socketService := filepath.Base(socket.File())
@@ -272,6 +252,32 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}
 
+	}
+	// not collect all services
+	for _, app := range apps {
+		if !app.IsService() {
+			continue
+		}
+		if len(app.Sockets) > 0 || app.Timer != nil || len(app.ActivatesOn) > 0 {
+			continue
+		}
+		if strutil.ListContains(disabledSvcs, app.Name) {
+			continue
+		}
+		svcName := app.ServiceName()
+		switch app.DaemonScope {
+		case snap.SystemDaemon:
+			systemServices = append(systemServices, svcName)
+		case snap.UserDaemon:
+			userServices = append(userServices, svcName)
+		}
+		if flags.Enable {
+			if app.DaemonScope == snap.SystemDaemon {
+				toEnableSystem = append(toEnableSystem, svcName)
+			} else {
+				toEnableUser = append(toEnableUser, svcName)
+			}
+		}
 	}
 
 	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {

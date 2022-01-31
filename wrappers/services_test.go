@@ -2615,7 +2615,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 		sysdLog = append(sysdLog, cmd)
 		c.Logf("call: %v", cmd)
 		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc3SocketName {
-			// svc2 socket fails
+			// svc3 socket fails
 			return nil, fmt.Errorf("failed")
 		}
 		return []byte("ActiveState=inactive\n"), nil
@@ -2646,10 +2646,9 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 15, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 14, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name, svc2SocketName, svc3SocketName},
-		{"start", svc1Name},
+		{"enable", svc2SocketName, svc3SocketName, svc1Name},
 		{"start", svc2SocketName},
 		{"start", svc3SocketName}, // start failed, what follows is the cleanup
 		{"stop", svc3SocketName},
@@ -2662,7 +2661,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name, svc2SocketName, svc3SocketName},
+		{"disable", svc2SocketName, svc3SocketName, svc1Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -3028,10 +3027,10 @@ func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 5, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name, svc2Sock},
+		{"enable", svc2Sock, svc1Name},
 		{"--user", "--global", "enable", svc3Sock},
-		{"start", svc1Name},
 		{"start", svc2Sock},
+		{"start", svc1Name},
 		{"--user", "start", svc3Sock},
 	}, Commentf("calls: %v", s.sysdLog))
 }
@@ -3061,10 +3060,10 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.sysdLog, HasLen, 5, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name, svc2Timer},
+		{"enable", svc2Timer, svc1Name},
 		{"--user", "--global", "enable", svc3Timer},
-		{"start", svc1Name},
 		{"start", svc2Timer},
+		{"start", svc1Name},
 		{"--user", "start", svc3Timer},
 	}, Commentf("calls: %v", s.sysdLog))
 }
@@ -3096,10 +3095,9 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 9, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name, svc2Timer},
-		{"start", svc1Name},
+		{"enable", svc2Timer, svc1Name},
 		{"start", svc2Timer}, // this call fails
 		{"stop", svc2Timer},
 		{"show", "--property=ActiveState", svc2Timer},
@@ -3107,7 +3105,7 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name, svc2Timer},
+		{"disable", svc2Timer, svc1Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
