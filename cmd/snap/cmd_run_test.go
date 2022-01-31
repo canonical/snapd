@@ -240,7 +240,6 @@ func (s *RunSuite) TestSnapBinSymlink(c *check.C) {
 	execArgs := []string{}
 	execEnv := []string{}
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
-		fmt.Println("syscall exec mocked")
 		execArg0 = arg0
 		execArgs = args
 		execEnv = envv
