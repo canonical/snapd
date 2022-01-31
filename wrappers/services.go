@@ -192,7 +192,6 @@ func startUserServices(cli *client.Client, inter interacter, services ...string)
 
 func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
 	serviceName := app.ServiceName()
-	tout := serviceStopTimeout(app)
 
 	var extraServices []string
 	for _, socket := range app.Sockets {
@@ -206,10 +205,10 @@ func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) erro
 	case snap.SystemDaemon:
 		var stopErrors error
 		if len(extraServices) > 0 {
-			stopErrors = sysd.Stop(extraServices, tout)
+			stopErrors = sysd.Stop(extraServices)
 		}
 
-		if err := sysd.Stop([]string{serviceName}, tout); err != nil {
+		if err := sysd.Stop([]string{serviceName}); err != nil {
 			if !systemd.IsTimeout(err) {
 				return err
 			}
@@ -1637,7 +1636,7 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 				err = sysd.ReloadOrRestart(unit.Name)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart([]string{unit.Name}, 5*time.Second)
+				err = sysd.Restart([]string{unit.Name})
 			}
 		})
 		if err != nil {

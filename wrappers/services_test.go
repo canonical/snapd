@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -56,6 +57,7 @@ type servicesTestSuite struct {
 	tempdir string
 
 	sysdLog [][]string
+	mutex   sync.Mutex
 
 	systemctlRestorer, delaysRestorer func()
 
@@ -73,10 +75,15 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tempdir)
 
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// systemctl stop and progress tracking happens from different
+		// threads. The mock implementation must be protected to avoid
+		// corrupting 'sysdLog' during concurrent appends.
+		s.mutex.Lock()
 		s.sysdLog = append(s.sysdLog, cmd)
+		s.mutex.Unlock()
 		return []byte("ActiveState=inactive\n"), nil
 	})
-	s.delaysRestorer = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.perfTimings = timings.New(nil)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())

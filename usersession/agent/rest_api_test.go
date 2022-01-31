@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/godbus/dbus"
@@ -45,6 +46,7 @@ type restSuite struct {
 	testutil.BaseTest
 	testutil.DBusTest
 	sysdLog [][]string
+	mutex   sync.Mutex
 	agent   *agent.SessionAgent
 	notify  *notificationtest.FdoServer
 }
@@ -60,13 +62,18 @@ func (s *restSuite) SetUpTest(c *C) {
 
 	s.sysdLog = nil
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// systemctl stop and progress tracking happens from different
+		// threads. The mock implementation must be protected to avoid
+		// corrupting 'sysdLog' during concurrent appends.
+		s.mutex.Lock()
 		s.sysdLog = append(s.sysdLog, cmd)
+		s.mutex.Unlock()
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)
-	restore = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.AddCleanup(restore)
-	restore = agent.MockStopTimeouts(20*time.Millisecond, time.Millisecond)
+	restore = agent.MockStopTimeouts(time.Millisecond)
 	s.AddCleanup(restore)
 
 	var err error

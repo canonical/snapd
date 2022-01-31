@@ -46,14 +46,20 @@ import (
 )
 
 var (
-	// the output of "show" must match this for Stop to be done:
+	// The output of 'systemctl show' for the ActiveState property must
+	// either be 'failed' or 'inactive' to detect as a valid stop. Any
+	// other value, including no output, results in an assumption that
+	// the queried service(s) are still running.
 	isStopDone = regexp.MustCompile(`(?m)\AActiveState=(?:failed|inactive)$`).Match
 
 	// how much time should Stop wait between calls to show
 	stopCheckDelay = 250 * time.Millisecond
 
-	// how much time should Stop wait between notifying the user of the waiting
-	stopNotifyDelay = 20 * time.Second
+	// Empirical test results on slower targets (i.e. on Raspberry Pi 3)
+	// show that trying to stop 4 systemd units under heavy CPU and IO
+	// load can take 750ms to complete. Only generate notifications for
+	// units still running after 1 second to minimize noise.
+	stopNotifyDelay = time.Second
 
 	// daemonReloadLock is a package level lock to ensure that we
 	// do not run any `systemd daemon-reload` while a
@@ -304,11 +310,11 @@ type Systemd interface {
 	// StartNoBlock starts the given service or services non-blocking.
 	StartNoBlock(service []string) error
 	// Stop the given service, and wait until it has stopped.
-	Stop(services []string, timeout time.Duration) error
+	Stop(services []string) error
 	// Kill all processes of the unit with the given signal.
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
-	Restart(services []string, timeout time.Duration) error
+	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
@@ -931,27 +937,51 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	return false, err
 }
 
-func (s *systemd) Stop(serviceNames []string, timeout time.Duration) error {
+func (s *systemd) Stop(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
 	}
-	if _, err := s.systemctl(append([]string{"stop"}, serviceNames...)...); err != nil {
-		return err
-	}
 
-	// and now wait for it to actually stop
-	giveup := time.NewTimer(timeout)
-	notify := time.NewTicker(stopNotifyDelay)
-	defer notify.Stop()
+	// Start the stop command in blocking mode inside a go routine to allow for
+	// real time progress tracking and notifications on services taking a long
+	// time to stop. Note that this systemd 'Stop' function is still blocking
+	// (under no error conditions) because it will wait until all units have
+	// stopped, or the timeout is reached. The reason we use a parallel thread
+	// is because we need to know exactly when systemctl returns, as this is the
+	// point where we disable the progress polling and exits. We cannot elegantly
+	// achieve this, for example, using --no-block without a go routine.
+	sysdReturn := make(chan error)
+	go func() {
+		_, err := s.systemctl(append([]string{"stop"}, serviceNames...)...)
+
+		// Systemd has completed the stop request async, return the error
+		// to trigger the progress state machine exit
+		sysdReturn <- err
+	}()
+
+	notify := time.NewTimer(stopNotifyDelay)
 	check := time.NewTicker(stopCheckDelay)
 	defer check.Stop()
 
-	firstCheck := true
+	// We start with a notice grace period to give services time to stop.
+	// Once this period expires, we provide user notifications every time
+	// the list of services we are waiting for changes
+	silenceNotify := true
+
+	// Once the async systemd stop completes without an error, we do one
+	// last status poll to make sure everything has stopped.
+	stopComplete := false
 loop:
 	for {
 		select {
-		case <-giveup.C:
-			break loop
+		case sysdErr := <-sysdReturn:
+			if sysdErr != nil {
+				// The systemd stop request returned an error
+				return sysdErr
+			}
+			stopComplete = true
+			continue loop
+
 		case <-check.C:
 			allStopped := true
 			stillRunningServices := []string{}
@@ -965,20 +995,36 @@ loop:
 					allStopped = false
 				}
 			}
+
 			if allStopped {
 				return nil
 			}
-			if !firstCheck {
-				// do not notify about services waiting on the
-				// first pass
+
+			nothingChanged := true
+			if len(serviceNames) != len(stillRunningServices) {
+				nothingChanged = false
+			}
+			// Only track the service units still not stopped
+			serviceNames = stillRunningServices
+
+			if stopComplete {
+				// Systemd has done what it can and exited
+				break loop
+			}
+
+			if nothingChanged {
+				// Do not generate a new notification
 				continue loop
 			}
-			serviceNames = stillRunningServices
-			firstCheck = false
+
 		case <-notify.C:
+			// Enable user notifications after the grace period expired
+			silenceNotify = false
 		}
-		// after notify delay or after a failed first check
-		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
+
+		if !silenceNotify {
+			s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
+		}
 	}
 
 	return &Timeout{action: "stop", services: serviceNames}
@@ -995,11 +1041,11 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	return err
 }
 
-func (s *systemd) Restart(serviceNames []string, timeout time.Duration) error {
+func (s *systemd) Restart(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	if err := s.Stop(serviceNames, timeout); err != nil {
+	if err := s.Stop(serviceNames); err != nil {
 		return err
 	}
 	return s.Start(serviceNames)
@@ -1386,7 +1432,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(units, time.Duration(1*time.Second)); err != nil {
+		if err := s.Stop(units); err != nil {
 			return err
 		}
 	}
