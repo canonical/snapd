@@ -943,9 +943,9 @@ func (s *quotaControlSuite) TestMemoryCGroupDisabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_memoryCGroupFile := servicestate.CGroupsFilePath
+	memoryCGroupFile := servicestate.CGroupsFilePath
 	defer func() {
-		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
 	}()
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
@@ -990,9 +990,9 @@ func (s *quotaControlSuite) TestMemoryCGroupEnabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_memoryCGroupFile := servicestate.CGroupsFilePath
+	memoryCGroupFile := servicestate.CGroupsFilePath
 	defer func() {
-		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
 	}()
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
@@ -1036,9 +1036,9 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_memoryCGroupFile := servicestate.CGroupsFilePath
+	memoryCGroupFile := servicestate.CGroupsFilePath
 	defer func() {
-		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
 	}()
 
 	// reset memory cgroup status with the non-existing file
@@ -1072,9 +1072,9 @@ func (s *quotaControlSuite) TestMemoryCGroupMalformed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_memoryCGroupFile := servicestate.CGroupsFilePath
+	memoryCGroupFile := servicestate.CGroupsFilePath
 	defer func() {
-		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
 	}()
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
@@ -1120,9 +1120,9 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingMemory(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_memoryCGroupFile := servicestate.CGroupsFilePath
+	memoryCGroupFile := servicestate.CGroupsFilePath
 	defer func() {
-		servicestate.SetCGroupsFilePath(_memoryCGroupFile)
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
 	}()
 
 	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
