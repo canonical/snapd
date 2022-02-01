@@ -981,7 +981,7 @@ devices	10	135	1`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
@@ -989,7 +989,7 @@ devices	10	135	1`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 }
@@ -1020,7 +1020,7 @@ devices	10	135	1`)
 	servicestate.SetCGroupsFilePath(cgroupsPath)
 
 	// check if all operations fail with the expected error message
-	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot use snap \"test-snap\" in group \"foo\": snap \"test-snap\" is not installed`)
 
@@ -1028,7 +1028,7 @@ devices	10	135	1`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot remove non-existent quota group \"foo\"`)
 
-	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `group \"foo\" does not exist`)
 
@@ -1063,7 +1063,7 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
@@ -1071,7 +1071,7 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 }
@@ -1111,7 +1111,7 @@ devices	10	135`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
@@ -1119,7 +1119,7 @@ devices	10	135`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 }
@@ -1157,7 +1157,7 @@ devices	10	135	1`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
@@ -1165,7 +1165,7 @@ devices	10	135	1`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 
-	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 }
