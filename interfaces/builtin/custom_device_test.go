@@ -67,6 +67,8 @@ slots:
   devices:
     - /dev/input/event[0-9]
     - /dev/input/mice
+  read-devices:
+    - /dev/js*
   write: [ /bar ]
   read:
     - /dev/input/by-id/*
@@ -189,8 +191,8 @@ apps:
 			`snap "provider" has interface "custom-device" with invalid value type int64 for "devices" attribute.*`,
 		},
 		{
-			"devices: [/dev/zero, 2]",
-			`snap "provider" has interface "custom-device" with invalid value type \[\]interface {} for "devices" attribute.*`,
+			"read-devices: [/dev/zero, 2]",
+			`snap "provider" has interface "custom-device" with invalid value type \[\]interface {} for "read-devices" attribute.*`,
 		},
 		{
 			"devices: [/dev/foo**]",
@@ -209,8 +211,12 @@ apps:
 			`custom-device "devices" path is not clean.*`,
 		},
 		{
-			`devices: ["/dev/unmatched[bracket"]`,
-			`custom-device "devices" path cannot be used: missing closing bracket ']'.*`,
+			`read-devices: ["/dev/unmatched[bracket"]`,
+			`custom-device "read-devices" path cannot be used: missing closing bracket ']'.*`,
+		},
+		{
+			"devices: [/dev/foo]\n  read-devices: [/dev/foo]",
+			`cannot specify path "/dev/foo" both in "devices" and "read-devices" attributes`,
 		},
 		{
 			`read: [23]`,
@@ -308,6 +314,7 @@ func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/event[0-9]" rw,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/mice" rw,`)
+	c.Check(plugSnippet, testutil.Contains, `"/dev/js**" r,`)
 	c.Check(plugSnippet, testutil.Contains, `"/bar" rw,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/by-id/**" r,`)
 	c.Check(slotSnippet, HasLen, 0)
@@ -336,6 +343,7 @@ func (s *CustomDeviceInterfaceSuite) TestUDevSpec(c *C) {
 	}
 	c.Assert(decomposedSnippets, testutil.DeepUnsortedMatches, []map[string]string{
 		{`KERNEL`: `"input/event[0-9]"`},
+		{`KERNEL`: `"js*"`},
 		{
 			`KERNEL`:      `"input/mice"`,
 			`SUBSYSTEM`:   `"input"`,

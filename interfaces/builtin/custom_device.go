@@ -218,6 +218,22 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		}
 	}
 
+	var readDevices []string
+	err = slot.Attr("read-devices", &readDevices)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+		return err
+	}
+	for _, device := range readDevices {
+		if err := iface.validateDevice(device, "read-devices"); err != nil {
+			return err
+		}
+		if strutil.ListContains(devices, device) {
+			return fmt.Errorf(`cannot specify path %q both in "devices" and "read-devices" attributes`, device)
+		}
+	}
+
+	allDevices := devices
+	allDevices = append(allDevices, readDevices...)
 	if err := iface.validatePaths(slot, "read"); err != nil {
 		return err
 	}
@@ -231,7 +247,7 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		return err
 	}
 	for _, udevTaggingRule := range udevTaggingRules {
-		if err := iface.validateUDevTaggingRule(udevTaggingRule, devices); err != nil {
+		if err := iface.validateUDevTaggingRule(udevTaggingRule, allDevices); err != nil {
 			return err
 		}
 	}
@@ -273,6 +289,10 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	_ = slot.Attr("devices", &devicePaths)
 	emitRule(devicePaths, "rw")
 
+	var readDevicePaths []string
+	_ = slot.Attr("read-devices", &readDevicePaths)
+	emitRule(readDevicePaths, "r")
+
 	var writablePaths []string
 	_ = slot.Attr("write", &writablePaths)
 	emitRule(writablePaths, "rw")
@@ -304,11 +324,20 @@ func (iface *customDeviceInterface) extractStringMapAttribute(container map[stri
 }
 
 func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Collect all the device paths specified in either the "devices" or
+	// "read-devices" attributes.
 	var devicePaths []string
 	_ = slot.Attr("devices", &devicePaths)
+	var readDevicePaths []string
+	_ = slot.Attr("read-devices", &readDevicePaths)
+	allDevicePaths := devicePaths
+	allDevicePaths = append(allDevicePaths, readDevicePaths...)
 
-	deviceRules := make(map[string]string, len(devicePaths))
-	for _, devicePath := range devicePaths {
+	// Generate a basic udev rule for each device; we put them into a map
+	// indexed by the device name, so that we can overwrite the entry later
+	// with a more specific rule.
+	deviceRules := make(map[string]string, len(allDevicePaths))
+	for _, devicePath := range allDevicePaths {
 		if strings.HasPrefix(devicePath, "/dev/") {
 			deviceName := devicePath[5:]
 			deviceRule := fmt.Sprintf(`KERNEL=="%s"`, deviceName)
