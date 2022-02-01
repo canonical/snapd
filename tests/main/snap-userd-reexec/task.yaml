@@ -1,7 +1,7 @@
 summary: Check that core refresh will create the userd dbus serivce file
 
 # only run on systems that re-exec
-systems: [ubuntu-18*]
+systems: [ubuntu-1*, ubuntu-2*, debian-*]
 
 environment:
     # uploading the core snap triggers OOM
