@@ -355,8 +355,12 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	bootloader.MockPibootFiles(c, s.rootdir, &opts)
 
-	// Introuce two os_prefix lines
-	err := ioutil.WriteFile(filepath.Join(s.rootdir, "config.txt"),
+	// Get some extra kernel command line parameters
+	err := ioutil.WriteFile(filepath.Join(s.rootdir, "cmdline.txt"),
+		[]byte("opt1=foo bar\n"), 0644)
+	c.Assert(err, IsNil)
+	// Add some options to already existing config.txt
+	err = ioutil.WriteFile(filepath.Join(s.rootdir, "config.txt"),
 		[]byte("rpi.option1=val\nos_prefix=1\nrpi.option2=val\n"), 0644)
 	c.Assert(err, IsNil)
 	p := bootloader.NewPiboot(s.rootdir, &opts)
@@ -377,7 +381,38 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		},
 		{
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_1/cmdline.txt"),
-			data: "  snapd_recovery_mode=run\n",
+			data: "opt1=foo bar  snapd_recovery_mode=run\n",
+		},
+	}
+	for _, fInfo := range files {
+		readData, err := ioutil.ReadFile(fInfo.path)
+		c.Assert(err, IsNil)
+		c.Assert(string(readData), Equals, fInfo.data)
+	}
+
+	// Now set variables like in an update
+	err = p.SetBootVars(map[string]string{
+		"snap_kernel":         "pi-kernel_1",
+		"snap_try_kernel":     "pi-kernel_2",
+		"snapd_recovery_mode": "run",
+		"kernel_status":       boot.TryStatus})
+	c.Assert(err, IsNil)
+
+	files = []struct {
+		path string
+		data string
+	}{
+		{
+			path: filepath.Join(s.rootdir, "tryboot.txt"),
+			data: "rpi.option1=val\nos_prefix=/piboot/ubuntu/pi-kernel_2/\nrpi.option2=val\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "config.txt"),
+			data: "rpi.option1=val\nos_prefix=/piboot/ubuntu/pi-kernel_1/\nrpi.option2=val\n",
+		},
+		{
+			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_2/cmdline.txt"),
+			data: "opt1=foo bar  snapd_recovery_mode=run kernel_status=trying\n",
 		},
 	}
 	for _, fInfo := range files {
