@@ -125,6 +125,12 @@ static void test_sc_is_hook_security_tag(void)
 	g_assert_false(sc_is_hook_security_tag("snap.name.app!hook.foo"));
 	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook!foo"));
 	g_assert_false(sc_is_hook_security_tag("snap.name.app.hook.-foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.foo_bar.hook.0abcd"));
+	g_assert_false(sc_is_hook_security_tag("snap.foo.hook.abc--"));
+	g_assert_false(sc_is_hook_security_tag("snap.foo_bar.hook.!foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.foo_bar.hook.-foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.foo_bar.hook!foo"));
+	g_assert_false(sc_is_hook_security_tag("snap.foo_bar.!foo"));
 }
 
 static void test_sc_snap_or_instance_name_validate(gconstpointer data)
