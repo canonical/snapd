@@ -11,77 +11,18 @@ integration test framework for the integration/system level tests.
 Ubuntu 18.04 LTS or later is recommended for `snapd` development.
 Usually, the latest LTS would be the best choice.
 
->If you want to build or test on older versions of Ubuntu, additional steps
+> If you want to build or test on older versions of Ubuntu, additional steps
 may be required when installing dependencies.
-
 
 ### Supported Go version
 
-[Go 1.13](https://pkg.go.dev/go@go1.13) or later is required to build `snapd`.
+Go 1.13 (or later) is required to build `snapd`.
 
->If you need to build older versions of snapd, please have a look at the file
+> If you need to build older versions of snapd, please have a look at the file
 [debian/control](debian/control) to find out what dependencies were needed at the time
 (including which version of the Go compiler).
 
-### Setting up build environment
-
-`snapd` is published and maintained as a [Go module](https://go.dev/doc/modules/managing-source). 
-A module is a collection of [Go packages](https://go.dev/ref/spec#Packages) 
-stored in a file tree with a [go.mod](go.mod) file at its root. 
-The [go.mod](go.mod) file defines the module’s _module path_, 
-which is also the import path used for the root directory, 
-and its _dependency requirements_. 
-All this allows maintaining `snapd` outside of the strict hierarchy of `GOPATH`, 
-that was mandatory before the release of [Go 1.13](https://pkg.go.dev/go@go1.13)
-(see [build @Go1.10](https://pkg.go.dev/go/build@go1.10)).  
-
-Even with Go modules mode, `GOPATH` is still used by the Go tool implicitly, 
-to store downloaded source code and compiled commands 
-(see [Go docs](https://pkg.go.dev/cmd/go#hdr-GOPATH_and_Modules)).
-
-> If `$GOPATH` is not set explicitly, in Unix-like systems it defaults to `$HOME/go`.
-
-One can easily find the location of the `GOPATH` file-tree on any enabled machine
-by running the following command:
-
-```
-go env GOPATH
-```
-
-#### Backward compatibility
-
-Some tools we use still rely on `$GOPATH/bin` being listed in `$PATH` 
-(see [Running spread with QEMU](#running-spread-with-qemu)).
-Add `$GOPATH/bin` to your `PATH` in your shell login script 
-(e.g. `~/.bashrc` for bash):
-
-```sh
-export PATH=$PATH:$(go env GOPATH)/bin
-```
-
-If your `GOPATH` contains more than one path, you need to add `/bin`
-suffix to each path:
-
-```sh
-export PATH=$PATH:$(go env GOPATH | sed -e "s|:|/bin:|g")/bin
-```
-
-#### Setting custom `GOPATH` (_Optional_)
-
-Though it's no longer required, one still may set a custom location for `GOPATH`.
-
-```sh
-export GOPATH=${HOME}/work
-```
-
-This change can be done permanently either using Linux conventional way
-(see the `$GOPATH/bin` [example](#backward-compatibility)) or using the Go tool:
-
-```sh
-go env -w GOPATH=${HOME}/work
-```
-
-### Getting snapd sources
+### Getting the snapd sources
 
 The easiest way to get the source for `snapd` is to clone the GitHub repository
 in a directory where you have read-write permissions, such as your home
@@ -94,9 +35,12 @@ directory.
 This will allow you to build and test `snapd`. If you wish to contribute to
 the `snapd` project, please see the [Contributing section](#contributing).
 
-### Installing build dependencies
+> For more details about source-code structure of `snapd` please read about
+[Managing module source](https://go.dev/doc/modules/managing-source) in Go.
 
-Build dependencies can automatically be resolved using `build-dep`on Ubuntu.
+### Installing the build dependencies
+
+Build dependencies can automatically be resolved using `build-dep` on Ubuntu:
 
     cd ~/snapd
     sudo apt-get build-dep .
@@ -104,26 +48,26 @@ Build dependencies can automatically be resolved using `build-dep`on Ubuntu.
 Package build dependencies for other distributions can be found under the
 [./packaging/](./packaging/) directory.
 
-Go module dependencies are automatically resolved at build time.
-One can do it directly, without building, using the following commands:
+Source dependencies are automatically retrieved at build time.
+Sometimes, it might be useful to pull them without the very building:
 
 ```
 cd ~/snapd
-go get ./...
+go get ./... && ./get-deps.sh
 ```
 
 ## Building
 
-### Building the snap with snapcraft <!-- TODO: (A) Is this section outdated??? -->
+### Building the snap with snapcraft
 
 The easiest (though not the most efficient) way to test changes to snapd is to
 build the snapd snap using _snapcraft_ and then install that snapd snap. The
 [snapcraft.yaml](./build-aux/snapcraft.yaml) for the snapd snap is located at 
 [./build-aux/](./build-aux/), and
 can be built using snapcraft either in a LXD container or a multipass VM (or
-natively with `--destructive-mode` on a Ubuntu 18.04 host).
+natively with `--destructive-mode` on a Ubuntu 16.04 host).
 
-Note: Currently, snapcraft's default track of 5.x does not support building the 
+> Currently, snapcraft's default track of 5.x does not support building the 
 snapd snap, since the snapd snap uses `build-base: core`. Building with a 
 `build-base` of core uses Ubuntu 16.04 as the base operating system (and thus 
 root filesystem) for building and Ubuntu 16.04 is now in Extended Security 
@@ -156,27 +100,20 @@ installed (since it will not get updates as it was installed dangerously), you
 can either use `snap revert snapd`, or you can refresh directly with 
 `snap refresh snapd --stable --amend`.
 
-Note: It is also sometimes useful to use snapcraft to build the snapd snap for
+#### Building for other architectures with snapcraft
+
+It is also sometimes useful to use snapcraft to build the snapd snap for
 other architectures using the `remote-build` feature, however there is currently a
 bug in snapcraft around using the `4.x` track and using `remote-build`, where the
 Launchpad job created for the remote-build will attempt to use the `latest` track instead
 of the `4.x` channel. This was recently fixed in snapcraft in https://github.com/snapcore/snapcraft/pull/3600
 which for now requires using the `latest/edge` channel of snapcraft instead of the
-`4.x` track which is needed to build the snap locally. However, this fix does 
-then introduce a different problem due to one of the tests in the snapd git tree
-which currently has circular symlinks in the tree, which due to a regression in
-snapcraft is no longer usable with remote-build. Removing these files in the 
-snapd git tree is tracked at https://bugs.launchpad.net/snapd/+bug/1948838, but
-in the meantime in order to build remotely with snapcraft, do the following:
+`4.x` track which is needed to build the snap locally. 
+
+In order to build remotely with snapcraft, do the following:
 
 ```
 snap refresh snapcraft --channel=latest/edge
-```
-
-And then get rid of the symlinks in question:
-
-```
-rm -r tests/main/validate-container-failures/
 ```
 
 Now you can use remote-build with snapcraft on the snapd tree for any desired 
@@ -193,13 +130,12 @@ to 4.x:
 snap refresh snapcraft --channel=4.x/stable
 ```
 
-
 #### Splicing the snapd snap into the core snap
 
 Sometimes while developing you may need to build a version of the _core_ snap
 with a custom snapd version. 
-The [snapcraft.yaml](https://github.com/snapcore/core20/blob/master/snapcraft.yaml) 
-for the core snap currently is complex in that it assumes it is built inside Launchpad with the 
+The `snapcraft.yaml` for the [core snap](https://github.com/snapcore/core20/) 
+currently is complex in that it assumes it is built inside Launchpad with the 
 [ppa:snappy-dev/image](https://launchpad.net/~snappy-dev/+archive/ubuntu/image/) 
 enabled, so it is difficult to inject a custom version of
 snapd into this by rebuilding the core snap directly, so an easier way is to 
@@ -272,7 +208,7 @@ mkdir -p /tmp/build
 go build -o /tmp/build/snapd ./cmd/snapd
 ```
 
-To build all the`snapd` Go components:
+To build all the `snapd` Go components:
 
 ```
 cd ~/snapd
@@ -362,57 +298,38 @@ http://www.ubuntu.com/legal/contributors).
 
 Complete requirements can be found in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-Contributions are submitted through a Pull Request created from a fork of the
-`snapd` repository (under your GitHub account). 
+### Guidelines for contributors
 
-Start by creating a fork of the `snapd` repository on GitHub.
+There are few guidelines that contributors should follow:
 
-Add your fork as an additional remote to an already cloned `snapd` main
-repository. Replace `<user>` with your GitHub account username.
+- Commit messages should be well structured,  
+(_Consider complying with the [Conventional Commits](https://www.conventionalcommits.org/) specification_)
+- Commit emails should not have non-ASCII characters.  
+- PR title should start with a prefix denoting the 
+`<feature>`/`<package>`/`<module>`/`<file modified>` following by a semicolon.    
+- Try to open more smaller PR's, rather than one large PR.
+- Try not to mix controversial and trivial changes together.  
+  (_Proposing trivial changes separately makes landing-them easier and 
+  makes reviewing the controversial changes simpler_)
+- Try not to force push to PR's after they have gotten reviews.
+- Try to write tests to cover the contributed changes.
 
-```
-cd ~/snapd
-git remote add fork git@github.com:<user>/snapd.git
-```
+>If you need any help with any of these guidelines, please reach out to the team.
 
-Create a working branch on which to commit your work. Replace
-`<branchname>` with a suitable branch name.
+### Creating Pull Requests
 
-```
-git checkout -b <branchname>
-```
+Contributions are submitted through a 
+[Pull Request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork) 
+created from a 
+[fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo#forking-a-repository) 
+of the `snapd` repository (under your GitHub account).
 
-Make changes to the repository and commit the changes to your
-local working branch.
-
-```sh
-git commit -sa -m "<feature/subject-prefix>: <brief-description-of-the-change>
-
-<more-elaborate-description-with-reasoning-about-the-changed>"
-``` 
-
->If it's justified, one might consider several commits before pushing 
-their work to the remote repository. 
-One should strive to have only one commit per topic, and to avoid pushing 
-many topics in the same attempt.  
-
-Push the changes to your forked `snapd` repository.
-
-```
-git push fork <local-branchname>[:<remote-branchname>]
-```
-
->Note that if the `<remote-branchname>` is not specified, a new remote branch 
-is created implicitly, by the name of the `<local-branchname>`.
-
-Create the Pull Request for your branch on GitHub.
-
-This complete process is outlined in the GitHub documentation [here](
-https://docs.github.com/en/github/collaborating-with-pull-requests).
+>This complete process is outlined in details in the [GitHub documentation](
+https://docs.github.com/en/github/collaborating-with-pull-requests). 
+However, for a more concise and yet very informative version try 
+[this GitHub gist](https://gist.github.com/Chaser324/ce0505fbed06b947d962). 
 
 ## Testing
-
-### Running unit-tests
 
 We value good tests, so when you fix a bug or add a new feature we highly
 encourage you to add tests.
@@ -422,6 +339,8 @@ Install the following package(s) to satisfy test dependencies.
 ```
 sudo apt-get install python3-yamlordereddictloader dbus-x11
 ```
+
+### Running unit-tests
 
 To run the various tests that we have to ensure a high quality source just run:
 
@@ -437,20 +356,24 @@ You can run an individual test for a sub-package by changing into that
 directory and:
 
 ```
-LANG=C.UTF-8 go test -check.f $testname
+go test -check.f $testname
 ```
 
 If a test hangs, you can enable verbose mode:
 
 ```
-LANG=C.UTF-8 go test -v -check.vv
+go test -v -check.vv
 ```
 
-(or -check.v for less verbose output).
+Or, try just `-check.v` for a less verbose output.
 
->Note `LANG=C.UTF-8` is specified in the examples above only to
-ensure locale compatibility for some unit-tets. Some locales 
-might have issues, e.g. `en_GB`.
+> `snapd` before printing any text adjusts it to a dialect that
+corresponds to the locale of the hosting system. For instance, 
+texts for `en_US` and for `en_GB` not always look alike.
+Unfortunately, some tests don't take it into account (for the details 
+see [issue #1960131](https://bugs.launchpad.net/snapd/+bug/1960131)).
+A temporary workaround is to specify `LANG=C.UTF-8 ` in the command 
+line right before `go test`, if you experience similar issues.
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
@@ -463,7 +386,12 @@ the [spread](https://github.com/snapcore/spread) framework.
 You can get spread, QEMU, and the build tools to build QEMU images with:
 
     $ sudo apt update && sudo apt install -y qemu-kvm autopkgtest
-    $ curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C $(go env GOPATH)/bin
+    $ curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C <target-directory>
+
+> `<target-directory>` can be any directory that is listed in `$PATH`, 
+as it is assumed further in the guidelines of this document. 
+You may consider creating a dedicated directory and adding it to `$PATH`, 
+or you may chose using one of the conventional Linux directories (e.g. `/usr/local/bin`)
 
 #### Building spread VM images
 
@@ -474,19 +402,16 @@ To run the spread tests via QEMU you need to create VM images in the
     $ cd ~/.spread/qemu
 
 Assuming you are building on Ubuntu 18.04 LTS ([Bionic Beaver](https://releases.ubuntu.com/18.04/)) 
-(or a later Ubuntu), run the following to build a 64-bit Ubuntu 16.04 LTS 
-(or later) with the correct `<release-name>` and `<release-version>`:
+(or later), run the following to build a 64-bit Ubuntu 16.04 LTS (or later):
 
-    $ autopkgtest-buildvm-ubuntu-cloud -r <release-name>
-    $ mv autopkgtest-<release-name>-amd64.img ubuntu-<release-version>-64.img
+    $ autopkgtest-buildvm-ubuntu-cloud -r <release-short-name>
+    $ mv autopkgtest-<release-short-name>-amd64.img ubuntu-<release-version>-64.img  
 
-Use the following table as an example reference:
+For the correct values of `<release-short-name>` and `<release-version>`, pleaser refer
+to the official list of [Ubuntu releases](https://wiki.ubuntu.com/Releases). 
 
-| Release   | `<release-name>`  | `<release-version>`   |
-| -------   | --------------    |-------------------    |
-| [Xenial Xerus](https://releases.ubuntu.com/16.04/)  | xenial  | 16.04 |
-| [Bionic Beaver](https://releases.ubuntu.com/18.04/) | beaver  | 18.04 |
-| [Focal Fossa](https://releases.ubuntu.com/20.04/)   | focal   | 20.04 |
+> `<release-short-name>` is the first word in the release's full name, 
+e.g. for "Bionic Beaver" it is `bionic`.
 
 
 To build an Ubuntu 14.04 (Trusty Tahr) based VM, use:
@@ -508,8 +433,11 @@ latter replaced the former in 18.04):
 
 Alternatively, instead of building the QEMU images manually, you can download
 pre-built and somewhat maintained images from 
-[spread.zygoon.pl](spread.zygoon.pl). The images will need to be extracted 
+[spread.zygoon.pl](https://spread.zygoon.pl/). The images will need to be extracted 
 with `gunzip` and placed into `~/.spread/qemu` as above.
+
+> An image for Ubuntu Core 20 that is pre-built for KVM can be download from 
+[here](https://cdimage.ubuntu.com/ubuntu-core/20/stable/current/ubuntu-core-20-amd64.img.xz).
 
 #### Running spread with QEMU
 
@@ -528,35 +456,12 @@ For quick reuse you can use:
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
 
-#### Running UC20 spread with QEMU
+> Spread tests can be exercised on Ubuntu Core 20, but the latter has a restriction.
+It requires UFI. With QEMU it implies using an UEFI BIOS from the 
+[OVMF](https://wiki.ubuntu.com/UEFI/OVMF) package, 
+which can be installed with `sudo apt install ovmf`.
 
-<!-- TODO: (B) Is it still working this way? -->
-
-Ubuntu Core 20 on amd64 has a requirement to use UEFI, so there are a few 
-additional steps needed to run spread with the `ubuntu-core-20-64` systems locally
-using QEMU. For one, upstream spread currently does not support specifying what
-kind of BIOS to use with the VM, so you have to build spread from this PR:
-https://github.com/snapcore/spread/pull/95, and then use the environment 
-variable `SPREAD_QEMU_BIOS` to specify an UEFI BIOS to use with the VM, for 
-example the one from the OVMF package.  
-
->To get OVMF on Ubuntu, you can just install the `ovmf` package via `apt`.  
-
-After installing OVMF, you can then run spread like so:
-
-    $ SPREAD_QEMU_BIOS=/usr/share/OVMF/OVMF_CODE.fd spread -v qemu:ubuntu-core-20-64
-
-This will enable testing UC20 with the spread, albeit without secure boot 
-support. None of the native UC20 tests currently require secure boot however, 
-all tests around secure boot are nested, see the section below about 
-[running the nested tests](#running-nested-tests).
-
-Also, due to the in-flux state of spread support for booting UEFI VM's like 
-this, you can test `ubuntu-core-20-64` only by themselves and not with any other
-system concurrently since the environment variable is global for all systems in
-the spread run. This will be fixed in a future release of spread.
-
-### Testing `snapd` daemon
+### Testing the snapd daemon
 
 To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
@@ -567,10 +472,10 @@ transfer it to the snappy system and then run:
 To debug interaction with the snap store, you can set `SNAP_DEBUG_HTTP`.
 It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
 
-> Note that in case you get some security profiles errors, when trying to install or refresh a snap, 
+> In case you get some security profiles errors, when trying to install or refresh a snap, 
 maybe you need to replace system installed snap-seccomp with the one aligned to the snapd that 
 you are testing. To do this, simply backup `/usr/lib/snapd/snap-seccomp` and overwrite it with 
-the testing one. Don't forget to rollback to the original when finish testing
+the testing one. Don't forget to roll back to the original, after you finish the testing.
 
 ### Running nested tests
 
@@ -635,10 +540,10 @@ autoreconf -i -f
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
-target, available in [cmd/snap-confine/](cmd/snap-confine/) handy. It installs the locally built
+target, available in [./cmd/snap-confine/](./cmd/snap-confine/) handy. It installs the locally built
 version on your system and reloads the [AppArmor](https://apparmor.net/) profile.
 
->Note, the above configure options assume you are on Ubuntu and are generally
+>The above configure options assume you are on Ubuntu and are generally
 necessary to run/test graphical applications with your local version of
 snap-confine. The `--with-host-arch-triplet` option sets your specific 
 architecture and `--enable-nvidia-multiarch` allows the host's graphics drivers
@@ -650,3 +555,11 @@ system-specific options too).
 
 Please run `(cd cmd; make fmt)` before sending your patches for the "C" part of
 the source code.
+
+<!-- !TODO: Few things to clean up in the future:
+
+[] Add a section that describes functional labels in GitHub that we use to influence the verification flow of the PR
+[] Add some description about where (i.e. launchpad) to file a bug if we encounter one
+[] Remove reference to https://bugs.launchpad.net/snapd/+bug/1960131 once it gets fixed
+
+//-->
