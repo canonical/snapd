@@ -194,19 +194,19 @@ apps:
 		},
 		{
 			"devices: [/dev/@foo]",
-			`custom-device path must start with / and cannot contain special characters.*`,
+			`custom-device "devices" path must start with / and cannot contain special characters.*`,
 		},
 		{
 			"devices: [/run/foo]",
-			`custom-device path must start with /dev/ and cannot contain special characters.*`,
+			`custom-device "devices" path must start with /dev/ and cannot contain special characters.*`,
 		},
 		{
 			"devices: [/dev/../etc/passwd]",
-			`custom-device path is not clean.*`,
+			`custom-device "devices" path is not clean.*`,
 		},
 		{
 			`devices: ["/dev/unmatched[bracket"]`,
-			`custom-device path cannot be used: missing closing bracket ']'.*`,
+			`custom-device "devices" path cannot be used: missing closing bracket ']'.*`,
 		},
 		{
 			`read: [23]`,
@@ -214,7 +214,7 @@ apps:
 		},
 		{
 			`read: [etc]`,
-			`custom-device path must start with / and cannot contain special characters.*`,
+			`custom-device "read" path must start with / and cannot contain special characters.*`,
 		},
 		{
 			`write: [one, 2]`,
@@ -222,7 +222,7 @@ apps:
 		},
 		{
 			`read: ["/dev/\"quote"]`,
-			`custom-device path must start with / and cannot contain special characters.*`,
+			`custom-device "read" path must start with / and cannot contain special characters.*`,
 		},
 		{
 			`udev-tagging: why not`,
@@ -287,7 +287,7 @@ func (s *CustomDeviceInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.ImplicitOnClassic, Equals, false)
-	c.Check(si.Summary, Equals, `provides access to specific devices via the gadget snap`)
+	c.Check(si.Summary, Equals, `provides access to custom devices specified via the gadget snap`)
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "custom-device")
 }
 
@@ -305,7 +305,7 @@ func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/event[0-9]" rw,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/mice" rw,`)
 	c.Check(plugSnippet, testutil.Contains, `"/bar" rw,`)
-	c.Check(plugSnippet, testutil.Contains, `"/dev/input/by-id/*" r,`)
+	c.Check(plugSnippet, testutil.Contains, `"/dev/input/by-id/**" r,`)
 	c.Check(slotSnippet, HasLen, 0)
 }
 

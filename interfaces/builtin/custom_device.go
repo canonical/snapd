@@ -34,23 +34,16 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-const customDeviceSummary = `provides access to specific devices via the gadget snap`
-
-const customDeviceBaseDeclarationPlugs = `
-  custom-device:
-    allow-installation: true
-    allow-connection:
-      slot-attributes:
-        custom-device: $PLUG(custom-device)
-    allow-auto-connection: false
-`
+const customDeviceSummary = `provides access to custom devices specified via the gadget snap`
 
 const customDeviceBaseDeclarationSlots = `
   custom-device:
     allow-installation:
       slot-snap-type:
         - gadget
-    deny-connection: true
+    allow-connection:
+      plug-attributes:
+        content: $SLOT(custom-device)
     deny-auto-connection: true
 `
 
@@ -76,29 +69,35 @@ var (
 // customDeviceInterface allows sharing customDevice between snaps
 type customDeviceInterface struct{}
 
-func (iface *customDeviceInterface) validateFilePath(path string) error {
+func (iface *customDeviceInterface) validateFilePath(path string, attrName string) error {
 	if !customDevicePathRegexp.MatchString(path) {
-		return fmt.Errorf(`custom-device path must start with / and cannot contain special characters: %q`, path)
+		return fmt.Errorf(`custom-device %q path must start with / and cannot contain special characters: %q`, attrName, path)
 	}
 
 	if !cleanSubPath(path) {
-		return fmt.Errorf(`custom-device path is not clean: %q`, path)
+		return fmt.Errorf(`custom-device %q path is not clean: %q`, attrName, path)
 	}
 
 	if _, err := utils.NewPathPattern(path); err != nil {
-		return fmt.Errorf(`custom-device path cannot be used: %v`, err)
+		return fmt.Errorf(`custom-device %q path cannot be used: %v`, attrName, err)
+	}
+
+	// We don't allow "**" (a single "*" is already transformed into a "**"
+	// apparmor rule anyway)
+	if strings.Contains(path, "**") {
+		return fmt.Errorf(`custom-device %q path contains invalid glob pattern "**"`, attrName)
 	}
 
 	return nil
 }
 
-func (iface *customDeviceInterface) validateDevice(path string) error {
+func (iface *customDeviceInterface) validateDevice(path string, attrName string) error {
 	// The device must satisfy udev's device name rules and generic path rules
 	if !customDeviceUDevDeviceRegexp.MatchString(path) {
-		return fmt.Errorf(`custom-device path must start with /dev/ and cannot contain special characters: %q`, path)
+		return fmt.Errorf(`custom-device %q path must start with /dev/ and cannot contain special characters: %q`, attrName, path)
 	}
 
-	if err := iface.validateFilePath(path); err != nil {
+	if err := iface.validateFilePath(path, attrName); err != nil {
 		return err
 	}
 
@@ -114,7 +113,7 @@ func (iface *customDeviceInterface) validatePaths(slot *snap.SlotInfo, attrName 
 	}
 
 	for _, path := range paths {
-		if err := iface.validateFilePath(path); err != nil {
+		if err := iface.validateFilePath(path, attrName); err != nil {
 			return err
 		}
 	}
@@ -196,7 +195,6 @@ func (iface *customDeviceInterface) Name() string {
 func (iface *customDeviceInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              customDeviceSummary,
-		BaseDeclarationPlugs: customDeviceBaseDeclarationPlugs,
 		BaseDeclarationSlots: customDeviceBaseDeclarationSlots,
 		AffectsPlugOnRefresh: true,
 	}
@@ -215,7 +213,7 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		return err
 	}
 	for _, device := range devices {
-		if err := iface.validateDevice(device); err != nil {
+		if err := iface.validateDevice(device, "devices"); err != nil {
 			return err
 		}
 	}
@@ -263,7 +261,8 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	snippet := &bytes.Buffer{}
 	emitRule := func(paths []string, permissions string) {
 		for _, path := range paths {
-			fmt.Fprintf(snippet, "\"%s\" %s,\n", path, permissions)
+			pathPattern := strings.ReplaceAll(path, "*", "**")
+			fmt.Fprintf(snippet, "\"%s\" %s,\n", pathPattern, permissions)
 		}
 	}
 
