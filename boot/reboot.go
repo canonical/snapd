@@ -29,12 +29,12 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func getRebootParamPathRuntime() string {
+func getRebootArgsPathRuntime() string {
 	return "/run/systemd/reboot-param"
 }
 
-// Get absolute dirs via variables so we can mock in tests
-var GetRebootParamPath = getRebootParamPathRuntime
+// GetRebootArgsPath is used so we can mock the path easily in tests
+var GetRebootArgsPath = getRebootArgsPathRuntime
 
 type RebootAction int
 
@@ -90,7 +90,7 @@ func Reboot(action RebootAction, rebootDelay time.Duration) error {
 		if rebArgBl, ok := bl.(bootloader.RebootArgumentsBootloader); ok {
 			rebArgs := rebArgBl.GetRebootArguments()
 			if rebArgs != "" {
-				if err := osutil.AtomicWriteFile(GetRebootParamPath(),
+				if err := osutil.AtomicWriteFile(GetRebootArgsPath(),
 					[]byte(rebArgs+"\n"), 0644, 0); err != nil {
 					return err
 				}

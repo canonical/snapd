@@ -38,8 +38,6 @@ import (
 
 type rebootSuite struct {
 	baseBootenvSuite
-
-	bootloader *bootloadertest.MockBootloader
 }
 
 var _ = Suite(&rebootSuite{})
@@ -89,7 +87,7 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 	rab.RebootArgs = "0 tryboot"
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
-	boot.GetRebootParamPath = func() string {
+	boot.GetRebootArgsPath = func() string {
 		return rebArgsPath
 	}
 
@@ -113,7 +111,7 @@ func (s *rebootSuite) TestRebootNoArguments(c *C) {
 	rab.RebootArgs = ""
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
-	boot.GetRebootParamPath = func() string {
+	boot.GetRebootArgsPath = func() string {
 		return rebArgsPath
 	}
 
