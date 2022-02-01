@@ -31,7 +31,7 @@ type AuthorityDelegation struct {
 	assertionConstraints []*AssertionConstraints
 }
 
-// AccountID returns the account-id of this this authority-delegation.
+// AccountID returns the account-id of this authority-delegation.
 func (ad *AuthorityDelegation) AccountID() string {
 	return ad.HeaderString("account-id")
 }
@@ -133,7 +133,7 @@ func assembleAuthorityDelegation(assert assertionBase) (Assertion, error) {
 		}
 		matcher, err := compileAttrMatcher(cc, hm)
 		if err != nil {
-			return nil, fmt.Errorf("cannot compile \"headers\" constraint: %v", err)
+			return nil, fmt.Errorf("cannot compile headers constraint: %v", err)
 		}
 		acs = append(acs, &AssertionConstraints{
 			assertType: t,

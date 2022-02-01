@@ -99,7 +99,7 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckUntrustedAuthorit
 	c.Assert(err, ErrorMatches, `authority-delegation assertion for "canonical" is not signed by a directly trusted authority: other`)
 }
 
-func (s *authorityDelegationSuite) TestAuthorityDelegationCheckAccounttReferences(c *C) {
+func (s *authorityDelegationSuite) TestAuthorityDelegationCheckAccountReferences(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := map[string]interface{}{
@@ -231,7 +231,7 @@ func (s *authorityDelegationSuite) TestDecodeInvalid(c *C) {
 		{hdrs, "headers: foo\n", `"headers" constraint must be a map`},
 		{hdrs, `headers:
       provenance: $FOO
-`, `cannot compile "headers" constraint:.*`},
+`, `cannot compile headers constraint:.*`},
 	}
 
 	for _, test := range invalidTests {
