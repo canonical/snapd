@@ -119,6 +119,7 @@ static void test_sc_is_hook_security_tag(void)
 		      ("snap.foo_instance.hook.bar-baz"));
 	g_assert_true(sc_is_hook_security_tag("snap.foo_bar.hook.bar-baz"));
 	g_assert_true(sc_is_hook_security_tag("snap.foo_bar.hook.f00"));
+	g_assert_true(sc_is_hook_security_tag("snap.foo_bar.hook.f-0-0"));
 
 	// Now, test the names we know are not valid hook security tags
 	g_assert_false(sc_is_hook_security_tag("snap.foo_instance.bar-baz"));
