@@ -25,7 +25,7 @@ import (
 
 // AuthorityDelegation holds an authority-delegation assertion, asserting
 // that a specified delegated authority can sign a constrained set
-// of assertion for a given account.
+// of assertions for a given account.
 type AuthorityDelegation struct {
 	assertionBase
 	assertionConstraints []*AssertionConstraints
