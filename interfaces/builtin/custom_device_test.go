@@ -193,6 +193,10 @@ apps:
 			`snap "provider" has interface "custom-device" with invalid value type \[\]interface {} for "devices" attribute.*`,
 		},
 		{
+			"devices: [/dev/foo**]",
+			`custom-device "devices" path contains invalid glob pattern "\*\*"`,
+		},
+		{
 			"devices: [/dev/@foo]",
 			`custom-device "devices" path must start with / and cannot contain special characters.*`,
 		},
