@@ -116,6 +116,13 @@ type Seed interface {
 	// ModeSnaps returns the snaps that should be available
 	// in the given mode as defined by the seed, after LoadMeta.
 	ModeSnaps(mode string) ([]*Snap, error)
+
+	// NumSnaps returns the total number of snaps in a seed
+	NumSnaps() int
+
+	// Iter provides a way to iterately perform a function on
+	// each of the snaps in a seed
+	Iter(f func(sn *Snap) error) error
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
