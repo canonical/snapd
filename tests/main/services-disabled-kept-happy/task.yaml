@@ -2,9 +2,6 @@ summary: Check that disabled snap services stay disabled across happy refreshes,
   reverts, and disable/enable cycles (there is a separate tests for unhappy
   undos, etc.)
 
-# temporarily disabled on uc18 because of systemd bug LP:1949506
-systems: [-ubuntu-core-18-*]
-
 # This test is for the "happy" paths for disabled services, where nothing goes
 # wrong and is undone, but there are still a lot of cases here for that. This
 # test covers the following cases:

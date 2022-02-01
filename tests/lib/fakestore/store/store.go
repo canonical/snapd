@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
@@ -412,6 +413,7 @@ func (s *Store) collectSnaps() (map[string]string, error) {
 			return nil, err
 		}
 		snaps[info.SnapName()] = fn
+		logger.Debugf("found snap %q at %v", info.SnapName(), fn)
 	}
 
 	return snaps, err
@@ -536,7 +538,9 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	bs := asserts.NewMemoryBackstore()
 
 	add := func(a asserts.Assertion) {
-		bs.Put(a.Type(), a)
+		if err := bs.Put(a.Type(), a); err != nil {
+			logger.Noticef("cannot add assertion %q: %v", a.Headers(), err)
+		}
 	}
 
 	for _, t := range sysdb.Trusted() {

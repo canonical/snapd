@@ -9,10 +9,9 @@ environment:
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    # no need to remove the pkgs in restore, restore_suite_each()
+    # will handle this
     apt install -y gdbserver gdb
-
-restore: |
-    apt autoremove -y gdbserver gdb
 
 execute: |
     echo "Test snap run --gdbserver works"

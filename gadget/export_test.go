@@ -44,8 +44,6 @@ var (
 
 	Flatten = flatten
 
-	FilesystemInfoForPartition = filesystemInfoForPartition
-
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
 
@@ -59,6 +57,8 @@ var (
 	ResolveVolumeContent = resolveVolumeContent
 
 	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
+
+	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

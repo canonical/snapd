@@ -39,8 +39,11 @@ fi
 
 DIRTY=false
 
-# Let's try to derive the version from git..
-if command -v git >/dev/null; then
+# Let's try to derive the version from git only if the snapd source tree is
+# tracked by git. The script can be invoked when building distro packages in
+# which case, the source tree could be a tarball, but the distro packaging files
+# can be in git, so try not to confuse the two.
+if command -v git >/dev/null && [ -d "$(dirname "$0")/.git" ] ; then
     # don't include --dirty here as we independently track whether the tree is
     # dirty and append that last, including it here will make dirty trees 
     # directly on top of tags show up with version_from_git as 2.46-dirty which
@@ -130,4 +133,5 @@ EOF
 
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v
+SNAPD_APPARMOR_REEXEC=0
 EOF

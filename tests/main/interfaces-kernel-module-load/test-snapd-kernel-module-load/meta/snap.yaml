@@ -1,0 +1,17 @@
+name: test-snapd-kernel-module-load
+summary: A no-strings-attached, no-fuss shell for writing tests
+version: 1.0
+
+plugs:
+    kernel-module-load:
+        interface: kernel-module-load
+        modules:
+            - name: mymodule
+              load: denied
+            - name: bfq
+              load: on-boot
+              options: slice_idle_us=20 strict_guarantees=1
+            - name: other_module
+              load: denied
+            - name: arc4
+              load: on-boot

@@ -30,9 +30,15 @@ parts:
     plugin: nil
     source: .
     build-snaps: [go/1.13/stable]
-    after: [apparmor]
+    # these packages are needed to call mkversion.sh in override-pull, all other
+    # dependencies are installed using apt-get build-dep
+    build-packages:
+      - git
+      - dpkg-dev
     override-pull: |
       snapcraftctl pull
+      # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
+      snapcraftctl set-version "$(./mkversion.sh --output-only)"
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
       # for build-base:core, etc.
@@ -42,9 +48,18 @@ parts:
       export DEBCONF_NONINTERACTIVE_SEEN=true
       sudo -E apt-get build-dep -y ./
       ./get-deps.sh --skip-unused-check
-      # set version after installing dependencies so we have all the tools here
-      snapcraftctl set-version "$(./mkversion.sh --output-only)"
     override-build: |
+      # TODO: when something like "craftctl get-version" is ready, then we can
+      # use that, but until then, we have to re-run mkversion.sh to check if the
+      # version number was set as "dirty" from the override-pull step
+      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
+        mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
+        ( 
+          echo "dirty git tree during build detected:"
+          git status
+          git diff
+        ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
+      fi
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
       # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
       # contain things like libc and friends that confuse the debian package
@@ -133,30 +148,3 @@ parts:
       cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
     prime:
       - bin/fc-cache-v7
-  apparmor:
-    plugin: autotools
-    build-packages: [bison, flex, gettext]
-    source: https://launchpad.net/apparmor/3.0/3.0.3/+download/apparmor-3.0.3.tar.gz
-    override-build: |
-      cd libraries/libapparmor
-      ./autogen.sh
-      ./configure --prefix=/usr --disable-man-pages --disable-perl --disable-python --disable-ruby
-      make -j
-      # place libapparmor into staging area for use by snap-confine
-      make -C src install DESTDIR=$SNAPCRAFT_STAGE
-      cd ../../parser
-      # copy in a pregenerated list of network address families so that the
-      # parser gets built to support as many as possible even if glibc in
-      # the current build environment does not support them
-      cp $SNAPCRAFT_PROJECT_DIR/build-aux/snap/apparmor/af_names.h .
-      make -j
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd
-      cp -a apparmor_parser $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor
-      cp -a parser.conf $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor/
-      cd ../profiles
-      make -j
-      mkdir -p $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d
-      cp -a apparmor.d/abi $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
-      cp -a apparmor.d/abstractions $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
-      cp -a apparmor.d/tunables $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/apparmor.d/
