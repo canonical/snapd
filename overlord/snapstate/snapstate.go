@@ -1218,16 +1218,16 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		return nil, nil, err
 	}
 
-	var transLane int
+	var transactionLane int
 	if flags.Transactional {
-		transLane = st.NewLane()
+		transactionLane = st.NewLane()
 	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
 		var snapst SnapState
 
-		flags, err := ensureInstallPreconditions(st, info, *flags, &snapst)
+		validatedFlags, err := ensureInstallPreconditions(st, info, *flags, &snapst)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1244,7 +1244,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 			Prereq:             getKeys(providerContentAttrs),
 			PrereqContentAttrs: providerContentAttrs,
 			UserID:             userID,
-			Flags:              flags.ForSnapSetup(),
+			Flags:              validatedFlags.ForSnapSetup(),
 			DownloadInfo:       &info.DownloadInfo,
 			SideInfo:           &info.SideInfo,
 			Type:               info.Type(),
@@ -1257,7 +1257,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 			return nil, nil, err
 		}
 		if flags.Transactional {
-			ts.JoinLane(transLane)
+			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
 		}
@@ -1493,9 +1493,9 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
-	var transLane int
+	var transactionLane int
 	if globalFlags.Transactional {
-		transLane = st.NewLane()
+		transactionLane = st.NewLane()
 	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
@@ -1517,7 +1517,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			return nil, nil, err
 		}
 		if globalFlags.Transactional {
-			ts.JoinLane(transLane)
+			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
 		}
