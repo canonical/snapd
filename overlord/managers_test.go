@@ -80,6 +80,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -731,7 +732,7 @@ apps:
 	tr.Commit()
 
 	// put the snap in a quota group
-	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quantity.SizeMiB)
+	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quota.NewResources(quantity.SizeMiB))
 	c.Assert(err, IsNil)
 
 	ts, err := snapstate.Remove(st, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
@@ -1446,7 +1447,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0)
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1527,7 +1528,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFailin
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0)
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)

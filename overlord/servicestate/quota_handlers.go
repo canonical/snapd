@@ -26,7 +26,6 @@ import (
 
 	tomb "gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
@@ -46,27 +45,27 @@ import (
 // modification that lives in a task.
 type QuotaControlAction struct {
 	// QuotaName is the name of the quota group being controlled.
-	QuotaName string `json:"quota-name"`
+	QuotaName string `json:"quota-name,omitempty"`
 
 	// Action is the action being taken on the quota group. It can be either
 	// "create", "update", or "remove".
-	Action string `json:"action"`
+	Action string `json:"action,omitempty"`
 
 	// AddSnaps is the set of snaps to add to the quota group, valid for either
 	// the "update" or the "create" actions.
-	AddSnaps []string `json:"snaps"`
+	AddSnaps []string `json:"snaps,omitempty"`
 
-	// MemoryLimit is the memory limit for the quota group being controlled,
-	// either the initial limit the group is created with for the "create"
+	// ResourceLimits is the set of resource limits to set on the quota group.
+	// Either the initial limit the group is created with for the "create"
 	// action, or if non-zero for the "update" the memory limit, then the new
 	// value to be set.
-	MemoryLimit quantity.Size
+	ResourceLimits quota.Resources `json:"resource-limits,omitempty"`
 
 	// ParentName is the name of the parent for the quota group if it is being
 	// created. Eventually this could be used with the "update" action to
 	// support moving quota groups from one parent to another, but that is
 	// currently not supported.
-	ParentName string
+	ParentName string `json:"parent-name,omitempty"`
 }
 
 func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
@@ -250,17 +249,9 @@ func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]
 		}
 	}
 
-	// make sure the memory limit is not zero
-	if action.MemoryLimit == 0 {
-		return nil, nil, fmt.Errorf("internal error, MemoryLimit option is mandatory for create action")
-	}
-
-	// make sure the memory limit is at least 4K, that is the minimum size
-	// to allow nesting, otherwise groups with less than 4K will trigger the
-	// oom killer to be invoked when a new group is added as a sub-group to the
-	// larger group.
-	if action.MemoryLimit <= 4*quantity.SizeKiB {
-		return nil, nil, fmt.Errorf("memory limit for group %q is too small: size must be larger than 4KB", action.QuotaName)
+	// make sure the resource limits for the group are valid
+	if err := action.ResourceLimits.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("cannot create quota group %q: %v", action.QuotaName, err)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
@@ -268,7 +259,7 @@ func quotaCreate(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, err
 	}
 
-	return internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.MemoryLimit, allGrps)
+	return internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.ResourceLimits, allGrps)
 }
 
 func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
@@ -288,7 +279,7 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 		return nil, nil, fmt.Errorf("internal error, AddSnaps option cannot be used with remove action")
 	}
 
-	if action.MemoryLimit != 0 {
+	if action.ResourceLimits.Memory != nil {
 		return nil, nil, fmt.Errorf("internal error, MemoryLimit option cannot be used with remove action")
 	}
 
@@ -342,6 +333,15 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	return grp, allGrps, nil
 }
 
+func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
+	currentQuotas := grp.GetQuotaResources()
+	if err := currentQuotas.Change(limits); err != nil {
+		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)
+	}
+	grp.UpdateQuotaLimits(currentQuotas)
+	return nil
+}
+
 func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
@@ -366,16 +366,9 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 	// append the snaps list in the group
 	grp.Snaps = append(grp.Snaps, action.AddSnaps...)
 
-	// if the memory limit is not zero then change it too
-	if action.MemoryLimit != 0 {
-		// we disallow decreasing the memory limit because it is difficult to do
-		// so correctly with the current state of our code in
-		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
-		// full details
-		if action.MemoryLimit < grp.MemoryLimit {
-			return nil, nil, fmt.Errorf("cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
-		}
-		grp.MemoryLimit = action.MemoryLimit
+	// update resource limits for the group
+	if err := quotaUpdateGroupLimits(grp, action.ResourceLimits); err != nil {
+		return nil, nil, err
 	}
 
 	// update the quota group state

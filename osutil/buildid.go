@@ -27,6 +27,8 @@ import (
 	"os"
 )
 
+var osReadlink = os.Readlink
+
 // ErrNoBuildID is returned when an executable does not contain a Build-ID
 var ErrNoBuildID = errors.New("executable does not contain a build ID")
 

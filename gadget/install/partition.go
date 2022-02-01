@@ -22,7 +22,9 @@ package install
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -31,16 +33,32 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 )
 
 var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
+// reloadPartitionTable reloads the partition table depending on what the gadget
+// says - if the gadget has a special marker file, then we will use a special
+// reload mechanism, implemented for a specific device.
+func reloadPartitionTable(gadgetRoot string, device string) error {
+	if osutil.FileExists(filepath.Join(gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan")) {
+		// TODO: remove this method when we are able to, this exists for a very
+		// specific device + kernel combination which is not compatible with
+		// using partx and so instead we must use this rescan trick
+		return reloadPartitionTableWithDeviceRescan(device)
+	} else {
+		// use partx like normal
+		return reloadPartitionTableWithPartx(device)
+	}
+}
+
 // createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
+func createMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
 	buf, created, err := buildPartitionList(dl, pv)
 	if err != nil {
 		return nil, err
@@ -62,7 +80,7 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 	}
 
 	// Re-read the partition table
-	if err := reloadPartitionTable(dl.Device); err != nil {
+	if err := reloadPartitionTable(gadgetRoot, dl.Device); err != nil {
 		return nil, err
 	}
 
@@ -183,7 +201,7 @@ func deviceName(name string, index int) string {
 }
 
 // removeCreatedPartitions removes partitions added during a previous install.
-func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
+func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
 	sfdiskIndexes := make([]string, 0, len(dl.Structure))
 	// up to 3 possible partitions are creatable and thus removable:
 	// ubuntu-data, ubuntu-boot, and ubuntu-save
@@ -207,9 +225,8 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 	}
 
 	// Reload the partition table - note that this specifically does not trigger
-	// udev events to remove the deleted devices, see the doc-comment in
-	// reloadPartitionTable for more details
-	if err := reloadPartitionTable(dl.Device); err != nil {
+	// udev events to remove the deleted devices, see the doc-comment below
+	if err := reloadPartitionTable(gadgetRoot, dl.Device); err != nil {
 		return err
 	}
 
@@ -268,9 +285,37 @@ func ensureNodesExistImpl(dss []gadget.OnDiskStructure, timeout time.Duration) e
 	return nil
 }
 
-// reloadPartitionTable instructs the kernel to re-read the partition
+// reloadPartitionTableWithDeviceRescan instructs the kernel to re-read the
+// partition table of a given block device via a workaround proposed for a
+// specific device in the form of executing the equivalent of:
+// bash -c "echo 1 > /sys/block/sd?/device/rescan"
+func reloadPartitionTableWithDeviceRescan(device string) error {
+	disk, err := disks.DiskFromDeviceName(device)
+	if err != nil {
+		return err
+	}
+
+	rescanFile := filepath.Join(disk.KernelDevicePath(), "device", "rescan")
+
+	logger.Noticef("reload partition table via rescan file %s for device %s as indicated by gadget", rescanFile, device)
+	f, err := os.OpenFile(rescanFile, os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// this could potentially fail with strange sysfs errno's since rescan isn't
+	// a real file
+	if _, err := f.WriteString("1\n"); err != nil {
+		return fmt.Errorf("unable to trigger reload with rescan file: %v", err)
+	}
+
+	return nil
+}
+
+// reloadPartitionTableWithPartx instructs the kernel to re-read the partition
 // table of a given block device.
-func reloadPartitionTable(device string) error {
+func reloadPartitionTableWithPartx(device string) error {
 	// Re-read the partition table using the BLKPG ioctl, which doesn't
 	// remove existing partitions, only appends new partitions with the right
 	// size and offset. As long as we provide consistent partitioning from

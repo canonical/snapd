@@ -851,6 +851,7 @@ setup_reflash_magic() {
         # on all other systems, build a custom version ubuntu-image with test
         # keys
         (
+            #shellcheck disable=SC2030
             export GO111MODULE=off
             # use go get so that ubuntu-image is built with current snapd sources
             go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
@@ -936,6 +937,52 @@ EOF
         # build the initramfs with our snapd assets into the kernel snap
         uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
+
+        # also add debug command line parameters to the kernel command line via
+        # the gadget in case things go side ways and we need to debug
+        snap download --basename=pc --channel="20/$GADGET_CHANNEL" pc
+        test -e pc.snap
+        unsquashfs -d pc-gadget pc.snap
+        
+        # TODO: it would be desirable when we need to do in-depth debugging of
+        # UC20 runs in google to have snapd.debug=1 always on the kernel command
+        # line, but we can't do this universally because the logic for the env
+        # variable SNAPD_DEBUG=0|false does not overwrite the turning on of 
+        # debug messages in some places when the kernel command line is set, so
+        # we get failing tests since there is extra stuff on stderr than 
+        # expected in the test when SNAPD_DEBUG is turned off
+        # so for now, don't include snapd.debug=1, but eventually it would be
+        # nice to have this on
+
+        if [ "$SPREAD_BACKEND" = "google" ]; then
+            # the default console settings for snapd aren't super useful in GCE,
+            # instead it's more useful to have all console go to ttyS0 which we 
+            # can read more easily than tty1 for example
+            for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1"; do
+                echo "$cmd" >> pc-gadget/cmdline.full
+            done
+        else
+            # but for other backends, just add the additional debugging things
+            # on top of whatever the gadget currently is configured to use
+            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1"; do
+                echo "$cmd" >> pc-gadget/cmdline.extra
+            done
+        fi
+
+        # TODO: this probably means it's time to move this helper out of 
+        # nested.sh to somewhere more general
+        
+        #shellcheck source=tests/lib/nested.sh
+        . "$TESTSLIB/nested.sh"
+        KEY_NAME=$(nested_get_snakeoil_key)
+
+        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+        nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+        snap pack --filename=pc-repacked.snap pc-gadget 
+        mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
     fi
 
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
@@ -969,6 +1016,12 @@ EOF
         # confuse spread and make tests fail in awkward, confusing ways), we
         # unpack the snap and re-pack it so that it is not asserted and thus 
         # won't be automatically refreshed
+        # note that this means that when $IMAGE_CHANNEL != $BASE_CHANNEL, we
+        # will have unasserted snaps for all snaps on UC20 in GCE spread:
+        # * snapd (to test the branch)
+        # * pc-kernel (to test snap-bootstrap from the branch)
+        # * pc (to aid in debugging by modifying the kernel command line)
+        # * core20 (to avoid the automatic refresh issue)
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
             unsquashfs -d core20-snap core20.snap
             snap pack --filename=core20-repacked.snap core20-snap
@@ -1241,6 +1294,10 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
+
+        # important to remove disabled snaps before calling save_snapd_state
+        # or restore will break
+        remove_disabled_snaps
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

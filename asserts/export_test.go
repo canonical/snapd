@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -287,6 +287,28 @@ var (
 // ParametersForGenerate exposes parametersForGenerate for tests.
 func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
 	return gkm.parametersForGenerate(passphrase, name)
+}
+
+// constraint tests
+
+func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (func(attrs map[string]interface{}, helper AttrMatchContext) error, error) {
+	// XXX adjust
+	cc := compileContext{
+		opts: &compileAttrMatcherOptions{
+			allowedOperations: allowedOperations,
+		},
+	}
+	matcher, err := compileAttrMatcher(cc, constraints)
+	if err != nil {
+		return nil, err
+	}
+	domatch := func(attrs map[string]interface{}, helper AttrMatchContext) error {
+		return matcher.match("", attrs, &attrMatchingContext{
+			attrWord: "field",
+			helper:   helper,
+		})
+	}
+	return domatch, nil
 }
 
 // ifacedecls tests

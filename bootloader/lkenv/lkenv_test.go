@@ -44,6 +44,8 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type lkenvTestSuite struct {
+	testutil.BaseTest
+
 	envPath    string
 	envPathbak string
 }
@@ -59,6 +61,7 @@ var (
 )
 
 func (l *lkenvTestSuite) SetUpTest(c *C) {
+	l.BaseTest.SetUpTest(c)
 	l.envPath = filepath.Join(c.MkDir(), "snapbootsel.bin")
 	l.envPathbak = l.envPath + "bak"
 }
