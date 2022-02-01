@@ -148,6 +148,10 @@ backends:
                   workers: 6
                   storage: preserve-size
                   image: centos-7-64
+            - centos-8-64:
+                  workers: 6
+                  storage: preserve-size
+                  image: centos-stream-8
             # unstable systems below
             - opensuse-15.2-64:
                   workers: 6
@@ -157,10 +161,6 @@ backends:
             - opensuse-tumbleweed-64:
                   workers: 6
                   manual: true
-            - centos-8-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-8-64
 
     google-sru:
         type: google
