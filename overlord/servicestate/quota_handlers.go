@@ -604,7 +604,7 @@ func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *en
 func ensureGroupIsNotMixed(group string, allGrps map[string]*quota.Group) error {
 	grp, ok := allGrps[group]
 	if ok && len(grp.SubGroups) != 0 && len(grp.Snaps) != 0 {
-		return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications", group)
+		return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it", group)
 	}
 	return nil
 }

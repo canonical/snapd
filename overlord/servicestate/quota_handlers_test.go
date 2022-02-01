@@ -60,7 +60,8 @@ func (s *quotaHandlersSuite) SetUpTest(c *C) {
 
 // mockMixedQuotaGroup creates a new quota group mixed with the provided snaps and
 // a single sub-group with the same name appended with 'sub'. The group is created with
-// the memory limit of 1GB, and the subgroup has a limit of 512MB.
+// the memory limit of 1GB, and the subgroup has a limit of 512MB. We do this test as
+// this type of mixed groups were supported when the feature was experimental.
 func mockMixedQuotaGroup(st *state.State, name string, snaps []string) error {
 	// create the quota group
 	grp, err := quota.NewGroup(name, quota.NewResources(quantity.SizeGiB))
@@ -918,7 +919,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapModifyExistingMixable(c *C) {
 		ResourceLimits: quota.NewResources(2 * quantity.SizeGiB),
 	}
 	err = s.callDoQuotaControl(&qc)
-	c.Assert(err, ErrorMatches, `quota group \"mixed-grp\" has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications`)
+	c.Assert(err, ErrorMatches, `quota group "mixed-grp" has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaSnapCanRemoveMixed(c *C) {

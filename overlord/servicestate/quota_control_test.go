@@ -1186,5 +1186,5 @@ func (s *quotaControlSuite) TestUpdateQuotaModifyExistingMixable(c *C) {
 	_, err = servicestate.UpdateQuota(st, "mixed-grp", servicestate.QuotaGroupUpdate{
 		NewResourceLimits: quota.NewResources(quantity.SizeGiB * 2),
 	})
-	c.Assert(err, ErrorMatches, `quota group \"mixed-grp\" has mixed snaps and sub-groups, which is not supported anymore. please remove it and create it again to make any modifications`)
+	c.Assert(err, ErrorMatches, `quota group "mixed-grp" has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it`)
 }
