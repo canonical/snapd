@@ -26,8 +26,10 @@ execute: |
     echo "Connect a valid plug"
     snap connect content-consumer:quoting content-provider:quoting
 
-    echo "Verify that the AppArmor rule has proper quoting"
-    MATCH '"/var/snap/content-provider/x1/a,comma/\*\*" mrkix,' < /var/lib/snapd/apparmor/profiles/snap.content-consumer.sh
+    if [ "$(snap debug confinement)" = "strict" ]; then
+        echo "Verify that the AppArmor rule has proper quoting"
+        MATCH '"/var/snap/content-provider/x1/a,comma/\*\*" mrkix,' < /var/lib/snapd/apparmor/profiles/snap.content-consumer.sh
+    fi
 
     echo "Attempt to install a snap with an invalid layout"
     "$TESTSTOOLS"/snaps-state install-local bad-layout 2>&1 |MATCH 'cannot validate snap "bad-layout".*contains a reserved apparmor char'
