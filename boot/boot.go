@@ -41,13 +41,23 @@ const (
 	TryingStatus = "trying"
 )
 
+// RebootInfo contains information about how to perform a reboot if
+// required
+type RebootInfo struct {
+	// rebootRequired is true if we need to reboot after an update
+	RebootRequired bool
+	// Rbl will not be nil if the bootloader needs some control on
+	// how to perform the rebot
+	Rbl bootloader.RebootBootloader
+}
+
 // A BootParticipant handles the boot process details for a snap involved in it.
 type BootParticipant interface {
 	// SetNextBoot will schedule the snap to be used in the next boot. For
 	// base snaps it is up to the caller to select the right bootable base
 	// (from the model assertion). It is a noop for not relevant snaps.
 	// Otherwise it returns whether a reboot is required.
-	SetNextBoot() (rebootRequired bool, err error)
+	SetNextBoot() (rebootInfo RebootInfo, err error)
 
 	// Is this a trivial implementation of the interface?
 	IsTrivial() bool
@@ -68,7 +78,7 @@ type BootKernel interface {
 
 type trivial struct{}
 
-func (trivial) SetNextBoot() (bool, error)               { return false, nil }
+func (trivial) SetNextBoot() (RebootInfo, error)         { return RebootInfo{RebootRequired: false}, nil }
 func (trivial) IsTrivial() bool                          { return true }
 func (trivial) RemoveKernelAssets() error                { return nil }
 func (trivial) ExtractKernelAssets(snap.Container) error { return nil }
@@ -191,6 +201,10 @@ type bootState interface {
 	// of the update is done via bootStateUpdate's commit, that
 	// way different markSuccessful can be folded together.
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
+
+	// getRebootBootloader returns a bootloader.RebootBootloader
+	// interface if implemented by the bootloader, nil otherwise.
+	getRebootBootloader() bootloader.RebootBootloader
 }
 
 // successfulBootState exposes the state of resources requiring bookkeeping on a

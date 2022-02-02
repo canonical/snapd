@@ -24,7 +24,6 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -63,7 +62,7 @@ var (
 	poweroffMsg = i18n.G("system poweroff scheduled")
 )
 
-func Reboot(action RebootAction, rebootDelay time.Duration) error {
+func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootInfo) error {
 	if rebootDelay < 0 {
 		rebootDelay = 0
 	}
@@ -84,16 +83,12 @@ func Reboot(action RebootAction, rebootDelay time.Duration) error {
 	}
 
 	// Use reboot arguments if required by the bootloader
-	// TODO: find dynamically the root/role?
-	bl, err := bootloader.Find("", &bootloader.Options{Role: bootloader.RoleRunMode})
-	if err == nil {
-		if rebArgBl, ok := bl.(bootloader.RebootArgumentsBootloader); ok {
-			rebArgs := rebArgBl.GetRebootArguments()
-			if rebArgs != "" {
-				if err := osutil.AtomicWriteFile(GetRebootArgsPath(),
-					[]byte(rebArgs+"\n"), 0644, 0); err != nil {
-					return err
-				}
+	if rebootInfo != nil && rebootInfo.Rbl != nil {
+		rebArgs := rebootInfo.Rbl.GetRebootArguments()
+		if rebArgs != "" {
+			if err := osutil.AtomicWriteFile(GetRebootArgsPath(),
+				[]byte(rebArgs+"\n"), 0644, 0); err != nil {
+				return err
 			}
 		}
 	}

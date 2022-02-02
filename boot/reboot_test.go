@@ -69,7 +69,7 @@ func (s *rebootSuite) TestRebootHelper(c *C) {
 
 	for _, arg := range args {
 		for _, t := range tests {
-			err := boot.Reboot(arg.a, t.delay)
+			err := boot.Reboot(arg.a, t.delay, nil)
 			c.Assert(err, IsNil)
 			c.Check(cmd.Calls(), DeepEquals, [][]string{
 				{"shutdown", arg.arg, t.delayArg, arg.msg},
@@ -94,7 +94,7 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	err := boot.Reboot(0, 0)
+	err := boot.Reboot(0, 0, &boot.RebootInfo{RebootRequired: true, Rbl: rab})
 	c.Assert(err, IsNil)
 	args, err := ioutil.ReadFile(rebArgsPath)
 	c.Assert(err, IsNil)
@@ -118,7 +118,7 @@ func (s *rebootSuite) TestRebootNoArguments(c *C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	err := boot.Reboot(0, 0)
+	err := boot.Reboot(0, 0, nil)
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(rebArgsPath)

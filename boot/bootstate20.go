@@ -187,12 +187,21 @@ func (u20 *bootStateUpdate20) commit() error {
 // methods returning bootStateUpdate20 to be used with bootStateUpdate.
 type bootState20Kernel struct {
 	bks bootloaderKernelState20
+	rbl bootloader.RebootBootloader
 
 	// used to find the bootloader to manipulate the enabled kernel, etc.
 	blOpts *bootloader.Options
 	blDir  string
 
 	dev Device
+}
+
+func (ks20 *bootState20Kernel) getRebootBootloader() bootloader.RebootBootloader {
+	if err := ks20.loadBootenv(); err != nil {
+		// log and keep going while returning nil
+		logger.Noticef("cannot load boot environement: %v", err)
+	}
+	return ks20.rbl
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
@@ -221,6 +230,11 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	} else {
 		// use fallback pure bootloader env implementation
 		ks20.bks = &envRefExtractedKernelBootloaderKernelState{bl: bl}
+	}
+
+	rbl, ok := bl.(bootloader.RebootBootloader)
+	if ok {
+		ks20.rbl = rbl
 	}
 
 	// setup the bootloaderKernelState20
@@ -491,6 +505,10 @@ func (bs20 *bootState20Base) selectAndCommitSnapInitramfsMount(modeenv *Modeenv)
 	}
 
 	return first, nil
+}
+
+func (bs20 *bootState20Base) getRebootBootloader() bootloader.RebootBootloader {
+	return nil
 }
 
 //

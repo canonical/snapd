@@ -742,7 +742,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnap(c *C) {
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure that the bootloader was asked for the current kernel
 	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
@@ -785,7 +785,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextSameKernelSnap(
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// ensure that bootenv is unchanged
 	m, err := s.bootloader.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -825,7 +825,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnap(c *C) {
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure that the bootloader was asked for the current kernel
 	_, nKernelCalls := s.bootloader.GetRunKernelImageFunctionSnapCalls("Kernel")
@@ -938,7 +938,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the env was updated
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -1051,7 +1051,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
 	c.Assert(err, IsNil)
@@ -1163,7 +1163,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure the env is as expected
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -1281,7 +1281,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure the env is as expected
 	bvars, err := tab.GetBootVars("kernel_status", "snap_kernel", "snap_try_kernel")
@@ -1324,7 +1324,7 @@ func (s *bootenv20EnvRefKernelSuite) TestCoreParticipant20SetNextNewKernelSnap(c
 	// make the kernel used on next boot
 	rebootRequired, err := bootKern.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the env was updated
 	m := s.bootloader.BootVars
@@ -1514,7 +1514,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameBaseSnap(c *C) {
 	c.Assert(err, IsNil)
 
 	// we don't need to reboot because it's the same base snap
-	c.Assert(rebootRequired, Equals, false)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// make sure the modeenv wasn't changed
 	m2, err := boot.ReadModeenv("")
@@ -1551,7 +1551,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnap(c *C) {
 	// make the base used on next boot
 	rebootRequired, err := bootBase.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the modeenv was updated
 	m2, err := boot.ReadModeenv("")
@@ -1645,7 +1645,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	// make the base used on next boot
 	rebootRequired, err := bootBase.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Assert(rebootRequired, Equals, true)
+	c.Assert(rebootRequired, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// make sure the modeenv was updated
 	m2, err := boot.ReadModeenv("")

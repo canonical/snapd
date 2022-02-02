@@ -88,7 +88,7 @@ func (s *bootenvSuite) TestSetNextBootForCore(c *C) {
 		"snap_mode":     boot.TryStatus,
 	})
 
-	c.Check(reboot, Equals, true)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 }
 
 func (s *bootenvSuite) TestSetNextBootWithBaseForCore(c *C) {
@@ -110,7 +110,7 @@ func (s *bootenvSuite) TestSetNextBootWithBaseForCore(c *C) {
 		"snap_mode":     boot.TryStatus,
 	})
 
-	c.Check(reboot, Equals, true)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 }
 
 func (s *bootenvSuite) TestSetNextBootForKernel(c *C) {
@@ -136,7 +136,7 @@ func (s *bootenvSuite) TestSetNextBootForKernel(c *C) {
 		"snap_kernel":     "krnl_40.snap",
 		"snap_try_kernel": "krnl_42.snap"}
 	s.bootloader.SetBootVars(bootVars)
-	c.Check(reboot, Equals, true)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// simulate good boot
 	bootVars = map[string]string{"snap_kernel": "krnl_42.snap"}
@@ -144,7 +144,7 @@ func (s *bootenvSuite) TestSetNextBootForKernel(c *C) {
 
 	reboot, err = bp.SetNextBoot()
 	c.Assert(err, IsNil)
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 }
 
 func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
@@ -170,7 +170,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernel(c *C) {
 		"kernel_status": boot.TryStatus,
 	})
 
-	c.Check(reboot, Equals, true)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// check that SetNextBoot enabled kernel2 as a TryKernel
 	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
@@ -213,7 +213,7 @@ func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernel(c *C) {
 		"snap_kernel":     s.kern1.Filename(),
 	})
 
-	c.Check(reboot, Equals, true)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")
@@ -241,7 +241,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernel(c *C) {
 		"snap_kernel": "krnl_40.snap",
 	})
 
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 }
 
 func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
@@ -267,7 +267,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernel(c *C) {
 		"kernel_status": boot.DefaultStatus,
 	})
 
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// check that SetNextBoot didn't try to enable any try kernels
 	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
@@ -311,7 +311,7 @@ func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernel(
 		"snap_try_kernel": "",
 	})
 
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")
@@ -344,7 +344,7 @@ func (s *bootenvSuite) TestSetNextBootForKernelForTheSameKernelTryMode(c *C) {
 		"snap_mode":       boot.DefaultStatus,
 	})
 
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 }
 
 func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C) {
@@ -381,7 +381,7 @@ func (s *bootenv20Suite) TestSetNextBoot20ForKernelForTheSameKernelTryMode(c *C)
 		"kernel_status": boot.DefaultStatus,
 	})
 
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// check that SetNextBoot didn't try to enable any try kernels
 	actual, _ := s.bootloader.GetRunKernelImageFunctionSnapCalls("EnableTryKernel")
@@ -436,7 +436,7 @@ func (s *bootenv20EnvRefKernelSuite) TestSetNextBoot20ForKernelForTheSameKernelT
 		"snap_try_kernel": "",
 	})
 
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// and that the modeenv didn't change
 	m2, err := boot.ReadModeenv("")
