@@ -162,6 +162,8 @@ var validDesktopFileName = regexp.MustCompile(`^[A-Za-z-_][A-Za-z0-9-_]*(\.[A-Za
 
 func schemeHasHandler(scheme string) (bool, error) {
 	cmd := exec.Command("xdg-mime", "query", "default", "x-scheme-handler/"+scheme)
+	// TODO: consider using Output() in case xdg-mime starts logging to
+	// stderr
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, osutil.OutputErr(out, err)
