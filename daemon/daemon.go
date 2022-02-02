@@ -386,12 +386,12 @@ func (d *Daemon) Start() error {
 }
 
 // HandleRestart implements overlord.RestartBehavior.
-func (d *Daemon) HandleRestart(t restart.RestartType) {
+func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	scheduleFallback := func(a boot.RebootAction) {
-		if err := reboot(a, rebootWaitTimeout); err != nil {
+		if err := reboot(a, rebootWaitTimeout, rebootInfo); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}
@@ -619,7 +619,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immed
 	}
 	// ask for shutdown and wait for it to happen.
 	// if we exit snapd will be restared by systemd
-	if err := reboot(action, rebootDelay); err != nil {
+	if err := reboot(action, rebootDelay, nil); err != nil {
 		return err
 	}
 	// wait for reboot to happen
