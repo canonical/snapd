@@ -219,7 +219,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	memLimit := quantity.SizeGiB
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -421,7 +421,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// use new memory limit
-	grp, err := quota.NewGroup("foogroup", memLimit2)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit2))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -515,7 +515,7 @@ WantedBy=multi-user.target
 	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
 	c.Assert(err, IsNil)
 
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -538,7 +538,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	// create the group
-	grp, err := quota.NewGroup("foogroup", quantity.SizeKiB)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(5*quantity.SizeKiB))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -608,12 +608,12 @@ apps:
 	var err error
 	memLimit := quantity.SizeGiB
 	// make a root quota group and add the first snap to it
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but is for the
 	// second snap
-	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
+	subgrp, err := grp.NewSubGroup("subgroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -741,12 +741,12 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	var err error
 	memLimit := quantity.SizeGiB
 	// make a root quota group without any snaps in it
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but it is the one
 	// with the snap in it
-	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
+	subgrp, err := grp.NewSubGroup("subgroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -3353,7 +3353,7 @@ apps:
 	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"reload-or-restart", srvFile},
 	})
 
@@ -3361,7 +3361,7 @@ apps:
 	flags.Reload = false
 	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3370,7 +3370,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3424,7 +3424,7 @@ apps:
 	sort.Sort(snap.AppInfoBySnapApp(services))
 	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names",
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
 			srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},
@@ -3439,7 +3439,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, []string{srvFile2}, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names",
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
 			srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},

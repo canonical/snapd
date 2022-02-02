@@ -148,6 +148,12 @@ func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskS
 	expected := expectedDoInstallTasks(typ, opts, discards, nil, nil)
 
 	c.Assert(kinds, DeepEquals, expected)
+
+	if opts&noLastBeforeModificationsEdge == 0 {
+		te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+		c.Assert(te, NotNil)
+		c.Assert(te.Kind(), Equals, "validate-snap")
+	}
 }
 
 func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
@@ -703,7 +709,7 @@ func (s *snapmgrTestSuite) TestInstallManySnapOneWithDefaultTrack(c *C) {
 	defer s.state.Unlock()
 
 	snapNames := []string{"some-snap", "some-snap-with-default-track"}
-	installed, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID)
+	installed, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(installed, DeepEquals, snapNames)
 
@@ -3179,10 +3185,10 @@ func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
 	_, err = snapstate.Install(context.Background(), s.state, "foo_123_456", nil, 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
 
-	_, _, err = snapstate.InstallMany(s.state, []string{"foo--invalid"}, 0)
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo--invalid"}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid snap name: "foo--invalid"`)
 
-	_, _, err = snapstate.InstallMany(s.state, []string{"foo_123_456"}, 0)
+	_, _, err = snapstate.InstallMany(s.state, []string{"foo_123_456"}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "123_456"`)
 
 	mockSnap := makeTestSnap(c, `name: some-snap
@@ -3295,7 +3301,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
@@ -3322,7 +3328,7 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	tr.Set("core", "experimental.check-disk-space-install", true)
 	tr.Commit()
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
@@ -3341,7 +3347,7 @@ func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabled(c *C) {
 	tr.Set("core", "experimental.check-disk-space-install", false)
 	tr.Commit()
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
 	c.Check(err, IsNil)
 }
 
@@ -3351,7 +3357,7 @@ func (s *snapmgrTestSuite) TestInstallManyTooEarly(c *C) {
 
 	s.state.Set("seeded", nil)
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `too early for operation, device not yet seeded or device model not acknowledged`)
 }
@@ -3360,11 +3366,11 @@ func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, 0)
+	_, _, err := snapstate.InstallMany(s.state, []string{"some-snap-now-classic"}, 0, nil)
 	c.Assert(err, NotNil)
 	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
 
-	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, 0)
+	_, _, err = snapstate.InstallMany(s.state, []string{"some-snap_foo"}, 0, nil)
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.parallel-instances' to true")
 }
 
@@ -3877,7 +3883,7 @@ func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, sna
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0, nil)
 	return err
 }
 
@@ -4218,11 +4224,100 @@ func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallMigrateData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), Not(HasLen), 0)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
+	assertMigrationState(c, s.state, "some-snap", true)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	// fail at the end
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// we fail between writing the sequence file and the state
+	assertMigrationInSeqFile(c, "some-snap", false)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFailsAfterSettingState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fail the change after the link-snap task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// fail after writing seq file but before writing state
+	assertMigrationInSeqFile(c, "some-snap", false)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
+}
+
 func (s *snapmgrTestSuite) TestInstallDeduplicatesSnapNames(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	installed, ts, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, s.user.ID)
+	installed, ts, err := snapstate.InstallMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, s.user.ID, nil)
 	c.Assert(err, IsNil)
 	c.Check(installed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 	c.Check(ts, HasLen, 2)
@@ -4594,7 +4689,12 @@ epoch: 42
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	// this needs doing because dirs depends on the release info
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	restore = snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: name, Confinement: "classic"}, nil
 	})
 	defer restore()
@@ -4700,4 +4800,74 @@ version: 1
 	}
 
 	return brokenSnap, si
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyWithLocalPrereqAndBaseNoStore(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	tr.Commit()
+
+	// use the real disk check since it also includes store checks
+	restore := snapstate.MockInstallSize(snapstate.InstallSize)
+	defer restore()
+
+	// no core, we'll install it as well
+	snapstate.Set(s.state, "core", nil)
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "prereq-snap", "core"}
+	yamls := []string{
+		`name: some-snap
+version: 1.0
+base: core
+plugs:
+  myplug:
+    interface: content
+    content: mycontent
+    default-provider: prereq-snap
+`,
+		`name: prereq-snap
+version: 1.0
+base: core
+slots:
+  myslot:
+    interface: content
+    content: mycontent`,
+		`name: core
+version: 1.0
+type: base
+`,
+	}
+
+	for i, name := range snapNames {
+		paths = append(paths, makeTestSnap(c, yamls[i]))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("1"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 3)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	op := s.fakeBackend.ops.First("storesvc-snap-action")
+	c.Assert(op, IsNil)
 }

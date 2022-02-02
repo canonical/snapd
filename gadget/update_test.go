@@ -31,9 +31,11 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1821,4 +1823,316 @@ assets:
 
 	// ensure update for kernel content didn't happen
 	c.Assert(muo.beforeWriteCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateWithBareStructure(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traits, DeepEquals, gadgettest.MockExtraVolumeDeviceTraits)
+}
+
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTSingleVolume(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": {
+			DevNode: "/dev/foo",
+			DevPath: "/sys/block/foo",
+			DevNum:  "525:1",
+			// assume 34 sectors at end for GPT headers backup
+			DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
+			DiskSizeInBytes:     6000 * 1024 * 1024,
+			SectorSizeBytes:     512,
+			DiskSchema:          "gpt",
+			ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+			Structure: []disks.Partition{
+				{
+					PartitionLabel:   "nofspart",
+					PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+					FilesystemType:   "",
+					Major:            525,
+					Minor:            2,
+					KernelDeviceNode: "/dev/foo1",
+					KernelDevicePath: "/sys/block/foo/foo1",
+					DiskIndex:        1,
+					StartInBytes:     1024 * 1024,
+					SizeInBytes:      4096,
+				},
+				{
+					PartitionLabel:   "some-filesystem",
+					PartitionUUID:    "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+					FilesystemLabel:  "some-filesystem",
+					FilesystemUUID:   "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
+					FilesystemType:   "ext4",
+					Major:            525,
+					Minor:            3,
+					KernelDeviceNode: "/dev/foo2",
+					KernelDevicePath: "/sys/block/foo/foo2",
+					DiskIndex:        2,
+					StartInBytes:     1024*1024 + 4096,
+					SizeInBytes:      1024 * 1024 * 1024,
+				},
+			},
+		},
+	})
+	defer restore()
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: nofspart
+        type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
+        size: 4096
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
+		OriginalDevicePath: "/sys/block/foo",
+		OriginalKernelPath: "/dev/foo",
+		DiskID:             "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+		SectorSize:         512,
+		Size:               6000 * 1024 * 1024,
+		Schema:             "gpt",
+		Structure: []gadget.DiskStructureDeviceTraits{
+			{
+				PartitionLabel:     "nofspart",
+				PartitionUUID:      "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+				OriginalDevicePath: "/sys/block/foo/foo1",
+				OriginalKernelPath: "/dev/foo1",
+				Offset:             0x100000,
+				Size:               0x1000,
+			},
+			{
+				PartitionLabel:     "some-filesystem",
+				PartitionUUID:      "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
+				OriginalDevicePath: "/sys/block/foo/foo2",
+				OriginalKernelPath: "/dev/foo2",
+				FilesystemLabel:    "some-filesystem",
+				FilesystemUUID:     "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
+				FilesystemType:     "ext4",
+				Offset:             0x101000,
+				Size:               0x40000000,
+			},
+		},
+	})
+}
+
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	mod := &modelCharateristics{
+		systemSeed: true,
+	}
+	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+		c.MkDir(),
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		mod,
+	)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(vols["pc"], "/dev/vda", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadgettest.VMSystemVolumeDeviceTraits)
+
+	traitsExtra, err := gadget.DiskTraitsFromDeviceAndValidate(vols["foo"], "/dev/vdb", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traitsExtra, DeepEquals, gadgettest.VMExtraVolumeDeviceTraits)
+}
+
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraOnDiskStructure(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// yaml doesn't have some-filesystem in it
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: barething
+        type: bare
+        size: 1024
+      - name: nofspart
+        type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
+        size: 4096
+`
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1053696\) in gadget`)
+}
+
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraLaidOutStructure(c *C) {
+
+	mockDisk := &disks.MockDiskMapping{
+		DevNode: "/dev/foo",
+		DevPath: "/sys/block/foo",
+		DevNum:  "525:1",
+		// assume 34 sectors at end for GPT headers backup
+		DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
+		DiskSizeInBytes:     6000 * 1024 * 1024,
+		SectorSizeBytes:     512,
+		DiskSchema:          "gpt",
+		ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+		// on disk structure is missing ubuntu-data from the YAML below
+		Structure: []disks.Partition{
+			{
+				PartitionLabel:   "nofspart",
+				PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
+				FilesystemType:   "",
+				Major:            525,
+				Minor:            2,
+				KernelDeviceNode: "/dev/foo1",
+				KernelDevicePath: "/sys/block/foo/foo1",
+				DiskIndex:        1,
+				StartInBytes:     1024 * 1024,
+				SizeInBytes:      4096,
+			},
+		},
+	}
+
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: nofspart
+        type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
+        size: 4096
+      - filesystem: ext4
+        name: ubuntu-data
+        role: system-data
+        size: 1500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	c.Assert(err, IsNil)
+
+	// we can't build the device traits because the two are not compatible, even
+	// though the last structure is system-data which may not exist before
+	// install mode and thus be "compatible" in some contexts, but
+	// DiskTraitsFromDeviceAndValidate is more strict and requires all
+	// structures to exist and to match
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find gadget structure #1 \("ubuntu-data"\) on disk`)
+
+	// if we add a structure to the mock disk which is smaller than the ondisk
+	// layout, we still reject it because the on disk must be at least the size
+	// that the gadget mentions
+	mockDisk.Structure = append(mockDisk.Structure, disks.Partition{
+		PartitionLabel:   "ubuntu-data",
+		PartitionUUID:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+		FilesystemType:   "ext4",
+		Major:            525,
+		Minor:            3,
+		KernelDeviceNode: "/dev/foo2",
+		KernelDevicePath: "/sys/block/foo/foo2",
+		DiskIndex:        2,
+		StartInBytes:     1024*1024 + 4096,
+		SizeInBytes:      4096,
+	})
+
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget: on disk size 4096 \(4 KiB\) is smaller than gadget size 1572864000 \(1.46 GiB\)`)
+
+	// same size is okay though
+	mockDisk.Structure[1].SizeInBytes = 1500 * 1024 * 1024
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, IsNil)
+
+	// it has the right size
+	c.Assert(traits.Structure[1].Size, Equals, 1500*quantity.SizeMiB)
+
+	// bigger is okay too
+	mockDisk.Structure[1].SizeInBytes = 3200 * 1024 * 1024
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": mockDisk,
+	})
+	defer restore()
+
+	traits, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
+	c.Assert(err, IsNil)
+
+	// and it has the on disk size
+	c.Assert(traits.Structure[1].Size, Equals, 3200*quantity.SizeMiB)
+}
+
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
+	})
+	defer restore()
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, nil)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiDiskVolumeDeviceTraits)
+}
+
+func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataHappy(c *C) {
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+
+	// the volume cannot be found with no opts set
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/sda", nil)
+	c.Assert(err, ErrorMatches, `volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
+
+	// with opts for pc then it can be found
+	opts := &gadget.DiskVolumeValidationOptions{
+		AllowImplicitSystemData: true,
+	}
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/sda", opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
 }

@@ -20,6 +20,8 @@
 package interfaces_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -357,4 +359,28 @@ func (s *connSuite) TestNewConnectedSlotExplicitStaticAttrs(c *C) {
 	c.Assert(slot, NotNil)
 	c.Assert(slot.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
 	c.Assert(slot.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
+}
+
+func (s *connSuite) TestGetAttributeUnhappy(c *C) {
+	attrs := map[string]interface{}{}
+	var stringVal string
+	err := interfaces.GetAttribute("snap0", "iface0", attrs, attrs, "non-existent", &stringVal)
+	c.Check(stringVal, Equals, "")
+	c.Check(err, ErrorMatches, `snap "snap0" does not have attribute "non-existent" for interface "iface0"`)
+	c.Check(errors.Is(err, snap.AttributeNotFoundError{}), Equals, true)
+}
+
+func (s *connSuite) TestGetAttributeHappy(c *C) {
+	staticAttrs := map[string]interface{}{
+		"attr0": "a string",
+		"attr1": 12,
+	}
+	dynamicAttrs := map[string]interface{}{
+		"attr0": "second string",
+		"attr1": 42,
+	}
+	var intVal int
+	err := interfaces.GetAttribute("snap0", "iface0", staticAttrs, dynamicAttrs, "attr1", &intVal)
+	c.Check(err, IsNil)
+	c.Check(intVal, Equals, 42)
 }

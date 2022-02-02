@@ -20,6 +20,8 @@
 package testutil
 
 import (
+	"os"
+
 	"gopkg.in/check.v1"
 )
 
@@ -34,6 +36,11 @@ func (s *BaseTest) SetUpTest(c *check.C) {
 	if len(s.cleanupHandlers) != 0 {
 		panic("BaseTest cleanup handlers were not consumed before a new test start, missing BaseTest.TearDownTest call?")
 	}
+
+	// When unit tests are called with SNAPD_DEBUG=1, we tend to get some failures due to the
+	// mismatch in the expected output and actual output. Instead of doing an unset SNAPD_DEBUG
+	// in all those cases, adding it in here - a common test helper function to be called by inidividual unit tests.
+	os.Unsetenv("SNAPD_DEBUG")
 }
 
 // TearDownTest cleans up the channel.ini files in case they were changed by

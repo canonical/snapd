@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -52,7 +53,7 @@ var mockDeviceStructure = gadget.OnDiskStructure{
 			Size: 0x100000,
 		},
 		StartOffset: 0,
-		Index:       1,
+		YamlIndex:   1,
 	},
 	Node: "/dev/node1",
 }
