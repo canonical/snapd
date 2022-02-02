@@ -107,12 +107,24 @@ type cmdSetQuota struct {
 	} `positional-args:"yes"`
 }
 
-func (x *cmdSetQuota) Execute(args []string) (err error) {
-	var maxMemory string
-	switch {
-	case x.MemoryMax != "":
-		maxMemory = x.MemoryMax
+func parseQuotas(maxMemory string) (*client.QuotaValues, error) {
+	var mem int64
+
+	if maxMemory != "" {
+		value, err := strutil.ParseByteSize(maxMemory)
+		if err != nil {
+			return nil, err
+		}
+		mem = value
 	}
+
+	return &client.QuotaValues{
+		Memory: quantity.Size(mem),
+	}, nil
+}
+
+func (x *cmdSetQuota) Execute(args []string) (err error) {
+	quotaProvided := x.MemoryMax != ""
 
 	names := installedSnapNames(x.Positional.Snaps)
 
@@ -125,7 +137,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 	var chgID string
 
 	switch {
-	case maxMemory == "" && x.Parent == "" && len(x.Positional.Snaps) == 0:
+	case !quotaProvided && x.Parent == "" && len(x.Positional.Snaps) == 0:
 		// no snaps were specified, no memory limit was specified, and no parent
 		// was specified, so just the group name was provided - this is not
 		// supported since there is nothing to change/create
@@ -135,7 +147,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		}
 		return fmt.Errorf("cannot create quota group without memory limit")
 
-	case maxMemory == "" && x.Parent != "" && len(x.Positional.Snaps) == 0:
+	case !quotaProvided && x.Parent != "" && len(x.Positional.Snaps) == 0:
 		// this is either trying to create a new group with a parent and forgot
 		// to specify the memory limit for the new group, or the user is trying
 		// to re-parent a group, i.e. move it from the current parent to a
@@ -149,12 +161,11 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		}
 		return fmt.Errorf("cannot create quota group without memory limit")
 
-	case maxMemory != "":
+	case quotaProvided:
 		// we have a memory limit to set for this group, so specify that along
 		// with whatever snaps may have been provided and whatever parent may
 		// have been specified
-
-		mem, err := strutil.ParseByteSize(maxMemory)
+		quotaValues, err := parseQuotas(x.MemoryMax)
 		if err != nil {
 			return err
 		}
@@ -164,7 +175,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, quantity.Size(mem))
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, quotaValues)
 		if err != nil {
 			return err
 		}
@@ -178,7 +189,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// currently support that, so currently all snaps specified here are
 		// just added to the group
 
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, 0)
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, nil)
 		if err != nil {
 			return err
 		}

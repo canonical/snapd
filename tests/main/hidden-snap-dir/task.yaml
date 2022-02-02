@@ -1,5 +1,9 @@
 summary: Check that the experimental hidden dir feature migrates the dir
 
+# this test is flaky on CentOS 7 and 8. Disabling while the cause is
+# investigated
+systems: [-centos-*]
+
 environment:
     NAME: test-snapd-tools
 

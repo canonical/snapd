@@ -157,6 +157,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	flags.RemoveSnapPath = true
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
+	flags.Transactional = isTrue(form, "transactional")
 
 	sideloadFlags := sideloadFlags{
 		Flags:       flags,

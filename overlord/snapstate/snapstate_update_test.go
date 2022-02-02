@@ -7086,11 +7086,13 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigration(c *C) {
 		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 	}
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{info},
 		Current:  info.Revision,
 		Active:   true,
-	})
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
 
 	chg := s.state.NewChange("update", "update a snap")
 	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
@@ -7108,6 +7110,56 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigration(c *C) {
 	assertMigrationState(c, s.state, "some-snap", true)
 }
 
+func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateFailsAfterSettingState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fail the change after the link-snap task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Err(), Not(IsNil))
+
+	// check migration is undone
+	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// check migration status was reverted in state and seq file
+	assertMigrationState(c, s.state, "some-snap", false)
+}
+
 func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7121,11 +7173,13 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateFails(c *C) {
 		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 	}
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{info},
 		Current:  info.Revision,
 		Active:   true,
-	})
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
 
 	// fail at the end
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
@@ -7159,12 +7213,14 @@ func (s *snapmgrTestSuite) TestUpdateAfterMigration(c *C) {
 		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 	}
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapst := &snapstate.SnapState{
 		Sequence:       []*snap.SideInfo{info},
 		Current:        info.Revision,
 		Active:         true,
 		MigratedHidden: true,
-	})
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
 
 	chg := s.state.NewChange("update", "update a snap")
 	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
@@ -7209,11 +7265,13 @@ func (s *snapmgrTestSuite) testUndoMigration(c *C, failUndo bool) {
 		SnapID:   "some-snap-id",
 		RealName: "some-snap",
 	}
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{info},
 		Current:  info.Revision,
 		Active:   true,
-	})
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
 
 	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
 		if op.op == "hide-snap-data" || (failUndo && op.op == "undo-hide-snap-data") {
@@ -7269,24 +7327,22 @@ func someMatches(c *C, haystack []string, needle string) bool {
 	return false
 }
 
+// assertMigrationState checks the migration status in the state and sequence
+// file. Fails if no state or sequence file exist.
 func assertMigrationState(c *C, st *state.State, snap string, migrated bool) {
 	// check snap state has expected migration value
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(st, snap, &snapst), IsNil)
 	c.Assert(snapst.MigratedHidden, Equals, migrated)
 
-	// read sequence file
+	assertMigrationInSeqFile(c, snap, migrated)
+}
+
+func assertMigrationInSeqFile(c *C, snap string, migrated bool) {
 	seqFilePath := filepath.Join(dirs.SnapSeqDir, snap+".json")
 	file, err := os.Open(seqFilePath)
-	if errors.Is(err, os.ErrNotExist) {
-		if migrated {
-			c.Fatalf("expected migration flag set in seq file but got: %v", err)
-		}
-
-		// not expecting migration, so it's ok for seq file to not exist
-		return
-	}
 	c.Assert(err, IsNil)
+	defer file.Close()
 
 	data, err := ioutil.ReadAll(file)
 	c.Assert(err, IsNil)

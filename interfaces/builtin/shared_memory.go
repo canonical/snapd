@@ -98,27 +98,13 @@ func validateSharedMemoryPath(path string) error {
 }
 
 func stringListAttribute(attrer interfaces.Attrer, key string) ([]string, error) {
-	parseError := func(key string, value interface{}) error {
-		return fmt.Errorf(`shared-memory %q attribute must be a list of strings, not "%v"`, key, value)
-	}
-	attr, ok := attrer.Lookup(key)
-	if !ok {
-		return nil, nil
-	}
-
-	attrList, ok := attr.([]interface{})
-	if !ok || len(attrList) == 0 {
-		return nil, parseError(key, attr)
+	var stringList []string
+	err := attrer.Attr(key, &stringList)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+		value, _ := attrer.Lookup(key)
+		return nil, fmt.Errorf(`shared-memory %q attribute must be a list of strings, not "%v"`, key, value)
 	}
 
-	stringList := make([]string, 0, len(attrList))
-	for _, value := range attrList {
-		s, ok := value.(string)
-		if !ok {
-			return nil, parseError(key, attrList)
-		}
-		stringList = append(stringList, s)
-	}
 	return stringList, nil
 }
 

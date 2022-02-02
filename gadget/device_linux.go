@@ -20,7 +20,6 @@
 package gadget
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,10 +30,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 )
-
-var ErrDeviceNotFound = errors.New("device not found")
-var ErrMountNotFound = errors.New("mount point not found")
-var ErrNoFilesystemDefined = errors.New("no filesystem defined")
 
 var evalSymlinks = filepath.EvalSymlinks
 

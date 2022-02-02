@@ -202,6 +202,11 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
+    - name: Test Go (SNAPD_DEBUG=1)
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
     - name: Test Go (withbootassetstesting)
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |

@@ -33,6 +33,12 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
+var (
+	userLookup  = user.Lookup
+	userCurrent = user.Current
+	sudoersDotD = "/etc/sudoers.d"
+)
+
 var sudoersTemplate = `
 # Created by snap create-user
 
