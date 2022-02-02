@@ -782,6 +782,7 @@ const (
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
 	"snap-yaml": @SNAP_YAML@,
+        "base": @BASE@,
 	"summary": "Foo",
 	"description": "this is a description",
 	"version": "@VERSION@",
@@ -923,6 +924,11 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		hit = strings.Replace(hit, `@SNAP_YAML@`, string(rawInfoBuf), -1)
+		baseStr := "null"
+		if info.Base != "" {
+			baseStr = fmt.Sprintf("%q", info.Base)
+		}
+		hit = strings.Replace(hit, `@BASE@`, baseStr, -1)
 		return hit
 	}
 
@@ -7767,6 +7773,75 @@ func (s *mgrsSuite) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) {
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
 	i++
 	c.Check(i, Equals, len(tasks))
+}
+
+const prereqSnapYaml = `
+name: prereq
+version: 1.0
+base: prereq-base
+plugs:
+  prereq-content:
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: prereq-content
+`
+
+func (s *mgrsSuite) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "prereq",
+				"id":   fakeSnapID("prereq"),
+			},
+			// prepreq requires prereq-base and prereq-content
+		},
+		"revision": "1",
+	})
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "prereq",
+	})
+
+	snapPath, _ := s.makeStoreTestSnap(c, prereqSnapYaml, "1")
+	s.serveSnap(snapPath, "1")
+
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, ErrorMatches, `cannot remodel with incomplete model, the following snaps are required but not listed: "prereq-base", "prereq-content"`)
+	c.Assert(chg, IsNil)
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
