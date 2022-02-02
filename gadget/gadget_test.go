@@ -31,7 +31,6 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -516,34 +515,18 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-type modelCharateristics struct {
-	classic    bool
-	systemSeed bool
-}
-
-func (m *modelCharateristics) Classic() bool {
-	return m.classic
-}
-
-func (m *modelCharateristics) Grade() asserts.ModelGrade {
-	if m.systemSeed {
-		return asserts.ModelSigned
-	}
-	return asserts.ModelGradeUnset
-}
-
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
 	// if model is nil, we allow a missing yaml
 	_, err := gadget.ReadInfo("bogus-path", nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo("bogus-path", &modelCharateristics{})
+	_, err = gadget.ReadInfo("bogus-path", &gadgettest.ModelCharacteristics{})
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
 	// no meta/gadget.yaml
-	gi, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	gi, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Check(gi, NotNil)
 }
@@ -552,7 +535,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
@@ -561,7 +544,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -598,7 +581,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	defaults := gadget.SystemDefaults(ginfo.Defaults)
 	c.Check(defaults, DeepEquals, map[string]interface{}{
@@ -612,7 +595,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 
 	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(yaml), 0644)
 	c.Assert(err, IsNil)
-	ginfo, err = gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 
 	defaults = gadget.SystemDefaults(ginfo.Defaults)
@@ -638,7 +621,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -656,15 +639,15 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 }
 
 var (
-	classicMod = &modelCharateristics{
-		classic: true,
+	classicMod = &gadgettest.ModelCharacteristics{
+		IsClassic: true,
 	}
-	coreMod = &modelCharateristics{
-		classic: false,
+	coreMod = &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
-	uc20Mod = &modelCharateristics{
-		classic:    false,
-		systemSeed: true,
+	uc20Mod = &gadgettest.ModelCharacteristics{
+		IsClassic:  false,
+		SystemSeed: true,
 	}
 )
 
@@ -804,7 +787,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &modelCharateristics{classic: false})
+	_, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -812,7 +795,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &modelCharateristics{classic: false})
+	_, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -958,8 +941,8 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 
 var classicModelCharacteristics = []gadget.Model{
 	nil,
-	&modelCharateristics{classic: false, systemSeed: false},
-	&modelCharateristics{classic: true, systemSeed: false},
+	&gadgettest.ModelCharacteristics{IsClassic: false, SystemSeed: false},
+	&gadgettest.ModelCharacteristics{IsClassic: true, SystemSeed: false},
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
@@ -996,9 +979,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkUC20Happy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkUC20, 0644)
 	c.Assert(err, IsNil)
 
-	uc20Model := &modelCharateristics{
-		systemSeed: true,
-		classic:    false,
+	uc20Model := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
+		IsClassic:  false,
 	}
 
 	_, err = gadget.ReadInfo(s.dir, uc20Model)
@@ -1716,8 +1699,8 @@ volumes:
 
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
 	c.Assert(err, IsNil)
-	mod := &modelCharateristics{
-		systemSeed: true,
+	mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
 	}
 
 	_, err = gadget.ReadInfoAndValidate(s.dir, mod, nil)
@@ -1728,8 +1711,8 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
-	mod := &modelCharateristics{
-		classic: false,
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
 
 	giRead, err := gadget.ReadInfo(s.dir, mod)
@@ -2210,7 +2193,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileMissing(c *C) {
 	_, err = gadget.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelCharateristics{})
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{})
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
@@ -2247,7 +2230,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileNoVolumesSystemSeed(
 	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelCharateristics{systemSeed: true})
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{SystemSeed: true})
 	c.Check(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 

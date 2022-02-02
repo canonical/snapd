@@ -758,7 +758,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"first":  true,
@@ -810,7 +810,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
 
 	c.Assert(muo.beforeWriteCalled, Equals, 1)
@@ -857,13 +857,13 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	// both old and new bare struct data is missing
 
 	// cannot lay out the new volume when bare struct data is missing
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot lay out the new volume: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), quantity.SizeMiB, nil)
 
 	// Update does not error out when when the bare struct data of the old volume is missing
-	err = gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 }
 
@@ -910,7 +910,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot apply update to volume: cannot change the number of structures within volume from 1 to 2`)
 }
 
@@ -961,7 +961,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #0 \("foo"\): cannot change a bare structure to filesystem one`)
 }
 
@@ -1000,7 +1000,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 	})
 	defer restore()
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot find entry for volume "foo" in updated gadget info`)
 }
 
@@ -1046,7 +1046,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	})
 	defer restore()
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 
 	// nothing was updated
@@ -1103,7 +1103,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	defer restore()
 
 	policySeen := map[string]int{}
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name]++
 		return false, nil
 	}, nil)
@@ -1119,7 +1119,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 	// try with different policy
 	policySeen = map[string]int{}
-	err = gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name]++
 		return to.Name == "second", nil
 	}, nil)
@@ -1153,7 +1153,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 	})
 	defer restore()
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, gadget.RemodelUpdatePolicy, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, gadget.RemodelUpdatePolicy, nil)
 	c.Assert(err, IsNil)
 	c.Assert(toUpdate, DeepEquals, map[string]int{
 		"first":        1,
@@ -1196,7 +1196,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot backup volume structure #1 \("second"\): failed`)
 
 	// update was canceled before backup pass completed
@@ -1245,7 +1245,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("second"\): failed`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		// all were backed up
@@ -1320,7 +1320,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	// preserves update error
 	c.Assert(err, ErrorMatches, `cannot update volume structure #2 \("third"\): update error`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
@@ -1357,7 +1357,7 @@ func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot prepare update for volume structure #0 \("first"\): bad updater for structure`)
 }
 
@@ -1434,13 +1434,13 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 	}
 
 	// a new multi volume gadget update gives no error
-	err := gadget.Update(&modelCharateristics{}, singleVolume, multiVolume, "some-rollback-dir", nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, singleVolume, multiVolume, "some-rollback-dir", nil, nil)
 	c.Assert(err, IsNil)
 	// but it warns that nothing happens either
 	c.Assert(logbuf.String(), testutil.Contains, "WARNING: gadget assests cannot be updated yet when multiple volumes are used")
 
 	// same for old
-	err = gadget.Update(&modelCharateristics{}, multiVolume, singleVolume, "some-rollback-dir", nil, nil)
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, multiVolume, singleVolume, "some-rollback-dir", nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Count(logbuf.String(), "WARNING: gadget assests cannot be updated yet when multiple volumes are used"), Equals, 2)
 }
@@ -1474,7 +1474,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	// update called for 2 structures
 	c.Assert(updateCalls, Equals, 2)
@@ -1515,7 +1515,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
 	// update called for 2 structures
 	c.Assert(updateCalls, Equals, 2)
@@ -1543,7 +1543,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverBeforeWriteErrs(c *C) {
 	muo := &mockUpdateProcessObserver{
 		beforeWriteErr: errors.New("before write fail"),
 	}
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot observe prepared update: before write fail`)
 	// update was canceled before backup pass completed
 	c.Check(muo.canceledCalled, Equals, 0)
@@ -1572,7 +1572,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 	muo := &mockUpdateProcessObserver{
 		canceledErr: errors.New("canceled fail"),
 	}
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot backup volume structure #0 .*: backup fails`)
 	// canceled called after backup pass
 	c.Check(muo.canceledCalled, Equals, 1)
@@ -1582,7 +1582,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 
 	// backup works, update fails, triggers another canceled call
 	backupErr = nil
-	err = gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #0 .*: update fails`)
 	// canceled called after backup pass
 	c.Check(muo.canceledCalled, Equals, 2)
@@ -1760,7 +1760,7 @@ assets:
 	defer restore()
 
 	// exercise KernelUpdatePolicy here
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
 	c.Assert(err, IsNil)
 
 	// ensure update for kernel content happened
@@ -1818,7 +1818,7 @@ assets:
 	defer restore()
 
 	// exercise KernelUpdatePolicy here
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
 	c.Assert(err, ErrorMatches, `gadget does not consume any of the kernel assets needing synced update "ref"`)
 
 	// ensure update for kernel content didn't happen
@@ -1941,8 +1941,8 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C
 	})
 	defer restore()
 
-	mod := &modelCharateristics{
-		systemSeed: true,
+	mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
 	}
 	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
