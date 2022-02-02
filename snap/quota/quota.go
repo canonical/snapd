@@ -73,17 +73,29 @@ type Group struct {
 }
 
 // NewGroup creates a new top quota group with the given name and memory limit.
-func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
+func NewGroup(name string, resourceLimits Resources) (*Group, error) {
 	grp := &Group{
-		Name:        name,
-		MemoryLimit: memLimit,
+		Name: name,
 	}
+	grp.UpdateQuotaLimits(resourceLimits)
 
 	if err := grp.validate(); err != nil {
 		return nil, err
 	}
 
 	return grp, nil
+}
+
+// UpdateQuotaLimits updates all the quota limits set for the group to the new limits
+// given. The limits must be validated prior to calling this function.
+func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
+	if resourceLimits.Memory != nil {
+		grp.MemoryLimit = resourceLimits.Memory.Limit
+	}
+}
+
+func (grp *Group) GetQuotaResources() Resources {
+	return NewResources(grp.MemoryLimit)
 }
 
 // CurrentMemoryUsage returns the current memory usage of the quota group. For
@@ -152,12 +164,11 @@ func (grp *Group) validate() error {
 		return fmt.Errorf("group name %q reserved", grp.Name)
 	}
 
-	if grp.MemoryLimit == 0 {
-		return fmt.Errorf("group memory limit must be non-zero")
+	// validate the resource limits for the group
+	limits := grp.GetQuotaResources()
+	if err := limits.Validate(); err != nil {
+		return err
 	}
-
-	// TODO: probably there is a minimum amount of bytes here that is
-	// technically usable/enforcable, should we check that too?
 
 	if grp.ParentGroup != "" && grp.Name == grp.ParentGroup {
 		return fmt.Errorf("group has circular parent reference to itself")
@@ -194,15 +205,15 @@ func (grp *Group) validate() error {
 }
 
 // NewSubGroup creates a new sub group under the current group.
-func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, error) {
+func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, error) {
 	// TODO: implement a maximum sub-group depth
 
 	subGrp := &Group{
 		Name:        name,
-		MemoryLimit: memLimit,
 		ParentGroup: grp.Name,
 		parentGroup: grp,
 	}
+	subGrp.UpdateQuotaLimits(resourceLimits)
 
 	// check early that the sub group name is not the same as that of the
 	// parent, this is fine in systemd world, but in snapd we want unique quota

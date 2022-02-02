@@ -108,6 +108,7 @@ var (
 	AffectedByRefresh = affectedByRefresh
 
 	GetDirMigrationOpts = getDirMigrationOpts
+	WriteSeqFile        = writeSeqFile
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

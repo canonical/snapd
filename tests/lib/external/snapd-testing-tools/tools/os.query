@@ -55,6 +55,10 @@ is_impish() {
     grep -qFx 'UBUNTU_CODENAME=impish' /etc/os-release
 }
 
+is_jammy() {
+    grep -qFx 'UBUNTU_CODENAME=jammy' /etc/os-release
+}
+
 is_ubuntu() {
     grep -qFx 'ID=ubuntu' /etc/os-release || grep -qFx 'ID=ubuntu-core' /etc/os-release
 }

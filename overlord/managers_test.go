@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -80,6 +81,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -154,6 +156,11 @@ func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
 
 func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	// TODO: temporary: skip due to timeouts on riscv64
+	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow tests")
+	}
 
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
@@ -731,7 +738,7 @@ apps:
 	tr.Commit()
 
 	// put the snap in a quota group
-	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quantity.SizeMiB)
+	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quota.NewResources(quantity.SizeMiB))
 	c.Assert(err, IsNil)
 
 	ts, err := snapstate.Remove(st, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
@@ -1452,7 +1459,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0)
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1533,7 +1540,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFailin
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0)
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)

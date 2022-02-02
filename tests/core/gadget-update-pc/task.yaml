@@ -89,7 +89,13 @@ prepare: |
     {"snap-id": "$PC_SNAP_ID", "snap-revision": "$((START_REVISION+2))"}
     EOF
 
-    snap install pc_x1.snap
+    if os.query is-core20; then
+        # on uc20, the pc snap we booted with is unasserted for extra debugging
+        snap install pc_x1.snap --dangerous
+    else
+        # all other platforms, the pc snap is asserted, so no flags
+        snap install pc_x1.snap
+    fi
 
 restore: |
     # external backends do not enable test keys
@@ -146,7 +152,14 @@ execute: |
         snap ack "$p"
         cp -av pc_x2.snap "$BLOB_DIR/"
 
-        snap install pc_x2.snap
+        
+        if os.query is-core20; then
+            # on uc20, the pc snap we booted with is unasserted for extra debugging
+            snap install pc_x2.snap --dangerous
+        else
+            # all other platforms, the pc snap is asserted, so no flags
+            snap install pc_x2.snap
+        fi
 
         REBOOT
     fi
@@ -181,7 +194,13 @@ execute: |
         snap ack "$p"
         cp -av pc_x3.snap "$BLOB_DIR/"
 
-        snap install pc_x3.snap
+        if os.query is-core20; then
+            # on uc20, the pc snap we booted with is unasserted for extra debugging
+            snap install pc_x3.snap --dangerous
+        else
+            # all other platforms, the pc snap is asserted, so no flags
+            snap install pc_x3.snap
+        fi
 
         REBOOT
     fi
