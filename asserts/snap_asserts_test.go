@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -852,7 +852,7 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 		"AXNpZw=="
 }
 
-func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+func makeSnapRevisionHeaders(overrides map[string]interface{}) map[string]interface{} {
 	headers := map[string]interface{}{
 		"authority-id":  "canonical",
 		"snap-sha3-384": blobSHA3_384,
@@ -867,6 +867,10 @@ func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[strin
 		headers[k] = v
 	}
 	return headers
+}
+
+func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+	return makeSnapRevisionHeaders(overrides)
 }
 
 func (srs *snapRevSuite) TestDecodeOK(c *C) {

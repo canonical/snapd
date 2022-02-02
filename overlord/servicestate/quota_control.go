@@ -20,20 +20,29 @@
 package servicestate
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 )
 
 var (
 	systemdVersionError error
+	memoryCGroupError   error
+)
+
+var (
+	cgroupsFilePath = dirs.CGroupsStatusFile
 )
 
 func checkSystemdVersion() {
@@ -42,9 +51,62 @@ func checkSystemdVersion() {
 
 func init() {
 	checkSystemdVersion()
+	checkMemoryCGroupEnabled()
+}
+
+func checkMemoryCGroupEnabled() {
+	memoryCGroupError = memoryCGroupEnabled()
+}
+
+// added to enable path update for testing purposes
+func setCGroupsFilePath(path string) {
+	cgroupsFilePath = path
+	checkMemoryCGroupEnabled()
+}
+
+// since the control groups can be enabled/disabled without the kernel config the only
+// way to identify the status of memory control groups is via /proc/cgroups
+// "cat /proc/cgroups | grep memory" returns the active status of memory control group
+// and the 3rd parameter is the status
+// 0 => false => disabled
+// 1 => true => enabled
+func memoryCGroupEnabled() error {
+	cgroupsFile, err := os.Open(cgroupsFilePath)
+	if err != nil {
+		return fmt.Errorf("cannot open cgroups file: %v", err)
+	}
+	defer cgroupsFile.Close()
+	scanner := bufio.NewScanner(cgroupsFile)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "memory\t") {
+			memoryCgroupValues := strings.Fields(line)
+			if len(memoryCgroupValues) >= 4 { // assuming any increase in size will lead to values added to the end
+				isMemoryEnabled := memoryCgroupValues[3] == "1"
+				if !isMemoryEnabled {
+					return fmt.Errorf("cannot retrieve quota information, memory cgroup is disabled on this system")
+				}
+				return nil
+			}
+			// change in size, should investigate the new structure
+			return fmt.Errorf("cannot parse memory control group configuration")
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("cannot read %v contents: %v", cgroupsFilePath, err)
+	}
+
+	// no errors so far but the only path here is the cgroups file without the memory line
+	return fmt.Errorf("cannot retrieve memory cgroup configuration, it is not available in the kernel config")
 }
 
 func quotaGroupsAvailable(st *state.State) error {
+	if memoryCGroupError != nil {
+		return memoryCGroupError
+	}
+
 	// check if the systemd version is too old
 	if systemdVersionError != nil {
 		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
@@ -65,7 +127,7 @@ func quotaGroupsAvailable(st *state.State) error {
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
-func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error) {
+func CreateQuota(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -80,16 +142,9 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		return nil, fmt.Errorf("group %q already exists", name)
 	}
 
-	if memoryLimit == 0 {
-		return nil, fmt.Errorf("cannot create quota group with no memory limit set")
-	}
-
-	// make sure the memory limit is at least 4K, that is the minimum size
-	// to allow nesting, otherwise groups with less than 4K will trigger the
-	// oom killer to be invoked when a new group is added as a sub-group to the
-	// larger group.
-	if memoryLimit <= 4*quantity.SizeKiB {
-		return nil, fmt.Errorf("memory limit for group %q is too small: size must be larger than 4KB", name)
+	// validate the resource limits for the group
+	if err := resourceLimits.Validate(); err != nil {
+		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
@@ -106,11 +161,11 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 
 	// create the task with the action in it
 	qc := QuotaControlAction{
-		Action:      "create",
-		QuotaName:   name,
-		MemoryLimit: memoryLimit,
-		AddSnaps:    snaps,
-		ParentName:  parentName,
+		Action:         "create",
+		QuotaName:      name,
+		ResourceLimits: resourceLimits,
+		AddSnaps:       snaps,
+		ParentName:     parentName,
 	}
 
 	ts := state.NewTaskSet()
@@ -129,6 +184,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 // TODO: currently this only supports removing leaf sub-group groups, it doesn't
 // support removing parent quotas, but probably it makes sense to allow that too
 func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
+	if memoryCGroupError != nil {
+		return nil, memoryCGroupError
+	}
+
 	if snapdenv.Preseeding() {
 		return nil, fmt.Errorf("removing quota groups not supported while preseeding")
 	}
@@ -179,9 +238,9 @@ type QuotaGroupUpdate struct {
 	// the quota group
 	AddSnaps []string
 
-	// NewMemoryLimit is the new memory limit to be used for the quota group. If
-	// zero, then the quota group's memory limit is not changed.
-	NewMemoryLimit quantity.Size
+	// NewResourceLimits is the new resource limits to be used for the quota group. A
+	// limit is only changed if the corresponding limit is != nil.
+	NewResourceLimits quota.Resources
 }
 
 // UpdateQuota updates the quota as per the options.
@@ -203,15 +262,9 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 		return nil, fmt.Errorf("group %q does not exist", name)
 	}
 
-	// check that the memory limit is not being decreased
-	if updateOpts.NewMemoryLimit != 0 {
-		// we disallow decreasing the memory limit because it is difficult to do
-		// so correctly with the current state of our code in
-		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
-		// full details
-		if updateOpts.NewMemoryLimit < grp.MemoryLimit {
-			return nil, fmt.Errorf("cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
-		}
+	currentQuotas := grp.GetQuotaResources()
+	if err := currentQuotas.ValidateChange(updateOpts.NewResourceLimits); err != nil {
+		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
 	}
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
@@ -229,10 +282,10 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 
 	// create the action and the correspoding task set
 	qc := QuotaControlAction{
-		Action:      "update",
-		QuotaName:   name,
-		MemoryLimit: updateOpts.NewMemoryLimit,
-		AddSnaps:    updateOpts.AddSnaps,
+		Action:         "update",
+		QuotaName:      name,
+		ResourceLimits: updateOpts.NewResourceLimits,
+		AddSnaps:       updateOpts.AddSnaps,
 	}
 
 	ts := state.NewTaskSet()

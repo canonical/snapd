@@ -3042,9 +3042,9 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesy
 }
 
 func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithImplicitSystemData(c *C) {
-	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData, nil)
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
 	c.Assert(err, IsNil)
-	deviceLayout := uc16DeviceLayout
+	deviceLayout := gadgettest.UC16DeviceLayout
 
 	// with no/default opts, then they are not compatible
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
@@ -3127,109 +3127,12 @@ func (s *gadgetYamlTestSuite) TestIDCompatibility(c *C) {
 	c.Logf("-----")
 }
 
-func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
-	// example output from a real installed VM
-	m := map[string]gadget.DiskVolumeDeviceTraits{
-		"foo": {
-			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb",
-			OriginalKernelPath: "/dev/vdb",
-			DiskID:             "484B4BA1-3EDF-4270-A1A8-378FCBB0E1DE",
-			Size:               10 * quantity.SizeGiB,
-			SectorSize:         quantity.Size(512),
-			Schema:             "gpt",
-			Structure: []gadget.DiskStructureDeviceTraits{
-				// first structure is a bare structure with no filesystem
-				{
-					OriginalDevicePath: "/dev/vdb1",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb/vdb1",
-					PartitionUUID:      "C06F16ED-A587-4D0E-8EE4-2C3AE8BECE68",
-					PartitionLabel:     "nofspart",
-					PartitionType:      "EBBEADAF-22C9-E33B-8F5D-0E81686A68CB",
-					Offset:             0x100000,
-					Size:               0x1000,
-				},
-				// this one has a filesystem though
-				{
-					OriginalDevicePath: "/dev/vdb2",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb/vdb2",
-					PartitionUUID:      "48ECAEB8-8DD0-41BB-A7A8-5E12FC5985FD",
-					PartitionLabel:     "some-filesystem",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "f384e18c-56a3-458a-ac80-4cc29b3d69d9",
-					FilesystemLabel:    "some-filesystem",
-					FilesystemType:     "ext4",
-					Offset:             0x101000,
-					Size:               0x40000000,
-				},
-			},
-		},
-		"pc": {
-			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
-			OriginalKernelPath: "/dev/vda",
-			DiskID:             "46E2573B-7891-4316-B83C-DE0817A7CFB5",
-			Schema:             "gpt",
-			Structure: []gadget.DiskStructureDeviceTraits{
-				{
-					OriginalDevicePath: "/dev/vda1",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda1",
-					PartitionUUID:      "21EF798E-4AEE-4941-9AF4-7277437F752F",
-					PartitionLabel:     "BIOS\\x20Boot",
-					PartitionType:      "21686148-6449-6E6F-744E-656564454649",
-					Offset:             0x100000,
-					Size:               0x1b8,
-				},
-				{
-					OriginalDevicePath: "/dev/vda2",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda2",
-					PartitionUUID:      "F3C5B560-EF24-48A5-862B-361BCD180464",
-					PartitionLabel:     "ubuntu-seed",
-					PartitionType:      "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					FilesystemUUID:     "EC87-231A",
-					FilesystemLabel:    "ubuntu-seed",
-					FilesystemType:     "vfat",
-					Offset:             0x200000,
-					Size:               0x100000,
-				},
-				{
-					OriginalDevicePath: "/dev/vda3",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda3",
-					PartitionUUID:      "CEDA6CFC-B019-0F4F-9FCE-9A41FF1D444A",
-					PartitionLabel:     "ubuntu-boot",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "922f6d2b-520b-4213-8691-81ace98009ff",
-					FilesystemLabel:    "ubuntu-boot",
-					FilesystemType:     "ext4",
-					Offset:             0x4b200000,
-					Size:               0x4b000000,
-				},
-				{
-					OriginalDevicePath: "/dev/vda4",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda4",
-					PartitionUUID:      "902A51E4-7B50-EF4C-B3DF-4D2B1E73307B",
-					PartitionLabel:     "ubuntu-save",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "7a72b2be-753a-4ce5-ab71-189f4b832ff5",
-					FilesystemLabel:    "ubuntu-save",
-					FilesystemType:     "ext4",
-					Offset:             0x7a000000,
-					Size:               0x2ee00000,
-				},
-				{
-					OriginalDevicePath: "/dev/vda5",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda5",
-					PartitionUUID:      "C1C2C91D-9C00-A045-9C8F-A8779BDA5E74",
-					PartitionLabel:     "ubuntu-data",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "b0a2e964-7bfc-4fbf-b48a-1fdca17b0539",
-					FilesystemLabel:    "ubuntu-data",
-					FilesystemType:     "ext4",
-					Offset:             0x7b000000,
-					Size:               0x1000000,
-				},
-			},
-		},
-	}
+var multipleUC20DisksDeviceTraitsMap = map[string]gadget.DiskVolumeDeviceTraits{
+	"foo": gadgettest.VMExtraVolumeDeviceTraits,
+	"pc":  gadgettest.VMSystemVolumeDeviceTraits,
+}
 
+func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	// when there is no mapping file, it is not an error, the map returned is
 	// just nil/has no items in it
 	mAbsent, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
@@ -3243,141 +3146,27 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	// /var/lib/snapd/device, but rather
 	// /run/mnt/ubuntu-data/system-data/var/lib/snapd/device so this takes a
 	// directory argument when we save it
-	err = gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDir, m)
+	err = gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDir, multipleUC20DisksDeviceTraitsMap)
 	c.Assert(err, IsNil)
 
 	// now that it was saved to dirs.SnapDeviceDir, we can load it correctly
 	m2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
 	c.Assert(err, IsNil)
 
-	c.Assert(m, DeepEquals, m2)
+	c.Assert(multipleUC20DisksDeviceTraitsMap, DeepEquals, m2)
 
-	// example output from a Raspi - write the JSON out manually so we can catch
+	// write out example output from a Raspi so we can catch
 	// regressions between JSON -> go object importing
-	const piJson = `
-{
-  "pi": {
-    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
-    "kernel-path": "/dev/mmcblk0",
-    "disk-id": "7c301cbd",
-    "size": 32010928128,
-    "sector-size": 512,
-    "schema": "dos",
-    "structure": [
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-        "kernel-path": "/dev/mmcblk0p1",
-        "partition-uuid": "7c301cbd-01",
-        "partition-label": "",
-        "partition-type": "0C",
-        "filesystem-label": "ubuntu-seed",
-        "filesystem-uuid": "0E09-0822",
-        "filesystem-type": "vfat",
-        "offset": 1048576,
-        "size": 1258291200
-      },
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-        "kernel-path": "/dev/mmcblk0p2",
-        "partition-uuid": "7c301cbd-02",
-        "partition-label": "",
-        "partition-type": "0C",
-        "filesystem-label": "ubuntu-boot",
-        "filesystem-uuid": "23F9-881F",
-        "filesystem-type": "vfat",
-        "offset": 1259339776,
-        "size": 786432000
-      },
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
-        "kernel-path": "/dev/mmcblk0p3",
-        "partition-uuid": "7c301cbd-03",
-        "partition-label": "",
-        "partition-type": "83",
-        "filesystem-label": "ubuntu-save",
-        "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710590",
-        "filesystem-type": "ext4",
-        "offset": 2045771776,
-        "size": 16777216
-      },
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
-        "kernel-path": "/dev/mmcblk0p4",
-        "partition-uuid": "7c301cbd-04",
-        "partition-label": "",
-        "partition-type": "83",
-        "filesystem-label": "ubuntu-data",
-        "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
-        "filesystem-type": "ext4",
-        "offset": 2062548992,
-        "size": 29948379136
-      }
-    ]
-  }
-}
-`
-
-	const oneMeg = 1024 * 1024
 
 	expPiMap := map[string]gadget.DiskVolumeDeviceTraits{
-		"pi": {
-			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
-			OriginalKernelPath: "/dev/mmcblk0",
-			DiskID:             "7c301cbd",
-			Size:               30528 * oneMeg, // ~ 32 GB SD card
-			SectorSize:         512,
-			Schema:             "dos",
-			Structure: []gadget.DiskStructureDeviceTraits{
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-					OriginalKernelPath: "/dev/mmcblk0p1",
-					PartitionUUID:      "7c301cbd-01",
-					PartitionType:      "0C",
-					FilesystemUUID:     "0E09-0822",
-					FilesystemLabel:    "ubuntu-seed",
-					FilesystemType:     "vfat",
-					Offset:             oneMeg,
-					Size:               (1200) * oneMeg,
-				},
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-					OriginalKernelPath: "/dev/mmcblk0p2",
-					PartitionUUID:      "7c301cbd-02",
-					PartitionType:      "0C",
-					FilesystemUUID:     "23F9-881F",
-					FilesystemLabel:    "ubuntu-boot",
-					FilesystemType:     "vfat",
-					Offset:             (1 + 1200) * oneMeg,
-					Size:               (750) * oneMeg,
-				},
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
-					OriginalKernelPath: "/dev/mmcblk0p3",
-					PartitionUUID:      "7c301cbd-03",
-					PartitionType:      "83",
-					FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
-					FilesystemType:     "ext4",
-					FilesystemLabel:    "ubuntu-save",
-					Offset:             (1 + 1200 + 750) * oneMeg,
-					Size:               16 * oneMeg,
-				},
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
-					OriginalKernelPath: "/dev/mmcblk0p4",
-					PartitionUUID:      "7c301cbd-04",
-					PartitionType:      "83",
-					FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
-					FilesystemLabel:    "ubuntu-data",
-					FilesystemType:     "ext4",
-					Offset:             (1 + 1200 + 750 + 16) * oneMeg,
-					// total size - offset of last structure
-					Size: (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
-				},
-			},
-		},
+		"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
 	}
 
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"), []byte(piJson), 0644)
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON),
+		0644,
+	)
 	c.Assert(err, IsNil)
 
 	m3, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
@@ -3386,90 +3175,10 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(m3, DeepEquals, expPiMap)
 }
 
-// adapted from https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
-// but without the content
-const mockUC16YAMLImplicitSystemData = `volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: mbr
-        type: mbr
-        size: 440
-      - name: BIOS Boot
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        offset-write: mbr+92
-      - name: EFI System
-        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-        filesystem: vfat
-        filesystem-label: system-boot
-        size: 50M
-`
-
-// uc16 layout from a VM that has an implicit system-data as the third
-// partition
-var uc16DeviceLayout = gadget.OnDiskVolume{
-	Structure: []gadget.OnDiskStructure{
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Type: "21686148-6449-6E6F-744E-656564454649",
-					ID:   "b2e891ee-b971-4a2b-b874-694bbf9b821a",
-					Size: 1048576,
-				},
-				StartOffset: 1048576,
-			},
-			DiskIndex: 1,
-			Node:      "/dev/sda1",
-			Size:      1048576,
-		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "EFI System",
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					ID:         "a87e9dcb-b1e1-4eab-89cf-1c2fc057b038",
-					Label:      "system-boot",
-					Filesystem: "vfat",
-					Size:       52428800,
-				},
-				StartOffset: 2097152,
-			},
-			DiskIndex: 2,
-			Node:      "/dev/sda2",
-			Size:      52428800,
-		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "writable",
-					Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					ID:         "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
-					Label:      "writable",
-					Filesystem: "ext4",
-					Size:       10682875392,
-				},
-				StartOffset: 54525952,
-			},
-			DiskIndex: 3,
-			Node:      "/dev/sda3",
-			Size:      10682875392,
-		},
-	},
-	ID:               "2a9b0671-4597-433b-b3ad-be99950e8c5e",
-	Device:           "/dev/sda",
-	Schema:           "gpt",
-	Size:             10737418240,
-	UsableSectorsEnd: 20971487,
-	SectorSize:       512,
-}
-
 func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Implicit(c *C) {
-	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData, nil)
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
 	c.Assert(err, IsNil)
-	deviceLayout := uc16DeviceLayout
+	deviceLayout := gadgettest.UC16DeviceLayout
 
 	// bios boot is not implicit system-data
 	matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[0])
@@ -3538,9 +3247,9 @@ const explicitSystemData = `
 `
 
 func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Explicit(c *C) {
-	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData+explicitSystemData, nil)
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData+explicitSystemData, nil)
 	c.Assert(err, IsNil)
-	deviceLayout := uc16DeviceLayout
+	deviceLayout := gadgettest.UC16DeviceLayout
 
 	// none of the structures are implicit because we have an explicit
 	// system-data role

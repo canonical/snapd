@@ -425,7 +425,13 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
-type DiskVolumeValidationOpts struct {
+// DiskVolumeValidationOptions is a set of options on how to validate a disk to
+// volume mapping for a specific disk/volume pair. It is closely related to the
+// options provided to EnsureLayoutCompatibility via
+// EnsureLayoutCompatibilityOptions.
+type DiskVolumeValidationOptions struct {
+	// AllowImplicitSystemData has the same meaning as the eponymously named
+	// filed in EnsureLayoutCompatibilityOptions.
 	AllowImplicitSystemData bool
 }
 
@@ -434,9 +440,9 @@ type DiskVolumeValidationOpts struct {
 // builds up the disk volume traits for that device. If the laid out volume is
 // not compatible with the disk structure for the specified device an error is
 // returned.
-func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts *DiskVolumeValidationOpts) (res DiskVolumeDeviceTraits, err error) {
+func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts *DiskVolumeValidationOptions) (res DiskVolumeDeviceTraits, err error) {
 	if opts == nil {
-		opts = &DiskVolumeValidationOpts{}
+		opts = &DiskVolumeValidationOptions{}
 	}
 	vol := expLayout.Volume
 

@@ -116,9 +116,10 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-            - ubuntu-21.04-64:
-                  workers: 8
             - ubuntu-21.10-64:
+                  storage: 12G
+                  workers: 8
+            - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
 
@@ -171,7 +172,7 @@ backends:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-21.04-64:
+            - ubuntu-21.10-64:
                   workers: 6
 
     google-nested:
@@ -194,8 +195,8 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-21.04-64:
-                  image: ubuntu-2104-64-virt-enabled
+            - ubuntu-21.10-64:
+                  image: ubuntu-2110-64-virt-enabled
                   storage: 20G
                   workers: 3
 
@@ -252,9 +253,6 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-32:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-21.04-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-21.10-64:
@@ -708,6 +706,16 @@ prepare: |
     # The idea is to have a single directory with all the testing tools
     cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
 
+    # ensure there are no broken snaps or the invariant test will fail later
+    if command -v snap; then
+        BROKEN="$(snap list --all | awk '/,?broken,?/ {print $1,$3}')"
+        if [ -n "$BROKEN" ]; then
+            echo "Test system has broken snaps:"
+            snap list --all
+            exit 1
+        fi
+    fi
+    
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
@@ -903,11 +911,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested, qemu-nested]
-        systems:
-            - ubuntu-16.04-64
-            - ubuntu-18.04-64
-            - ubuntu-20.04-64
-            - ubuntu-20.10-64
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -956,7 +960,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm

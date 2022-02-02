@@ -15,6 +15,9 @@ environment:
   SNAPD_TEST_BRAND: test-snapd
   # store we are remodeling from
   SNAPD_STORE_WHITEBOX: CQvkdMjgbapk821Po2cF
+  # device serial, this should match the sub-store mapping rules in the serial
+  # vault
+  SERIAL: 1234-snapd-remodel-testing
 
 prepare: |
     # shellcheck source=tests/lib/nested.sh
@@ -29,7 +32,13 @@ prepare: |
     snap download --channel="latest/edge" snapd
     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
 
-    snap pack "$TESTSLIB/snaps/test-snapd-remodel-pc-$variant"
+    # TODO: once the gadget snap is published, this will download it from the
+    # store
+    cp -av "$TESTSLIB/snaps/test-snapd-remodel-pc-$variant" test-snapd-remodel-pc
+    test -n "$SERIAL"
+    echo "$SERIAL" > test-snapd-remodel-pc/serial
+    snap pack test-snapd-remodel-pc
+
     UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth" \
         "$UBUNTU_IMAGE" snap "$TESTSLIB/assertions/test-snapd-remodel-pc-$variant.model" \
             --snap test-snapd-remodel-pc_*.snap \
@@ -68,7 +77,7 @@ execute: |
     tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
     tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
     tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
-    tests.nested exec "snap model --assertion --serial" | MATCH 'serial: 1234-snapd-remodel-testing$'
+    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
 
     # the new model requires hello-world snap to be present, make sure that the
     # snap and its dependency core aren't installed yet
@@ -107,7 +116,7 @@ execute: |
     # new model
     tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc-just-model$'
     # but the same serial
-    tests.nested exec "snap model --assertion --serial" | MATCH 'serial: 1234-snapd-remodel-testing$'
+    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
 
     # both new snaps are installed now
     tests.nested exec "snap list hello-world"

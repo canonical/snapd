@@ -30,15 +30,22 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type buildIDSuite struct{}
+type buildIDSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&buildIDSuite{})
 
 var truePath = osutil.LookPathDefault("true", "/bin/true")
 var falsePath = osutil.LookPathDefault("false", "/bin/false")
 var gccPath = osutil.LookPathDefault("gcc", "/usr/bin/gcc")
+
+func (s *buildIDSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+}
 
 func buildID(c *C, fname string) string {
 	// XXX host's 'file' command may be too old to know about Go BuildID or

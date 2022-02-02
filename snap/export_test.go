@@ -24,6 +24,7 @@ var (
 	ValidateDescription          = validateDescription
 	ValidateTitle                = validateTitle
 	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
+	GetAttribute                 = getAttribute
 )
 
 func (info *Info) ForceRenamePlug(oldName, newName string) {
