@@ -62,6 +62,7 @@ var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelIma
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
 var _ bootloader.TrustedAssetsBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
+var _ bootloader.RebootBootloader = (*MockRebootArgumentsBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -519,7 +520,7 @@ func (b *MockBootloader) WithRecoveryAwareTrustedAssets() *MockRecoveryAwareTrus
 	}
 }
 
-// MockRebootArgumentsBootloaderMixin implements the bootloader.RebootArgumentsBootloader
+// MockRebootArgumentsBootloaderMixin implements the bootloader.RebootBootloader
 // interface.
 type MockRebootArgumentsBootloaderMixin struct {
 	RebootArgs string

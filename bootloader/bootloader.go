@@ -226,9 +226,9 @@ type TrustedAssetsBootloader interface {
 	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
 }
 
-// RebootArgumentsBootloader needs arguments to the reboot syscall when snaps
+// RebootBootloader needs arguments to the reboot syscall when snaps
 // are being updated.
-type RebootArgumentsBootloader interface {
+type RebootBootloader interface {
 	Bootloader
 
 	// GetRebootArguments returns the needed reboot arguments
