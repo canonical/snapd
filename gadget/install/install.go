@@ -204,7 +204,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 
 		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-			err = writeContent(&part, gadgetRoot, observer)
+			err = writeContent(&part, observer)
 		})
 		if err != nil {
 			return nil, err

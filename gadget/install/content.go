@@ -57,21 +57,11 @@ func makeFilesystem(ds *gadget.OnDiskStructure, sectorSize quantity.Size) error 
 
 // writeContent populates the given on-disk structure, according to the contents
 // defined in the gadget.
-func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentObserver) error {
-	switch {
-	case !ds.IsPartition():
-		return fmt.Errorf("cannot write non-partitions yet")
-	case !ds.HasFilesystem():
-		if err := writeNonFSContent(ds, gadgetRoot); err != nil {
-			return err
-		}
-	case ds.HasFilesystem():
-		if err := writeFilesystemContent(ds, observer); err != nil {
-			return err
-		}
+func writeContent(ds *gadget.OnDiskStructure, observer gadget.ContentObserver) error {
+	if ds.HasFilesystem() {
+		return writeFilesystemContent(ds, observer)
 	}
-
-	return nil
+	return fmt.Errorf("cannot write non-filesystem structures during install")
 }
 
 // mountFilesystem mounts the on-disk structure filesystem under the given base
@@ -122,22 +112,4 @@ func writeFilesystemContent(ds *gadget.OnDiskStructure, observer gadget.ContentO
 	}
 
 	return nil
-}
-
-func writeNonFSContent(ds *gadget.OnDiskStructure, gadgetRoot string) error {
-	f, err := os.OpenFile(ds.Node, os.O_RDWR, 0644)
-	if err != nil {
-		return fmt.Errorf("cannot write bare content for %q: %v", ds.Node, err)
-	}
-	defer f.Close()
-
-	// Laid out structures start relative to the beginning of the
-	// volume, shift the structure offsets to 0, so that it starts
-	// at the beginning of the partition
-	l := gadget.ShiftStructureTo(ds.LaidOutStructure, 0)
-	raw, err := gadget.NewRawStructureWriter(gadgetRoot, &l)
-	if err != nil {
-		return err
-	}
-	return raw.Write(f)
 }
