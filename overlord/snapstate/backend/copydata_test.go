@@ -744,7 +744,12 @@ func (s *copydataSuite) TestUndoHideSnapData(c *C) {
 	c.Assert(target, Equals, "10")
 
 	// ~/.snap/data was removed
-	_, err = os.Stat(snap.SnapDir(homedir, opts))
+	hiddenDir := snap.SnapDir(homedir, opts)
+	_, err = os.Stat(hiddenDir)
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
+
+	// ~/.snap was removed
+	_, err = os.Stat(filepath.Base(hiddenDir))
 	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
 }
 

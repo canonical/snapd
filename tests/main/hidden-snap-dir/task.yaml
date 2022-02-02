@@ -24,7 +24,7 @@ execute: |
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$NAME/common"
 
     test -d "$HOME"/snap
-    not test -d "$HOME"/.snap/data
+    not test -d "$HOME"/.snap
 
     echo "Take a snapshot"
     "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data
@@ -91,7 +91,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     echo "Check snap user data was moved back"
-    not test -d "$HOME"/.snap/data/"$NAME"
+    not test -d "$HOME"/.snap
     test -d "$HOME"/snap/"$NAME"
 
     MATCH "common" < "$HOME"/snap/"$NAME"/common/common
