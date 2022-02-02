@@ -82,7 +82,7 @@ var pendingRefreshNotification = func(refreshInfo *client.PendingSnapRefreshInfo
 }
 
 var finishRefreshNotification = func(refreshInfo *client.FinishedSnapRefreshInfo) error {
-	userclient := client.New()
+	userclient := client.NewForUids(os.Getuid())
 	if err := userclient.FinishRefreshNotification(context.TODO(), refreshInfo); err != nil {
 		return err
 	}
