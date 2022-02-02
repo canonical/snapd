@@ -3260,6 +3260,18 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	}
 }
 
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsUnhappy(c *C) {
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	// don't setup the expected/needed symlinks in /dev
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk for volume foo from gadget`)
+}
+
 func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsHappy(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
 	c.Assert(err, IsNil)
