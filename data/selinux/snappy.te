@@ -157,6 +157,7 @@ selinux_get_enforce_mode(snappy_t)
 optional_policy(`
 	dbus_read_config(snappy_t)
 	allow snappy_t dbusd_etc_t:file { write create rename unlink };
+	allow snappy_t dbusd_etc_t:dir { add_name remove_name };
 	allow snappy_t dbusd_etc_t:lnk_file { read };
 ')
 
