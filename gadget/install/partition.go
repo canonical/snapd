@@ -169,6 +169,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		toBeCreated = append(toBeCreated, gadget.OnDiskStructure{
 			LaidOutStructure: p,
 			Node:             node,
+			DiskIndex:        pIndex,
 			Size:             quantity.Size(newSizeInSectors * sectorSize),
 		})
 	}
