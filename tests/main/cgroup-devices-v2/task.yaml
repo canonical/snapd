@@ -17,9 +17,19 @@ systems:
 
 prepare: |
     tests.session -u test prepare
+    if command -v setenforce; then
+        # an SELinux enabled system, switch the mode to enforcing
+        getenforce > enforcing.mode
+        setenforce 1
+        # and make a checkpoint for all denials
+        ausearch --checkpoint stamp -m AVC || true
+    fi
 
 restore: |
     tests.session -u test restore
+    if test -f enforcing.mode; then
+        setenforce "$(cat enforcing.mode)"
+    fi
 
 execute: |
     dump_cgroup_device_progs() {
@@ -134,3 +144,8 @@ execute: |
     # and the map pin is present
     echo "Verify that device access map for the application is present and is pinned to a file"
     test -e /sys/fs/bpf/snap/snap_test-snapd-service_sh
+
+    if test -f enforcing.mode; then
+        # there should have been no denials
+        ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    fi
