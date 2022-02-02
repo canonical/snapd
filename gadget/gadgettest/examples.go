@@ -116,6 +116,36 @@ var ExpectedRaspiDiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
 	},
 }
 
+var mockSeedPartition = disks.Partition{
+	PartitionUUID:    "7c301cbd-01",
+	PartitionType:    "0C",
+	FilesystemLabel:  "ubuntu-seed",
+	FilesystemUUID:   "0E09-0822",
+	FilesystemType:   "vfat",
+	Major:            179,
+	Minor:            1,
+	KernelDeviceNode: "/dev/mmcblk0p1",
+	KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+	DiskIndex:        1,
+	StartInBytes:     oneMeg,
+	SizeInBytes:      1200 * oneMeg,
+}
+
+var mockBootPartition = disks.Partition{
+	PartitionUUID:    "7c301cbd-02",
+	PartitionType:    "0C",
+	FilesystemLabel:  "ubuntu-boot",
+	FilesystemUUID:   "23F9-881F",
+	FilesystemType:   "vfat",
+	Major:            179,
+	Minor:            2,
+	KernelDeviceNode: "/dev/mmcblk0p2",
+	KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+	DiskIndex:        2,
+	StartInBytes:     (1 + 1200) * oneMeg,
+	SizeInBytes:      750 * oneMeg,
+}
+
 var ExpectedRaspiMockDiskMapping = &disks.MockDiskMapping{
 	DevNode:             "/dev/mmcblk0",
 	DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
@@ -126,34 +156,8 @@ var ExpectedRaspiMockDiskMapping = &disks.MockDiskMapping{
 	DiskSchema:          "dos",
 	ID:                  "7c301cbd",
 	Structure: []disks.Partition{
-		{
-			PartitionUUID:    "7c301cbd-01",
-			PartitionType:    "0C",
-			FilesystemLabel:  "ubuntu-seed",
-			FilesystemUUID:   "0E09-0822",
-			FilesystemType:   "vfat",
-			Major:            179,
-			Minor:            1,
-			KernelDeviceNode: "/dev/mmcblk0p1",
-			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-			DiskIndex:        1,
-			StartInBytes:     oneMeg,
-			SizeInBytes:      1200 * oneMeg,
-		},
-		{
-			PartitionUUID:    "7c301cbd-02",
-			PartitionType:    "0C",
-			FilesystemLabel:  "ubuntu-boot",
-			FilesystemUUID:   "23F9-881F",
-			FilesystemType:   "vfat",
-			Major:            179,
-			Minor:            2,
-			KernelDeviceNode: "/dev/mmcblk0p2",
-			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-			DiskIndex:        2,
-			StartInBytes:     (1 + 1200) * oneMeg,
-			SizeInBytes:      750 * oneMeg,
-		},
+		mockSeedPartition,
+		mockBootPartition,
 		{
 			PartitionUUID:    "7c301cbd-03",
 			PartitionType:    "83",
@@ -182,6 +186,72 @@ var ExpectedRaspiMockDiskMapping = &disks.MockDiskMapping{
 			StartInBytes:     (1 + 1200 + 750 + 16) * oneMeg,
 			SizeInBytes:      (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
 		},
+	},
+}
+
+// ExpectedLUKSEncryptedRaspiMockDiskMapping is like
+// ExpectedRaspiMockDiskMapping, but it uses the "-enc" suffix for the
+// filesystem labels and has crypto_LUKS as the filesystem types
+var ExpectedLUKSEncryptedRaspiMockDiskMapping = &disks.MockDiskMapping{
+	DevNode:             "/dev/mmcblk0",
+	DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+	DevNum:              "179:0",
+	DiskUsableSectorEnd: 30528 * oneMeg / 512,
+	DiskSizeInBytes:     30528 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "dos",
+	ID:                  "7c301cbd",
+	Structure: []disks.Partition{
+		mockSeedPartition,
+		mockBootPartition,
+		// pretend that we do LUKS encryption for the pi and make these
+		// encrypted partitions
+		{
+			PartitionUUID:    "7c301cbd-03",
+			PartitionType:    "83",
+			FilesystemLabel:  "ubuntu-save-enc",
+			FilesystemUUID:   "1cdd5826-e9de-4d27-83f7-20249e710590",
+			FilesystemType:   "crypto_LUKS",
+			Major:            179,
+			Minor:            3,
+			KernelDeviceNode: "/dev/mmcblk0p3",
+			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+			DiskIndex:        3,
+			StartInBytes:     (1 + 1200 + 750) * oneMeg,
+			SizeInBytes:      16 * oneMeg,
+		},
+		{
+			PartitionUUID:    "7c301cbd-04",
+			PartitionType:    "83",
+			FilesystemLabel:  "ubuntu-data-enc",
+			FilesystemUUID:   "d7f39661-1da0-48de-8967-ce41343d4345",
+			FilesystemType:   "crypto_LUKS",
+			Major:            179,
+			Minor:            4,
+			KernelDeviceNode: "/dev/mmcblk0p4",
+			KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+			DiskIndex:        4,
+			StartInBytes:     (1 + 1200 + 750 + 16) * oneMeg,
+			SizeInBytes:      (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
+		},
+	},
+}
+
+// ExpectedRaspiMockDiskInstallModeMapping is like ExpectedRaspiMockDiskMapping
+// but for fresh install mode image where we only have the ubuntu-seed partition
+// on disk.
+var ExpectedRaspiMockDiskInstallModeMapping = &disks.MockDiskMapping{
+	DevNode:             "/dev/mmcblk0",
+	DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+	DevNum:              "179:0",
+	DiskUsableSectorEnd: 30528 * oneMeg / 512,
+	DiskSizeInBytes:     30528 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "dos",
+	ID:                  "7c301cbd",
+	Structure: []disks.Partition{
+		// only ubuntu-seed
+		mockSeedPartition,
 	},
 }
 
