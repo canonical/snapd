@@ -401,7 +401,7 @@ distro_install_build_snapd(){
         apt update
 
         # Double check that it really comes from the PPA
-        apt show snapd | grep "APT-Sources: http.*ppa.launchpad.net"
+        apt show snapd | grep -E "APT-Sources: http.*ppa\.launchpad(content)?\.net"
     else
         packages=
         case "$SPREAD_SYSTEM" in
@@ -510,6 +510,7 @@ pkg_dependencies_ubuntu_generic(){
         automake
         autotools-dev
         build-essential
+        ca-certificates
         clang
         curl
         devscripts
@@ -525,6 +526,7 @@ pkg_dependencies_ubuntu_generic(){
         libseccomp-dev
         libudev-dev
         man
+        mtools
         netcat-openbsd
         pkg-config
         python3-docutils
@@ -610,7 +612,7 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-21.04-64|ubuntu-21.10-64*)
+        ubuntu-21.10-64|ubuntu-22.04-64)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
@@ -647,6 +649,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                  bpftool
                  strace
+                 systemd-timesyncd
                  "
             ;;
     esac

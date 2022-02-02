@@ -19,7 +19,13 @@
 
 package configcore
 
-import "github.com/snapcore/snapd/osutil/sys"
+import (
+	"time"
+
+	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+)
 
 var (
 	UpdatePiConfig       = updatePiConfig
@@ -29,6 +35,7 @@ var (
 	AddFSOnlyHandler     = addFSOnlyHandler
 	AddWithStateHandler  = addWithStateHandler
 	FilesystemOnlyApply  = filesystemOnlyApply
+	StoreReachable       = storeReachable
 )
 
 type PlainCoreConfig = plainCoreConfig
@@ -46,5 +53,23 @@ func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
 	sysChownPath = f
 	return func() {
 		sysChownPath = old
+	}
+}
+
+type ConnectivityCheckStore = connectivityCheckStore
+
+func MockSnapstateStore(f func(st *state.State, deviceCtx snapstate.DeviceContext) ConnectivityCheckStore) func() {
+	old := snapstateStore
+	snapstateStore = f
+	return func() {
+		snapstateStore = old
+	}
+}
+
+func MockStoreReachableRetryWait(d time.Duration) func() {
+	old := storeReachableRetryWait
+	storeReachableRetryWait = d
+	return func() {
+		storeReachableRetryWait = old
 	}
 }

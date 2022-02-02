@@ -74,7 +74,7 @@ var isGraphicalSession = func() bool {
 }
 
 var pendingRefreshNotification = func(refreshInfo *client.PendingSnapRefreshInfo) error {
-	userclient := client.New()
+	userclient := client.NewForUids(os.Getuid())
 	if err := userclient.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
 		return err
 	}

@@ -102,6 +102,11 @@ type SnapSetup struct {
 	// InstanceKey is set by the user during installation and differs for
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
+
+	// MigratedHidden is set if the user's snap dir has been migrated to
+	// ~/.snap/data in the current change. So a 'false' value doesn't mean the
+	// dir isn't hidden. This prevents us from always having to set it.
+	MigratedHidden bool `json:"migrated-hidden,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -193,6 +198,10 @@ type SnapState struct {
 
 	// LastRefreshTime records the time when the snap was last refreshed.
 	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
+
+	// MigratedHidden is set if the user's snap dir has been migrated
+	// to ~/.snap/data.
+	MigratedHidden bool `json:"migrated-hidden,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {

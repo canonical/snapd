@@ -10,3 +10,8 @@ slots:
     shared-memory: super-foo
     write: [writable-bar]
     read: [readable-foo]
+  shmem-wildcard:
+    interface: shared-memory
+    shared-memory: super-foo-wildcard
+    write: [any-writable-*]
+    read: [any-readable-*]

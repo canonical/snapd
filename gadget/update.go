@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 )
 
 var (
@@ -148,8 +149,71 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
+func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
+	// in uc16/uc18 we used to allow system-data to be implicit / missing from
+	// the gadget.yaml in which case we won't have system-data in the laidOutVol
+	// but it will be in diskLayout, so we sometimes need to check if a given on
+	// disk partition looks like it was created implicitly by ubuntu-image as
+	// specified via the defaults in
+	// https://github.com/canonical/ubuntu-image-legacy/blob/master/ubuntu_image/parser.py#L568-L589
+
+	// namely it must meet the following conditions:
+	// * fs is ext4
+	// * partition type is "Linux filesystem data"
+	// * fs label is "writable"
+	// * this on disk structure is last on the disk
+	// * there is exactly one more structure on disk than partitions in the
+	//   gadget
+	// * there is no system-data role in the gadget.yaml
+
+	// note: we specifically do not check the size of the structure because it
+	// likely was resized, but it also could have not been resized if there
+	// ended up being less than 10% free space as per the resize script in the
+	// initramfs:
+	// https://github.com/snapcore/core-build/blob/master/initramfs/scripts/local-premount/resize
+
+	// bare structures don't show up on disk, so we can't include them
+	// when calculating how many "structures" are in gadgetLayout to
+	// ensure that there is only one extra OnDiskStructure at the end
+	numPartsInGadget := 0
+	for _, s := range gadgetLayout.Structure {
+		if s.IsPartition() {
+			numPartsInGadget++
+		}
+
+		// also check for explicit system-data role
+		if s.Role == SystemData {
+			// s can't be implicit system-data since there is an explicit
+			// system-data
+			return false
+		}
+	}
+
+	numPartsOnDisk := len(diskLayout.Structure)
+
+	return s.Filesystem == "ext4" &&
+		s.Type == "0FC63DAF-8483-4772-8E79-3D69D8477DE4" && // TODO: check hybrid and on MBR/DOS too
+		s.Label == "writable" &&
+		// DiskIndex is 1-based
+		s.DiskIndex == numPartsOnDisk &&
+		numPartsInGadget+1 == numPartsOnDisk
+}
+
+// EnsureLayoutCompatibilityOptions is a set of options for determining how
+// strict to be when evaluating whether an on-disk structure matches a laid out
+// structure.
 type EnsureLayoutCompatibilityOptions struct {
+	// AssumeCreatablePartitionsCreated will assume that all partitions such as
+	// ubuntu-data, ubuntu-save, etc. that are creatable in install mode have
+	// already been created and thus must be already exactly matching that which
+	// is in the gadget.yaml.
 	AssumeCreatablePartitionsCreated bool
+
+	// AllowImplicitSystemData allows the system-data role to be missing from
+	// the laid out volume as was allowed in UC18 and UC16 where the system-data
+	// partition would be dynamically inserted into the image at image build
+	// time by ubuntu-image without being mentioned in the gadget.yaml.
+	AllowImplicitSystemData bool
 }
 
 func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
@@ -215,12 +279,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// image file with a new binary image file.
 			if gv.Filesystem != "" && gv.Filesystem != dv.Filesystem {
 				// use more specific error message for structures that are
-				// not creatable at install
-				if !IsCreatableAtInstall(gv) {
-					return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s) and the partition is not creatable at install", dv.Filesystem, gv.Filesystem)
+				// not creatable at install when we are not being strict
+				if !IsCreatableAtInstall(gv) && !opts.AssumeCreatablePartitionsCreated {
+					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, dv.Filesystem)
 				}
 				// otherwise generic
-				return false, fmt.Sprintf("filesystems do not match (expected %s from gadget.yaml, got %s)", dv.Filesystem, gv.Filesystem)
+				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, dv.Filesystem)
 			}
 		}
 
@@ -257,6 +321,20 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				reasonAbsent = reasonNotMatches
 			}
 		}
+
+		if opts.AllowImplicitSystemData {
+			// Handle the case of an implicit system-data role before giving up;
+			// we used to allow system-data to be implicit from the gadget.yaml.
+			// That means we won't have system-data in the laidOutVol but it
+			// will be in diskLayout, so if after searching all the laid out
+			// structures we don't find a on disk structure, check if we might
+			// be dealing with a structure that looks like the implicit
+			// system-data that ubuntu-image would have created.
+			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, diskLayout, needle) {
+				return true, ""
+			}
+		}
+
 		return false, reasonAbsent
 	}
 
@@ -345,6 +423,167 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	}
 
 	return nil
+}
+
+// DiskVolumeValidationOptions is a set of options on how to validate a disk to
+// volume mapping for a specific disk/volume pair. It is closely related to the
+// options provided to EnsureLayoutCompatibility via
+// EnsureLayoutCompatibilityOptions.
+type DiskVolumeValidationOptions struct {
+	// AllowImplicitSystemData has the same meaning as the eponymously named
+	// filed in EnsureLayoutCompatibilityOptions.
+	AllowImplicitSystemData bool
+}
+
+// DiskTraitsFromDeviceAndValidate takes a laid out gadget volume and an
+// expected disk device path and confirms that they are compatible, and then
+// builds up the disk volume traits for that device. If the laid out volume is
+// not compatible with the disk structure for the specified device an error is
+// returned.
+func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts *DiskVolumeValidationOptions) (res DiskVolumeDeviceTraits, err error) {
+	if opts == nil {
+		opts = &DiskVolumeValidationOptions{}
+	}
+	vol := expLayout.Volume
+
+	// get the disk layout for this device
+	diskLayout, err := OnDiskVolumeFromDevice(dev)
+	if err != nil {
+		return res, fmt.Errorf("cannot read %v partitions for candidate volume %s: %v", dev, vol.Name, err)
+	}
+
+	// ensure that the on disk volume and the laid out volume are actually
+	// compatible
+	ensureOpts := &EnsureLayoutCompatibilityOptions{
+		// at this point all partitions should be created
+		AssumeCreatablePartitionsCreated: true,
+
+		// provide the other opts as we were provided
+		AllowImplicitSystemData: opts.AllowImplicitSystemData,
+	}
+	if err := EnsureLayoutCompatibility(expLayout, diskLayout, ensureOpts); err != nil {
+		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
+	}
+
+	// also get a Disk{} interface for this device
+	disk, err := disks.DiskFromDeviceName(dev)
+	if err != nil {
+		return res, fmt.Errorf("cannot get disk for device %s: %v", dev, err)
+	}
+
+	diskPartitions, err := disk.Partitions()
+	if err != nil {
+		return res, fmt.Errorf("cannot get partitions for disk device %s: %v", dev, err)
+	}
+
+	// make a map of start offsets to partitions for lookup
+	diskPartitionsByOffset := make(map[uint64]disks.Partition, len(diskPartitions))
+	for _, p := range diskPartitions {
+		diskPartitionsByOffset[p.StartInBytes] = p
+	}
+
+	mappedStructures := make([]DiskStructureDeviceTraits, 0, len(diskLayout.Structure))
+
+	// create the traits for each structure looping over the laid out structure
+	// to ensure that extra partitions don't sneak in - we double check things
+	// again below this loop
+	for _, structure := range expLayout.LaidOutStructure {
+		// don't create traits for non-partitions, there is nothing we can
+		// measure on the disk about bare structures other than perhaps reading
+		// their content - the fact that bare structures do not overlap with
+		// real partitions will have been validated when the YAML was validated
+		// previously
+		if !structure.IsPartition() {
+			continue
+		}
+
+		part, ok := diskPartitionsByOffset[uint64(structure.StartOffset)]
+		if !ok {
+			// unexpected error - somehow this structure's start offset is not
+			// present in the OnDiskVolume, which is unexpected because we
+			// validated that the laid out volume structure matches the on disk
+			// volume
+			return res, fmt.Errorf("internal error: inconsistent disk structures from LaidOutVolume and disks.Disk: structure starting at %d missing on disk", structure.StartOffset)
+		}
+		ms := DiskStructureDeviceTraits{
+			Size:               quantity.Size(part.SizeInBytes),
+			Offset:             quantity.Offset(part.StartInBytes),
+			PartitionUUID:      part.PartitionUUID,
+			OriginalKernelPath: part.KernelDeviceNode,
+			OriginalDevicePath: part.KernelDevicePath,
+			PartitionType:      part.PartitionType,
+			PartitionLabel:     part.PartitionLabel,  // this will be empty on dos disks
+			FilesystemLabel:    part.FilesystemLabel, // blkid encoded
+			FilesystemUUID:     part.FilesystemUUID,  // blkid encoded
+			FilesystemType:     part.FilesystemType,
+		}
+
+		mappedStructures = append(mappedStructures, ms)
+
+		// delete this partition from the map
+		delete(diskPartitionsByOffset, uint64(structure.StartOffset))
+	}
+
+	// We should have deleted all structures from diskPartitionsByOffset that
+	// are in the gadget.yaml laid out volume, however there is a small
+	// possibility (mainly due to bugs) where we could still have partitions in
+	// diskPartitionsByOffset. So we check to make sure there are no partitions
+	// left over.
+	// However, the one notable exception to this is in the case of legacy UC16
+	// or UC18 gadgets where the system-data role could have been left out and
+	// ubuntu-image would dynamically create the partition. In this case, we
+	// ought to just ignore this on-disk structure since it is not in the
+	// gadget.yaml, and the primary use case of tracking disks and structures is
+	// for gadget asset update, but by definition something which is not in the
+	// gadget.yaml cannot be updated via gadget asset updates.
+	switch len(diskPartitionsByOffset) {
+	case 0:
+		// expected, no implicit system-data
+		break
+	case 1:
+		// could be implicit system-data
+		if opts.AllowImplicitSystemData {
+			var part disks.Partition
+			for _, part = range diskPartitionsByOffset {
+				break
+			}
+
+			s, err := OnDiskStructureFromPartition(part)
+			if err != nil {
+				return res, err
+			}
+
+			if onDiskStructureIsLikelyImplicitSystemDataRole(expLayout, diskLayout, s) {
+				// it is likely the implicit system-data
+				logger.Debugf("Identified implicit system-data role on system as %s", s.Node)
+				break
+			}
+		}
+		fallthrough
+	default:
+		// we for sure have left over partitions that should have been in the
+		// gadget.yaml - make a nice string with what partitions are leftover
+		leftovers := []string{}
+		for _, part := range diskPartitionsByOffset {
+			leftovers = append(leftovers, part.KernelDeviceNode)
+		}
+		// this is an internal error because to get here we would have had to
+		// pass validation in EnsureLayoutCompatibility but then still have
+		// extra partitions - the only non-buggy situation where that function
+		// passes validation but leaves partitions on disk not in the YAML is
+		// the implicit system-data role handled above
+		return res, fmt.Errorf("internal error: unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
+	}
+
+	return DiskVolumeDeviceTraits{
+		OriginalDevicePath: disk.KernelDevicePath(),
+		OriginalKernelPath: dev,
+		DiskID:             diskLayout.ID,
+		Structure:          mappedStructures,
+		Size:               diskLayout.Size,
+		SectorSize:         diskLayout.SectorSize,
+		Schema:             disk.Schema(),
+	}, nil
 }
 
 // Update applies the gadget update given the gadget information and data from

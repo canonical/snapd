@@ -96,6 +96,8 @@ var (
 
 	GetKeypairManager = getKeypairManager
 	GenerateKey       = generateKey
+
+	GetSnapDirOptions = getSnapDirOptions
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -456,5 +458,13 @@ func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.Finishe
 	finishRefreshNotification = f
 	return func() {
 		finishRefreshNotification = old
+	}
+}
+
+func MockAutostartSessionApps(f func(string) error) func() {
+	old := autostartSessionApps
+	autostartSessionApps = f
+	return func() {
+		autostartSessionApps = old
 	}
 }

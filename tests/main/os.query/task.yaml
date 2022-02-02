@@ -57,16 +57,16 @@ execute: |
             not os.query is-core
             os.query is-ubuntu
             ;;
-        ubuntu-21.04-*)
+        ubuntu-21.10-*)
             os.query is-classic
-            os.query is-hirsute
+            os.query is-impish
             not os.query is-focal
             not os.query is-core
             os.query is-ubuntu
             ;;
-        ubuntu-21.10-*)
+        ubuntu-22.04-*)
             os.query is-classic
-            os.query is-impish
+            os.query is-jammy
             not os.query is-focal
             not os.query is-core
             os.query is-ubuntu

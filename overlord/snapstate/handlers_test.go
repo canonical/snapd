@@ -24,7 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -285,7 +284,26 @@ func (s *handlersSuite) TestNotifyLinkParticipantsErrorHandling(c *C) {
 	c.Check(logs[0], testutil.Contains, "ERROR something failed")
 }
 
-func (s *handlersSuite) TestGetSnapDirOptions(c *C) {
+func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	// check options reflect flag and SnapState
+	snapst := &snapstate.SnapState{MigratedHidden: true}
+	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, nil)
+
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: true})
+}
+
+func (s *handlersSuite) TestGetHiddenDirOptionsFromSnapSetup(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -295,11 +313,32 @@ func (s *handlersSuite) TestGetSnapDirOptions(c *C) {
 	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
 	err := tr.Set("core", confKey, "true")
 	c.Assert(err, IsNil)
-
 	tr.Commit()
 
-	// check options reflect flag
-	opts, err := snapstate.GetSnapDirOptions(s.state)
+	// check options reflect flag and SnapSetup override
+	snapsup := &snapstate.SnapSetup{MigratedHidden: true}
+	snapst := &snapstate.SnapState{MigratedHidden: false}
+	opts, err := snapstate.GetDirMigrationOpts(s.state, snapst, snapsup)
+
 	c.Assert(err, IsNil)
-	c.Check(opts, DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true, MigratedToHidden: true})
+}
+
+func (s *handlersSuite) TestGetHiddenDirOptionsNoState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+
+	// set feature flag
+	confKey := fmt.Sprintf("experimental.%s", features.HiddenSnapDataHomeDir)
+	err := tr.Set("core", confKey, "true")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	// check options reflect flag and no SnapState
+	opts, err := snapstate.GetDirMigrationOpts(s.state, nil, nil)
+
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &snapstate.DirMigrationOptions{UseHidden: true})
 }
