@@ -32,7 +32,7 @@ import (
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
-	_, err := cs.cli.EnsureQuota("", "", nil, 0)
+	_, err := cs.cli.EnsureQuota("", "", nil, nil)
 	c.Check(err, check.ErrorMatches, `cannot create or update quota group without a name`)
 }
 
@@ -44,7 +44,7 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"change": "42"
 	}`
 
-	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, 1001)
+	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, &client.QuotaValues{Memory: quantity.Size(1001)})
 	c.Assert(err, check.IsNil)
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
@@ -68,7 +68,7 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 func (cs *clientSuite) TestEnsureQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	_, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a"}, 1)
+	_, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a"}, &client.QuotaValues{Memory: quantity.Size(1)})
 	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }
 

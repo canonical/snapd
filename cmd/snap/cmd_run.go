@@ -1,7 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2014-2018 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +20,8 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -1023,7 +1024,12 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
 
-	opts := getSnapDirOptions()
+	snapName, _ := snap.SplitSnapApp(snapApp)
+	opts, err := getSnapDirOptions(snapName)
+	if err != nil {
+		return fmt.Errorf("cannot get snap dir options: %w", err)
+	}
+
 	if err := createUserDataDirs(info, opts); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -1175,26 +1181,37 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		// tracking cgroup, named after the systemd unit name, and those are
 		// sufficient to identify both the snap name and the app name.
 		needsTracking = false
+		// however it is still possible that the app (which is a
+		// service) was invoked by the user, so it may be running inside
+		// a user's scope cgroup, in which case separate tracking group
+		// needs to be established
+		if err := cgroupConfirmSystemdServiceTracking(securityTag); err != nil {
+			if err == cgroup.ErrCannotTrackProcess {
+				// we are not being tracked in a service cgroup
+				// after all, go ahead and create a transient
+				// scope
+				needsTracking = true
+				logger.Debugf("service app not tracked by systemd")
+			} else {
+				return err
+			}
+		}
 	}
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
 	// Track, or confirm existing tracking from systemd.
-	var trackingErr error
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
-		trackingErr = cgroupCreateTransientScopeForTracking(securityTag, opts)
-	} else {
-		trackingErr = cgroupConfirmSystemdServiceTracking(securityTag)
-	}
-	if trackingErr != nil {
-		if trackingErr != cgroup.ErrCannotTrackProcess {
-			return trackingErr
+		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
+			if err != cgroup.ErrCannotTrackProcess {
+				return err
+			}
+			// If we cannot track the process then log a debug message.
+			// TODO: if we could, create a warning. Currently this is not possible
+			// because only snapd can create warnings, internally.
+			logger.Debugf("snapd cannot track the started application")
+			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
-		// If we cannot track the process then log a debug message.
-		// TODO: if we could, create a warning. Currently this is not possible
-		// because only snapd can create warnings, internally.
-		logger.Debugf("snapd cannot track the started application")
-		logger.Debugf("snap refreshes will not be postponed by this process")
 	}
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
@@ -1219,10 +1236,25 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 }
 
-func getSnapDirOptions() *dirs.SnapDirOptions {
-	return &dirs.SnapDirOptions{
-		HiddenSnapDataDir: features.HiddenSnapDataHomeDir.IsEnabled(),
+func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+	var opts dirs.SnapDirOptions
+
+	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return &opts, nil
+	} else if err != nil {
+		return nil, err
 	}
+
+	var seq struct {
+		MigratedToHiddenDir bool `json:"migrated-hidden"`
+	}
+	if err := json.Unmarshal(data, &seq); err != nil {
+		return nil, err
+	}
+
+	opts.HiddenSnapDataDir = seq.MigratedToHiddenDir
+	return &opts, nil
 }
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking

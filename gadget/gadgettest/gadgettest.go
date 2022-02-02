@@ -29,6 +29,28 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
+// LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
+// gadget.yaml string and works for either single or multiple volume
+// gadget.yaml's. An empty directory to use to create a gadget.yaml file should
+// be provided, such as c.MkDir() in tests.
+func LayoutMultiVolumeFromYaml(newDir, gadgetYaml string, model gadget.Model) (map[string]*gadget.LaidOutVolume, error) {
+	gadgetRoot := filepath.Join(newDir, "gadget")
+	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
+		return nil, err
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644); err != nil {
+		return nil, err
+	}
+
+	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
+	if err != nil {
+		return nil, fmt.Errorf("cannot layout volumes: %v", err)
+	}
+
+	return allVolumes, nil
+}
+
 // LayoutFromYaml returns a LaidOutVolume for the given gadget.yaml string. It
 // currently only supports gadget.yaml's with a single volume in them. An empty
 // directory to use to create a gadget.yaml file should be provided, such as
@@ -48,7 +70,7 @@ func LayoutFromYaml(newDir, gadgetYaml string, model gadget.Model) (*gadget.Laid
 // MustLayOutSingleVolumeFromGadget takes a gadget rootdir and lays out the
 // partitions as specified. This function does not handle multiple volumes and
 // is meant for test helpers only. For runtime users, with multiple volumes
-// handled by choosing the ubuntu-* role volume, see LaidOutSystemVolumeFromGadget
+// handled by choosing the ubuntu-* role volume, see LaidOutVolumesFromGadget
 func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadget.Model) (*gadget.LaidOutVolume, error) {
 	info, err := gadget.ReadInfo(gadgetRoot, model)
 	if err != nil {

@@ -60,6 +60,7 @@ var (
 	SnapRunNsDir              string
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
+	SnapVoidDir               string
 
 	SnapdMaintenanceFile string
 
@@ -75,6 +76,7 @@ var (
 	SnapSeqDir            string
 
 	SnapStateFile     string
+	SnapStateLockFile string
 	SnapSystemKeyFile string
 
 	SnapRepairDir        string
@@ -132,6 +134,8 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
+
+	CGroupsStatusFile string
 )
 
 const (
@@ -251,6 +255,11 @@ func SnapStateFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "state.json")
 }
 
+// SnapStateLockFileUnder returns the path to snapd state lock file under rootdir.
+func SnapStateLockFileUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "state.lock")
+}
+
 // SnapModeenvFileUnder returns the path to the modeenv file under rootdir.
 func SnapModeenvFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "modeenv")
@@ -317,6 +326,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	altDirDistros := []string{
+		"altlinux",
 		"antergos",
 		"arch",
 		"archlinux",
@@ -346,6 +356,7 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
+	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
 	// freedesktop.org specifications
@@ -369,6 +380,7 @@ func SetRootDir(rootdir string) {
 	SnapSeqDir = filepath.Join(rootdir, snappyDir, "sequence")
 
 	SnapStateFile = SnapStateFileUnder(rootdir)
+	SnapStateLockFile = SnapStateLockFileUnder(rootdir)
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
 
 	SnapCacheDir = filepath.Join(rootdir, "/var/cache/snapd")
@@ -418,6 +430,8 @@ func SetRootDir(rootdir string) {
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
+
+	CGroupsStatusFile = filepath.Join(rootdir, "/proc/cgroups")
 
 	opensuseTWWithLibexec := func() bool {
 		// XXX: this is pretty naive if openSUSE ever starts going back

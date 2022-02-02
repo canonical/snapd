@@ -344,6 +344,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  polkit:
+    command: bin/run
+    plugs: [ polkit ]
   power-control:
     command: bin/run
     plugs: [ power-control ]
@@ -488,6 +491,9 @@ apps:
   x11:
     command: bin/run
     plugs: [ x11 ]
+  xilinx-dma:
+    command: bin/run
+    plugs: [ xilinx-dma ]
 
 plugs:
   browser-sandbox:
@@ -516,6 +522,9 @@ plugs:
       - what: /dev/sda1
         where: /media/myfiles
         options: [rw]
+  polkit:
+    interface: polkit
+    action-prefix: io.snapcraft.example
   system-files:
     interface: system-files
     read: [/file1]

@@ -1072,6 +1072,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
+
 	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
@@ -1117,14 +1118,15 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := GetSnapDirOptions(st)
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
 	if err != nil {
 		return err
 	}
 
+	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, opts); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, dirOpts); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1147,6 +1149,33 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		}
 		return copyDataErr
 	}
+
+	// the migration hasn't been done - do it now
+	if opts.UseHidden && !opts.MigratedToHidden {
+		if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+
+			// undo the migration. In contrast to copy data for which the new revision
+			// directory can just be discarded, the snap data migration introduces
+			// a change that affects all revisions of the snap and thus needs to be reverted
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+				st.Lock()
+				t.Logf("cannot undo snap dir migration (must manually restore %s's dirs from %s to %s): %v",
+					snapsup.InstanceName(), dirs.HiddenSnapDataHomeDir, dirs.UserHomeSnapDir, err)
+				st.Unlock()
+			}
+
+			return err
+		}
+
+		snapsup.MigratedHidden = true
+		st.Lock()
+		err := SetTaskSnapSetup(t, snapsup)
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot set migration status to done (migration won't be undone if change fails): %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -1169,15 +1198,28 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	st.Lock()
-	opts, err := GetSnapDirOptions(st)
-	st.Unlock()
-	if err != nil {
-		return err
+	// we migrated the data in this run - undo that
+	if snapsup.MigratedHidden {
+		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+			return err
+		}
+
+		snapst.MigratedHidden = false
+		if err := writeMigrationStatus(t, snapst, snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 
+	st.Lock()
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	st.Unlock()
+	if err != nil {
+		return fmt.Errorf("failed to get snap dir options: %w", err)
+	}
+
+	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, opts); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
 		return err
 	}
 
@@ -1202,6 +1244,38 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// writeMigrationStatus writes the state and sequence file (if they exist).
+// This must be called after the migration undo procedure is done since only
+// then do we know the actual final state of the migration.
+func writeMigrationStatus(t *state.Task, snapst *SnapState, snapName string) error {
+	st := t.State()
+
+	st.Lock()
+	err := Get(st, snapName, &SnapState{})
+	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// snap state was persisted, re-write it
+	if err == nil {
+		// migration state might've been written in the change; update it after undo
+		st.Lock()
+		Set(st, snapName, snapst)
+		st.Unlock()
+	}
+
+	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
+	if osutil.FileExists(seqFile) {
+		// might've written migration status to seq file in the change; update it
+		// after undo
+		return writeSeqFile(snapName, snapst)
+	}
+
+	// never got to write seq file; don't need to re-write migration status in it
+	return nil
+}
+
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1222,6 +1296,7 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// try to remove trashed any data in ~/snap and ~/.snap/data
 	m.backend.ClearTrashedData(info)
 
 	return nil
@@ -1235,11 +1310,13 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	}
 
 	b, err := json.Marshal(&struct {
-		Sequence []*snap.SideInfo `json:"sequence"`
-		Current  string           `json:"current"`
+		Sequence       []*snap.SideInfo `json:"sequence"`
+		Current        string           `json:"current"`
+		MigratedHidden bool             `json:"migrated-hidden"`
 	}{
-		Sequence: snapst.Sequence,
-		Current:  snapst.Current.String(),
+		Sequence:       snapst.Sequence,
+		Current:        snapst.Current.String(),
+		MigratedHidden: snapst.MigratedHidden,
 	})
 	if err != nil {
 		return err
@@ -1409,6 +1486,13 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// keep instance key
 	snapst.InstanceKey = snapsup.InstanceKey
 
+	// don't keep the old state because, if we fail, we may or may not be able to
+	// revert the migration. We set the migration status after undoing any
+	// migration related ops
+	if snapsup.MigratedHidden {
+		snapst.MigratedHidden = true
+	}
+
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
 	if err != nil {
 		return err
@@ -1439,6 +1523,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		linkCtx.RequireMountedSnapdSnap = true
 	}
+
+	// write sequence file for failover helpers
+	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
+		return err
+	}
+
 	needsReboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -1544,11 +1634,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 
-	// write sequence file for failover helpers
-	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
-		return err
-	}
-
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
 	if newInfo.Type() != snap.TypeOS {
@@ -1626,11 +1711,14 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 
 	typ := info.Type()
 
-	// if bp is non-trivial then either we're not on classic, or the snap is
-	// snapd. So daemonRestartReason will always return "" which is what we
-	// want. If that combination stops being true and there's a situation
-	// where a non-trivial bp could return a non-empty reason, use IsTrivial
-	// to check and bail before reaching this far.
+	// If the type of the snap requesting this start is non-trivial that either
+	// means we are on Ubuntu Core and the type is a base/kernel/gadget which
+	// requires a reboot of the system, or that the type is snapd in which case
+	// we just do a restart of snapd itself. In these cases restartReason will
+	// be non-empty and thus we will perform a restart.
+	// If restartReason is empty, then the snap requesting the restart was not
+	// a boot participant and thus we don't need to do any sort of restarts as
+	// a result of updating this snap.
 
 	restartReason := daemonRestartReason(st, typ)
 	if restartReason == "" {
@@ -2432,20 +2520,21 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	opts, err := GetSnapDirOptions(st)
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
 	st.Unlock()
 
 	if err != nil {
 		return err
 	}
 
-	if err = m.backend.RemoveSnapData(info, opts); err != nil {
+	dirOpts := opts.getSnapDirOpts()
+	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err
 	}
 
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
-		if err = m.backend.RemoveSnapCommonData(info, opts); err != nil {
+		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
 			return err
 		}
 
@@ -3467,25 +3556,54 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	mainTask.Logf("added auto-connect task")
 }
 
-// GetSnapDirOptions returns *dirs.SnapDirOptions configured according to the
-// enabled experimental features. The state must be locked by the caller.
-var GetSnapDirOptions = getSnapDirOptions
+type dirMigrationOptions struct {
+	// UseHidden states whether the user has requested that the hidden data dir be used
+	UseHidden bool
 
-func getSnapDirOptions(state *state.State) (*dirs.SnapDirOptions, error) {
-	tr := config.NewTransaction(state)
+	// MigratedToHidden states whether the data has been migrated to the hidden dir
+	MigratedToHidden bool
+}
 
+// GetSnapDirOpts returns the snap dir options based on the current the migration status
+func (o *dirMigrationOptions) getSnapDirOpts() *dirs.SnapDirOptions {
+	return &dirs.SnapDirOptions{HiddenSnapDataDir: o.MigratedToHidden}
+}
+
+// GetSnapDirOpts returns the options required to get the correct snap dir.
+var GetSnapDirOpts = func(st *state.State, name string) (*dirs.SnapDirOptions, error) {
+	var snapst SnapState
+	if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	hiddenOpts, err := getDirMigrationOpts(st, &snapst, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return hiddenOpts.getSnapDirOpts(), nil
+}
+
+// getDirMigrationOpts checks if the feature flag is set and if the snap data
+// has been migrated, first checking the SnapSetup (if not nil) and then
+// the SnapState. The state must be locked by the caller.
+var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*dirMigrationOptions, error) {
+	tr := config.NewTransaction(st)
 	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
 	}
 
-	return &dirs.SnapDirOptions{HiddenSnapDataDir: hiddenDir}, nil
-}
+	opts := &dirMigrationOptions{UseHidden: hiddenDir}
 
-func MockGetSnapDirOptions(f func(*state.State) (*dirs.SnapDirOptions, error)) (restore func()) {
-	old := getSnapDirOptions
-	GetSnapDirOptions = f
-	return func() {
-		GetSnapDirOptions = old
+	if snapst != nil {
+		opts.MigratedToHidden = snapst.MigratedHidden
 	}
+
+	// it was migrated during this install (might not be in the state yet)
+	if snapsup != nil && snapsup.MigratedHidden {
+		opts.MigratedToHidden = true
+	}
+
+	return opts, nil
 }

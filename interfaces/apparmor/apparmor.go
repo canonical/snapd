@@ -40,6 +40,8 @@ import (
 
 // ValidateNoAppArmorRegexp will check that the given string does not
 // contain AppArmor regular expressions (AARE), double quotes or \0.
+// Note that to check the inverse of this, that is that a string has
+// valid AARE, one should use interfaces/utils.NewPathPattern().
 func ValidateNoAppArmorRegexp(s string) error {
 	const AARE = `?*[]{}^"` + "\x00"
 
