@@ -504,6 +504,14 @@ func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *d
 	c.Assert(err, check.IsNil)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/42")), check.Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/common")), check.Equals, true)
+
+	// check we don't create the alternative dir
+	nonExistentDir := dirs.HiddenSnapDataHomeDir
+	if snapDir == dirs.HiddenSnapDataHomeDir {
+		nonExistentDir = dirs.UserHomeSnapDir
+	}
+
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, nonExistentDir)), check.Equals, false)
 }
 
 func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
