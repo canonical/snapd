@@ -74,7 +74,9 @@ execute: |
 
     echo "Verify the snap change"
     snap change "$chg_id" | MATCH "Undone.*Download snap \"${BAD_SNAP}\""
-    snap change "$chg_id" | MATCH "Undone.*Download snap \"${GOOD_SNAP}\""
+    # Things could have failed quickly enough so we have not even downloaded
+    # the good snap (Error state instead of Undone in that case).
+    snap change "$chg_id" | MATCH "(Undone|Error).*Download snap \"${GOOD_SNAP}\""
     snap change "$chg_id" | MATCH "ERROR cannot verify snap \"test-snapd-tools\", no matching signatures found"
 
     echo "Verify the 'snap tasks' is the same as 'snap change'"
