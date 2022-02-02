@@ -36,7 +36,12 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		err    string
 	}{
 		{quota.Resources{}, `quota group must have at least one resource limit set`},
+		{quota.Resources{Memory: &quota.ResourceMemory{}}, `memory quota must have a limit set`},
+		{quota.Resources{Cpu: &quota.ResourceCpu{}}, `cannot validate quota limits with a cpu quota of 0 and allowed cpus of 0`},
+		{quota.Resources{Thread: &quota.ResourceThreads{}}, `cannot create quota group with a thread count of 0`},
 		{quota.NewResources(quantity.Size(0), 0, 0, nil, 0), `quota group must have at least one resource limit set`},
+		{quota.NewResources(quantity.SizeKiB, 0, 0, nil, 0), `memory limit 1024 is too small: size must be larger than 4KB`},
+		{quota.NewResources(0, 1, 0, nil, 0), `cannot validate quota limits with count of >0 and percentage of 0`},
 	}
 
 	for _, t := range tests {
@@ -49,8 +54,11 @@ func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
 	tests := []struct {
 		limits quota.Resources
 	}{
-		{quota.NewResources(quantity.SizeMiB)},
-		// expect more tests as the number of quotas grow
+		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0)},
+		{quota.NewResources(0, 1, 50, nil, 0)},
+		{quota.NewResources(0, 4, 25, nil, 0)},
+		{quota.NewResources(0, 0, 0, []int{0, 1}, 0)},
+		{quota.NewResources(0, 0, 0, nil, 16)},
 	}
 
 	for _, t := range tests {
@@ -85,8 +93,11 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 		// equal limits or newLimits as it can contain partial updates.
 		newLimits quota.Resources
 	}{
-		{quota.NewResources(quantity.SizeMiB), quota.NewResources(quantity.SizeGiB), quota.NewResources(quantity.SizeGiB)},
-		// expect more tests as the number of quotas grow
+		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0), quota.NewResources(quantity.SizeGiB, 0, 0, nil, 0), quota.NewResources(quantity.SizeGiB, 0, 0, nil, 0)},
+		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0), quota.NewResources(0, 4, 25, nil, 0), quota.NewResources(quantity.SizeMiB, 4, 25, nil, 0)},
+		{quota.NewResources(quantity.SizeMiB, 4, 25, nil, 0), quota.NewResources(0, 0, 0, []int{0}, 0), quota.NewResources(quantity.SizeMiB, 4, 25, []int{0}, 0)},
+		{quota.NewResources(quantity.SizeMiB, 4, 25, []int{0}, 0), quota.NewResources(0, 0, 0, nil, 128), quota.NewResources(quantity.SizeMiB, 4, 25, []int{0}, 128)},
+		{quota.NewResources(0, 1, 100, nil, 0), quota.NewResources(quantity.SizeGiB, 0, 0, nil, 32), quota.NewResources(quantity.SizeGiB, 1, 100, nil, 32)},
 	}
 
 	for _, t := range tests {

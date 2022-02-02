@@ -29,6 +29,33 @@ import (
 
 var ErrQuotaNotFound = errors.New("quota not found")
 
+func verifyRequiredCGroupsEnabledSingle(group *quota.Group) error {
+	if group.MemoryLimit != 0 && memoryCGroupError != nil {
+		return memoryCGroupError
+	}
+	if group.CpuLimit != nil {
+		if len(group.CpuLimit.AllowedCpus) > 0 && cpuSetCGroupError != nil {
+			return cpuSetCGroupError
+		}
+		if (group.CpuLimit.Count != 0 || group.CpuLimit.Percentage != 0) && cpuCGroupError != nil {
+			return cpuCGroupError
+		}
+	}
+	if group.TaskLimit != 0 && cpuCGroupError != nil {
+		return cpuCGroupError
+	}
+	return nil
+}
+
+func verifyRequiredCGroupsEnabled(groups map[string]*quota.Group) error {
+	for _, group := range groups {
+		if err := verifyRequiredCGroupsEnabledSingle(group); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // AllQuotas returns all currently tracked quota groups in the state. They are
 // validated for consistency using ResolveCrossReferences before being returned.
 func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
@@ -47,5 +74,8 @@ func GetQuota(st *state.State, name string) (*quota.Group, error) {
 		return nil, ErrQuotaNotFound
 	}
 
+	if err := verifyRequiredCGroupsEnabledSingle(group); err != nil {
+		return nil, err
+	}
 	return group, nil
 }
