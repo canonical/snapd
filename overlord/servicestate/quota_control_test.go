@@ -21,6 +21,7 @@ package servicestate_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -52,10 +53,10 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 
 	// we don't need the EnsureSnapServices ensure loop to run by default
 	servicestate.MockEnsuredSnapServices(s.mgr, true)
-
 	// we enable quota-groups by default
 	s.state.Lock()
 	defer s.state.Unlock()
+
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
@@ -64,6 +65,23 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 	r := systemd.MockSystemdVersion(248, nil)
 	s.AddCleanup(r)
 	servicestate.CheckSystemdVersion()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	if _, err := os.Stat(filepath.Dir(cgroupsPath)); os.IsNotExist(err) {
+		err := os.Mkdir(filepath.Dir(cgroupsPath), 0777)
+		c.Assert(err, IsNil)
+	}
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	1
+devices	10	135	1`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
 }
 
 type quotaGroupState struct {
@@ -657,7 +675,6 @@ func (s *quotaControlSuite) TestSnapOpRemoveQuotaConflict(c *C) {
 	c.Assert(err, IsNil)
 	chg1 := s.state.NewChange("disable", "...")
 	chg1.AddAll(ts)
-
 	_, err = servicestate.RemoveQuota(st, "foo")
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "disable" change in progress`)
 }
@@ -928,4 +945,227 @@ func (s *quotaControlSuite) TestCreateQuotaCreateQuotaConflict(c *C) {
 
 	_, err = servicestate.CreateQuota(st, "foo", "", []string{"test-snap2"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
+	}()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	0
+devices	10	135	1`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
+	// reset memory cgroup status with the enabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	// check if all operations fail with the expected error message
+	errExpected := `cannot retrieve quota information, memory cgroup is disabled on this system`
+	_, err = servicestate.AllQuotas(s.state)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
+	}()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	1
+devices	10	135	1`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
+
+	// reset memory cgroup status with the enabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	// check if all operations fail with the expected error message
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot use snap \"test-snap\" in group \"foo\": snap \"test-snap\" is not installed`)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot remove non-existent quota group \"foo\"`)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `group \"foo\" does not exist`)
+
+	_, err = servicestate.AllQuotas(s.state)
+	c.Assert(err, IsNil)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `quota not found`)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
+	}()
+
+	// reset memory cgroup status with the non-existing file
+	cgroupsPath := dirs.GlobalRootDir + "/missing_file"
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	// check if all operations fail with the expected error message
+	errExpected := fmt.Sprintf(`cannot open cgroups file: open %v: no such file or directory`, cgroupsPath)
+	_, err := servicestate.AllQuotas(s.state)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupMalformed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
+	}()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// each configuration has 3 fields instead of 4
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled	extra_field
+cpuset	6	3
+cpu	3	133
+memory	2	223
+devices	10	135`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
+
+	// reset memory cgroup status with the disabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	// check if all operations fail with the expected error message
+	errExpected := `cannot parse memory control group configuration`
+	_, err = servicestate.AllQuotas(s.state)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+}
+
+func (s *quotaControlSuite) TestMemoryCGroupMissingMemory(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
+	}()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+devices	10	135	1`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
+	// reset memory cgroup status with the enabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	// check if all operations fail with the expected error message
+	errExpected := `cannot retrieve memory cgroup configuration, it is not available in the kernel config`
+	_, err = servicestate.AllQuotas(s.state)
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.GetQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
+
+	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, errExpected)
 }

@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -155,6 +156,11 @@ func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
 
 func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	// TODO: temporary: skip due to timeouts on riscv64
+	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow tests")
+	}
 
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
