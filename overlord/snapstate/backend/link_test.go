@@ -157,7 +157,7 @@ version: 1.0
 	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	mountDir := info.MountDir()
 	dataDir := info.DataDir()
@@ -196,7 +196,7 @@ type: base
 
 	reboot, err := s.be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Check(reboot, Equals, true)
+	c.Check(reboot, Equals, boot.RebootInfo{RebootRequired: true})
 }
 
 func (s *linkSuite) TestLinkDoIdempotent(c *C) {
@@ -329,7 +329,7 @@ func (s *linkSuite) TestLinkSnapdSnapOnCore(c *C) {
 
 	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(reboot, Equals, false)
+	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// system services
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
@@ -605,7 +605,7 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 	}
 	reboot, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("symlink %s /.*/snapd/current: permission denied", info.Revision))
-	c.Assert(reboot, Equals, false)
+	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	checker := testutil.FilePresent
 	if firstInstall {
@@ -677,7 +677,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 
 	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(reboot, Equals, false)
+	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	// sanity checks
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,

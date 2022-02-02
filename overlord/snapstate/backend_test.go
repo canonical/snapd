@@ -945,7 +945,7 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error) {
+func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error) {
 	if info.MountDir() == f.linkSnapWaitTrigger {
 		f.linkSnapWaitCh <- 1
 		<-f.linkSnapWaitCh
@@ -967,7 +967,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
 		f.ops = append(f.ops, op)
-		return false, errors.New("fail")
+		return boot.RebootInfo{RebootRequired: false}, errors.New("fail")
 	}
 
 	f.appendOp(&op)
@@ -978,7 +978,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 			(f.linkSnapRebootFor != nil && f.linkSnapRebootFor[info.InstanceName()])
 	}
 
-	return reboot, nil
+	return boot.RebootInfo{RebootRequired: reboot}, nil
 }
 
 func svcSnapMountDir(svcs []*snap.AppInfo) string {

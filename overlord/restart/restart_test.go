@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -40,7 +41,7 @@ type testHandler struct {
 	rebootDidNotHappen bool
 }
 
-func (h *testHandler) HandleRestart(t restart.RestartType) {
+func (h *testHandler) HandleRestart(t restart.RestartType, rbl *boot.RebootInfo) {
 	h.restartRequested = true
 }
 
@@ -75,7 +76,7 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	c.Check(ok, Equals, false)
 	c.Check(t, Equals, restart.RestartUnset)
 
-	restart.Request(st, restart.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon, nil)
 
 	c.Check(h.restartRequested, Equals, true)
 
@@ -93,7 +94,7 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 	err := restart.Init(st, "boot-id-1", nil)
 	c.Assert(err, IsNil)
 
-	restart.Request(st, restart.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon, nil)
 
 	ok, t := restart.Pending(st)
 	c.Check(ok, Equals, true)
@@ -114,7 +115,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	c.Check(ok, Equals, false)
 	c.Check(t, Equals, restart.RestartUnset)
 
-	restart.Request(st, restart.RestartSystem)
+	restart.Request(st, restart.RestartSystem, nil)
 
 	c.Check(h.restartRequested, Equals, true)
 
