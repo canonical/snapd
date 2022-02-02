@@ -582,6 +582,13 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
+    if [[ "$SPREAD_SYSTEM" == centos-8-* ]]; then
+        # the default image of CentOS 8 Stream is set up in enforcing mode,
+        # which may break some tests. Note that there are tests targeting
+        # SELinux which explicitly enable enforcing mode.
+        setenforce 0
+    fi
+
     # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
