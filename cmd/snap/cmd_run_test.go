@@ -1971,3 +1971,48 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 }
+
+func (s *RunSuite) TestRunDebug(c *check.C) {
+	oldDebug, isSet := os.LookupEnv("SNAPD_DEBUG")
+	if isSet {
+		defer os.Setenv("SNAPD_DEBUG", oldDebug)
+	} else {
+		defer os.Unsetenv("SNAPD_DEBUG")
+	}
+
+	logBuf, r := logger.MockLogger()
+	defer r()
+
+	restore := mockSnapConfine(dirs.DistroLibExecDir)
+	defer restore()
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore = snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restore()
+
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("12"),
+	})
+
+	// this will modify the current process environment
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug", "snapname.app"})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=12")
+	c.Check(execEnv, testutil.Contains, "SNAPD_DEBUG=1")
+	// also set in env
+	c.Check(os.Getenv("SNAPD_DEBUG"), check.Equals, "1")
+	// and we've let the user know that logging was enabled
+	c.Check(logBuf.String(), testutil.Contains, "DEBUG: enabled debug logging of early snap startup")
+}
