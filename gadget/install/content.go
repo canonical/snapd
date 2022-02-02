@@ -34,6 +34,8 @@ import (
 
 var contentMountpoint string
 
+var mkfsImpl = mkfs.Make
+
 func init() {
 	contentMountpoint = filepath.Join(dirs.SnapRunDir, "gadget-install")
 }
@@ -43,16 +45,14 @@ func init() {
 // that sector size is used when creating the filesystem, otherwise if it is
 // zero, automatic values are used instead.
 func makeFilesystem(ds *gadget.OnDiskStructure, sectorSize quantity.Size) error {
-	if ds.HasFilesystem() {
-		logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
-		if err := mkfs.Make(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
-			return err
-		}
-		if err := udevTrigger(ds.Node); err != nil {
-			return err
-		}
+	if !ds.HasFilesystem() {
+		return fmt.Errorf("internal error: on disk structure for partition %s has no filesystem", ds.Node)
 	}
-	return nil
+	logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
+	if err := mkfsImpl(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
+		return err
+	}
+	return udevTrigger(ds.Node)
 }
 
 // writeContent populates the given on-disk structure, according to the contents
