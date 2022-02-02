@@ -337,7 +337,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
      * system no longer hold and we may need to mount bpffs ourselves */
     if (!bpf_path_is_bpffs("/sys/fs/bpf")) {
         debug("/sys/fs/bpf is not a bpffs mount");
-        /* bpffs isn't mounted at the usual place, try to do it now */
+        /* bpffs isn't mounted at the usual place, or die if that fails */
         bpf_mount_bpffs("/sys/fs/bpf");
         debug("bpffs mounted at /sys/fs/bpf");
     }
