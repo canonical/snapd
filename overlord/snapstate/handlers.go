@@ -1224,8 +1224,9 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
+		snapsup.MigratedHidden = false
 		snapst.MigratedHidden = false
-		if err := writeMigrationStatus(t, snapst, snapsup.InstanceName()); err != nil {
+		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
 			return err
 		}
 	} else if snapsup.MigratedExposed {
@@ -1234,8 +1235,9 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
+		snapsup.MigratedExposed = false
 		snapst.MigratedHidden = true
-		if err := writeMigrationStatus(t, snapst, snapsup.InstanceName()); err != nil {
+		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
 			return err
 		}
 	}
@@ -1274,14 +1276,22 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// writeMigrationStatus writes the state and sequence file (if they exist).
-// This must be called after the migration undo procedure is done since only
-// then do we know the actual final state of the migration.
-func writeMigrationStatus(t *state.Task, snapst *SnapState, snapName string) error {
+// writeMigrationStatus writes the SnapSetup, state and sequence file (if they
+// exist). This must be called after the migration undo procedure is done since
+// only then do we know the actual final state of the migration.
+func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) error {
 	st := t.State()
+	snapName := snapsup.InstanceName()
 
 	st.Lock()
-	err := Get(st, snapName, &SnapState{})
+	err := SetTaskSnapSetup(t, snapsup)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	err = Get(st, snapName, &SnapState{})
 	st.Unlock()
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -3632,9 +3642,16 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 		opts.MigratedToHidden = snapst.MigratedHidden
 	}
 
-	// it was migrated during this install (might not be in the state yet)
-	if snapsup != nil && snapsup.MigratedHidden {
-		opts.MigratedToHidden = true
+	// it was migrated during this change (might not be in the state yet)
+	if snapsup != nil {
+		if snapsup.MigratedHidden && snapsup.MigratedExposed {
+			// should never happen except for programmer error
+			return nil, fmt.Errorf("migration was done and reversed in same change without updating migration flags")
+		} else if snapsup.MigratedHidden {
+			opts.MigratedToHidden = true
+		} else if snapsup.MigratedExposed {
+			opts.MigratedToHidden = false
+		}
 	}
 
 	return opts, nil
