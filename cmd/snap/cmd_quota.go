@@ -350,6 +350,7 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 			fmt.Fprintf(w, "  allowed-cpus:\t%s\n", allowedCpus)
 		}
 	}
+	fmt.Fprintf(w, "  threads:\t%d\n", group.Constraints.Threads)
 
 	var memoryUsage string = "0B"
 	var currentThreads int = 0

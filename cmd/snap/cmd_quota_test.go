@@ -248,7 +248,8 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 name:    foo
 parent:  bar
 constraints:
-  memory:  1000B
+  memory:   1000B
+  threads:  0
 current:
   memory:   900B
   threads:  0
@@ -279,7 +280,8 @@ func (s *quotaSuite) TestGetMemoryQuotaGroupSimple(c *check.C) {
 	outputTemplate := `
 name:  foo
 constraints:
-  memory:  1000B
+  memory:   1000B
+  threads:  0
 current:
   memory:   %dB
   threads:  0
@@ -326,6 +328,7 @@ constraints:
   cpu-count:       1
   cpu-percentage:  50
   allowed-cpus:    0,1
+  threads:         32
 current:
   memory:   0B
   threads:  %d
