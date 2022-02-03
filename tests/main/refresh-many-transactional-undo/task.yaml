@@ -49,18 +49,13 @@ execute: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     init_fake_refreshes "$BLOB_DIR" "$GOOD_SNAP"
-    retry -n 4 --wait 0.5 test -e "$BLOB_DIR/${GOOD_SNAP}"*fake1*.snap
     init_fake_refreshes "$BLOB_DIR" "$BAD_SNAP"
-    retry -n 4 --wait 0.5 test -e "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
 
     echo "When a snap is broken"
     echo "i-am-broken-now" >> "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
 
-    echo "And a refresh is performed"
-    if snap refresh --transactional "$GOOD_SNAP" "$BAD_SNAP" ; then
-        echo "snap refresh should fail but it did not, test is broken"
-        exit 1
-    fi
+    echo "And a transactional refresh is tried and should fail"
+    not snap refresh --transactional "$GOOD_SNAP" "$BAD_SNAP"
 
     echo "Bad snap did not get updated"
     snap list | MATCH -E "${BAD_SNAP}" | NOMATCH "fake"

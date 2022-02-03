@@ -1,4 +1,4 @@
-summary: Check that more than one snap is refreshed.
+summary: Check transactional refresh of more than one snap.
 
 details: |
     We use only the fake store for this test because we currently
@@ -52,14 +52,12 @@ execute: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     init_fake_refreshes "$BLOB_DIR" test-snapd-tools
-    retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-tools*fake1*.snap
     init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
-    retry -n 4 --wait 0.5 test -e "$BLOB_DIR"/test-snapd-python-webserver*fake1*.snap
 
     echo "And a refresh is performed"
     snap refresh --transactional test-snapd-tools test-snapd-python-webserver
 
     echo "Then the new versions are installed"
-    for snap in test-snapd-tools test-snapd-python-webserver; do
-        snap list | MATCH "$snap .*fake1"
+    for name in test-snapd-tools test-snapd-python-webserver; do
+        snap list "$name" | MATCH "$name .*fake1"
     done
