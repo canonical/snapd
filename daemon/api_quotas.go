@@ -172,27 +172,10 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 }
 
 func quotaValuesToResources(values client.QuotaValues) quota.Resources {
-	var quotaResources quota.Resources
-	if values.Memory != 0 {
-		quotaResources.Memory = &quota.ResourceMemory{
-			Limit: values.Memory,
-		}
-	}
-
 	if values.Cpu != nil {
-		quotaResources.Cpu = &quota.ResourceCpu{
-			Count:       values.Cpu.Count,
-			Percentage:  values.Cpu.Percentage,
-			AllowedCpus: values.Cpu.AllowedCpus,
-		}
+		return quota.NewResources(values.Memory, values.Cpu.Count, values.Cpu.Percentage, values.Cpu.AllowedCpus, values.Threads)
 	}
-
-	if values.Threads != 0 {
-		quotaResources.Thread = &quota.ResourceThreads{
-			Limit: values.Threads,
-		}
-	}
-	return quotaResources
+	return quota.NewResources(values.Memory, 0, 0, nil, values.Threads)
 }
 
 // postQuotaGroup creates quota resource group or updates an existing group.
