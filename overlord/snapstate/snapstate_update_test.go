@@ -4551,7 +4551,6 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
 		TrackingChannel: "latest/stable",
 	})
 
-	// transactional == true
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap", "some-other-snap"}, 0,
 		&snapstate.Flags{Transactional: true})
@@ -4609,7 +4608,6 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionallyFails(c *C) {
 	})
 
 	chg := s.state.NewChange("refresh", "refresh some snaps")
-	// transactional == true
 	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap", "some-other-snap"}, 0,
 		&snapstate.Flags{Transactional: true})

@@ -4512,7 +4512,6 @@ epoch: 1
 		sideInfos = append(sideInfos, si)
 	}
 
-	// transactional == true
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
 		paths, 0, &snapstate.Flags{Transactional: true})
 	c.Assert(err, IsNil)
@@ -4561,23 +4560,13 @@ epoch: 1
 		sideInfos = append(sideInfos, &snap.SideInfo{RealName: name})
 	}
 
-	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
-		return errors.New("expected")
-	}, nil)
+	// make other-snap installation fail
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/other-snap/x1")
 
-	// transactional == true
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
 		paths, 0, &snapstate.Flags{Transactional: true})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
-
-	// fail installation of 'other-snap' which will affect 'some-snap'
-	failingTask := s.state.NewTask("fail", "expected failure")
-	snapThreeLanes := tss[1].Tasks()[0].Lanes()
-	for _, lane := range snapThreeLanes {
-		failingTask.JoinLane(lane)
-	}
-	tss[1].AddTask(failingTask)
 
 	chg := s.state.NewChange("install", "install local snaps")
 	for _, ts := range tss {

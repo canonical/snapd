@@ -1256,6 +1256,10 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		if err != nil {
 			return nil, nil, err
 		}
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
 		if flags.Transactional {
 			ts.JoinLane(transactionLane)
 		} else {
@@ -1516,6 +1520,10 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 			return nil, nil, err
 		}
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
 		if globalFlags.Transactional {
 			ts.JoinLane(transactionLane)
 		} else {
