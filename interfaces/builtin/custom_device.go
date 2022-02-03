@@ -277,8 +277,7 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	snippet := &bytes.Buffer{}
 	emitRule := func(paths []string, permissions string) {
 		for _, path := range paths {
-			pathPattern := strings.ReplaceAll(path, "*", "**")
-			fmt.Fprintf(snippet, "\"%s\" %s,\n", pathPattern, permissions)
+			fmt.Fprintf(snippet, "\"%s\" %s,\n", path, permissions)
 		}
 	}
 

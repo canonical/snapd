@@ -314,9 +314,9 @@ func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/event[0-9]" rw,`)
 	c.Check(plugSnippet, testutil.Contains, `"/dev/input/mice" rw,`)
-	c.Check(plugSnippet, testutil.Contains, `"/dev/js**" r,`)
+	c.Check(plugSnippet, testutil.Contains, `"/dev/js*" r,`)
 	c.Check(plugSnippet, testutil.Contains, `"/bar" rw,`)
-	c.Check(plugSnippet, testutil.Contains, `"/dev/input/by-id/**" r,`)
+	c.Check(plugSnippet, testutil.Contains, `"/dev/input/by-id/*" r,`)
 	c.Check(slotSnippet, HasLen, 0)
 }
 
