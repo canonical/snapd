@@ -32,18 +32,11 @@ var ErrQuotaNotFound = errors.New("quota not found")
 // AllQuotas returns all currently tracked quota groups in the state. They are
 // validated for consistency using ResolveCrossReferences before being returned.
 func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
-	if memoryCGroupError != nil {
-		return nil, memoryCGroupError
-	}
 	return internal.AllQuotas(st)
 }
 
 // GetQuota returns an individual quota group by name.
 func GetQuota(st *state.State, name string) (*quota.Group, error) {
-	if memoryCGroupError != nil {
-		return nil, memoryCGroupError
-	}
-
 	allGrps, err := internal.AllQuotas(st)
 	if err != nil {
 		return nil, err

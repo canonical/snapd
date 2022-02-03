@@ -30,8 +30,6 @@ var (
 	CheckSystemdVersion      = checkSystemdVersion
 	QuotaStateAlreadyUpdated = quotaStateAlreadyUpdated
 	ServiceControlTs         = serviceControlTs
-	CGroupsFilePath          = cgroupsFilePath
-	SetCGroupsFilePath       = setCGroupsFilePath
 )
 
 type QuotaStateUpdated = quotaStateUpdated
