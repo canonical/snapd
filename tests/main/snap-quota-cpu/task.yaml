@@ -31,7 +31,7 @@ execute: |
   # Bash cannot handle floating point numbers, so we multiple by 100 and use
   # integer numbers instead
   initialUsage=`top -b -n 2 -d 0.2 | head | grep "stress" | awk '{print $9*100}'`
-  if [ $initialUsage -lt 9000 ]; then
+  if [ "$initialUsage" -lt 9000 ]; then
     echo "Expected cpu usage to be atleast above 90%, got $initialUsage"
     exit 1
   fi
@@ -80,11 +80,11 @@ execute: |
     n=0
     until [ "$n" -ge 5 ]
     do
-      usage=`top -b -n 2 -d 0.2 | head | grep "$1" | awk '{print $9*100}'`
-      if [ $usage -lt $2 ]; then
+      usage=$(top -b -n 2 -d 0.2 | head | grep "$1" | awk '{print $9*100}')
+      if [ "$usage" -lt "$2" ]; then
         return 0
       fi
-      n=$((n+1)) 
+      n=$((n+1))
       sleep 1
     done
 
@@ -93,14 +93,14 @@ execute: |
   }
 
   echo "Verifying quota cpu usage, expecting around 50% usage"
-  # allow for up to 10% difference, this is neccessary due to how we measure
+  # allow for up to 10% difference, this is necessary due to how we measure
   ensure_cpu_usage_lower_than "stress" 6000
 
   echo "Update the quota to a lower percentage while running"
   snap set-quota group-one --cpu=20%
 
   echo "Verifying quota cpu usage, expecting around 20% usage"
-  # allow for up to 10% difference, this is neccessary due to how we measure
+  # allow for up to 10% difference, this is necessary due to how we measure
   ensure_cpu_usage_lower_than "stress" 3000
 
   echo "Removing the quota will stop the slice and the service will be restarted"
@@ -115,8 +115,8 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
   echo "Verifying cpu usage, expecting atleast above 90% again"
-  currentUsage=`top -b -n 2 -d 5.0 | head | grep "stress" | awk '{print $9*100}'`
-  if [ $currentUsage -lt 9000 ]; then
+  currentUsage=$(top -b -n 2 -d 5.0 | head | grep "stress" | awk '{print $9*100}')
+  if [ "$currentUsage" -lt 9000 ]; then
     echo "Expected cpu usage to be atleast above 90%, got $currentUsage"
     exit 1
   fi
