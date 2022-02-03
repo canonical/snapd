@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 )
@@ -93,4 +94,20 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 	// this is impossible to reach, we already checked that info.Volumes has a
 	// length of 1
 	panic("impossible logic error")
+}
+
+type ModelCharacteristics struct {
+	IsClassic  bool
+	SystemSeed bool
+}
+
+func (m *ModelCharacteristics) Classic() bool {
+	return m.IsClassic
+}
+
+func (m *ModelCharacteristics) Grade() asserts.ModelGrade {
+	if m.SystemSeed {
+		return asserts.ModelSigned
+	}
+	return asserts.ModelGradeUnset
 }

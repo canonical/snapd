@@ -157,6 +157,7 @@ selinux_get_enforce_mode(snappy_t)
 optional_policy(`
 	dbus_read_config(snappy_t)
 	allow snappy_t dbusd_etc_t:file { write create rename unlink };
+	allow snappy_t dbusd_etc_t:dir { add_name remove_name };
 	allow snappy_t dbusd_etc_t:lnk_file { read };
 ')
 
@@ -605,6 +606,12 @@ allow snappy_confine_t self:capability { setgid setuid sys_admin sys_chroot dac_
 # device cgroup program, however those bits can only be built on a sufficiently
 # recent system
 ifndef(`no_bpf',`
+  # memlock rlimit may need to be temporarily incresed when loading a BPF program
+  allow snappy_confine_t self:capability { sys_resource };
+  allow snappy_confine_t self:process { setrlimit };
+  # doing BPF things
+  allow snappy_confine_t self:capability2 { bpf perfmon };
+  # specifically these operations
   allow snappy_confine_t self:bpf { map_create map_read map_write prog_load prog_run };
   # snap-confine creates /sys/fs/bpf/snap directory and pings BPF maps inside
   fs_manage_bpf_dirs(snappy_confine_t)
@@ -625,6 +632,7 @@ dev_getattr_fs(snappy_confine_t)
 dev_getattr_sysfs_fs(snappy_confine_t)
 dev_list_sysfs(snappy_confine_t)
 dev_read_sysfs(snappy_confine_t)
+dev_getattr_all(snappy_confine_t)
 fs_getattr_cgroup(snappy_confine_t)
 fs_getattr_hugetlbfs(snappy_confine_t)
 fs_getattr_tmpfs(snappy_confine_t)

@@ -1169,3 +1169,22 @@ devices	10	135	1`)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, errExpected)
 }
+
+func (s *quotaControlSuite) TestUpdateQuotaModifyExistingMixable(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	err := mockMixedQuotaGroup(st, "mixed-grp", []string{"test-snap"})
+	c.Assert(err, IsNil)
+
+	// try to update a quota value, this must fail
+	_, err = servicestate.UpdateQuota(st, "mixed-grp", servicestate.QuotaGroupUpdate{
+		NewResourceLimits: quota.NewResources(quantity.SizeGiB * 2),
+	})
+	c.Assert(err, ErrorMatches, `quota group "mixed-grp" has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it`)
+}
