@@ -117,6 +117,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # Imagination PowerVR driver
 /dev/pvr_sync rw,
 
+# ARM Mali driver
+/dev/mali[0-9]* rw,
+/dev/dma_buf_te rw,
+
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
 /etc/OpenCL/vendors/** r,
@@ -127,6 +131,7 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # /sys/devices
 /sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/config r,
 /sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/revision r,
+/sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/boot_vga r,
 /sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}class r,
 /sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}device r,
 /sys/devices/{,*pcie-controller/}pci[0-9a-f]*/**/{,subsystem_}vendor r,
@@ -164,6 +169,8 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="tegra_dc_ctrl"`,
 	`KERNEL=="tegra_dc_[0-9]*"`,
 	`KERNEL=="pvr_sync"`,
+	`KERNEL=="mali[0-9]*"`,
+	`KERNEL=="dma_buf_te"`,
 }
 
 func init() {

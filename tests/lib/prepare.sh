@@ -579,18 +579,18 @@ uc20_build_initramfs_kernel_snap() {
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
         # also save the time before snap-bootstrap runs
         sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
-        {
-            echo "" 
-            echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
-            # also copy the time for the clock-epoch to system-data, this is 
-            # used by a specific test but doesn't hurt anything to do this for 
-            # all tests
-            echo "mode=\$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
-            echo "mode=\${mode##snapd_recovery_mode=}"
-            echo "stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/\${mode}-clock-epoch"
-            echo "echo \"\$beforeDate\" > /run/mnt/ubuntu-seed/\${mode}-before-snap-bootstrap-date"
-            echo "date --utc '+%s' > /run/mnt/ubuntu-seed/\${mode}-after-snap-bootstrap-date"
-        } >> "$skeletondir/main/usr/lib/the-tool"
+        cat >> "$skeletondir/main/usr/lib/the-tool" <<'EOF'
+        if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi
+        # also copy the time for the clock-epoch to system-data, this is
+        # used by a specific test but doesn't hurt anything to do this for
+        # all tests
+        mode=$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)
+        mode=${mode##snapd_recovery_mode=}
+        mkdir -p /run/mnt/ubuntu-seed/test
+        stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
+        echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
+        date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
+EOF
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
@@ -843,12 +843,26 @@ setup_reflash_magic() {
     UNPACK_DIR="/tmp/$core_name-snap"
     unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    # install ubuntu-image
-    snap install --classic --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" ubuntu-image
+    if os.query is-core16; then
+        # the new ubuntu-image expects mkfs to support -d option, which was not
+        # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+    else
+        # on all other systems, build a custom version ubuntu-image with test
+        # keys
+        (
+            #shellcheck disable=SC2030
+            export GO111MODULE=off
+            # use go get so that ubuntu-image is built with current snapd sources
+            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+        )
+    fi
 
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
     IMAGE_HOME=/home/image
+    IMAGE=pc.img
     mkdir -p "$IMAGE_HOME"
 
     # ensure that ubuntu-image is using our test-build of snapd with the
@@ -862,11 +876,9 @@ setup_reflash_magic() {
         repack_snapd_snap_with_deb_content "$IMAGE_HOME"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
-        IMAGE=core18-amd64.img
     elif os.query is-core20; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
-        IMAGE=core20-amd64.img
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -902,9 +914,6 @@ EOF
 
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/pc-${REMOTE_STORE}.model" "$IMAGE_HOME/pc.model"
-
-        # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
-        IMAGE=all-snap-amd64.img
     fi
 
     EXTRA_FUNDAMENTAL=
@@ -917,7 +926,7 @@ EOF
         # need to download it
         snap download --channel="$KERNEL_CHANNEL" pc-kernel
 
-        EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+        EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
@@ -927,7 +936,53 @@ EOF
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
         uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        EXTRA_FUNDAMENTAL="--extra-snaps $IMAGE_HOME/pc-kernel_*.snap"
+        EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
+
+        # also add debug command line parameters to the kernel command line via
+        # the gadget in case things go side ways and we need to debug
+        snap download --basename=pc --channel="20/$GADGET_CHANNEL" pc
+        test -e pc.snap
+        unsquashfs -d pc-gadget pc.snap
+        
+        # TODO: it would be desirable when we need to do in-depth debugging of
+        # UC20 runs in google to have snapd.debug=1 always on the kernel command
+        # line, but we can't do this universally because the logic for the env
+        # variable SNAPD_DEBUG=0|false does not overwrite the turning on of 
+        # debug messages in some places when the kernel command line is set, so
+        # we get failing tests since there is extra stuff on stderr than 
+        # expected in the test when SNAPD_DEBUG is turned off
+        # so for now, don't include snapd.debug=1, but eventually it would be
+        # nice to have this on
+
+        if [ "$SPREAD_BACKEND" = "google" ]; then
+            # the default console settings for snapd aren't super useful in GCE,
+            # instead it's more useful to have all console go to ttyS0 which we 
+            # can read more easily than tty1 for example
+            for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1"; do
+                echo "$cmd" >> pc-gadget/cmdline.full
+            done
+        else
+            # but for other backends, just add the additional debugging things
+            # on top of whatever the gadget currently is configured to use
+            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1"; do
+                echo "$cmd" >> pc-gadget/cmdline.extra
+            done
+        fi
+
+        # TODO: this probably means it's time to move this helper out of 
+        # nested.sh to somewhere more general
+        
+        #shellcheck source=tests/lib/nested.sh
+        . "$TESTSLIB/nested.sh"
+        KEY_NAME=$(nested_get_snakeoil_key)
+
+        SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+        SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+        nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+        snap pack --filename=pc-repacked.snap pc-gadget 
+        mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
     fi
 
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
@@ -961,6 +1016,12 @@ EOF
         # confuse spread and make tests fail in awkward, confusing ways), we
         # unpack the snap and re-pack it so that it is not asserted and thus 
         # won't be automatically refreshed
+        # note that this means that when $IMAGE_CHANNEL != $BASE_CHANNEL, we
+        # will have unasserted snaps for all snaps on UC20 in GCE spread:
+        # * snapd (to test the branch)
+        # * pc-kernel (to test snap-bootstrap from the branch)
+        # * pc (to aid in debugging by modifying the kernel command line)
+        # * core20 (to avoid the automatic refresh issue)
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
             unsquashfs -d core20-snap core20.snap
             snap pack --filename=core20-repacked.snap core20-snap
@@ -972,13 +1033,18 @@ EOF
         
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20.snap"
     fi
-
-    /snap/bin/ubuntu-image snap \
-                           -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
-                           --channel "$IMAGE_CHANNEL" \
-                           "$EXTRA_FUNDAMENTAL" \
-                           --extra-snaps "${extra_snap[0]}" \
-                           --output "$IMAGE_HOME/$IMAGE"
+    local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
+    if os.query is-core16; then
+        # ubuntu-image on 16.04 needs to be installed from a snap
+        UBUNTU_IMAGE=/snap/bin/ubuntu-image
+    fi
+    # shellcheck disable=SC2086
+    "$UBUNTU_IMAGE" snap \
+                    -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
+                    --channel "$IMAGE_CHANNEL" \
+                    $EXTRA_FUNDAMENTAL \
+                    --snap "${extra_snap[0]}" \
+                    --output-dir "$IMAGE_HOME"
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
 
     if os.query is-core20; then
@@ -1022,13 +1088,13 @@ EOF
     # mount it so we can use it now
     mount "/dev/mapper/${dev}p${LOOP_PARTITION}" /mnt
 
-    mkdir -p /mnt/user-data/
     # copy over everything from gopath to user-data, exclude:
     # - VCS files
     # - built debs
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
     if os.query is-core16 || os.query is-core18; then
+        mkdir -p /mnt/user-data/
         # we need to include "core" here because -C option says to ignore 
         # files the way CVS(?!) does, so it ignores files named "core" which
         # are core dumps, but we have a test suite named "core", so including 
@@ -1228,6 +1294,10 @@ prepare_ubuntu_core() {
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
+
+        # important to remove disabled snaps before calling save_snapd_state
+        # or restore will break
+        remove_disabled_snaps
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

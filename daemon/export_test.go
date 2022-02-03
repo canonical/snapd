@@ -171,7 +171,7 @@ func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision
 	}
 }
 
-func MockSnapstateInstallMany(mock func(*state.State, []string, int) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallMany(mock func(*state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateInstallMany := snapstateInstallMany
 	snapstateInstallMany = mock
 	return func() {
@@ -192,6 +192,14 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 	snapstateRemoveMany = mock
 	return func() {
 		snapstateRemoveMany = oldSnapstateRemoveMany
+	}
+}
+
+func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.SideInfo, []string, int, *snapstate.Flags) ([]*state.TaskSet, error)) func() {
+	old := snapstateInstallPathMany
+	snapstateInstallPathMany = f
+	return func() {
+		snapstateInstallPathMany = old
 	}
 }
 
@@ -229,4 +237,6 @@ var (
 
 	MakeErrorResponder = makeErrorResponder
 	ErrToResponse      = errToResponse
+
+	MaxReadBuflen = maxReadBuflen
 )

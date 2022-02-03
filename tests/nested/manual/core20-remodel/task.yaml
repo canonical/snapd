@@ -23,6 +23,9 @@ execute: |
     # conflict with an existing system label
     label_base=$(tests.nested exec "date '+%Y%m%d'")
 
+    # wait until device is initialized and has a serial
+    nested_wait_for_device_initialized_change
+
     echo "Refresh model assertion to revision 2"
     nested_copy "$TESTSLIB/assertions/valid-for-testing-pc-revno-2-20.model"
     REMOTE_CHG_ID="$(tests.nested exec sudo snap remodel --no-wait valid-for-testing-pc-revno-2-20.model)"

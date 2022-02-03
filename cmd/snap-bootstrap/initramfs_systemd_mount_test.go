@@ -22,6 +22,7 @@ package main_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -161,6 +162,16 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			isMountedReturns: []bool{true},
 			comment:          "happy nosuid+bind",
 		},
+		{
+			what:  "/run/mnt/data/some.snap",
+			where: "/run/mnt/base",
+			opts: &main.SystemdMountOptions{
+				ReadOnly: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy ro",
+		},
 	}
 
 	for _, t := range tt {
@@ -221,6 +232,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 		} else {
 			c.Assert(err, IsNil)
 
+			c.Assert(len(cmd.Calls()), Equals, 1)
+			call := cmd.Calls()[0]
 			args := []string{
 				"systemd-mount", t.what, t.where, "--no-pager", "--no-ask-password",
 			}
@@ -235,15 +248,30 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			if opts.NoWait {
 				args = append(args, "--no-block")
 			}
-			if opts.Bind && opts.NoSuid {
-				args = append(args, "--options=nosuid,bind")
-			} else if opts.NoSuid {
-				args = append(args, "--options=nosuid")
-			} else if opts.Bind {
-				args = append(args, "--options=bind")
+			c.Assert(call[:len(args)], DeepEquals, args)
+			foundNoSuid := false
+			foundBind := false
+			foundReadOnly := false
+			if len(call) != len(args) {
+				c.Assert(len(call), Equals, len(args)+1)
+				c.Assert(strings.HasPrefix(call[len(args)], "--options="), Equals, true)
+				for _, opt := range strings.Split(strings.TrimPrefix(call[len(args)], "--options="), ",") {
+					switch opt {
+					case "nosuid":
+						foundNoSuid = true
+					case "bind":
+						foundBind = true
+					case "ro":
+						foundReadOnly = true
+					default:
+						c.Logf("Option '%s' unexpected", opt)
+						c.Fail()
+					}
+				}
 			}
-
-			c.Assert(cmd.Calls(), DeepEquals, [][]string{args})
+			c.Assert(foundNoSuid, Equals, opts.NoSuid)
+			c.Assert(foundBind, Equals, opts.Bind)
+			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true

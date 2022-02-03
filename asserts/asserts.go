@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -78,20 +78,21 @@ func (at *AssertionType) SequenceForming() bool {
 
 // Understood assertion types.
 var (
-	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
-	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
-	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, sequenceForming}
-	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
-	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
-	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
-	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
-	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
-	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
-	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
-	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, sequenceForming}
-	StoreType           = &AssertionType{"store", []string{"store"}, assembleStore, 0}
+	AccountType             = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
+	AccountKeyType          = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
+	RepairType              = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, sequenceForming}
+	ModelType               = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
+	SerialType              = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
+	BaseDeclarationType     = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
+	SnapDeclarationType     = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
+	SnapBuildType           = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
+	SnapRevisionType        = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
+	SnapDeveloperType       = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
+	SystemUserType          = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
+	ValidationType          = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
+	ValidationSetType       = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, sequenceForming}
+	StoreType               = &AssertionType{"store", []string{"store"}, assembleStore, 0}
+	AuthorityDelegationType = &AssertionType{"authority-delegation", []string{"account-id", "delegate-id"}, assembleAuthorityDelegation, 0}
 
 // ...
 )
@@ -150,10 +151,14 @@ func init() {
 	// 2: support for $SLOT()/$PLUG()/$MISSING
 	// 3: support for on-store/on-brand/on-model device scope constraints
 	// 4: support for plug-names/slot-names constraints
-	maxSupportedFormat[SnapDeclarationType.Name] = 4
+	// 5: alt attr matcher usage (was unused before, has new behavior now)
+	maxSupportedFormat[SnapDeclarationType.Name] = 5
 
 	// 1: support to limit to device serials
 	maxSupportedFormat[SystemUserType.Name] = 1
+
+	// done here to untangle initialization loop via Type()
+	typeRegistry[AuthorityDelegationType.Name] = AuthorityDelegationType
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {

@@ -241,25 +241,3 @@ func ParseRawExpandableEnv(entries []string) (ExpandableEnv, error) {
 	}
 	return ExpandableEnv{OrderedMap: om}, nil
 }
-
-// this is weird to use in a test, but it is so that we can test the actual
-// implementation of LoadMountInfo, which normally panics during tests if not
-// properly mocked
-func MountInfoMustMock(new bool) (restore func()) {
-	old := mountInfoMustMockInTests
-	mountInfoMustMockInTests = new
-	return func() {
-		mountInfoMustMockInTests = old
-	}
-}
-
-// this should not be used except to test the actual implementation logic of
-// LoadMountInfo, if you are trying to mock /proc/self/mountinfo in a test,
-// use MockMountInfo(), which is exported and the right way to do that.
-func MockProcSelfMountInfoLocation(new string) (restore func()) {
-	old := procSelfMountInfo
-	procSelfMountInfo = new
-	return func() {
-		procSelfMountInfo = old
-	}
-}

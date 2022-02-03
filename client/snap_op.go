@@ -44,6 +44,7 @@ type SnapOptions struct {
 	Unaliased        bool   `json:"unaliased,omitempty"`
 	Purge            bool   `json:"purge,omitempty"`
 	Amend            bool   `json:"amend,omitempty"`
+	Transactional    bool   `json:"transactional,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -55,18 +56,14 @@ func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
 	return mw.WriteField(key, "true")
 }
 
-func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
-	fields := []struct {
-		f string
-		b bool
-	}{
-		{"devmode", opts.DevMode},
-		{"classic", opts.Classic},
-		{"jailmode", opts.JailMode},
-		{"dangerous", opts.Dangerous},
-	}
-	for _, o := range fields {
-		if err := writeFieldBool(mw, o.f, o.b); err != nil {
+type field struct {
+	field string
+	value bool
+}
+
+func writeFields(mw *multipart.Writer, fields []field) error {
+	for _, fd := range fields {
+		if err := writeFieldBool(mw, fd.field, fd.value); err != nil {
 			return err
 		}
 	}
@@ -74,11 +71,23 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 	return nil
 }
 
-func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
-	if err := writeFieldBool(mw, "ignore-running", opts.IgnoreRunning); err != nil {
-		return err
+func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
+	fields := []field{
+		{"devmode", opts.DevMode},
+		{"classic", opts.Classic},
+		{"jailmode", opts.JailMode},
+		{"dangerous", opts.Dangerous},
 	}
-	return writeFieldBool(mw, "unaliased", opts.Unaliased)
+	return writeFields(mw, fields)
+}
+
+func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
+	fields := []field{
+		{"ignore-running", opts.IgnoreRunning},
+		{"unaliased", opts.Unaliased},
+		{"transactional", opts.Transactional},
+	}
+	return writeFields(mw, fields)
 }
 
 type actionData struct {
@@ -89,9 +98,10 @@ type actionData struct {
 }
 
 type multiActionData struct {
-	Action string   `json:"action"`
-	Snaps  []string `json:"snaps,omitempty"`
-	Users  []string `json:"users,omitempty"`
+	Action        string   `json:"action"`
+	Snaps         []string `json:"snaps,omitempty"`
+	Users         []string `json:"users,omitempty"`
+	Transactional bool     `json:"transactional,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -183,9 +193,6 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 }
 
 func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
-	if options != nil {
-		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
-	}
 	_, changeID, err = client.doMultiSnapActionFull(actionName, snaps, options)
 
 	return changeID, err
@@ -197,8 +204,11 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		Snaps:  snaps,
 	}
 	if options != nil {
+		// TODO: consider returning error when options.Dangerous is set
 		action.Users = options.Users
+		action.Transactional = options.Transactional
 	}
+
 	data, err := json.Marshal(&action)
 	if err != nil {
 		return nil, "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
@@ -216,7 +226,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("cannot open: %q", path)
+		return "", fmt.Errorf("cannot open %q: %w", path, err)
 	}
 
 	action := actionData{
@@ -226,15 +236,43 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 		SnapOptions: options,
 	}
 
+	return client.sendLocalSnaps([]string{path}, []*os.File{f}, action)
+}
+
+// InstallPathMany sideloads the snaps with the given paths,
+// returning the UUID of the background operation upon success.
+func (client *Client) InstallPathMany(paths []string, options *SnapOptions) (changeID string, err error) {
+	action := actionData{
+		Action:      "install",
+		SnapOptions: options,
+	}
+
+	var files []*os.File
+	for _, path := range paths {
+		f, err := os.Open(path)
+		if err != nil {
+			for _, openFile := range files {
+				openFile.Close()
+			}
+			return "", fmt.Errorf("cannot open %q: %w", path, err)
+		}
+
+		files = append(files, f)
+	}
+
+	return client.sendLocalSnaps(paths, files, action)
+}
+
+func (client *Client) sendLocalSnaps(paths []string, files []*os.File, action actionData) (string, error) {
 	pr, pw := io.Pipe()
 	mw := multipart.NewWriter(pw)
-	go sendSnapFile(path, f, pw, mw, &action)
+	go sendSnapFiles(paths, files, pw, mw, &action)
 
 	headers := map[string]string{
 		"Content-Type": mw.FormDataContentType(),
 	}
 
-	_, changeID, err = client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
+	_, changeID, err := client.doAsyncFull("POST", "/v2/snaps", nil, headers, pr, doNoTimeoutAndRetry)
 	return changeID, err
 }
 
@@ -261,21 +299,30 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	return client.doAsync("POST", "/v2/snaps", nil, headers, buf)
 }
 
-func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
-	defer snapFile.Close()
+func sendSnapFiles(paths []string, files []*os.File, pw *io.PipeWriter, mw *multipart.Writer, action *actionData) {
+	defer func() {
+		for _, f := range files {
+			f.Close()
+		}
+	}()
 
 	if action.SnapOptions == nil {
 		action.SnapOptions = &SnapOptions{}
 	}
-	fields := []struct {
+
+	type field struct {
 		name  string
 		value string
-	}{
-		{"action", action.Action},
-		{"name", action.Name},
-		{"snap-path", action.SnapPath},
-		{"channel", action.Channel},
 	}
+
+	fields := []field{{"action", action.Action}}
+	if len(paths) == 1 {
+		fields = append(fields, []field{
+			{"name", action.Name},
+			{"snap-path", action.SnapPath},
+			{"channel", action.Channel}}...)
+	}
+
 	for _, s := range fields {
 		if s.value == "" {
 			continue
@@ -296,16 +343,19 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		return
 	}
 
-	fw, err := mw.CreateFormFile("snap", filepath.Base(snapPath))
-	if err != nil {
-		pw.CloseWithError(err)
-		return
-	}
+	for i, file := range files {
+		path := paths[i]
+		fw, err := mw.CreateFormFile("snap", filepath.Base(path))
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
 
-	_, err = io.Copy(fw, snapFile)
-	if err != nil {
-		pw.CloseWithError(err)
-		return
+		_, err = io.Copy(fw, file)
+		if err != nil {
+			pw.CloseWithError(err)
+			return
+		}
 	}
 
 	mw.Close()

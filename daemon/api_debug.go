@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -267,6 +269,24 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 	return SyncResponse(responseData)
 }
 
+func getDisks(st *state.State) Response {
+
+	disks, err := disks.AllPhysicalDisks()
+	if err != nil {
+		return InternalError("cannot get all physical disks: %v", err)
+	}
+	vols := make([]*gadget.OnDiskVolume, 0, len(disks))
+	for _, d := range disks {
+		vol, err := gadget.OnDiskVolumeFromDisk(d)
+		if err != nil {
+			return InternalError("cannot get on disk volume for device %s: %v", d.KernelDeviceNode(), err)
+		}
+		vols = append(vols, vol)
+	}
+
+	return SyncResponse(vols)
+}
+
 func createRecovery(st *state.State, label string) Response {
 	if label == "" {
 		return BadRequest("cannot create a recovery system with no label")
@@ -307,6 +327,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getChangeTimings(st, chgID, ensureTag, startupTag, all == "true")
 	case "seeding":
 		return getSeedingInfo(st)
+	case "disks":
+		return getDisks(st)
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}

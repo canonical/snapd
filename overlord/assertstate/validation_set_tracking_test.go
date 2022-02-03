@@ -133,12 +133,13 @@ func (s *validationSetTrackingSuite) TestUpdate(c *C) {
 	c.Check(gotSecond, Equals, true)
 }
 
-func (s *validationSetTrackingSuite) TestDelete(c *C) {
+// there is a more extensive test for forget in assertstate_test.go.
+func (s *validationSetTrackingSuite) TestForget(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	// delete non-existing one is fine
-	assertstate.DeleteValidationSet(s.st, "foo", "bar")
+	assertstate.ForgetValidationSet(s.st, "foo", "bar")
 	all, err := assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
@@ -154,8 +155,8 @@ func (s *validationSetTrackingSuite) TestDelete(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 1)
 
-	// deletes existing one
-	assertstate.DeleteValidationSet(s.st, "foo", "bar")
+	// forget existing one
+	assertstate.ForgetValidationSet(s.st, "foo", "bar")
 	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
@@ -406,5 +407,58 @@ func (s *validationSetTrackingSuite) TestAddToValidationSetsHistoryRemovesOldEnt
 				Current:   6,
 			},
 		},
+	})
+}
+
+func (s *validationSetTrackingSuite) TestRestoreValidationSetsTrackingNoHistory(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), Equals, state.ErrNoState)
+}
+
+func (s *validationSetTrackingSuite) TestRestoreValidationSetsTracking(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tr1 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  1,
+		Current:   2,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr1)
+
+	c.Assert(assertstate.AddCurrentTrackingToValidationSetsHistory(s.st), IsNil)
+
+	all, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(all, HasLen, 1)
+
+	tr2 := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "baz",
+		Mode:      assertstate.Enforce,
+		Current:   5,
+	}
+	assertstate.UpdateValidationSet(s.st, &tr2)
+
+	all, err = assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	// two validation sets are now tracked
+	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": &tr1,
+		"foo/baz": &tr2,
+	})
+
+	// restore
+	c.Assert(assertstate.RestoreValidationSetsTracking(s.st), IsNil)
+
+	// and we're back at one validation set being tracked
+	all, err = assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Check(all, DeepEquals, map[string]*assertstate.ValidationSetTracking{
+		"foo/bar": &tr1,
 	})
 }

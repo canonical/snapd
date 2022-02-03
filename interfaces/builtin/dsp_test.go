@@ -98,7 +98,7 @@ func (s *dspSuite) TestApparmorConnectedPlugAmbarella(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.ambarellaSlot)
 	c.Assert(err, IsNil)
-	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/proc/ambarella/vin[0-9]_idsp rw,\n")
+	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/proc/ambarella/vin[0-9]_idsp r,\n")
 }
 
 func (s *dspSuite) TestUDevConnectedPlugAmbarella(c *C) {

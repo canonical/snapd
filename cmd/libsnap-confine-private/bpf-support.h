@@ -19,6 +19,7 @@
 #define SNAP_CONFINE_BPF_SUPPORT_H
 
 #include <linux/bpf.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 /**
@@ -81,5 +82,15 @@ int bpf_map_delete_batch(int map_fd, const void *keys, size_t cnt);
  * and ENOENT when the element did not exist.
  */
 int bpf_map_delete_elem(int map_fd, const void *key);
+
+/**
+ * bpf_path_is_bpffs returns true when given path is a bpffs filesystem.
+ */
+bool bpf_path_is_bpffs(const char *path);
+
+/**
+ * bpf_mount_bpffs mounts a bpf filesystem at a given path.
+ */
+void bpf_mount_bpffs(const char *path);
 
 #endif /* SNAP_CONFINE_BPF_SUPPORT_H */

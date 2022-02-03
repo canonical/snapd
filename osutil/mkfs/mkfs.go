@@ -106,6 +106,12 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	var cmd *exec.Cmd
 	if os.Geteuid() != 0 {
 		// run through fakeroot so that files are owned by root
+		fakerootLib := os.Getenv("FAKEROOT_LIB")
+		if fakerootLib != "" {
+			// When executing fakeroot from a classic confinement snap the location of
+			// libfakeroot must be specified, or else it will be loaded from the host system
+			mkfsArgs = append([]string{"--lib", fakerootLib, "--"}, mkfsArgs...)
+		}
 		cmd = exec.Command("fakeroot", mkfsArgs...)
 	} else {
 		// no need to fake it if we're already root

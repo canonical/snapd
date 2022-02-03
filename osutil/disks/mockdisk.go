@@ -211,10 +211,10 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check major/minors across all structures
-	type majmin struct{ maj, min int }
-	seenMajorMinors := map[majmin]bool{}
+	// check major/minors across each disk
 	for _, disk := range mockedDisks {
+		type majmin struct{ maj, min int }
+		seenMajorMinors := map[majmin]bool{}
 		for _, p := range disk.Structure {
 			if p.Major == 0 && p.Minor == 0 {
 				continue
@@ -228,9 +228,24 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check device paths across all structures
-	seenDevPaths := map[string]bool{}
+	// check DiskIndex across each disk
 	for _, disk := range mockedDisks {
+		seenIndices := map[uint64]bool{}
+		for _, p := range disk.Structure {
+			if p.DiskIndex == 0 {
+				continue
+			}
+
+			if seenIndices[p.DiskIndex] {
+				panic("mock error: duplicated structure indices for partitions in disk mapping")
+			}
+			seenIndices[p.DiskIndex] = true
+		}
+	}
+
+	// check device paths across each disk
+	for _, disk := range mockedDisks {
+		seenDevPaths := map[string]bool{}
 		for _, p := range disk.Structure {
 			if p.KernelDevicePath == "" {
 				continue
@@ -242,23 +257,47 @@ func checkMockDiskMappingsForDuplicates(mockedDisks map[string]*MockDiskMapping)
 		}
 	}
 
-	// check device nodes across all structures
-	seendDevNodes := map[string]bool{}
+	// check device nodes across each disk
 	for _, disk := range mockedDisks {
+		sendDevNodes := map[string]bool{}
 		for _, p := range disk.Structure {
 			if p.KernelDevicePath == "" {
 				continue
 			}
 
-			if seendDevNodes[p.KernelDeviceNode] {
+			if sendDevNodes[p.KernelDeviceNode] {
 				panic("mock error: duplicated kernel device nodes for partitions in disk mapping")
 			}
-			seendDevNodes[p.KernelDeviceNode] = true
+			sendDevNodes[p.KernelDeviceNode] = true
 		}
 	}
 
 	// no checking of filesystem label/uuid since those could be duplicated as
 	// they exist independent of any other structure
+}
+
+// MockPartitionDeviceNodeToDiskMapping will mock DiskFromPartitionDeviceNode
+// such that the provided map of device names to mock disks is used instead of
+// the actual implementation using udev.
+func MockPartitionDeviceNodeToDiskMapping(mockedDisks map[string]*MockDiskMapping) (restore func()) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	checkMockDiskMappingsForDuplicates(mockedDisks)
+
+	// note that there can be multiple partitions that map to the same disk, so
+	// we don't really validate the keys of the provided mapping
+
+	old := diskFromPartitionDeviceNode
+	diskFromPartitionDeviceNode = func(node string) (Disk, error) {
+		disk, ok := mockedDisks[node]
+		if !ok {
+			return nil, fmt.Errorf("partition device node %q not mocked", node)
+		}
+		return disk, nil
+	}
+	return func() {
+		diskFromPartitionDeviceNode = old
+	}
 }
 
 // MockDeviceNameToDiskMapping will mock DiskFromDeviceName such that the
@@ -269,9 +308,9 @@ func MockDeviceNameToDiskMapping(mockedDisks map[string]*MockDiskMapping) (resto
 
 	checkMockDiskMappingsForDuplicates(mockedDisks)
 
-	// note that devices can have multiple "names" that are recognized by
+	// note that devices can have multiple names that are recognized by
 	// udev/kernel, so we don't do any validation of the mapping here like we do
-	// for MockMountPointDisksToPartitionMapping and MockDevicePathDisksToPartitionMapping
+	// for MockMountPointDisksToPartitionMapping
 
 	old := diskFromDeviceName
 	diskFromDeviceName = func(deviceName string) (Disk, error) {
@@ -284,6 +323,32 @@ func MockDeviceNameToDiskMapping(mockedDisks map[string]*MockDiskMapping) (resto
 
 	return func() {
 		diskFromDeviceName = old
+	}
+}
+
+// MockDevicePathToDiskMapping will mock DiskFromDevicePath such that the
+// provided map of device names to mock disks is used instead of the actual
+// implementation using udev.
+func MockDevicePathToDiskMapping(mockedDisks map[string]*MockDiskMapping) (restore func()) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	checkMockDiskMappingsForDuplicates(mockedDisks)
+
+	// note that devices can have multiple paths that are recognized by
+	// udev/kernel, so we don't do any validation of the mapping here like we do
+	// for MockMountPointDisksToPartitionMapping
+
+	old := diskFromDevicePath
+	diskFromDevicePath = func(devicePath string) (Disk, error) {
+		disk, ok := mockedDisks[devicePath]
+		if !ok {
+			return nil, fmt.Errorf("device path %q not mocked", devicePath)
+		}
+		return disk, nil
+	}
+
+	return func() {
+		diskFromDevicePath = old
 	}
 }
 

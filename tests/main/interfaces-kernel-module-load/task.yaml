@@ -1,0 +1,55 @@
+summary: Ensure that the kernel-module-load interface works.
+
+details: |
+    The kernel-module-load interface allows to statically control kernel module
+    loading in a way that can be constrained via snap-declaration.
+
+environment:
+    SNAP_NAME: test-snapd-kernel-module-load
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local $SNAP_NAME
+
+restore: |
+    echo "Ensure snap is removed even if something goes wrong"
+    snap remove "$SNAP_NAME"
+
+execute: |
+    echo "When the interface is connected"
+    snap connect "$SNAP_NAME:kernel-module-load"
+
+    echo "Then the kernel modules are configured"
+    MODPROBE_CONF="/etc/modprobe.d/snap.$SNAP_NAME.conf"
+    MATCH "blacklist mymodule" < "$MODPROBE_CONF"
+    MATCH "blacklist other_module" < "$MODPROBE_CONF"
+    MATCH "options bfq slice_idle_us=20 strict_guarantees=1" < "$MODPROBE_CONF"
+    NOMATCH "blacklist bfq" < "$MODPROBE_CONF"
+    NOMATCH "pcspkr" < "$MODPROBE_CONF"
+
+    echo "And modules are configured to be auto-loaded"
+    MODULES_LOAD_CONF="/etc/modules-load.d/snap.$SNAP_NAME.conf"
+    MATCH "bfq" < "$MODULES_LOAD_CONF"
+    MATCH "arc4" < "$MODULES_LOAD_CONF"
+    NOMATCH "mymodule" < "$MODULES_LOAD_CONF"
+
+    echo "Disconnect the interface"
+    snap disconnect "$SNAP_NAME:kernel-module-load"
+
+    echo "and verify that module configuration files are gone"
+    test ! -f "$MODPROBE_CONF"
+    test ! -f "$MODULES_LOAD_CONF"
+
+    # Now we want to verify that removing the snap does not leave any leftovers
+    echo "Reconnect the interface"
+    snap connect "$SNAP_NAME:kernel-module-load"
+
+    echo "Configuration files have been recreated"
+    test -f "$MODPROBE_CONF"
+    test -f "$MODULES_LOAD_CONF"
+
+    echo "Uninstall the snap"
+    snap remove "$SNAP_NAME"
+
+    echo "verify that module configuration files are gone"
+    test ! -f "$MODPROBE_CONF"
+    test ! -f "$MODULES_LOAD_CONF"

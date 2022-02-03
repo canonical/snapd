@@ -68,7 +68,7 @@ capability sys_admin,
 
 # For {mbim,qmi}-proxy
 unix (bind, listen) type=stream addr="@{mbim,qmi}-proxy",
-/sys/devices/**/usb**/{descriptors,manufacturer,product,bInterfaceClass,bInterfaceSubClass,bInterfaceProtocol,bInterfaceNumber} r,
+/sys/devices/**/usb**/{descriptors,manufacturer,product,bInterfaceClass,bInterfaceSubClass,bInterfaceProtocol,bInterfaceNumber,idProduct,idVendor,bcdDevice,interface} r,
 # See https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-net-qmi
 /sys/devices/**/net/*/qmi/* rw,
 # PCIe modems
