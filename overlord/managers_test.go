@@ -1601,10 +1601,10 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	}
 
 	// now add some more snap revisions
-	revno := fmt.Sprint(2)
+	revno := "2"
 	for _, name := range snapNames {
 		snapPath, _ := s.makeStoreTestSnap(c,
-			fmt.Sprintf("{name: %s, version: 0}", name), revno)
+			fmt.Sprintf("{name: %s, version: 1}", name), revno)
 		s.serveSnap(snapPath, revno)
 	}
 
@@ -1686,10 +1686,10 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	}
 
 	// now add some more snap revisions
-	revno := fmt.Sprint(2)
+	revno := "2"
 	for _, name := range snapNames {
 		snapPath, _ := s.makeStoreTestSnap(c,
-			fmt.Sprintf("{name: %s, version: 0}", name), revno)
+			fmt.Sprintf("{name: %s, version: 1}", name), revno)
 		s.serveSnap(snapPath, revno)
 	}
 
