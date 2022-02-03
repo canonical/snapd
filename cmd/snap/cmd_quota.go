@@ -131,8 +131,8 @@ func parseCpuQuota(cpuMax string) (int, int, error) {
 	}
 
 	// Detect whether format was NxM% or M%
-	if len(match) == 2 {
-		percentage, err := strconv.Atoi(match[1])
+	if len(match[1]) == 0 {
+		percentage, err := strconv.Atoi(match[2])
 		if err != nil || percentage == 0 {
 			return 0, 0, fmt.Errorf("invalid cpu quota value specified for --cpu")
 		}
