@@ -30,7 +30,7 @@ execute: |
   echo "Verifying cpu usage, expecting atleast above 90%"
   # Bash cannot handle floating point numbers, so we multiple by 100 and use
   # integer numbers instead
-  initialUsage=`top -b -n 2 -d 0.2 | head | grep "stress" | awk '{print $9*100}'`
+  initialUsage=$(top -b -n 2 -d 0.2 | head | grep "stress" | awk '{print $9*100}')
   if [ "$initialUsage" -lt 9000 ]; then
     echo "Expected cpu usage to be atleast above 90%, got $initialUsage"
     exit 1
