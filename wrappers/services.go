@@ -221,7 +221,6 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	// caller; before batched calls were introduced, the sockets and timers
 	// were started first, followed by other non-activated services
 
-	// first, gather all socket and timer units
 	startService := func(svc string, scope snap.DaemonScope) {
 		switch scope {
 		case snap.SystemDaemon:
@@ -238,6 +237,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			toEnableUser = append(toEnableUser, svc)
 		}
 	}
+	// first, gather all socket and timer units
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
@@ -259,7 +259,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			enableService(timerService, app.DaemonScope)
 		}
 	}
-	// not collect all services
+	// now collect all services
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
@@ -293,6 +293,8 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 
 	timings.Run(tm, "start-services", "start services", func(nested timings.Measurer) {
 		for _, srv := range systemServices {
+			// let the cleanup know some services may have been started
+			servicesStarted = true
 			// starting all services at once does not create a
 			// single transaction, but instead spawns multiple jobs,
 			// make sure the services started in the original order
@@ -307,9 +309,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}
 	})
-	// let the cleanup know some services may have been started
-	servicesStarted = true
-	if err != nil {
+	if servicesStarted && err != nil {
 		// cleanup is handled in a defer
 		return err
 	}
@@ -806,7 +806,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	var removedSystem, removedUser bool
 	systemUnits := []string{}
 	userUnits := []string{}
-	systemUnitsFiles := []string{}
+	systemUnitFiles := []string{}
 
 	// collect list of system units to disable and remove
 	for _, app := range s.Apps {
@@ -832,7 +832,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			case snap.UserDaemon:
 				userUnits = append(userUnits, socketServiceName)
 			}
-			systemUnitsFiles = append(systemUnitsFiles, path)
+			systemUnitFiles = append(systemUnitFiles, path)
 		}
 
 		if app.Timer != nil {
@@ -846,7 +846,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 			case snap.UserDaemon:
 				userUnits = append(userUnits, timerName)
 			}
-			systemUnitsFiles = append(systemUnitsFiles, path)
+			systemUnitFiles = append(systemUnitFiles, path)
 		}
 
 		logger.Noticef("RemoveSnapServices - disabling %s", serviceName)
@@ -856,7 +856,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		case snap.UserDaemon:
 			userUnits = append(userUnits, serviceName)
 		}
-		systemUnitsFiles = append(systemUnitsFiles, app.ServiceFile())
+		systemUnitFiles = append(systemUnitFiles, app.ServiceFile())
 	}
 
 	// disable all collected systemd units
@@ -870,9 +870,9 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	}
 
 	// remove unit filenames
-	for i := 0; i < len(systemUnitsFiles); i++ {
-		if err := os.Remove(systemUnitsFiles[i]); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("Failed to remove socket file %q: %v", systemUnitsFiles[i], err)
+	for _, systemUnitFile := range systemUnitFiles {
+		if err := os.Remove(systemUnitFile); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("Failed to remove socket file %q: %v", systemUnitFile, err)
 		}
 	}
 
