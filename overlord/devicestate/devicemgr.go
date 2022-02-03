@@ -186,6 +186,20 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+func ensureFileDirPermissions() error {
+	// Ensure the /var/lib/snapd/void dir has correct permissions, we
+	// do this in the postinst for classic systems already but it's
+	// needed here for Core systems.
+	st, err := os.Stat(dirs.SnapVoidDir)
+	if err == nil && st.Mode().Perm() != 0111 {
+		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
+		if err := os.Chmod(dirs.SnapVoidDir, 0111); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type genericHook struct{}
 
 func (h genericHook) Before() error                 { return nil }
@@ -251,6 +265,11 @@ func (m *DeviceManager) StartUp() error {
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
+	}
+
+	// ensure /var/lib/snapd/void permissions are ok
+	if err := ensureFileDirPermissions(); err != nil {
+		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
 	}
 
 	// TODO: setup proper timings measurements for this

@@ -60,6 +60,10 @@ func (s *installSuite) TestInstallRunError(c *C) {
 	sys, err := install.Run(nil, "", "", "", install.Options{}, nil, timings.New(nil))
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 	c.Check(sys, IsNil)
+
+	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil))
+	c.Assert(err, ErrorMatches, `cannot run install mode on non-UC20\+ system`)
+	c.Check(sys, IsNil)
 }
 
 const mockGadgetYaml = `volumes:

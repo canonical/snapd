@@ -4268,6 +4268,47 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
 	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
+	// we fail between writing the sequence file and the state
+	assertMigrationInSeqFile(c, "some-snap", false)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFailsAfterSettingState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fail the change after the link-snap task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// fail after writing seq file but before writing state
+	assertMigrationInSeqFile(c, "some-snap", false)
+
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
 }

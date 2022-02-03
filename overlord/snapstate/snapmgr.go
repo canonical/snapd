@@ -103,8 +103,9 @@ type SnapSetup struct {
 	// each instance of given snap
 	InstanceKey string `json:"instance-key,omitempty"`
 
-	// MigratedHidden is set if the user's snap dir has been migrated
-	// to ~/.snap/data in the current change.
+	// MigratedHidden is set if the user's snap dir has been migrated to
+	// ~/.snap/data in the current change. So a 'false' value doesn't mean the
+	// dir isn't hidden. This prevents us from always having to set it.
 	MigratedHidden bool `json:"migrated-hidden,omitempty"`
 }
 

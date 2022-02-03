@@ -510,6 +510,7 @@ pkg_dependencies_ubuntu_generic(){
         automake
         autotools-dev
         build-essential
+        ca-certificates
         clang
         curl
         devscripts

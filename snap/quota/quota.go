@@ -222,6 +222,13 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 		return nil, fmt.Errorf("cannot use same name %q for sub group as parent group", name)
 	}
 
+	// With the new quotas we don't support groups that have a mixture of snaps and
+	// subgroups, as this will cause issues with nesting. Groups/subgroups may now
+	// only consist of either snaps or subgroups.
+	if len(grp.Snaps) != 0 {
+		return nil, fmt.Errorf("cannot mix sub groups with snaps in the same group")
+	}
+
 	if err := subGrp.validate(); err != nil {
 		return nil, err
 	}

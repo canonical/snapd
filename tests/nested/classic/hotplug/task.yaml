@@ -173,6 +173,8 @@ execute: |
     tests.nested exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected qemuusbserial
 
+    tests.nested exec "cat /var/snap/serial-port-hotplug/common/connect-plug-done" | MATCH "/dev/ttyUSB0"
+
     echo "Hotplug slot stays after removing the snap"
     tests.nested exec "sudo snap remove serial-port-hotplug"
     check_slot_present qemuusbserial
