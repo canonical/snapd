@@ -1,10 +1,10 @@
 summary: Check basic functionality when memory cgroup is disabled
 
-environment:
-  SVC_UNIT: /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
-
 # only run on UC20+ to use the convenient cmdline.extra file
 systems: [ubuntu-core-2*]
+
+environment:
+  SVC_UNIT: /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
 
 prepare: |
   if ! os.query is-pc-amd64; then
