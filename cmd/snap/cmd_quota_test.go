@@ -248,11 +248,9 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 name:    foo
 parent:  bar
 constraints:
-  memory:   1000B
-  threads:  0
+  memory:  1000B
 current:
-  memory:   900B
-  threads:  0
+  memory:  900B
 subgroups:
   - subgrp1
 snaps:
@@ -280,11 +278,9 @@ func (s *quotaSuite) TestGetMemoryQuotaGroupSimple(c *check.C) {
 	outputTemplate := `
 name:  foo
 constraints:
-  memory:   1000B
-  threads:  0
+  memory:  1000B
 current:
-  memory:   %dB
-  threads:  0
+  memory:  %dB
 `[1:]
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
@@ -324,13 +320,11 @@ func (s *quotaSuite) TestGetCpuQuotaGroupSimple(c *check.C) {
 	outputTemplate := `
 name:  foo
 constraints:
-  memory:          0B
   cpu-count:       1
   cpu-percentage:  50
   allowed-cpus:    0,1
   threads:         32
 current:
-  memory:   0B
   threads:  %d
 `[1:]
 

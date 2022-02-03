@@ -339,8 +339,10 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 
 	fmt.Fprintf(w, "constraints:\n")
 
-	val := strings.TrimSpace(fmtSize(int64(group.Constraints.Memory)))
-	fmt.Fprintf(w, "  memory:\t%s\n", val)
+	if group.Constraints.Memory != 0 {
+		val := strings.TrimSpace(fmtSize(int64(group.Constraints.Memory)))
+		fmt.Fprintf(w, "  memory:\t%s\n", val)
+	}
 	if group.Constraints.Cpu != nil {
 		fmt.Fprintf(w, "  cpu-count:\t%d\n", group.Constraints.Cpu.Count)
 		fmt.Fprintf(w, "  cpu-percentage:\t%d\n", group.Constraints.Cpu.Percentage)
@@ -350,7 +352,9 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 			fmt.Fprintf(w, "  allowed-cpus:\t%s\n", allowedCpus)
 		}
 	}
-	fmt.Fprintf(w, "  threads:\t%d\n", group.Constraints.Threads)
+	if group.Constraints.Threads != 0 {
+		fmt.Fprintf(w, "  threads:\t%d\n", group.Constraints.Threads)
+	}
 
 	var memoryUsage string = "0B"
 	var currentThreads int = 0
@@ -360,8 +364,12 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	fmt.Fprintf(w, "current:\n")
-	fmt.Fprintf(w, "  memory:\t%s\n", memoryUsage)
-	fmt.Fprintf(w, "  threads:\t%d\n", currentThreads)
+	if group.Constraints.Memory != 0 {
+		fmt.Fprintf(w, "  memory:\t%s\n", memoryUsage)
+	}
+	if group.Constraints.Threads != 0 {
+		fmt.Fprintf(w, "  threads:\t%d\n", currentThreads)
+	}
 
 	if len(group.Subgroups) > 0 {
 		fmt.Fprint(w, "subgroups:\n")
@@ -459,7 +467,7 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 			if q.Current.Memory != 0 {
 				grpCurrent = append(grpCurrent, "memory="+strings.TrimSpace(fmtSize(int64(q.Current.Memory))))
 			}
-			if q.Current.Threads != 0 {
+			if q.Constraints.Threads != 0 && q.Current.Threads != 0 {
 				grpCurrent = append(grpCurrent, "thread="+fmt.Sprintf("%d", q.Current.Threads))
 			}
 		}
