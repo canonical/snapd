@@ -724,6 +724,9 @@ func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
 	r := systemd.MockSystemdVersion(248, nil)
 	defer r()
 
+	r = servicestate.EnsureQuotaUsability()
+	defer r()
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -770,6 +773,9 @@ func (s *mgrsSuite) TestHappyRefreshWithQuotasInServiceUnitMaintained(c *C) {
 	// had in https://github.com/snapcore/snapd/pull/11339
 
 	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
 	defer r()
 
 	st := s.o.State()
