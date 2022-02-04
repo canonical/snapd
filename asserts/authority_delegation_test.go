@@ -278,6 +278,8 @@ func (s *authorityDelegationSuite) TestDecodeDeviceScope(c *C) {
 	sinceFrag := "    since: 2022-01-12T00:00:00.0Z\n"
 	for _, deviceScoping := range []string{
 		"on-store: store1",
+		"on-brand: brand-id-1",
+		"on-model: brand-id-1/model1",
 	} {
 		withDeviceScope := strings.Replace(encoded, sinceFrag, fmt.Sprintf("    %s\n", deviceScoping)+sinceFrag, 1)
 		_, err := asserts.Decode([]byte(withDeviceScope))

@@ -1047,7 +1047,7 @@ func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (srs *snapRevSuite) TestSnapRevisionDelegationIncosistentTimestamp(c *C) {
+func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	prereqDevAccount(c, storeDB, db)
@@ -1087,7 +1087,7 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationIncosistentTimestamp(c *C) {
 	c.Check(db.Add(ad), IsNil)
 
 	err = db.Check(snapRev)
-	c.Check(err, ErrorMatches, `delegated snap-revision assertion from "canonical" to "other" timestamp ".*" is outside all supporting delegation constraints validity`)
+	c.Check(err, ErrorMatches, `delegated snap-revision assertion from "canonical" to "other" timestamp ".*" is outside of all supporting delegation constraints validity`)
 }
 
 func (srs *snapRevSuite) TestPrimaryKey(c *C) {

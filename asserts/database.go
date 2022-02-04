@@ -835,7 +835,7 @@ func CheckTimestampVsDelegationValidity(assert Assertion, signingKey *AccountKey
 			}
 		}
 		if len(valid) == 0 {
-			return nil, fmt.Errorf("delegated %s assertion from %q to %q timestamp %q is outside all supporting delegation constraints validity", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID(), checkTime)
+			return nil, fmt.Errorf("delegated %s assertion from %q to %q timestamp %q is outside of all supporting delegation constraints validity", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID(), checkTime)
 		}
 		return valid, nil
 	}
