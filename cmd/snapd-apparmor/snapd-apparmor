@@ -50,7 +50,7 @@ is_container_with_internal_policy() {
 	local ns_name
 
 	# WSL needs to be detected explicitly
-	if [ $(systemd-detect-virt --container) = "wsl" ]; then
+	if [ "$(systemd-detect-virt --container)" = "wsl" ]; then
 		return 0
 	fi
 	
