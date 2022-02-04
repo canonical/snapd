@@ -204,7 +204,7 @@ type bootState interface {
 
 	// getRebootBootloader returns a bootloader.RebootBootloader
 	// interface if implemented by the bootloader, nil otherwise.
-	getRebootBootloader() bootloader.RebootBootloader
+	getRebootBootloader() (bootloader.RebootBootloader, error)
 }
 
 // successfulBootState exposes the state of resources requiring bookkeeping on a

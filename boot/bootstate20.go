@@ -196,12 +196,11 @@ type bootState20Kernel struct {
 	dev Device
 }
 
-func (ks20 *bootState20Kernel) getRebootBootloader() bootloader.RebootBootloader {
+func (ks20 *bootState20Kernel) getRebootBootloader() (bootloader.RebootBootloader, error) {
 	if err := ks20.loadBootenv(); err != nil {
-		// log and keep going while returning nil
-		logger.Noticef("cannot load boot environement: %v", err)
+		return nil, err
 	}
-	return ks20.rbl
+	return ks20.rbl, nil
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
@@ -507,8 +506,8 @@ func (bs20 *bootState20Base) selectAndCommitSnapInitramfsMount(modeenv *Modeenv)
 	return first, nil
 }
 
-func (bs20 *bootState20Base) getRebootBootloader() bootloader.RebootBootloader {
-	return nil
+func (bs20 *bootState20Base) getRebootBootloader() (bootloader.RebootBootloader, error) {
+	return nil, nil
 }
 
 //

@@ -196,6 +196,6 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootSt
 	return rebootRequired, u16, nil
 }
 
-func (s16 *bootState16) getRebootBootloader() bootloader.RebootBootloader {
-	return nil
+func (s16 *bootState16) getRebootBootloader() (bootloader.RebootBootloader, error) {
+	return nil, nil
 }

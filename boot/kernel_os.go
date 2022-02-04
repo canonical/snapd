@@ -50,7 +50,11 @@ func (bp *coreBootParticipant) SetNextBoot() (rebootInfo RebootInfo, err error) 
 		}
 	}
 
-	return RebootInfo{RebootRequired: rebootRequired, Rbl: bp.bs.getRebootBootloader()}, nil
+	rbl, err := bp.bs.getRebootBootloader()
+	if err != nil {
+		return RebootInfo{RebootRequired: false}, fmt.Errorf(errPrefix, err)
+	}
+	return RebootInfo{RebootRequired: rebootRequired, Rbl: rbl}, nil
 }
 
 type coreKernel struct {
