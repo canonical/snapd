@@ -676,6 +676,51 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 	c.Check(acs, HasLen, 0)
 }
 
+func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) {
+	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
+	delegatedKeyID := testPrivKey1.PublicKey().ID()
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "delegated-acct",
+		"display-name": "delegated",
+		"validation":   "verified",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	since := time.Now()
+	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+	headers = map[string]interface{}{
+		"type":                "account-key",
+		"authority-id":        "canonical",
+		"account-id":          "delegated-acct",
+		"name":                "default",
+		"public-key-sha3-384": delegatedKeyID,
+		"since":               since.Format(time.RFC3339),
+	}
+	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
+	c.Assert(err, IsNil)
+	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	c.Assert(safs.db.Add(delegatedAcct), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "random",
+		"primary-key":  "k1",
+		"anchor":       "A",
+	}
+	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
+	c.Assert(err, IsNil)
+
+	_, err = asserts.CheckSignature(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db, time.Time{}, time.Time{})
+	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "delegated-acct"`)
+}
+
 func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	c.Assert(err, IsNil)

@@ -719,7 +719,7 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionCons
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
 		if assert.SignatoryID() != signingKey.AccountID() {
-			return nil, fmt.Errorf("assertion signatory %q does not match public key from %q", assert.AuthorityID(), signingKey.AccountID())
+			return nil, fmt.Errorf("assertion signatory %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
 		}
 		if assert.SignatoryID() != assert.AuthorityID() {
 			ad, err := roDB.Find(AuthorityDelegationType, map[string]string{
