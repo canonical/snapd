@@ -81,10 +81,10 @@ func (s *rebootSuite) TestRebootHelper(c *C) {
 }
 
 func (s *rebootSuite) TestRebootWithArguments(c *C) {
-	rab := bootloadertest.Mock("rebootargs", "").WithRebootArguments()
-	bootloader.Force(rab)
+	rbl := bootloadertest.Mock("rebootargs", "").WithRebootBootloader()
+	bootloader.Force(rbl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-	rab.RebootArgs = "0 tryboot"
+	rbl.RebootArgs = "0 tryboot"
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
 	boot.GetRebootArgsPath = func() string {
@@ -94,7 +94,7 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	err := boot.Reboot(0, 0, &boot.RebootInfo{RebootRequired: true, Rbl: rab})
+	err := boot.Reboot(0, 0, &boot.RebootInfo{RebootRequired: true, Rbl: rbl})
 	c.Assert(err, IsNil)
 	args, err := ioutil.ReadFile(rebArgsPath)
 	c.Assert(err, IsNil)
@@ -105,10 +105,10 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 }
 
 func (s *rebootSuite) TestRebootNoArguments(c *C) {
-	rab := bootloadertest.Mock("rebootargs", "").WithRebootArguments()
-	bootloader.Force(rab)
+	rbl := bootloadertest.Mock("rebootargs", "").WithRebootBootloader()
+	bootloader.Force(rbl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
-	rab.RebootArgs = ""
+	rbl.RebootArgs = ""
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
 	boot.GetRebootArgsPath = func() string {

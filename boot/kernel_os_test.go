@@ -691,3 +691,36 @@ func (s *grubSuite) TestExtractKernelForceWorks(c *C) {
 	err = bp.RemoveKernelAssets()
 	c.Assert(err, IsNil)
 }
+
+func (s *bootenv20RebootBootloaderSuite) TestSetNextBoot20ForKernel(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		s.normalDefaultState,
+	)
+	defer r()
+
+	bs := boot.NewCoreBootParticipant(s.kern2, snap.TypeKernel, coreDev)
+	c.Assert(bs.IsTrivial(), Equals, false)
+	rebootInfo, err := bs.SetNextBoot()
+	c.Assert(err, IsNil)
+
+	m := s.bootloader.BootVars
+	c.Assert(m, DeepEquals, map[string]string{
+		"kernel_status":   boot.TryStatus,
+		"snap_try_kernel": s.kern2.Filename(),
+		"snap_kernel":     s.kern1.Filename(),
+	})
+
+	c.Assert(rebootInfo.RebootRequired, Equals, true)
+	// Test that we retrieve a RebootBootloader interface
+	c.Assert(rebootInfo.Rbl, NotNil)
+
+	// and that the modeenv now has this kernel listed
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernels, DeepEquals, []string{s.kern1.Filename(), s.kern2.Filename()})
+}
