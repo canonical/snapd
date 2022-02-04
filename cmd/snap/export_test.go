@@ -194,14 +194,6 @@ func MockGetEnv(f func(name string) string) (restore func()) {
 	}
 }
 
-func MockMountInfoPath(newMountInfoPath string) (restore func()) {
-	mountInfoPathOrig := mountInfoPath
-	mountInfoPath = newMountInfoPath
-	return func() {
-		mountInfoPath = mountInfoPathOrig
-	}
-}
-
 func MockOsReadlink(f func(string) (string, error)) (restore func()) {
 	osReadlinkOrig := osReadlink
 	osReadlink = f

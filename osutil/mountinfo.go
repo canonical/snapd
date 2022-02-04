@@ -19,11 +19,20 @@
 
 package osutil
 
-func MockMountInfo(content string) (restore func()) {
-	panic("MockMountInfo not implemented on darwin")
-}
-
-// LoadMountInfo is not implemented on darwin
-func LoadMountInfo() ([]*MountInfoEntry, error) {
-	return nil, ErrDarwin
+// MountInfoEntry contains data from /proc/$PID/mountinfo
+//
+// For details please refer to mountinfo documentation at
+// https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+type MountInfoEntry struct {
+	MountID        int
+	ParentID       int
+	DevMajor       int
+	DevMinor       int
+	Root           string
+	MountDir       string
+	MountOptions   map[string]string
+	OptionalFields []string
+	FsType         string
+	MountSource    string
+	SuperOptions   map[string]string
 }
