@@ -44,6 +44,7 @@ var MetaHeaders = [...]string{
 	"type",
 	"format",
 	"authority-id",
+	"signatory-id",
 	"revision",
 	"body-length",
 	"sign-key-sha3-384",
@@ -872,6 +873,31 @@ func Assemble(headers map[string]interface{}, body, content, signature []byte) (
 	return assemble(headers, body, content, signature)
 }
 
+func checkAuthority(assertType *AssertionType, headers map[string]interface{}) (hasSignatoryID bool, err error) {
+	_, hasSignatoryID = headers["signatory-id"]
+	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
+		return false, err
+	}
+	if hasSignatoryID {
+		if _, err := checkNotEmptyString(headers, "signatory-id"); err != nil {
+			return false, err
+		}
+	}
+	return hasSignatoryID, nil
+}
+
+func checkNoAuthority(assertType *AssertionType, headers map[string]interface{}) error {
+	_, ok := headers["authority-id"]
+	if ok {
+		return fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+	}
+	_, ok = headers["signatory-id"]
+	if ok {
+		return fmt.Errorf("%q assertion cannot have signatory-id set", assertType.Name)
+	}
+	return nil
+}
+
 // assemble is the internal variant of Assemble, assumes headers are already checked for supported types
 func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
 	length, err := checkIntWithDefault(headers, "body-length", 0)
@@ -900,13 +926,12 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	}
 
 	if assertType.flags&noAuthority == 0 {
-		if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
+		if _, err := checkAuthority(assertType, headers); err != nil {
 			return nil, fmt.Errorf("assertion: %v", err)
 		}
 	} else {
-		_, ok := headers["authority-id"]
-		if ok {
-			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+		if err := checkNoAuthority(assertType, headers); err != nil {
+			return nil, err
 		}
 	}
 
@@ -975,14 +1000,15 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().ID()
 
+	var hasSignatoryID bool
 	if withAuthority {
-		if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
+		hasSignatoryID, err = checkAuthority(assertType, finalHeaders)
+		if err != nil {
 			return nil, err
 		}
 	} else {
-		_, ok := finalHeaders["authority-id"]
-		if ok {
-			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+		if err := checkNoAuthority(assertType, finalHeaders); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1020,6 +1046,9 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 
 	if withAuthority {
 		writeHeader(buf, finalHeaders, "authority-id")
+		if hasSignatoryID && finalHeaders["authority-id"] != finalHeaders["signatory-id"] {
+			writeHeader(buf, finalHeaders, "signatory-id")
+		}
 	}
 
 	if revision > 0 {
@@ -1031,6 +1060,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		"type":              true,
 		"format":            true,
 		"authority-id":      true,
+		"signatory-id":      true,
 		"revision":          true,
 		"body-length":       true,
 		"sign-key-sha3-384": true,
