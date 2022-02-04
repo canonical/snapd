@@ -214,6 +214,10 @@ type EnsureLayoutCompatibilityOptions struct {
 	// partition would be dynamically inserted into the image at image build
 	// time by ubuntu-image without being mentioned in the gadget.yaml.
 	AllowImplicitSystemData bool
+
+	// EncryptedPartitions is a map of the structure name to the type of
+	// encrypted partition. Possible values are LUKS or ICE.
+	EncryptedPartitions map[string]DiskEncryptionMethod
 }
 
 func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
@@ -258,9 +262,37 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		// size and offset, so the last thing to check is that the filesystem
 		// matches (or that we don't care about the filesystem).
 
-		// TODO: here we need to handle in the strict case partitions which are
-		// to be created at install and are encrypted like ubuntu-data as they
-		// will not match filesystems exactly and need some massaging
+		// first handle the strict case where this partition was created at
+		// install in case it is an encrypted one
+		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
+			// only partitions that are creatable at install can be encrypted,
+			// check if this partition was encrypted
+			if encType, ok := opts.EncryptedPartitions[gs.Name]; ok {
+				switch encType {
+				case EncryptionICE:
+					return false, "inline cryptography engine encrypted partitions currently unsupported"
+				case EncryptionLUKS:
+					// then this partition is expected to have been encrypted, the
+					// filesystem label on disk will need "-enc" appended
+					if dv.Label != gv.Name+"-enc" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
+					}
+
+					// the filesystem should also be "crypto_LUKS"
+					if dv.Filesystem != "crypto_LUKS" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gv.Name)
+					}
+
+					// at this point the partition matches
+					return true, ""
+				default:
+					return false, fmt.Sprintf("unsupported encrypted partition type %s", encType)
+				}
+			}
+
+			// for non-encrypted partitions that were created at install, the
+			// below logic still applies
+		}
 
 		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gv) {
 			// we assume that this partition has already been created
@@ -425,6 +457,13 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
+type DiskEncryptionMethod string
+
+const (
+	EncryptionLUKS DiskEncryptionMethod = "LUKS"
+	EncryptionICE  DiskEncryptionMethod = "ICE"
+)
+
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to
 // volume mapping for a specific disk/volume pair. It is closely related to the
 // options provided to EnsureLayoutCompatibility via
@@ -433,6 +472,13 @@ type DiskVolumeValidationOptions struct {
 	// AllowImplicitSystemData has the same meaning as the eponymously named
 	// filed in EnsureLayoutCompatibilityOptions.
 	AllowImplicitSystemData bool
+	// ExpectedEncryptedPartitions is the a map of the names (gadget structure
+	// names) of partitions that are encrypted on the volume and what method
+	// they were encrypted with. This should only ever be ubuntu-data or
+	// ubuntu-save for now, but the map will indicate the name of the structure
+	// as the key and the type of encryption (currently only "LUKS") as the
+	// value in the map.
+	ExpectedEncryptedPartitions map[string]DiskEncryptionMethod
 }
 
 // DiskTraitsFromDeviceAndValidate takes a laid out gadget volume and an
@@ -460,6 +506,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 
 		// provide the other opts as we were provided
 		AllowImplicitSystemData: opts.AllowImplicitSystemData,
+		EncryptedPartitions:     opts.ExpectedEncryptedPartitions,
 	}
 	if err := EnsureLayoutCompatibility(expLayout, diskLayout, ensureOpts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
@@ -576,13 +623,14 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 	}
 
 	return DiskVolumeDeviceTraits{
-		OriginalDevicePath: disk.KernelDevicePath(),
-		OriginalKernelPath: dev,
-		DiskID:             diskLayout.ID,
-		Structure:          mappedStructures,
-		Size:               diskLayout.Size,
-		SectorSize:         diskLayout.SectorSize,
-		Schema:             disk.Schema(),
+		OriginalDevicePath:  disk.KernelDevicePath(),
+		OriginalKernelPath:  dev,
+		DiskID:              diskLayout.ID,
+		Structure:           mappedStructures,
+		Size:                diskLayout.Size,
+		SectorSize:          diskLayout.SectorSize,
+		Schema:              disk.Schema(),
+		EncryptedPartitions: opts.ExpectedEncryptedPartitions,
 	}, nil
 }
 

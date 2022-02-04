@@ -249,6 +249,12 @@ type DiskVolumeDeviceTraits struct {
 	// the volume that may be useful in identifying whether a disk matches a
 	// volume or not.
 	Structure []DiskStructureDeviceTraits `json:"structure"`
+
+	// EncryptedPartitions is the set of partitions that are encrypted on the
+	// volume - this should only ever be ubuntu-data or ubuntu-save for now, but
+	// the map will indicate the name of the structure as the key and the type
+	// of encryption (currently only "LUKS") as the value in the map.
+	EncryptedPartitions map[string]DiskEncryptionMethod `json:"enc-part-types"`
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
