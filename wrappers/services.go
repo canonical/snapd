@@ -291,7 +291,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		return err
 	}
 
-	timings.Run(tm, "start-services", "start services", func(nested timings.Measurer) {
+	timings.Run(tm, "start-services", "start services", func(nestedTm timings.Measurer) {
 		for _, srv := range systemServices {
 			// let the cleanup know some services may have been started
 			servicesStarted = true
@@ -301,7 +301,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			// by bringing them up one by one, see:
 			// https://github.com/systemd/systemd/issues/8102
 			// https://lists.freedesktop.org/archives/systemd-devel/2018-January/040152.html
-			timings.Run(tm, "start-service", fmt.Sprintf("start service %q", srv), func(nested timings.Measurer) {
+			timings.Run(nestedTm, "start-service", fmt.Sprintf("start service %q", srv), func(_ timings.Measurer) {
 				err = systemSysd.Start([]string{srv})
 			})
 			if err != nil {
