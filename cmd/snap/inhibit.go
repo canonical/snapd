@@ -81,6 +81,14 @@ var pendingRefreshNotification = func(refreshInfo *client.PendingSnapRefreshInfo
 	return nil
 }
 
+var finishRefreshNotification = func(refreshInfo *client.FinishedSnapRefreshInfo) error {
+	userclient := client.NewForUids(os.Getuid())
+	if err := userclient.FinishRefreshNotification(context.TODO(), refreshInfo); err != nil {
+		return err
+	}
+	return nil
+}
+
 func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
 	refreshInfo := client.PendingSnapRefreshInfo{
 		InstanceName: snapName,
@@ -96,9 +104,8 @@ func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
 		return err
 	}
 
-	// TODO: close the notification
-
-	return nil
+	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
+	return finishRefreshNotification(&finishRefreshInfo)
 }
 
 func textFlow(snapName string, hint runinhibit.Hint) error {

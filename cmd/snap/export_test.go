@@ -453,6 +453,14 @@ func MockPendingRefreshNotification(f func(refreshInfo *usersessionclient.Pendin
 	}
 }
 
+func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error) (restore func()) {
+	old := finishRefreshNotification
+	finishRefreshNotification = f
+	return func() {
+		finishRefreshNotification = old
+	}
+}
+
 func MockAutostartSessionApps(f func(string) error) func() {
 	old := autostartSessionApps
 	autostartSessionApps = f
