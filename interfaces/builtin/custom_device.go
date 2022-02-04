@@ -82,8 +82,8 @@ func (iface *customDeviceInterface) validateFilePath(path string, attrName strin
 		return fmt.Errorf(`custom-device %q path cannot be used: %v`, attrName, err)
 	}
 
-	// We don't allow "**" (a single "*" is already transformed into a "**"
-	// apparmor rule anyway)
+	// We don't allow "**" because that's an AppArmor specific globbing pattern
+	// which we don't want to expose in our API contract.
 	if strings.Contains(path, "**") {
 		return fmt.Errorf(`custom-device %q path contains invalid glob pattern "**"`, attrName)
 	}
