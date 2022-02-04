@@ -5,24 +5,36 @@
 		}
 	],
 	"settings": {
+
+		// Attributes for the tests invoked directly from go-files in the UI
 		"go.testEnvVars": {"LANG": "C.UTF-8"},
-		"go.testFlags": ["-v","-check.v"]
+		"go.testFlags": [
+			"-v",
+			"-check.v"
+		],
 	},
 	"extensions": {
+
+		// Recommended extensions (type @recommended in Extensions tab to list)
 		"recommendations": [
-			"golang.go", 
-			"766b.go-outliner", 
-			"jerrygoyal.shortcut-menu-bar",
-			"eamodio.gitlens", 
-			"aaron-bond.better-comments",
-			"vscodevim.vim",
-			"tuttieee.emacs-mcx",
-			"ms-vscode.cpptools-extension-pack",
+			"golang.go", // Golang extensions 
+			"ms-vscode.cpptools-extension-pack", // C/C++ extensions
+
+			// Useful extra extensions, for reference:
+			//"766b.go-outliner", // Resolves "golang.go"'s poor outlining of packages that spread over several files
+			//"jerrygoyal.shortcut-menu-bar", // Toolbar that for some unknown reason is part of the UI
+			//"eamodio.gitlens", // Spectacular git-integration
+			//"aaron-bond.better-comments", // Brings more live into comments
+			//"vscodevim.vim", // For VIM users to get home experience
+			//"tuttieee.emacs-mcx", // For Emacs users to get home experience
 		]
 	},
+
 	"launch": {
 		"version": "0.2.0",
 		"configurations": [
+
+			// Default simple configuration to run tests of the package in the focus
 			{
 				"name": "Test (package)",
 				"type": "go",
@@ -34,6 +46,8 @@
 				"env": {"LANG": "C.UTF-8"},
 				"args": ["-test.timeout=30m0s"],
 			},
+
+			// Fully verbose configuration to run tests of the package in the focus
 			{
 				"name": "Test verbose (package)",
 				"type": "go",
@@ -48,5 +62,5 @@
 				}
 			},
 		]
-	}
+	},
 }
