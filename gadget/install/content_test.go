@@ -253,7 +253,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			observeErr:     tc.observeErr,
 			expectedStruct: &m.LaidOutStructure,
 		}
-		err := install.WriteContent(&m, s.gadgetRoot, obs)
+		err := install.WriteContent(&m, obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -277,7 +277,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 	}
 }
 
-func (s *contentTestSuite) TestWriteRawContent(c *C) {
+func (s *contentTestSuite) TestWriteRawContentNotSupported(c *C) {
 	mockNode := filepath.Join(s.dir, "mock-node")
 	err := ioutil.WriteFile(mockNode, nil, 0644)
 	c.Assert(err, IsNil)
@@ -295,13 +295,8 @@ func (s *contentTestSuite) TestWriteRawContent(c *C) {
 		},
 	}
 
-	err = install.WriteContent(&m, s.gadgetRoot, nil)
-	c.Assert(err, IsNil)
-
-	content, err := ioutil.ReadFile(m.Node)
-	c.Assert(err, IsNil)
-	// note the 2 zero byte start offset
-	c.Check(string(content), Equals, "\x00\x00pc-core.img content")
+	err = install.WriteContent(&m, nil)
+	c.Assert(err, ErrorMatches, `cannot write non-filesystem structures during install`)
 }
 
 func (s *contentTestSuite) TestMountFilesystem(c *C) {
