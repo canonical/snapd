@@ -21,7 +21,6 @@ package exportstate
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -29,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
 // special.go holds special cases when the export manifest is not stored in snap.yaml
@@ -111,7 +111,11 @@ func manifestForCoreSnap(info *snap.Info) *Manifest {
 // If no provider is available and there is nothing to export the returned
 // version is empty.
 func effectiveExportedVersionForSnapdOrCore(st *state.State) (exportedVersion string, err error) {
-	if release.OnClassic && os.Getenv("SNAP_REEXEC") == "0" {
+	isReexec, err := snapdtool.IsReexecd()
+	if err != nil {
+		return "", err
+	}
+	if release.OnClassic && !isReexec {
 		return "host", nil
 	}
 

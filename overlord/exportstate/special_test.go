@@ -20,9 +20,7 @@
 package exportstate_test
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -32,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -102,6 +101,19 @@ func (s *specialSuite) TestNewManifestForCoreSnap(c *C) {
 	s.checkSnapExecFromSnap(c, m.Sets["tools"].Exports["snap-exec"])
 }
 
+// XXX: maybe this should be in snapdtool instead?
+func mockIsReexec(isReexec bool) (restore func()) {
+	var dir string
+	if isReexec {
+		dir = dirs.SnapMountDir
+	} else {
+		dir = "/no/reexec/path"
+	}
+	return snapdtool.MockOsReadlink(func(string) (string, error) {
+		return dir, nil
+	})
+}
+
 func (s *specialSuite) checkSnapExecFromSnap(c *C, exported exportstate.ExportedFile) {
 	c.Check(exported.Name, Equals, "snap-exec")
 	c.Check(exported.SourcePath, Equals, "/usr/lib/snapd/snap-exec")
@@ -118,35 +130,35 @@ func (s *specialSuite) TestSelectExportedVersionForSnapdTools(c *C) {
 	onClassic := true
 	onCore := false
 	noError := ""
-	noEnv := ""
+	isReexec, noReexec := true, false
 
 	for _, tc := range []struct {
 		snapdInfo *snap.Info
 		coreInfo  *snap.Info
 		classic   bool
-		env       string
+		reexec    bool
 
 		expectedVersion string
 		expectedErr     string
 	}{
 		// When both snapd and core are present, snapd dominates.
-		{snapdInfo, coreInfo, onClassic, noEnv, "2", noError},
+		{snapdInfo, coreInfo, onClassic, isReexec, "2", noError},
 		// When either only snapd or core is present, it is used.
-		{snapdInfo, nil, onClassic, noEnv, "2", noError},
-		{nil, coreInfo, onClassic, noEnv, "core_1", noError},
+		{snapdInfo, nil, onClassic, isReexec, "2", noError},
+		{nil, coreInfo, onClassic, isReexec, "core_1", noError},
 		// Broken versions are ignored
-		{snapdInfoBroken, coreInfo, onClassic, noEnv, "core_1", noError},
-		{snapdInfoBroken, coreInfoBroken, onClassic, noEnv, "host", noError},
+		{snapdInfoBroken, coreInfo, onClassic, isReexec, "core_1", noError},
+		{snapdInfoBroken, coreInfoBroken, onClassic, isReexec, "host", noError},
 		// On classic systems when neither snap is present, host tools are used.
-		{nil, nil, onClassic, noEnv, "host", noError},
+		{nil, nil, onClassic, isReexec, "host", noError},
 		// On core this cannot happen but we check
-		{nil, nil, onCore, noEnv, "", "internal error: cannot find snapd tooling to export"},
+		{nil, nil, onCore, isReexec, "", "internal error: cannot find snapd tooling to export"},
 		// On classic systems with disabled re-exec host wins over snaps.
-		{snapdInfo, coreInfo, onClassic, "SNAP_REEXEC=0", "host", noError},
+		{snapdInfo, coreInfo, onClassic, noReexec, "host", noError},
 		// On core systems disabling re-exec has no effect
-		{snapdInfo, coreInfo, onCore, "SNAP_REEXEC=0", "2", noError},
+		{snapdInfo, coreInfo, onCore, noReexec, "2", noError},
 	} {
-		restore := exportstate.MockSnapStateCurrentInfo(func(st *state.State, snapName string) (*snap.Info, error) {
+		s.AddCleanup(exportstate.MockSnapStateCurrentInfo(func(st *state.State, snapName string) (*snap.Info, error) {
 			switch snapName {
 			case "core":
 				return tc.coreInfo, nil
@@ -155,14 +167,9 @@ func (s *specialSuite) TestSelectExportedVersionForSnapdTools(c *C) {
 			default:
 				panic("unexpected")
 			}
-		})
-		defer restore()
+		}))
 		s.AddCleanup(release.MockOnClassic(tc.classic))
-		if tc.env != "" {
-			k, v := strings.Split(tc.env, "=")[0], strings.Split(tc.env, "=")[1]
-			os.Setenv(k, v)
-			defer os.Unsetenv(k)
-		}
+		s.AddCleanup(mockIsReexec(tc.reexec))
 
 		exportedVersion, err := exportstate.EffectiveExportedVersionForSnapdOrCore(nil)
 		if tc.expectedErr != "" {
