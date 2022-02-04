@@ -65,15 +65,6 @@ func exportSetSnapdTools(basePath string) ExportSet {
 	return set
 }
 
-// manifestForCoreSystem returns the manifest of the host as seen on ubuntu-core systems.
-func manifestForCoreSystem() *Manifest {
-	return &Manifest{
-		ExportedForSnapdAsVersion: "host", // Exception from the rule
-		SourceIsHost:              true,
-		// There are no export sets here, snapd snap is going to provide the tools.
-	}
-}
-
 // manifestForClassicSystem returns the manifest of the host as seen on classic systems.
 func manifestForClassicSystem() *Manifest {
 	tools := exportSetSnapdTools(dirs.DistroLibExecDir)

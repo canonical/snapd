@@ -99,13 +99,10 @@ func (s *manifestSuite) TestNewManifestForHost(c *C) {
 	c.Check(len(m.Sets) > 0, Equals, true)
 	// Details checked in special_test.go
 
+	// no host manifest on core
 	s.AddCleanup(release.MockOnClassic(false))
 	m = exportstate.NewManifestForHost()
-	c.Check(m.SnapInstanceName, Equals, "")
-	c.Check(m.SnapRevision, Equals, snap.R(0))
-	c.Check(m.SourceIsHost, Equals, true)
-	c.Check(m.ExportedForSnapdAsVersion, Equals, "host")
-	c.Check(m.Sets, HasLen, 0)
+	c.Check(m, IsNil)
 }
 
 func (s *manifestSuite) TestCreateExportedFiles(c *C) {

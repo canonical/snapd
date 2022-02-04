@@ -95,9 +95,9 @@ func NewManifestForHost() *Manifest {
 	if release.OnClassic {
 		return manifestForClassicSystem()
 	}
-	// XXX: should this just return nil instead? the core system manifest
-	// is empty
-	return manifestForCoreSystem()
+
+	// no manifest needed on core systems
+	return nil
 }
 
 // createExportedFiles creates all the files constituting the export manifest.
