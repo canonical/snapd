@@ -664,6 +664,12 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// wait for ntp sync before trying to register the serial
+	maxWait := 10 * time.Minute
+	if !m.ntpSyncedOrWaitedLongerThan(maxWait) {
+		return &state.Retry{}
+	}
+
 	// NB: the keyPair is fixed for now
 	privKey, err := m.keyPair()
 	if err == state.ErrNoState {

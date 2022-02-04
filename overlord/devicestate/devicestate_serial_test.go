@@ -2202,3 +2202,81 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *
 	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, IsNil)
 }
+
+func (s *deviceMgrSerialSuite) TestDeviceRegistrationNoNTPRetries(c *C) {
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-1", nil)
+	defer mockServer.Close()
+
+	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer r2()
+
+	isNTPSynchronized := false
+	isNTPSynchronizedCalled := 0
+	r3 := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		isNTPSynchronizedCalled++
+		return isNTPSynchronized, nil
+	})
+	defer r3()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	// avoid full seeding
+	s.seeding()
+
+	// not started if not seeded
+	s.state.Unlock()
+	s.se.Ensure()
+	s.state.Lock()
+
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Check(becomeOperational, IsNil)
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	// mark it as seeded
+	s.state.Set("seeded", true)
+
+	// runs the whole device registration process (but no ntp yet)
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational = s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(isNTPSynchronizedCalled, Equals, 1)
+	c.Check(becomeOperational.Status().Ready(), Equals, false)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	// run it again with ntp ready
+	isNTPSynchronized = true
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(isNTPSynchronizedCalled, Equals, 2)
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Serial, Equals, "9999")
+
+}
