@@ -21,12 +21,12 @@
 			"ms-vscode.cpptools-extension-pack", // C/C++ extensions
 
 			// Useful extra extensions, for reference:
-			//"766b.go-outliner", // Resolves "golang.go"'s poor outlining of packages that spread over several files
-			//"jerrygoyal.shortcut-menu-bar", // Toolbar that for some unknown reason is part of the UI
+			//"766b.go-outliner", // Outlines packages that spread over several files
+			//"jerrygoyal.shortcut-menu-bar", // Menu bar with shortcuts for navigation and editing
 			//"eamodio.gitlens", // Spectacular git-integration
-			//"aaron-bond.better-comments", // Brings more live into comments
-			//"vscodevim.vim", // For VIM users to get home experience
-			//"tuttieee.emacs-mcx", // For Emacs users to get home experience
+			//"aaron-bond.better-comments", // Decorates comments based on annotations
+			//"vscodevim.vim", // Vim emulation
+			//"tuttieee.emacs-mcx", // Emacs emulation
 		]
 	},
 
