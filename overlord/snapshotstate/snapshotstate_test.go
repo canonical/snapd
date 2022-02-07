@@ -326,8 +326,13 @@ func (snapshotSuite) TestCheckConflict(c *check.C) {
 	// no change with that snapshot id
 	c.Assert(snapshotstate.CheckSnapshotConflict(st, 43, "some-task"), check.IsNil)
 
-	// no non-ready change
+	// still conflict, because task is not clean
 	tsk.SetStatus(state.DoneStatus)
+	err = snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
+	c.Assert(err, check.ErrorMatches, "cannot operate on snapshot set #42 while change \"1\" is in progress")
+
+	// no conflict when task is clean
+	tsk.SetClean()
 	c.Assert(snapshotstate.CheckSnapshotConflict(st, 42, "some-task"), check.IsNil)
 }
 
