@@ -253,7 +253,6 @@ func (s *SystemdTestSuite) TestStopSystemCtlStopError(c *C) {
 		nil, // for the "stop" itself
 	}
 	s.errors = []error{errors.New("Mock Error")}
-	// Timeout = 10ms
 	err := New(SystemMode, s.rep).Stop([]string{"foo"})
 	c.Assert(err, ErrorMatches, "Mock Error")
 	c.Assert(s.argses, HasLen, 1)
@@ -272,7 +271,6 @@ func (s *SystemdTestSuite) TestSystemCtlShowError(c *C) {
 		nil, // show
 	}
 	s.errors = []error{nil, errors.New("Mock Error")}
-	// Timeout = 10ms
 	err := New(SystemMode, s.rep).Stop([]string{"foo"})
 	c.Assert(err, ErrorMatches, "Mock Error")
 	c.Assert(s.argses, HasLen, 2)

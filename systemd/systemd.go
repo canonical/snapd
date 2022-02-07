@@ -948,7 +948,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 	// (under no error conditions) because it will wait until all units have
 	// stopped, or the timeout is reached. The reason we use a parallel thread
 	// is because we need to know exactly when systemctl returns, as this is the
-	// point where we disable the progress polling and exits. We cannot elegantly
+	// point where we disable the progress polling and exit. We cannot elegantly
 	// achieve this, for example, using --no-block without a go routine.
 	sysdReturn := make(chan error)
 	go func() {
