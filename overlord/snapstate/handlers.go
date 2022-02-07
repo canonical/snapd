@@ -1172,7 +1172,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		err := SetTaskSnapSetup(t, snapsup)
 		st.Unlock()
 		if err != nil {
-			return fmt.Errorf("cannot set migration status to done (migration won't be undone if change fails): %w", err)
+			return fmt.Errorf("cannot set migration status to done: %w", err)
 		}
 	} else if !opts.UseHidden && opts.MigratedToHidden {
 		// migration was done but user turned the feature off, so undo migration
@@ -1192,7 +1192,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		err := SetTaskSnapSetup(t, snapsup)
 		st.Unlock()
 		if err != nil {
-			return fmt.Errorf("cannot set migration status to undone (migration won't be redone if change fails): %w", err)
+			return fmt.Errorf("cannot set migration status to undone: %w", err)
 		}
 	}
 
@@ -1284,25 +1284,20 @@ func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) 
 	snapName := snapsup.InstanceName()
 
 	st.Lock()
-	err := SetTaskSnapSetup(t, snapsup)
-	st.Unlock()
-	if err != nil {
+	defer st.Unlock()
+
+	if err := SetTaskSnapSetup(t, snapsup); err != nil {
 		return err
 	}
 
-	st.Lock()
-	err = Get(st, snapName, &SnapState{})
-	st.Unlock()
+	err := Get(st, snapName, &SnapState{})
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
-	// snap state was persisted, re-write it
 	if err == nil {
 		// migration state might've been written in the change; update it after undo
-		st.Lock()
 		Set(st, snapName, snapst)
-		st.Unlock()
 	}
 
 	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
@@ -3644,12 +3639,13 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 
 	// it was migrated during this change (might not be in the state yet)
 	if snapsup != nil {
-		if snapsup.MigratedHidden && snapsup.MigratedExposed {
+		switch {
+		case snapsup.MigratedHidden && snapsup.MigratedExposed:
 			// should never happen except for programmer error
-			return nil, fmt.Errorf("migration was done and reversed in same change without updating migration flags")
-		} else if snapsup.MigratedHidden {
+			return nil, fmt.Errorf("internal error: migration was done and reversed in same change without updating migration flags")
+		case snapsup.MigratedHidden:
 			opts.MigratedToHidden = true
-		} else if snapsup.MigratedExposed {
+		case snapsup.MigratedExposed:
 			opts.MigratedToHidden = false
 		}
 	}
