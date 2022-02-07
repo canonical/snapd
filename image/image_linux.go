@@ -98,6 +98,9 @@ func Prepare(opts *Options) error {
 	var model *asserts.Model
 	var err error
 	if opts.Classic && opts.ModelFile == "" {
+		// This is needed to support using ubuntu-image to preseed snaps in a rootfs
+		// that has already been built. Since there is no model assertion file
+		// we can use the GenericClassicModel to preseed snaps in the rootfs
 		model = sysdb.GenericClassicModel()
 	} else {
 		model, err = decodeModelAssertion(opts)

@@ -2019,6 +2019,38 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 	c.Assert(err, ErrorMatches, "cannot have snaps for a classic image without an architecture in the model or from --arch")
 }
 
+func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
+	preparedir := c.MkDir()
+	s.setupSnaps(c, map[string]string{
+		"pc":        "canonical",
+		"pc-kernel": "canonical",
+		"core":      "canonical",
+	}, "")
+
+	// prepare an image with no model assetion but classic set to true
+	// to ensure the GenericClassicModel is used without error
+	err := image.Prepare(&image.Options{
+		Architecture: "amd64",
+		PrepareDir:   preparedir,
+		Classic:      true,
+		Snaps:        []string{
+			s.AssertedSnap("pc"),
+			s.AssertedSnap("pc-kernel"),
+			s.AssertedSnap("core"),
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// ensure the prepareDir was preseeded
+	seeddir := filepath.Join(preparedir, "var/lib/snapd/seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+
+	for _, name := range []string{"core", "pc-kernel", "pc"} {
+		p := filepath.Join(seedsnapsdir, name + "_x1.snap")
+		c.Check(p, testutil.FilePresent)
+	}
+}
+
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
