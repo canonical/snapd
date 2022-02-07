@@ -194,6 +194,18 @@ func execApp(snapApp, revision, command string, args []string) error {
 		env.ExtendWithExpanded(eenv)
 	}
 
+	// this is a workaround for the lack of an environment backend in interfaces
+	// where we want certain interfaces when connected to add environment
+	// variables to plugging snap apps, but this is a lot simpler as a
+	// work-around
+	// we currently only handle the CUPS_SERVER environment variable, setting it
+	// to /var/cups/ if that directory exists - it should not exist anywhere
+	// except in a strictly confined snap where we setup the bind mount from the
+	// source cups slot snap to the plugging snap
+	if exists, _, _ := osutil.DirExists(dirs.GlobalRootDir + "/var/cups"); exists {
+		env["CUPS_SERVER"] = "/var/cups/cups.sock"
+	}
+
 	// strings.Split() is ok here because we validate all app fields and the
 	// whitelist is pretty strict (see snap/validate.go:appContentWhitelist)
 	// (see also overlord/snapstate/check_snap.go's normPath)
