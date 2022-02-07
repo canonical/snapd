@@ -95,9 +95,15 @@ func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 }
 
 func Prepare(opts *Options) error {
-	model, err := decodeModelAssertion(opts)
-	if err != nil {
-		return err
+	var model *asserts.Model
+	var err error
+	if opts.Classic && opts.ModelFile == "" {
+		model = sysdb.GenericClassicModel()
+	} else {
+		model, err = decodeModelAssertion(opts)
+		if err != nil {
+			return err
+		}
 	}
 
 	if model.Architecture() != "" && opts.Architecture != "" && model.Architecture() != opts.Architecture {
