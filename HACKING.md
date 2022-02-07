@@ -302,16 +302,15 @@ Complete requirements can be found in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 There are few guidelines that contributors should follow:
 
-- Commit messages should be well structured,  
-(_Consider complying with the [Conventional Commits](https://www.conventionalcommits.org/) specification_)
+- Commit messages should be well structured.
 - Commit emails should not have non-ASCII characters.  
-- PR title should start with a prefix denoting the 
-`<feature>`/`<package>`/`<module>`/`<file modified>` following by a semicolon.    
-- Try to open more smaller PR's, rather than one large PR.
+- PR title should start with a prefix denoting the scope affected by the changes
+(e.g. `<feature name>`,`<package name>`) followed by a semicolon.    
+- Try to open several smaller PRs, rather than one large PR.
 - Try not to mix controversial and trivial changes together.  
-  (_Proposing trivial changes separately makes landing-them easier and 
+  (_Proposing trivial changes separately makes landing them easier and 
   makes reviewing the controversial changes simpler_)
-- Try not to force push to PR's after they have gotten reviews.
+- Try not to force push to PRs after they have gotten reviews.
 - Try to write tests to cover the contributed changes.
 
 >If you need any help with any of these guidelines, please reach out to the team.
@@ -367,13 +366,9 @@ go test -v -check.vv
 
 Or, try just `-check.v` for a less verbose output.
 
-> `snapd` before printing any text adjusts it to a dialect that
-corresponds to the locale of the hosting system. For instance, 
-texts for `en_US` and for `en_GB` not always look alike.
-Unfortunately, some tests don't take it into account (for the details 
-see [issue #1960131](https://bugs.launchpad.net/snapd/+bug/1960131)).
-A temporary workaround is to specify `LANG=C.UTF-8 ` in the command 
-line right before `go test`, if you experience similar issues.
+> Some unit tests are known to fail on locales other than `C.UTF-8`. 
+If you have unit tests failing, try setting `LANG=C.UTF-8` when running 
+`go test`. See [issue #1960131](https://bugs.launchpad.net/snapd/+bug/1960131) for more details.
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
@@ -456,8 +451,8 @@ For quick reuse you can use:
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
 
-> Spread tests can be exercised on Ubuntu Core 20, but the latter has a restriction.
-It requires UFI. With QEMU it implies using an UEFI BIOS from the 
+> Spread tests can be exercised on Ubuntu Core 20, but need UEFI.
+UEFI support with QEMU backend of spread requires a BIOS from the 
 [OVMF](https://wiki.ubuntu.com/UEFI/OVMF) package, 
 which can be installed with `sudo apt install ovmf`.
 
@@ -559,7 +554,6 @@ the source code.
 <!-- !TODO: Few things to clean up in the future:
 
 [] Add a section that describes functional labels in GitHub that we use to influence the verification flow of the PR
-[] Add some description about where (i.e. launchpad) to file a bug if we encounter one
 [] Remove reference to https://bugs.launchpad.net/snapd/+bug/1960131 once it gets fixed
 
 //-->
