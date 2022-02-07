@@ -232,16 +232,7 @@ the started snap applications.
 Summary:        SELinux module for snapd
 License:        GPLv2+
 BuildArch:      noarch
-BuildRequires:  selinux-policy, selinux-policy-devel
-Requires(post): selinux-policy-base >= %{_selinux_policy_version}
-Requires(post): policycoreutils
-%if 0%{?rhel} == 7
-Requires(post): policycoreutils-python
-%else
-Requires(post): policycoreutils-python-utils
-%endif
-Requires(pre):  libselinux-utils
-Requires(post): libselinux-utils
+%{?selinux_requires}
 
 %description selinux
 This package provides the SELinux policy module to ensure snapd
