@@ -78,17 +78,6 @@ PATH="/usr/bin"
 	c.Assert(err, IsNil)
 }
 
-func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	err := configcore.Run(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"proxy.http": "http://example.com",
-		},
-	})
-	c.Assert(err, ErrorMatches, "open .*/etc/environment: no such file or directory")
-}
-
 func (s *proxySuite) TestConfigureProxy(c *C) {
 	for _, proto := range []string{"http", "https", "ftp"} {
 		// populate with content
