@@ -151,7 +151,7 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"is-enabled", "snap.test-snap.foo.service"},
-		{"enable", "snap.test-snap.foo.service"},
+		{"--no-reload", "enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
@@ -213,7 +213,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"is-enabled", "snap.test-snap.foo.service"},
-		{"enable", "snap.test-snap.foo.service"},
+		{"--no-reload", "enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
