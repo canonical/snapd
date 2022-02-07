@@ -14,7 +14,6 @@ prepare: |
     . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        REBOOT_NEEDED=false
         if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
             REBOOT_NEEDED=true
         fi
@@ -28,14 +27,7 @@ prepare: |
         # kick first boot again
         systemctl start snapd.service snapd.socket
 
-        if [ "$REBOOT_NEEDED" = true ]; then
-            echo "reboot when the system is ready"
-            for _ in $(seq 10); do
-                if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
-                     break
-                fi
-                sleep 1
-            done
+        if [ "$REBOOT_NEEDED" = true ] && "$TESTSTOOLS"/journal-state match-log -n 30 "Waiting for system reboot"; then
             REBOOT
         fi
     fi
@@ -52,7 +44,6 @@ restore: |
     . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        REBOOT_NEEDED=false
         if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
             REBOOT_NEEDED=true
         fi
@@ -67,14 +58,7 @@ restore: |
         # kick first boot again
         systemctl start snapd.service snapd.socket
 
-        if [ "$REBOOT_NEEDED" = true ]; then
-            echo "reboot when the system is ready"
-            for _ in $(seq 10); do
-                if "$TESTSTOOLS"/journal-state match-log "Waiting for system reboot"; then
-                     break
-                fi
-                sleep 1
-            done
+        if [ "$REBOOT_NEEDED" = true ] && "$TESTSTOOLS"/journal-state match-log -n 30 "Waiting for system reboot"; then
             REBOOT
         fi
     fi
