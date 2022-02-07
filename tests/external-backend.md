@@ -18,7 +18,7 @@ script, if that's not the case you can pass the created username as a third argu
 to the script.
 
 * From the snapd project's root execute the suite selecting the type of system of
-the instance, in the spread.yaml file are listed all the supported systems:
+the instance (spread.yaml file lists all supported systems) by executing the command:
 ```
 $ spread external:ubuntu-core-20-64
 ```
