@@ -2033,7 +2033,7 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 		Architecture: "amd64",
 		PrepareDir:   preparedir,
 		Classic:      true,
-		Snaps:        []string{
+		Snaps: []string{
 			s.AssertedSnap("pc"),
 			s.AssertedSnap("pc-kernel"),
 			s.AssertedSnap("core"),
@@ -2046,7 +2046,7 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
 
 	for _, name := range []string{"core", "pc-kernel", "pc"} {
-		p := filepath.Join(seedsnapsdir, name + "_x1.snap")
+		p := filepath.Join(seedsnapsdir, name+"_x1.snap")
 		c.Check(p, testutil.FilePresent)
 	}
 }
