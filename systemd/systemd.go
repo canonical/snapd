@@ -295,9 +295,9 @@ type Systemd interface {
 	// only necessary to apply manager's configuration like
 	// watchdog.
 	DaemonReexec() error
-	// Enable the given services.
+	// Enable the given services, do not reload systemd.
 	Enable(services []string) error
-	// Disable the given services.
+	// Disable the given services, do not reload system.
 	Disable(services []string) error
 	// Start the given service or services.
 	Start(service []string) error
@@ -505,12 +505,16 @@ func (s *systemd) Enable(serviceNames []string) error {
 	if 0 == len(serviceNames) {
 		return nil
 	}
-	var err error
+	var args []string
 	if s.rootDir != "" {
-		_, err = s.systemctl(append([]string{"--root", s.rootDir, "enable"}, serviceNames...)...)
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
 	} else {
-		_, err = s.systemctl(append([]string{"enable"}, serviceNames...)...)
+		args = append(args, "--no-reload")
 	}
+	args = append(args, "enable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 
@@ -528,12 +532,16 @@ func (s *systemd) Disable(serviceNames []string) error {
 	if 0 == len(serviceNames) {
 		return nil
 	}
-	var err error
+	var args []string
 	if s.rootDir != "" {
-		_, err = s.systemctl(append([]string{"--root", s.rootDir, "disable"}, serviceNames...)...)
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
 	} else {
-		_, err = s.systemctl(append([]string{"disable"}, serviceNames...)...)
+		args = append(args, "--no-reload")
 	}
+	args = append(args, "disable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 

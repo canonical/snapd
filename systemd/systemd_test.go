@@ -625,12 +625,12 @@ func (s *SystemdTestSuite) TestDisable(c *C) {
 	sysd := New(SystemMode, s.rep)
 	err := sysd.Disable([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo"}})
 
 	s.argses = nil
 	err = sysd.Disable([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
@@ -685,12 +685,12 @@ func (s *SystemdTestSuite) TestEnable(c *C) {
 	sysd := New(SystemMode, s.rep)
 	err := sysd.Enable([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo"}})
 
 	s.argses = nil
 	err = sysd.Enable([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
@@ -1060,7 +1060,7 @@ WantedBy=multi-user.target
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"enable", "snap-snapname-x1.mount"},
+		{"--no-reload", "enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
 	})
 }
