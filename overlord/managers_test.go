@@ -8405,7 +8405,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 2:
-			c.Check(cmd, DeepEquals, []string{"enable", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
 			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
@@ -8416,7 +8416,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 5:
-			c.Check(cmd, DeepEquals, []string{"enable", "usr-lib-snapd.mount"})
+			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "usr-lib-snapd.mount"})
 			return nil, nil
 		case 6:
 			c.Check(cmd, DeepEquals, []string{"stop", "usr-lib-snapd.mount"})
@@ -8635,7 +8635,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 2:
-			c.Check(cmd, DeepEquals, []string{"enable", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
 			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
@@ -8646,7 +8646,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 5:
-			c.Check(cmd, DeepEquals, []string{"enable", "usr-lib-snapd.mount"})
+			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "usr-lib-snapd.mount"})
 			return nil, nil
 		case 6:
 			c.Check(cmd, DeepEquals, []string{"stop", "usr-lib-snapd.mount"})

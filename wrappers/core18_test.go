@@ -188,7 +188,7 @@ WantedBy=snapd.service
 	// check the systemctl calls
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"enable", "usr-lib-snapd.mount"},
+		{"--no-reload", "enable", "usr-lib-snapd.mount"},
 		{"stop", "usr-lib-snapd.mount"},
 		{"show", "--property=ActiveState", "usr-lib-snapd.mount"},
 		{"start", "usr-lib-snapd.mount"},
@@ -198,7 +198,7 @@ WantedBy=snapd.service
 		{"is-enabled", "snapd.snap-repair.timer"},
 		// test pretends snapd.socket is disabled and needs enabling
 		{"is-enabled", "snapd.socket"},
-		{"enable", "snapd.socket"},
+		{"--no-reload", "enable", "snapd.socket"},
 		{"is-enabled", "snapd.system-shutdown.service"},
 		{"is-active", "snapd.autoimport.service"},
 		{"stop", "snapd.autoimport.service"},
@@ -212,10 +212,10 @@ WantedBy=snapd.service
 		{"start", "--no-block", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.service"},
-		{"--user", "--global", "enable", "snapd.session-agent.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.socket"},
-		{"--user", "--global", "enable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 	})
 }
 
