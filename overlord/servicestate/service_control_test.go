@@ -689,6 +689,7 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"--no-reload", "enable", "snap.test-snap.foo.service"},
+		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -719,6 +720,7 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"--no-reload", "enable", "snap.test-snap.foo.service", "snap.test-snap.bar.service", "snap.test-snap.abc.service"},
+		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.abc.service"},
@@ -784,6 +786,7 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 		{"stop", "snap.test-snap.foo.service"},
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
 		{"--no-reload", "disable", "snap.test-snap.foo.service"},
+		{"daemon-reload"},
 	})
 }
 
