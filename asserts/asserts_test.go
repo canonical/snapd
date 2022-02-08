@@ -384,7 +384,7 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"primary-key: abc\n", "", `assertion test-only: "primary-key" header is mandatory`},
 		{"primary-key: abc\n", "primary-key:\n  - abc\n", `assertion test-only: "primary-key" header must be a string`},
 		{"primary-key: abc\n", "primary-key: a/c\n", `assertion test-only: "primary-key" primary key header cannot contain '/'`},
-		{"abcde", "ab\xffde", "body is not utf8"},
+		{"abcde", "ab\xffde", "assertion body is not utf8"},
 	}
 
 	for _, test := range invalidAssertTests {

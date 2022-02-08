@@ -909,7 +909,7 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	}
 
 	if !utf8.Valid(body) {
-		return nil, fmt.Errorf("body is not utf8")
+		return nil, fmt.Errorf("assertion body is not utf8")
 	}
 
 	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
