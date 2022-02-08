@@ -209,6 +209,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			if e := systemSysd.Disable(toEnableSystem); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
 			}
+			if e := systemSysd.DaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to do daemon-reload: %v", e))
+			}
 		}
 		if len(toEnableUser) > 0 {
 			if e := userSysd.Disable(toEnableUser); e != nil {
@@ -280,6 +283,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {
 		if len(toEnableSystem) > 0 {
 			if err = systemSysd.Enable(toEnableSystem); err != nil {
+				return
+			}
+			if err = systemSysd.DaemonReload(); err != nil {
 				return
 			}
 		}
@@ -734,8 +740,13 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
 	}
-	if err := sysd.Disable(disableServices); err != nil {
-		return err
+	if len(disableServices) > 0 {
+		if err := sysd.Disable(disableServices); err != nil {
+			return err
+		}
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
