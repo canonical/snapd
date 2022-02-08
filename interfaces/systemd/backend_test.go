@@ -92,11 +92,14 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	c.Check(err, IsNil)
 	// the service was also started (whee)
 	c.Check(sysdLog, DeepEquals, [][]string{
+		// units added removed
 		{"daemon-reload"},
 		{"--no-reload", "enable", "snap.samba.interface.foo.service"},
 		{"stop", "snap.samba.interface.foo.service"},
 		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 		{"start", "snap.samba.interface.foo.service"},
+		// update systemd's enabled/disabled state
+		{"daemon-reload"},
 	})
 }
 
@@ -133,7 +136,6 @@ func (s *backendSuite) TestSettingInstallManyUpdateSecurityWithFewerServices(c *
 	serviceFoo := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.foo.service")
 	serviceBar := filepath.Join(dirs.SnapServicesDir, "snap.samba.interface.bar.service")
 	// verify known test state
-
 	c.Check(serviceFoo, testutil.FileAbsent)
 	c.Check(serviceBar, testutil.FileAbsent)
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
@@ -141,13 +143,15 @@ func (s *backendSuite) TestSettingInstallManyUpdateSecurityWithFewerServices(c *
 	c.Check(serviceFoo, testutil.FilePresent)
 	c.Check(serviceBar, testutil.FilePresent)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		// units were added
 		{"systemctl", "daemon-reload"},
-		{"systemctl", "enable", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
+		// units were added
+		{"systemctl", "--no-reload", "enable", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
 		{"systemctl", "stop", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
 		{"systemctl", "start", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
+		// update state in systemd
+		{"systemctl", "daemon-reload"},
 	})
 	s.systemctlArgs = nil
 
