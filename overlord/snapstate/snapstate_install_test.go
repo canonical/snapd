@@ -3317,6 +3317,32 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestInstallManyDevMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapNames := []string{"one", "two"}
+	installed, tts, err := snapstate.InstallMany(s.state, snapNames, 0, &snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(installed, DeepEquals, snapNames)
+
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
+
+	for i, ts := range tts {
+		verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
+		// check that tasksets are in separate lanes
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
+		}
+	}
+	for i := range snapNames {
+		snapsup, err := snapstate.TaskSnapSetup(tts[i].Tasks()[0])
+		c.Assert(err, IsNil)
+		c.Check(snapsup.DevMode, Equals, true)
+	}
+}
+
 func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
