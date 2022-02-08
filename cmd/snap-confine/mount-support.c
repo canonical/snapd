@@ -280,6 +280,120 @@ static void sc_do_mounts(const char *scratch_dir,
 }
 
 /**
+ * Create root mountpoints and symbolic links.
+ *
+ * Enumerate the root entries in the filesystem provided by the provided
+ * rootfs, and recreate all regular directories and symbolic links into the
+ * scratch_dir.
+ *
+ * The root_mounts parameter lists the mounts that are going to be performed
+ * later directly from the "/" directory of the system, so this function will
+ * not touch them.
+ */
+static void sc_replicate_rootfs(const char *scratch_dir,
+                                const char *rootfs_dir,
+                                const struct sc_mount *root_mounts)
+{
+	// First of all, fix the root filesystem:
+	// - remove write permissions for group and others
+	// - set the owner to root:root
+	if (chmod(scratch_dir, 0755) < 0) {
+		die("cannot change permissions on \"%s\"", scratch_dir);
+	}
+	if (chown(scratch_dir, 0, 0) < 0) {
+		die("cannot change ownership on \"%s\"", scratch_dir);
+	}
+
+	int rootfs_fd SC_CLEANUP(sc_cleanup_close) = -1;
+	// Note that the rootfs here is a path like /snap/<snap>/current, which is
+	// always a symbolic link. Therefore, we cannot use O_NOFOLLOW here.
+	rootfs_fd = open(rootfs_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (rootfs_fd < 0) {
+		die("cannot open directory \"%s\"", rootfs_dir);
+	}
+
+	DIR *rootfs SC_CLEANUP(sc_cleanup_closedir) = fdopendir(rootfs_fd);
+	if (rootfs == NULL) {
+		die("cannot open directory \"%s\" from file descriptor", rootfs_dir);
+	}
+
+	// Will create folders/links as 0:0
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
+	char full_path[PATH_MAX];
+	// After we construct each entry's full path, we'll need to obtain the
+	// entry's absolute path in the new rootfs, that is with the `scratch_dir`
+	// prefix removed (the path_in_rootfs variable below). We'll do this by
+	// computing the length of the `scratch_dir` prefix now and then using it
+	// as the offset in `full_path` where the '/' of the confined silesystem is
+	// located.
+	const size_t scratch_dir_length = strlen(scratch_dir);
+
+	while (true) {
+		errno = 0;
+		struct dirent *ent = readdir(rootfs);
+		if (ent == NULL) break;
+
+		if (sc_streq(ent->d_name, ".") || sc_streq(ent->d_name, "..")) {
+			continue;
+		}
+
+		sc_must_snprintf(full_path, sizeof(full_path), "%s/%s",
+		                 scratch_dir, ent->d_name);
+		if (ent->d_type == DT_DIR) {
+			if (mkdir(full_path, 0755) < 0) {
+				die("cannot create directory \"%s\"", full_path);
+			}
+
+			// If the directory is listed in root_mounts skip it,
+			// as it will be created and mounted in
+			// sc_bootstrap_mount_namespace() later.
+			bool skip_dir = false;
+			const char *path_in_rootfs = full_path + scratch_dir_length;
+			for (const struct sc_mount *mnt = root_mounts;
+			     mnt->path != NULL; mnt++) {
+				if (sc_streq(path_in_rootfs, mnt->path) ||
+				    sc_streq(path_in_rootfs, mnt->altpath)) {
+					skip_dir = true;
+					break;
+				}
+			}
+			if (skip_dir) {
+				continue;
+			}
+
+			char src_path[PATH_MAX];
+			sc_must_snprintf(src_path, sizeof(src_path), "%s/%s",
+					 rootfs_dir, ent->d_name);
+			sc_do_mount(src_path, full_path, NULL, MS_REC | MS_BIND, NULL);
+			sc_do_mount("none", full_path, NULL, MS_REC | MS_SLAVE, NULL);
+		} else if (ent->d_type == DT_LNK) {
+			char link_target[PATH_MAX + 1];
+			ssize_t len = readlinkat(rootfs_fd, ent->d_name,
+			                         link_target, sizeof(link_target) - 1);
+			if (len < 0) {
+				die("cannot read symbolic link \"%s/%s\"",
+				    rootfs_dir, ent->d_name);
+			}
+			// make sure the string is null terminated
+			link_target[len] = '\0';
+
+			// Both relative and absolute links will work out of the box, since
+			// we are going to do a pivot_root to scratch_dir.
+			if (symlink(link_target, full_path) < 0) {
+				die("cannot create symbolic link \"%s\"", full_path);
+			}
+		}
+	}
+
+	if (errno != 0) {
+		die("cannot read directory entry in \"%s\"", rootfs_dir);
+	}
+
+	(void)sc_set_effective_identity(old);
+}
+
+/**
  * Bootstrap mount namespace.
  *
  * This is a chunk of tricky code that lets us have full control over the
@@ -339,16 +453,22 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// mounted anywhere. When we construct recursive bind mounts below this
 	// guarantees that this directory will not be replicated anywhere.
 	sc_do_mount("none", scratch_dir, NULL, MS_UNBINDABLE, NULL);
-	// Recursively bind mount desired root filesystem directory over the
-	// scratch directory. This puts the initial content into the scratch space
-	// and serves as a foundation for all subsequent operations below.
-	//
-	// The mount is recursive because it can either be applied to the root
-	// filesystem of a core system (aka all-snap) or the core snap on a classic
-	// system. In the former case we need recursive bind mounts to accurately
-	// replicate the state of the root filesystem into the scratch directory.
-	sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
-		    NULL);
+	if (config->normal_mode) {
+		// Create a tmpfs on scratch_dir; we'll them mount all the root
+		// directories of the base snap onto it.
+		sc_do_mount("none", scratch_dir, "tmpfs", 0, NULL);
+		sc_replicate_rootfs(scratch_dir, config->rootfs_dir, config->mounts);
+	} else {
+		// Recursively bind mount desired root filesystem directory over the
+		// scratch directory. This puts the initial content into the scratch
+		// space and serves as a foundation for all subsequent operations
+		// below.
+		//
+		// The mount is recursive because we need to accurately replicate the
+		// state of the root filesystem into the scratch directory.
+		sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
+		            NULL);
+	}
 	// Make the scratch directory recursively slave. Nothing done there will be
 	// shared with the initial mount namespace. This effectively detaches us,
 	// in one way, from the original namespace and coupled with pivot_root
