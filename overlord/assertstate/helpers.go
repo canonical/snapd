@@ -37,7 +37,7 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 
 // handleUnsupported behaves as a fallback in case of bugs, we do ask
 // the store to filter unsupported formats!
-func handleUnsupported(db asserts.RODatabase) func(ref *asserts.Ref, unsupportedErr error) error {
+func handleUnsupported(db asserts.RODatabaseView) func(ref *asserts.Ref, unsupportedErr error) error {
 	return func(ref *asserts.Ref, unsupportedErr error) error {
 		if _, err := ref.Resolve(db.Find); err != nil {
 			// nothing there yet or any other error

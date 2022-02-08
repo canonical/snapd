@@ -207,7 +207,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		return logNewSystemSnapFile(filepath.Join(recoverySystemDir, "snapd-new-file-log"), where)
 	}
 
-	var db asserts.RODatabase
+	var db asserts.RODatabaseView
 	if isRemodel {
 		// during remodel, the model assertion is not yet present in the
 		// assertstate database, hence we need to use a temporary one to

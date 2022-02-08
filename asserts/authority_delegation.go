@@ -56,7 +56,7 @@ func (ad *AuthorityDelegation) MatchingConstraints(a Assertion) []*AssertionCons
 }
 
 // Implement further consistency checks.
-func (ad *AuthorityDelegation) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (ad *AuthorityDelegation) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	if !db.IsTrustedAccount(ad.AuthorityID()) {
 		// XXX if this is relaxed then authority-id must otherwise
 		// match account-id

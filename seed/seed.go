@@ -79,7 +79,7 @@ type Seed interface {
 	// be setup instead. ErrNoAssertions will be returned if there
 	// is no assertions directory in the seed, this is legitimate
 	// only on classic.
-	LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error
+	LoadAssertions(db asserts.RODatabaseView, commitTo func(*asserts.Batch) error) error
 
 	// Model returns the seed provided model assertion.
 	// It will panic if called before LoadAssertions.

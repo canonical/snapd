@@ -110,7 +110,7 @@ func (b *Batch) AddStream(r io.Reader) ([]*Ref, error) {
 
 // Fetch adds to the batch by invoking fetching to drive an internal
 // Fetcher that was built with trustedDB and retrieve.
-func (b *Batch) Fetch(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), fetching func(Fetcher) error) error {
+func (b *Batch) Fetch(trustedDB RODatabaseView, retrieve func(*Ref) (Assertion, error), fetching func(Fetcher) error) error {
 	f := NewFetcher(trustedDB, retrieve, b.Add)
 	return fetching(f)
 }

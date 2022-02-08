@@ -208,7 +208,7 @@ func (tr *tree20) localSnapPath(sn *SeedSnap) (string, error) {
 	return filepath.Join(sysSnapsDir, fmt.Sprintf("%s_%s.snap", sn.SnapName(), sn.Info.Version)), nil
 }
 
-func (tr *tree20) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+func (tr *tree20) writeAssertions(db asserts.RODatabaseView, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	assertsDir := filepath.Join(tr.systemDir, "assertions")
 	if err := os.MkdirAll(assertsDir, 0755); err != nil {
 		return err

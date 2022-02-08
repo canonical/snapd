@@ -69,7 +69,7 @@ type Grouping string
 // All the resolved assertions in a Pool from groups not in error can
 // be committed to a destination database with CommitTo.
 type Pool struct {
-	groundDB RODatabase
+	groundDB RODatabaseView
 
 	numbering map[string]uint16
 	groupings *internal.Groupings
@@ -90,7 +90,7 @@ type Pool struct {
 // predefined assertions and to provide the current revision for
 // assertions to update and their prerequisites. Up to n groups can be
 // used to organize the assertions.
-func NewPool(groundDB RODatabase, n int) *Pool {
+func NewPool(groundDB RODatabaseView, n int) *Pool {
 	groupings, err := internal.NewGroupings(n)
 	if err != nil {
 		panic(fmt.Sprintf("NewPool: %v", err))

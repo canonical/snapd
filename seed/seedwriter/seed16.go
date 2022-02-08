@@ -175,7 +175,7 @@ func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {
 	return filepath.Join(tr.snapsDirPath, sn.Info.Filename()), nil
 }
 
-func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+func (tr *tree16) writeAssertions(db asserts.RODatabaseView, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
 	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
 		return err

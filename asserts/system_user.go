@@ -116,7 +116,7 @@ func (su *SystemUser) ValidAt(when time.Time) bool {
 }
 
 // Implement further consistency checks.
-func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (su *SystemUser) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,
 	// i.e. in the create-user code. See also Model.checkConsitency
 

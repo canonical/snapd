@@ -114,7 +114,7 @@ type fakeStore struct {
 	storetest.Store
 
 	state *state.State
-	db    asserts.RODatabase
+	db    asserts.RODatabaseView
 }
 
 func (sto *fakeStore) pokeStateLock() {

@@ -208,7 +208,7 @@ type snapWriteObserveFunc func(systemDir, where string) error
 // recovery system - some snaps may be in the recovery system directory while
 // others may be in the common snaps directory shared between multiple recovery
 // systems on ubuntu-seed.
-func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc, observeWrite snapWriteObserveFunc) (dir string, err error) {
+func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabaseView, getInfo getSnapInfoFunc, observeWrite snapWriteObserveFunc) (dir string, err error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", fmt.Errorf("cannot create a system for non UC20 model")
 	}

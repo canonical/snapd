@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -169,8 +169,8 @@ func IsUnaccceptedUpdate(err error) bool {
 	return false
 }
 
-// A RODatabase exposes read-only access to an assertion database.
-type RODatabase interface {
+// A RODatabaseView exposes read-only access to an assertion database.
+type RODatabaseView interface {
 	// IsTrustedAccount returns whether the account is part of the trusted set.
 	IsTrustedAccount(accountID string) bool
 	// Find an assertion based on arbitrary headers.
@@ -217,7 +217,7 @@ type RODatabase interface {
 // assertions in the database.
 // It can also participate in validating and filtering delegation assertion
 // constraint in the case of delegation.
-type Checker func(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error)
+type Checker func(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error)
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
@@ -699,7 +699,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 // assertion checkers
 
 // CheckSigningKeyIsNotExpired checks that the signing key is not expired.
-func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
 	if signingKey == nil {
 		// assert isn't signed with an account-key key, CheckSignature
 		// will fail anyway unless we teach it more stuff,
@@ -714,7 +714,7 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, deleg
 }
 
 // CheckSignature checks that the signature is valid.
-func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) (delegationConstraints []*AssertionConstraints, err error) {
+func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) (delegationConstraints []*AssertionConstraints, err error) {
 	var pubKey PublicKey
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
@@ -764,7 +764,7 @@ type timestamped interface {
 
 // CheckTimestampVsSigningKeyValidity verifies that the timestamp of
 // the assertion is within the signing key validity.
-func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
 	if signingKey == nil {
 		// assert isn't signed with an account-key key, CheckSignature
 		// will fail anyway unless we teach it more stuff.
@@ -789,11 +789,11 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 // A consistencyChecker performs further checks based on the full
 // assertion database knowledge and its own signing key.
 type consistencyChecker interface {
-	checkConsistency(roDB RODatabase, signingKey *AccountKey) error
+	checkConsistency(roDB RODatabaseView, signingKey *AccountKey) error
 }
 
 // CheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
-func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
 	// see if the assertion requires further checks
 	if checker, ok := assert.(consistencyChecker); ok {
 		return delegationConstraints, checker.checkConsistency(roDB, signingKey)
@@ -802,7 +802,7 @@ func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, delegationC
 }
 
 // CheckDelegationIsNotExpired checks that there is at least one not expired delegation constraint.
-func CheckDelegationIsNotExpired(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckDelegationIsNotExpired(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
 	if len(delegationConstraints) == 0 {
 		// nothing to do
 		return nil, nil
@@ -821,7 +821,7 @@ func CheckDelegationIsNotExpired(assert Assertion, signingKey *AccountKey, deleg
 
 // CheckTimestampVsDelegationValidity verifies that the timestamp of
 // the assertion is within at least one of the delegation constraints validity.
-func CheckTimestampVsDelegationValidity(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckTimestampVsDelegationValidity(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
 	if len(delegationConstraints) == 0 {
 		// nothing to do
 		return nil, nil
@@ -844,7 +844,7 @@ func CheckTimestampVsDelegationValidity(assert Assertion, signingKey *AccountKey
 
 // CheckDelegation performs the final verification of delegation based
 // on filtered delegation assertion constraints.
-func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
+func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) ([]*AssertionConstraints, error) {
 	if signingKey == nil || assert.SignatoryID() == assert.AuthorityID() {
 		// not a delegation scenario
 		return nil, nil

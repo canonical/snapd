@@ -49,7 +49,7 @@ import (
 type seed20 struct {
 	systemDir string
 
-	db asserts.RODatabase
+	db asserts.RODatabaseView
 
 	model *asserts.Model
 
@@ -73,7 +73,7 @@ type seed20 struct {
 	essentialSnapsNum int
 }
 
-func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+func (s *seed20) LoadAssertions(db asserts.RODatabaseView, commitTo func(*asserts.Batch) error) error {
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error

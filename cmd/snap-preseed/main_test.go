@@ -335,7 +335,7 @@ func mockClassicModel() *asserts.Model {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Model)
 }
 
-func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabaseView, commitTo func(*asserts.Batch) error) error {
 	return fs.LoadAssertionsErr
 }
 

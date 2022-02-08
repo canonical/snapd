@@ -585,7 +585,7 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml
 	s.MakeAssertedSnap(c, snapBaseNone, nil, snap.R(1), "other")
 }
 
-func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runSnaps []*seed.Snap, roDB asserts.RODatabase) {
+func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runSnaps []*seed.Snap, roDB asserts.RODatabaseView) {
 	label := ""
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
 	c.Assert(err, IsNil)

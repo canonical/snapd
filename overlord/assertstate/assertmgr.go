@@ -76,7 +76,7 @@ func cachedDB(s *state.State) *asserts.Database {
 }
 
 // DB returns a read-only view of system assertion database.
-func DB(s *state.State) asserts.RODatabase {
+func DB(s *state.State) asserts.RODatabaseView {
 	return cachedDB(s)
 }
 

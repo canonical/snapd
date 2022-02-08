@@ -141,7 +141,7 @@ func essentialSnapTypesToModelFilter(essentialTypes []snap.Type) func(modSnap *a
 	}
 }
 
-func findBrand(seed Seed, db asserts.RODatabase) (*asserts.Account, error) {
+func findBrand(seed Seed, db asserts.RODatabaseView) (*asserts.Account, error) {
 	a, err := db.Find(asserts.AccountType, map[string]string{
 		"account-id": seed.Model().BrandID(),
 	})

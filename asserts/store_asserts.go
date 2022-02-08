@@ -65,7 +65,7 @@ func (store *Store) Timestamp() time.Time {
 	return store.timestamp
 }
 
-func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (store *Store) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	// Will be applied to a system's snapd or influence snapd
 	// policy decisions (via friendly-stores) so must be signed by a trusted
 	// authority!

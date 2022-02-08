@@ -143,7 +143,7 @@ func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
 }
 
 // Implement further consistency checks.
-func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (ak *AccountKey) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	if !db.IsTrustedAccount(ak.AuthorityID()) {
 		return fmt.Errorf("account-key assertion for %q is not signed by a directly trusted authority: %s", ak.AccountID(), ak.AuthorityID())
 	}
@@ -261,7 +261,7 @@ func (akr *AccountKeyRequest) signKey() PublicKey {
 }
 
 // Implement further consistency checks.
-func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (akr *AccountKeyRequest) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": akr.AccountID(),
 	})

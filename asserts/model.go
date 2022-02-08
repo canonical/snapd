@@ -558,7 +558,7 @@ func (mod *Model) Timestamp() time.Time {
 }
 
 // Implement further consistency checks.
-func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (mod *Model) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	// TODO: double check trust level of authority depending on class and possibly allowed-modes
 	return nil
 }

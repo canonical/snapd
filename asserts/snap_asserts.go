@@ -98,7 +98,7 @@ func (snapdcl *SnapDeclaration) Aliases() map[string]string {
 }
 
 // Implement further consistency checks.
-func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (snapdcl *SnapDeclaration) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) is not signed by a directly trusted authority: %s", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.AuthorityID())
 	}
@@ -448,7 +448,7 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 }
 
 // Implement further consistency checks.
-func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (snaprev *SnapRevision) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	// TODO: expand this to consider other stores signing on their own
 	if !db.IsTrustedAccount(snaprev.AuthorityID()) {
 		return fmt.Errorf("snap-revision assertion for snap id %q is not signed by a store: %s", snaprev.SnapID(), snaprev.AuthorityID())
@@ -580,7 +580,7 @@ func (validation *Validation) Timestamp() time.Time {
 }
 
 // Implement further consistency checks.
-func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (validation *Validation) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	_, err := db.Find(SnapDeclarationType, map[string]string{
 		"series":  validation.Series(),
 		"snap-id": validation.ApprovedSnapID(),
@@ -676,7 +676,7 @@ func (basedcl *BaseDeclaration) SlotRule(interfaceName string) *SlotRule {
 }
 
 // Implement further consistency checks.
-func (basedcl *BaseDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (basedcl *BaseDeclaration) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	// XXX: not signed or stored yet in a db, but being ready for that
 	if !db.IsTrustedAccount(basedcl.AuthorityID()) {
 		return fmt.Errorf("base-declaration assertion for series %s is not signed by a directly trusted authority: %s", basedcl.Series(), basedcl.AuthorityID())
@@ -811,7 +811,7 @@ func (snapdev *SnapDeveloper) PublisherID() string {
 	return snapdev.HeaderString("publisher-id")
 }
 
-func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (snapdev *SnapDeveloper) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	// Check authority is the publisher or trusted.
 	authorityID := snapdev.AuthorityID()
 	publisherID := snapdev.PublisherID()

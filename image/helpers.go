@@ -467,7 +467,7 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 }
 
 // FetchAndCheckSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database.
-func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabase) (*asserts.SnapDeclaration, error) {
+func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabaseView) (*asserts.SnapDeclaration, error) {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, err

@@ -112,7 +112,7 @@ func (r *Repair) Timestamp() time.Time {
 }
 
 // Implement further consistency checks.
-func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (r *Repair) checkConsistency(db RODatabaseView, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,
 	// i.e. in the future repair code
 

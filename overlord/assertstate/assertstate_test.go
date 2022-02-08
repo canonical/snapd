@@ -79,7 +79,7 @@ var _ = Suite(&assertMgrSuite{})
 type fakeStore struct {
 	storetest.Store
 	state                           *state.State
-	db                              asserts.RODatabase
+	db                              asserts.RODatabaseView
 	maxDeclSupportedFormat          int
 	maxValidationSetSupportedFormat int
 

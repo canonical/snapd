@@ -46,7 +46,7 @@ import (
 type seed16 struct {
 	seedDir string
 
-	db asserts.RODatabase
+	db asserts.RODatabaseView
 
 	model *asserts.Model
 
@@ -60,7 +60,7 @@ type seed16 struct {
 	usesSnapdSnap bool
 }
 
-func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+func (s *seed16) LoadAssertions(db asserts.RODatabaseView, commitTo func(*asserts.Batch) error) error {
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error
