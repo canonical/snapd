@@ -343,6 +343,10 @@ renameat2
 restart_syscall
 
 rmdir
+
+# glibc 2.35 unconditionally calls rseq for all threads
+rseq
+
 rt_sigaction
 rt_sigpending
 rt_sigprocmask
