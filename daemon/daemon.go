@@ -78,6 +78,8 @@ type Daemon struct {
 
 	// set to what kind of restart was requested if any
 	requestedRestart restart.RestartType
+	// reboot info needed to handle reboots
+	rebootInfo boot.RebootInfo
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -395,6 +397,10 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 			logger.Noticef("%s", err)
 		}
 	}
+	d.rebootInfo = boot.RebootInfo{}
+	if rebootInfo != nil {
+		d.rebootInfo = *rebootInfo
+	}
 
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
@@ -461,7 +467,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	if d.expectedRebootDidNotHappen {
 		// make the reboot retry immediate
 		immediateReboot := true
-		return d.doReboot(sigCh, restart.RestartSystem, immediateReboot, rebootRetryWaitTimeout)
+		return d.doReboot(sigCh, restart.RestartSystem, nil, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
 		return fmt.Errorf("internal error: no Overlord")
@@ -565,7 +571,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, d.requestedRestart, &d.rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
@@ -605,7 +611,7 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	return rebootDelay, nil
 }
 
-func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immediate bool, waitTimeout time.Duration) error {
+func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *boot.RebootInfo, immediate bool, waitTimeout time.Duration) error {
 	rebootDelay, err := d.rebootDelay(immediate)
 	if err != nil {
 		return err
@@ -619,7 +625,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, immed
 	}
 	// ask for shutdown and wait for it to happen.
 	// if we exit snapd will be restared by systemd
-	if err := reboot(action, rebootDelay, nil); err != nil {
+	if err := reboot(action, rebootDelay, rbi); err != nil {
 		return err
 	}
 	// wait for reboot to happen
