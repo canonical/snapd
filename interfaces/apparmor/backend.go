@@ -74,6 +74,9 @@ var (
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
 type Backend struct {
 	preseed bool
+
+	coreSnap  *snap.Info
+	snapdSnap *snap.Info
 }
 
 // Name returns the name of the backend.
@@ -85,6 +88,11 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	if opts != nil && opts.Preseed {
 		b.preseed = true
+	}
+
+	if opts != nil {
+		b.coreSnap = opts.CoreSnapInfo
+		b.snapdSnap = opts.SnapdSnapInfo
 	}
 	// NOTE: It would be nice if we could also generate the profile for
 	// snap-confine executing from the core snap, right here, and not have to
@@ -240,7 +248,7 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	patchedProfileText := bytes.Replace(
 		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
 
-	// We need to add a uniqe prefix that can never collide with a
+	// We need to add a unique prefix that can never collide with a
 	// snap on the system. Using "snap-confine.*" is similar to
 	// "snap-update-ns.*" that is already used there
 	//
@@ -630,12 +638,12 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, snapInfo, appInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		addContent(securityTag, b.coreSnap, b.snapdSnap, snapInfo, appInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		addContent(securityTag, b.coreSnap, b.snapdSnap, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
@@ -676,7 +684,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 	}
 }
 
-func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
+func addContent(securityTag string, coreSnapInfo, snapdSnapInfo, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
 	// case, the 'core' snap is used for the runtime), use the base
@@ -704,6 +712,55 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
+		case "###DEVMODE_SNAP_CONFINE###":
+			if opts.DevMode {
+				// TODO: we should deprecate this and drop it in a future
+				// release
+
+				// we use Pxr for all these rules since the snap-confine profile
+				// is not a child profile of the devmode complain profile we are
+				// generating right now
+				coreSnapConfineSnippet := ""
+				if coreSnapInfo != nil {
+					coreSnapConfineSnippet = fmt.Sprintf(`/snap/core/*/usr/lib/snapd/snap-confine Pxr -> /snap/core/%s/usr/lib/snapd/snap-confine,`, coreSnapInfo.SnapRevision().String())
+				}
+
+				snapdSnapConfineSnippet := ""
+				if snapdSnapInfo != nil {
+					snapdSnapConfineSnippet = fmt.Sprintf(`/snap/snapd/*/usr/lib/snapd/snap-confine Pxr -> /snap/snapd/%s/usr/lib/snapd/snap-confine,`, snapdSnapInfo.SnapRevision().String())
+				}
+
+				if snapdSnapConfineSnippet == "" && coreSnapConfineSnippet == "" {
+					panic("need to return an error here somehow, also this is an internal error, we should always have at least one")
+				}
+				// include both rules for the core snap and the snapd snap since
+				// we can't know which one will be used at runtime (for example
+				// SNAP_REEXEC could be set which affects which one is used)
+				return fmt.Sprintf(`
+  # allow executing the snap command from either the rootfs (for base: core) or
+  # from the system snaps (all other bases) - this is very specifically only to
+  # enable proper apparmor profile transition to snap-confine below, if we don't
+  # include these exec rules, then when executing the snap command, apparmor 
+  # will create a new, unique sub-profile which then cannot be transitioned from
+  # to the actual snap-confine profile
+  /usr/bin/snap ixr,
+  /snap/{snapd,core}/*/usr/bin/snap ixr,
+
+  # allow transitioning to snap-confine to support executing strict snaps from
+  # inside devmode confined snaps
+
+  # this rule is sufficient for base: core snaps
+  /usr/lib/snapd/snap-confine Pxr -> /usr/lib/snapd/snap-confine,
+
+  # this rule is necessary for all other base snaps, which will execute 
+  # snap-confine directly from the system snap because the base snap will only
+  # have a symlink from /usr/bin/snap -> /snap/snapd/current/usr/bin/snap, which
+  # the snap command execute snap-confine directly from the associated system 
+  # snap in /snap/{snapd,core}
+  %s
+  %s
+`, coreSnapConfineSnippet, snapdSnapConfineSnippet)
+			}
 		case "###VAR###":
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
