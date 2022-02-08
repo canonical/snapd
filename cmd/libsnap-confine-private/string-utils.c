@@ -56,12 +56,6 @@ bool sc_startswith(const char *str, const char *prefix)
 	}
 
 	size_t xlen = strlen(prefix);
-	size_t slen = strlen(str);
-
-	if (slen < xlen) {
-		return false;
-	}
-
 	return strncmp(str, prefix, xlen) == 0;
 }
 
