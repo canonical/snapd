@@ -81,3 +81,22 @@ execute: |
     snapEnv=$("$NAME".env)
     echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x1"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
+
+    "$NAME".echo "data" > "$HOME"/.snap/data/"$NAME"/x1/data
+    "$NAME".echo "common" > "$HOME"/.snap/data/"$NAME"/common/common
+
+    echo "Revert migration (unset flag and refresh)"
+    snap unset system experimental.hidden-snap-folder
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+    echo "Check snap user data was moved back"
+    not test -d "$HOME"/.snap/data/"$NAME"
+    test -d "$HOME"/snap/"$NAME"
+
+    MATCH "common" < "$HOME"/snap/"$NAME"/common/common
+    MATCH "data" < "$HOME"/snap/"$NAME"/x2/data
+
+    echo "Check environment variables were restored"
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/snap/$NAME/x2"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/snap/$NAME/common"
