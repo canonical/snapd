@@ -20,9 +20,8 @@
 package notification_test
 
 import (
-	. "gopkg.in/check.v1"
-
 	"github.com/godbus/dbus"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/desktop/notification/notificationtest"
