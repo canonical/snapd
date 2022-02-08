@@ -158,8 +158,7 @@ jobs:
         working-directory: ./src/github.com/snapcore/snapd
         # show only new issues
         # use empty path prefix to make annotations work
-        # TODO: start failing once the config is tuned properly
-        args: --new-from-rev=${{ github.base_ref }} --path-prefix= --issues-exit-code=0
+        args: --new-from-rev=${{ github.base_ref }} --path-prefix=
         # skip all additional steps
         skip-go-installation: true
         skip-pkg-cache: true
