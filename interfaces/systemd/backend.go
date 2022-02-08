@@ -113,6 +113,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 			}
 		}
 	}
+	if !b.preseed && len(changed) > 0 {
+		if err := systemd.DaemonReload(); err != nil {
+			logger.Noticef("cannot reload systemd state after enabling the services: %s", err)
+		}
+	}
 	return errEnsure
 }
 
