@@ -73,7 +73,7 @@ type cmdRun struct {
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
-	Verbose  bool   `long:"verbose"`
+	DebugLog bool   `long:"debug-log"`
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -121,7 +121,7 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"trace-exec": i18n.G("Display exec calls timing data"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"verbose":    i18n.G("Enable verbose logging during early snap startup phases"),
+			"debug-log":  i18n.G("Enable debug logging during early snap startup phases"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -480,9 +480,9 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
-	if x.Verbose {
+	if x.DebugLog {
 		os.Setenv("SNAPD_DEBUG", "1")
-		logger.Debugf("enabled verbose logging of early snap startup")
+		logger.Debugf("enabled debug logging of early snap startup")
 	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, snap.R(0))
