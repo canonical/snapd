@@ -20,6 +20,7 @@
 #endif
 
 #include "apparmor-support.h"
+#include "string-utils.h"
 #include "utils.h"
 
 #include <string.h>
@@ -91,7 +92,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	// expect to be confined by a profile with the name of a valid
 	// snap-confine binary since if not we may be executed under a
 	// profile with more permissions than expected
-	if (label != NULL && sc_is_expected_path(label)) {
+	if (label != NULL && sc_streq(mode, SC_AA_ENFORCE_STR) && sc_is_expected_path(label)) {
 		apparmor->is_confined = true;
 	} else {
 		apparmor->is_confined = false;
