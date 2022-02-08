@@ -7392,13 +7392,17 @@ func (s *snapmgrTestSuite) testUndoMigration(c *C, failUndo bool) {
 	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
-	copyTaskLogs := findLastTask(chg, "copy-snap-data").Log()
-	failedUndoLog := `.*cannot undo snap dir migration \(must manually restore some-snap's dirs from .* to .*\): boom`
+	warns := s.state.AllWarnings()
+	msgs := make([]string, len(warns))
+	for i, warn := range warns {
+		msgs[i] = warn.String()
+	}
+	failedUndoMsg := `.*cannot undo snap dir hiding \(move all user's ~/\.snap/data/some-snap to ~/snap/some-snap\): boom`
 
 	if failUndo {
-		mustMatch(c, copyTaskLogs, failedUndoLog)
+		mustMatch(c, msgs, failedUndoMsg)
 	} else {
-		mustNotMatch(c, copyTaskLogs, failedUndoLog)
+		mustNotMatch(c, msgs, failedUndoMsg)
 	}
 
 	assertMigrationState(c, s.state, "some-snap", false)

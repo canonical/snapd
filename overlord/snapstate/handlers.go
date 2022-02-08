@@ -1158,8 +1158,8 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			// directory can just be discarded, the snap data migration introduces
 			// a change that affects all revisions of the snap and thus needs to be reverted
 			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-				src := filepath.Join(dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
-				dst := filepath.Join(dirs.UserHomeSnapDir, snapsup.InstanceName())
+				src := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+				dst := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
 
 				st.Lock()
 				st.Warnf("cannot undo snap dir hiding (move all user's %s to %s): %v",
@@ -1181,8 +1181,8 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		// migration was done but user turned the feature off, so undo migration
 		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-				src := filepath.Join(dirs.UserHomeSnapDir, snapsup.InstanceName())
-				dst := filepath.Join(dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+				src := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
+				dst := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
 
 				st.Lock()
 				st.Warnf("cannot undo snap dir exposing (move all user's %s to %s): %v",
