@@ -230,7 +230,7 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
-	err = db.Check(chks.a)
+	err = db.Check(chks.a, nil)
 	c.Assert(err, ErrorMatches, `no matching public key "[[:alnum:]_-]+" for signature by "canonical"`)
 }
 
@@ -244,7 +244,7 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
-	err = db.Check(chks.a)
+	err = db.Check(chks.a, nil)
 	c.Assert(err, ErrorMatches, `assertion is signed with expired public key "[[:alnum:]_-]+" from "canonical"`)
 }
 
@@ -280,7 +280,7 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	forgedAssert, err := asserts.Decode(forgedEncoded)
 	c.Assert(err, IsNil)
 
-	err = db.Check(forgedAssert)
+	err = db.Check(forgedAssert, nil)
 	c.Assert(err, ErrorMatches, "failed signature verification: .*")
 }
 
@@ -309,7 +309,7 @@ func (chks *checkSuite) TestCheckUnsupportedFormat(c *C) {
 		c.Assert(err, IsNil)
 	})()
 
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
 	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported`)
 }
@@ -331,10 +331,10 @@ func (chks *checkSuite) TestCheckMismatchedAccountIDandKey(c *C) {
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, trustedKey)
 	c.Assert(err, IsNil)
 
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Check(err, ErrorMatches, `error finding matching public key for signature: found public key ".*" from "canonical" but expected it from: random`)
 
-	_, err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), nil, db, time.Time{}, time.Time{})
+	_, err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), nil, db.ROUnderPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "canonical"`)
 }
 
@@ -361,35 +361,35 @@ func (chks *checkSuite) TestCheckAndSetEarliestTime(c *C) {
 	r := asserts.MockTimeNow(ak.Since().AddDate(1, 0, 0))
 	defer r()
 
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Check(err, IsNil)
 
 	// now is since - 1 year, key is invalid
 	pastTime := ak.Since().AddDate(-1, 0, 0)
 	asserts.MockTimeNow(pastTime)
 
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Check(err, ErrorMatches, `assertion is signed with expired public key .*`)
 
 	// now is ignored but known to be at least >= pastTime
 	// key is considered valid
 	db.SetEarliestTime(pastTime)
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Check(err, IsNil)
 
 	// move earliest after until
 	db.SetEarliestTime(ak.Until().AddDate(0, 0, 1))
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Check(err, ErrorMatches, `assertion is signed with expired public key .*`)
 
 	// check using now = since - 1 year again
 	db.SetEarliestTime(time.Time{})
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Check(err, ErrorMatches, `assertion is signed with expired public key .*`)
 
 	// now is since + 1 month, key is valid
 	asserts.MockTimeNow(ak.Since().AddDate(0, 1, 0))
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Check(err, IsNil)
 }
 
@@ -451,7 +451,7 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Check(a1)
+	err = safs.db.Check(a1, nil)
 	c.Check(err, IsNil)
 }
 
@@ -650,7 +650,7 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Check(a1)
+	err = safs.db.Check(a1, nil)
 	c.Check(err, ErrorMatches, `no matching authority-delegation for signing delegation from "canonical" to "delegated-acct"`)
 
 	// now add authority-delegation
@@ -674,13 +674,13 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 
 	c.Assert(safs.db.Add(ad), IsNil)
 
-	err = safs.db.Check(a1)
+	err = safs.db.Check(a1, nil)
 	c.Check(err, IsNil)
 
 	// test CheckDelegation directly as well, first retrieve the constraints
 	acs := ad.(*asserts.AuthorityDelegation).MatchingConstraints(a1)
 
-	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db, time.Time{}, time.Time{})
+	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, IsNil)
 	// the constraints are consumed and not passed further along
 	c.Check(acs, HasLen, 0)
@@ -727,7 +727,7 @@ func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) 
 	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
 	c.Assert(err, IsNil)
 
-	_, err = asserts.CheckSignature(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db, time.Time{}, time.Time{})
+	_, err = asserts.CheckSignature(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "delegated-acct"`)
 }
 
@@ -793,7 +793,7 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 
 	c.Assert(safs.db.Add(ad), IsNil)
 
-	err = safs.db.Check(a1)
+	err = safs.db.Check(a1, nil)
 	c.Check(err, ErrorMatches, `no matching constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
 
 	// test CheckDelegation directly as well, first retrieve the constraints
@@ -806,10 +806,10 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 	}))
 	c.Assert(acs, HasLen, 1)
 
-	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db, time.Time{}, time.Time{})
+	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
 
-	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db, time.Time{}, time.Time{})
+	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
 }
 
@@ -876,7 +876,7 @@ func (safs *signAddFindSuite) TestSignDelegationExpired(c *C) {
 
 	c.Assert(safs.db.Add(ad), IsNil)
 
-	err = safs.db.Check(a1)
+	err = safs.db.Check(a1, nil)
 	c.Check(err, ErrorMatches, `all constraints supporting delegated test-only assertion from "canonical" to "delegated-acct" are expired`)
 }
 

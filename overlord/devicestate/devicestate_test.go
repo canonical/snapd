@@ -84,7 +84,7 @@ type deviceMgrBaseSuite struct {
 	se      *overlord.StateEngine
 	hookMgr *hookstate.HookManager
 	mgr     *devicestate.DeviceManager
-	db      *asserts.Database
+	db      asserts.RODatabaseView
 
 	bootloader *bootloadertest.MockBootloader
 
@@ -212,7 +212,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	s.db = db
+	s.db = db.ROUnderPolicy(nil)
 	s.hookMgr = hookMgr
 	s.o.AddManager(s.hookMgr)
 	s.mgr = mgr
@@ -230,7 +230,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
-		db:    s.storeSigning,
+		db:    s.storeSigning.ROUnderPolicy(nil),
 	})
 	s.state.Unlock()
 

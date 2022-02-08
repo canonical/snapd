@@ -105,7 +105,7 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckUntrustedAuthorit
 	ad, err := otherDB.Sign(asserts.AuthorityDelegationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(ad)
+	err = db.Check(ad, nil)
 	c.Assert(err, ErrorMatches, `authority-delegation assertion for "canonical" is not signed by a directly trusted authority: other`)
 }
 
@@ -125,7 +125,7 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckAccountReferences
 	ad, err := storeDB.Sign(asserts.AuthorityDelegationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(ad)
+	err = db.Check(ad, nil)
 	c.Assert(err, ErrorMatches, `authority-delegation assertion for \"other\" does not have a matching account assertion`)
 
 	otherAcct := assertstest.NewAccount(storeDB, "other", map[string]interface{}{
@@ -133,7 +133,7 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckAccountReferences
 	}, "")
 	c.Assert(db.Add(otherAcct), IsNil)
 
-	err = db.Check(ad)
+	err = db.Check(ad, nil)
 	c.Assert(err, ErrorMatches, `authority-delegation assertion for \"other\" does not have a matching account assertion for delegated \"other2\"`)
 }
 
@@ -162,7 +162,7 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckHappy(c *C) {
 	}, "")
 	c.Assert(db.Add(other2Acct), IsNil)
 
-	err = db.Check(ad)
+	err = db.Check(ad, nil)
 	c.Check(err, IsNil)
 }
 

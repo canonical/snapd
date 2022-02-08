@@ -269,7 +269,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.fakeStore = &fakeStore{
 		state: s.state,
-		db:    s.storeSigning,
+		db:    s.storeSigning.ROUnderPolicy(nil),
 		// leave this comment to keep old gofmt happy
 		maxDeclSupportedFormat:          asserts.SnapDeclarationType.MaxSupportedFormat(),
 		maxValidationSetSupportedFormat: asserts.ValidationSetType.MaxSupportedFormat(),
@@ -284,7 +284,8 @@ func (s *assertMgrSuite) TestDB(c *C) {
 	defer s.state.Unlock()
 
 	db := assertstate.DB(s.state)
-	c.Check(db, FitsTypeOf, (*asserts.Database)(nil))
+	c.Assert(db, NotNil)
+	c.Check(db.IsTrustedAccount("can0nical"), Equals, true)
 }
 
 func (s *assertMgrSuite) TestAdd(c *C) {

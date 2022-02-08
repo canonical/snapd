@@ -963,6 +963,7 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 // per group. An error is returned directly only if CommitTo is called
 // with possible pending unresolved assertions.
 func (p *Pool) CommitTo(db *Database) error {
+	// XXX policy
 	if p.curPhase == poolPhaseAddUnresolved {
 		return fmt.Errorf("internal error: cannot commit Pool during add unresolved phase")
 	}
@@ -989,6 +990,7 @@ func (p *Pool) CommitTo(db *Database) error {
 		}
 		return err
 	}
+	roView := db.ROUnderPolicy(nil)
 
 NextGroup:
 	for _, gRec := range p.groups {
@@ -997,7 +999,7 @@ NextGroup:
 			continue
 		}
 		// TODO: try to reuse fetcher
-		f := NewFetcher(db, retrieve, save)
+		f := NewFetcher(roView, retrieve, save)
 		for i := range gRec.resolved {
 			if err := f.Fetch(&gRec.resolved[i]); err != nil {
 				gRec.setErr(err)

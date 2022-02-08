@@ -111,7 +111,7 @@ func (s *fetcherSuite) TestFetch(c *C) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
 
-	f := asserts.NewFetcher(db, retrieve, db.Add)
+	f := asserts.NewFetcher(db.ROUnderPolicy(nil), retrieve, db.Add)
 
 	err = f.Fetch(ref)
 	c.Assert(err, IsNil)
@@ -183,7 +183,7 @@ func (s *fetcherSuite) TestFetchDelegation(c *C) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
 
-	f := asserts.NewFetcher(db, retrieve, db.Add)
+	f := asserts.NewFetcher(db.ROUnderPolicy(nil), retrieve, db.Add)
 
 	err = f.Fetch(ref)
 	c.Assert(err, IsNil)
@@ -219,7 +219,7 @@ func (s *fetcherSuite) TestSave(c *C) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
 
-	f := asserts.NewFetcher(db, retrieve, db.Add)
+	f := asserts.NewFetcher(db.ROUnderPolicy(nil), retrieve, db.Add)
 
 	ref := &asserts.Ref{
 		Type:       asserts.SnapRevisionType,

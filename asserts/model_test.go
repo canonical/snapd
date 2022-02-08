@@ -503,7 +503,7 @@ func (mods *modelSuite) TestModelCheck(c *C) {
 	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(model)
+	err = db.Check(model, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -520,7 +520,7 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(model)
+	err = db.Check(model, nil)
 	c.Assert(err, ErrorMatches, `model assertion timestamp "2011-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 

@@ -589,7 +589,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapDecl)
+	err = db.Check(snapDecl, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -608,7 +608,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 	snapDecl, err := otherDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapDecl)
+	err = db.Check(snapDecl, nil)
 	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) is not signed by a directly trusted authority:.*`)
 }
 
@@ -625,7 +625,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) 
 	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapDecl)
+	err = db.Check(snapDecl, nil)
 	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) does not have a matching account assertion for the publisher "dev-id1"`)
 }
 
@@ -804,7 +804,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapBuild)
+	err = db.Check(snapBuild, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -822,7 +822,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapBuild)
+	err = db.Check(snapBuild, nil)
 	c.Assert(err, ErrorMatches, `snap-build assertion timestamp "2013-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
@@ -950,7 +950,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapRev)
+	err = db.Check(snapRev, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -963,7 +963,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapRev)
+	err = db.Check(snapRev, nil)
 	c.Assert(err, ErrorMatches, `snap-revision assertion timestamp "2013-01-01 14:00:00 \+0000 UTC" outside of signing key validity \(key valid since.*\)`)
 }
 
@@ -978,7 +978,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheckUntrustedAuthority(c *C) {
 	snapRev, err := otherDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapRev)
+	err = db.Check(snapRev, nil)
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" is not signed by a store:.*`)
 }
 
@@ -989,7 +989,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeveloperAccount(c *C) {
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapRev)
+	err = db.Check(snapRev, nil)
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching account assertion for the developer "dev-id1"`)
 }
 
@@ -1002,7 +1002,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeclaration(c *C) {
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapRev)
+	err = db.Check(snapRev, nil)
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
@@ -1042,7 +1042,7 @@ func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(db.Add(ad), IsNil)
 
-	err = db.Check(snapRev)
+	err = db.Check(snapRev, nil)
 	c.Check(err, IsNil)
 }
 
@@ -1084,7 +1084,7 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(db.Add(ad), IsNil)
 
-	err = db.Check(snapRev)
+	err = db.Check(snapRev, nil)
 	c.Check(err, ErrorMatches, `delegated snap-revision assertion from "canonical" to "other" timestamp ".*" is outside of all supporting delegation constraints validity`)
 }
 
@@ -1233,7 +1233,7 @@ func (vs *validationSuite) TestValidationCheck(c *C) {
 	validation, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(validation)
+	err = db.Check(validation, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1250,7 +1250,7 @@ func (vs *validationSuite) TestValidationCheckWrongAuthority(c *C) {
 	validation, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(validation)
+	err = db.Check(validation, nil)
 	c.Assert(err, ErrorMatches, `validation assertion by snap "foo" \(id "snap-id-1"\) not signed by its publisher`)
 }
 
@@ -1317,7 +1317,7 @@ func (vs *validationSuite) TestMissingGatedSnapDeclaration(c *C) {
 	a, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion for approved-snap-id "snap-id-2"`)
 }
 
@@ -1331,7 +1331,7 @@ func (vs *validationSuite) TestMissingGatingSnapDeclaration(c *C) {
 	a, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(a)
+	err = db.Check(a, nil)
 	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
@@ -1507,7 +1507,7 @@ func (s *baseDeclSuite) TestBaseDeclarationCheckUntrustedAuthority(c *C) {
 	baseDecl, err := otherDB.Sign(asserts.BaseDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(baseDecl)
+	err = db.Check(baseDecl, nil)
 	c.Assert(err, ErrorMatches, `base-declaration assertion for series 16 is not signed by a directly trusted authority: other`)
 }
 
@@ -1766,7 +1766,7 @@ func (sds *snapDevSuite) TestAuthorityIsPublisher(c *C) {
 	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
 
-	err = db.Check(snapDev)
+	err = db.Check(snapDev, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1795,7 +1795,7 @@ func (sds *snapDevSuite) TestAuthorityIsNotPublisher(c *C) {
 	c.Assert(snapDev.HeaderString("authority-id"), Equals, "dev-id1")
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
 
-	err = db.Check(snapDev)
+	err = db.Check(snapDev, nil)
 	c.Assert(err, ErrorMatches, `snap-developer must be signed by the publisher or a trusted authority but got authority "dev-id1" and publisher "dev-id2"`)
 }
 
@@ -1832,7 +1832,7 @@ func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
 	c.Assert(snapDev.HeaderString("authority-id"), Equals, "canonical")
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id1")
 
-	err = db.Check(snapDev)
+	err = db.Check(snapDev, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1870,7 +1870,7 @@ func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
 	c.Assert(snapDev.HeaderString("publisher-id"), Equals, "dev-id2")
 
 	// There's no account for dev-id2 yet so it should fail.
-	err = db.Check(snapDev)
+	err = db.Check(snapDev, nil)
 	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the publisher "dev-id2"`)
 
 	// But once the dev-id2 account is added the snap-developer is ok.
@@ -1884,7 +1884,7 @@ func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
 	err = db.Add(account)
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapDev)
+	err = db.Check(snapDev, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1914,7 +1914,7 @@ func (sds *snapDevSuite) TestCheckDeveloperAccountExists(c *C) {
 		},
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Check(snapDev)
+	err = db.Check(snapDev, nil)
 	c.Assert(err, ErrorMatches, `snap-developer assertion for snap-id "snap-id-1" does not have a matching account assertion for the developer "dev-id2"`)
 }
 
@@ -1930,7 +1930,7 @@ func (sds *snapDevSuite) TestCheckMissingDeclaration(c *C) {
 	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(snapDev)
+	err = db.Check(snapDev, nil)
 	c.Assert(err, ErrorMatches, `snap-developer assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 

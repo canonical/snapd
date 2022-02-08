@@ -197,7 +197,7 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 			continue
 		}
 
-		err = checkDB.Check(serial)
+		err = checkDB.Check(serial, nil)
 		if test.expectedErr == "" {
 			c.Check(err, IsNil)
 		} else {

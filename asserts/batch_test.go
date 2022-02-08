@@ -495,7 +495,7 @@ func (s *batchSuite) TestFetch(c *C) {
 		return f.Fetch(ref)
 	}
 
-	err = batch.Fetch(s.db, retrieve, fetching)
+	err = batch.Fetch(s.db.ROUnderPolicy(nil), retrieve, fetching)
 	c.Assert(err, IsNil)
 
 	// nothing was added yet

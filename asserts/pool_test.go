@@ -177,7 +177,7 @@ func (s *poolSuite) SetUpTest(c *C) {
 }
 
 func (s *poolSuite) TestAddUnresolved(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at1 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
@@ -195,7 +195,7 @@ func (s *poolSuite) TestAddUnresolved(c *C) {
 }
 
 func (s *poolSuite) TestAddUnresolvedPredefined(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at := s.hub.TrustedAccount.At()
 	at.Revision = asserts.RevisionNotKnown
@@ -210,7 +210,7 @@ func (s *poolSuite) TestAddUnresolvedPredefined(c *C) {
 }
 
 func (s *poolSuite) TestAddUnresolvedGrouping(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKeyAt := s.hub.StoreAccountKey("").At()
 
@@ -226,7 +226,7 @@ func (s *poolSuite) TestAddUnresolvedGrouping(c *C) {
 }
 
 func (s *poolSuite) TestAddUnresolvedDup(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKeyAt := s.hub.StoreAccountKey("").At()
 
@@ -262,7 +262,7 @@ func sortToResolve(toResolve map[asserts.Grouping][]*asserts.AtRevision) {
 }
 
 func (s *poolSuite) TestFetch(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
@@ -300,7 +300,7 @@ func (s *poolSuite) TestFetch(c *C) {
 }
 
 func (s *poolSuite) TestFetchDelegation(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at5555 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"5555"}},
@@ -344,7 +344,7 @@ func (s *poolSuite) TestFetchDelegation(c *C) {
 }
 
 func (s *poolSuite) TestFetchSequenceForming(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	// revision and sequence not set
 	atseq := &asserts.AtSequence{
@@ -389,7 +389,7 @@ func (s *poolSuite) TestFetchSequenceForming(c *C) {
 }
 
 func (s *poolSuite) TestCompleteFetch(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
@@ -455,7 +455,7 @@ func (s *poolSuite) TestCompleteFetch(c *C) {
 func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
@@ -516,7 +516,7 @@ func (s *poolSuite) TestPushSuggestionForPrerequisite(c *C) {
 func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atOne := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
@@ -577,7 +577,7 @@ func (s *poolSuite) TestPushSuggestionForNew(c *C) {
 func (s *poolSuite) TestPushSuggestionForNewSeqForming(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atOne := &asserts.AtSequence{
 		Type:        asserts.TestOnlySeqType,
@@ -627,7 +627,7 @@ func (s *poolSuite) TestPushSuggestionForNewSeqForming(c *C) {
 func (s *poolSuite) TestPushSuggestionForNewViaBatch(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atOne := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
@@ -695,7 +695,7 @@ func (s *poolSuite) TestPushSuggestionForNewViaBatch(c *C) {
 }
 
 func (s *poolSuite) TestAddUnresolvedUnresolved(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at1 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},
@@ -720,7 +720,7 @@ func (s *poolSuite) TestAddUnresolvedUnresolved(c *C) {
 }
 
 func (s *poolSuite) TestAddFormatTooNew(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	_, _, err := pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -748,7 +748,7 @@ func (s *poolSuite) TestAddFormatTooNew(c *C) {
 }
 
 func (s *poolSuite) TestAddOlderIgnored(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	_, _, err := pool.ToResolve()
 	c.Assert(err, IsNil)
@@ -779,7 +779,7 @@ func (s *poolSuite) TestAddOlderIgnored(c *C) {
 }
 
 func (s *poolSuite) TestUnknownGroup(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	_, err := pool.Singleton("suggestion")
 	c.Assert(err, IsNil)
@@ -792,7 +792,7 @@ func (s *poolSuite) TestUnknownGroup(c *C) {
 func (s *poolSuite) TestAddCurrentRevision(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.dev1Acct, s.decl1)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atDev1Acct := s.dev1Acct.At()
 	atDev1Acct.Revision = asserts.RevisionNotKnown
@@ -840,7 +840,7 @@ func (s *poolSuite) TestAddCurrentRevision(c *C) {
 func (s *poolSuite) TestAddCurrentRevisionSeqForming(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.dev1Acct, s.decl1)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atSeq := &asserts.AtSequence{
 		Type:        asserts.TestOnlySeqType,
@@ -888,7 +888,7 @@ func (s *poolSuite) TestUpdate(c *C) {
 	assertstest.AddMany(s.db, s.dev1Acct, s.decl1, s.rev1_1111)
 	assertstest.AddMany(s.db, s.dev2Acct, s.decl2, s.rev2_2222)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	err := pool.AddToUpdate(s.decl1.Ref(), "for_one") // group num: 0
 	c.Assert(err, IsNil)
@@ -940,7 +940,7 @@ func (s *poolSuite) TestUpdate(c *C) {
 func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -996,7 +996,7 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedNewerSequence(c *C) {
 func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1052,7 +1052,7 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceNewerRev(c *C) {
 func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceSameRevNoop(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1103,7 +1103,7 @@ func (s *poolSuite) TestUpdateSeqFormingUnpinnedSameSequenceSameRevNoop(c *C) {
 func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1160,7 +1160,7 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceSameRevisionNoop(c *C
 func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1210,7 +1210,7 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedNewerSequenceNewerRevisionNoop(c *
 
 func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1257,7 +1257,7 @@ func (s *poolSuite) TestUpdateSeqFormingPinnedSameSequenceNewerRevision(c *C) {
 func (s *poolSuite) TestUpdateSeqFormingUseAssertRevision(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1287,7 +1287,7 @@ func (s *poolSuite) TestUpdateSeqFormingUseAssertRevision(c *C) {
 }
 
 func (s *poolSuite) TestAddSequenceToUpdateMissingSequenceError(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
 		SequenceKey: []string{"1111"},
@@ -1298,7 +1298,7 @@ func (s *poolSuite) TestAddSequenceToUpdateMissingSequenceError(c *C) {
 }
 
 func (s *poolSuite) TestAddUnresolvedSeqUnresolved(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1331,7 +1331,7 @@ func (s *poolSuite) TestAddUnresolvedSeqUnresolved(c *C) {
 }
 
 func (s *poolSuite) TestAddUnresolvedSeqOnce(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1350,7 +1350,7 @@ func (s *poolSuite) TestAddUnresolvedSeqOnce(c *C) {
 
 func (s *poolSuite) TestAddSeqToUpdateOnce(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.seq1_1111r5)
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1368,7 +1368,7 @@ func (s *poolSuite) TestAddSeqToUpdateOnce(c *C) {
 }
 
 func (s *poolSuite) TestAddSeqToUpdateNotFound(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atseq := &asserts.AtSequence{
 		Type:        s.seq1_1111r5.Type(),
@@ -1385,7 +1385,7 @@ var errBoom = errors.New("boom")
 func (s *poolSuite) TestAddErrorEarly(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKey := s.hub.StoreAccountKey("")
 	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
@@ -1439,7 +1439,7 @@ func (s *poolSuite) TestAddErrorEarly(c *C) {
 func (s *poolSuite) TestAddErrorLater(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKey := s.hub.StoreAccountKey("")
 	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
@@ -1483,7 +1483,7 @@ func (s *poolSuite) TestNopUpdatePlusFetchOfPushed(c *C) {
 	assertstest.AddMany(s.db, s.decl1)
 	assertstest.AddMany(s.db, s.rev1_1111)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atOne := s.decl1.At()
 	err := pool.AddToUpdate(&atOne.Ref, "for_one")
@@ -1542,7 +1542,7 @@ func (s *poolSuite) TestNopUpdatePlusFetchOfPushed(c *C) {
 func (s *poolSuite) TestAddToUpdateThenUnresolved(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKey := s.hub.StoreAccountKey("")
 	storeKeyAt := storeKey.At()
@@ -1564,7 +1564,7 @@ func (s *poolSuite) TestAddToUpdateThenUnresolved(c *C) {
 func (s *poolSuite) TestAddUnresolvedThenToUpdate(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKey := s.hub.StoreAccountKey("")
 	storeKeyAt := storeKey.At()
@@ -1586,7 +1586,7 @@ func (s *poolSuite) TestAddUnresolvedThenToUpdate(c *C) {
 func (s *poolSuite) TestNopUpdatePlusFetch(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKey := s.hub.StoreAccountKey("")
 	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
@@ -1628,7 +1628,7 @@ func (s *poolSuite) TestNopUpdatePlusFetch(c *C) {
 }
 
 func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	atOne := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyDeclType, PrimaryKey: []string{"one"}},
@@ -1686,7 +1686,7 @@ func (s *poolSuite) TestParallelPartialResolutionFailure(c *C) {
 func (s *poolSuite) TestAddErrors(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""))
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	storeKey := s.hub.StoreAccountKey("")
 	err := pool.AddToUpdate(storeKey.Ref(), "store_key")
@@ -1732,7 +1732,7 @@ func (s *poolSuite) TestPoolReuseWithClearGroupsAndUnchanged(c *C) {
 	assertstest.AddMany(s.db, s.dev1Acct, s.decl1)
 	assertstest.AddMany(s.db, s.dev2Acct, s.decl2)
 
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	err := pool.AddToUpdate(s.decl1.Ref(), "for_one") // group num: 0
 	c.Assert(err, IsNil)
@@ -1777,7 +1777,7 @@ func (s *poolSuite) TestPoolReuseWithClearGroupsAndUnchanged(c *C) {
 
 func (s *poolSuite) TestBackstore(c *C) {
 	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.dev1Acct)
-	pool := asserts.NewPool(s.db, 64)
+	pool := asserts.NewPool(s.db.ROUnderPolicy(nil), 64)
 
 	at1111 := &asserts.AtRevision{
 		Ref:      asserts.Ref{Type: asserts.TestOnlyRevType, PrimaryKey: []string{"1111"}},

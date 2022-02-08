@@ -208,7 +208,8 @@ func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTy
 	db.SetEarliestTime(earliestTime)
 
 	// load assertions into the temporary database
-	if err := seed20.LoadAssertions(db, commitTo); err != nil {
+	// XXX policy
+	if err := seed20.LoadAssertions(db.ROUnderPolicy(nil), commitTo); err != nil {
 		return nil, nil, time.Time{}, err
 	}
 

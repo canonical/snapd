@@ -47,7 +47,8 @@ var maxGroups = 256
 func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(s)
 
-	pool := asserts.NewPool(db, maxGroups)
+	// XXX policy
+	pool := asserts.NewPool(db.ROUnderPolicy(nil), maxGroups)
 
 	var mergedRPErr *resolvePoolError
 	tryResolvePool := func() error {
@@ -142,7 +143,8 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 
 func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*ValidationSetTracking, beforeCommitChecker func(*asserts.Database, asserts.Backstore) error, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(s)
-	pool := asserts.NewPool(db, maxGroups)
+	// XXX policy
+	pool := asserts.NewPool(db.ROUnderPolicy(nil), maxGroups)
 
 	ignoreNotFound := make(map[string]bool)
 
@@ -252,7 +254,8 @@ func resolvePool(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*ass
 	}
 	sto := snapstate.Store(s, deviceCtx)
 	db := cachedDB(s)
-	unsupported := handleUnsupported(db)
+	// XXX policy
+	unsupported := handleUnsupported(db.ROUnderPolicy(nil))
 
 	for {
 		storeOpts := &store.RefreshOptions{IsAutoRefresh: opts.IsAutoRefresh}

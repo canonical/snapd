@@ -693,7 +693,8 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 				return ref.Resolve(db.Find)
 			}
 			b := asserts.NewBatch(nil)
-			err := b.Fetch(savedb, retrieve, func(f asserts.Fetcher) error {
+			// XXX policy
+			err := b.Fetch(savedb.ROUnderPolicy(nil), retrieve, func(f asserts.Fetcher) error {
 				// save the associated model as well
 				// as it might be required for cross-checks
 				// of the serial

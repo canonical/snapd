@@ -153,7 +153,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 
 	c.Check(trustedAcc.(*asserts.Account).Validation(), Equals, "verified")
 
-	err = db.Check(trustedAcc)
+	err = db.Check(trustedAcc, nil)
 	c.Check(err, IsNil)
 
 	// check generic
@@ -169,14 +169,14 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 
 	c.Check(genericAcc.(*asserts.Account).Validation(), Equals, "verified")
 
-	err = db.Check(genericAcc)
+	err = db.Check(genericAcc, nil)
 	c.Check(err, IsNil)
 
-	err = db.Check(sysdb.GenericClassicModel())
+	err = db.Check(sysdb.GenericClassicModel(), nil)
 	c.Check(err, IsNil)
 
 	// extraneous
-	err = db.Check(sdbs.probeAssert)
+	err = db.Check(sdbs.probeAssert, nil)
 	c.Check(err, ErrorMatches, "no matching public key.*")
 }
 
@@ -188,7 +188,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseExtras(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(db, NotNil)
 
-	err = db.Check(sdbs.probeAssert)
+	err = db.Check(sdbs.probeAssert, nil)
 	c.Check(err, IsNil)
 }
 

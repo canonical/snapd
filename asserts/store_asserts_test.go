@@ -180,13 +180,13 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 	// store signed by some other account fails.
 	store, err := otherDB.Sign(asserts.StoreType, storeHeaders, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Check(store)
+	err = db.Check(store, nil)
 	c.Assert(err, ErrorMatches, `store assertion "store1" is not signed by a directly trusted authority: other`)
 
 	// but succeeds when signed by a trusted authority.
 	store, err = storeDB.Sign(asserts.StoreType, storeHeaders, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Check(store)
+	err = db.Check(store, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -214,7 +214,7 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	c.Assert(err, IsNil)
 
 	// No account for operator op-id1 yet, so Check fails.
-	err = db.Check(store)
+	err = db.Check(store, nil)
 	c.Assert(err, ErrorMatches, `store assertion "store1" does not have a matching account assertion for the operator "op-id1"`)
 
 	// Add the op-id1 account.
@@ -223,7 +223,7 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 	c.Assert(err, IsNil)
 
 	// Now the operator exists so Check succeeds.
-	err = db.Check(store)
+	err = db.Check(store, nil)
 	c.Assert(err, IsNil)
 }
 

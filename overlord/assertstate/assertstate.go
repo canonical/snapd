@@ -543,7 +543,8 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	}
 
 	// try to resolve or update with pool
-	pool := asserts.NewPool(db, maxGroups)
+	// XXX policy
+	pool := asserts.NewPool(db.ROUnderPolicy(nil), maxGroups)
 	atSeq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{release.Series, accountID, name},
@@ -647,7 +648,8 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		headers["sequence"] = fmt.Sprintf("%d", sequence)
 	}
 
-	pool := asserts.NewPool(db, maxGroups)
+	// XXX policy
+	pool := asserts.NewPool(db.ROUnderPolicy(nil), maxGroups)
 	atSeq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{release.Series, accountID, name},

@@ -77,7 +77,8 @@ func cachedDB(s *state.State) *asserts.Database {
 
 // DB returns a read-only view of system assertion database.
 func DB(s *state.State) asserts.RODatabaseView {
-	return cachedDB(s)
+	// XXX policy
+	return cachedDB(s).ROUnderPolicy(nil)
 }
 
 // doValidateSnap fetches the relevant assertions for the snap being installed and cross checks them with the snap.

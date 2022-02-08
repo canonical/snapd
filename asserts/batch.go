@@ -117,13 +117,14 @@ func (b *Batch) Fetch(trustedDB RODatabaseView, retrieve func(*Ref) (Assertion, 
 
 func (b *Batch) precheck(db *Database) error {
 	db = db.WithStackedBackstore(NewMemoryBackstore())
-	return b.commitTo(db, nil)
+	return b.commitTo(db, nil, nil)
 }
 
 type CommitOptions struct {
 	// Precheck indicates whether to do a full consistency check
 	// before starting adding the batch.
 	Precheck bool
+	// XXX policy
 }
 
 // CommitTo adds the batch of assertions to the given assertion database.
@@ -139,7 +140,7 @@ func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
 		}
 	}
 
-	return b.commitTo(db, nil)
+	return b.commitTo(db, nil, nil)
 }
 
 // CommitToAndObserve adds the batch of assertions to the given
@@ -158,13 +159,14 @@ func (b *Batch) CommitToAndObserve(db *Database, observe func(Assertion), opts *
 		}
 	}
 
-	return b.commitTo(db, observe)
+	return b.commitTo(db, observe, nil)
 }
 
 // commitTo does a best effort of adding all the batch assertions to
 // the target database.
-func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
-	if err := b.prereqSort(db); err != nil {
+func (b *Batch) commitTo(db *Database, observe func(Assertion), pol AssertionPolicy) error {
+	roView := db.ROUnderPolicy(pol)
+	if err := b.prereqSort(roView); err != nil {
 		return err
 	}
 
@@ -193,7 +195,7 @@ func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
 	return nil
 }
 
-func (b *Batch) prereqSort(db *Database) error {
+func (b *Batch) prereqSort(db RODatabaseView) error {
 	if b.inPrereqOrder {
 		// nothing to do
 		return nil

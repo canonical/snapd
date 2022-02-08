@@ -119,7 +119,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	snapBuild, err := signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
-	err = checkDB.Check(snapBuild)
+	err = checkDB.Check(snapBuild, nil)
 	c.Check(err, IsNil)
 }
 

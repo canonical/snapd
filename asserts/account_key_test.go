@@ -295,7 +295,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 
 	aks.prereqAccount(c, db)
 
-	err = db.Check(accKey)
+	err = db.Check(accKey, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -315,7 +315,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckNoAccount(c *C) {
 
 	db := aks.openDB(c)
 
-	err = db.Check(accKey)
+	err = db.Check(accKey, nil)
 	c.Assert(err, ErrorMatches, `account-key assertion for "acc-id1" does not have a matching account assertion`)
 }
 
@@ -336,7 +336,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	accKey, err := otherDB.Sign(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), "")
 	c.Assert(err, IsNil)
 
-	err = db.Check(accKey)
+	err = db.Check(accKey, nil)
 	c.Assert(err, ErrorMatches, `account-key assertion for "acc-id1" is not signed by a directly trusted authority:.*`)
 }
 
@@ -364,7 +364,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndNewRevision(c *C) {
 	newAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
 
-	err = db.Check(newAccKey)
+	err = db.Check(newAccKey, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -401,7 +401,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameAccountAndDifferentName(c *C)
 	newAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, newPubKeyEncoded, trustedKey)
 	c.Assert(err, IsNil)
 
-	err = db.Check(newAccKey)
+	err = db.Check(newAccKey, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -447,7 +447,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C)
 	newAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, newPubKeyEncoded, trustedKey)
 	c.Assert(err, IsNil)
 
-	err = db.Check(newAccKey)
+	err = db.Check(newAccKey, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -484,7 +484,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckNameClash(c *C) {
 	newAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, newPubKeyEncoded, trustedKey)
 	c.Assert(err, IsNil)
 
-	err = db.Check(newAccKey)
+	err = db.Check(newAccKey, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`account-key assertion for "acc-id1" with ID %q has the same name "default" as existing ID %q`, newPubKey.ID(), aks.keyID))
 }
 
@@ -814,7 +814,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestHappy(c *C) {
 	db := aks.openDB(c)
 	aks.prereqAccount(c, db)
 
-	err = db.Check(akr2)
+	err = db.Check(akr2, nil)
 	c.Check(err, IsNil)
 
 	c.Check(akr2.AccountID(), Equals, "acc-id1")
@@ -853,7 +853,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestUntil(c *C) {
 		c.Assert(err, IsNil)
 		akr2 := a.(*asserts.AccountKeyRequest)
 		c.Check(akr2.Until(), Equals, test.until)
-		err = db.Check(akr2)
+		err = db.Check(akr2, nil)
 		c.Check(err, IsNil)
 	}
 }
@@ -985,6 +985,6 @@ func (aks *accountKeySuite) TestAccountKeyRequestNoAccount(c *C) {
 
 	db := aks.openDB(c)
 
-	err = db.Check(akr)
+	err = db.Check(akr, nil)
 	c.Assert(err, ErrorMatches, `account-key-request assertion for "acc-id1" does not have a matching account assertion`)
 }

@@ -53,8 +53,10 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
 
 	db := cachedDB(s)
+	// XXX policy
+	roView := db.ROUnderPolicy(nil)
 
-	b := asserts.NewBatch(handleUnsupported(db))
+	b := asserts.NewBatch(handleUnsupported(roView))
 
 	user, err := userFromUserID(s, userID)
 	if err != nil {
@@ -69,7 +71,7 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	}
 
 	s.Unlock()
-	err = b.Fetch(db, retrieve, fetching)
+	err = b.Fetch(roView, retrieve, fetching)
 	s.Lock()
 	if err != nil {
 		return err

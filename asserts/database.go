@@ -212,6 +212,10 @@ type RODatabaseView interface {
 	Check(assert Assertion) error
 }
 
+// AssertionPolicy can express local/site-specific assertion of validation
+// or retrieval policy.
+type AssertionPolicy interface{}
+
 // A Checker defines a check on an assertion considering aspects such as
 // the signing key, and consistency with other
 // assertions in the database.
@@ -400,8 +404,22 @@ func (db *Database) SetEarliestTime(earliest time.Time) {
 	db.earliestTime = earliest
 }
 
+type roDBView struct {
+	*Database
+	pol AssertionPolicy
+}
+
+func (v *roDBView) Check(assert Assertion) error {
+	return v.Database.Check(assert, v.pol)
+}
+
+// ROUnderPolicy returns a read-only view of the database that uses the given policy (if not nil) for validation and retrieval.
+func (db *Database) ROUnderPolicy(pol AssertionPolicy) RODatabaseView {
+	return &roDBView{Database: db, pol: pol}
+}
+
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
-func (db *Database) Check(assert Assertion) error {
+func (db *Database) Check(assert Assertion, pol AssertionPolicy) error {
 	if !assert.SupportedFormat() {
 		return &UnsupportedFormatError{Ref: assert.Ref(), Format: assert.Format()}
 	}
@@ -434,8 +452,9 @@ func (db *Database) Check(assert Assertion) error {
 	}
 
 	var delegationConstraints []*AssertionConstraints
+	roView := db.ROUnderPolicy(pol)
 	for _, checker := range db.checkers {
-		acs, err := checker(assert, accKey, delegationConstraints, db, earliestTime, latestTime)
+		acs, err := checker(assert, accKey, delegationConstraints, roView, earliestTime, latestTime)
 		if err != nil {
 			return err
 		}
@@ -454,7 +473,8 @@ func (db *Database) Add(assert Assertion) error {
 		return fmt.Errorf("internal error: assertion type %q has no primary key", ref.Type.Name)
 	}
 
-	err := db.Check(assert)
+	// XXX policy
+	err := db.Check(assert, nil)
 	if err != nil {
 		if ufe, ok := err.(*UnsupportedFormatError); ok {
 			_, err := ref.Resolve(db.Find)

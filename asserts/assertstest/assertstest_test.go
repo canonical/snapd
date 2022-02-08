@@ -155,7 +155,7 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Check(store.GenericClassicModel.BrandID(), Equals, "generic")
 	c.Check(store.GenericClassicModel.Model(), Equals, "generic-classic")
 	c.Check(store.GenericClassicModel.Classic(), Equals, true)
-	err = db.Check(store.GenericClassicModel)
+	err = db.Check(store.GenericClassicModel, nil)
 	c.Assert(err, IsNil)
 
 	err = db.Add(store.GenericKey)

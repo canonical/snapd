@@ -64,10 +64,12 @@ func (s *seed16) LoadAssertions(db asserts.RODatabaseView, commitTo func(*assert
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error
-		db, commitTo, err = newMemAssertionsDB(nil)
+		var rwDB *asserts.Database
+		rwDB, commitTo, err = newMemAssertionsDB(nil)
 		if err != nil {
 			return err
 		}
+		db = rwDB.ROUnderPolicy(nil)
 	}
 
 	assertSeedDir := filepath.Join(s.seedDir, "assertions")

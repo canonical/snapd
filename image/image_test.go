@@ -608,7 +608,8 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 		return b.CommitTo(db, nil)
 	}
 
-	err = seed.LoadAssertions(db, commitTo)
+	roDB = db.ROUnderPolicy(nil)
+	err = seed.LoadAssertions(roDB, commitTo)
 	c.Assert(err, IsNil)
 
 	err = seed.LoadMeta(timings.New(nil))
@@ -618,7 +619,7 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 	runSnaps, err = seed.ModeSnaps("run")
 	c.Assert(err, IsNil)
 
-	return essSnaps, runSnaps, db
+	return essSnaps, runSnaps, roDB
 }
 
 func (s *imageSuite) TestSetupSeed(c *C) {

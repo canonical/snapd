@@ -49,7 +49,8 @@ type seed16Suite struct {
 
 	seed16 seed.Seed
 
-	db *asserts.Database
+	db   asserts.RODatabaseView
+	rwDB *asserts.Database
 
 	perfTimings timings.Measurer
 }
@@ -86,13 +87,14 @@ func (s *seed16Suite) SetUpTest(c *C) {
 		Trusted:   s.StoreSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
-	s.db = db
+	s.db = db.ROUnderPolicy(nil)
+	s.rwDB = db
 
 	s.perfTimings = timings.New(nil)
 }
 
 func (s *seed16Suite) commitTo(b *asserts.Batch) error {
-	return b.CommitTo(s.db, nil)
+	return b.CommitTo(s.rwDB, nil)
 }
 
 func (s *seed16Suite) TestLoadAssertionsNoAssertions(c *C) {

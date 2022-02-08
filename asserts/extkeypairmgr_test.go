@@ -242,7 +242,7 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 	c.Assert(err, IsNil)
 
 	// valid
-	err = checkDB.Check(a)
+	err = checkDB.Check(a, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(s.pgm.Calls(), DeepEquals, [][]string{
