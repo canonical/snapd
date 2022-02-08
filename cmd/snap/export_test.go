@@ -194,14 +194,6 @@ func MockGetEnv(f func(name string) string) (restore func()) {
 	}
 }
 
-func MockMountInfoPath(newMountInfoPath string) (restore func()) {
-	mountInfoPathOrig := mountInfoPath
-	mountInfoPath = newMountInfoPath
-	return func() {
-		mountInfoPath = mountInfoPathOrig
-	}
-}
-
 func MockOsReadlink(f func(string) (string, error)) (restore func()) {
 	osReadlinkOrig := osReadlink
 	osReadlink = f
@@ -450,6 +442,14 @@ func MockPendingRefreshNotification(f func(refreshInfo *usersessionclient.Pendin
 	pendingRefreshNotification = f
 	return func() {
 		pendingRefreshNotification = old
+	}
+}
+
+func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error) (restore func()) {
+	old := finishRefreshNotification
+	finishRefreshNotification = f
+	return func() {
+		finishRefreshNotification = old
 	}
 }
 
