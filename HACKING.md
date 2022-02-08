@@ -49,7 +49,7 @@ Package build dependencies for other distributions can be found under the
 [./packaging/](./packaging/) directory.
 
 Source dependencies are automatically retrieved at build time.
-Sometimes, it might be useful to pull them without the very building:
+Sometimes, it might be useful to pull them without building:
 
 ```
 cd ~/snapd
@@ -386,7 +386,7 @@ You can get spread, QEMU, and the build tools to build QEMU images with:
 > `<target-directory>` can be any directory that is listed in `$PATH`, 
 as it is assumed further in the guidelines of this document. 
 You may consider creating a dedicated directory and adding it to `$PATH`, 
-or you may chose using one of the conventional Linux directories (e.g. `/usr/local/bin`)
+or you may choose to use one of the conventional Linux directories (e.g. `/usr/local/bin`)
 
 #### Building spread VM images
 
@@ -431,7 +431,7 @@ pre-built and somewhat maintained images from
 [spread.zygoon.pl](https://spread.zygoon.pl/). The images will need to be extracted 
 with `gunzip` and placed into `~/.spread/qemu` as above.
 
-> An image for Ubuntu Core 20 that is pre-built for KVM can be download from 
+> An image for Ubuntu Core 20 that is pre-built for KVM can be downloaded from 
 [here](https://cdimage.ubuntu.com/ubuntu-core/20/stable/current/ubuntu-core-20-amd64.img.xz).
 
 #### Running spread with QEMU
@@ -470,7 +470,7 @@ It is a bitfield: dump requests: 1, dump responses: 2, dump bodies: 4.
 > In case you get some security profiles errors, when trying to install or refresh a snap, 
 maybe you need to replace system installed snap-seccomp with the one aligned to the snapd that 
 you are testing. To do this, simply backup `/usr/lib/snapd/snap-seccomp` and overwrite it with 
-the testing one. Don't forget to roll back to the original, after you finish the testing.
+the testing one. Don't forget to roll back to the original, after you finish testing.
 
 ### Running nested tests
 
@@ -507,14 +507,14 @@ Nested test suite is composed by the following 4 suites:
 The nested suites use some environment variables to configure the suite 
 and the tests inside it. The most important ones are described bellow:
 
-- `NESTED_WORK_DIR`: it is path to the directory where all the nested assets and images are stored
+- `NESTED_WORK_DIR`: path to the directory where all the nested assets and images are stored
 - `NESTED_TYPE`: use core for Ubuntu Core nested systems or classic instead.
 - `NESTED_CORE_CHANNEL`: the images are created using _ubuntu-image snap_, use it to define the default branch
 - `NESTED_CORE_REFRESH_CHANNEL`: the images can be refreshed to a specific channel; use it to specify the channel
 - `NESTED_USE_CLOUD_INIT`: use cloud init to make initial system configuration instead of user assertion
 - `NESTED_ENABLE_KVM`: enable KVM in the QEMU command line
 - `NESTED_ENABLE_TPM`: re-boot in the nested VM in case it is supported (just supported on UC20)
-- `NESTED_ENABLE_SECURE_BOOT`: enable secure boot in the nested VM in a case it is supported (supported just on UC20)
+- `NESTED_ENABLE_SECURE_BOOT`: enable secure boot in the nested VM in case it is supported (supported just on UC20)
 - `NESTED_BUILD_SNAPD_FROM_CURRENT`: build and use either core or `snapd` from the current branch
 - `NESTED_CUSTOM_IMAGE_URL`: download and use an custom image from this URL
 
