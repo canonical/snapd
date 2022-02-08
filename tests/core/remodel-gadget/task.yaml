@@ -14,6 +14,7 @@ prepare: |
     . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT_NEEDED=false
         if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
             REBOOT_NEEDED=true
         fi
@@ -45,6 +46,7 @@ restore: |
     . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT_NEEDED=false
         if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
             REBOOT_NEEDED=true
         fi
