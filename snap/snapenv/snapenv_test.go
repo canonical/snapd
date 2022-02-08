@@ -311,7 +311,23 @@ func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 
 		c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, "common"))
 		c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
-		c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+
+		if t.opts != nil && t.opts.HiddenSnapDataDir {
+			exposedSnapDir := filepath.Join(testDir, dirs.NewUserHomeSnapDir, mockSnapInfo.SuggestedName)
+			c.Check(env["HOME"], DeepEquals, exposedSnapDir)
+			c.Check(env["SNAP_USER_HOME"], DeepEquals, exposedSnapDir)
+
+			c.Check(env["XDG_DATA_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "data"))
+			c.Check(env["XDG_CONFIG_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "config"))
+			c.Check(env["XDG_CACHE_HOME"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String(), "cache"))
+		} else {
+			c.Check(env["HOME"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
+			c.Check(env["SNAP_USER_HOME"], Equals, "")
+
+			c.Check(env["XDG_DATA_HOME"], Equals, "")
+			c.Check(env["XDG_CONFIG_HOME"], Equals, "")
+			c.Check(env["XDG_CACHE_HOME"], Equals, "")
+		}
 	}
 }
 

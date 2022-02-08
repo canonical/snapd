@@ -403,6 +403,14 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	instanceUserData := info.UserDataDir(usr.HomeDir, opts)
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
+
+	if opts.HiddenSnapDataDir {
+		createDirs = append(createDirs,
+			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "data"),
+			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "config"),
+			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "cache"))
+	}
+
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
 		// namespace, namely /home/joe/snap/foo_bar ->

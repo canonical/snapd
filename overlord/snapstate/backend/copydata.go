@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -34,6 +35,14 @@ import (
 )
 
 var allUsers = snap.AllUsers
+
+func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) func() {
+	old := allUsers
+	allUsers = f
+	return func() {
+		allUsers = old
+	}
+}
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
 func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
@@ -171,6 +180,8 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 		return err
 	}
 
+	// TODO: this only makes sense if we're undoing but not reverting. Add options
+	// to fail on first err if reverting
 	var firstErr error
 	handle := func(err error) {
 		// keep going, restore previous state as much as possible
@@ -238,4 +249,75 @@ var removeIfEmpty = func(dir string) error {
 	}
 
 	return os.Remove(dir)
+}
+
+var maybeFailForTesting func() error
+
+// InitSnapUserHome creates and initializes ~/Snap/<snapName> based on the
+// specified revision. Must be called after the snap has been migrated.
+func (b Backend) InitSnapUserHome(snapName string, rev snap.Revision) (err error) {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+
+	users, err := allUsers(opts)
+	if err != nil {
+		return err
+	}
+
+	var initedDirs []string
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		for _, dir := range initedDirs {
+			if err := os.RemoveAll(dir); err != nil && !errors.Is(err, os.ErrNotExist) {
+				logger.Noticef("cannot remove %q when recovering from failed ~/Snap init: %v", dir, err)
+			}
+
+			// remove ~/Snap if has no other dirs
+			if err := removeIfEmpty(filepath.Dir(dir)); err != nil && !errors.Is(err, os.ErrNotExist) {
+				logger.Noticef("cannot remove %q when recovering from failed ~/Snap init: %v", filepath.Dir(dir), err)
+			}
+		}
+	}()
+
+	for _, usr := range users {
+		uid, gid, err := osutil.UidGid(usr)
+		if err != nil {
+			return err
+		}
+
+		if maybeFailForTesting != nil {
+			if err := maybeFailForTesting(); err != nil {
+				return err
+			}
+		}
+
+		newUserHome := snap.ExposedUserSnapDir(usr.HomeDir, snapName)
+		initedDirs = append(initedDirs, newUserHome)
+		if err := osutil.MkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
+			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
+		}
+
+		userData := snap.UserDataDir(usr.HomeDir, snapName, rev, opts)
+		entries, err := ioutil.ReadDir(userData)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// there's nothing to copy into ~/Snap/<snap> (like on a fresh install)
+				continue
+			}
+
+			return err
+		}
+		for _, e := range entries {
+			src := filepath.Join(userData, e.Name())
+			dst := filepath.Join(newUserHome, e.Name())
+
+			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

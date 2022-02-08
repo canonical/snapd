@@ -21,9 +21,6 @@ package backend
 
 import (
 	"os/exec"
-	"os/user"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
 var (
@@ -48,19 +45,18 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	}
 }
 
-func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) func() {
-	old := allUsers
-	allUsers = f
-	return func() {
-		allUsers = old
-	}
-
-}
-
 func MockRemoveIfEmpty(f func(dir string) error) func() {
 	old := removeIfEmpty
 	removeIfEmpty = f
 	return func() {
 		removeIfEmpty = old
+	}
+}
+
+func MockInitSnapMaybeFailForTesting(f func() error) func() {
+	old := maybeFailForTesting
+	maybeFailForTesting = f
+	return func() {
+		maybeFailForTesting = old
 	}
 }

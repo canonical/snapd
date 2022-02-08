@@ -1150,8 +1150,13 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return copyDataErr
 	}
 
+	var oldBase string
+	if oldInfo != nil {
+		oldBase = oldInfo.Base
+	}
+
 	// the migration hasn't been done - do it now
-	if opts.UseHidden && !opts.MigratedToHidden {
+	if shouldHideSnapData(opts, newInfo.Base) {
 		if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 
 			// undo the migration. In contrast to copy data for which the new revision
@@ -1177,7 +1182,11 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return fmt.Errorf("cannot set migration status to done: %w", err)
 		}
-	} else if !opts.UseHidden && opts.MigratedToHidden {
+
+		if err := m.backend.InitSnapUserHome(snapsup.InstanceName(), newInfo.Revision); err != nil {
+			return err
+		}
+	} else if shouldExposeSnapData(opts, oldBase, newInfo.Base) {
 		// migration was done but user turned the feature off, so undo migration
 		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
@@ -1203,6 +1212,35 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	return nil
+}
+
+func shouldHideSnapData(opts *dirMigrationOptions, newBase string) bool {
+	// hide snap data if any is true:
+	//	* 1st refresh after user set experimental flag
+	//	* 1st refresh to revision w/ core22 base (or newer)
+	return !opts.MigratedToHidden && (opts.UseHidden || atLeastCore22(newBase))
+}
+
+func shouldExposeSnapData(opts *dirMigrationOptions, oldBase, newBase string) bool {
+	// expose snap data if any is true:
+	//	* 1st refresh after user unset experimental flag
+	//	* refreshing from core22 (or later) back to earlier base
+	return (opts.MigratedToHidden && !opts.UseHidden) ||
+		(opts.MigratedToHidden && atLeastCore22(oldBase) && !atLeastCore22(newBase))
+}
+
+// newerThanCore22 returns true if 'base' is core22 or newer. Returns
+// false if it's older or it cannot be determined.
+func atLeastCore22(base string) bool {
+	if !strings.HasPrefix(base, "core") {
+		return false
+	}
+
+	if num, err := strconv.Atoi(base[4:]); err != nil || num < 22 {
+		return false
+	}
+
+	return true
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {

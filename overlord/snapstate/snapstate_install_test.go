@@ -5048,3 +5048,21 @@ type: base
 	op := s.fakeBackend.ops.First("storesvc-snap-action")
 	c.Assert(op, IsNil)
 }
+
+func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(context.Background(), s.state, "snap-for-core24", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install", "install a snap")
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	containsInOrder(s.fakeBackend.ops, []string{"hide-snap-data", "init-snap-user-home"})
+	assertMigrationState(c, s.state, "snap-for-core24", true)
+}

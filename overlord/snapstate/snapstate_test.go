@@ -105,7 +105,10 @@ func (s *snapmgrBaseTest) logTasks(c *C) {
 		c.Logf("\nChange %q (%s):", chg.Summary(), chg.Status())
 
 		for _, t := range chg.Tasks() {
-			c.Logf("\t%s - %s", t.Summary(), t.Status())
+			c.Logf("  %s - %s", t.Summary(), t.Status())
+			for _, l := range t.Log() {
+				c.Logf("    %s", l)
+			}
 		}
 	}
 }
