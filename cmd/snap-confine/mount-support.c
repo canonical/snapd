@@ -147,8 +147,8 @@ static void setup_private_pts(void)
 
 	struct stat st;
 
-	// Make sure /dev/pts/ptmx exists, otherwise we are in legacy mode
-	// which doesn't provide the isolation we require.
+	// Make sure /dev/pts/ptmx exists, otherwise the system doesn't provide the
+	// isolation we require.
 	if (stat("/dev/pts/ptmx", &st) != 0) {
 		die("cannot stat /dev/pts/ptmx");
 	}
