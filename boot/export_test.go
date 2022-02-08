@@ -187,6 +187,10 @@ func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 	return bl.SetBootVars(blVars)
 }
 
+func SetRebootArgsPath(argsPath string) {
+	rebootArgsPath = argsPath
+}
+
 func (b *bootChain) SecbootModelForSealing() secboot.ModelForSealing {
 	return b.modelForSealing()
 }

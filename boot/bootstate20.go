@@ -299,16 +299,19 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 	return u20, nil
 }
 
-func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
+func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
 	u20, nextStatus, err := genericSetNext(ks20, next)
 	if err != nil {
-		return false, nil, err
+		return RebootInfo{RebootRequired: false}, nil, err
 	}
 
 	// if we are setting a snap as a try snap, then we need to reboot
-	rebootRequired = false
+	rbi.RebootRequired = false
 	if nextStatus == TryStatus {
-		rebootRequired = true
+		rbi.RebootRequired = true
+		if rbi.Rbl, err = ks20.getRebootBootloader(); err != nil {
+			return RebootInfo{RebootRequired: false}, nil, err
+		}
 	}
 
 	currentKernel := ks20.bks.kernel()
@@ -328,7 +331,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	// As such, set the next kernel as a post modeenv task.
 	u20.postModeenv(func() error { return ks20.bks.setNextKernel(next, nextStatus) })
 
-	return rebootRequired, u20, nil
+	return rbi, u20, nil
 }
 
 // selectAndCommitSnapInitramfsMount chooses which snap should be mounted
@@ -434,24 +437,24 @@ func (bs20 *bootState20Base) markSuccessful(update bootStateUpdate) (bootStateUp
 	return u20, nil
 }
 
-func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
+func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
 	u20, nextStatus, err := genericSetNext(bs20, next)
 	if err != nil {
-		return false, nil, err
+		return RebootInfo{RebootRequired: false}, nil, err
 	}
 
 	// if we are setting a snap as a try snap, then we need to reboot
-	rebootRequired = false
+	rbi.RebootRequired = false
 	if nextStatus == TryStatus {
 		// only update the try base if we are actually in try status
 		u20.writeModeenv.TryBase = next.Filename()
-		rebootRequired = true
+		rbi.RebootRequired = true
 	}
 
 	// always update the base status
 	u20.writeModeenv.BaseStatus = nextStatus
 
-	return rebootRequired, u20, nil
+	return rbi, u20, nil
 }
 
 // selectAndCommitSnapInitramfsMount chooses which snap should be mounted
@@ -504,10 +507,6 @@ func (bs20 *bootState20Base) selectAndCommitSnapInitramfsMount(modeenv *Modeenv)
 	}
 
 	return first, nil
-}
-
-func (bs20 *bootState20Base) getRebootBootloader() (bootloader.RebootBootloader, error) {
-	return nil, nil
 }
 
 //

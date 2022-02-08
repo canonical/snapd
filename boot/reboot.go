@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -28,12 +29,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func getRebootArgsPathRuntime() string {
-	return "/run/systemd/reboot-param"
-}
-
-// GetRebootArgsPath is used so we can mock the path easily in tests
-var GetRebootArgsPath = getRebootArgsPathRuntime
+// rebootArgsPath is used so we can mock the path easily in tests
+var rebootArgsPath = "/run/systemd/reboot-param"
 
 type RebootAction int
 
@@ -86,7 +83,7 @@ func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootIn
 	if rebootInfo != nil && rebootInfo.Rbl != nil {
 		rebArgs := rebootInfo.Rbl.GetRebootArguments()
 		if rebArgs != "" {
-			if err := osutil.AtomicWriteFile(GetRebootArgsPath(),
+			if err := osutil.AtomicWriteFile(rebootArgsPath,
 				[]byte(rebArgs+"\n"), 0644, 0); err != nil {
 				return err
 			}
@@ -95,6 +92,7 @@ func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootIn
 
 	cmd := exec.Command("shutdown", arg, fmt.Sprintf("+%d", mins), msg)
 	if out, err := cmd.CombinedOutput(); err != nil {
+		os.Remove(rebootArgsPath)
 		return osutil.OutputErr(out, err)
 	}
 	return nil

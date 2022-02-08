@@ -46,7 +46,7 @@ const (
 type RebootInfo struct {
 	// rebootRequired is true if we need to reboot after an update
 	RebootRequired bool
-	// Rbl will not be nil if the bootloader needs some control on
+	// Rbl will not be nil if the bootloader has something to say on
 	// how to perform the rebot
 	Rbl bootloader.RebootBootloader
 }
@@ -194,17 +194,14 @@ type bootState interface {
 	// setNext lazily implements setting the next boot target for
 	// the type's boot snap. actually committing the update
 	// is done via the returned bootStateUpdate's commit method.
-	setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error)
+	// It will return information for rebooting if necessary.
+	setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error)
 
 	// markSuccessful lazily implements marking the boot
 	// successful for the type's boot snap. The actual committing
 	// of the update is done via bootStateUpdate's commit, that
 	// way different markSuccessful can be folded together.
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
-
-	// getRebootBootloader returns a bootloader.RebootBootloader
-	// interface if implemented by the bootloader, nil otherwise.
-	getRebootBootloader() (bootloader.RebootBootloader, error)
 }
 
 // successfulBootState exposes the state of resources requiring bookkeeping on a

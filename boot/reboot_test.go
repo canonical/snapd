@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -41,6 +42,12 @@ type rebootSuite struct {
 }
 
 var _ = Suite(&rebootSuite{})
+
+func (s *rebootSuite) TestRebootActionString(c *C) {
+	c.Assert(fmt.Sprint(boot.RebootReboot), Equals, "system reboot")
+	c.Assert(fmt.Sprint(boot.RebootHalt), Equals, "system halt")
+	c.Assert(fmt.Sprint(boot.RebootPoweroff), Equals, "system poweroff")
+}
 
 func (s *rebootSuite) TestRebootHelper(c *C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
@@ -87,9 +94,7 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 	rbl.RebootArgs = "0 tryboot"
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
-	boot.GetRebootArgsPath = func() string {
-		return rebArgsPath
-	}
+	boot.SetRebootArgsPath(rebArgsPath)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
@@ -111,9 +116,7 @@ func (s *rebootSuite) TestRebootNoArguments(c *C) {
 	rbl.RebootArgs = ""
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
-	boot.GetRebootArgsPath = func() string {
-		return rebArgsPath
-	}
+	boot.SetRebootArgsPath(rebArgsPath)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
