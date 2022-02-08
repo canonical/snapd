@@ -697,8 +697,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		};
 		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
-		// In legacy mode we don't pivot and instead just arrange bi-
-		// directional mount propagation for two directories.
+		// In legacy mode we don't pivot to a base snap's rootfs and instead
+		// just arrange bi-directional mount propagation for two directories.
 		const struct sc_mount mounts[] = {
 			{"/media", true},
 			{"/run/netns", true},
