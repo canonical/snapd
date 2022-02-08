@@ -64,7 +64,7 @@ func snapdUnitSkipStart(unitPath string) (skip bool, err error) {
 	return snapdSkipStart(content), nil
 }
 
-func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
+func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string, opts *AddSnapdSnapServicesOptions) error {
 
 	// TODO: the following comment is wrong, we don't need RequiredBy=snapd here?
 
@@ -98,19 +98,24 @@ WantedBy=snapd.service
 	if err != nil {
 		return err
 	}
-	if err := sysd.DaemonReload(); err != nil {
-		return err
+
+	if !opts.Preseeding {
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
 	}
 	units := []string{SnapdToolingMountUnit}
 	if err := sysd.Enable(units); err != nil {
 		return err
 	}
 
-	// meh this is killing snap services that use Requires=<this-unit> because
-	// it doesn't use verbatim systemctl restart, it instead does it with
-	// a systemctl stop and then a systemctl start, which triggers LP #1924805
-	if err := sysd.Restart(units, 5*time.Second); err != nil {
-		return err
+	if !opts.Preseeding {
+		// meh this is killing snap services that use Requires=<this-unit> because
+		// it doesn't use verbatim systemctl restart, it instead does it with
+		// a systemctl stop and then a systemctl start, which triggers LP #1924805
+		if err := sysd.Restart(units, 5*time.Second); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -136,9 +141,16 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 	return os.Remove(mountUnitPath)
 }
 
+type AddSnapdSnapServicesOptions struct {
+	// Preseeding is whether the system is currently being preseeded, in which
+	// case there is not a running systemd for EnsureSnapServicesOptions to
+	// issue commands like systemctl daemon-reload to.
+	Preseeding bool
+}
+
 // AddSnapdSnapServices sets up the services based on a given snapd snap in the
 // system.
-func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
+func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter interacter) error {
 	if snapType := s.Type(); snapType != snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
 	}
@@ -148,9 +160,18 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		return nil
 	}
 
-	sysd := systemd.New(systemd.SystemMode, inter)
+	if opts == nil {
+		opts = &AddSnapdSnapServicesOptions{}
+	}
 
-	if err := writeSnapdToolingMountUnit(sysd, s.MountDir()); err != nil {
+	var sysd systemd.Systemd
+	if !opts.Preseeding {
+		sysd = systemd.New(systemd.SystemMode, inter)
+	} else {
+		sysd = systemd.NewEmulationMode("")
+	}
+
+	if err := writeSnapdToolingMountUnit(sysd, s.MountDir(), opts); err != nil {
 		return err
 	}
 
@@ -202,19 +223,22 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		// nothing to do
 		return nil
 	}
-	// stop all removed units first
-	for _, unit := range removed {
-		serviceUnits := []string{unit}
-		if err := sysd.Stop(serviceUnits, 5*time.Second); err != nil {
-			logger.Noticef("failed to stop %q: %v", unit, err)
-		}
-		if err := sysd.Disable(serviceUnits); err != nil {
-			logger.Noticef("failed to disable %q: %v", unit, err)
+
+	if !opts.Preseeding {
+		// stop all removed units first
+		for _, unit := range removed {
+			serviceUnits := []string{unit}
+			if err := sysd.Stop(serviceUnits, 5*time.Second); err != nil {
+				logger.Noticef("failed to stop %q: %v", unit, err)
+			}
+			if err := sysd.Disable(serviceUnits); err != nil {
+				logger.Noticef("failed to disable %q: %v", unit, err)
+			}
 		}
 	}
 
 	// daemon-reload so that we get the new services
-	if len(changed) > 0 {
+	if len(changed) > 0 && !opts.Preseeding {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -231,71 +255,75 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		// systemd version, where older versions (eg 229 in 16.04) would
 		// error out unless --force is passed, while new ones remove the
 		// symlink and create a new one.
-		enabled, err := sysd.IsEnabled(unit)
-		if err != nil {
-			return err
-		}
-		if enabled {
-			continue
+		if !opts.Preseeding {
+			enabled, err := sysd.IsEnabled(unit)
+			if err != nil {
+				return err
+			}
+			if enabled {
+				continue
+			}
 		}
 		if err := sysd.Enable([]string{unit}); err != nil {
 			return err
 		}
 	}
 
-	for _, unit := range changed {
-		// Some units (like the snapd.system-shutdown.service) cannot
-		// be started. Others like "snapd.seeded.service" are started
-		// as dependencies of snapd.service.
-		if snapdSkipStart(snapdUnits[unit].(*osutil.MemoryFileState).Content) {
-			continue
-		}
-		// Ensure to only restart if the unit was previously
-		// active. This ensures we DTRT on firstboot and do
-		// not stop e.g. snapd.socket because doing that
-		// would mean that the snapd.seeded.service is also
-		// stopped (independently of snapd.socket being
-		// active) which confuses the boot order (the unit
-		// exists before we are fully seeded).
-		isActive, err := sysd.IsActive(unit)
-		if err != nil {
-			return err
-		}
-		serviceUnits := []string{unit}
-		if isActive {
-			// we can never restart the snapd.socket because
-			// this will also bring down snapd itself
-			if unit != "snapd.socket" {
-				if err := sysd.Restart(serviceUnits, 5*time.Second); err != nil {
+	if !opts.Preseeding {
+		for _, unit := range changed {
+			// Some units (like the snapd.system-shutdown.service) cannot
+			// be started. Others like "snapd.seeded.service" are started
+			// as dependencies of snapd.service.
+			if snapdSkipStart(snapdUnits[unit].(*osutil.MemoryFileState).Content) {
+				continue
+			}
+			// Ensure to only restart if the unit was previously
+			// active. This ensures we DTRT on firstboot and do
+			// not stop e.g. snapd.socket because doing that
+			// would mean that the snapd.seeded.service is also
+			// stopped (independently of snapd.socket being
+			// active) which confuses the boot order (the unit
+			// exists before we are fully seeded).
+			isActive, err := sysd.IsActive(unit)
+			if err != nil {
+				return err
+			}
+			serviceUnits := []string{unit}
+			if isActive {
+				// we can never restart the snapd.socket because
+				// this will also bring down snapd itself
+				if unit != "snapd.socket" {
+					if err := sysd.Restart(serviceUnits, 5*time.Second); err != nil {
+						return err
+					}
+				}
+			} else {
+				if err := sysd.Start(serviceUnits); err != nil {
 					return err
 				}
 			}
-		} else {
-			if err := sysd.Start(serviceUnits); err != nil {
-				return err
-			}
 		}
-	}
 
-	// and finally start snapd.service (it will stop by itself and gets
-	// started by systemd then)
-	// Because of the file lock held on the snapstate by the Overlord, the new
-	// snapd will block there until we release it. For this reason, we cannot
-	// start the unit in blocking mode.
-	// TODO: move/share this responsibility with daemon so that we can make the
-	// start blocking again
-	if err := sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
-		return err
-	}
-	if err := sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
-		return err
-	}
-	// we cannot start snapd.autoimport in blocking mode because
-	// it has a "After=snapd.seeded.service" which means that on
-	// seeding a "systemctl start" that blocks would hang forever
-	// and we deadlock.
-	if err := sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
-		return err
+		// and finally start snapd.service (it will stop by itself and gets
+		// started by systemd then)
+		// Because of the file lock held on the snapstate by the Overlord, the new
+		// snapd will block there until we release it. For this reason, we cannot
+		// start the unit in blocking mode.
+		// TODO: move/share this responsibility with daemon so that we can make the
+		// start blocking again
+		if err := sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
+			return err
+		}
+		if err := sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
+			return err
+		}
+		// we cannot start snapd.autoimport in blocking mode because
+		// it has a "After=snapd.seeded.service" which means that on
+		// seeding a "systemctl start" that blocks would hang forever
+		// and we deadlock.
+		if err := sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
+			return err
+		}
 	}
 
 	// Handle the user services
@@ -407,6 +435,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 
+	// TODO: use EmulationMode when preseeding (teach EmulationMode about user services)?
 	sysd := systemd.New(systemd.GlobalUserMode, inter)
 
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))

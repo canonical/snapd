@@ -119,7 +119,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	mountUnit := fmt.Sprintf(`[Unit]
@@ -219,13 +219,124 @@ WantedBy=snapd.service
 	})
 }
 
+func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCorePreseeding(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	// reset root dir
+	dirs.SetRootDir(s.tempdir)
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
+			return []byte(s), nil
+		}
+		if len(cmd) == 2 && cmd[0] == "is-enabled" {
+			// pretend snapd.socket is disabled
+			if cmd[1] == "snapd.socket" {
+				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+			}
+			return []byte("enabled"), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	info := makeMockSnapdSnap(c)
+	// add the snapd service
+	err := wrappers.AddSnapdSnapServices(info, &wrappers.AddSnapdSnapServicesOptions{Preseeding: true}, progress.Null)
+	c.Assert(err, IsNil)
+
+	mountUnit := fmt.Sprintf(`[Unit]
+Description=Make the snapd snap tooling available for the system
+Before=snapd.service
+
+[Mount]
+What=%s/snap/snapd/1/usr/lib/snapd
+Where=/usr/lib/snapd
+Type=none
+Options=bind
+
+[Install]
+WantedBy=snapd.service
+`, dirs.GlobalRootDir)
+	for _, entry := range [][]string{{
+		// check that snapd.service is created
+		filepath.Join(dirs.SnapServicesDir, "snapd.service"),
+		// and paths get re-written
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/lib/snapd/snapd\n# X-Snapd-Snap: do-not-start\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
+	}, {
+		// check that snapd.autoimport.service is created
+		filepath.Join(dirs.SnapServicesDir, "snapd.autoimport.service"),
+		// and paths get re-written
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap auto-import\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
+	}, {
+		// check that snapd.system-shutdown.service is created
+		filepath.Join(dirs.SnapServicesDir, "snapd.system-shutdown.service"),
+		// and paths *do not* get re-written
+		"[Unit]\n[Service]\nExecStart=/bin/umount --everything\n# X-Snapd-Snap: do-not-start",
+	}, {
+		// check that usr-lib-snapd.mount is created
+		filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"),
+		mountUnit,
+	}, {
+		// check that snapd.session-agent.service is created
+		filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.service"),
+		// and paths get re-written
+		fmt.Sprintf("[Unit]\n[Service]\nExecStart=%[1]s/snapd/1/usr/bin/snap session-agent\n[Unit]\nRequiresMountsFor=%[1]s/snapd/1\n", dirs.SnapMountDir),
+	}, {
+		// check that snapd.session-agent.socket is created
+		filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"),
+		"[Unit]\n[Socket]\nListenStream=%t/snap-session.socket",
+	}, {
+		filepath.Join(dirs.SnapDBusSystemPolicyDir, "snapd.system-services.conf"),
+		"<busconfig/>",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionPolicyDir, "snapd.session-services.conf"),
+		"<busconfig/>",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"),
+		"[D-BUS Service]\nName=io.snapcraft.Launcher",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"),
+		"[D-BUS Service]\nName=io.snapcraft.Settings",
+	}, {
+		filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"),
+		"[D-BUS Service]\nName=io.snapcraft.SessionAgent",
+	}} {
+		c.Check(entry[0], testutil.FileEquals, entry[1])
+	}
+
+	// Non-snapd D-Bus config is not copied
+	c.Check(filepath.Join(dirs.SnapDBusSystemPolicyDir, "io.netplan.Netplan.conf"), testutil.FileAbsent)
+
+	// check the systemctl calls
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--root", s.tempdir, "enable", "usr-lib-snapd.mount"},
+		{"--root", s.tempdir, "enable", "snapd.autoimport.service"},
+		{"--root", s.tempdir, "enable", "snapd.service"},
+		{"--root", s.tempdir, "enable", "snapd.snap-repair.timer"},
+		// test pretends snapd.socket is disabled and needs enabling
+		{"--root", s.tempdir, "enable", "snapd.socket"},
+		{"--root", s.tempdir, "enable", "snapd.system-shutdown.service"},
+		{"--user", "--global", "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "enable", "snapd.session-agent.socket"},
+	})
+}
+
 func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// check that snapd services were *not* created
@@ -260,7 +371,7 @@ func (s *servicesTestSuite) TestAddSessionServicesWithReadOnlyFilesystem(c *C) {
 	defer restore()
 
 	// add the snapd service
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 
 	// didn't fail despite of read-only SnapDBusSessionPolicyDir
 	c.Assert(err, IsNil)
@@ -286,7 +397,7 @@ func (s *servicesTestSuite) TestAddSnapdServicesWithNonSnapd(c *C) {
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
 
-	err := wrappers.AddSnapdSnapServices(info, progress.Null)
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
 	c.Assert(err, ErrorMatches, `internal error: adding explicit snapd services for snap "foo" type "app" is unexpected`)
 }
 
