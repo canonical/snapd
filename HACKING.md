@@ -134,7 +134,7 @@ snap refresh snapcraft --channel=4.x/stable
 
 Sometimes while developing you may need to build a version of the _core_ snap
 with a custom snapd version. 
-The `snapcraft.yaml` for the [core snap](https://github.com/snapcore/core20/) 
+The `snapcraft.yaml` for the [core snap](https://github.com/snapcore/core/) 
 currently is complex in that it assumes it is built inside Launchpad with the 
 [ppa:snappy-dev/image](https://launchpad.net/~snappy-dev/+archive/ubuntu/image/) 
 enabled, so it is difficult to inject a custom version of
