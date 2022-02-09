@@ -24,7 +24,7 @@ execute: |
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$NAME/common"
 
     test -d "$HOME"/snap
-    not test -d "$HOME"/.snap
+    not test -d "$HOME"/.snap/data
 
     echo "Take a snapshot"
     "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data
@@ -42,8 +42,7 @@ execute: |
     test -d "$HOME"/.snap/data/"$NAME"
     test -d "$HOME"/.snap/data/"$NAME"/common
     test -d "$HOME"/.snap/data/"$NAME"/x2
-    # check that ~/snap is removed if empty (core has no user data)
-    not test -d "$HOME"/snap
+    not test -d "$HOME"/snap/"$NAME"
 
     echo "Check the env vars point to ~/.snap/data"
     snapEnv=$("$NAME".env)
@@ -78,7 +77,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     test -d "$HOME"/.snap/data/"$NAME"
-    not test -d "$HOME"/snap
+    not test -d "$HOME"/snap/"$NAME"
     snapEnv=$("$NAME".env)
     echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x1"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
