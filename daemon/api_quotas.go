@@ -86,7 +86,7 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	quotas, err := servicestate.AllQuotas(st)
+	quotas, err := servicestate.AllQuotasForDaemon(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}

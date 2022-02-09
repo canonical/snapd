@@ -134,6 +134,8 @@ var (
 	SysfsDir        string
 
 	FeaturesDir string
+
+	CGroupsStatusFile string
 )
 
 const (
@@ -428,6 +430,8 @@ func SetRootDir(rootdir string) {
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
+
+	CGroupsStatusFile = filepath.Join(rootdir, "/proc/cgroups")
 
 	opensuseTWWithLibexec := func() bool {
 		// XXX: this is pretty naive if openSUSE ever starts going back

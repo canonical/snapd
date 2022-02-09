@@ -460,6 +460,24 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	logbuf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
 	s.logbuf = logbuf
+
+	// create a basic cgroups file that we can manipulate
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	if _, err := os.Stat(filepath.Dir(cgroupsPath)); os.IsNotExist(err) {
+		err := os.Mkdir(filepath.Dir(cgroupsPath), 0777)
+		c.Assert(err, IsNil)
+	}
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	1
+devices	10	135	1`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
 }
 
 func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandID, model, serialN string) *asserts.Serial {
@@ -10908,4 +10926,172 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
+}
+
+// first install the test snap with no change to the cgroups file and
+// then try to remove the snap when the cgroups are disabled
+func (s *mgrsSuite) TestHappyRemoveWithDisabledQuotas(c *C) {
+	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
+	defer r()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+  daemon: simple
+`
+	s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
+
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
+	tr.Commit()
+
+	// put the snap in a quota group
+	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quota.NewResources(quantity.SizeMiB))
+	c.Assert(err, IsNil)
+
+	// disable all cgroups and try to remove the snap
+	memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
+	}()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is disabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	0
+cpu	3	133	0
+memory	2	223	0
+devices	10	135	0`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
+	// reset memory cgroup status with the disabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	ts, err := snapstate.Remove(st, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("remove-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remove-snap change failed with: %v", chg.Err()))
+
+	// ensure that the quota group no longer contains the snap we removed
+	grp, err := servicestate.AllQuotas(st)
+	c.Assert(grp, HasLen, 1)
+	c.Assert(grp["quota-grp"].Snaps, HasLen, 0)
+	c.Assert(err, IsNil)
+}
+
+// set memory cgroup as enabled, and then disable it after installing the first revision
+// before performing the refresh in order to catch a regression like what we
+// had in https://github.com/snapcore/snapd/pull/11339
+func (s *mgrsSuite) TestHappyRefreshWithQuotasInServiceUnitMaintainedDisableQuotas(c *C) {
+
+	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
+	defer r()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// enable the available cgroups just in case
+	memoryCGroupFile := servicestate.CGroupsFilePath
+	defer func() {
+		servicestate.SetCGroupsFilePath(memoryCGroupFile)
+	}()
+
+	cgroupsPath := dirs.GlobalRootDir + "/proc/cgroups"
+	cgroupsFile, err := os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is enabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	1
+devices	10	135	1`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
+	// reset memory cgroup status with the enabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+  daemon: simple
+`
+	si := s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
+
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
+	tr.Commit()
+
+	// add the snap to a quota group
+	ts, err := servicestate.CreateQuota(st, "grp", "", []string{"foo"}, quota.NewResources(quantity.SizeGiB))
+	c.Assert(err, IsNil)
+
+	// enable the available cgroups just in case
+	/*
+		memoryCGroupFile := servicestate.CGroupsFilePath
+		defer func() {
+			servicestate.SetCGroupsFilePath(memoryCGroupFile)
+		}()
+	*/
+
+	cgroupsPath = dirs.GlobalRootDir + "/proc/cgroups"
+	cgroupsFile, err = os.Create(cgroupsPath)
+	c.Assert(err, IsNil)
+	defer cgroupsFile.Close()
+	// memory is disabled & file size is reduced as we only check for memory at this point
+	_, err = cgroupsFile.WriteString(`#subsys_name	hierarchy	num_cgroups	enabled
+cpuset	6	3	1
+cpu	3	133	1
+memory	2	223	0
+devices	10	135	1`)
+	c.Assert(err, IsNil)
+	cgroupsFile.Sync()
+	// reset memory cgroup status with the disabled file
+	servicestate.SetCGroupsFilePath(cgroupsPath)
+
+	quotaUpdateChg := st.NewChange("update-quota", "...")
+	quotaUpdateChg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// ensure that the service unit was written with the Slice=... setting
+	c.Assert(si.Apps["bar"].ServiceFile(), testutil.FileContains, "Slice=snap.grp.slice")
+
+	// now refresh the snap
+	s.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
+
+	// ensure that the snap service unit still has the Slice=... setting
+	c.Assert(si.Apps["bar"].ServiceFile(), testutil.FileContains, "Slice=snap.grp.slice")
+
+	// and also ensure that the snap is still referenced
+	quotas, err := servicestate.AllQuotas(st)
+	c.Assert(err, IsNil)
+	c.Assert(quotas, HasLen, 1)
+	c.Assert(quotas["grp"].Snaps, DeepEquals, []string{"foo"})
 }
