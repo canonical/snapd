@@ -248,6 +248,15 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	patchedProfileText := bytes.Replace(
 		vanillaProfileText, []byte("/usr/lib/snapd/snap-confine"), []byte(snapConfineInCore), -1)
 
+	// Also replace the test providing access to verbatim
+	// /usr/lib/snapd/snap-confine, which is necessary because to execute snaps
+	// from strict snaps, we need to be able read and map
+	// /usr/lib/snapd/snap-confine from inside the strict snap mount namespace,
+	// even though /usr/lib/snapd/snap-confine from inside the strict snap mount
+	// namespace is actually a bind mount to the "snapConfineInCore"
+	patchedProfileText = bytes.Replace(
+		patchedProfileText, []byte("#@VERBATIM_LIBEXECDIR_SNAP_CONFINE@"), []byte("/usr/lib/snapd/snap-confine"), -1)
+
 	// We need to add a unique prefix that can never collide with a
 	// snap on the system. Using "snap-confine.*" is similar to
 	// "snap-update-ns.*" that is already used there
