@@ -1892,6 +1892,13 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	})
 	defer restorePendingRefreshNotification()
 
+	var finishNotification *usersessionclient.FinishedSnapRefreshInfo
+	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		finishNotification = refreshInfo
+		return nil
+	})
+	defer restoreFinishRefreshNotification()
+
 	var called int
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
 		called++
@@ -1911,6 +1918,9 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 		InstanceName:  "some-snap",
 		TimeRemaining: 0,
 	})
+	c.Check(finishNotification, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
+		InstanceName: "some-snap",
+	})
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
@@ -1925,6 +1935,34 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
 	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
 		return runinhibit.HintInhibitedForRefresh, nil
+	})
+	defer restore()
+
+	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.ErrorMatches, "boom")
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *check.C) {
+	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
+	defer restoreIsGraphicalSession()
+
+	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		return nil
+	})
+	defer restorePendingRefreshNotification()
+
+	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		return fmt.Errorf("boom")
+	})
+	defer restoreFinishRefreshNotification()
+
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	n := 0
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		n++
+		if n == 1 {
+			return runinhibit.HintInhibitedForRefresh, nil
+		}
+		return runinhibit.HintNotInhibited, nil
 	})
 	defer restore()
 
@@ -1972,7 +2010,7 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 }
 
-func (s *RunSuite) TestRunDebug(c *check.C) {
+func (s *RunSuite) TestRunDebugLog(c *check.C) {
 	oldDebug, isSet := os.LookupEnv("SNAPD_DEBUG")
 	if isSet {
 		defer os.Setenv("SNAPD_DEBUG", oldDebug)
@@ -2001,7 +2039,7 @@ func (s *RunSuite) TestRunDebug(c *check.C) {
 	})
 
 	// this will modify the current process environment
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug", "snapname.app"})
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--debug-log", "snapname.app"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{

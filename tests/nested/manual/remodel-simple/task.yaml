@@ -74,6 +74,9 @@ execute: |
 
     boot_id="$(tests.nested boot-id)"
 
+    # wait until device is initialized and has a serial
+    nested_wait_for_device_initialized_change
+
     tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
     tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
     tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'

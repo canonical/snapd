@@ -7242,6 +7242,104 @@ func (s *snapmgrTestSuite) TestUpdateAfterMigration(c *C) {
 	assertMigrationState(c, s.state, "some-snap", true)
 }
 
+func (s *snapmgrTestSuite) TestUndoRevertMigrationIfRevertFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+
+	snapst := &snapstate.SnapState{
+		Sequence:       []*snap.SideInfo{info},
+		Current:        info.Revision,
+		Active:         true,
+		MigratedHidden: true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fail the change after the link-snap task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Err(), Not(IsNil))
+
+	// check migration is reverted and then re-done
+	expected := []string{"undo-hide-snap-data", "hide-snap-data"}
+	c.Assert(containsInOrder(s.fakeBackend.ops, expected), Equals, true)
+
+	// check migration reversion was undone in state and seq file
+	assertMigrationState(c, s.state, "some-snap", true)
+}
+
+func containsInOrder(ops fakeOps, expected []string) bool {
+	var i int
+
+	for _, op := range []fakeOp(ops) {
+		if op.op == expected[i] {
+			i++
+
+			// found all ops
+			if i == len(expected) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *snapmgrTestSuite) TestRevertMigration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+
+	snapst := &snapstate.SnapState{
+		Sequence:       []*snap.SideInfo{info},
+		Current:        info.Revision,
+		Active:         true,
+		MigratedHidden: true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// check migration status is 'off' in state and seq file
+	assertMigrationState(c, s.state, "some-snap", false)
+}
+
 func (s *snapmgrTestSuite) TestUndoMigrationAfterHidingFails(c *C) {
 	const failInUndo = false
 	s.testUndoMigration(c, failInUndo)
@@ -7294,13 +7392,17 @@ func (s *snapmgrTestSuite) testUndoMigration(c *C, failUndo bool) {
 	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
-	copyTaskLogs := findLastTask(chg, "copy-snap-data").Log()
-	failedUndoLog := `.*cannot undo snap dir migration \(must manually restore some-snap's dirs from .* to .*\): boom`
+	warns := s.state.AllWarnings()
+	msgs := make([]string, len(warns))
+	for i, warn := range warns {
+		msgs[i] = warn.String()
+	}
+	failedUndoMsg := `.*cannot undo snap dir hiding \(move all user's ~/\.snap/data/some-snap to ~/snap/some-snap\): boom`
 
 	if failUndo {
-		mustMatch(c, copyTaskLogs, failedUndoLog)
+		mustMatch(c, msgs, failedUndoMsg)
 	} else {
-		mustNotMatch(c, copyTaskLogs, failedUndoLog)
+		mustNotMatch(c, msgs, failedUndoMsg)
 	}
 
 	assertMigrationState(c, s.state, "some-snap", false)
