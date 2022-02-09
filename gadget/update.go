@@ -270,7 +270,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			if encType, ok := opts.EncryptedPartitions[gs.Name]; ok {
 				switch encType {
 				case EncryptionICE:
-					return false, "inline cryptography engine encrypted partitions currently unsupported"
+					return false, "Inline Crypto Engine encrypted partitions currently unsupported"
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
@@ -286,7 +286,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 					// at this point the partition matches
 					return true, ""
 				default:
-					return false, fmt.Sprintf("unsupported encrypted partition type %s", encType)
+					return false, fmt.Sprintf("unsupported encrypted partition type %v", encType)
 				}
 			}
 
@@ -461,7 +461,8 @@ type DiskEncryptionMethod string
 
 const (
 	EncryptionLUKS DiskEncryptionMethod = "LUKS"
-	EncryptionICE  DiskEncryptionMethod = "ICE"
+	// ICE stands for Inline Crypto Engine
+	EncryptionICE DiskEncryptionMethod = "ICE"
 )
 
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to

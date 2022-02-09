@@ -3044,7 +3044,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithImplicitSystemData(c *C
 var mockEncDeviceLayout = gadget.OnDiskVolume{
 	Structure: []gadget.OnDiskStructure{
 		// Note that the first ondisk structure we have is BIOS Boot, even
-		// though "in reality" the first ondisk structure is MBR, but the MBR
+		// though in reality the first ondisk structure is MBR, but the MBR
 		// doesn't actually show up in /dev at all, so we don't ever measure it
 		// as existing on the disk - the code and test accounts for the MBR
 		// structure not being present in the OnDiskVolume
@@ -3131,7 +3131,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: inline cryptography engine encrypted partitions currently unsupported`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: Inline Crypto Engine encrypted partitions currently unsupported`)
 
 	invalidEncOptions = &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
