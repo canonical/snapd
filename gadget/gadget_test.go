@@ -3141,6 +3141,17 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
 	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: unsupported encrypted partition type other`)
+
+	// missing an encrypted partition from the gadget.yaml
+	missingEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		EncryptedPartitions: map[string]gadget.DiskEncryptionMethod{
+			"Writable": gadget.EncryptionLUKS,
+			"missing":  gadget.EncryptionLUKS,
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, missingEncStructureOptions)
+	c.Assert(err, ErrorMatches, `expected encrypted structure missing not present in gadget`)
 }
 
 func (s *gadgetYamlTestSuite) TestSchemaCompatibility(c *C) {

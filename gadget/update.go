@@ -454,6 +454,22 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		return fmt.Errorf("cannot find gadget structure %s on disk", gs.String())
 	}
 
+	// finally ensure that all encrypted partitions mentioned in the options are
+	// present in the gadget.yaml (and thus will also need to have been present
+	// on the disk)
+	for gadgetLabel := range opts.EncryptedPartitions {
+		found := false
+		for _, gs := range gadgetLayout.LaidOutStructure {
+			if gs.Name == gadgetLabel {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("expected encrypted structure %s not present in gadget", gadgetLabel)
+		}
+	}
+
 	return nil
 }
 
