@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -175,7 +176,7 @@ func (tr *tree16) localSnapPath(sn *SeedSnap) (string, error) {
 	return filepath.Join(tr.snapsDirPath, sn.Info.Filename()), nil
 }
 
-func (tr *tree16) writeAssertions(db asserts.RODatabaseView, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
+func (tr *tree16) writeAssertions(db snapasserts.Finder, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	seedAssertsDir := filepath.Join(tr.opts.SeedDir, "assertions")
 	if err := os.MkdirAll(seedAssertsDir, 0755); err != nil {
 		return err

@@ -219,7 +219,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 			return fmt.Errorf("cannot create a temporary database with model: %v", err)
 		}
 		// XXX policy
-		db = tempDB.ROUnderPolicy(nil)
+		db = tempDB.ROWithPolicy(nil)
 	} else {
 		db = assertstate.DB(st)
 	}

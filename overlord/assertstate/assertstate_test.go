@@ -269,7 +269,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.fakeStore = &fakeStore{
 		state: s.state,
-		db:    s.storeSigning.ROUnderPolicy(nil),
+		db:    s.storeSigning.ROWithPolicy(nil),
 		// leave this comment to keep old gofmt happy
 		maxDeclSupportedFormat:          asserts.SnapDeclarationType.MaxSupportedFormat(),
 		maxValidationSetSupportedFormat: asserts.ValidationSetType.MaxSupportedFormat(),

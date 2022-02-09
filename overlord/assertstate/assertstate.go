@@ -39,11 +39,13 @@ import (
 // Add the given assertion to the system assertion database.
 func Add(s *state.State, a asserts.Assertion) error {
 	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
+	// XXX policy
 	return cachedDB(s).Add(a)
 }
 
 // AddBatch adds the given assertion batch to the system assertion database.
 func AddBatch(s *state.State, batch *asserts.Batch, opts *asserts.CommitOptions) error {
+	// XXX policy
 	return batch.CommitTo(cachedDB(s), opts)
 }
 
@@ -526,6 +528,7 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	}
 
 	db := cachedDB(st)
+	// XXX policy
 
 	// try to get existing one from db
 	if sequence > 0 {
@@ -544,7 +547,7 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 
 	// try to resolve or update with pool
 	// XXX policy
-	pool := asserts.NewPool(db.ROUnderPolicy(nil), maxGroups)
+	pool := asserts.NewPool(db.ROWithPolicy(nil), maxGroups)
 	atSeq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{release.Series, accountID, name},
@@ -649,7 +652,7 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	}
 
 	// XXX policy
-	pool := asserts.NewPool(db.ROUnderPolicy(nil), maxGroups)
+	pool := asserts.NewPool(db.ROWithPolicy(nil), maxGroups)
 	atSeq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{release.Series, accountID, name},

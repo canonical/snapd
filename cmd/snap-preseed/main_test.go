@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -335,7 +336,7 @@ func mockClassicModel() *asserts.Model {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Model)
 }
 
-func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabaseView, commitTo func(*asserts.Batch) error) error {
+func (fs *Fake16Seed) LoadAssertions(db snapasserts.Finder, commitTo func(*asserts.Batch) error) error {
 	return fs.LoadAssertionsErr
 }
 

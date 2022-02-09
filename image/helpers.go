@@ -449,7 +449,6 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 
 // AssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
 func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
-	// XXX policy
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, tsto.user)
 	}
@@ -464,11 +463,11 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 		}
 		return save(a)
 	}
-	return asserts.NewFetcher(db.ROUnderPolicy(nil), retrieve, save2)
+	return asserts.NewFetcher(db, retrieve, save2)
 }
 
 // FetchAndCheckSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database.
-func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabaseView) (*asserts.SnapDeclaration, error) {
+func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db snapasserts.Finder) (*asserts.SnapDeclaration, error) {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, err

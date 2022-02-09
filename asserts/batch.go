@@ -110,21 +110,20 @@ func (b *Batch) AddStream(r io.Reader) ([]*Ref, error) {
 
 // Fetch adds to the batch by invoking fetching to drive an internal
 // Fetcher that was built with trustedDB and retrieve.
-func (b *Batch) Fetch(trustedDB RODatabaseView, retrieve func(*Ref) (Assertion, error), fetching func(Fetcher) error) error {
+func (b *Batch) Fetch(trustedDB PredefinedView, retrieve func(*Ref) (Assertion, error), fetching func(Fetcher) error) error {
 	f := NewFetcher(trustedDB, retrieve, b.Add)
 	return fetching(f)
 }
 
 func (b *Batch) precheck(db *Database) error {
 	db = db.WithStackedBackstore(NewMemoryBackstore())
-	return b.commitTo(db, nil, nil)
+	return b.commitTo(db, nil)
 }
 
 type CommitOptions struct {
 	// Precheck indicates whether to do a full consistency check
 	// before starting adding the batch.
 	Precheck bool
-	// XXX policy
 }
 
 // CommitTo adds the batch of assertions to the given assertion database.
@@ -140,7 +139,7 @@ func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
 		}
 	}
 
-	return b.commitTo(db, nil, nil)
+	return b.commitTo(db, nil)
 }
 
 // CommitToAndObserve adds the batch of assertions to the given
@@ -159,14 +158,13 @@ func (b *Batch) CommitToAndObserve(db *Database, observe func(Assertion), opts *
 		}
 	}
 
-	return b.commitTo(db, observe, nil)
+	return b.commitTo(db, observe)
 }
 
 // commitTo does a best effort of adding all the batch assertions to
 // the target database.
-func (b *Batch) commitTo(db *Database, observe func(Assertion), pol AssertionPolicy) error {
-	roView := db.ROUnderPolicy(pol)
-	if err := b.prereqSort(roView); err != nil {
+func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
+	if err := b.prereqSort(db); err != nil {
 		return err
 	}
 
@@ -195,7 +193,7 @@ func (b *Batch) commitTo(db *Database, observe func(Assertion), pol AssertionPol
 	return nil
 }
 
-func (b *Batch) prereqSort(db RODatabaseView) error {
+func (b *Batch) prereqSort(db *Database) error {
 	if b.inPrereqOrder {
 		// nothing to do
 		return nil

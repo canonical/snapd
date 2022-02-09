@@ -139,7 +139,7 @@ func (s seedSnapsByType) Less(i, j int) bool {
 // finderFromFetcher exposes an assertion Finder interface out of a Fetcher.
 type finderFromFetcher struct {
 	f  asserts.Fetcher
-	db asserts.RODatabaseView
+	db snapasserts.Finder
 }
 
 func (fnd *finderFromFetcher) Find(assertionType *asserts.AssertionType, headers map[string]string) (asserts.Assertion, error) {
@@ -160,7 +160,7 @@ func (fnd *finderFromFetcher) Find(assertionType *asserts.AssertionType, headers
 // DeriveSideInfo tries to construct a SideInfo for the given snap
 // using its digest to fetch the relevant snap assertions. It will
 // fail with an asserts.NotFoundError if it cannot find them.
-func DeriveSideInfo(snapPath string, rf RefAssertsFetcher, db asserts.RODatabaseView) (*snap.SideInfo, []*asserts.Ref, error) {
+func DeriveSideInfo(snapPath string, rf RefAssertsFetcher, db snapasserts.Finder) (*snap.SideInfo, []*asserts.Ref, error) {
 	fnd := &finderFromFetcher{f: rf, db: db}
 	prev := len(rf.Refs())
 	si, err := snapasserts.DeriveSideInfo(snapPath, fnd)

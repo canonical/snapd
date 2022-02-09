@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -141,7 +142,7 @@ func essentialSnapTypesToModelFilter(essentialTypes []snap.Type) func(modSnap *a
 	}
 }
 
-func findBrand(seed Seed, db asserts.RODatabaseView) (*asserts.Account, error) {
+func findBrand(seed Seed, db snapasserts.Finder) (*asserts.Account, error) {
 	a, err := db.Find(asserts.AccountType, map[string]string{
 		"account-id": seed.Model().BrandID(),
 	})

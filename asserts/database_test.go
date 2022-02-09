@@ -334,7 +334,7 @@ func (chks *checkSuite) TestCheckMismatchedAccountIDandKey(c *C) {
 	err = db.Check(a, nil)
 	c.Check(err, ErrorMatches, `error finding matching public key for signature: found public key ".*" from "canonical" but expected it from: random`)
 
-	_, err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), nil, db.ROUnderPolicy(nil), time.Time{}, time.Time{})
+	_, err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), nil, db.ROWithPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "canonical"`)
 }
 
@@ -680,7 +680,7 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 	// test CheckDelegation directly as well, first retrieve the constraints
 	acs := ad.(*asserts.AuthorityDelegation).MatchingConstraints(a1)
 
-	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
+	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db.ROWithPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, IsNil)
 	// the constraints are consumed and not passed further along
 	c.Check(acs, HasLen, 0)
@@ -727,7 +727,7 @@ func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) 
 	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
 	c.Assert(err, IsNil)
 
-	_, err = asserts.CheckSignature(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
+	_, err = asserts.CheckSignature(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db.ROWithPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "delegated-acct"`)
 }
 
@@ -806,10 +806,10 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 	}))
 	c.Assert(acs, HasLen, 1)
 
-	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
+	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), nil, safs.db.ROWithPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
 
-	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db.ROUnderPolicy(nil), time.Time{}, time.Time{})
+	_, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db.ROWithPolicy(nil), time.Time{}, time.Time{})
 	c.Check(err, ErrorMatches, `no valid constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
 }
 

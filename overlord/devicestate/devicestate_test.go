@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
@@ -114,7 +115,7 @@ type fakeStore struct {
 	storetest.Store
 
 	state *state.State
-	db    asserts.RODatabaseView
+	db    snapasserts.Finder
 }
 
 func (sto *fakeStore) pokeStateLock() {
@@ -212,7 +213,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
-	s.db = db.ROUnderPolicy(nil)
+	s.db = db.ROWithPolicy(nil)
 	s.hookMgr = hookMgr
 	s.o.AddManager(s.hookMgr)
 	s.mgr = mgr
@@ -230,7 +231,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, &fakeStore{
 		state: s.state,
-		db:    s.storeSigning.ROUnderPolicy(nil),
+		db:    s.storeSigning,
 	})
 	s.state.Unlock()
 

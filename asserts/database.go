@@ -169,14 +169,10 @@ func IsUnaccceptedUpdate(err error) bool {
 	return false
 }
 
-// A RODatabaseView exposes read-only access to an assertion database.
-type RODatabaseView interface {
+// PredefinedView exposes access to the predefined assertions in a database.
+type PredefinedView interface {
 	// IsTrustedAccount returns whether the account is part of the trusted set.
 	IsTrustedAccount(accountID string) bool
-	// Find an assertion based on arbitrary headers.
-	// Provided headers must contain the primary key for the assertion type.
-	// It returns a NotFoundError if the assertion cannot be found.
-	Find(assertionType *AssertionType, headers map[string]string) (Assertion, error)
 	// FindPredefined finds an assertion in the predefined sets
 	// (trusted or not) based on arbitrary headers.  Provided
 	// headers must contain the primary key for the assertion
@@ -188,13 +184,23 @@ type RODatabaseView interface {
 	// primary key for the assertion type.  It returns a
 	// NotFoundError if the assertion cannot be found.
 	FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error)
-	// FindMany finds assertions based on arbitrary headers.
-	// It returns a NotFoundError if no assertion can be found.
-	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 	// FindManyPredefined finds assertions in the predefined sets
 	// (trusted or not) based on arbitrary headers.  It returns a
 	// NotFoundError if no assertion can be found.
 	FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
+}
+
+// A RODatabaseView exposes read-only access to an assertion database.
+type RODatabaseView interface {
+	PredefinedView
+
+	// Find an assertion based on arbitrary headers.
+	// Provided headers must contain the primary key for the assertion type.
+	// It returns a NotFoundError if the assertion cannot be found.
+	Find(assertionType *AssertionType, headers map[string]string) (Assertion, error)
+	// FindMany finds assertions based on arbitrary headers.
+	// It returns a NotFoundError if no assertion can be found.
+	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 	// FindSequence finds an assertion for the given headers and after for
 	// a sequence-forming type.
 	// The provided headers must contain a sequence key, i.e. a prefix of
@@ -413,8 +419,8 @@ func (v *roDBView) Check(assert Assertion) error {
 	return v.Database.Check(assert, v.pol)
 }
 
-// ROUnderPolicy returns a read-only view of the database that uses the given policy (if not nil) for validation and retrieval.
-func (db *Database) ROUnderPolicy(pol AssertionPolicy) RODatabaseView {
+// ROWithPolicy returns a read-only view of the database that uses the given policy (if not nil) for validation and retrieval.
+func (db *Database) ROWithPolicy(pol AssertionPolicy) RODatabaseView {
 	return &roDBView{Database: db, pol: pol}
 }
 
@@ -452,7 +458,7 @@ func (db *Database) Check(assert Assertion, pol AssertionPolicy) error {
 	}
 
 	var delegationConstraints []*AssertionConstraints
-	roView := db.ROUnderPolicy(pol)
+	roView := db.ROWithPolicy(pol)
 	for _, checker := range db.checkers {
 		acs, err := checker(assert, accKey, delegationConstraints, roView, earliestTime, latestTime)
 		if err != nil {

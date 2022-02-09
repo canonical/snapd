@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -79,7 +80,7 @@ type Seed interface {
 	// be setup instead. ErrNoAssertions will be returned if there
 	// is no assertions directory in the seed, this is legitimate
 	// only on classic.
-	LoadAssertions(db asserts.RODatabaseView, commitTo func(*asserts.Batch) error) error
+	LoadAssertions(db snapasserts.Finder, commitTo func(*asserts.Batch) error) error
 
 	// Model returns the seed provided model assertion.
 	// It will panic if called before LoadAssertions.
@@ -209,7 +210,7 @@ func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTy
 
 	// load assertions into the temporary database
 	// XXX policy
-	if err := seed20.LoadAssertions(db.ROUnderPolicy(nil), commitTo); err != nil {
+	if err := seed20.LoadAssertions(db, commitTo); err != nil {
 		return nil, nil, time.Time{}, err
 	}
 

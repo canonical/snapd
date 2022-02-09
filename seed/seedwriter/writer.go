@@ -168,7 +168,7 @@ type Writer struct {
 	// Downloaded signaled complete
 	warnings []string
 
-	db asserts.RODatabaseView
+	db snapasserts.Finder
 
 	expectedStep writerStep
 
@@ -226,7 +226,7 @@ type tree interface {
 
 	localSnapPath(*SeedSnap) (string, error)
 
-	writeAssertions(db asserts.RODatabaseView, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
+	writeAssertions(db snapasserts.Finder, modelRefs []*asserts.Ref, snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 
 	writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error
 }
@@ -443,7 +443,7 @@ func IsSytemDirectoryExistsError(err error) bool {
 // that the snap assertions will end up in the given db (writing assertion
 // database). When the system seed directory is already present,
 // SystemAlreadyExistsError is returned.
-func (w *Writer) Start(db asserts.RODatabaseView, newFetcher NewFetcherFunc) (RefAssertsFetcher, error) {
+func (w *Writer) Start(db snapasserts.Finder, newFetcher NewFetcherFunc) (RefAssertsFetcher, error) {
 	if err := w.checkStep(startStep); err != nil {
 		return nil, err
 	}

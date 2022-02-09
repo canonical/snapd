@@ -43,7 +43,7 @@ type Fetcher interface {
 }
 
 type fetcher struct {
-	db       RODatabaseView
+	db       PredefinedView
 	retrieve func(*Ref) (Assertion, error)
 	save     func(Assertion) error
 
@@ -51,7 +51,7 @@ type fetcher struct {
 }
 
 // NewFetcher creates a Fetcher which will use trustedDB to determine trusted assertions, will fetch assertions following prerequisites using retrieve, and then will pass them to save, saving prerequisites before dependent assertions.
-func NewFetcher(trustedDB RODatabaseView, retrieve func(*Ref) (Assertion, error), save func(Assertion) error) Fetcher {
+func NewFetcher(trustedDB PredefinedView, retrieve func(*Ref) (Assertion, error), save func(Assertion) error) Fetcher {
 	return &fetcher{
 		db:       trustedDB,
 		retrieve: retrieve,

@@ -53,7 +53,7 @@ type writerSuite struct {
 
 	opts *seedwriter.Options
 
-	db         asserts.RODatabaseView
+	db         *asserts.Database
 	newFetcher seedwriter.NewFetcherFunc
 	rf         seedwriter.RefAssertsFetcher
 
@@ -98,7 +98,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 		Trusted:   s.StoreSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
-	s.db = db.ROUnderPolicy(nil)
+	s.db = db
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.StoreSigning.Find)
@@ -115,7 +115,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 			}
 			return save(a)
 		}
-		return asserts.NewFetcher(s.db, retrieve, save2)
+		return asserts.NewFetcher(db, retrieve, save2)
 	}
 	s.rf = seedwriter.MakeRefAssertsFetcher(s.newFetcher)
 

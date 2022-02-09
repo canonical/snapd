@@ -251,7 +251,6 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		Trusted:   s.StoreSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
-	roView := db.ROUnderPolicy(nil)
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.StoreSigning.Find)
@@ -268,7 +267,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			}
 			return save(a)
 		}
-		return asserts.NewFetcher(roView, retrieve, save2)
+		return asserts.NewFetcher(db, retrieve, save2)
 	}
 
 	opts := seedwriter.Options{
@@ -281,14 +280,14 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	err = w.SetOptionsSnaps(optSnaps)
 	c.Assert(err, IsNil)
 
-	rf, err := w.Start(roView, newFetcher)
+	rf, err := w.Start(db, newFetcher)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
 
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, rf, roView)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, rf, db)
 		if !asserts.IsNotFound(err) {
 			c.Assert(err, IsNil)
 		}
@@ -361,7 +360,7 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 	sd, err := seed.Open(root, label)
 	c.Assert(err, IsNil)
 
-	err = sd.LoadAssertions(db.ROUnderPolicy(nil), commitTo)
+	err = sd.LoadAssertions(db, commitTo)
 	c.Assert(err, IsNil)
 
 	err = sd.LoadMeta(tm)

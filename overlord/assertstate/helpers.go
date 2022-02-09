@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package assertstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -37,7 +38,7 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 
 // handleUnsupported behaves as a fallback in case of bugs, we do ask
 // the store to filter unsupported formats!
-func handleUnsupported(db asserts.RODatabaseView) func(ref *asserts.Ref, unsupportedErr error) error {
+func handleUnsupported(db snapasserts.Finder) func(ref *asserts.Ref, unsupportedErr error) error {
 	return func(ref *asserts.Ref, unsupportedErr error) error {
 		if _, err := ref.Resolve(db.Find); err != nil {
 			// nothing there yet or any other error
@@ -54,9 +55,8 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 
 	db := cachedDB(s)
 	// XXX policy
-	roView := db.ROUnderPolicy(nil)
 
-	b := asserts.NewBatch(handleUnsupported(roView))
+	b := asserts.NewBatch(handleUnsupported(db))
 
 	user, err := userFromUserID(s, userID)
 	if err != nil {
@@ -71,7 +71,7 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	}
 
 	s.Unlock()
-	err = b.Fetch(roView, retrieve, fetching)
+	err = b.Fetch(db, retrieve, fetching)
 	s.Lock()
 	if err != nil {
 		return err

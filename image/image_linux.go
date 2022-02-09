@@ -282,8 +282,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if err != nil {
 		return err
 	}
-	// XXX policy
-	roView := db.ROUnderPolicy(nil)
 
 	wOpts := &seedwriter.Options{
 		SeedDir:        seedDir,
@@ -330,7 +328,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		return tsto.AssertionFetcher(db, save)
 	}
-	f, err := w.Start(roView, newFetcher)
+	f, err := w.Start(db, newFetcher)
 	if err != nil {
 		return err
 	}
@@ -349,7 +347,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 
 	var curSnaps []*CurrentSnap
 	for _, sn := range localSnaps {
-		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, roView)
+		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
 		if err != nil && !asserts.IsNotFound(err) {
 			return err
 		}
@@ -424,7 +422,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 
 			// fetch snap assertions
 			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, f, roView); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, f, db); err != nil {
 				return err
 			}
 			aRefs := f.Refs()[prev:]
