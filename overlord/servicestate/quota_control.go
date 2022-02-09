@@ -41,7 +41,21 @@ func checkSystemdVersion() {
 }
 
 func init() {
+	EnsureQuotaUsability()
+}
+
+// EnsureQuotaUsability is exported for unit tests from other packages to re-run
+// the init() time checks for quota usability which set the errors which
+// quotaGroupsAvailable() checks for.
+// It saves the previous state of the usability errors to be restored via the
+// provided restore function.
+func EnsureQuotaUsability() (restore func()) {
+	oldSystemdErr := systemdVersionError
 	checkSystemdVersion()
+
+	return func() {
+		systemdVersionError = oldSystemdErr
+	}
 }
 
 func quotaGroupsAvailable(st *state.State) error {

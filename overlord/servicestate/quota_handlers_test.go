@@ -54,8 +54,11 @@ func (s *quotaHandlersSuite) SetUpTest(c *C) {
 	tr.Commit()
 
 	// mock that we have a new enough version of systemd by default
-	r := systemd.MockSystemdVersion(248, nil)
-	s.AddCleanup(r)
+	systemdRestore := systemd.MockSystemdVersion(248, nil)
+	s.AddCleanup(systemdRestore)
+
+	usabilityErrRestore := servicestate.EnsureQuotaUsability()
+	s.AddCleanup(usabilityErrRestore)
 }
 
 // mockMixedQuotaGroup creates a new quota group mixed with the provided snaps and
