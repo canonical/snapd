@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -330,6 +331,77 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	}
 
 	return mapping, nil
+}
+
+// AllDiskVolumeDeviceTraits takes a mapping of volume name to LaidOutVolume and
+// produces a map of volume name to DiskVolumeDeviceTraits. Since doing so uses
+// DiskVolumeDeviceTraitsForDevice, it will also validate that disk devices
+// identified for the laid out volume are compatible and matching before
+// returning.
+func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
+	// build up the mapping of volumes to disk device traits
+
+	allVols := map[string]DiskVolumeDeviceTraits{}
+
+	// find all devices which map to volumes to save the current state of the
+	// system
+	for name, vol := range allLaidOutVols {
+		// try to find a device for a structure inside the volume, we have a
+		// loop to attempt to use all structures in the volume in case there are
+		// partitions we can't map to a device directly at first using the
+		// device symlinks that FindDeviceForStructure uses
+		dev := ""
+		for _, vs := range vol.LaidOutStructure {
+			// TODO: This code works for volumes that have at least one
+			// partition (i.e. not type: bare structure), but does not work for
+			// volumes which contain only type: bare structures with no other
+			// structures on them. It is entirely unclear how to identify such
+			// a volume, since there is no information on the disk about where
+			// such raw structures begin and end and thus no way to validate
+			// that a given disk "has" such raw structures at particular
+			// locations, aside from potentially reading and comparing the bytes
+			// at the expected locations, but that is probably fragile and very
+			// non-performant.
+
+			if !vs.IsPartition() {
+				// skip trying to find non-partitions on disk, it won't work
+				continue
+			}
+
+			structureDevice, err := FindDeviceForStructure(&vs)
+			if err != nil && err != ErrDeviceNotFound {
+				return nil, err
+			}
+			if structureDevice != "" {
+				// we found a device for this structure, get the parent disk
+				// and save that as the device for this volume
+				disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
+				if err != nil {
+					return nil, err
+				}
+
+				dev = disk.KernelDeviceNode()
+				break
+			}
+		}
+
+		if dev == "" {
+			return nil, fmt.Errorf("cannot find disk for volume %s from gadget", name)
+		}
+
+		// now that we have a candidate device for this disk, build up the
+		// traits for it, this will also validate concretely that the
+		// device we picked and the volume are compatible
+		opts := optsPerVolume[name]
+		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
+		}
+
+		allVols[name] = traits
+	}
+
+	return allVols, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
