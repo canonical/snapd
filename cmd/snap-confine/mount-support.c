@@ -321,7 +321,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// Fixes the following bugs:
 		//  - https://bugs.launchpad.net/snap-confine/+bug/1580018
 		//  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
-		const char *dirs_from_core[] = {
+		static const char *dirs_from_core[] = {
 			"/etc/alternatives", "/etc/nsswitch.conf",
 			// Some specific and privileged interfaces (e.g docker-support) give
 			// access to apparmor_parser from the base snap which at a minimum
@@ -659,7 +659,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// Check which mode we should run in, normal or legacy.
 	if (inv->is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
-		const struct sc_mount mounts[] = {
+		static const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
 			{"/home"},	// to support /home/*/snap and home interface
@@ -699,7 +699,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	} else {
 		// In legacy mode we don't pivot to a base snap's rootfs and instead
 		// just arrange bi-directional mount propagation for two directories.
-		const struct sc_mount mounts[] = {
+		static const struct sc_mount mounts[] = {
 			{"/media", true},
 			{"/run/netns", true},
 			{},
