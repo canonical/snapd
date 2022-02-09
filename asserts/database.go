@@ -220,7 +220,10 @@ type RODatabaseView interface {
 
 // AssertionPolicy can express local/site-specific assertion of validation
 // or retrieval policy.
-type AssertionPolicy interface{}
+type AssertionPolicy interface {
+	// Check tests the assertion against the policy for validity.
+	Check(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) error
+}
 
 // A Checker defines a check on an assertion considering aspects such as
 // the signing key, and consistency with other
@@ -424,50 +427,66 @@ func (db *Database) ROWithPolicy(pol AssertionPolicy) RODatabaseView {
 	return &roDBView{Database: db, pol: pol}
 }
 
+func (db *Database) earliestLatestTime() (earliest, latest time.Time) {
+	// assume current time is >= earliestTime and <= latestTime
+	earliest = db.earliestTime
+	if earliest.IsZero() {
+		// use the current system time by setting both to it
+		earliest = timeNow()
+		latest = earliest
+	}
+	return earliest, latest
+}
+
+func (db *Database) policy(pol AssertionPolicy) (AssertionPolicy, bool) {
+	// XXX: implement default policy with SetPolicy etc
+	return pol, pol != nil
+}
+
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion, pol AssertionPolicy) error {
+	earliestTime, latestTime := db.earliestLatestTime()
+	roView := db.ROWithPolicy(pol)
+	signingKey, delegationConstraints, err := db.check(assert, roView, earliestTime, latestTime)
+	if err != nil {
+		return err
+	}
+	if pol, ok := db.policy(pol); ok {
+		return pol.Check(assert, signingKey, delegationConstraints, roView, earliestTime, latestTime)
+	}
+	return nil
+}
+
+func (db *Database) check(assert Assertion, roView RODatabaseView, earliestTime, latestTime time.Time) (accKey *AccountKey, delegationConstraints []*AssertionConstraints, err error) {
 	if !assert.SupportedFormat() {
-		return &UnsupportedFormatError{Ref: assert.Ref(), Format: assert.Format()}
+		return nil, nil, &UnsupportedFormatError{Ref: assert.Ref(), Format: assert.Format()}
 	}
 
 	typ := assert.Type()
-	// assume current time is >= earliestTime and <= latestTime
-	earliestTime := db.earliestTime
-	var latestTime time.Time
-	if earliestTime.IsZero() {
-		// use the current system time by setting both to it
-		earliestTime = timeNow()
-		latestTime = earliestTime
-	}
-
-	var accKey *AccountKey
-	var err error
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
 		accKey, err = db.findAccountKey(assert.SignatoryID(), assert.SignKeyID())
 		if IsNotFound(err) {
-			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.SignatoryID())
+			return nil, nil, fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.SignatoryID())
 		}
 		if err != nil {
-			return fmt.Errorf("error finding matching public key for signature: %v", err)
+			return nil, nil, fmt.Errorf("error finding matching public key for signature: %v", err)
 		}
 	} else {
 		if assert.AuthorityID() != "" {
-			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
+			return nil, nil, fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
 		}
 	}
 
-	var delegationConstraints []*AssertionConstraints
-	roView := db.ROWithPolicy(pol)
 	for _, checker := range db.checkers {
 		acs, err := checker(assert, accKey, delegationConstraints, roView, earliestTime, latestTime)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 		delegationConstraints = acs
 	}
 
-	return nil
+	return accKey, delegationConstraints, nil
 }
 
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
@@ -875,10 +894,14 @@ func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstra
 		// not a delegation scenario
 		return nil, nil
 	}
+	rechecked := make([]*AssertionConstraints, 0, len(delegationConstraints))
 	for _, ac := range delegationConstraints {
 		if ac.Check(assert) == nil {
-			return nil, nil
+			rechecked = append(rechecked, ac)
 		}
+	}
+	if len(rechecked) != 0 {
+		return rechecked, nil
 	}
 	return nil, fmt.Errorf("no valid constraints supporting delegated %s assertion from %q to %q", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID())
 }
