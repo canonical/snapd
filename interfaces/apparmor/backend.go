@@ -647,12 +647,12 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 	// Add profile for each app.
 	for _, appInfo := range snapInfo.Apps {
 		securityTag := appInfo.SecurityTag()
-		addContent(securityTag, b.coreSnap, b.snapdSnap, snapInfo, appInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		b.addContent(securityTag, snapInfo, appInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for each hook.
 	for _, hookInfo := range snapInfo.Hooks {
 		securityTag := hookInfo.SecurityTag()
-		addContent(securityTag, b.coreSnap, b.snapdSnap, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
+		b.addContent(securityTag, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
@@ -693,7 +693,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 	}
 }
 
-func addContent(securityTag string, coreSnapInfo, snapdSnapInfo, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
+func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
 	// case, the 'core' snap is used for the runtime), use the base
@@ -722,30 +722,121 @@ func addContent(securityTag string, coreSnapInfo, snapdSnapInfo, snapInfo *snap.
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
 		case "###DEVMODE_SNAP_CONFINE###":
-			if opts.DevMode {
-				// TODO: we should deprecate this and drop it in a future
-				// release
+			if !opts.DevMode {
+				// nothing to add if we are not in devmode
+				return ""
+			}
 
-				// we use Pxr for all these rules since the snap-confine profile
-				// is not a child profile of the devmode complain profile we are
-				// generating right now
-				coreSnapConfineSnippet := ""
-				if coreSnapInfo != nil {
-					coreSnapConfineSnippet = fmt.Sprintf(`/snap/core/*/usr/lib/snapd/snap-confine Pxr -> /snap/core/%s/usr/lib/snapd/snap-confine,`, coreSnapInfo.SnapRevision().String())
+			// otherwise we need to generate special policy to allow executing
+			// snap-confine from inside a devmode snap
+
+			// TODO: we should deprecate this and drop it in a future release
+
+			// assumes coreSnapInfo is not nil
+			coreProfileTarget := func() string {
+				return fmt.Sprintf("/snap/core/%s/usr/lib/snapd/snap-confine", b.coreSnap.SnapRevision().String())
+			}
+
+			// assumes snapdSnapInfo is not nil
+			snapdProfileTarget := func() string {
+				return fmt.Sprintf("/snap/snapd/%s/usr/lib/snapd/snap-confine", b.snapdSnap.SnapRevision().String())
+			}
+
+			// There are 3 main apparmor exec transition rules we need to
+			// generate:
+			// * exec( /usr/lib/snapd/snap-confine ... )
+			// * exec( /snap/snapd/<rev>/usr/lib/snapd/snap-confine ... )
+			// * exec( /snap/core/<rev>/usr/lib/snapd/snap-confine ... )
+
+			// The latter two can always transition to their respective
+			// revisioned profiles unambiguously if each snap is installed.
+
+			// The former rule for /usr/lib/snapd/snap-confine however is
+			// more tricky. First, we can say that if only the snapd snap is
+			// installed, to just transition to that profile and be done. If
+			// just the core snap is installed, then we can deduce this
+			// system is either UC16 or a classic one, in both cases though
+			// we have /usr/lib/snapd/snap-confine defined as the profile to
+			// transition to.
+			// If both snaps are installed however, then we need to branch
+			// and pick a profile that exists, we can't just arbitrarily
+			// pick one profile because not all profiles will exist on all
+			// systems actually, for example the snap-confine profile from
+			// the core snap will not be generated/installed on UC18+. We
+			// can simplify the logic however by realizing that no matter
+			// the relative version numbers of snapd and core, when
+			// executing a snap with base other than core (i.e. base core18
+			// or core20), the snapd snap's version of snap-confine will
+			// always be used for various reasons. This is also true for
+			// base: core snaps, but only on non-classic systems. So we
+			// essentially say that /usr/lib/snapd/snap-confine always
+			// transitions to the snapd snap profile if the base is not
+			// core or if the system is not classic. If the base is core and
+			// the system is classic, then the core snap profile will be
+			// used.
+
+			usrLibSnapdConfineTransitionTarget := ""
+			switch {
+			case b.coreSnap != nil && b.snapdSnap == nil:
+				// only core snap - use /usr/lib/snapd/snap-confine always
+				usrLibSnapdConfineTransitionTarget = "/usr/lib/snapd/snap-confine"
+			case b.snapdSnap != nil && b.coreSnap == nil:
+				// only snapd snap - use snapd snap version
+				usrLibSnapdConfineTransitionTarget = snapdProfileTarget()
+			case b.snapdSnap != nil && b.coreSnap != nil:
+				// both are installed - need to check which one to use
+				// TODO: is snapInfo.Base sometimes unset for snaps w/o bases
+				// these days? maybe this needs to be this instead ?
+				// if release.OnClassic && (snapInfo.Base == "core" || snapInfo.Base == "")
+				if release.OnClassic && snapInfo.Base == "core" {
+					// use the core snap as the target only if we are on
+					// classic and the base is core
+					usrLibSnapdConfineTransitionTarget = coreProfileTarget()
+				} else {
+					// otherwise always use snapd
+					usrLibSnapdConfineTransitionTarget = snapdProfileTarget()
 				}
 
-				snapdSnapConfineSnippet := ""
-				if snapdSnapInfo != nil {
-					snapdSnapConfineSnippet = fmt.Sprintf(`/snap/snapd/*/usr/lib/snapd/snap-confine Pxr -> /snap/snapd/%s/usr/lib/snapd/snap-confine,`, snapdSnapInfo.SnapRevision().String())
-				}
+			default:
+				// neither of the snaps are installed
 
-				if snapdSnapConfineSnippet == "" && coreSnapConfineSnippet == "" {
-					panic("need to return an error here somehow, also this is an internal error, we should always have at least one")
-				}
-				// include both rules for the core snap and the snapd snap since
-				// we can't know which one will be used at runtime (for example
-				// SNAP_REEXEC could be set which affects which one is used)
-				return fmt.Sprintf(`
+				// TODO: this panic is unfortunate, but we don't have time
+				// to do any better for this security release
+				// It is actually important that we panic here, the only
+				// known circumstance where this happens is when we are
+				// seeding during first boot of UC16 with a very new core
+				// snap (i.e. with the security fix of 2.54.3) and also have
+				// a devmode confined snap in the seed to prepare. In this
+				// situation, when we panic(), we force snapd to exit, and
+				// systemd will restart us and we actually recover the
+				// initial seed change and continue on. This code will be
+				// removed/adapted before it is merged to the main branch,
+				// it is only meant to exist on the security release branch.
+				msg := fmt.Sprintf("neither snapd nor core snap available while preparing apparmor profile for devmode snap %s, panicing to restart snapd to continue seeding", snapInfo.InstanceName())
+				panic(msg)
+			}
+
+			// We use Pxr for all these rules since the snap-confine profile
+			// is not a child profile of the devmode complain profile we are
+			// generating right now.
+			usrLibSnapdConfineTransitionRule := fmt.Sprintf("/usr/lib/snapd/snap-confine Pxr -> %s,\n", usrLibSnapdConfineTransitionTarget)
+
+			coreSnapConfineSnippet := ""
+			if b.coreSnap != nil {
+				coreSnapConfineSnippet = fmt.Sprintf("/snap/core/*/usr/lib/snapd/snap-confine Pxr -> %s,\n", coreProfileTarget())
+			}
+
+			snapdSnapConfineSnippet := ""
+			if b.snapdSnap != nil {
+				snapdSnapConfineSnippet = fmt.Sprintf("/snap/snapd/*/usr/lib/snapd/snap-confine Pxr -> %s,\n", snapdProfileTarget())
+			}
+
+			nonBaseCoreTransitionSnippet := coreSnapConfineSnippet + "\n" + snapdSnapConfineSnippet
+
+			// include both rules for the core snap and the snapd snap since
+			// we can't know which one will be used at runtime (for example
+			// SNAP_REEXEC could be set which affects which one is used)
+			return fmt.Sprintf(`
   # allow executing the snap command from either the rootfs (for base: core) or
   # from the system snaps (all other bases) - this is very specifically only to
   # enable proper apparmor profile transition to snap-confine below, if we don't
@@ -758,18 +849,23 @@ func addContent(securityTag string, coreSnapInfo, snapdSnapInfo, snapInfo *snap.
   # allow transitioning to snap-confine to support executing strict snaps from
   # inside devmode confined snaps
 
-  # this rule is sufficient for base: core snaps
-  /usr/lib/snapd/snap-confine Pxr -> /usr/lib/snapd/snap-confine,
+  # this first rule is to handle the case of exec()ing 
+  # /usr/lib/snapd/snap-confine directly, the profile we transition to depends
+  # on whether we are classic or not, what snaps (snapd or core) are installed
+  # and also whether this snap is a base: core snap or a differently based snap.
+  # see the comment in interfaces/backend/apparmor.go where this snippet is
+  # generated for the full context
+  %[1]s
 
-  # this rule is necessary for all other base snaps, which will execute 
-  # snap-confine directly from the system snap because the base snap will only
-  # have a symlink from /usr/bin/snap -> /snap/snapd/current/usr/bin/snap, which
+  # the second (and possibly third if both core and snapd are installed) rule is
+  # to handle direct exec() of snap-confine from the respective snaps directly, 
+  # this happens mostly on non-core based snaps, wherein the base snap has a 
+  # symlink from /usr/bin/snap -> /snap/snapd/current/usr/bin/snap, which makes
   # the snap command execute snap-confine directly from the associated system 
-  # snap in /snap/{snapd,core}
-  %s
-  %s
-`, coreSnapConfineSnippet, snapdSnapConfineSnippet)
-			}
+  # snap in /snap/{snapd,core}/<rev>/usr/lib/snapd/snap-confine
+  %[2]s
+`, usrLibSnapdConfineTransitionRule, nonBaseCoreTransitionSnippet)
+
 		case "###VAR###":
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
