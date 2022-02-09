@@ -45,8 +45,6 @@ import (
 
 const autoImportsName = "auto-import.assert"
 
-var mountInfoPath = "/proc/self/mountinfo"
-
 func autoImportCandidates() ([]string, error) {
 	var cands []string
 
