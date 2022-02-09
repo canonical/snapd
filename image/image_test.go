@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -2021,11 +2022,16 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 
 func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 	preparedir := c.MkDir()
-	s.setupSnaps(c, map[string]string{
-		"pc":        "canonical",
-		"pc-kernel": "canonical",
-		"core":      "canonical",
-	}, "")
+	s.setupSnaps(c, nil, "")
+
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+	restore = sysdb.MockGenericClassicModel(s.StoreSigning.GenericClassicModel)
+	defer restore()
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*image.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
 
 	// prepare an image with no model assetion but classic set to true
 	// to ensure the GenericClassicModel is used without error
@@ -2033,22 +2039,22 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 		Architecture: "amd64",
 		PrepareDir:   preparedir,
 		Classic:      true,
-		Snaps: []string{
-			s.AssertedSnap("pc"),
-			s.AssertedSnap("pc-kernel"),
-			s.AssertedSnap("core"),
-		},
+		Snaps:        []string{"required-snap18", "core18"},
 	})
 	c.Assert(err, IsNil)
 
 	// ensure the prepareDir was preseeded
 	seeddir := filepath.Join(preparedir, "var/lib/snapd/seed")
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
-
-	for _, name := range []string{"core", "pc-kernel", "pc"} {
-		p := filepath.Join(seedsnapsdir, name+"_x1.snap")
-		c.Check(p, testutil.FilePresent)
-	}
+	c.Check(filepath.Join(seeddir, "seed.yaml"), testutil.FilePresent)
+	m, err := filepath.Glob(filepath.Join(seedsnapsdir, "*"))
+	c.Assert(err, IsNil)
+	// generic classic model has no other snaps, so we expect only the snaps
+	// that were passed in options to be present
+	c.Check(m, DeepEquals, []string{
+		filepath.Join(seedsnapsdir, "core18_18.snap"),
+		filepath.Join(seedsnapsdir, "required-snap18_6.snap"),
+	})
 }
 
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {

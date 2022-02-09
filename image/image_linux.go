@@ -94,6 +94,8 @@ func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
+var newToolingStoreFromModel = NewToolingStoreFromModel
+
 func Prepare(opts *Options) error {
 	var model *asserts.Model
 	var err error
@@ -126,7 +128,7 @@ func Prepare(opts *Options) error {
 		}
 	}
 
-	tsto, err := NewToolingStoreFromModel(model, opts.Architecture)
+	tsto, err := newToolingStoreFromModel(model, opts.Architecture)
 	if err != nil {
 		return err
 	}
