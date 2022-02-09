@@ -45,6 +45,17 @@
 
     @LIBEXECDIR@/snap-confine mr,
 
+    # This rule is needed when executing from a "base: core" devmode snap on 
+    # UC18 and newer where the /usr/lib/snapd/snap-confine inside the 
+    # "base: core" mount namespace always comes from the snapd snap, and thus
+    # we will execute snap-confine via this path, and thus need to be able to
+    # read this path when executing. It's also necessary on classic where both
+    # the snapd and the core snap are installed at the same time.
+    # TODO: remove this rule when we stop supporting executing other snaps from
+    # inside devmode snaps, ideally even in the short term we would only include
+    # this rule on core only, and specifically uc18 and newer where we need it
+    #@VERBATIM_LIBEXECDIR_SNAP_CONFINE@ mr,
+
     /dev/null rw,
     /dev/full rw,
     /dev/zero rw,

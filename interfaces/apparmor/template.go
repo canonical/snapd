@@ -463,6 +463,9 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
+
+  ###DEVMODE_SNAP_CONFINE###
 `
 
 var templateFooter = `
