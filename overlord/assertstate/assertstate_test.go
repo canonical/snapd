@@ -3306,7 +3306,7 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	tempDB := assertstate.TemporaryDB(st)
 	c.Assert(tempDB, NotNil)
 	// and add the model to it
-	err = tempDB.Add(model)
+	err = tempDB.Add(model, nil)
 	c.Assert(err, IsNil)
 	fromTemp, err := tempDB.Find(asserts.ModelType, hdrs)
 	c.Assert(err, IsNil)
@@ -3322,7 +3322,7 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	// such that we can lookup the revision 2 in a temporary DB
 	tempDB = assertstate.TemporaryDB(st)
 	c.Assert(tempDB, NotNil)
-	err = tempDB.Add(modelRev2)
+	err = tempDB.Add(modelRev2, nil)
 	c.Assert(err, IsNil)
 	fromTemp, err = tempDB.Find(asserts.ModelType, hdrs)
 	c.Assert(err, IsNil)

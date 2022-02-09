@@ -82,7 +82,7 @@ func MakeFakeRefreshForSnaps(snap string, blobDir string, snapBlob string) error
 	}
 
 	save := func(a asserts.Assertion) error {
-		err := db.Add(a)
+		err := db.Add(a, nil)
 		if err != nil {
 			if _, ok := err.(*asserts.RevisionError); !ok {
 				return err

@@ -40,7 +40,7 @@ import (
 func Add(s *state.State, a asserts.Assertion) error {
 	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
 	// XXX policy
-	return cachedDB(s).Add(a)
+	return cachedDB(s).Add(a, nil)
 }
 
 // AddBatch adds the given assertion batch to the system assertion database.

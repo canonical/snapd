@@ -570,7 +570,7 @@ func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) 
 	dev1Acct := assertstest.NewAccount(storeDB, "developer1", map[string]interface{}{
 		"account-id": "dev-id1",
 	}, "")
-	err := db.Add(dev1Acct)
+	err := db.Add(dev1Acct, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -764,10 +764,10 @@ func makeStoreAndCheckDB(c *C) (store *assertstest.StoreStack, checkDB *asserts.
 	c.Assert(err, IsNil)
 
 	// add store key
-	err = checkDB.Add(store.StoreAccountKey(""))
+	err = checkDB.Add(store.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 	// add generic key
-	err = checkDB.Add(store.GenericKey)
+	err = checkDB.Add(store.GenericKey, nil)
 	c.Assert(err, IsNil)
 
 	return store, checkDB
@@ -781,9 +781,9 @@ func setup3rdPartySigning(c *C, username string, storeDB assertstest.SignerDB, c
 	}, "")
 	accKey := assertstest.NewAccountKey(storeDB, acct, nil, privKey.PublicKey(), "")
 
-	err := checkDB.Add(acct)
+	err := checkDB.Add(acct, nil)
 	c.Assert(err, IsNil)
-	err = checkDB.Add(accKey)
+	err = checkDB.Add(accKey, nil)
 	c.Assert(err, IsNil)
 
 	return assertstest.NewSigningDB(acct.AccountID(), privKey)
@@ -936,7 +936,7 @@ func prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
+	err = db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1040,7 +1040,7 @@ func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
 	}
 	ad, err := storeDB.Sign(asserts.AuthorityDelegationType, headers, nil, "")
 	c.Assert(err, IsNil)
-	c.Check(db.Add(ad), IsNil)
+	c.Check(db.Add(ad, nil), IsNil)
 
 	err = db.Check(snapRev, nil)
 	c.Check(err, IsNil)
@@ -1082,7 +1082,7 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
 	}
 	ad, err := storeDB.Sign(asserts.AuthorityDelegationType, headers, nil, "")
 	c.Assert(err, IsNil)
-	c.Check(db.Add(ad), IsNil)
+	c.Check(db.Add(ad, nil), IsNil)
 
 	err = db.Check(snapRev, nil)
 	c.Check(err, ErrorMatches, `delegated snap-revision assertion from "canonical" to "other" timestamp ".*" is outside of all supporting delegation constraints validity`)
@@ -1097,7 +1097,7 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 	headers := srs.makeHeaders(nil)
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapRev)
+	err = db.Add(snapRev, nil)
 	c.Assert(err, IsNil)
 
 	_, err = db.Find(asserts.SnapRevisionType, map[string]string{
@@ -1218,7 +1218,7 @@ func prereqSnapDecl2(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
+	err = db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1754,7 +1754,7 @@ func (sds *snapDevSuite) TestAuthorityIsPublisher(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
+	err = db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 
 	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
@@ -1782,7 +1782,7 @@ func (sds *snapDevSuite) TestAuthorityIsNotPublisher(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
+	err = db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 
 	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
@@ -1809,7 +1809,7 @@ func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(account)
+	err = db.Add(account, nil)
 	c.Assert(err, IsNil)
 
 	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
@@ -1820,7 +1820,7 @@ func (sds *snapDevSuite) TestAuthorityIsNotPublisherButIsTrusted(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
+	err = db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 
 	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
@@ -1846,7 +1846,7 @@ func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(account)
+	err = db.Add(account, nil)
 	c.Assert(err, IsNil)
 
 	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
@@ -1857,7 +1857,7 @@ func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
+	err = db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 
 	snapDev, err := storeDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{
@@ -1881,7 +1881,7 @@ func (sds *snapDevSuite) TestCheckNewPublisherAccountExists(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(account)
+	err = db.Add(account, nil)
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapDev, nil)
@@ -1900,7 +1900,7 @@ func (sds *snapDevSuite) TestCheckDeveloperAccountExists(c *C) {
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	err = db.Add(snapDecl)
+	err = db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 
 	snapDev, err := devDB.Sign(asserts.SnapDeveloperType, map[string]interface{}{

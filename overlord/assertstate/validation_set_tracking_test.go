@@ -48,7 +48,7 @@ func (s *validationSetTrackingSuite) SetUpTest(c *C) {
 		Trusted:   storeSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
-	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
+	assertstest.AddMany(db, storeSigning.StoreAccountKey(""))
 	assertstate.ReplaceDB(s.st, db)
 
 	s.dev1acct = assertstest.NewAccount(storeSigning, "developer1", nil, "")

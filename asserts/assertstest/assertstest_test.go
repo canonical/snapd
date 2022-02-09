@@ -130,17 +130,17 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Check(acct.AccountID(), HasLen, 32)
 	c.Check(acct.Validation(), Equals, "unproven")
 
-	err = db.Add(storeAccKey)
+	err = db.Add(storeAccKey, nil)
 	c.Assert(err, IsNil)
 
-	err = db.Add(acct)
+	err = db.Add(acct, nil)
 	c.Assert(err, IsNil)
 
 	devKey, _ := assertstest.GenerateKey(752)
 
 	acctKey := assertstest.NewAccountKey(store, acct, nil, devKey.PublicKey(), "")
 
-	err = db.Add(acctKey)
+	err = db.Add(acctKey, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(acctKey.Name(), Equals, "default")
@@ -158,7 +158,7 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	err = db.Check(store.GenericClassicModel, nil)
 	c.Assert(err, IsNil)
 
-	err = db.Add(store.GenericKey)
+	err = db.Add(store.GenericKey, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -210,7 +210,7 @@ func (s *helperSuite) TestSigningAccountsAccountsAndKeysPlusAddMany(c *C) {
 		Trusted:   store.Trusted,
 	})
 	c.Assert(err, IsNil)
-	err = db.Add(store.StoreAccountKey(""))
+	err = db.Add(store.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 
 	assertstest.AddMany(db, sa.AccountsAndKeys("my-brand")...)

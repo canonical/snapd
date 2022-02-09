@@ -114,9 +114,9 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	}
 
 	for _, db := range dbs {
-		err := db.Add(declA)
+		err := db.Add(declA, nil)
 		c.Assert(err, IsNil)
-		err = db.Add(revA)
+		err = db.Add(revA, nil)
 		c.Assert(err, IsNil)
 	}
 
@@ -258,7 +258,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
 			// for checking
-			err := db.Add(a)
+			err := db.Add(a, nil)
 			if err != nil {
 				if _, ok := err.(*asserts.RevisionError); ok {
 					return nil

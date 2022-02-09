@@ -199,8 +199,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 		s.state.Unlock()
 	})
 
-	err = db.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	assertstest.AddMany(db, s.storeSigning.StoreAccountKey(""))
 
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)

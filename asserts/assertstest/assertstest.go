@@ -238,6 +238,10 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 	}
 }
 
+func (db *SigningDB) Add(assert asserts.Assertion) error {
+	return db.Database.Add(assert, nil)
+}
+
 func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
 	if _, ok := headers["authority-id"]; !ok {
 		// copy before modifying
@@ -355,7 +359,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 	storeKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
 		"name": "store",
 	}, keys.Store.PublicKey(), "")
-	err = db.Add(storeKey)
+	err = db.Add(storeKey, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -368,7 +372,7 @@ func NewStoreStack(authorityID string, keys *StoreKeys) *StoreStack {
 		"name":  "serials",
 		"since": ts,
 	}, keys.Generic.PublicKey(), "")
-	err = db.Add(genericKey)
+	err = db.Add(genericKey, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -488,9 +492,20 @@ type accuDB interface {
 
 // AddMany conveniently adds the given assertions to the db.
 // It is idempotent but otherwise panics on error.
-func AddMany(db accuDB, assertions ...asserts.Assertion) {
+func AddMany(db interface{}, assertions ...asserts.Assertion) {
+	var add func(asserts.Assertion) error
+	switch dbAdder := db.(type) {
+	case *asserts.Database:
+		add = func(a asserts.Assertion) error {
+			return dbAdder.Add(a, nil)
+		}
+	case accuDB:
+		add = dbAdder.Add
+	default:
+		panic(fmt.Sprintf("%T does not support adding assertions", db))
+	}
 	for _, a := range assertions {
-		err := db.Add(a)
+		err := add(a)
 		if _, ok := err.(*asserts.RevisionError); !ok {
 			if err != nil {
 				panic(fmt.Sprintf("cannot add test assertions: %v", err))

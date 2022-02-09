@@ -155,7 +155,7 @@ func (s *batchSuite) TestAddEmptyStream(c *C) {
 
 func (s *batchSuite) TestConsiderPreexisting(c *C) {
 	// prereq store key
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
+	err := s.db.Add(s.storeSigning.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 
 	batch := asserts.NewBatch(nil)
@@ -314,7 +314,7 @@ func (s *batchSuite) TestCommitPartial(c *C) {
 	// Commit does add any successful assertion until the first error
 
 	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
+	err := s.db.Add(s.storeSigning.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 
 	batch := asserts.NewBatch(nil)
@@ -355,7 +355,7 @@ func (s *batchSuite) TestCommitPartial(c *C) {
 
 func (s *batchSuite) TestCommitMissing(c *C) {
 	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
+	err := s.db.Add(s.storeSigning.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 
 	batch := asserts.NewBatch(nil)
@@ -371,7 +371,7 @@ func (s *batchSuite) TestCommitMissing(c *C) {
 
 func (s *batchSuite) TestPrecheckPartial(c *C) {
 	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
+	err := s.db.Add(s.storeSigning.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 
 	batch := asserts.NewBatch(nil)
@@ -412,7 +412,7 @@ func (s *batchSuite) TestPrecheckPartial(c *C) {
 
 func (s *batchSuite) TestPrecheckHappy(c *C) {
 	// store key already present
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
+	err := s.db.Add(s.storeSigning.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 
 	batch := asserts.NewBatch(nil)
@@ -462,7 +462,7 @@ func (s *batchSuite) TestPrecheckHappy(c *C) {
 }
 
 func (s *batchSuite) TestFetch(c *C) {
-	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
+	err := s.db.Add(s.storeSigning.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 
 	s.snapDecl(c, "foo", nil)

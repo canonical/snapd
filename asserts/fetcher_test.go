@@ -110,8 +110,11 @@ func (s *fetcherSuite) TestFetch(c *C) {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
+	save := func(a asserts.Assertion) error {
+		return db.Add(a, nil)
+	}
 
-	f := asserts.NewFetcher(db, retrieve, db.Add)
+	f := asserts.NewFetcher(db, retrieve, save)
 
 	err = f.Fetch(ref)
 	c.Assert(err, IsNil)
@@ -182,8 +185,11 @@ func (s *fetcherSuite) TestFetchDelegation(c *C) {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
+	save := func(a asserts.Assertion) error {
+		return db.Add(a, nil)
+	}
 
-	f := asserts.NewFetcher(db, retrieve, db.Add)
+	f := asserts.NewFetcher(db, retrieve, save)
 
 	err = f.Fetch(ref)
 	c.Assert(err, IsNil)
@@ -218,8 +224,11 @@ func (s *fetcherSuite) TestSave(c *C) {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
+	save := func(a asserts.Assertion) error {
+		return db.Add(a, nil)
+	}
 
-	f := asserts.NewFetcher(db, retrieve, db.Add)
+	f := asserts.NewFetcher(db, retrieve, save)
 
 	ref := &asserts.Ref{
 		Type:       asserts.SnapRevisionType,

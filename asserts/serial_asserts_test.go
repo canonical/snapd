@@ -179,7 +179,7 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 			}
 			model, err := brandDB.Sign(asserts.ModelType, modHeaders, nil, "")
 			c.Assert(err, IsNil)
-			err = checkDB.Add(model)
+			err = checkDB.Add(model, nil)
 			c.Assert(err, IsNil)
 		}
 

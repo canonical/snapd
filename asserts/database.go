@@ -492,7 +492,8 @@ func (db *Database) check(assert Assertion, roView RODatabaseView, earliestTime,
 
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
-func (db *Database) Add(assert Assertion) error {
+// XXX document pol use
+func (db *Database) Add(assert Assertion, pol AssertionPolicy) error {
 	ref := assert.Ref()
 
 	if len(ref.PrimaryKey) == 0 {

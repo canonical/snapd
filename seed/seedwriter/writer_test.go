@@ -106,7 +106,7 @@ func (s *writerSuite) SetUpTest(c *C) {
 	s.newFetcher = func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
 			// for checking
-			err := db.Add(a)
+			err := db.Add(a, nil)
 			if err != nil {
 				if _, ok := err.(*asserts.RevisionError); ok {
 					return nil

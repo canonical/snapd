@@ -638,8 +638,8 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+	c.Assert(safs.db.Add(delegatedAcct, nil), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey, nil), IsNil)
 
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
@@ -672,7 +672,7 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(ad), IsNil)
+	c.Assert(safs.db.Add(ad, nil), IsNil)
 
 	err = safs.db.Check(a1, nil)
 	c.Check(err, IsNil)
@@ -731,8 +731,8 @@ func (safs *signAddFindSuite) TestSignDelegationWithPolicy(c *C) {
 	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+	c.Assert(safs.db.Add(delegatedAcct, nil), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey, nil), IsNil)
 
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
@@ -762,7 +762,7 @@ func (safs *signAddFindSuite) TestSignDelegationWithPolicy(c *C) {
 	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(ad), IsNil)
+	c.Assert(safs.db.Add(ad, nil), IsNil)
 
 	pol := &testPolicy{}
 	err = safs.db.Check(a1, pol)
@@ -824,8 +824,8 @@ func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) 
 	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+	c.Assert(safs.db.Add(delegatedAcct, nil), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey, nil), IsNil)
 
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
@@ -869,8 +869,8 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+	c.Assert(safs.db.Add(delegatedAcct, nil), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey, nil), IsNil)
 
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
@@ -900,7 +900,7 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(ad), IsNil)
+	c.Assert(safs.db.Add(ad, nil), IsNil)
 
 	err = safs.db.Check(a1, nil)
 	c.Check(err, ErrorMatches, `no matching constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
@@ -951,8 +951,8 @@ func (safs *signAddFindSuite) TestSignDelegationExpired(c *C) {
 	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(delegatedAcct), IsNil)
-	c.Assert(safs.db.Add(delegatedAcctKey), IsNil)
+	c.Assert(safs.db.Add(delegatedAcct, nil), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey, nil), IsNil)
 
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
@@ -983,7 +983,7 @@ func (safs *signAddFindSuite) TestSignDelegationExpired(c *C) {
 	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	c.Assert(safs.db.Add(ad), IsNil)
+	c.Assert(safs.db.Add(ad, nil), IsNil)
 
 	err = safs.db.Check(a1, nil)
 	c.Check(err, ErrorMatches, `all constraints supporting delegated test-only assertion from "canonical" to "delegated-acct" are expired`)
@@ -1007,7 +1007,7 @@ func (safs *signAddFindSuite) TestAddRefusesSelfSignedKey(c *C) {
 	c.Assert(err, IsNil)
 
 	// this must fail
-	err = safs.db.Add(acctKey)
+	err = safs.db.Add(acctKey, nil)
 	c.Check(err, ErrorMatches, `no matching public key.*`)
 }
 
@@ -1019,7 +1019,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a1)
+	err = safs.db.Add(a1, nil)
 	c.Assert(err, IsNil)
 
 	retrieved1, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
@@ -1033,7 +1033,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	a2, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a2)
+	err = safs.db.Add(a2, nil)
 	c.Assert(err, IsNil)
 
 	retrieved2, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
@@ -1043,7 +1043,7 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Check(retrieved2, NotNil)
 	c.Check(retrieved2.Revision(), Equals, 1)
 
-	err = safs.db.Add(a1)
+	err = safs.db.Add(a1, nil)
 	c.Check(err, ErrorMatches, "revision 0 is older than current revision 1")
 	c.Check(asserts.IsUnaccceptedUpdate(err), Equals, true)
 }
@@ -1055,7 +1055,7 @@ func (safs *signAddFindSuite) TestAddNoAuthorityNoPrimaryKey(c *C) {
 	a, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a)
+	err = safs.db.Add(a, nil)
 	c.Assert(err, ErrorMatches, `internal error: assertion type "test-only-no-authority" has no primary key`)
 }
 
@@ -1066,7 +1066,7 @@ func (safs *signAddFindSuite) TestAddNoAuthorityButPrimaryKey(c *C) {
 	a, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityPKType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a)
+	err = safs.db.Add(a, nil)
 	c.Assert(err, ErrorMatches, `cannot check no-authority assertion type "test-only-no-authority-pk"`)
 }
 
@@ -1083,7 +1083,7 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(aUnsupp.SupportedFormat(), Equals, false)
 
-	err = safs.db.Add(aUnsupp)
+	err = safs.db.Add(aUnsupp, nil)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
 	c.Check(err.(*asserts.UnsupportedFormatError).Update, Equals, false)
 	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported`)
@@ -1098,10 +1098,10 @@ func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {
 	aSupp, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(aSupp)
+	err = safs.db.Add(aSupp, nil)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(aUnsupp)
+	err = safs.db.Add(aUnsupp, nil)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
 	c.Check(err.(*asserts.UnsupportedFormatError).Update, Equals, true)
 	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported \(current not updated\)`)
@@ -1134,7 +1134,7 @@ func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a1)
+	err = safs.db.Add(a1, nil)
 	c.Assert(err, IsNil)
 
 	hdrs := map[string]string{
@@ -1174,7 +1174,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 	}
 	aa, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
-	err = safs.db.Add(aa)
+	err = safs.db.Add(aa, nil)
 	c.Assert(err, IsNil)
 
 	headers = map[string]interface{}{
@@ -1184,7 +1184,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 	}
 	ab, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
-	err = safs.db.Add(ab)
+	err = safs.db.Add(ab, nil)
 	c.Assert(err, IsNil)
 
 	headers = map[string]interface{}{
@@ -1194,7 +1194,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 	}
 	ac, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
-	err = safs.db.Add(ac)
+	err = safs.db.Add(ac, nil)
 	c.Assert(err, IsNil)
 
 	res, err := safs.db.FindMany(asserts.TestOnlyType, map[string]string{
@@ -1247,9 +1247,9 @@ func (safs *signAddFindSuite) TestFindFindsPredefined(c *C) {
 		"authority-id": "canonical",
 	}, pk1.PublicKey(), safs.signingKeyID)
 
-	err := safs.db.Add(acct1)
+	err := safs.db.Add(acct1, nil)
 	c.Assert(err, IsNil)
-	err = safs.db.Add(acct1Key)
+	err = safs.db.Add(acct1Key, nil)
 	c.Assert(err, IsNil)
 
 	// find the trusted key as well
@@ -1290,9 +1290,9 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 		"authority-id": "canonical",
 	}, pk1.PublicKey(), safs.signingKeyID)
 
-	err := safs.db.Add(acct1)
+	err := safs.db.Add(acct1, nil)
 	c.Assert(err, IsNil)
-	err = safs.db.Add(acct1Key)
+	err = safs.db.Add(acct1Key, nil)
 	c.Assert(err, IsNil)
 
 	// find the trusted account
@@ -1348,9 +1348,9 @@ func (safs *signAddFindSuite) TestFindPredefined(c *C) {
 		"authority-id": "canonical",
 	}, pk1.PublicKey(), safs.signingKeyID)
 
-	err := safs.db.Add(acct1)
+	err := safs.db.Add(acct1, nil)
 	c.Assert(err, IsNil)
-	err = safs.db.Add(acct1Key)
+	err = safs.db.Add(acct1Key, nil)
 	c.Assert(err, IsNil)
 
 	// find the trusted account
@@ -1436,9 +1436,9 @@ func (safs *signAddFindSuite) TestFindManyPredefined(c *C) {
 		"authority-id": "canonical",
 	}, pk1.PublicKey(), safs.signingKeyID)
 
-	err = db.Add(acct1)
+	err = db.Add(acct1, nil)
 	c.Assert(err, IsNil)
-	err = db.Add(acct1Key)
+	err = db.Add(acct1Key, nil)
 	c.Assert(err, IsNil)
 
 	// find the trusted account
@@ -1509,7 +1509,7 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 	tKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey0Encoded), safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(tKey)
+	err = safs.db.Add(tKey, nil)
 	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
 }
 
@@ -1525,7 +1525,7 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithPred
 	predefAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(predefAcct)
+	err = safs.db.Add(predefAcct, nil)
 	c.Check(err, ErrorMatches, `cannot add "account" assertion with primary key clashing with a predefined assertion: .*`)
 }
 
@@ -1538,7 +1538,7 @@ func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnly2Type, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a1)
+	err = safs.db.Add(a1, nil)
 	c.Assert(err, IsNil)
 
 	ref := &asserts.Ref{
@@ -1578,7 +1578,7 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 	af0, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(af0)
+	err = safs.db.Add(af0, nil)
 	c.Assert(err, IsNil)
 
 	headers = map[string]interface{}{
@@ -1590,7 +1590,7 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 	af1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(af1)
+	err = safs.db.Add(af1, nil)
 	c.Assert(err, IsNil)
 
 	a, err := safs.db.FindMaxFormat(asserts.TestOnlyType, map[string]string{
@@ -1619,7 +1619,7 @@ func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a1)
+	err = safs.db.Add(a1, nil)
 	c.Assert(err, IsNil)
 
 	headers = map[string]interface{}{
@@ -1632,7 +1632,7 @@ func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {
 	bs := asserts.NewMemoryBackstore()
 	stacked := safs.db.WithStackedBackstore(bs)
 
-	err = stacked.Add(a2)
+	err = stacked.Add(a2, nil)
 	c.Assert(err, IsNil)
 
 	_, err = stacked.Find(asserts.TestOnlyType, map[string]string{
@@ -1681,7 +1681,7 @@ func (safs *signAddFindSuite) TestWithStackedBackstoreSafety(c *C) {
 	tKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey0Encoded), safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = stacked.Add(tKey)
+	err = stacked.Add(tKey, nil)
 	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
 
 	// cannot go back to old revisions
@@ -1700,10 +1700,10 @@ func (safs *signAddFindSuite) TestWithStackedBackstoreSafety(c *C) {
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Add(a1)
+	err = safs.db.Add(a1, nil)
 	c.Assert(err, IsNil)
 
-	err = stacked.Add(a0)
+	err = stacked.Add(a0, nil)
 	c.Assert(err, DeepEquals, &asserts.RevisionError{
 		Used:    0,
 		Current: 1,
@@ -1758,7 +1758,7 @@ func (safs *signAddFindSuite) TestFindSequence(c *C) {
 
 	for _, a := range []asserts.Assertion{sq1f0, sq2f0, sq2f1, sq3f1} {
 
-		err = safs.db.Add(a)
+		err = safs.db.Add(a, nil)
 		c.Assert(err, IsNil)
 	}
 
@@ -1766,7 +1766,7 @@ func (safs *signAddFindSuite) TestFindSequence(c *C) {
 	// scenario atm
 	bs := asserts.NewMemoryBackstore()
 	db := safs.db.WithStackedBackstore(bs)
-	err = db.Add(sq3f2)
+	err = db.Add(sq3f2, nil)
 	c.Assert(err, IsNil)
 
 	seqHeaders := map[string]string{

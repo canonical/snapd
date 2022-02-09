@@ -454,7 +454,8 @@ func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asser
 	}
 	save2 := func(a asserts.Assertion) error {
 		// for checking
-		err := db.Add(a)
+		// XXX policy
+		err := db.Add(a, nil)
 		if err != nil {
 			if _, ok := err.(*asserts.RevisionError); ok {
 				return nil

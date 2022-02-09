@@ -980,7 +980,8 @@ func (p *Pool) CommitTo(db *Database) error {
 		return a, nil
 	}
 	save := func(a Assertion) error {
-		err := db.Add(a)
+		// XXX policy
+		err := db.Add(a, nil)
 		if IsUnaccceptedUpdate(err) {
 			// unsupported format case is handled before.
 			// be idempotent, db has already the same or

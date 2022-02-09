@@ -84,8 +84,7 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	})
 	c.Assert(err, IsNil)
 	am.Db = db
-	err = db.Add(am.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
+	assertstest.AddMany(db, am.storeSigning.StoreAccountKey(""))
 
 	st.Lock()
 	assertstate.ReplaceDB(st, am.Db)
@@ -125,7 +124,7 @@ func (am *AssertsMock) MockSnapDecl(c *C, name, publisher string, extraHeaders m
 		acct := assertstest.NewAccount(am.storeSigning, publisher, map[string]interface{}{
 			"account-id": publisher,
 		}, "")
-		err = am.Db.Add(acct)
+		err = am.Db.Add(acct, nil)
 	}
 	c.Assert(err, IsNil)
 
@@ -143,7 +142,7 @@ func (am *AssertsMock) MockSnapDecl(c *C, name, publisher string, extraHeaders m
 	snapDecl, err := am.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
 
-	err = am.Db.Add(snapDecl)
+	err = am.Db.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 }
 

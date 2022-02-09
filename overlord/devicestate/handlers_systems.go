@@ -215,10 +215,10 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		// createSystemForModelFromValidatedSnaps expects all relevant
 		// assertions to be present in the passed db
 		tempDB := assertstate.TemporaryDB(st)
-		if err := tempDB.Add(model); err != nil {
+		// XXX policy
+		if err := tempDB.Add(model, nil); err != nil {
 			return fmt.Errorf("cannot create a temporary database with model: %v", err)
 		}
-		// XXX policy
 		db = tempDB.ROWithPolicy(nil)
 	} else {
 		db = assertstate.DB(st)

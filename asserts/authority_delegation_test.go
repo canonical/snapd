@@ -131,7 +131,7 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckAccountReferences
 	otherAcct := assertstest.NewAccount(storeDB, "other", map[string]interface{}{
 		"account-id": "other",
 	}, "")
-	c.Assert(db.Add(otherAcct), IsNil)
+	c.Assert(db.Add(otherAcct, nil), IsNil)
 
 	err = db.Check(ad, nil)
 	c.Assert(err, ErrorMatches, `authority-delegation assertion for \"other\" does not have a matching account assertion for delegated \"other2\"`)
@@ -156,11 +156,11 @@ func (s *authorityDelegationSuite) TestAuthorityDelegationCheckHappy(c *C) {
 	otherAcct := assertstest.NewAccount(storeDB, "other", map[string]interface{}{
 		"account-id": "other",
 	}, "")
-	c.Assert(db.Add(otherAcct), IsNil)
+	c.Assert(db.Add(otherAcct, nil), IsNil)
 	other2Acct := assertstest.NewAccount(storeDB, "other2", map[string]interface{}{
 		"account-id": "other2",
 	}, "")
-	c.Assert(db.Add(other2Acct), IsNil)
+	c.Assert(db.Add(other2Acct, nil), IsNil)
 
 	err = db.Check(ad, nil)
 	c.Check(err, IsNil)

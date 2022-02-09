@@ -100,12 +100,12 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	})
 	c.Assert(err, IsNil)
 	// add store key
-	err = checkDB.Add(store.StoreAccountKey(""))
+	err = checkDB.Add(store.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 	// enable devel key
-	err = checkDB.Add(devAcct)
+	err = checkDB.Add(devAcct, nil)
 	c.Assert(err, IsNil)
-	err = checkDB.Add(devAccKey)
+	err = checkDB.Add(devAccKey, nil)
 	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{

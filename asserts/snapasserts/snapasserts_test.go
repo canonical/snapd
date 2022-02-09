@@ -61,9 +61,9 @@ func (s *snapassertsSuite) SetUpTest(c *C) {
 	s.localDB = localDB
 
 	// add in prereqs assertions
-	err = s.localDB.Add(s.storeSigning.StoreAccountKey(""))
+	err = s.localDB.Add(s.storeSigning.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(s.dev1Acct)
+	err = s.localDB.Add(s.dev1Acct, nil)
 	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{
@@ -75,7 +75,7 @@ func (s *snapassertsSuite) SetUpTest(c *C) {
 	}
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
+	err = s.localDB.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -110,7 +110,7 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 	}
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
+	err = s.localDB.Add(snapRev, nil)
 	c.Assert(err, IsNil)
 
 	si := &snap.SideInfo{
@@ -139,7 +139,7 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 	}
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
+	err = s.localDB.Add(snapRev, nil)
 	c.Assert(err, IsNil)
 
 	si := &snap.SideInfo{
@@ -197,7 +197,7 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 	}
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
+	err = s.localDB.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 
 	digest := makeDigest(12)
@@ -212,7 +212,7 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 	}
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
+	err = s.localDB.Add(snapRev, nil)
 	c.Assert(err, IsNil)
 
 	si := &snap.SideInfo{
@@ -239,7 +239,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoHappy(c *C) {
 	}
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
+	err = s.localDB.Add(snapRev, nil)
 	c.Assert(err, IsNil)
 
 	tempdir := c.MkDir()
@@ -281,7 +281,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoSizeMismatch(c *C) {
 	}
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
+	err = s.localDB.Add(snapRev, nil)
 	c.Assert(err, IsNil)
 
 	tempdir := c.MkDir()
@@ -305,7 +305,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 	}
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
+	err = s.localDB.Add(snapDecl, nil)
 	c.Assert(err, IsNil)
 
 	digest := makeDigest(42)
@@ -320,7 +320,7 @@ func (s *snapassertsSuite) TestDeriveSideInfoRevokedSnapDecl(c *C) {
 	}
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapRev)
+	err = s.localDB.Add(snapRev, nil)
 	c.Assert(err, IsNil)
 
 	tempdir := c.MkDir()

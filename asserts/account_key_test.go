@@ -274,7 +274,7 @@ func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 	c.Assert(err, IsNil)
 
 	// prereq
-	db.Add(acct1)
+	db.Add(acct1, nil)
 }
 
 func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
@@ -357,7 +357,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndNewRevision(c *C) {
 	db := aks.openDB(c)
 	aks.prereqAccount(c, db)
 
-	err = db.Add(accKey)
+	err = db.Add(accKey, nil)
 	c.Assert(err, IsNil)
 
 	headers["revision"] = "1"
@@ -385,7 +385,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameAccountAndDifferentName(c *C)
 	db := aks.openDB(c)
 	aks.prereqAccount(c, db)
 
-	err = db.Add(accKey)
+	err = db.Add(accKey, nil)
 	c.Assert(err, IsNil)
 
 	newPrivKey, _ := assertstest.GenerateKey(752)
@@ -424,7 +424,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C)
 	c.Assert(err, IsNil)
 	aks.prereqAccount(c, db)
 
-	err = db.Add(accKey)
+	err = db.Add(accKey, nil)
 	c.Assert(err, IsNil)
 
 	newPrivKey, _ := assertstest.GenerateKey(752)
@@ -439,7 +439,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C)
 		"authority-id": "canonical",
 		"account-id":   "acc-id2",
 	}, trustedKey.PublicKey().ID())
-	db.Add(acct2)
+	db.Add(acct2, nil)
 
 	headers["account-id"] = "acc-id2"
 	headers["public-key-sha3-384"] = newPubKey.ID()
@@ -468,7 +468,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckNameClash(c *C) {
 	db := aks.openDB(c)
 	aks.prereqAccount(c, db)
 
-	err = db.Add(accKey)
+	err = db.Add(accKey, nil)
 	c.Assert(err, IsNil)
 
 	newPrivKey, _ := assertstest.GenerateKey(752)
@@ -506,7 +506,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 
 	aks.prereqAccount(c, db)
 
-	err = db.Add(accKey)
+	err = db.Add(accKey, nil)
 	c.Assert(err, IsNil)
 
 	found, err := db.Find(asserts.AccountKeyType, map[string]string{
@@ -871,7 +871,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestAddAndFind(c *C) {
 	db := aks.openDB(c)
 	aks.prereqAccount(c, db)
 
-	err = db.Add(akr)
+	err = db.Add(akr, nil)
 	c.Assert(err, IsNil)
 
 	found, err := db.Find(asserts.AccountKeyRequestType, map[string]string{

@@ -174,7 +174,8 @@ func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
 
 	var errs []error
 	for _, a := range b.added {
-		err := db.Add(a)
+		// XXX policy
+		err := db.Add(a, nil)
 		if IsUnaccceptedUpdate(err) {
 			// unsupported format case is handled before
 			// be idempotent

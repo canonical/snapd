@@ -166,7 +166,7 @@ func (s *storeSuite) TestCheckAuthority(c *C) {
 
 	// Add account for operator.
 	operator := assertstest.NewAccount(storeDB, "op-id1", nil, "")
-	err := db.Add(operator)
+	err := db.Add(operator, nil)
 	c.Assert(err, IsNil)
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
@@ -219,7 +219,7 @@ func (s *storeSuite) TestCheckOperatorAccount(c *C) {
 
 	// Add the op-id1 account.
 	operator := assertstest.NewAccount(storeDB, "op-id1", map[string]interface{}{"account-id": "op-id1"}, "")
-	err = db.Add(operator)
+	err = db.Add(operator, nil)
 	c.Assert(err, IsNil)
 
 	// Now the operator exists so Check succeeds.

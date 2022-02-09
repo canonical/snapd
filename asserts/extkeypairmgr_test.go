@@ -219,12 +219,12 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 	})
 	c.Assert(err, IsNil)
 	// add store key
-	err = checkDB.Add(store.StoreAccountKey(""))
+	err = checkDB.Add(store.StoreAccountKey(""), nil)
 	c.Assert(err, IsNil)
 	// enable brand key
-	err = checkDB.Add(brandAcct)
+	err = checkDB.Add(brandAcct, nil)
 	c.Assert(err, IsNil)
-	err = checkDB.Add(brandAccKey)
+	err = checkDB.Add(brandAccKey, nil)
 	c.Assert(err, IsNil)
 
 	modelHdsrs := map[string]interface{}{
