@@ -753,6 +753,59 @@ func (s *copydataSuite) TestUndoHideSnapData(c *C) {
 	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
 }
 
+func (s *copydataSuite) TestUndoHideDoesntRemoveIfDirHasFiles(c *C) {
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	homedir := filepath.Join(s.tempdir, "home", "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homedir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	// set up state and create another dir 'bye' under ~/.snap/data/
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	c.Assert(os.MkdirAll(info.UserDataDir(homedir, opts), 0700), IsNil)
+	c.Assert(os.MkdirAll(info.UserCommonDataDir(homedir, opts), 0700), IsNil)
+	byeDirPath := filepath.Join(homedir, dirs.HiddenSnapDataHomeDir, "bye")
+	c.Assert(os.MkdirAll(byeDirPath, 0700), IsNil)
+
+	c.Assert(s.be.UndoHideSnapData("hello"), IsNil)
+
+	exists, _, err := osutil.DirExists(filepath.Join(homedir, dirs.HiddenSnapDataHomeDir, "hello"))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	// ~/.snap/data isn't deleted bc there's another dir 'bye'
+	exists, _, err = osutil.DirExists(filepath.Join(homedir, dirs.HiddenSnapDataHomeDir))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+
+	// reset state and create a file under ~/.snap
+	c.Assert(os.MkdirAll(info.UserDataDir(homedir, opts), 0700), IsNil)
+	c.Assert(os.MkdirAll(info.UserCommonDataDir(homedir, opts), 0700), IsNil)
+	c.Assert(os.RemoveAll(byeDirPath), IsNil)
+	c.Assert(os.RemoveAll(snap.UserSnapDir(homedir, "hello", nil)), IsNil)
+
+	_, err = os.Create(filepath.Join(homedir, ".snap", "other-file"))
+	c.Assert(err, IsNil)
+
+	c.Assert(s.be.UndoHideSnapData("hello"), IsNil)
+
+	// ~/.snap/data is deleted bc there's no dir other than 'hello'
+	exists, _, err = osutil.DirExists(filepath.Join(homedir, dirs.HiddenSnapDataHomeDir))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	// ~/.snap/data isn't deleted bc there's a file 'other-file'
+	exists, _, err = osutil.DirExists(filepath.Join(homedir, ".snap"))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+}
+
 func (s *copydataSuite) TestCleanupAfterCopyAndMigration(c *C) {
 	homedir := filepath.Join(s.tempdir, "home", "user")
 	usr, err := user.Current()
