@@ -218,11 +218,14 @@ type RODatabaseView interface {
 	Check(assert Assertion) error
 }
 
-// AssertionPolicy can express local/site-specific assertion of validation
+// AssertionPolicy can express local/site-specific assertion validation
 // or retrieval policy.
 type AssertionPolicy interface {
 	// Check tests the assertion against the policy for validity.
 	Check(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) error
+	// Accept confirms the assertion validity against the policy
+	// before it is added permanently to a database.
+	Accept(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) error
 }
 
 // A Checker defines a check on an assertion considering aspects such as
@@ -492,7 +495,9 @@ func (db *Database) check(assert Assertion, roView RODatabaseView, earliestTime,
 
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
-// XXX document pol use
+// Accept from pol (XXX or the default policy) will be called to
+// confirm the assertion addition. A policy is required to add
+// assertions that depends on delegation.
 func (db *Database) Add(assert Assertion, pol AssertionPolicy) error {
 	ref := assert.Ref()
 
@@ -500,8 +505,18 @@ func (db *Database) Add(assert Assertion, pol AssertionPolicy) error {
 		return fmt.Errorf("internal error: assertion type %q has no primary key", ref.Type.Name)
 	}
 
-	// XXX policy
-	err := db.Check(assert, nil)
+	earliestTime, latestTime := db.earliestLatestTime()
+	pol, polOk := db.policy(pol)
+	roView := db.ROWithPolicy(pol)
+	signingKey, delegationConstraints, err := db.check(assert, roView, earliestTime, latestTime)
+	if err == nil {
+		if !polOk && len(delegationConstraints) != 0 {
+			return fmt.Errorf("cannot add delegated %s assertion without an available assertion policy", ref.Type.Name)
+		}
+		if polOk {
+			err = pol.Accept(assert, signingKey, delegationConstraints, roView, earliestTime, latestTime)
+		}
+	}
 	if err != nil {
 		if ufe, ok := err.(*UnsupportedFormatError); ok {
 			_, err := ref.Resolve(db.Find)
