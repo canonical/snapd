@@ -587,6 +587,9 @@ nested_create_core_vm() {
 
     if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+            nested_create_assertions_disk
+        fi
         return
 
     elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
