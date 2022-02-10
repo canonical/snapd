@@ -331,7 +331,7 @@ func (s *assertMgrSuite) TestAddBatch(c *C) {
 	err = batch.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	err = assertstate.AddBatch(s.state, batch, nil)
+	err = assertstate.AddBatch(s.state, batch, nil, nil)
 	c.Assert(err, IsNil)
 
 	db := assertstate.DB(s.state)
@@ -376,7 +376,7 @@ func (s *assertMgrSuite) TestAddBatchPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = assertstate.AddBatch(s.state, batch, nil)
+	err = assertstate.AddBatch(s.state, batch, nil, nil)
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
 
 	// snap-declaration was added anyway
@@ -420,7 +420,7 @@ func (s *assertMgrSuite) TestAddBatchPrecheckPartial(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
+	err = assertstate.AddBatch(s.state, batch, nil, &asserts.CommitOptions{
 		Precheck: true,
 	})
 	c.Check(err, ErrorMatches, `(?ms).*validity.*`)
@@ -466,7 +466,7 @@ func (s *assertMgrSuite) TestAddBatchPrecheckHappy(c *C) {
 	err = batch.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	err = assertstate.AddBatch(s.state, batch, &asserts.CommitOptions{
+	err = assertstate.AddBatch(s.state, batch, nil, &asserts.CommitOptions{
 		Precheck: true,
 	})
 	c.Assert(err, IsNil)
@@ -883,6 +883,92 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install "f", snap "f" is undergoing a rename to "foo".*`)
+}
+
+func (s *assertMgrSuite) TestValidateDelegatedSnap(c *C) {
+	s.prereqSnapAssertions(c)
+
+	// add delegation
+	headers := map[string]interface{}{
+		"authority-id": "can0nical",
+		"account-id":   "can0nical",
+		"delegate-id":  s.dev1Acct.AccountID(),
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": "snap-revision",
+				"headers": map[string]interface{}{
+					"snap-id": "snap-id-1",
+				},
+				"since": time.Now().Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := s.storeSigning.Sign(asserts.AuthorityDelegationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(s.storeSigning.Add(ad), IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id":  "can0nical",
+		"signatory-id":  s.dev1Acct.AccountID(),
+		"series":        "16",
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": makeDigest(10),
+		"snap-size":     fmt.Sprintf("%d", len(fakeSnap(10))),
+		"snap-revision": "10",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := s.dev1Signing.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "foo.snap")
+	err = ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err = s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+	snapsup := snapstate.SnapSetup{
+		SnapPath: snapPath,
+		UserID:   0,
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "snap-id-1",
+			Revision: snap.R(10),
+		},
+	}
+	t.Set("snap-setup", snapsup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	snapRev1, err := assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": makeDigest(10),
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapRev1.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
+
+	// store assertion was also fetched
+	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
+		"store": "my-brand-store",
+	})
+	c.Assert(err, IsNil)
 }
 
 func (s *assertMgrSuite) validationSetAssert(c *C, name, sequence, revision string, snapPresence, requiredRevision string) *asserts.ValidationSet {

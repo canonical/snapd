@@ -104,7 +104,7 @@ func (s *helpersSuite) TestLoadAssertions(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = b.CommitTo(db, nil)
+	err = b.CommitTo(db, asserts.TransparentAssertionPolicy, nil)
 	c.Assert(err, IsNil)
 
 	_, err = db.Find(asserts.SnapRevisionType, map[string]string{

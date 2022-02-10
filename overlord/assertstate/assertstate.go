@@ -44,9 +44,12 @@ func Add(s *state.State, a asserts.Assertion) error {
 }
 
 // AddBatch adds the given assertion batch to the system assertion database.
-func AddBatch(s *state.State, batch *asserts.Batch, opts *asserts.CommitOptions) error {
-	// XXX policy
-	return batch.CommitTo(cachedDB(s), opts)
+func AddBatch(s *state.State, batch *asserts.Batch, pol asserts.AssertionPolicy, opts *asserts.CommitOptions) error {
+	// XXX policy: this should not be needed once we have a default policy concept
+	if pol == nil {
+		pol = asserts.TransparentAssertionPolicy
+	}
+	return batch.CommitTo(cachedDB(s), pol, opts)
 }
 
 func findError(format string, ref *asserts.Ref, err error) error {

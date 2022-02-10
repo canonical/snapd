@@ -366,8 +366,8 @@ func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.As
 		Trusted:   trusted,
 	})
 	c.Assert(err, IsNil)
-	commitTo := func(b *asserts.Batch) error {
-		return b.CommitTo(db, nil)
+	commitTo := func(b *asserts.Batch, pol asserts.AssertionPolicy) error {
+		return b.CommitTo(db, pol, nil)
 	}
 
 	sd, err := seed.Open(root, label)

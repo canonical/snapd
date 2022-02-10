@@ -705,7 +705,8 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 			if err != nil {
 				return err
 			}
-			return b.CommitTo(savedb, nil)
+			// XXX policy: use a device policy
+			return b.CommitTo(savedb, asserts.TransparentAssertionPolicy, nil)
 		})
 		if err != nil && err != errNoSaveSupport {
 			return fmt.Errorf("cannot save serial to device save assertion database: %v", err)
@@ -802,7 +803,8 @@ func acceptSerialPlusBatch(t *state.Task, serial *asserts.Serial, batch *asserts
 	if err != nil {
 		return err
 	}
-	return assertstate.AddBatch(st, batch, &asserts.CommitOptions{Precheck: true})
+	// XXX policy: use a device policy
+	return assertstate.AddBatch(st, batch, asserts.TransparentAssertionPolicy, &asserts.CommitOptions{Precheck: true})
 }
 
 var repeatRequestSerial string // for tests

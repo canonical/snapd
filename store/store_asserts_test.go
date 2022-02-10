@@ -269,7 +269,7 @@ func (s *storeAssertsSuite) TestDownloadAssertionsSimple(c *C) {
 	err = sto.DownloadAssertions(urls, b, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(b.CommitTo(s.db, nil), IsNil)
+	c.Assert(b.CommitTo(s.db, asserts.TransparentAssertionPolicy, nil), IsNil)
 
 	// added
 	_, err = s.decl1.Ref().Resolve(s.db.Find)
@@ -320,7 +320,7 @@ func (s *storeAssertsSuite) TestDownloadAssertionsWithStreams(c *C) {
 	err = sto.DownloadAssertions(urls, b, nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(b.CommitTo(s.db, nil), IsNil)
+	c.Assert(b.CommitTo(s.db, asserts.TransparentAssertionPolicy, nil), IsNil)
 
 	// added
 	_, err = s.decl1.Ref().Resolve(s.db.Find)

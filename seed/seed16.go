@@ -60,7 +60,7 @@ type seed16 struct {
 	usesSnapdSnap bool
 }
 
-func (s *seed16) LoadAssertions(db snapasserts.Finder, commitTo func(*asserts.Batch) error) error {
+func (s *seed16) LoadAssertions(db snapasserts.Finder, commitTo func(*asserts.Batch, asserts.AssertionPolicy) error) error {
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error
@@ -93,7 +93,8 @@ func (s *seed16) LoadAssertions(db snapasserts.Finder, commitTo func(*asserts.Ba
 		return fmt.Errorf("seed must have a model assertion")
 	}
 
-	if err := commitTo(batch); err != nil {
+	// XXX policy: use a device policy
+	if err := commitTo(batch, asserts.TransparentAssertionPolicy); err != nil {
 		return err
 	}
 

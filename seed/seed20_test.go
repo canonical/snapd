@@ -81,8 +81,8 @@ func (s *seed20Suite) SetUpTest(c *C) {
 	s.perfTimings = timings.New(nil)
 }
 
-func (s *seed20Suite) commitTo(b *asserts.Batch) error {
-	return b.CommitTo(s.db, nil)
+func (s *seed20Suite) commitTo(b *asserts.Batch, pol asserts.AssertionPolicy) error {
+	return b.CommitTo(s.db, pol, nil)
 }
 
 func (s *seed20Suite) makeSnap(c *C, yamlKey, publisher string) {
@@ -592,6 +592,126 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		}, {
+			Path:          s.expectedPath("core20"),
+			SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		},
+	})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+
+	// required20 has default modes: ["run"]
+	installSnaps, err := seed20.ModeSnaps("install")
+	c.Assert(err, IsNil)
+	c.Check(installSnaps, HasLen, 0)
+}
+
+func (s *seed20Suite) TestLoadMetaCore20DelegatedSnap(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
+	// add delegation
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"account-id":   "canonical",
+		"delegate-id":  "my-brand",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": "snap-revision",
+				"headers": map[string]interface{}{
+					"snap-id": s.AssertedSnapID("required20"),
+					// XXX on-store
+				},
+				"since": time.Now().Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := s.StoreSigning.Sign(asserts.AuthorityDelegationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(s.StoreSigning.Add(ad), IsNil)
+
+	s.MakeAssertedDelegatedSnap(c, snapYaml["required20"], nil, snap.R(1), "developerid", "my-brand", s.StoreSigning.Database)
+
+	s.AssertedSnapInfo("required20").EditedContact = "mailto:author@example.com"
+
+	sysLabel := "20191018"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		// XXX store
+		"base": "core20",
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",

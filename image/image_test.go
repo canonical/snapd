@@ -604,8 +604,8 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 	})
 	c.Assert(err, IsNil)
 
-	commitTo := func(b *asserts.Batch) error {
-		return b.CommitTo(db, nil)
+	commitTo := func(b *asserts.Batch, pol asserts.AssertionPolicy) error {
+		return b.CommitTo(db, pol, nil)
 	}
 
 	err = seed.LoadAssertions(db, commitTo)

@@ -42,7 +42,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func newMemAssertionsDB(commitObserve func(verified asserts.Assertion)) (db *asserts.Database, commitTo func(*asserts.Batch) error, err error) {
+func newMemAssertionsDB(commitObserve func(verified asserts.Assertion)) (db *asserts.Database, commitTo func(*asserts.Batch, asserts.AssertionPolicy) error, err error) {
 	memDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   trusted,
@@ -51,8 +51,8 @@ func newMemAssertionsDB(commitObserve func(verified asserts.Assertion)) (db *ass
 		return nil, nil, err
 	}
 
-	commitTo = func(b *asserts.Batch) error {
-		return b.CommitToAndObserve(memDB, commitObserve, nil)
+	commitTo = func(b *asserts.Batch, pol asserts.AssertionPolicy) error {
+		return b.CommitToAndObserve(memDB, pol, commitObserve, nil)
 	}
 
 	return memDB, commitTo, nil

@@ -115,9 +115,9 @@ func (b *Batch) Fetch(trustedDB PredefinedView, retrieve func(*Ref) (Assertion, 
 	return fetching(f)
 }
 
-func (b *Batch) precheck(db *Database) error {
+func (b *Batch) precheck(db *Database, pol AssertionPolicy) error {
 	db = db.WithStackedBackstore(NewMemoryBackstore())
-	return b.commitTo(db, nil)
+	return b.commitTo(db, pol, nil)
 }
 
 type CommitOptions struct {
@@ -129,17 +129,20 @@ type CommitOptions struct {
 // CommitTo adds the batch of assertions to the given assertion database.
 // Nothing will be committed if there are missing prerequisites, for a full
 // consistency check beforehand there is the Precheck option.
-func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
+func (b *Batch) CommitTo(db *Database, pol AssertionPolicy, opts *CommitOptions) error {
+	if pol == nil {
+		return fmt.Errorf("internal error: Batch.CommitTo expects an AssertionPolicy to operate")
+	}
 	if opts == nil {
 		opts = &CommitOptions{}
 	}
 	if opts.Precheck {
-		if err := b.precheck(db); err != nil {
+		if err := b.precheck(db, pol); err != nil {
 			return err
 		}
 	}
 
-	return b.commitTo(db, nil)
+	return b.commitTo(db, pol, nil)
 }
 
 // CommitToAndObserve adds the batch of assertions to the given
@@ -148,22 +151,26 @@ func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
 // Nothing will be committed if there are missing prerequisites, for a
 // full consistency check beforehand there is the Precheck option.
 // For convenience observe can be nil in which case is ignored.
-func (b *Batch) CommitToAndObserve(db *Database, observe func(Assertion), opts *CommitOptions) error {
+func (b *Batch) CommitToAndObserve(db *Database, pol AssertionPolicy, observe func(Assertion), opts *CommitOptions) error {
+	if pol == nil {
+		return fmt.Errorf("internal error: Batch.CommitToAndObserve expects an AssertionPolicy to operate")
+	}
 	if opts == nil {
 		opts = &CommitOptions{}
 	}
 	if opts.Precheck {
-		if err := b.precheck(db); err != nil {
+		if err := b.precheck(db, pol); err != nil {
 			return err
 		}
 	}
 
-	return b.commitTo(db, observe)
+	return b.commitTo(db, pol, observe)
 }
 
 // commitTo does a best effort of adding all the batch assertions to
 // the target database.
-func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
+func (b *Batch) commitTo(db *Database, pol AssertionPolicy, observe func(Assertion)) error {
+	// XXX policy: need transparent policy once Find is affected
 	if err := b.prereqSort(db); err != nil {
 		return err
 	}
@@ -174,8 +181,7 @@ func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
 
 	var errs []error
 	for _, a := range b.added {
-		// XXX policy
-		err := db.Add(a, nil)
+		err := db.Add(a, pol)
 		if IsUnaccceptedUpdate(err) {
 			// unsupported format case is handled before
 			// be idempotent

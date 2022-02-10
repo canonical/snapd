@@ -397,8 +397,8 @@ func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err
 
 	// collect and
 	// set device,model from the model assertion
-	commitTo := func(batch *asserts.Batch) error {
-		return assertstate.AddBatch(st, batch, nil)
+	commitTo := func(batch *asserts.Batch, pol asserts.AssertionPolicy) error {
+		return assertstate.AddBatch(st, batch, pol, nil)
 	}
 
 	if err := deviceSeed.LoadAssertions(assertstate.DB(st), commitTo); err != nil {

@@ -96,6 +96,7 @@ func NewPool(groundDB RODatabaseView, n int) *Pool {
 		panic(fmt.Sprintf("NewPool: %v", err))
 	}
 	return &Pool{
+		// XXX policy: need transparent policy once Find is affected
 		groundDB:            groundDB,
 		numbering:           make(map[string]uint16),
 		groupings:           groupings,

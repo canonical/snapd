@@ -91,8 +91,8 @@ func (s *seed16Suite) SetUpTest(c *C) {
 	s.perfTimings = timings.New(nil)
 }
 
-func (s *seed16Suite) commitTo(b *asserts.Batch) error {
-	return b.CommitTo(s.db, nil)
+func (s *seed16Suite) commitTo(b *asserts.Batch, pol asserts.AssertionPolicy) error {
+	return b.CommitTo(s.db, pol, nil)
 }
 
 func (s *seed16Suite) TestLoadAssertionsNoAssertions(c *C) {

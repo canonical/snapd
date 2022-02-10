@@ -341,8 +341,8 @@ func RuleFeature(rule featureExposer, flabel string) bool {
 	return rule.feature(flabel)
 }
 
-func (b *Batch) DoPrecheck(db *Database) error {
-	return b.precheck(db)
+func (b *Batch) DoPrecheck(db *Database, pol AssertionPolicy) error {
+	return b.precheck(db, pol)
 }
 
 // pool tests
