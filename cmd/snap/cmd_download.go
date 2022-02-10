@@ -91,7 +91,7 @@ func fetchSnapAssertionsDirect(tsto *image.ToolingStore, snapPath string, snapIn
 	save := func(a asserts.Assertion) error {
 		return encoder.Encode(a)
 	}
-	f := tsto.AssertionFetcher(db, save)
+	f := tsto.AssertionFetcher(db, save, asserts.TransparentAssertionPolicy)
 
 	_, err = image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
 	return assertPath, err

@@ -228,6 +228,21 @@ type AssertionPolicy interface {
 	Accept(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) error
 }
 
+type transparentAssertionPolicy struct{}
+
+func (pol transparentAssertionPolicy) Check(Assertion, *AccountKey, []*AssertionConstraints, RODatabaseView, time.Time, time.Time) error {
+	return nil
+}
+
+func (pol transparentAssertionPolicy) Accept(Assertion, *AccountKey, []*AssertionConstraints, RODatabaseView, time.Time, time.Time) error {
+	return nil
+}
+
+// TransparentAssertionPolicy does not perform any additional checks,
+// in particual in the case of delegation. It is meant mainly for
+// intermediary sites that are not the actual consumers of assertions.
+var TransparentAssertionPolicy AssertionPolicy = transparentAssertionPolicy{}
+
 // A Checker defines a check on an assertion considering aspects such as
 // the signing key, and consistency with other
 // assertions in the database.

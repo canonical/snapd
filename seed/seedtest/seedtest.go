@@ -79,6 +79,10 @@ func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
 }
 
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.StoreSigning.SigningDB, dbs...)
+}
+
+func (ss *SeedSnaps) makeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, revSigning *assertstest.SigningDB, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	snapName := info.SnapName()
@@ -98,14 +102,19 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapFile)
 	c.Assert(err, IsNil)
 
-	revA, err := ss.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+	revHeaders := map[string]interface{}{
+		"authority-id":  ss.StoreSigning.AuthorityID,
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-id":       snapID,
 		"developer-id":  developerID,
 		"snap-revision": revision.String(),
 		"timestamp":     ss.snapAssertionNow().UTC().Format(time.RFC3339),
-	}, nil, "")
+	}
+	if revSigning.AuthorityID != ss.StoreSigning.AuthorityID {
+		revHeaders["signatory-id"] = revSigning.AuthorityID
+	}
+	revA, err := revSigning.Sign(asserts.SnapRevisionType, revHeaders, nil, "")
 	c.Assert(err, IsNil)
 
 	if !revision.Unset() {
@@ -116,7 +125,7 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	for _, db := range dbs {
 		err := db.Add(declA, nil)
 		c.Assert(err, IsNil)
-		err = db.Add(revA, nil)
+		err = db.Add(revA, asserts.TransparentAssertionPolicy)
 		c.Assert(err, IsNil)
 	}
 
@@ -134,6 +143,10 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 	ss.snapRevs[snapName] = snapRev
 
 	return snapDecl, snapRev
+}
+
+func (ss *SeedSnaps) MakeAssertedDelegatedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID, delegateID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
+	return ss.makeAssertedSnap(c, snapYaml, files, revision, developerID, ss.Brands.Signing(delegateID), dbs...)
 }
 
 func (ss *SeedSnaps) AssertedSnap(snapName string) (snapFile string) {
@@ -258,7 +271,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		save2 := func(a asserts.Assertion) error {
 			// for checking
-			err := db.Add(a, nil)
+			err := db.Add(a, asserts.TransparentAssertionPolicy)
 			if err != nil {
 				if _, ok := err.(*asserts.RevisionError); ok {
 					return nil

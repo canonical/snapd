@@ -3264,6 +3264,58 @@ assets:
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
 
+func (s *imageSuite) TestSetupSeedCore20DelegatedSnap(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20
+	model := s.makeUC20Model(nil)
+
+	prepareDir := c.MkDir()
+
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	s.makeSnap(c, "pc-kernel=20", nil, snap.R(1), "")
+	gadgetContent := [][]string{
+		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
+	}
+	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
+	// add delegation
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"account-id":   "canonical",
+		"delegate-id":  "my-brand",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": "snap-revision",
+				"headers": map[string]interface{}{
+					"snap-id": s.AssertedSnapID("required20"),
+					// XXX on-store
+				},
+				"since": time.Now().Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := s.StoreSigning.Sign(asserts.AuthorityDelegationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(s.StoreSigning.Add(ad), IsNil)
+
+	s.MakeAssertedDelegatedSnap(c, seedtest.SampleSnapYaml["required20"], nil, snap.R(1), "my-brand", "my-brand", s.StoreSigning.Database)
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags:  []string{"factory"},
+			Validation: "ignore",
+		},
+	}
+
+	err = image.SetupSeed(s.tsto, model, opts)
+	c.Check(err, IsNil)
+}
+
 type toolingStoreContextSuite struct {
 	sc store.DeviceAndAuthContext
 }

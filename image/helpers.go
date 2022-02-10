@@ -448,14 +448,16 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 }
 
 // AssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
-func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
+func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error, pol asserts.AssertionPolicy) asserts.Fetcher {
+	if pol == nil {
+		panic("internal error: AssertionFetcher expects an AssertionPolicy to operate")
+	}
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, tsto.user)
 	}
 	save2 := func(a asserts.Assertion) error {
 		// for checking
-		// XXX policy
-		err := db.Add(a, nil)
+		err := db.Add(a, pol)
 		if err != nil {
 			if _, ok := err.(*asserts.RevisionError); ok {
 				return nil

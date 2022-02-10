@@ -186,7 +186,7 @@ func (s *fetcherSuite) TestFetchDelegation(c *C) {
 		return ref.Resolve(s.storeSigning.Find)
 	}
 	save := func(a asserts.Assertion) error {
-		return db.Add(a, nil)
+		return db.Add(a, asserts.TransparentAssertionPolicy)
 	}
 
 	f := asserts.NewFetcher(db, retrieve, save)

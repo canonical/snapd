@@ -326,7 +326,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
-		return tsto.AssertionFetcher(db, save)
+		// XXX policy: pass a device policy
+		return tsto.AssertionFetcher(db, save, asserts.TransparentAssertionPolicy)
 	}
 	f, err := w.Start(db, newFetcher)
 	if err != nil {

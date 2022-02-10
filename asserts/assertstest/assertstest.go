@@ -239,7 +239,7 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 }
 
 func (db *SigningDB) Add(assert asserts.Assertion) error {
-	return db.Database.Add(assert, nil)
+	return db.Database.Add(assert, asserts.TransparentAssertionPolicy)
 }
 
 func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
@@ -497,7 +497,7 @@ func AddMany(db interface{}, assertions ...asserts.Assertion) {
 	switch dbAdder := db.(type) {
 	case *asserts.Database:
 		add = func(a asserts.Assertion) error {
-			return dbAdder.Add(a, nil)
+			return dbAdder.Add(a, asserts.TransparentAssertionPolicy)
 		}
 	case accuDB:
 		add = dbAdder.Add
