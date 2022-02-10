@@ -35,10 +35,12 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type gadgetYamlTestSuite struct {
@@ -3088,16 +3090,25 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 	c.Assert(err, IsNil)
 	deviceLayout := mockEncDeviceLayout
 
+	mockLog, r := logger.MockLogger()
+	defer r()
+
 	// if we set the EncryptedPartitions and assume partitions are already
 	// created then they match
 	encOpts := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		EncryptedPartitions: map[string]gadget.DiskEncryptionMethod{
-			"Writable": gadget.EncryptionLUKS,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {
+				"method": gadget.EncryptionLUKS,
+				// unsupported keys are okay, they are just ignored with a msg
+				"foo": "bar",
+			},
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
 	c.Assert(err, IsNil)
+
+	c.Assert(mockLog.String(), testutil.Contains, "ignoring unknown expected encryption structure parameter \"foo\"")
 
 	// but if the name of the partition does not match "-enc" then it is not
 	// valid
@@ -3127,8 +3138,8 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 	// unsupported encryption types
 	invalidEncOptions := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		EncryptedPartitions: map[string]gadget.DiskEncryptionMethod{
-			"Writable": gadget.EncryptionICE,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {"method": gadget.EncryptionICE},
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
@@ -3136,23 +3147,33 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 
 	invalidEncOptions = &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		EncryptedPartitions: map[string]gadget.DiskEncryptionMethod{
-			"Writable": "other",
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {"method": "other"},
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: unsupported encrypted partition type other`)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: unsupported encrypted partition type "other"`)
 
 	// missing an encrypted partition from the gadget.yaml
 	missingEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		EncryptedPartitions: map[string]gadget.DiskEncryptionMethod{
-			"Writable": gadget.EncryptionLUKS,
-			"missing":  gadget.EncryptionLUKS,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {"method": gadget.EncryptionLUKS},
+			"missing":  {"method": gadget.EncryptionLUKS},
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, missingEncStructureOptions)
 	c.Assert(err, ErrorMatches, `expected encrypted structure missing not present in gadget`)
+
+	// missing required method
+	invalidEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncStructureOptions)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: encrypted structure parameter missing required parameter "method"`)
 }
 
 func (s *gadgetYamlTestSuite) TestSchemaCompatibility(c *C) {

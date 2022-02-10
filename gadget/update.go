@@ -215,9 +215,12 @@ type EnsureLayoutCompatibilityOptions struct {
 	// time by ubuntu-image without being mentioned in the gadget.yaml.
 	AllowImplicitSystemData bool
 
-	// EncryptedPartitions is a map of the structure name to the type of
-	// encrypted partition. Possible values are LUKS or ICE.
-	EncryptedPartitions map[string]DiskEncryptionMethod
+	// ExpectedStructureEncryption is a map of the structure name to information
+	// about the encrypted partitions that can be used to validate whether a
+	// given structure should be accepted as an encrypted partition.
+	// Current keys understood/matched are:
+	// * "method" -> type of encryption either "LUKS" or "ICE"
+	ExpectedStructureEncryption map[string]map[string]string
 }
 
 func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
@@ -267,8 +270,23 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
 			// only partitions that are creatable at install can be encrypted,
 			// check if this partition was encrypted
-			if encType, ok := opts.EncryptedPartitions[gs.Name]; ok {
-				switch encType {
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name]; ok {
+				// "method" is a required and expected key in the parameters map
+				encMethod, ok := encTypeParams["method"]
+				if !ok {
+					return false, "encrypted structure parameter missing required parameter \"method\""
+				}
+
+				// for now we don't handle any other keys, but in case they show
+				// up in the wild for debugging purposes log off the key name
+				for k := range encTypeParams {
+					if k != "method" {
+						logger.Noticef("ignoring unknown expected encryption structure parameter %q", k)
+					}
+
+				}
+
+				switch encMethod {
 				case EncryptionICE:
 					return false, "Inline Crypto Engine encrypted partitions currently unsupported"
 				case EncryptionLUKS:
@@ -286,7 +304,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 					// at this point the partition matches
 					return true, ""
 				default:
-					return false, fmt.Sprintf("unsupported encrypted partition type %v", encType)
+					return false, fmt.Sprintf("unsupported encrypted partition type %q", encMethod)
 				}
 			}
 
@@ -457,7 +475,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	// finally ensure that all encrypted partitions mentioned in the options are
 	// present in the gadget.yaml (and thus will also need to have been present
 	// on the disk)
-	for gadgetLabel := range opts.EncryptedPartitions {
+	for gadgetLabel := range opts.ExpectedStructureEncryption {
 		found := false
 		for _, gs := range gadgetLayout.LaidOutStructure {
 			if gs.Name == gadgetLabel {
@@ -473,12 +491,15 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	return nil
 }
 
-type DiskEncryptionMethod string
-
 const (
-	EncryptionLUKS DiskEncryptionMethod = "LUKS"
-	// ICE stands for Inline Crypto Engine
-	EncryptionICE DiskEncryptionMethod = "ICE"
+	// values for the "method" key of encrypted structure information
+
+	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
+	// 2.0 in UC20+
+	EncryptionLUKS string = "LUKS"
+	// ICE stands for Inline Crypto Engine, used on specific (usually embedded)
+	// devices
+	EncryptionICE string = "ICE"
 )
 
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to
@@ -489,13 +510,13 @@ type DiskVolumeValidationOptions struct {
 	// AllowImplicitSystemData has the same meaning as the eponymously named
 	// filed in EnsureLayoutCompatibilityOptions.
 	AllowImplicitSystemData bool
-	// ExpectedEncryptedPartitions is the a map of the names (gadget structure
-	// names) of partitions that are encrypted on the volume and what method
-	// they were encrypted with. This should only ever be ubuntu-data or
-	// ubuntu-save for now, but the map will indicate the name of the structure
-	// as the key and the type of encryption (currently only "LUKS") as the
-	// value in the map.
-	ExpectedEncryptedPartitions map[string]DiskEncryptionMethod
+	// ExpectedEncryptedPartitions is a map of the names (gadget structure
+	// names) of partitions that are encrypted on the volume and information
+	// about that encryption. For now, only the method of encryption is saved as
+	// the key "method". For now, the only structures we support encrypting are
+	// ubuntu-data and ubuntu-save, and the only supported "method" value is
+	// "LUKS".
+	ExpectedStructureEncryption map[string]map[string]string
 }
 
 // DiskTraitsFromDeviceAndValidate takes a laid out gadget volume and an
@@ -522,8 +543,8 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		AssumeCreatablePartitionsCreated: true,
 
 		// provide the other opts as we were provided
-		AllowImplicitSystemData: opts.AllowImplicitSystemData,
-		EncryptedPartitions:     opts.ExpectedEncryptedPartitions,
+		AllowImplicitSystemData:     opts.AllowImplicitSystemData,
+		ExpectedStructureEncryption: opts.ExpectedStructureEncryption,
 	}
 	if err := EnsureLayoutCompatibility(expLayout, diskLayout, ensureOpts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
@@ -647,7 +668,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		Size:                diskLayout.Size,
 		SectorSize:          diskLayout.SectorSize,
 		Schema:              disk.Schema(),
-		EncryptedPartitions: opts.ExpectedEncryptedPartitions,
+		StructureEncryption: opts.ExpectedStructureEncryption,
 	}, nil
 }
 
