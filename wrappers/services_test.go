@@ -2360,7 +2360,7 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 		case "enable":
 			numEnables++
 			c.Assert(cmd, HasLen, 4)
-			if cmd[1] == svc2Name {
+			if cmd[2] == svc2Name {
 				svc1Name, svc2Name = svc2Name, svc1Name
 			}
 			return nil, fmt.Errorf("failed")
