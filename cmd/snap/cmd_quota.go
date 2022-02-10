@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"regexp"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -182,7 +181,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 	if cpuSet != "" {
 		cgv, err := getCGroupVersion()
 		if err != nil {
-			return nil, fmt.Errorf("cgroup v2 is required for --cpu-set: %v", err)
+			return nil, err
 		}
 		if cgv < 2 {
 			return nil, fmt.Errorf("cannot use --cpu-set with cgroup version %d", cgv)
@@ -194,8 +193,8 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 			if err != nil {
 				return nil, fmt.Errorf("cannot parse value for --cpu-set at position %d", i)
 			}
-			if cpu < 0 || cpu >= runtime.NumCPU() {
-				return nil, fmt.Errorf("invalid cpu number %d in --cpu-set", cpu)
+			if cpu < 0 {
+				return nil, fmt.Errorf("cannot use a negative CPU number in --cpu-set")
 			}
 			allowedCpus = append(allowedCpus, cpu)
 		}

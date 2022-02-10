@@ -278,12 +278,12 @@ TasksAccounting=true
 TasksMax=%[5]d
 `
 
-	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.Cpu.AllowedCpus)), ","), "[]")
+	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.CPU.AllowedCPUs)), ","), "[]")
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name,
-		resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage,
+		resourceLimits.CPU.Count*resourceLimits.CPU.Percentage,
 		allowedCpusValue,
 		resourceLimits.Memory.Limit,
-		resourceLimits.Thread.Limit)
+		resourceLimits.Threads.Limit)
 
 	exp := []changesObservation{
 		{
@@ -662,8 +662,8 @@ MemoryLimit=%[3]d
 TasksAccounting=true
 `
 
-	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage, resourceLimits.Memory.Limit)
-	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", resourceLimits.Cpu.Count*resourceLimits.Cpu.Percentage, resourceLimits.Memory.Limit)
+	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", resourceLimits.CPU.Count*resourceLimits.CPU.Percentage, resourceLimits.Memory.Limit)
+	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", resourceLimits.CPU.Count*resourceLimits.CPU.Percentage, resourceLimits.Memory.Limit)
 
 	svcTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -838,7 +838,7 @@ MemoryLimit=%[3]d
 TasksAccounting=true
 `
 
-	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.Cpu.AllowedCpus)), ","), "[]")
+	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.CPU.AllowedCPUs)), ","), "[]")
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", allowedCpusValue, resourceLimits.Memory.Limit))
 	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", allowedCpusValue, resourceLimits.Memory.Limit))
 }

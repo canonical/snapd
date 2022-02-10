@@ -29,10 +29,10 @@ type ResourceMemory struct {
 	Limit quantity.Size `json:"limit"`
 }
 
-type ResourceCpu struct {
+type ResourceCPU struct {
 	Count       int   `json:"count"`
 	Percentage  int   `json:"percentage"`
-	AllowedCpus []int `json:"allowed-cpus"`
+	AllowedCPUs []int `json:"allowed-cpus"`
 }
 
 type ResourceThreads struct {
@@ -43,9 +43,9 @@ type ResourceThreads struct {
 // value to indicate that their presence may be optional, and because we want to detect
 // whenever someone changes a limit to '0' explicitly.
 type Resources struct {
-	Memory *ResourceMemory  `json:"memory,omitempty"`
-	Cpu    *ResourceCpu     `json:"cpu,omitempty"`
-	Thread *ResourceThreads `json:"thread,omitempty"`
+	Memory  *ResourceMemory  `json:"memory,omitempty"`
+	CPU     *ResourceCPU     `json:"cpu,omitempty"`
+	Threads *ResourceThreads `json:"thread,omitempty"`
 }
 
 func (qr *Resources) validateMemoryQuota() error {
@@ -66,12 +66,12 @@ func (qr *Resources) validateMemoryQuota() error {
 
 func (qr *Resources) validateCpuQuota() error {
 	// if cpu count is non-zero, then percentage should be set
-	if qr.Cpu.Count != 0 && qr.Cpu.Percentage == 0 {
+	if qr.CPU.Count != 0 && qr.CPU.Percentage == 0 {
 		return fmt.Errorf("cannot validate quota limits with count of >0 and percentage of 0")
 	}
 
 	// atleast one cpu limit value must be set
-	if qr.Cpu.Count == 0 && qr.Cpu.Percentage == 0 && len(qr.Cpu.AllowedCpus) == 0 {
+	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 && len(qr.CPU.AllowedCPUs) == 0 {
 		return fmt.Errorf("cannot validate quota limits with a cpu quota of 0 and allowed cpus of 0")
 	}
 	return nil
@@ -79,7 +79,7 @@ func (qr *Resources) validateCpuQuota() error {
 
 func (qr *Resources) validateThreadQuota() error {
 	// make sure the thread count is not zero
-	if qr.Thread.Limit == 0 {
+	if qr.Threads.Limit == 0 {
 		return fmt.Errorf("cannot create quota group with a thread count of 0")
 	}
 	return nil
@@ -91,7 +91,7 @@ func (qr *Resources) validateThreadQuota() error {
 // If cpu percentage is provided, it must be between 1 and 100.
 // If thread count is provided, it must be above 0.
 func (qr *Resources) Validate() error {
-	if qr.Memory == nil && qr.Cpu == nil && qr.Thread == nil {
+	if qr.Memory == nil && qr.CPU == nil && qr.Threads == nil {
 		return fmt.Errorf("quota group must have at least one resource limit set")
 	}
 
@@ -101,13 +101,13 @@ func (qr *Resources) Validate() error {
 		}
 	}
 
-	if qr.Cpu != nil {
+	if qr.CPU != nil {
 		if err := qr.validateCpuQuota(); err != nil {
 			return err
 		}
 	}
 
-	if qr.Thread != nil {
+	if qr.Threads != nil {
 		if err := qr.validateThreadQuota(); err != nil {
 			return err
 		}
@@ -149,24 +149,24 @@ func (qr *Resources) Change(newLimits Resources) error {
 	if newLimits.Memory != nil {
 		qr.Memory = newLimits.Memory
 	}
-	if newLimits.Cpu != nil {
-		if qr.Cpu == nil {
-			qr.Cpu = newLimits.Cpu
+	if newLimits.CPU != nil {
+		if qr.CPU == nil {
+			qr.CPU = newLimits.CPU
 		} else {
 			// update count/percentage as one unit
-			if newLimits.Cpu.Count != 0 || newLimits.Cpu.Percentage != 0 {
-				qr.Cpu.Count = newLimits.Cpu.Count
-				qr.Cpu.Percentage = newLimits.Cpu.Percentage
+			if newLimits.CPU.Count != 0 || newLimits.CPU.Percentage != 0 {
+				qr.CPU.Count = newLimits.CPU.Count
+				qr.CPU.Percentage = newLimits.CPU.Percentage
 			}
 
 			// update allowed cpus as one unit
-			if len(newLimits.Cpu.AllowedCpus) != 0 {
-				qr.Cpu.AllowedCpus = newLimits.Cpu.AllowedCpus
+			if len(newLimits.CPU.AllowedCPUs) != 0 {
+				qr.CPU.AllowedCPUs = newLimits.CPU.AllowedCPUs
 			}
 		}
 	}
-	if newLimits.Thread != nil {
-		qr.Thread = newLimits.Thread
+	if newLimits.Threads != nil {
+		qr.Threads = newLimits.Threads
 	}
 	return nil
 }
@@ -179,14 +179,14 @@ func NewResources(memoryLimit quantity.Size, cpuCount int, cpuPercentage int, al
 		}
 	}
 	if cpuCount != 0 || cpuPercentage != 0 || len(allowedCpus) != 0 {
-		quotaResources.Cpu = &ResourceCpu{
+		quotaResources.CPU = &ResourceCPU{
 			Count:       cpuCount,
 			Percentage:  cpuPercentage,
-			AllowedCpus: allowedCpus,
+			AllowedCPUs: allowedCpus,
 		}
 	}
 	if threadLimit != 0 {
-		quotaResources.Thread = &ResourceThreads{
+		quotaResources.Threads = &ResourceThreads{
 			Limit: threadLimit,
 		}
 	}
