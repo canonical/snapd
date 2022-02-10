@@ -93,33 +93,22 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	// Reload systemd whenever something is added or removed
-	if !b.preseed {
-		if len(changed) > 0 {
-			err := systemd.DaemonReloadIfNeeded(true, changed)
-			if err != nil {
-				logger.Noticef("cannot reload systemd state: %s", err)
-			}
-		}
-		if len(removed) > 0 {
-			err := systemd.DaemonReloadIfNeeded(false, removed)
-			if err != nil {
-				logger.Noticef("cannot reload systemd state: %s", err)
-			}
+	if !b.preseed && (len(changed) > 0 || len(removed) > 0) {
+		err := systemd.DaemonReload()
+		if err != nil {
+			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
-
 	if len(changed) > 0 {
-		logger.Noticef("systemd-backend: Setup: changed services: %q", changed)
+		// Ensure the service is running right now and on reboots
 		if err := systemd.Enable(changed); err != nil {
 			logger.Noticef("cannot enable services %q: %s", changed, err)
 		}
-		// Ensure the service is running right now and on reboots
-		// If we have a new service here which isn't started yet the restart
-		// operation will start it.
 		if !b.preseed {
-			logger.Noticef("systemd-backend: Setup: Restart service: %q", changed)
+			// If we have a new service here which isn't started yet the restart
+			// operation will start it.
 			if err := systemd.Restart(changed, 10*time.Second); err != nil {
-				logger.Noticef("cannot restart service %q: %s", changed, err)
+				logger.Noticef("cannot restart services %q: %s", changed, err)
 			}
 		}
 	}
@@ -150,9 +139,12 @@ func (b *Backend) Remove(snapName string) error {
 				logger.Noticef("cannot stop service %q: %s", removed, err)
 			}
 		}
-		// Reload systemd configuration if necessary
-		if err := systemd.DaemonReloadIfNeeded(false, removed); err != nil {
-			logger.Noticef("cannot do daemon-reload for %q: %s", removed, err)
+	}
+	// Reload systemd whenever something is removed
+	if !b.preseed && len(removed) > 0 {
+		err := systemd.DaemonReload()
+		if err != nil {
+			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
 	return errEnsure
