@@ -743,9 +743,6 @@ func (safs *signAddFindSuite) TestSignDelegationWithPolicy(c *C) {
 	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
 	c.Assert(err, IsNil)
 
-	err = safs.db.Check(a1, nil)
-	c.Check(err, ErrorMatches, `no matching authority-delegation for signing delegation from "canonical" to "delegated-acct"`)
-
 	// now add authority-delegation
 	headers = map[string]interface{}{
 		"authority-id": "canonical",
@@ -778,6 +775,10 @@ func (safs *signAddFindSuite) TestSignDelegationWithPolicy(c *C) {
 		delegationConstraints: ad.(*asserts.AuthorityDelegation).MatchingConstraints(a1),
 	})
 
+	pol.checkErr = errors.New("policy says no")
+	err = safs.db.Check(a1, pol)
+	c.Check(err, Equals, pol.checkErr)
+
 	// via read-only view
 	err = safs.db.ROWithPolicy(nil).Check(a1)
 	c.Check(err, IsNil)
@@ -792,7 +793,6 @@ func (safs *signAddFindSuite) TestSignDelegationWithPolicy(c *C) {
 		signingKey:            delegatedAcctKey.(*asserts.AccountKey),
 		delegationConstraints: ad.(*asserts.AuthorityDelegation).MatchingConstraints(a1),
 	})
-
 }
 
 func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) {

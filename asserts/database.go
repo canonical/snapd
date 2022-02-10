@@ -446,12 +446,13 @@ func (db *Database) policy(pol AssertionPolicy) (AssertionPolicy, bool) {
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion, pol AssertionPolicy) error {
 	earliestTime, latestTime := db.earliestLatestTime()
+	pol, polOk := db.policy(pol)
 	roView := db.ROWithPolicy(pol)
 	signingKey, delegationConstraints, err := db.check(assert, roView, earliestTime, latestTime)
 	if err != nil {
 		return err
 	}
-	if pol, ok := db.policy(pol); ok {
+	if polOk {
 		return pol.Check(assert, signingKey, delegationConstraints, roView, earliestTime, latestTime)
 	}
 	return nil
