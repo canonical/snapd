@@ -360,7 +360,7 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **globs, size_t globs_len)
 {
 
-	const char *native_sources[] = {
+	static const char *native_sources[] = {
 		NATIVE_LIBDIR,
 		NATIVE_LIBDIR "/nvidia*",
 	};
@@ -369,7 +369,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **g
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	const char *lib32_sources[] = {
+	static const char *lib32_sources[] = {
 		LIB32_DIR,
 		LIB32_DIR "/nvidia*",
 	};

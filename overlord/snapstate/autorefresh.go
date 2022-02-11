@@ -48,8 +48,11 @@ const maxPostponement = 95 * 24 * time.Hour
 // buffer for maxPostponement when holding snaps with auto-refresh gating
 const maxPostponementBuffer = 5 * 24 * time.Hour
 
-// cannot inhibit refreshes for more than maxInhibition
-const maxInhibition = 14 * 24 * time.Hour
+// cannot inhibit refreshes for more than maxInhibition;
+// deduct 1s so it doesn't look confusing initially when two notifications
+// get displayed in short period of time and it immediately goes from "14 days"
+// to "13 days" left.
+const maxInhibition = 14*24*time.Hour - time.Second
 
 // hooks setup by devicestate
 var (

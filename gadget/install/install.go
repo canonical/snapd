@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
@@ -78,6 +79,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	logger.Noticef("        encryption: %v", options.EncryptionType)
 	if gadgetRoot == "" {
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
+	}
+
+	if model.Grade() == asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot run install mode on non-UC20+ system")
 	}
 
 	lv, _, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
@@ -204,7 +209,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 
 		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-			err = writeContent(&part, gadgetRoot, observer)
+			err = writeContent(&part, observer)
 		})
 		if err != nil {
 			return nil, err

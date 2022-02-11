@@ -31,11 +31,11 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -516,34 +516,18 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-type modelCharateristics struct {
-	classic    bool
-	systemSeed bool
-}
-
-func (m *modelCharateristics) Classic() bool {
-	return m.classic
-}
-
-func (m *modelCharateristics) Grade() asserts.ModelGrade {
-	if m.systemSeed {
-		return asserts.ModelSigned
-	}
-	return asserts.ModelGradeUnset
-}
-
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
 	// if model is nil, we allow a missing yaml
 	_, err := gadget.ReadInfo("bogus-path", nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo("bogus-path", &modelCharateristics{})
+	_, err = gadget.ReadInfo("bogus-path", &gadgettest.ModelCharacteristics{})
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOptional(c *C) {
 	// no meta/gadget.yaml
-	gi, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	gi, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Check(gi, NotNil)
 }
@@ -552,7 +536,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicEmptyIsValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{})
 }
@@ -561,7 +545,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlOnClassicOnylDefaultsIsValid(c *
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -598,7 +582,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetCoreDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	defaults := gadget.SystemDefaults(ginfo.Defaults)
 	c.Check(defaults, DeepEquals, map[string]interface{}{
@@ -612,7 +596,7 @@ func (s *gadgetYamlTestSuite) TestCoreConfigDefaults(c *C) {
 
 	err = ioutil.WriteFile(s.gadgetYamlPath, []byte(yaml), 0644)
 	c.Assert(err, IsNil)
-	ginfo, err = gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 
 	defaults = gadget.SystemDefaults(ginfo.Defaults)
@@ -638,7 +622,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetDefaultsMultiline(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockClassicGadgetMultilineDefaultsYaml, 0644)
 	c.Assert(err, IsNil)
 
-	ginfo, err := gadget.ReadInfo(s.dir, &modelCharateristics{classic: true})
+	ginfo, err := gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: true})
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
@@ -656,15 +640,15 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 }
 
 var (
-	classicMod = &modelCharateristics{
-		classic: true,
+	classicMod = &gadgettest.ModelCharacteristics{
+		IsClassic: true,
 	}
-	coreMod = &modelCharateristics{
-		classic: false,
+	coreMod = &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
-	uc20Mod = &modelCharateristics{
-		classic:    false,
-		systemSeed: true,
+	uc20Mod = &gadgettest.ModelCharacteristics{
+		IsClassic:  false,
+		SystemSeed: true,
 	}
 )
 
@@ -804,7 +788,7 @@ volumes:
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &modelCharateristics{classic: false})
+	_, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -812,7 +796,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfo(s.dir, &modelCharateristics{classic: false})
+	_, err = gadget.ReadInfo(s.dir, &gadgettest.ModelCharacteristics{IsClassic: false})
 	c.Assert(err, ErrorMatches, "bootloader not declared in any volume")
 }
 
@@ -958,8 +942,8 @@ func (s *gadgetYamlTestSuite) TestUnmarshalGadgetRelativeOffset(c *C) {
 
 var classicModelCharacteristics = []gadget.Model{
 	nil,
-	&modelCharateristics{classic: false, systemSeed: false},
-	&modelCharateristics{classic: true, systemSeed: false},
+	&gadgettest.ModelCharacteristics{IsClassic: false, SystemSeed: false},
+	&gadgettest.ModelCharacteristics{IsClassic: true, SystemSeed: false},
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlPCHappy(c *C) {
@@ -996,9 +980,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlLkUC20Happy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlLkUC20, 0644)
 	c.Assert(err, IsNil)
 
-	uc20Model := &modelCharateristics{
-		systemSeed: true,
-		classic:    false,
+	uc20Model := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
+		IsClassic:  false,
 	}
 
 	_, err = gadget.ReadInfo(s.dir, uc20Model)
@@ -1716,8 +1700,8 @@ volumes:
 
 	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(bloader), 0644)
 	c.Assert(err, IsNil)
-	mod := &modelCharateristics{
-		systemSeed: true,
+	mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
 	}
 
 	_, err = gadget.ReadInfoAndValidate(s.dir, mod, nil)
@@ -1728,8 +1712,8 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 
-	mod := &modelCharateristics{
-		classic: false,
+	mod := &gadgettest.ModelCharacteristics{
+		IsClassic: false,
 	}
 
 	giRead, err := gadget.ReadInfo(s.dir, mod)
@@ -2210,7 +2194,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileMissing(c *C) {
 	_, err = gadget.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelCharateristics{})
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{})
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
@@ -2247,7 +2231,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileNoVolumesSystemSeed(
 	snapf, err := snapfile.Open(snapPath)
 	c.Assert(err, IsNil)
 
-	_, err = gadget.ReadInfoFromSnapFile(snapf, &modelCharateristics{systemSeed: true})
+	_, err = gadget.ReadInfoFromSnapFile(snapf, &gadgettest.ModelCharacteristics{SystemSeed: true})
 	c.Check(err, ErrorMatches, "model requires system-seed partition, but no system-seed or system-data partition found")
 }
 
@@ -3042,9 +3026,9 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithUnspecifiedGadgetFilesy
 }
 
 func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithImplicitSystemData(c *C) {
-	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData, nil)
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
 	c.Assert(err, IsNil)
-	deviceLayout := uc16DeviceLayout
+	deviceLayout := gadgettest.UC16DeviceLayout
 
 	// with no/default opts, then they are not compatible
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
@@ -3127,109 +3111,12 @@ func (s *gadgetYamlTestSuite) TestIDCompatibility(c *C) {
 	c.Logf("-----")
 }
 
-func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
-	// example output from a real installed VM
-	m := map[string]gadget.DiskVolumeDeviceTraits{
-		"foo": {
-			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb",
-			OriginalKernelPath: "/dev/vdb",
-			DiskID:             "484B4BA1-3EDF-4270-A1A8-378FCBB0E1DE",
-			Size:               10 * quantity.SizeGiB,
-			SectorSize:         quantity.Size(512),
-			Schema:             "gpt",
-			Structure: []gadget.DiskStructureDeviceTraits{
-				// first structure is a bare structure with no filesystem
-				{
-					OriginalDevicePath: "/dev/vdb1",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb/vdb1",
-					PartitionUUID:      "C06F16ED-A587-4D0E-8EE4-2C3AE8BECE68",
-					PartitionLabel:     "nofspart",
-					PartitionType:      "EBBEADAF-22C9-E33B-8F5D-0E81686A68CB",
-					Offset:             0x100000,
-					Size:               0x1000,
-				},
-				// this one has a filesystem though
-				{
-					OriginalDevicePath: "/dev/vdb2",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb/vdb2",
-					PartitionUUID:      "48ECAEB8-8DD0-41BB-A7A8-5E12FC5985FD",
-					PartitionLabel:     "some-filesystem",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "f384e18c-56a3-458a-ac80-4cc29b3d69d9",
-					FilesystemLabel:    "some-filesystem",
-					FilesystemType:     "ext4",
-					Offset:             0x101000,
-					Size:               0x40000000,
-				},
-			},
-		},
-		"pc": {
-			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
-			OriginalKernelPath: "/dev/vda",
-			DiskID:             "46E2573B-7891-4316-B83C-DE0817A7CFB5",
-			Schema:             "gpt",
-			Structure: []gadget.DiskStructureDeviceTraits{
-				{
-					OriginalDevicePath: "/dev/vda1",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda1",
-					PartitionUUID:      "21EF798E-4AEE-4941-9AF4-7277437F752F",
-					PartitionLabel:     "BIOS\\x20Boot",
-					PartitionType:      "21686148-6449-6E6F-744E-656564454649",
-					Offset:             0x100000,
-					Size:               0x1b8,
-				},
-				{
-					OriginalDevicePath: "/dev/vda2",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda2",
-					PartitionUUID:      "F3C5B560-EF24-48A5-862B-361BCD180464",
-					PartitionLabel:     "ubuntu-seed",
-					PartitionType:      "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					FilesystemUUID:     "EC87-231A",
-					FilesystemLabel:    "ubuntu-seed",
-					FilesystemType:     "vfat",
-					Offset:             0x200000,
-					Size:               0x100000,
-				},
-				{
-					OriginalDevicePath: "/dev/vda3",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda3",
-					PartitionUUID:      "CEDA6CFC-B019-0F4F-9FCE-9A41FF1D444A",
-					PartitionLabel:     "ubuntu-boot",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "922f6d2b-520b-4213-8691-81ace98009ff",
-					FilesystemLabel:    "ubuntu-boot",
-					FilesystemType:     "ext4",
-					Offset:             0x4b200000,
-					Size:               0x4b000000,
-				},
-				{
-					OriginalDevicePath: "/dev/vda4",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda4",
-					PartitionUUID:      "902A51E4-7B50-EF4C-B3DF-4D2B1E73307B",
-					PartitionLabel:     "ubuntu-save",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "7a72b2be-753a-4ce5-ab71-189f4b832ff5",
-					FilesystemLabel:    "ubuntu-save",
-					FilesystemType:     "ext4",
-					Offset:             0x7a000000,
-					Size:               0x2ee00000,
-				},
-				{
-					OriginalDevicePath: "/dev/vda5",
-					OriginalKernelPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/vda5",
-					PartitionUUID:      "C1C2C91D-9C00-A045-9C8F-A8779BDA5E74",
-					PartitionLabel:     "ubuntu-data",
-					PartitionType:      "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					FilesystemUUID:     "b0a2e964-7bfc-4fbf-b48a-1fdca17b0539",
-					FilesystemLabel:    "ubuntu-data",
-					FilesystemType:     "ext4",
-					Offset:             0x7b000000,
-					Size:               0x1000000,
-				},
-			},
-		},
-	}
+var multipleUC20DisksDeviceTraitsMap = map[string]gadget.DiskVolumeDeviceTraits{
+	"foo": gadgettest.VMExtraVolumeDeviceTraits,
+	"pc":  gadgettest.VMSystemVolumeDeviceTraits,
+}
 
+func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	// when there is no mapping file, it is not an error, the map returned is
 	// just nil/has no items in it
 	mAbsent, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
@@ -3243,141 +3130,27 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	// /var/lib/snapd/device, but rather
 	// /run/mnt/ubuntu-data/system-data/var/lib/snapd/device so this takes a
 	// directory argument when we save it
-	err = gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDir, m)
+	err = gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDir, multipleUC20DisksDeviceTraitsMap)
 	c.Assert(err, IsNil)
 
 	// now that it was saved to dirs.SnapDeviceDir, we can load it correctly
 	m2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
 	c.Assert(err, IsNil)
 
-	c.Assert(m, DeepEquals, m2)
+	c.Assert(multipleUC20DisksDeviceTraitsMap, DeepEquals, m2)
 
-	// example output from a Raspi - write the JSON out manually so we can catch
+	// write out example output from a Raspi so we can catch
 	// regressions between JSON -> go object importing
-	const piJson = `
-{
-  "pi": {
-    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
-    "kernel-path": "/dev/mmcblk0",
-    "disk-id": "7c301cbd",
-    "size": 32010928128,
-    "sector-size": 512,
-    "schema": "dos",
-    "structure": [
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-        "kernel-path": "/dev/mmcblk0p1",
-        "partition-uuid": "7c301cbd-01",
-        "partition-label": "",
-        "partition-type": "0C",
-        "filesystem-label": "ubuntu-seed",
-        "filesystem-uuid": "0E09-0822",
-        "filesystem-type": "vfat",
-        "offset": 1048576,
-        "size": 1258291200
-      },
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-        "kernel-path": "/dev/mmcblk0p2",
-        "partition-uuid": "7c301cbd-02",
-        "partition-label": "",
-        "partition-type": "0C",
-        "filesystem-label": "ubuntu-boot",
-        "filesystem-uuid": "23F9-881F",
-        "filesystem-type": "vfat",
-        "offset": 1259339776,
-        "size": 786432000
-      },
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
-        "kernel-path": "/dev/mmcblk0p3",
-        "partition-uuid": "7c301cbd-03",
-        "partition-label": "",
-        "partition-type": "83",
-        "filesystem-label": "ubuntu-save",
-        "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710590",
-        "filesystem-type": "ext4",
-        "offset": 2045771776,
-        "size": 16777216
-      },
-      {
-        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
-        "kernel-path": "/dev/mmcblk0p4",
-        "partition-uuid": "7c301cbd-04",
-        "partition-label": "",
-        "partition-type": "83",
-        "filesystem-label": "ubuntu-data",
-        "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
-        "filesystem-type": "ext4",
-        "offset": 2062548992,
-        "size": 29948379136
-      }
-    ]
-  }
-}
-`
-
-	const oneMeg = 1024 * 1024
 
 	expPiMap := map[string]gadget.DiskVolumeDeviceTraits{
-		"pi": {
-			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
-			OriginalKernelPath: "/dev/mmcblk0",
-			DiskID:             "7c301cbd",
-			Size:               30528 * oneMeg, // ~ 32 GB SD card
-			SectorSize:         512,
-			Schema:             "dos",
-			Structure: []gadget.DiskStructureDeviceTraits{
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-					OriginalKernelPath: "/dev/mmcblk0p1",
-					PartitionUUID:      "7c301cbd-01",
-					PartitionType:      "0C",
-					FilesystemUUID:     "0E09-0822",
-					FilesystemLabel:    "ubuntu-seed",
-					FilesystemType:     "vfat",
-					Offset:             oneMeg,
-					Size:               (1200) * oneMeg,
-				},
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-					OriginalKernelPath: "/dev/mmcblk0p2",
-					PartitionUUID:      "7c301cbd-02",
-					PartitionType:      "0C",
-					FilesystemUUID:     "23F9-881F",
-					FilesystemLabel:    "ubuntu-boot",
-					FilesystemType:     "vfat",
-					Offset:             (1 + 1200) * oneMeg,
-					Size:               (750) * oneMeg,
-				},
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
-					OriginalKernelPath: "/dev/mmcblk0p3",
-					PartitionUUID:      "7c301cbd-03",
-					PartitionType:      "83",
-					FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
-					FilesystemType:     "ext4",
-					FilesystemLabel:    "ubuntu-save",
-					Offset:             (1 + 1200 + 750) * oneMeg,
-					Size:               16 * oneMeg,
-				},
-				{
-					OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
-					OriginalKernelPath: "/dev/mmcblk0p4",
-					PartitionUUID:      "7c301cbd-04",
-					PartitionType:      "83",
-					FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
-					FilesystemLabel:    "ubuntu-data",
-					FilesystemType:     "ext4",
-					Offset:             (1 + 1200 + 750 + 16) * oneMeg,
-					// total size - offset of last structure
-					Size: (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
-				},
-			},
-		},
+		"pi": gadgettest.ExpectedRaspiDiskVolumeDeviceTraits,
 	}
 
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"), []byte(piJson), 0644)
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON),
+		0644,
+	)
 	c.Assert(err, IsNil)
 
 	m3, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
@@ -3386,90 +3159,10 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(m3, DeepEquals, expPiMap)
 }
 
-// adapted from https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
-// but without the content
-const mockUC16YAMLImplicitSystemData = `volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: mbr
-        type: mbr
-        size: 440
-      - name: BIOS Boot
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        offset-write: mbr+92
-      - name: EFI System
-        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-        filesystem: vfat
-        filesystem-label: system-boot
-        size: 50M
-`
-
-// uc16 layout from a VM that has an implicit system-data as the third
-// partition
-var uc16DeviceLayout = gadget.OnDiskVolume{
-	Structure: []gadget.OnDiskStructure{
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name: "BIOS Boot",
-					Type: "21686148-6449-6E6F-744E-656564454649",
-					ID:   "b2e891ee-b971-4a2b-b874-694bbf9b821a",
-					Size: 1048576,
-				},
-				StartOffset: 1048576,
-			},
-			DiskIndex: 1,
-			Node:      "/dev/sda1",
-			Size:      1048576,
-		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "EFI System",
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					ID:         "a87e9dcb-b1e1-4eab-89cf-1c2fc057b038",
-					Label:      "system-boot",
-					Filesystem: "vfat",
-					Size:       52428800,
-				},
-				StartOffset: 2097152,
-			},
-			DiskIndex: 2,
-			Node:      "/dev/sda2",
-			Size:      52428800,
-		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "writable",
-					Type:       "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					ID:         "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
-					Label:      "writable",
-					Filesystem: "ext4",
-					Size:       10682875392,
-				},
-				StartOffset: 54525952,
-			},
-			DiskIndex: 3,
-			Node:      "/dev/sda3",
-			Size:      10682875392,
-		},
-	},
-	ID:               "2a9b0671-4597-433b-b3ad-be99950e8c5e",
-	Device:           "/dev/sda",
-	Schema:           "gpt",
-	Size:             10737418240,
-	UsableSectorsEnd: 20971487,
-	SectorSize:       512,
-}
-
 func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Implicit(c *C) {
-	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData, nil)
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
 	c.Assert(err, IsNil)
-	deviceLayout := uc16DeviceLayout
+	deviceLayout := gadgettest.UC16DeviceLayout
 
 	// bios boot is not implicit system-data
 	matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[0])
@@ -3538,9 +3231,9 @@ const explicitSystemData = `
 `
 
 func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Explicit(c *C) {
-	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC16YAMLImplicitSystemData+explicitSystemData, nil)
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData+explicitSystemData, nil)
 	c.Assert(err, IsNil)
-	deviceLayout := uc16DeviceLayout
+	deviceLayout := gadgettest.UC16DeviceLayout
 
 	// none of the structures are implicit because we have an explicit
 	// system-data role
@@ -3548,4 +3241,208 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 		matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, volStruct)
 		c.Assert(matches, Equals, false)
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsUnhappy(c *C) {
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	// don't setup the expected/needed symlinks in /dev
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, ErrorMatches, `cannot find disk for volume foo from gadget`)
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsHappy(c *C) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakedevicepart: gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"foo": gadgettest.MockExtraVolumeDeviceTraits,
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsTriesAllStructures(c *C) {
+	// make a symlink from the filesystem label to /dev/foo2 - note that in
+	// reality we would have a symlink for /dev/foo1, since that partition
+	// exists, but here we pretend that we for whatever reason don't find
+	// /dev/foo1 but we keep going and check /dev/foo2 and at that point
+	// everything matches up
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/foo2")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/some-filesystem"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakedevicepart: gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"foo": vol,
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"foo": gadgettest.MockExtraVolumeDeviceTraits,
+	})
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c *C) {
+	// make a symlink for the partition label for nofspart to /dev/vdb1
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fooVolDevicePart := filepath.Join(dirs.GlobalRootDir, "/dev/vdb1")
+	err = os.Symlink(fooVolDevicePart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/nofspart"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fooVolDevicePart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// make a symlink for the partition label for "BIOS Boot" to /dev/vda1
+	fakepcdevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakepcdevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakepcdevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device nodes going to a particular disks
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		fakepcdevicepart: gadgettest.VMSystemVolumeDiskMapping,
+		fooVolDevicePart: gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
+	}
+	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+		c.MkDir(),
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		mod,
+	)
+	c.Assert(err, IsNil)
+
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(vols, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, multipleUC20DisksDeviceTraitsMap)
+
+	// check that an expected json serialization still equals the map we
+	// constructed
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	traitsDeviceMap2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsDeviceMap2, DeepEquals, traitsMap)
+}
+
+func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsImplicitSystemDataHappy(c *C) {
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	biosBootPart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
+	err = os.Symlink(biosBootPart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(biosBootPart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the device name
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	// mock the partition device node going to a particular disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		biosBootPart: gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	vol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
+	c.Assert(err, IsNil)
+
+	m := map[string]*gadget.LaidOutVolume{
+		"pc": vol,
+	}
+
+	// the volume cannot be found with no opts set
+	_, err = gadget.AllDiskVolumeDeviceTraits(m, nil)
+	c.Assert(err, ErrorMatches, `cannot gather disk traits for device /dev/sda to use with volume pc: volume pc is not compatible with disk /dev/sda: cannot find disk partition /dev/sda3 \(starting at 54525952\) in gadget`)
+
+	// with opts for pc then it can be found
+	optsMap := map[string]*gadget.DiskVolumeValidationOptions{
+		"pc": {
+			AllowImplicitSystemData: true,
+		},
+	}
+	traitsMap, err := gadget.AllDiskVolumeDeviceTraits(m, optsMap)
+	c.Assert(err, IsNil)
+
+	c.Assert(traitsMap, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
+	})
 }

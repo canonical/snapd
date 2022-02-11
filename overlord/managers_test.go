@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -155,6 +156,11 @@ func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
 
 func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	// TODO: temporary: skip due to timeouts on riscv64
+	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow tests")
+	}
 
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
@@ -712,7 +718,13 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
+	// TODO: we need a variant of this test which disables the memory cgroup
+	// after installing the snap to ensure that the snap can be removed
+	// successfully when the memory cgroup is disabled
 	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
 	defer r()
 
 	st := s.o.State()
@@ -754,6 +766,64 @@ apps:
 	c.Assert(err, IsNil)
 }
 
+func (s *mgrsSuite) TestHappyRefreshWithQuotasInServiceUnitMaintained(c *C) {
+	// TODO: here we need a variant of this test which sets the memory cgroup
+	// as enabled here, and then disables it after installing the first revision
+	// before performing the refresh in order to catch a regression like what we
+	// had in https://github.com/snapcore/snapd/pull/11339
+
+	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
+	defer r()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+  daemon: simple
+`
+	si := s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
+
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
+	tr.Commit()
+
+	// add the snap to a quota group
+	ts, err := servicestate.CreateQuota(st, "grp", "", []string{"foo"}, quota.NewResources(quantity.SizeGiB))
+	c.Assert(err, IsNil)
+	quotaUpdateChg := st.NewChange("update-quota", "...")
+	quotaUpdateChg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// ensure that the service unit was written with the Slice=... setting
+	c.Assert(si.Apps["bar"].ServiceFile(), testutil.FileContains, "Slice=snap.grp.slice")
+
+	// now refresh the snap
+	s.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
+
+	// ensure that the snap service unit still has the Slice=... setting
+	c.Assert(si.Apps["bar"].ServiceFile(), testutil.FileContains, "Slice=snap.grp.slice")
+
+	// and also ensure that the snap is still referenced
+	// this is copied from servicestate/internal.AllQuotas, because
+	// servicestate.AllQuotas errors when the memory cgroup is disabled
+	var quotas map[string]*quota.Group
+	err = st.Get("quotas", &quotas)
+	c.Assert(err, IsNil)
+	c.Assert(quotas, HasLen, 1)
+	c.Assert(quotas["grp"].Snaps, DeepEquals, []string{"foo"})
+}
+
 func fakeSnapID(name string) string {
 	if id := naming.WellKnownSnapID(name); id != "" {
 		return id
@@ -776,6 +846,7 @@ const (
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
 	"snap-yaml": @SNAP_YAML@,
+        "base": @BASE@,
 	"summary": "Foo",
 	"description": "this is a description",
 	"version": "@VERSION@",
@@ -917,6 +988,11 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		hit = strings.Replace(hit, `@SNAP_YAML@`, string(rawInfoBuf), -1)
+		baseStr := "null"
+		if info.Base != "" {
+			baseStr = fmt.Sprintf("%q", info.Base)
+		}
+		hit = strings.Replace(hit, `@BASE@`, baseStr, -1)
 		return hit
 	}
 
@@ -7971,6 +8047,75 @@ func (s *mgrsSuite) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) {
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
 	i++
 	c.Check(i, Equals, len(tasks))
+}
+
+const prereqSnapYaml = `
+name: prereq
+version: 1.0
+base: prereq-base
+plugs:
+  prereq-content:
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: prereq-content
+`
+
+func (s *mgrsSuite) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "prereq",
+				"id":   fakeSnapID("prereq"),
+			},
+			// prepreq requires prereq-base and prereq-content
+		},
+		"revision": "1",
+	})
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "prereq",
+	})
+
+	snapPath, _ := s.makeStoreTestSnap(c, prereqSnapYaml, "1")
+	s.serveSnap(snapPath, "1")
+
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, ErrorMatches, `cannot remodel with incomplete model, the following snaps are required but not listed: "prereq-base", "prereq-content"`)
+	c.Assert(chg, IsNil)
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {

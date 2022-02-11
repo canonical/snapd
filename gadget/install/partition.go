@@ -125,7 +125,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		}
 	}
 
-	// The partition index
+	// The partition / disk index - note that it will start at 1, we increment
+	// it before we use it in the loop below
 	pIndex := 0
 
 	// Write new partition data in named-fields format
@@ -159,18 +160,20 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 
 		ptype := partitionType(dl.Schema, p.Type)
 
-		// Can we use the index here? Get the largest existing partition number and
-		// build from there could be safer if the disk partitions are not consecutive
-		// (can this actually happen in our images?)
+		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
+		ps := gadget.OnDiskStructure{
+			LaidOutStructure: p,
+			Node:             node,
+			DiskIndex:        pIndex,
+			Size:             quantity.Size(newSizeInSectors * sectorSize),
+		}
+
+		// format sfdisk input for creating this partition
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			startInSectors, newSizeInSectors, ptype, s.Name)
 
-		toBeCreated = append(toBeCreated, gadget.OnDiskStructure{
-			LaidOutStructure: p,
-			Node:             node,
-			Size:             quantity.Size(newSizeInSectors * sectorSize),
-		})
+		toBeCreated = append(toBeCreated, ps)
 	}
 
 	return buf, toBeCreated, nil

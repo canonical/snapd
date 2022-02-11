@@ -357,6 +357,12 @@ func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]
 
 	modifiedGrps := []*quota.Group{grp}
 
+	// ensure that the group we are modifying does not contain a mix of snaps and sub-groups
+	// as we no longer support this, and existing quota groups might have this
+	if err := ensureGroupIsNotMixed(action.QuotaName, allGrps); err != nil {
+		return nil, nil, err
+	}
+
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
 	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
@@ -595,7 +601,34 @@ func ensureSnapServicesStateForGroup(st *state.State, grp *quota.Group, opts *en
 	return restartSnapServices(st, nil, appsToRestartBySnap, nil)
 }
 
+func ensureGroupIsNotMixed(group string, allGrps map[string]*quota.Group) error {
+	grp, ok := allGrps[group]
+	if ok && len(grp.SubGroups) != 0 && len(grp.Snaps) != 0 {
+		return fmt.Errorf("quota group %q has mixed snaps and sub-groups, which is no longer supported; removal and re-creation is necessary to modify it", group)
+	}
+	return nil
+}
+
+// ensureGroupHasNoSubgroups returns true if the group has no sub-groups or it doesn't exist,
+// otherwise turns false.
+func ensureGroupHasNoSubgroups(group string, allGrps map[string]*quota.Group) bool {
+	grp, ok := allGrps[group]
+	if ok && len(grp.SubGroups) != 0 {
+		return false
+	}
+	return true
+}
+
 func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, allGrps map[string]*quota.Group) error {
+	// With the new quotas we don't support groups that have a mixture of snaps and
+	// subgroups, as this will cause issues with nesting. Groups/subgroups may now
+	// only consist of either snaps or subgroups.
+	if len(snaps) > 0 {
+		if !ensureGroupHasNoSubgroups(group, allGrps) {
+			return fmt.Errorf("cannot mix snaps and sub groups in the group %q", group)
+		}
+	}
+
 	for _, name := range snaps {
 		// validate that the snap exists
 		_, err := snapstate.CurrentInfo(st, name)

@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -47,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -514,9 +516,47 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 	return addExistingSnapTasks(st, ms.newSnap)
 }
 
+// collect all prerequisites of a given snap from its task set
+func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
+	for _, t := range ts.Tasks() {
+		// find the first task that carries snap setup
+		sup, err := snapstate.TaskSnapSetup(t)
+		if err != nil {
+			if err != state.ErrNoState {
+				return nil, err
+			}
+			// try the next one
+			continue
+		}
+		var prereqs []string
+		if sup.Base != "" {
+			prereqs = append(prereqs, sup.Base)
+		}
+		if len(sup.Prereq) > 0 {
+			prereqs = append(prereqs, sup.Prereq...)
+		}
+		return prereqs, nil
+	}
+	return nil, fmt.Errorf("internal error: cannot identify task-snap-setup in taskset")
+}
+
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
 	var tss []*state.TaskSet
+
+	snapsAccountedFor := make(map[string]bool)
+	neededSnaps := make(map[string]bool)
+
+	updateNeededSnapsFromTs := func(ts *state.TaskSet) error {
+		prereqs, err := prereqsFromSnapTaskSet(ts)
+		if err != nil {
+			return err
+		}
+		for _, p := range prereqs {
+			neededSnaps[p] = true
+		}
+		return nil
+	}
 
 	// kernel
 	kms := modelSnapsForRemodel{
@@ -533,6 +573,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	if ts != nil {
 		tss = append(tss, ts)
 	}
+	snapsAccountedFor[new.Kernel()] = true
 	// base
 	bms := modelSnapsForRemodel{
 		currentSnap:      current.Base(),
@@ -548,6 +589,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	if ts != nil {
 		tss = append(tss, ts)
 	}
+	snapsAccountedFor[new.Base()] = true
 	// gadget
 	gms := modelSnapsForRemodel{
 		currentSnap:      current.Gadget(),
@@ -562,7 +604,11 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	if ts != nil {
 		tss = append(tss, ts)
+		if err := updateNeededSnapsFromTs(ts); err != nil {
+			return nil, err
+		}
 	}
+	snapsAccountedFor[new.Gadget()] = true
 
 	// go through all the model snaps, see if there are new required snaps
 	// or a track for existing ones needs to be updated
@@ -584,9 +630,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if err != nil {
 			return nil, err
 		}
+		var ts *state.TaskSet
 		if needsInstall {
 			// If the snap is not installed we need to install it now.
-			ts, err := snapstateInstallWithDeviceContext(ctx, st, modelSnap.SnapName(),
+			ts, err = snapstateInstallWithDeviceContext(ctx, st, modelSnap.SnapName(),
 				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
 				userID,
 				snapstate.Flags{Required: true}, deviceCtx, fromChange)
@@ -603,7 +650,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				return nil, err
 			}
 			if changed {
-				ts, err := snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
+				ts, err = snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
 					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
 					userID, snapstate.Flags{NoReRefresh: true},
 					deviceCtx, fromChange)
@@ -613,12 +660,56 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				tss = append(tss, ts)
 			}
 		}
+		if currentInfo == nil {
+			// snap is not installed, we have a task set then
+			if err := updateNeededSnapsFromTs(ts); err != nil {
+				return nil, err
+			}
+		} else {
+			// snap is installed already, so we have 2 possible
+			// scenarios, one the snap will be updated, in which
+			// case we have a task set and should make sure that the
+			// prerequisites of the new revision are accounted for,
+			// or two, the snap revision is not being modified so
+			// grab whatever is required for the current revision
+			if ts != nil && ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) != nil {
+				// not a simple task snap-switch-channel, so
+				// take the prerequisites needed by the new
+				// revision we're updating to
+				if err := updateNeededSnapsFromTs(ts); err != nil {
+					return nil, err
+				}
+			} else {
+				if currentInfo.Base != "" {
+					neededSnaps[currentInfo.Base] = true
+				}
+				// deal with content providers
+				for defProvider := range snap.NeededDefaultProviders(currentInfo) {
+					neededSnaps[defProvider] = true
+				}
+			}
+		}
+		snapsAccountedFor[modelSnap.SnapName()] = true
 	}
-	// TODO: Validate that all bases and default-providers are part
-	//       of the install tasksets and error if not. If the
-	//       prereq task handler check starts adding installs into
-	//       our remodel change our carefully constructed wait chain
-	//       breaks down.
+	// Now we know what snaps are in the model and whether they have any
+	// dependencies. Verify that the model is self contained, in the sense
+	// that all prerequisites of the snaps in the model, i.e. bases and
+	// default content providers are explicitly listed in the model
+	var missingSnaps []string
+	for needed := range neededSnaps {
+		if !snapsAccountedFor[needed] {
+			missingSnaps = append(missingSnaps, needed)
+		}
+	}
+	if len(missingSnaps) != 0 {
+		sort.Strings(missingSnaps)
+		return nil, fmt.Errorf("cannot remodel with incomplete model, the following snaps are required but not listed: %s", strutil.Quoted(missingSnaps))
+	}
+
+	// TODO: fix the prerequisite task getting stuck during a remodel by
+	// making it a NOP, but ensure that the dependencies of new snaps are
+	// getting installed or updated if needed and are properly ordered wrt
+	// to the tasks that require them (eg. run-hooks)
 
 	// Keep track of downloads tasks carrying snap-setup which is needed for
 	// recovery system tasks
