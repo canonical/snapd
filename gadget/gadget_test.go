@@ -35,10 +35,12 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type gadgetYamlTestSuite struct {
@@ -3040,6 +3042,138 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithImplicitSystemData(c *C
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, opts)
 	c.Assert(err, IsNil)
+}
+
+var mockEncDeviceLayout = gadget.OnDiskVolume{
+	Structure: []gadget.OnDiskStructure{
+		// Note that the first ondisk structure we have is BIOS Boot, even
+		// though in reality the first ondisk structure is MBR, but the MBR
+		// doesn't actually show up in /dev at all, so we don't ever measure it
+		// as existing on the disk - the code and test accounts for the MBR
+		// structure not being present in the OnDiskVolume
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name: "BIOS Boot",
+					Size: 1 * quantity.SizeMiB,
+				},
+				StartOffset: 1 * quantity.OffsetMiB,
+			},
+			Node: "/dev/node1",
+		},
+		{
+			LaidOutStructure: gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Name:       "Writable",
+					Size:       1200 * quantity.SizeMiB,
+					Filesystem: "crypto_LUKS",
+					Label:      "Writable-enc",
+				},
+				StartOffset: 2 * quantity.OffsetMiB,
+			},
+			Node: "/dev/node2",
+		},
+	},
+	ID:         "anything",
+	Device:     "/dev/node",
+	Schema:     "gpt",
+	Size:       2 * quantity.SizeGiB,
+	SectorSize: 512,
+
+	// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+	// 1 sector to get the exclusive end
+	UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+}
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions(c *C) {
+	gadgetLayout, err := gadgettest.LayoutFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraStructure, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockEncDeviceLayout
+
+	mockLog, r := logger.MockLogger()
+	defer r()
+
+	// if we set the EncryptedPartitions and assume partitions are already
+	// created then they match
+	encOpts := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {
+				"method": gadget.EncryptionLUKS,
+				// unsupported keys are okay, they are just ignored with a msg
+				"foo": "bar",
+			},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
+	c.Assert(err, IsNil)
+
+	c.Assert(mockLog.String(), testutil.Contains, "ignoring unknown expected encryption structure parameter \"foo\"")
+
+	// but if the name of the partition does not match "-enc" then it is not
+	// valid
+	deviceLayout.Structure[1].Label = "Writable"
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but is not named Writable-enc`)
+
+	// the filesystem must also be reported as crypto_LUKS
+	deviceLayout.Structure[1].Label = "Writable-enc"
+	deviceLayout.Structure[1].Filesystem = "ext4"
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: partition Writable is expected to be encrypted but does not have an encrypted filesystem`)
+
+	deviceLayout.Structure[1].Filesystem = "crypto_LUKS"
+
+	// but without encrypted partition information and strict assumptions, they
+	// do not match due to differing filesystems
+	opts := &gadget.EnsureLayoutCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, opts)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: filesystems do not match: declared as ext4, got crypto_LUKS`)
+
+	// with less strict options however they match since this role is creatable
+	// at install
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, nil)
+	c.Assert(err, IsNil)
+
+	// unsupported encryption types
+	invalidEncOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {"method": gadget.EncryptionICE},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: Inline Crypto Engine encrypted partitions currently unsupported`)
+
+	invalidEncOptions = &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {"method": "other"},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: unsupported encrypted partition type "other"`)
+
+	// missing an encrypted partition from the gadget.yaml
+	missingEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {"method": gadget.EncryptionLUKS},
+			"missing":  {"method": gadget.EncryptionLUKS},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, missingEncStructureOptions)
+	c.Assert(err, ErrorMatches, `expected encrypted structure missing not present in gadget`)
+
+	// missing required method
+	invalidEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]map[string]string{
+			"Writable": {},
+		},
+	}
+	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncStructureOptions)
+	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: encrypted structure parameter missing required parameter "method"`)
 }
 
 func (s *gadgetYamlTestSuite) TestSchemaCompatibility(c *C) {

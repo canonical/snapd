@@ -214,6 +214,13 @@ type EnsureLayoutCompatibilityOptions struct {
 	// partition would be dynamically inserted into the image at image build
 	// time by ubuntu-image without being mentioned in the gadget.yaml.
 	AllowImplicitSystemData bool
+
+	// ExpectedStructureEncryption is a map of the structure name to information
+	// about the encrypted partitions that can be used to validate whether a
+	// given structure should be accepted as an encrypted partition.
+	// Current keys understood/matched are:
+	// * "method" -> type of encryption either "LUKS" or "ICE"
+	ExpectedStructureEncryption map[string]map[string]string
 }
 
 func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
@@ -258,9 +265,52 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		// size and offset, so the last thing to check is that the filesystem
 		// matches (or that we don't care about the filesystem).
 
-		// TODO: here we need to handle in the strict case partitions which are
-		// to be created at install and are encrypted like ubuntu-data as they
-		// will not match filesystems exactly and need some massaging
+		// first handle the strict case where this partition was created at
+		// install in case it is an encrypted one
+		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
+			// only partitions that are creatable at install can be encrypted,
+			// check if this partition was encrypted
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name]; ok {
+				// "method" is a required and expected key in the parameters map
+				encMethod, ok := encTypeParams["method"]
+				if !ok {
+					return false, "encrypted structure parameter missing required parameter \"method\""
+				}
+
+				// for now we don't handle any other keys, but in case they show
+				// up in the wild for debugging purposes log off the key name
+				for k := range encTypeParams {
+					if k != "method" {
+						logger.Noticef("ignoring unknown expected encryption structure parameter %q", k)
+					}
+
+				}
+
+				switch encMethod {
+				case EncryptionICE:
+					return false, "Inline Crypto Engine encrypted partitions currently unsupported"
+				case EncryptionLUKS:
+					// then this partition is expected to have been encrypted, the
+					// filesystem label on disk will need "-enc" appended
+					if dv.Label != gv.Name+"-enc" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
+					}
+
+					// the filesystem should also be "crypto_LUKS"
+					if dv.Filesystem != "crypto_LUKS" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gv.Name)
+					}
+
+					// at this point the partition matches
+					return true, ""
+				default:
+					return false, fmt.Sprintf("unsupported encrypted partition type %q", encMethod)
+				}
+			}
+
+			// for non-encrypted partitions that were created at install, the
+			// below logic still applies
+		}
 
 		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gv) {
 			// we assume that this partition has already been created
@@ -422,8 +472,35 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		return fmt.Errorf("cannot find gadget structure %s on disk", gs.String())
 	}
 
+	// finally ensure that all encrypted partitions mentioned in the options are
+	// present in the gadget.yaml (and thus will also need to have been present
+	// on the disk)
+	for gadgetLabel := range opts.ExpectedStructureEncryption {
+		found := false
+		for _, gs := range gadgetLayout.LaidOutStructure {
+			if gs.Name == gadgetLabel {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("expected encrypted structure %s not present in gadget", gadgetLabel)
+		}
+	}
+
 	return nil
 }
+
+const (
+	// values for the "method" key of encrypted structure information
+
+	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
+	// 2.0 in UC20+
+	EncryptionLUKS string = "LUKS"
+	// ICE stands for Inline Crypto Engine, used on specific (usually embedded)
+	// devices
+	EncryptionICE string = "ICE"
+)
 
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to
 // volume mapping for a specific disk/volume pair. It is closely related to the
@@ -433,6 +510,13 @@ type DiskVolumeValidationOptions struct {
 	// AllowImplicitSystemData has the same meaning as the eponymously named
 	// filed in EnsureLayoutCompatibilityOptions.
 	AllowImplicitSystemData bool
+	// ExpectedEncryptedPartitions is a map of the names (gadget structure
+	// names) of partitions that are encrypted on the volume and information
+	// about that encryption. For now, only the method of encryption is saved as
+	// the key "method". For now, the only structures we support encrypting are
+	// ubuntu-data and ubuntu-save, and the only supported "method" value is
+	// "LUKS".
+	ExpectedStructureEncryption map[string]map[string]string
 }
 
 // DiskTraitsFromDeviceAndValidate takes a laid out gadget volume and an
@@ -459,7 +543,8 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		AssumeCreatablePartitionsCreated: true,
 
 		// provide the other opts as we were provided
-		AllowImplicitSystemData: opts.AllowImplicitSystemData,
+		AllowImplicitSystemData:     opts.AllowImplicitSystemData,
+		ExpectedStructureEncryption: opts.ExpectedStructureEncryption,
 	}
 	if err := EnsureLayoutCompatibility(expLayout, diskLayout, ensureOpts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
@@ -576,13 +661,14 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 	}
 
 	return DiskVolumeDeviceTraits{
-		OriginalDevicePath: disk.KernelDevicePath(),
-		OriginalKernelPath: dev,
-		DiskID:             diskLayout.ID,
-		Structure:          mappedStructures,
-		Size:               diskLayout.Size,
-		SectorSize:         diskLayout.SectorSize,
-		Schema:             disk.Schema(),
+		OriginalDevicePath:  disk.KernelDevicePath(),
+		OriginalKernelPath:  dev,
+		DiskID:              diskLayout.ID,
+		Structure:           mappedStructures,
+		Size:                diskLayout.Size,
+		SectorSize:          diskLayout.SectorSize,
+		Schema:              disk.Schema(),
+		StructureEncryption: opts.ExpectedStructureEncryption,
 	}, nil
 }
 
