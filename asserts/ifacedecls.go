@@ -397,14 +397,14 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		}
 		target.setOnClassicConstraint(c)
 	}
-	if !detectDeviceScopeConstraint(cMap) {
+	dsc, err := compileDeviceScopeConstraint(cMap, context.String())
+	if err != nil {
+		return err
+	}
+	if dsc == nil {
 		defaultUsed++
 	} else {
-		c, err := compileDeviceScopeConstraint(cMap, context.String())
-		if err != nil {
-			return err
-		}
-		target.setDeviceScopeConstraint(c)
+		target.setDeviceScopeConstraint(dsc)
 	}
 	// checks whether defaults have been used for everything, which is not
 	// well-formed
