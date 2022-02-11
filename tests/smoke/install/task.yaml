@@ -46,7 +46,7 @@ execute: |
     echo "Ensure different bases work"
     for base in core18 core20 core22; do
         # no core20 or core22 snap for i386
-        if ([ "$base" = "core20" ] || [ "$base" = "core22" ]) && [ "$(uname -m)" = i686 ]; then
+        if { [ "$base" = "core20" ] || [ "$base" = "core22" ]; } && [ "$(uname -m)" = i686 ]; then
             continue
         fi
 
