@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -480,6 +481,38 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 0)
 		c.Assert(secbootAddRecoveryKeyCall, Equals, 0)
 	}
+
+	// check the disk-mapping.json that was written as well
+	mapping, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
+	c.Assert(err, IsNil)
+	expMapping := gadgettest.ExpectedRaspiDiskVolumeDeviceTraits
+	if opts.encryption {
+		expMapping = gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits
+	}
+	c.Assert(mapping, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pi": expMapping,
+	})
+
+	// also for extra paranoia, compare the object we load with manually loading
+	// the static JSON to make sure they compare the same, this ensures that
+	// the JSON that is written always stays compatible
+	jsonBytes := []byte(gadgettest.ExpectedRaspiDiskVolumeDeviceTraitsJSON)
+	if opts.encryption {
+		jsonBytes = []byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON)
+	}
+
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "disk-mapping.json"),
+		jsonBytes,
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
+	c.Assert(err, IsNil)
+
+	c.Assert(mapping2, DeepEquals, mapping)
+
 }
 
 const mockGadgetYaml = `volumes:

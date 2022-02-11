@@ -147,7 +147,7 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
-    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 | MATCH "panic: gadget and ${LOOP} partition table not compatible: cannot find gadget structure #6 \(\"Other ext4\"\) on disk"
+    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP" 2>&1 | MATCH "panic: gadget and system-boot device ${LOOP} partition table not compatible: cannot find gadget structure #6 \(\"Other ext4\"\) on disk"
 
     # replace the gadget.yaml without the extra partition
     cp gadget.yaml.backup gadget-dir/meta/gadget.yaml
