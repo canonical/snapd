@@ -125,6 +125,27 @@ func (iface *sharedMemoryInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	privateAttr, isSet := slot.Attrs["private"]
+	private, ok := privateAttr.(bool)
+	if isSet && !ok {
+		return fmt.Errorf(`shared-memory "private" attribute must be a bool, not %v`, privateAttr)
+	}
+	if slot.Attrs == nil {
+		slot.Attrs = make(map[string]interface{})
+	}
+	slot.Attrs["private"] = private
+
+	if slot.Snap.Type() == snap.TypeOS || slot.Snap.Type() == snap.TypeSnapd {
+		// The implicit system:shared-memory slot is for
+		// connection of private shm plugs.
+		slot.Attrs["private"] = true
+		return nil
+	} else {
+		if private {
+			return fmt.Errorf(`shared-memory slot cannot use "private: true"`)
+		}
+	}
+
 	sharedMemoryAttr, isSet := slot.Attrs["shared-memory"]
 	sharedMemory, ok := sharedMemoryAttr.(string)
 	if isSet && !ok {
@@ -132,9 +153,6 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 			slot.Attrs["shared-memory"])
 	}
 	if sharedMemory == "" {
-		if slot.Attrs == nil {
-			slot.Attrs = make(map[string]interface{})
-		}
 		// shared-memory defaults to "slot" name if unspecified
 		slot.Attrs["shared-memory"] = slot.Name
 	}
@@ -198,18 +216,31 @@ func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
 }
 
 func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	privateAttr, isSet := plug.Attrs["private"]
+	private, ok := privateAttr.(bool)
+	if isSet && !ok {
+		return fmt.Errorf(`shared-memory "private" attribute must be a bool, not %v`, privateAttr)
+	}
+	if plug.Attrs == nil {
+		plug.Attrs = make(map[string]interface{})
+	}
+	plug.Attrs["private"] = private
+
 	sharedMemoryAttr, isSet := plug.Attrs["shared-memory"]
 	sharedMemory, ok := sharedMemoryAttr.(string)
 	if isSet && !ok {
 		return fmt.Errorf(`shared-memory "shared-memory" attribute must be a string, not %v`,
 			plug.Attrs["shared-memory"])
 	}
-	if sharedMemory == "" {
-		if plug.Attrs == nil {
-			plug.Attrs = make(map[string]interface{})
+	if private {
+		if isSet {
+			return fmt.Errorf(`shared-memory "shared-memory" attribute must not be set together with "private: true"`)
 		}
-		// shared-memory defaults to "plug" name if unspecified
-		plug.Attrs["shared-memory"] = plug.Name
+	} else {
+		if sharedMemory == "" {
+			// shared-memory defaults to "plug" name if unspecified
+			plug.Attrs["shared-memory"] = plug.Name
+		}
 	}
 
 	return nil

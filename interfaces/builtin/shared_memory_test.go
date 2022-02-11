@@ -122,6 +122,14 @@ apps:
 			"shared-memory: [one two]",
 			`shared-memory "shared-memory" attribute must be a string, not \[one two\]`,
 		},
+		{
+			"private: hello",
+			`shared-memory "private" attribute must be a bool, not hello`,
+		},
+		{
+			"private: true\n  shared-memory: foo",
+			`shared-memory "shared-memory" attribute must not be set together with "private: true"`,
+		},
 	}
 
 	for _, testData := range data {
@@ -130,6 +138,25 @@ apps:
 		err := interfaces.BeforePreparePlug(s.iface, plug)
 		c.Check(err, ErrorMatches, testData.expectedError, Commentf("yaml: %s", testData.plugYaml))
 	}
+}
+
+func (s *SharedMemoryInterfaceSuite) TestPlugPrivateAttribute(c *C) {
+	const snapYaml = `name: consumer
+version: 0
+plugs:
+ shmem:
+  interface: shared-memory
+  private: true
+apps:
+ app:
+  plugs: [shmem]
+`
+
+	_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
+	err := interfaces.BeforePreparePlug(s.iface, plug)
+	c.Assert(err, IsNil)
+	c.Check(plug.Attrs["private"], Equals, true)
+	c.Check(plug.Attrs["shared-memory"], Equals, nil)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestPlugShmAttribute(c *C) {
@@ -163,6 +190,8 @@ apps:
 		_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
 		err := interfaces.BeforePreparePlug(s.iface, plug)
 		c.Assert(err, IsNil)
+		c.Check(plug.Attrs["private"], Equals, false,
+			Commentf(`yaml: %q`, testData.plugYaml))
 		c.Check(plug.Attrs["shared-memory"], Equals, testData.expectedName,
 			Commentf(`yaml: %q`, testData.plugYaml))
 	}
@@ -240,6 +269,14 @@ apps:
 			"read: [valid]\n  write: [../invalid]",
 			`shared-memory interface path should not contain '/': "../invalid"`,
 		},
+		{
+			"private: true",
+			`shared-memory slot cannot use "private: true"`,
+		},
+		{
+			"private: hello",
+			`shared-memory "private" attribute must be a bool, not hello`,
+		},
 	}
 
 	for _, testData := range data {
@@ -282,9 +319,26 @@ apps:
 		_, slot := MockConnectedSlot(c, snapYaml, nil, "shmem")
 		err := interfaces.BeforePrepareSlot(s.iface, slot)
 		c.Assert(err, IsNil)
+		c.Check(slot.Attrs["private"], Equals, false)
 		c.Check(slot.Attrs["shared-memory"], Equals, testData.expectedName,
 			Commentf(`yaml: %q`, testData.slotYaml))
 	}
+}
+
+func (s *SharedMemoryInterfaceSuite) TestSlotSystem(c *C) {
+	const snapYaml = `name: consumer
+version: 0
+type: os
+slots:
+ shmem:
+  interface: shared-memory
+`
+
+	_, slot := MockConnectedSlot(c, snapYaml, nil, "shmem")
+	err := interfaces.BeforePrepareSlot(s.iface, slot)
+	c.Assert(err, IsNil)
+	c.Check(slot.Attrs["private"], Equals, true)
+	c.Check(slot.Attrs["shared-memory"], Equals, nil)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestStaticInfo(c *C) {
