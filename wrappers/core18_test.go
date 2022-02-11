@@ -230,19 +230,7 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCorePreseeding(c *C) {
 	dirs.SetRootDir(s.tempdir)
 
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		s.sysdLog = append(s.sysdLog, cmd)
-		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
-			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
-			return []byte(s), nil
-		}
-		if len(cmd) == 2 && cmd[0] == "is-enabled" {
-			// pretend snapd.socket is disabled
-			if cmd[1] == "snapd.socket" {
-				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
-			}
-			return []byte("enabled"), nil
-		}
-		return []byte("ActiveState=inactive\n"), nil
+		return nil, fmt.Errorf("not expected")
 	})
 	defer systemctlRestorer()
 
