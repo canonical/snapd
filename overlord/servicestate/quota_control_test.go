@@ -972,14 +972,14 @@ devices	10	135	1`)
 	servicestate.SetCGroupsFilePath(cgroupsPath)
 
 	// check if all operations fail with the expected error message
-	errExpected := `cannot retrieve quota information, memory cgroup is disabled on this system`
+	errExpected := `memory cgroup is disabled on this system`
 	_, err = servicestate.AllQuotasForDaemon(s.state)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.GetQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
@@ -987,7 +987,7 @@ devices	10	135	1`)
 
 	_, err = servicestate.RemoveQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot remove quota: "+errExpected)
 
 	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
@@ -1057,11 +1057,11 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
 	errExpected := fmt.Sprintf(`cannot open cgroups file: open %v: no such file or directory`, cgroupsPath)
 	_, err := servicestate.AllQuotasForDaemon(s.state)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.GetQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
@@ -1069,7 +1069,7 @@ func (s *quotaControlSuite) TestMemoryCGroupMissingFile(c *C) {
 
 	_, err = servicestate.RemoveQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot remove quota: "+errExpected)
 
 	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
@@ -1105,11 +1105,11 @@ devices	10	135`)
 	errExpected := `cannot parse memory control group configuration`
 	_, err = servicestate.AllQuotasForDaemon(s.state)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.GetQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
@@ -1117,7 +1117,7 @@ devices	10	135`)
 
 	_, err = servicestate.RemoveQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot remove quota: "+errExpected)
 
 	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)
@@ -1151,11 +1151,11 @@ devices	10	135	1`)
 	errExpected := `cannot retrieve memory cgroup configuration, it is not available in the kernel config`
 	_, err = servicestate.AllQuotasForDaemon(s.state)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.GetQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot retrieve quota information: "+errExpected)
 
 	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quota.NewResources(2*quantity.SizeGiB))
 	c.Assert(err, NotNil)
@@ -1163,7 +1163,7 @@ devices	10	135	1`)
 
 	_, err = servicestate.RemoveQuota(s.state, "foo")
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches, errExpected)
+	c.Assert(err, ErrorMatches, "cannot remove quota: "+errExpected)
 
 	_, err = servicestate.UpdateQuota(s.state, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quota.NewResources(2 * quantity.SizeGiB)})
 	c.Assert(err, NotNil)

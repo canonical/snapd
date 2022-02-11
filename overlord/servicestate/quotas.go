@@ -21,6 +21,7 @@ package servicestate
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
@@ -34,7 +35,7 @@ var ErrQuotaNotFound = errors.New("quota not found")
 // API request should only succeed if the cgroups are enabled in the system
 func AllQuotasForDaemon(st *state.State) (map[string]*quota.Group, error) {
 	if memoryCGroupError != nil {
-		return nil, memoryCGroupError
+		return nil, fmt.Errorf("cannot retrieve quota information: %v", memoryCGroupError)
 	}
 	return internal.AllQuotas(st)
 }
@@ -48,7 +49,7 @@ func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
 // GetQuota returns an individual quota group by name.
 func GetQuota(st *state.State, name string) (*quota.Group, error) {
 	if memoryCGroupError != nil {
-		return nil, memoryCGroupError
+		return nil, fmt.Errorf("cannot retrieve quota information: %v", memoryCGroupError)
 	}
 
 	allGrps, err := internal.AllQuotas(st)

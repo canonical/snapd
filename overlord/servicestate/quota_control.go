@@ -51,6 +51,7 @@ func checkSystemdVersion() {
 
 func init() {
 	EnsureQuotaUsability()
+	setMemoryCGroupStatus()
 }
 
 // EnsureQuotaUsability is exported for unit tests from other packages to re-run
@@ -67,14 +68,14 @@ func EnsureQuotaUsability() (restore func()) {
 	}
 }
 
-func checkMemoryCGroupEnabled() {
-	memoryCGroupError = memoryCGroupEnabled()
+func setMemoryCGroupStatus() {
+	memoryCGroupError = checkMemoryCGroup()
 }
 
 // added to enable path update for testing purposes
 func SetCGroupsFilePath(path string) {
 	CGroupsFilePath = path
-	checkMemoryCGroupEnabled()
+	setMemoryCGroupStatus()
 }
 
 // since the control groups can be enabled/disabled without the kernel config the only
@@ -83,7 +84,7 @@ func SetCGroupsFilePath(path string) {
 // and the 3rd parameter is the status
 // 0 => false => disabled
 // 1 => true => enabled
-func memoryCGroupEnabled() error {
+func checkMemoryCGroup() error {
 	cgroupsFile, err := os.Open(CGroupsFilePath)
 	if err != nil {
 		return fmt.Errorf("cannot open cgroups file: %v", err)
@@ -95,15 +96,15 @@ func memoryCGroupEnabled() error {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "memory\t") {
 			memoryCgroupValues := strings.Fields(line)
-			if len(memoryCgroupValues) >= 4 { // assuming any increase in size will lead to values added to the end
-				isMemoryEnabled := memoryCgroupValues[3] == "1"
-				if !isMemoryEnabled {
-					return fmt.Errorf("cannot retrieve quota information, memory cgroup is disabled on this system")
-				}
-				return nil
+			if len(memoryCgroupValues) < 4 {
+				// change in size, should investigate the new structure
+				return fmt.Errorf("cannot parse memory control group configuration")
 			}
-			// change in size, should investigate the new structure
-			return fmt.Errorf("cannot parse memory control group configuration")
+			isMemoryEnabled := memoryCgroupValues[3] == "1"
+			if !isMemoryEnabled {
+				return fmt.Errorf("memory cgroup is disabled on this system")
+			}
+			return nil
 		}
 	}
 
@@ -198,7 +199,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 // support removing parent quotas, but probably it makes sense to allow that too
 func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 	if memoryCGroupError != nil {
-		return nil, memoryCGroupError
+		return nil, fmt.Errorf("cannot remove quota: %v", memoryCGroupError)
 	}
 
 	if snapdenv.Preseeding() {

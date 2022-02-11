@@ -11050,13 +11050,6 @@ apps:
 	c.Assert(err, IsNil)
 
 	// enable the available cgroups just in case
-	/*
-		memoryCGroupFile := servicestate.CGroupsFilePath
-		defer func() {
-			servicestate.SetCGroupsFilePath(memoryCGroupFile)
-		}()
-	*/
-
 	cgroupsPath = dirs.GlobalRootDir + "/proc/cgroups"
 	cgroupsFile, err = os.Create(cgroupsPath)
 	c.Assert(err, IsNil)
