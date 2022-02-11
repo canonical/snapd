@@ -82,7 +82,7 @@ execute: |
       fi
 
       # and we get the expected error message
-      snap quota grp 2>&1 | MATCH "error: memory usage unavailable"
+      snap quota grp 2>&1 | MATCH "error: cannot retrieve quota information: memory cgroup is disabled on this system"
 
       # make sure our snap still has the Slice setting
       MATCH Slice=snap.grp.slice < "$SVC_UNIT"
