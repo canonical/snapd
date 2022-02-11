@@ -21,12 +21,15 @@ package builtin_test
 
 import (
 	"fmt"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -43,6 +46,10 @@ type SharedMemoryInterfaceSuite struct {
 	wildcardPlug     *interfaces.ConnectedPlug
 	wildcardSlotInfo *snap.SlotInfo
 	wildcardSlot     *interfaces.ConnectedSlot
+	privatePlugInfo  *snap.PlugInfo
+	privatePlug      *interfaces.ConnectedPlug
+	privateSlotInfo  *snap.SlotInfo
+	privateSlot      *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&SharedMemoryInterfaceSuite{
@@ -55,9 +62,14 @@ plugs:
  shmem:
   interface: shared-memory
   shared-memory: foo
+  private: false
  shmem-wildcard:
   interface: shared-memory
   shared-memory: foo-wildcard
+  private: false
+ shmem-private:
+  interrface: shared-memory
+  private: true
 apps:
  app:
   plugs: [shmem]
@@ -71,14 +83,27 @@ slots:
   shared-memory: foo
   write: [ bar ]
   read: [ bar-ro ]
+  private: false
  shmem-wildcard:
   interface: shared-memory
   shared-memory: foo-wildcard
   write: [ bar* ]
   read: [ bar-ro* ]
+  private: false
 apps:
  app:
   slots: [shmem]
+`
+
+const sharedMemoryCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  shared-memory:
+    interface: shared-memory
+    private: true
+apps:
+ app:
 `
 
 func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
@@ -89,6 +114,9 @@ func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
 
 	s.wildcardPlug, s.wildcardPlugInfo = MockConnectedPlug(c, sharedMemoryConsumerYaml, nil, "shmem-wildcard")
 	s.wildcardSlot, s.wildcardSlotInfo = MockConnectedSlot(c, sharedMemoryProviderYaml, nil, "shmem-wildcard")
+
+	s.privatePlug, s.privatePlugInfo = MockConnectedPlug(c, sharedMemoryConsumerYaml, nil, "shmem-private")
+	s.privateSlot, s.privateSlotInfo = MockConnectedSlot(c, sharedMemoryCoreYaml, nil, "shared-memory")
 }
 
 func (s *SharedMemoryInterfaceSuite) TestName(c *C) {
@@ -354,7 +382,7 @@ apps:
 }
 
 func (s *SharedMemoryInterfaceSuite) TestSlotSystem(c *C) {
-	const snapYaml = `name: consumer
+	const snapYaml = `name: core
 version: 0
 type: os
 slots:
@@ -371,8 +399,8 @@ slots:
 
 func (s *SharedMemoryInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, false)
-	c.Check(si.ImplicitOnClassic, Equals, false)
+	c.Check(si.ImplicitOnCore, Equals, true)
+	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, `allows two snaps to use predefined shared memory objects`)
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "shared-memory")
 }
@@ -410,6 +438,38 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	// Slot has read-write permissions to all paths
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" rwk,`)
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" rwk,`)
+
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	privatePlugSnippet := spec.SnippetForTag("snap.consumer.app")
+	privateUpdateNS := spec.UpdateNS()
+
+	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
+
+	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/*" mrwlkix`)
+	c.Check(privateSlotSnippet, Equals, "")
+	c.Check(strings.Join(privateUpdateNS, ""), Equals, `  # Private /dev/shm
+  mount options=(bind, rw) /dev/shm/snap.consumer/ -> /dev/shm/,
+  umount /dev/shm/,`)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
+	// No mount entries for non-private shared-memory plugs
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.MountEntries(), HasLen, 0)
+
+	spec = &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	mounts := []osutil.MountEntry{
+		{
+			Name:    "/dev/shm/snap.consumer",
+			Dir:     "/dev/shm",
+			Options: []string{"bind", "rw"},
+		},
+	}
+	c.Check(spec.MountEntries(), DeepEquals, mounts)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {

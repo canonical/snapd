@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -43,6 +45,7 @@ const sharedMemoryBaseDeclarationPlugs = `
     allow-connection:
       slot-attributes:
         shared-memory: $PLUG(shared-memory)
+        private: $PLUG(private)
     allow-auto-connection:
       slot-publisher-id:
         - $PLUG_PUBLISHER_ID
@@ -55,9 +58,16 @@ const sharedMemoryBaseDeclarationPlugs = `
 // application or gadget snaps to use the slot much like the content interface.
 const sharedMemoryBaseDeclarationSlots = `
   shared-memory:
-    allow-installation: false
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-connection: true
     deny-auto-connection: true
+`
+
+const sharedMemoryPrivateConnectedPlugAppArmor = `
+# Description: Allow access to everything in private /dev/shm
+"/dev/shm/*" mrwlkix,
 `
 
 func validateSharedMemoryPath(path string) error {
@@ -121,6 +131,8 @@ func (iface *sharedMemoryInterface) StaticInfo() interfaces.StaticInfo {
 		BaseDeclarationPlugs: sharedMemoryBaseDeclarationPlugs,
 		BaseDeclarationSlots: sharedMemoryBaseDeclarationSlots,
 		AffectsPlugOnRefresh: true,
+		ImplicitOnCore:       true,
+		ImplicitOnClassic:    true,
 	}
 }
 
@@ -258,18 +270,49 @@ func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 	return nil
 }
 
+func (iface *sharedMemoryInterface) isPrivate(attrer interfaces.Attrer) bool {
+	var private bool
+	if err := attrer.Attr("private", &private); err == nil {
+		return private
+	}
+	panic("plug or slot is not sanitized")
+}
+
 func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	sharedMemorySnippet := &bytes.Buffer{}
-	writeSharedMemoryPaths(sharedMemorySnippet, slot, snippetForPlug)
-	spec.AddSnippet(sharedMemorySnippet.String())
+	if iface.isPrivate(plug) {
+		spec.AddSnippet(sharedMemoryPrivateConnectedPlugAppArmor)
+		spec.AddUpdateNSf(`  # Private /dev/shm
+  mount options=(bind, rw) /dev/shm/snap.%s/ -> /dev/shm/,
+  umount /dev/shm/,`, plug.Snap().InstanceName())
+	} else {
+		sharedMemorySnippet := &bytes.Buffer{}
+		writeSharedMemoryPaths(sharedMemorySnippet, slot, snippetForPlug)
+		spec.AddSnippet(sharedMemorySnippet.String())
+	}
 	return nil
 }
 
 func (iface *sharedMemoryInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if iface.isPrivate(slot) {
+		return nil
+	}
+
 	sharedMemorySnippet := &bytes.Buffer{}
 	writeSharedMemoryPaths(sharedMemorySnippet, slot, snippetForSlot)
 	spec.AddSnippet(sharedMemorySnippet.String())
 	return nil
+}
+
+func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if !iface.isPrivate(plug) {
+		return nil
+	}
+
+	return spec.AddMountEntry(osutil.MountEntry{
+		Name:    fmt.Sprintf("/dev/shm/snap.%s", plug.Snap().InstanceName()),
+		Dir:     "/dev/shm",
+		Options: []string{"bind", "rw"},
+	})
 }
 
 func (iface *sharedMemoryInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
