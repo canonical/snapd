@@ -24,17 +24,25 @@ execute: |
   echo "Starting service and verifying cpu usage"
   snap start test-snapd-stressd.stress-sc
 
-  echo "Wait for a second to cpu usage to stabilize"
-  sleep 1
+  # helper function that has retry logic to allow for cpu usage to stabilize
+  function ensure_cpu_usage_higher_than {
+    n=0
+    until [ "$n" -ge 5 ]
+    do
+      usage=$(top -b -n 2 -d 0.2 | head | grep "$1" | awk '{print $9*100}')
+      if [ "$usage" -gt "$2" ]; then
+        return 0
+      fi
+      n=$((n+1))
+      sleep 1
+    done
 
-  echo "Verifying cpu usage, expecting atleast above 90%"
-  # Bash cannot handle floating point numbers, so we multiple by 100 and use
-  # integer numbers instead
-  initialUsage=$(top -b -n 2 -d 0.2 | head | grep "stress" | awk '{print $9*100}')
-  if [ "$initialUsage" -lt 9000 ]; then
-    echo "Expected cpu usage to be atleast above 90%, got $initialUsage"
+    echo "Expected cpu usage to be minimum $2%, got $usage"
     exit 1
-  fi
+  }
+  
+  echo "Verifying cpu usage, expecting atleast above 90%"
+  ensure_cpu_usage_higher_than "stress" 9000
 
   echo "Create a group with a snap in it"
   snap set-quota group-one --cpu=2x25% test-snapd-stressd
@@ -115,11 +123,7 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
   echo "Verifying cpu usage, expecting atleast above 90% again"
-  currentUsage=$(top -b -n 2 -d 5.0 | head | grep "stress" | awk '{print $9*100}')
-  if [ "$currentUsage" -lt 9000 ]; then
-    echo "Expected cpu usage to be atleast above 90%, got $currentUsage"
-    exit 1
-  fi
+  ensure_cpu_usage_higher_than "stress" 9000
 
   echo "Stopping the service"
   snap stop test-snapd-stressd.stress-sc
