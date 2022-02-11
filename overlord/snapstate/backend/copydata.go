@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -206,10 +207,18 @@ func (b Backend) UndoHideSnapData(snapName string) error {
 		exposedSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, nil)
 		if err := osutil.AtomicRename(hiddenSnapDir, exposedSnapDir); err != nil {
 			handle(fmt.Errorf("cannot move %q to %q: %w", hiddenSnapDir, exposedSnapDir, err))
+			continue
 		}
 
 		// remove ~/.snap/data dir if empty
 		hiddenDir := snap.SnapDir(usr.HomeDir, hiddenDirOpts)
+		if err := removeIfEmpty(hiddenDir); err != nil {
+			handle(fmt.Errorf("cannot remove dir %q: %w", hiddenDir, err))
+			continue
+		}
+
+		// remove ~/.snap dir if empty
+		hiddenDir = filepath.Dir(hiddenDir)
 		if err := removeIfEmpty(hiddenDir); err != nil {
 			handle(fmt.Errorf("cannot remove dir %q: %w", hiddenDir, err))
 		}

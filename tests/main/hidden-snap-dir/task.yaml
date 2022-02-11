@@ -90,7 +90,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     echo "Check snap user data was moved back"
-    not test -d "$HOME"/.snap/data/"$NAME"
+    not test -d "$HOME"/.snap/data
     test -d "$HOME"/snap/"$NAME"
 
     MATCH "common" < "$HOME"/snap/"$NAME"/common/common
