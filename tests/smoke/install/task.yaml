@@ -44,9 +44,9 @@ execute: |
     snap changes | MATCH 'Install "test-snapd-sh" snap'
 
     echo "Ensure different bases work"
-    for base in core18 core20; do
-        # no core20 snap for i386
-        if [ "$base" = "core20" ] && [ "$(uname -m)" = i686 ]; then
+    for base in core18 core20 core22; do
+        # no core20 or core22 snap for i386
+        if ([ "$base" = "core20" ] || [ "$base" = "core22" ]) && [ "$(uname -m)" = i686 ]; then
             continue
         fi
 
