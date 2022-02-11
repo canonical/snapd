@@ -56,9 +56,8 @@ ensure_jq() {
         snap install --devmode --edge jq-core20
         snap alias jq-core20.jq jq
     elif os.query is-core22; then
-        # TODO core22 snap of jq needs to be made
-        snap install --devmode --edge jq-core20
-        snap alias jq-core20.jq jq
+        snap install --devmode --edge jq-core22
+        snap alias jq-core22.jq jq
     else
         snap install --devmode jq
     fi
@@ -81,6 +80,7 @@ disable_refreshes() {
     snap remove --purge jq
     snap remove --purge jq-core18
     snap remove --purge jq-core20
+    snap remove --purge jq-core22
 }
 
 setup_systemd_snapd_overrides() {
@@ -1300,6 +1300,9 @@ prepare_ubuntu_core() {
         fi
         if os.query is-core22; then
             # TODO core22 version of sh
+            # there exists a core22 of this snap in --edge
+            # but have to change logic of cache_snaps to use
+            # edge instead, so we are waiting a bit
             cache_snaps test-snapd-sh-core20
         fi
     fi
