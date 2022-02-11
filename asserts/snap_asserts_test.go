@@ -1086,6 +1086,10 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
 
 	err = db.Check(snapRev, nil)
 	c.Check(err, ErrorMatches, `delegated snap-revision assertion from "canonical" to "other" timestamp ".*" is outside of all supporting delegation constraints validity`)
+
+	_, err = db.DelegationConstraints(snapRev)
+	c.Check(err, ErrorMatches, `delegated snap-revision assertion from "canonical" to "other" timestamp ".*" is outside of all supporting delegation constraints validity`)
+
 }
 
 func (srs *snapRevSuite) TestPrimaryKey(c *C) {

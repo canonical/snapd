@@ -220,6 +220,13 @@ type RODatabaseView interface {
 	// FindSigningKey finds the signing account-key for the given assertion.
 	// It fails for assertions without authority-id.
 	FindSigningKey(assert Assertion) (*AccountKey, error)
+	// DelegationConstraints returns matching assertion constraints
+	// for the given assertion if this was delegated. It wil fail
+	// if assert is delegated and there are no matching assertion
+	// constraints. If assert has a timestamp only assertion
+	// constraints that cover the timestamp will be considered
+	// matching.
+	DelegationConstraints(assert Assertion) ([]*AssertionConstraints, error)
 }
 
 // AssertionPolicy can express local/site-specific assertion validation
@@ -425,6 +432,38 @@ func (db *Database) FindSigningKey(assert Assertion) (*AccountKey, error) {
 		return nil, fmt.Errorf("cannot find signing key for no-authority assertion type %q", typ.Name)
 	}
 	return db.findAccountKey(assert.SignatoryID(), assert.SignKeyID())
+}
+
+func findDelegationConstraints(assert Assertion, roView RODatabaseView) ([]*AssertionConstraints, error) {
+	if assert.SignatoryID() != assert.AuthorityID() {
+		ad, err := roView.Find(AuthorityDelegationType, map[string]string{
+			"account-id":  assert.AuthorityID(),
+			"delegate-id": assert.SignatoryID(),
+		})
+		if err != nil {
+			if IsNotFound(err) {
+				return nil, fmt.Errorf("no matching authority-delegation for signing delegation from %q to %q", assert.AuthorityID(), assert.SignatoryID())
+
+			}
+			return nil, err
+		}
+		acs := ad.(*AuthorityDelegation).MatchingConstraints(assert)
+		if len(acs) == 0 {
+			return nil, fmt.Errorf("no matching constraints supporting delegated %s assertion from %q to %q", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID())
+		}
+		return acs, nil
+	}
+	return nil, nil
+}
+
+// DelegationConstraints returns matching assertion constraints for the given assertion if this was delegated. It wil fail if assert is delegated and there are no matching assertion constraints. If assert has a timestamp only assertion constraints that cover the timestamp will be considered matching.
+func (db *Database) DelegationConstraints(assert Assertion) ([]*AssertionConstraints, error) {
+	roView := db.ROWithPolicy(TransparentAssertionPolicy)
+	acs, err := findDelegationConstraints(assert, roView)
+	if err != nil {
+		return nil, err
+	}
+	return CheckTimestampVsDelegationValidity(assert, nil, acs, roView, time.Time{}, time.Time{})
 }
 
 // IsTrustedAccount returns whether the account is part of the trusted set.
@@ -812,23 +851,10 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionCons
 		if assert.SignatoryID() != signingKey.AccountID() {
 			return nil, fmt.Errorf("assertion signatory %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
 		}
-		if assert.SignatoryID() != assert.AuthorityID() {
-			ad, err := roDB.Find(AuthorityDelegationType, map[string]string{
-				"account-id":  assert.AuthorityID(),
-				"delegate-id": assert.SignatoryID(),
-			})
-			if err != nil {
-				if IsNotFound(err) {
-					return nil, fmt.Errorf("no matching authority-delegation for signing delegation from %q to %q", assert.AuthorityID(), assert.SignatoryID())
 
-				}
-				return nil, err
-			}
-			acs := ad.(*AuthorityDelegation).MatchingConstraints(assert)
-			if len(acs) == 0 {
-				return nil, fmt.Errorf("no matching constraints supporting delegated %s assertion from %q to %q", assert.Type().Name, assert.AuthorityID(), assert.SignatoryID())
-			}
-			delegationConstraints = acs
+		delegationConstraints, err = findDelegationConstraints(assert, roDB)
+		if err != nil {
+			return nil, err
 		}
 	} else {
 		custom, ok := assert.(customSigner)

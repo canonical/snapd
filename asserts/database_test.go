@@ -462,6 +462,10 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 	ak, err := safs.db.FindSigningKey(a1)
 	c.Assert(err, IsNil)
 	c.Check(ak.PublicKeyID(), Equals, safs.signingKeyID)
+
+	acs, err := safs.db.DelegationConstraints(a1)
+	c.Check(acs, HasLen, 0)
+	c.Check(err, IsNil)
 }
 
 func (safs *signAddFindSuite) TestSignEmptyKeyID(c *C) {
@@ -690,10 +694,16 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 	err = safs.db.Check(a1, nil)
 	c.Check(err, IsNil)
 
-	// test CheckDelegation directly as well, first retrieve the constraints
 	acs := ad.(*asserts.AuthorityDelegation).MatchingConstraints(a1)
 
-	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, safs.db.ROWithPolicy(nil), time.Time{}, time.Time{})
+	roView := safs.db.ROWithPolicy(nil)
+	acs2, err := roView.DelegationConstraints(a1)
+	c.Assert(err, IsNil)
+	c.Check(acs2, DeepEquals, acs)
+
+	// test CheckDelegation directly as well, first retrieve the constraints
+
+	acs, err = asserts.CheckDelegation(a1, delegatedAcctKey.(*asserts.AccountKey), acs, roView, time.Time{}, time.Time{})
 	c.Check(err, IsNil)
 	// the constraints are recheck and passed along for the policy
 	c.Check(acs, HasLen, 1)
