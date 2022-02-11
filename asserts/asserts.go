@@ -398,8 +398,12 @@ type Assertion interface {
 	SupportedFormat() bool
 	// Revision returns the revision of this assertion
 	Revision() int
-	// AuthorityID returns the authority that signed this assertion
+	// AuthorityID returns the authority ultimately responsible
+	// for this assertion
 	AuthorityID() string
+	// SignatoryID returns the account that signed this assertion, it will
+	// differ from AuthorityID in the case of signing authority delegation
+	SignatoryID() string
 
 	// Header retrieves the header with name
 	Header(name string) interface{}
@@ -488,9 +492,19 @@ func (ab *assertionBase) Revision() int {
 	return ab.revision
 }
 
-// AuthorityID returns the authority-id a.k.a the signer id of the assertion.
+// AuthorityID returns the authority-id a.k.a the authority ultimately responsible for the assertion.
 func (ab *assertionBase) AuthorityID() string {
 	return ab.HeaderString("authority-id")
+}
+
+// SignatoryID returns the account that signed this assertion, it will
+// differ from AuthorityID in the case of signing authority delegation.
+func (ab *assertionBase) SignatoryID() string {
+	signID := ab.HeaderString("signatory-id")
+	if signID != "" {
+		return signID
+	}
+	return ab.AuthorityID()
 }
 
 // Header returns the value of an header by name.
