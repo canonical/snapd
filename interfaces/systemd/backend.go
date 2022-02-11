@@ -120,7 +120,7 @@ func (b *Backend) Remove(snapName string) error {
 	var systemd sysd.Systemd
 	if b.preseed {
 		// removing while preseeding is not a viable scenario, but implemented
-		// for completness.
+		// for completeness.
 		systemd = sysd.NewEmulationMode(dirs.GlobalRootDir)
 	} else {
 		systemd = sysd.New(sysd.SystemMode, &dummyReporter{})
