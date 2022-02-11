@@ -666,6 +666,9 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 	err = safs.db.Check(a1, nil)
 	c.Check(err, ErrorMatches, `no matching authority-delegation for signing delegation from "canonical" to "delegated-acct"`)
 
+	_, err = safs.db.DelegationConstraints(a1)
+	c.Check(err, ErrorMatches, `no matching authority-delegation for signing delegation from "canonical" to "delegated-acct"`)
+
 	ak, err := safs.db.FindSigningKey(a1)
 	c.Assert(err, IsNil)
 	c.Check(ak, DeepEquals, delegatedAcctKey)
@@ -1015,6 +1018,9 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 	c.Assert(safs.db.Add(ad, nil), IsNil)
 
 	err = safs.db.Check(a1, nil)
+	c.Check(err, ErrorMatches, `no matching constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
+
+	_, err = safs.db.DelegationConstraints(a1)
 	c.Check(err, ErrorMatches, `no matching constraints supporting delegated test-only assertion from "canonical" to "delegated-acct"`)
 
 	// test CheckDelegation directly as well, first retrieve the constraints
