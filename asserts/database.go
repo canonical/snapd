@@ -660,7 +660,7 @@ func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string
 	return find([]Backstore{db.trusted}, assertionType, headers, -1)
 }
 
-func (db *Database) findMany(backstores []Backstore, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+func findMany(backstores []Backstore, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
 	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
@@ -689,14 +689,14 @@ func (db *Database) findMany(backstores []Backstore, assertionType *AssertionTyp
 // FindMany finds assertions based on arbitrary headers.
 // It returns a NotFoundError if no assertion can be found.
 func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	return db.findMany(db.backstores, assertionType, headers)
+	return findMany(db.backstores, assertionType, headers)
 }
 
 // FindManyPrefined finds assertions in the predefined sets (trusted
 // or not) based on arbitrary headers.  It returns a NotFoundError if
 // no assertion can be found.
 func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	return db.findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers)
+	return findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers)
 }
 
 // FindSequence finds an assertion for the given headers and after for
