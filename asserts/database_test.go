@@ -232,6 +232,11 @@ func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 
 	err = db.Check(chks.a, nil)
 	c.Assert(err, ErrorMatches, `no matching public key "[[:alnum:]_-]+" for signature by "canonical"`)
+
+	_, err = db.FindSigningKey(chks.a)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.AccountKeyType,
+	})
 }
 
 func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
@@ -453,6 +458,10 @@ func (safs *signAddFindSuite) TestSign(c *C) {
 
 	err = safs.db.Check(a1, nil)
 	c.Check(err, IsNil)
+
+	ak, err := safs.db.FindSigningKey(a1)
+	c.Assert(err, IsNil)
+	c.Check(ak.PublicKeyID(), Equals, safs.signingKeyID)
 }
 
 func (safs *signAddFindSuite) TestSignEmptyKeyID(c *C) {
@@ -652,6 +661,10 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 
 	err = safs.db.Check(a1, nil)
 	c.Check(err, ErrorMatches, `no matching authority-delegation for signing delegation from "canonical" to "delegated-acct"`)
+
+	ak, err := safs.db.FindSigningKey(a1)
+	c.Assert(err, IsNil)
+	c.Check(ak, DeepEquals, delegatedAcctKey)
 
 	// now add authority-delegation
 	headers = map[string]interface{}{
@@ -1157,6 +1170,20 @@ func (safs *signAddFindSuite) TestAddNoAuthorityButPrimaryKey(c *C) {
 
 	err = safs.db.Add(a, nil)
 	c.Assert(err, ErrorMatches, `cannot check no-authority assertion type "test-only-no-authority-pk"`)
+
+	_, err = safs.db.FindSigningKey(a)
+	c.Check(err, ErrorMatches, `cannot find signing key for no-authority assertion type "test-only-no-authority-pk"`)
+}
+
+func (safs *signAddFindSuite) TestFindSigningKeyNoAuthority(c *C) {
+	headers := map[string]interface{}{
+		"pk": "primary",
+	}
+	a, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityPKType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	_, err = safs.db.FindSigningKey(a)
+	c.Check(err, ErrorMatches, `cannot find signing key for no-authority assertion type "test-only-no-authority-pk"`)
 }
 
 func (safs *signAddFindSuite) TestAddUnsupportedFormat(c *C) {

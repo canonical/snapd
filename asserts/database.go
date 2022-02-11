@@ -216,6 +216,10 @@ type RODatabaseView interface {
 	FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
+
+	// FindSigningKey finds the signing account-key for the given assertion.
+	// It fails for assertions without authority-id.
+	FindSigningKey(assert Assertion) (*AccountKey, error)
 }
 
 // AssertionPolicy can express local/site-specific assertion validation
@@ -323,7 +327,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		trusted:    trustedBackstore,
 		predefined: otherPredefinedBackstore,
 		// order here is relevant, Find* precedence and
-		// findAccountKey depend on it, trusted should win over the
+		// FindSigningKey depend on it, trusted should win over the
 		// general backstore!
 		backstores: []Backstore{trustedBackstore, otherPredefinedBackstore, bs},
 		checkers:   dbCheckers,
@@ -411,6 +415,16 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 		}
 	}
 	return nil, &NotFoundError{Type: AccountKeyType}
+}
+
+// FindSigningKey finds the signing account-key for the given assertion.
+// It fails for assertions without authority-id.
+func (db *Database) FindSigningKey(assert Assertion) (*AccountKey, error) {
+	typ := assert.Type()
+	if typ.flags&noAuthority != 0 {
+		return nil, fmt.Errorf("cannot find signing key for no-authority assertion type %q", typ.Name)
+	}
+	return db.findAccountKey(assert.SignatoryID(), assert.SignKeyID())
 }
 
 // IsTrustedAccount returns whether the account is part of the trusted set.
