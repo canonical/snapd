@@ -85,6 +85,9 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// permission only matters if the plug-side app constructs its mount
 	// namespace before the slot-side app is launched.
 	as.AddModeHint("/var/lib/snapd/hostfs/tmp/snap.*/tmp/.X11-unix", 01777)
+	// This is to ensure private shared-memory directories have
+	// the right permissions.
+	as.AddModeHint("/dev/shm/snap.*", 01777)
 	return as
 }
 
