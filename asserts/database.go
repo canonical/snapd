@@ -497,7 +497,7 @@ type roDBView struct {
 }
 
 func (v *roDBView) Check(assert Assertion) error {
-	return v.Database.Check(assert, v.pol)
+	return v.Database.checkWithRODBView(assert, v)
 }
 
 func (v *roDBView) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
@@ -536,9 +536,16 @@ func (v *roDBView) checkFoundMany(res []Assertion, assertType *AssertionType, he
 	return checked, nil
 }
 
+// roWithPolicy returns a roDBView with the given policy, polOk is true if the policy is not nil/trivial.
+func (db *Database) roWithPolicy(pol AssertionPolicy) (roView *roDBView, polOk bool) {
+	// XXX: implement default policy with SetPolicy etc
+	return &roDBView{Database: db, pol: pol}, pol != nil
+}
+
 // ROWithPolicy returns a read-only view of the database that uses the given policy (if not nil) for validation and retrieval.
 func (db *Database) ROWithPolicy(pol AssertionPolicy) RODatabaseView {
-	return &roDBView{Database: db, pol: pol}
+	roDB, _ := db.roWithPolicy(pol)
+	return roDB
 }
 
 func (db *Database) earliestLatestTime() (earliest, latest time.Time) {
@@ -552,27 +559,25 @@ func (db *Database) earliestLatestTime() (earliest, latest time.Time) {
 	return earliest, latest
 }
 
-func (db *Database) policy(pol AssertionPolicy) (AssertionPolicy, bool) {
-	// XXX: implement default policy with SetPolicy etc
-	return pol, pol != nil
-}
-
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion, pol AssertionPolicy) error {
+	roView, _ := db.roWithPolicy(pol)
+	return db.checkWithRODBView(assert, roView)
+}
+
+func (db *Database) checkWithRODBView(assert Assertion, roView *roDBView) error {
 	earliestTime, latestTime := db.earliestLatestTime()
-	pol, polOk := db.policy(pol)
-	roView := db.ROWithPolicy(pol)
-	signingKey, delegationConstraints, err := db.check(assert, roView, earliestTime, latestTime)
+	signingKey, delegationConstraints, err := db.checkImpl(assert, roView, earliestTime, latestTime)
 	if err != nil {
 		return err
 	}
-	if polOk {
-		return pol.Check(assert, signingKey, delegationConstraints, roView, earliestTime, latestTime)
+	if roView.pol != nil {
+		return roView.pol.Check(assert, signingKey, delegationConstraints, roView, earliestTime, latestTime)
 	}
 	return nil
 }
 
-func (db *Database) check(assert Assertion, roView RODatabaseView, earliestTime, latestTime time.Time) (accKey *AccountKey, delegationConstraints []*AssertionConstraints, err error) {
+func (db *Database) checkImpl(assert Assertion, roView RODatabaseView, earliestTime, latestTime time.Time) (accKey *AccountKey, delegationConstraints []*AssertionConstraints, err error) {
 	if !assert.SupportedFormat() {
 		return nil, nil, &UnsupportedFormatError{Ref: assert.Ref(), Format: assert.Format()}
 	}
@@ -617,9 +622,8 @@ func (db *Database) Add(assert Assertion, pol AssertionPolicy) error {
 	}
 
 	earliestTime, latestTime := db.earliestLatestTime()
-	pol, polOk := db.policy(pol)
-	roView := db.ROWithPolicy(pol)
-	signingKey, delegationConstraints, err := db.check(assert, roView, earliestTime, latestTime)
+	roView, polOk := db.roWithPolicy(pol)
+	signingKey, delegationConstraints, err := db.checkImpl(assert, roView, earliestTime, latestTime)
 	if err == nil {
 		if !polOk && len(delegationConstraints) != 0 {
 			return fmt.Errorf("cannot add delegated %s assertion without an available assertion policy", ref.Type.Name)
