@@ -1335,7 +1335,6 @@ cache_snaps(){
         else
             snap download "$snap_name"
         fi
-        snap download "$snap_name"
 
         # Copy all of the snaps back to the spool directory. From there we
         # will reuse them during subsequent `snap install` operations.

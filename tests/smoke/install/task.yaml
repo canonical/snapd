@@ -49,8 +49,14 @@ execute: |
         if { [ "$base" = "core20" ] || [ "$base" = "core22" ]; } && [ "$(uname -m)" = i686 ]; then
             continue
         fi
-
-        snap install test-snapd-sh-${base}
+        
+        # TODO remove this logic once this snap leaves --edge
+        if [ "$base" = "core22" ]; then
+            snap install --edge test-snapd-sh-${base}
+        else
+            snap install test-snapd-sh-${base}
+        fi
+        
         test-snapd-sh-${base}.sh -c "echo hello $base" | MATCH "hello $base"
         # shellcheck disable=SC2016
         test-snapd-sh-${base}.sh -c 'touch $SNAP_COMMON/test'
