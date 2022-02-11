@@ -1299,11 +1299,7 @@ prepare_ubuntu_core() {
             cache_snaps test-snapd-sh-core20
         fi
         if os.query is-core22; then
-            # TODO core22 version of sh
-            # there exists a core22 of this snap in --edge
-            # but have to change logic of cache_snaps to use
-            # edge instead, so we are waiting a bit
-            cache_snaps test-snapd-sh-core20
+            cache_snaps test-snapd-sh-core22
         fi
     fi
 
@@ -1333,6 +1329,12 @@ cache_snaps(){
     # Download each of the snaps we want to pre-cache. Note that `snap download`
     # a quick no-op if the file is complete.
     for snap_name in "$@"; do
+        # TODO remove this once test-snapd-sh-core22 leaves edge
+        if os.query is-core22; then
+            snap download --edge "$snap_name"
+        else
+            snap download "$snap_name"
+        fi
         snap download "$snap_name"
 
         # Copy all of the snaps back to the spool directory. From there we
