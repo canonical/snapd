@@ -1244,6 +1244,8 @@ nested_start_classic_vm() {
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
+    # Give extra disk space for the image
+    qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +2G
 
     # Now qemu parameters are defined
     local PARAM_SMP PARAM_MEM

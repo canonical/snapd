@@ -7,7 +7,7 @@ environment:
   SVC_UNIT: /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
 
 prepare: |
-  if ! os.query is-pc-amd64; then
+  if not os.query is-pc-amd64; then
     echo "Skipping non-grub device test"
     exit 0
   fi
@@ -33,14 +33,13 @@ prepare: |
   snap pack pc-gadget-no-cgroup --filename=pc-cgroup-disabled.snap
 
 execute: |
-  if ! os.query is-pc-amd64; then
+  if not os.query is-pc-amd64; then
     echo "Skipping non-grub device test"
     exit 0
   fi
 
   case "$SPREAD_REBOOT" in 
     0)
-
       # ensure memory cgroups is enabled to start
       if [ "$(grep memory < /proc/cgroups | awk '{print $4}')" != "1" ]; then
         echo "expected memory cgroup to be enabled to start"
