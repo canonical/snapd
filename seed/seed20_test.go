@@ -181,6 +181,8 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 	runSnaps, err := seed20.ModeSnaps("run")
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 0)
+
+	c.Check(seed20.NumSnaps(), Equals, 4)
 }
 
 func (s *seed20Suite) makeCore20MinimalSeed(c *C, sysLabel string) string {
@@ -656,6 +658,8 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 			Channel:       "20",
 		},
 	})
+
+	c.Check(seed20.NumSnaps(), Equals, 5)
 
 	runSnaps, err := seed20.ModeSnaps("run")
 	c.Assert(err, IsNil)
@@ -2093,4 +2097,73 @@ func (s *seed20Suite) TestOpenInvalidLabel(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
 		c.Assert(seed20, IsNil)
 	}
+}
+
+func (s *seed20Suite) TestLoadMetaCore20Iter(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	sysLabel := "20191209"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			},
+		},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.NumSnaps(), Equals, 5)
+
+	// iterates over all snaps
+	seen := map[string]bool{}
+	err = seed20.Iter(func(sn *seed.Snap) error {
+		seen[sn.SnapName()] = true
+		return nil
+	})
+	c.Assert(err, IsNil)
+	c.Check(seen, DeepEquals, map[string]bool{
+		"snapd":      true,
+		"pc-kernel":  true,
+		"core20":     true,
+		"pc":         true,
+		"required20": true,
+	})
+
+	// and bubbles up the errors
+	err = seed20.Iter(func(sn *seed.Snap) error {
+		if sn.SnapName() == "core20" {
+			return fmt.Errorf("mock error for snap %q", sn.SnapName())
+		}
+		return nil
+	})
+	c.Assert(err, ErrorMatches, `mock error for snap "core20"`)
 }
