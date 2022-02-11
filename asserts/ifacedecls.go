@@ -182,66 +182,6 @@ type OnClassicConstraint struct {
 	SystemIDs []string
 }
 
-// DeviceScopeConstraint specifies a constraints based on which brand
-// store, brand or model the device belongs to.
-type DeviceScopeConstraint struct {
-	Store []string
-	Brand []string
-	// Model is a list of precise "<brand>/<model>" constraints
-	Model []string
-}
-
-var (
-	validStoreID         = regexp.MustCompile("^[-A-Z0-9a-z_]+$")
-	validBrandSlashModel = regexp.MustCompile("^(" +
-		strings.Trim(validAccountID.String(), "^$") +
-		")/(" +
-		strings.Trim(validModel.String(), "^$") +
-		")$")
-	deviceScopeConstraints = map[string]*regexp.Regexp{
-		"on-store": validStoreID,
-		"on-brand": validAccountID,
-		// on-model constraints are of the form list of
-		// <brand>/<model> strings where <brand> are account
-		// IDs as they appear in the respective model assertion
-		"on-model": validBrandSlashModel,
-	}
-)
-
-func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
-	// for consistency and simplicity we support all of on-store,
-	// on-brand, and on-model to appear together. The interpretation
-	// layer will AND them as usual
-	for field := range deviceScopeConstraints {
-		if cMap[field] != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (constr *DeviceScopeConstraint, err error) {
-	// initial map size of 2: we expect usual cases to have just one of the
-	// constraints or rarely 2
-	deviceConstr := make(map[string][]string, 2)
-	for field, validRegexp := range deviceScopeConstraints {
-		vals, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp)
-		if err != nil {
-			return nil, err
-		}
-		deviceConstr[field] = vals
-	}
-
-	if len(deviceConstr) == 0 {
-		return nil, fmt.Errorf("internal error: misdetected device scope constraints in %s", context)
-	}
-	return &DeviceScopeConstraint{
-		Store: deviceConstr["on-store"],
-		Brand: deviceConstr["on-brand"],
-		Model: deviceConstr["on-model"],
-	}, nil
-}
-
 type nameMatcher interface {
 	match(name string, special map[string]string) error
 }
