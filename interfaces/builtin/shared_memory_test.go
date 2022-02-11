@@ -151,12 +151,40 @@ apps:
  app:
   plugs: [shmem]
 `
-
 	_, plug := MockConnectedPlug(c, snapYaml, nil, "shmem")
 	err := interfaces.BeforePreparePlug(s.iface, plug)
 	c.Assert(err, IsNil)
 	c.Check(plug.Attrs["private"], Equals, true)
 	c.Check(plug.Attrs["shared-memory"], Equals, nil)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestPlugPrivateConflictsWithNonPrivate(c *C) {
+	const snapYaml1 = `name: consumer
+version: 0
+plugs:
+  shmem:
+    interface: shared-memory
+  shmem-private:
+    interface: shared-memory
+    private: true
+`
+	_, plug := MockConnectedPlug(c, snapYaml1, nil, "shmem-private")
+	err := interfaces.BeforePreparePlug(s.iface, plug)
+	c.Check(err, ErrorMatches, `shared-memory plug with "private: true" set cannot be used with other shared-memory plugs`)
+
+	const snapYaml2 = `name: consumer
+version: 0
+plugs:
+  shmem-private:
+    interface: shared-memory
+    private: true
+slots:
+  shmem:
+    interface: shared-memory
+`
+	_, plug = MockConnectedPlug(c, snapYaml2, nil, "shmem-private")
+	err = interfaces.BeforePreparePlug(s.iface, plug)
+	c.Check(err, ErrorMatches, `shared-memory plug with \"private: true\" set cannot be used with shared-memory slots`)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestPlugShmAttribute(c *C) {

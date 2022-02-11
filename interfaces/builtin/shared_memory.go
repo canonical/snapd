@@ -236,6 +236,18 @@ func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 		if isSet {
 			return fmt.Errorf(`shared-memory "shared-memory" attribute must not be set together with "private: true"`)
 		}
+		// A private shared-memory plug cannot coexist with
+		// other shared-memory plugs/slots.
+		for _, other := range plug.Snap.Plugs {
+			if other != plug && other.Interface == "shared-memory" {
+				return fmt.Errorf(`shared-memory plug with "private: true" set cannot be used with other shared-memory plugs`)
+			}
+		}
+		for _, other := range plug.Snap.Slots {
+			if other.Interface == "shared-memory" {
+				return fmt.Errorf(`shared-memory plug with "private: true" set cannot be used with shared-memory slots`)
+			}
+		}
 	} else {
 		if sharedMemory == "" {
 			// shared-memory defaults to "plug" name if unspecified
