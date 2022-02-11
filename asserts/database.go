@@ -555,6 +555,15 @@ func (db *Database) roWithPolicy(pol AssertionPolicy) (roView *roDBView, polOk b
 	return &roDBView{Database: db, pol: pol}, pol != nil
 }
 
+// policyView returns a roDBView around the policy or nil if policy is nil
+// the result is intended for use with the find* family of helpers
+func (db *Database) policyView(pol AssertionPolicy) (polView *roDBView) {
+	if pol == nil {
+		return nil
+	}
+	return &roDBView{Database: db, pol: pol}
+}
+
 // ROWithPolicy returns a read-only view of the database that uses the given policy (if not nil) for validation and retrieval.
 func (db *Database) ROWithPolicy(pol AssertionPolicy) RODatabaseView {
 	roDB, _ := db.roWithPolicy(pol)
@@ -752,15 +761,16 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 // Provided headers must contain the primary key for the assertion type.
 // It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	return find(db.backstores, assertionType, headers, -1, nil)
+	polView := db.policyView(nil)
+	return find(db.backstores, assertionType, headers, -1, polView)
 }
 
 // FindMaxFormat finds an assertion like Find but such that its
 // format is <= maxFormat by passing maxFormat along to the backend.
 // It returns a NotFoundError if such an assertion cannot be found.
-func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
-	// XXX policy: take one
-	return find(db.backstores, assertionType, headers, maxFormat, nil)
+func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[string]string, maxFormat int, pol AssertionPolicy) (Assertion, error) {
+	polView := db.policyView(pol)
+	return find(db.backstores, assertionType, headers, maxFormat, polView)
 }
 
 // FindPredefined finds an assertion in the predefined sets (trusted
@@ -810,7 +820,8 @@ func findMany(backstores []Backstore, assertionType *AssertionType, headers map[
 // FindMany finds assertions based on arbitrary headers.
 // It returns a NotFoundError if no assertion can be found.
 func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	return findMany(db.backstores, assertionType, headers, nil)
+	polView := db.policyView(nil)
+	return findMany(db.backstores, assertionType, headers, polView)
 }
 
 // FindManyPrefined finds assertions in the predefined sets (trusted

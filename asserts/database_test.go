@@ -918,6 +918,8 @@ func (safs *signAddFindSuite) TestAddDelegationWithPolicy(c *C) {
 	c.Check(err, Equals, pol.acceptErr)
 }
 
+var errPol = errors.New("error from policy")
+
 func (safs *signAddFindSuite) TestFindDelegationWithPolicy(c *C) {
 	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	c.Assert(err, IsNil)
@@ -1091,7 +1093,6 @@ func (safs *signAddFindSuite) TestFindDelegationWithPolicy(c *C) {
 	c.Check(calls, Equals, 3)
 
 	// erroring
-	errPol := errors.New("error from policy")
 	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
 		c.Check(len(found) > 0, Equals, true)
 		return nil, errPol
@@ -1929,20 +1930,50 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 
 	a, err := safs.db.FindMaxFormat(asserts.TestOnlyType, map[string]string{
 		"primary-key": "foo",
-	}, 1)
+	}, 1, nil)
 	c.Assert(err, IsNil)
 	c.Check(a.Revision(), Equals, 1)
 
-	a, err = safs.db.FindMaxFormat(asserts.TestOnlyType, map[string]string{
-		"primary-key": "foo",
-	}, 0)
-	c.Assert(err, IsNil)
-	c.Check(a.Revision(), Equals, 0)
+	pol := &testPolicy{}
+	calls := 0
+	var seen asserts.Assertion
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		calls++
+		c.Check(found, HasLen, 1)
+		seen = found[0]
+		return found, nil
+	}
 
 	a, err = safs.db.FindMaxFormat(asserts.TestOnlyType, map[string]string{
 		"primary-key": "foo",
-	}, 3)
+	}, 1, pol)
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 1)
+	c.Assert(calls, Equals, 1)
+	c.Check(seen.Revision(), Equals, 1)
+
+	a, err = safs.db.FindMaxFormat(asserts.TestOnlyType, map[string]string{
+		"primary-key": "foo",
+	}, 0, pol)
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 0)
+	c.Assert(calls, Equals, 2)
+	c.Check(seen.Revision(), Equals, 0)
+
+	a, err = safs.db.FindMaxFormat(asserts.TestOnlyType, map[string]string{
+		"primary-key": "foo",
+	}, 3, pol)
 	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for format 3 higher than supported format 1`)
+
+	// policy erroring
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		c.Check(found, HasLen, 1)
+		return nil, errPol
+	}
+	_, err = safs.db.FindMaxFormat(asserts.TestOnlyType, map[string]string{
+		"primary-key": "foo",
+	}, 1, pol)
+	c.Check(err, Equals, errPol)
 }
 
 func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {
