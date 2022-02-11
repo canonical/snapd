@@ -417,3 +417,48 @@ func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (
 		Model: deviceConstr["on-model"],
 	}, nil
 }
+
+type DeviceScopeConstraintCheckOptions struct {
+	UseFriendlyStores bool
+}
+
+// Check tests whether the model and the optional store match the constraints.
+func (c *DeviceScopeConstraint) Check(model *Model, store *Store, opts *DeviceScopeConstraintCheckOptions) error {
+	if model == nil {
+		return fmt.Errorf("cannot match on-store/on-brand/on-model without model")
+	}
+	if store != nil && store.Store() != model.Store() {
+		return fmt.Errorf("store assertion and model store must match")
+	}
+	if opts == nil {
+		opts = &DeviceScopeConstraintCheckOptions{}
+	}
+	if len(c.Store) != 0 {
+		if !strutil.ListContains(c.Store, model.Store()) {
+			mismatch := true
+			if store != nil && opts.UseFriendlyStores {
+				for _, sto := range c.Store {
+					if strutil.ListContains(store.FriendlyStores(), sto) {
+						mismatch = false
+						break
+					}
+				}
+			}
+			if mismatch {
+				return fmt.Errorf("on-store mismatch")
+			}
+		}
+	}
+	if len(c.Brand) != 0 {
+		if !strutil.ListContains(c.Brand, model.BrandID()) {
+			return fmt.Errorf("on-brand mismatch")
+		}
+	}
+	if len(c.Model) != 0 {
+		brandModel := fmt.Sprintf("%s/%s", model.BrandID(), model.Model())
+		if !strutil.ListContains(c.Model, brandModel) {
+			return fmt.Errorf("on-model mismatch")
+		}
+	}
+	return nil
+}
