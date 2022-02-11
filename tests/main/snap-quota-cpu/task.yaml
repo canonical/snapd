@@ -41,8 +41,8 @@ execute: |
     exit 1
   }
   
-  echo "Verifying cpu usage, expecting atleast above 90%"
-  ensure_cpu_usage_higher_than "stress" 9000
+  echo "Verifying cpu usage, expecting atleast above 60% as we test against 50%"
+  ensure_cpu_usage_higher_than "stress" 6000
 
   echo "Create a group with a snap in it"
   snap set-quota group-one --cpu=2x25% test-snapd-stressd
@@ -122,8 +122,8 @@ execute: |
   echo "And the slice is not active anymore"
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
-  echo "Verifying cpu usage, expecting atleast above 90% again"
-  ensure_cpu_usage_higher_than "stress" 9000
+  echo "Verifying cpu usage, expecting atleast above 60% again"
+  ensure_cpu_usage_higher_than "stress" 6000
 
   echo "Stopping the service"
   snap stop test-snapd-stressd.stress-sc
