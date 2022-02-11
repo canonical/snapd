@@ -8,6 +8,9 @@ prepare: |
     apt update -yqq
     apt install snapd
 
+restore: |
+    apt remove snapd -yqq
+
 execute: |
     repack-kernel | MATCH 'usage: repack-kernel <command> <opts>'
     repack-kernel -h | MATCH 'usage: repack-kernel <command> <opts>'
@@ -48,6 +51,3 @@ execute: |
         echo "Repack failed, pc-kernel.snap was not created"
         exit 1
     fi
-
-restore: |
-    apt remove snapd -yqq
