@@ -194,12 +194,12 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 			}
 		}
 	}
-	if 0 < len(disableUnits) {
+	if len(disableUnits) > 0 {
 		if err := systemd.Disable(disableUnits); err != nil {
 			logger.Noticef("cannot disable service %q: %s", disableUnits, err)
 		}
 	}
-	if 0 < len(stopUnits) {
+	if len(stopUnits) > 0 {
 		if err := systemd.Stop(stopUnits, 5*time.Second); err != nil {
 			logger.Noticef("cannot stop service %q: %s", stopUnits, err)
 		}
