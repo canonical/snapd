@@ -99,23 +99,20 @@ WantedBy=snapd.service
 		return err
 	}
 
-	if !opts.Preseeding {
-		if err := sysd.DaemonReload(); err != nil {
-			return err
-		}
+	if err := sysd.DaemonReload(); err != nil {
+		return err
 	}
+
 	units := []string{SnapdToolingMountUnit}
 	if err := sysd.Enable(units); err != nil {
 		return err
 	}
 
-	if !opts.Preseeding {
-		// meh this is killing snap services that use Requires=<this-unit> because
-		// it doesn't use verbatim systemctl restart, it instead does it with
-		// a systemctl stop and then a systemctl start, which triggers LP #1924805
-		if err := sysd.Restart(units, 5*time.Second); err != nil {
-			return err
-		}
+	// meh this is killing snap services that use Requires=<this-unit> because
+	// it doesn't use verbatim systemctl restart, it instead does it with
+	// a systemctl stop and then a systemctl start, which triggers LP #1924805
+	if err := sysd.Restart(units, 5*time.Second); err != nil {
+		return err
 	}
 
 	return nil
@@ -224,21 +221,19 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 		return nil
 	}
 
-	if !opts.Preseeding {
-		// stop all removed units first
-		for _, unit := range removed {
-			serviceUnits := []string{unit}
-			if err := sysd.Stop(serviceUnits, 5*time.Second); err != nil {
-				logger.Noticef("failed to stop %q: %v", unit, err)
-			}
-			if err := sysd.Disable(serviceUnits); err != nil {
-				logger.Noticef("failed to disable %q: %v", unit, err)
-			}
+	// stop all removed units first
+	for _, unit := range removed {
+		serviceUnits := []string{unit}
+		if err := sysd.Stop(serviceUnits, 5*time.Second); err != nil {
+			logger.Noticef("failed to stop %q: %v", unit, err)
+		}
+		if err := sysd.Disable(serviceUnits); err != nil {
+			logger.Noticef("failed to disable %q: %v", unit, err)
 		}
 	}
 
 	// daemon-reload so that we get the new services
-	if len(changed) > 0 && !opts.Preseeding {
+	if len(changed) > 0 {
 		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
@@ -288,6 +283,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 			if err != nil {
 				return err
 			}
+
 			serviceUnits := []string{unit}
 			if isActive {
 				// we can never restart the snapd.socket because
@@ -303,27 +299,27 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 				}
 			}
 		}
+	}
 
-		// and finally start snapd.service (it will stop by itself and gets
-		// started by systemd then)
-		// Because of the file lock held on the snapstate by the Overlord, the new
-		// snapd will block there until we release it. For this reason, we cannot
-		// start the unit in blocking mode.
-		// TODO: move/share this responsibility with daemon so that we can make the
-		// start blocking again
-		if err := sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
-			return err
-		}
-		if err := sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
-			return err
-		}
-		// we cannot start snapd.autoimport in blocking mode because
-		// it has a "After=snapd.seeded.service" which means that on
-		// seeding a "systemctl start" that blocks would hang forever
-		// and we deadlock.
-		if err := sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
-			return err
-		}
+	// and finally start snapd.service (it will stop by itself and gets
+	// started by systemd then)
+	// Because of the file lock held on the snapstate by the Overlord, the new
+	// snapd will block there until we release it. For this reason, we cannot
+	// start the unit in blocking mode.
+	// TODO: move/share this responsibility with daemon so that we can make the
+	// start blocking again
+	if err := sysd.StartNoBlock([]string{"snapd.service"}); err != nil {
+		return err
+	}
+	if err := sysd.StartNoBlock([]string{"snapd.seeded.service"}); err != nil {
+		return err
+	}
+	// we cannot start snapd.autoimport in blocking mode because
+	// it has a "After=snapd.seeded.service" which means that on
+	// seeding a "systemctl start" that blocks would hang forever
+	// and we deadlock.
+	if err := sysd.StartNoBlock([]string{"snapd.autoimport.service"}); err != nil {
+		return err
 	}
 
 	// Handle the user services
