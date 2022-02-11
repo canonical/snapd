@@ -237,6 +237,9 @@ type AssertionPolicy interface {
 	// Accept confirms the assertion validity against the policy
 	// before it is added permanently to a database.
 	Accept(assert Assertion, signingKey *AccountKey, delegationConstraints []*AssertionConstraints, roDB RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) error
+	// CheckFound can re-validate or filter the result of a Find* operation
+	// against the policy.
+	CheckFound(found []Assertion, roDB RODatabaseView) ([]Assertion, error)
 }
 
 type transparentAssertionPolicy struct{}
@@ -247,6 +250,10 @@ func (pol transparentAssertionPolicy) Check(Assertion, *AccountKey, []*Assertion
 
 func (pol transparentAssertionPolicy) Accept(Assertion, *AccountKey, []*AssertionConstraints, RODatabaseView, time.Time, time.Time) error {
 	return nil
+}
+
+func (pol transparentAssertionPolicy) CheckFound(found []Assertion, _ RODatabaseView) ([]Assertion, error) {
+	return found, nil
 }
 
 // TransparentAssertionPolicy does not perform any additional checks,
@@ -493,6 +500,42 @@ func (v *roDBView) Check(assert Assertion) error {
 	return v.Database.Check(assert, v.pol)
 }
 
+func (v *roDBView) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+	return find(v.Database.backstores, assertionType, headers, -1, v)
+}
+
+func (v *roDBView) checkFoundOne(assert Assertion, assertType *AssertionType, headers map[string]string) (Assertion, error) {
+	if v.pol == nil {
+		return assert, nil
+	}
+	res, err := v.pol.CheckFound([]Assertion{assert}, v)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) == 0 {
+		return nil, &NotFoundError{Type: assertType, Headers: headers}
+	}
+	return res[0], nil
+}
+
+func (v *roDBView) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	return findMany(v.Database.backstores, assertionType, headers, v)
+}
+
+func (v *roDBView) checkFoundMany(res []Assertion, assertType *AssertionType, headers map[string]string) ([]Assertion, error) {
+	if v.pol == nil {
+		return res, nil
+	}
+	checked, err := v.pol.CheckFound(res, v)
+	if err != nil {
+		return nil, err
+	}
+	if len(checked) == 0 {
+		return nil, &NotFoundError{Type: assertType, Headers: headers}
+	}
+	return checked, nil
+}
+
 // ROWithPolicy returns a read-only view of the database that uses the given policy (if not nil) for validation and retrieval.
 func (db *Database) ROWithPolicy(pol AssertionPolicy) RODatabaseView {
 	return &roDBView{Database: db, pol: pol}
@@ -621,7 +664,7 @@ func (db *Database) Add(assert Assertion, pol AssertionPolicy) error {
 		if err != nil {
 			return fmt.Errorf("internal error: HeadersFromPrimaryKey for %q failed on prechecked data: %s", ref.Type.Name, ref.PrimaryKey)
 		}
-		cur, err := find(db.stackedOn, ref.Type, headers, -1)
+		cur, err := find(db.stackedOn, ref.Type, headers, -1, nil)
 		if err == nil {
 			curRev := cur.Revision()
 			rev := assert.Revision()
@@ -646,7 +689,7 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 	return true
 }
 
-func find(backstores []Backstore, assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
+func find(backstores []Backstore, assertionType *AssertionType, headers map[string]string, maxFormat int, polView *roDBView) (Assertion, error) {
 	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
@@ -681,6 +724,10 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 		return nil, &NotFoundError{Type: assertionType, Headers: headers}
 	}
 
+	if polView != nil {
+		return polView.checkFoundOne(assert, assertionType, headers)
+	}
+
 	return assert, nil
 }
 
@@ -688,14 +735,15 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 // Provided headers must contain the primary key for the assertion type.
 // It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	return find(db.backstores, assertionType, headers, -1)
+	return find(db.backstores, assertionType, headers, -1, nil)
 }
 
 // FindMaxFormat finds an assertion like Find but such that its
 // format is <= maxFormat by passing maxFormat along to the backend.
 // It returns a NotFoundError if such an assertion cannot be found.
 func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[string]string, maxFormat int) (Assertion, error) {
-	return find(db.backstores, assertionType, headers, maxFormat)
+	// XXX policy: take one
+	return find(db.backstores, assertionType, headers, maxFormat, nil)
 }
 
 // FindPredefined finds an assertion in the predefined sets (trusted
@@ -703,17 +751,17 @@ func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[stri
 // the primary key for the assertion type.  It returns a NotFoundError
 // if the assertion cannot be found.
 func (db *Database) FindPredefined(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	return find([]Backstore{db.trusted, db.predefined}, assertionType, headers, -1)
+	return find([]Backstore{db.trusted, db.predefined}, assertionType, headers, -1, nil)
 }
 
 // FindTrusted finds an assertion in the trusted set based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
 // It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
-	return find([]Backstore{db.trusted}, assertionType, headers, -1)
+	return find([]Backstore{db.trusted}, assertionType, headers, -1, nil)
 }
 
-func findMany(backstores []Backstore, assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
+func findMany(backstores []Backstore, assertionType *AssertionType, headers map[string]string, polView *roDBView) ([]Assertion, error) {
 	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
@@ -736,20 +784,23 @@ func findMany(backstores []Backstore, assertionType *AssertionType, headers map[
 	if len(res) == 0 {
 		return nil, &NotFoundError{Type: assertionType, Headers: headers}
 	}
+	if polView != nil {
+		return polView.checkFoundMany(res, assertionType, headers)
+	}
 	return res, nil
 }
 
 // FindMany finds assertions based on arbitrary headers.
 // It returns a NotFoundError if no assertion can be found.
 func (db *Database) FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	return findMany(db.backstores, assertionType, headers)
+	return findMany(db.backstores, assertionType, headers, nil)
 }
 
 // FindManyPrefined finds assertions in the predefined sets (trusted
 // or not) based on arbitrary headers.  It returns a NotFoundError if
 // no assertion can be found.
 func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map[string]string) ([]Assertion, error) {
-	return findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers)
+	return findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers, nil)
 }
 
 // FindSequence finds an assertion for the given headers and after for
@@ -765,6 +816,7 @@ func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map
 // unless maxFormat is -1.
 // It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error) {
+	// XXX policy: take one
 	err := checkAssertType(assertType)
 	if err != nil {
 		return nil, err

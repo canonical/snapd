@@ -723,6 +723,7 @@ type testPolicy struct {
 	checkErr    error
 	acceptCalls []policyCall
 	acceptErr   error
+	checkFound  func([]asserts.Assertion, asserts.RODatabaseView) ([]asserts.Assertion, error)
 }
 
 func (pol *testPolicy) Check(assert asserts.Assertion, signingKey *asserts.AccountKey, delegationConstraints []*asserts.AssertionConstraints, roDB asserts.RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) error {
@@ -733,6 +734,13 @@ func (pol *testPolicy) Check(assert asserts.Assertion, signingKey *asserts.Accou
 func (pol *testPolicy) Accept(assert asserts.Assertion, signingKey *asserts.AccountKey, delegationConstraints []*asserts.AssertionConstraints, roDB asserts.RODatabaseView, checkTimeEarliest, checkTimeLatest time.Time) error {
 	pol.acceptCalls = append(pol.acceptCalls, policyCall{assert: assert, signingKey: signingKey, delegationConstraints: delegationConstraints})
 	return pol.acceptErr
+}
+
+func (pol *testPolicy) CheckFound(found []asserts.Assertion, roDB asserts.RODatabaseView) ([]asserts.Assertion, error) {
+	if pol.checkFound != nil {
+		return pol.checkFound(found, roDB)
+	}
+	return found, nil
 }
 
 func (safs *signAddFindSuite) TestSignDelegationWithPolicy(c *C) {
@@ -908,6 +916,200 @@ func (safs *signAddFindSuite) TestAddDelegationWithPolicy(c *C) {
 	pol.acceptErr = errors.New("policy says no")
 	err = safs.db.Add(a1, pol)
 	c.Check(err, Equals, pol.acceptErr)
+}
+
+func (safs *signAddFindSuite) TestFindDelegationWithPolicy(c *C) {
+	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
+	c.Assert(err, IsNil)
+	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
+	delegatedKeyID := testPrivKey1.PublicKey().ID()
+	headers := map[string]interface{}{
+		"type":         "account",
+		"authority-id": "canonical",
+		"account-id":   "delegated-acct",
+		"display-name": "delegated",
+		"validation":   "verified",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	since := time.Now()
+	delegatedAcct, err := safs.signingDB.Sign(asserts.AccountType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+	headers = map[string]interface{}{
+		"type":                "account-key",
+		"authority-id":        "canonical",
+		"account-id":          "delegated-acct",
+		"name":                "default",
+		"public-key-sha3-384": delegatedKeyID,
+		"since":               since.Format(time.RFC3339),
+	}
+	pubKeyEncoded, err := asserts.EncodePublicKey(testPrivKey1.PublicKey())
+	c.Assert(err, IsNil)
+	delegatedAcctKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, pubKeyEncoded, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	c.Assert(safs.db.Add(delegatedAcct, nil), IsNil)
+	c.Assert(safs.db.Add(delegatedAcctKey, nil), IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "delegated-acct",
+		"primary-key":  "k1",
+		"anchor":       "A",
+	}
+	a1, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
+	c.Assert(err, IsNil)
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "delegated-acct",
+		"primary-key":  "k2",
+		"anchor":       "B",
+	}
+	a2, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
+	c.Assert(err, IsNil)
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"signatory-id": "delegated-acct",
+		"primary-key":  "k3",
+		"anchor":       "B",
+	}
+	a3, err := delegatedSigningDB.Sign(asserts.TestOnlyType, headers, nil, delegatedKeyID)
+	c.Assert(err, IsNil)
+
+	// now add authority-delegation
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"account-id":   "canonical",
+		"delegate-id":  "delegated-acct",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": asserts.TestOnlyType.Name,
+				"headers": map[string]interface{}{
+					"primary-key": "k1",
+					"anchor":      "A",
+				},
+				"since": since.Format(time.RFC3339),
+			},
+			map[string]interface{}{
+				"type": asserts.TestOnlyType.Name,
+				"headers": map[string]interface{}{
+					"anchor": "B",
+				},
+				"since": since.Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := safs.signingDB.Sign(asserts.AuthorityDelegationType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	c.Assert(safs.db.Add(ad, nil), IsNil)
+
+	pol := &testPolicy{}
+	err = safs.db.Add(a1, pol)
+	c.Check(err, IsNil)
+	err = safs.db.Add(a2, pol)
+	c.Check(err, IsNil)
+	err = safs.db.Add(a3, pol)
+	c.Check(err, IsNil)
+
+	c.Assert(pol.acceptCalls, HasLen, 3)
+
+	// XXX policy: use db directly as well once with have default policy support
+	roView := safs.db.ROWithPolicy(pol)
+
+	calls := 0
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		calls++
+		c.Assert(found, DeepEquals, []asserts.Assertion{a1})
+		acs, err := roView.DelegationConstraints(found[0])
+		c.Assert(err, IsNil)
+		c.Check(acs, HasLen, 1)
+		c.Check(acs[0].Check(a1), IsNil)
+		return found, nil
+	}
+
+	a, err := roView.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a, DeepEquals, a1)
+	c.Check(calls, Equals, 1)
+
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		calls++
+		c.Assert(found, HasLen, 2)
+		acs, err := roView.DelegationConstraints(found[1])
+		c.Assert(err, IsNil)
+		c.Check(acs, HasLen, 1)
+		for _, a := range found {
+			c.Check(acs[0].Check(a), IsNil)
+		}
+		return found, nil
+	}
+	res, err := roView.FindMany(asserts.TestOnlyType, map[string]string{
+		"anchor": "B",
+	})
+	c.Assert(err, IsNil)
+	c.Check(res, HasLen, 2)
+	c.Check(calls, Equals, 2)
+
+	// test filtering
+	n := 0
+	calls = 0
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		calls++
+		c.Check(len(found) > n, Equals, true)
+		return found[:n], nil
+	}
+
+	_, err = roView.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	})
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k1",
+		},
+	})
+
+	_, err = roView.FindMany(asserts.TestOnlyType, map[string]string{
+		"anchor": "B",
+	})
+	c.Assert(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"anchor": "B",
+		},
+	})
+
+	n = 1
+	res, err = roView.FindMany(asserts.TestOnlyType, map[string]string{
+		"anchor": "B",
+	})
+	c.Assert(err, IsNil)
+	c.Check(res, HasLen, 1)
+
+	c.Check(calls, Equals, 3)
+
+	// erroring
+	errPol := errors.New("error from policy")
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		c.Check(len(found) > 0, Equals, true)
+		return nil, errPol
+	}
+
+	_, err = roView.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	})
+	c.Check(err, Equals, errPol)
+
+	_, err = roView.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	})
+	c.Check(err, Equals, errPol)
+	_, err = roView.FindMany(asserts.TestOnlyType, map[string]string{
+		"anchor": "B",
+	})
+	c.Check(err, Equals, errPol)
 }
 
 func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) {
