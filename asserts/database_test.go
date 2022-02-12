@@ -2160,8 +2160,19 @@ func (safs *signAddFindSuite) TestFindSequence(c *C) {
 		{after: -1, maxFormat: 2, sequence: 3, format: 2, revision: 1},
 	}
 
+	pol := &testPolicy{}
+	calls := 0
+	var seen asserts.Assertion
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		calls++
+		c.Check(found, HasLen, 1)
+		seen = found[0]
+		return found, nil
+	}
+
+	expected := 0
 	for _, t := range tests {
-		a, err := db.FindSequence(asserts.TestOnlySeqType, seqHeaders, t.after, t.maxFormat)
+		a, err := db.FindSequence(asserts.TestOnlySeqType, seqHeaders, t.after, t.maxFormat, nil)
 		if t.sequence == -1 {
 			c.Check(err, DeepEquals, &asserts.NotFoundError{
 				Type:    asserts.TestOnlySeqType,
@@ -2174,15 +2185,58 @@ func (safs *signAddFindSuite) TestFindSequence(c *C) {
 			c.Check(a.Format(), Equals, t.format)
 			c.Check(a.Revision(), Equals, t.revision)
 		}
+
+		a, err = db.FindSequence(asserts.TestOnlySeqType, seqHeaders, t.after, t.maxFormat, pol)
+		if t.sequence != -1 {
+			expected++
+			c.Check(calls, Equals, expected)
+			c.Check(seen, DeepEquals, a)
+		} else {
+			c.Check(err, DeepEquals, &asserts.NotFoundError{
+				Type:    asserts.TestOnlySeqType,
+				Headers: seqHeaders,
+			})
+		}
 	}
 
 	seqHeaders = map[string]string{
 		"n": "s2",
 	}
-	_, err = db.FindSequence(asserts.TestOnlySeqType, seqHeaders, -1, 2)
+	_, err = db.FindSequence(asserts.TestOnlySeqType, seqHeaders, -1, 2, nil)
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlySeqType, Headers: seqHeaders,
 	})
+
+	// policy erroring
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		c.Check(len(found) > 0, Equals, true)
+		return nil, nil
+	}
+	seqHeaders = map[string]string{
+		"n": "s1",
+	}
+	_, err = db.FindSequence(asserts.TestOnlySeqType, seqHeaders, -1, 2, pol)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlySeqType, Headers: seqHeaders,
+	})
+
+	// ROWithPolicy testing
+	_, err = db.ROWithPolicy(nil).FindSequence(asserts.TestOnlySeqType, seqHeaders, -1, 2)
+	c.Check(err, IsNil)
+	_, err = db.ROWithPolicy(pol).FindSequence(asserts.TestOnlySeqType, seqHeaders, -1, 2)
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlySeqType, Headers: seqHeaders,
+	})
+
+	pol.checkFound = func(found []asserts.Assertion, roView asserts.RODatabaseView) ([]asserts.Assertion, error) {
+		c.Check(len(found) > 0, Equals, true)
+		return nil, errPol
+	}
+	seqHeaders = map[string]string{
+		"n": "s1",
+	}
+	_, err = db.FindSequence(asserts.TestOnlySeqType, seqHeaders, -1, 2, pol)
+	c.Check(err, Equals, errPol)
 
 }
 

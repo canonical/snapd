@@ -517,6 +517,10 @@ func (v *roDBView) Find(assertionType *AssertionType, headers map[string]string)
 	return find(v.Database.backstores, assertionType, headers, -1, v)
 }
 
+func (v *roDBView) FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error) {
+	return findSequence(v.Database.backstores, assertType, sequenceHeaders, after, maxFormat, v)
+}
+
 func (v *roDBView) checkFoundOne(assert Assertion, assertType *AssertionType, headers map[string]string) (Assertion, error) {
 	if v.pol == nil {
 		return assert, nil
@@ -831,20 +835,7 @@ func (db *Database) FindManyPredefined(assertionType *AssertionType, headers map
 	return findMany([]Backstore{db.trusted, db.predefined}, assertionType, headers, nil)
 }
 
-// FindSequence finds an assertion for the given headers and after for
-// a sequence-forming type.
-// The provided headers must contain a sequence key, i.e. a prefix of
-// the primary key for the assertion type except for the sequence
-// number header.
-// The assertion is the first in the sequence under the sequence key
-// with sequence number > after.
-// If after is -1 it returns instead the assertion with the largest
-// sequence number.
-// It will constraint itself to assertions with format <= maxFormat
-// unless maxFormat is -1.
-// It returns a NotFoundError if the assertion cannot be found.
-func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int) (SequenceMember, error) {
-	// XXX policy: take one
+func findSequence(backstores []Backstore, assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int, polView *roDBView) (SequenceMember, error) {
 	err := checkAssertType(assertType)
 	if err != nil {
 		return nil, err
@@ -888,7 +879,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 	}
 
 	var assert SequenceMember
-	for _, bs := range db.backstores {
+	for _, bs := range backstores {
 		a, err := bs.SequenceMemberAfter(assertType, seqKey, after, maxFormat)
 		if err == nil {
 			assert = better(assert, a)
@@ -900,10 +891,34 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 	}
 
 	if assert != nil {
+		if polView != nil {
+			if a, err := polView.checkFoundOne(assert, assertType, sequenceHeaders); err != nil {
+				return nil, err
+			} else {
+				return a.(SequenceMember), nil
+			}
+		}
 		return assert, nil
 	}
 
 	return nil, &NotFoundError{Type: assertType, Headers: sequenceHeaders}
+}
+
+// FindSequence finds an assertion for the given headers and after for
+// a sequence-forming type.
+// The provided headers must contain a sequence key, i.e. a prefix of
+// the primary key for the assertion type except for the sequence
+// number header.
+// The assertion is the first in the sequence under the sequence key
+// with sequence number > after.
+// If after is -1 it returns instead the assertion with the largest
+// sequence number.
+// It will constraint itself to assertions with format <= maxFormat
+// unless maxFormat is -1.
+// It returns a NotFoundError if the assertion cannot be found.
+func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[string]string, after, maxFormat int, pol AssertionPolicy) (SequenceMember, error) {
+	polView := db.policyView(pol)
+	return findSequence(db.backstores, assertType, sequenceHeaders, after, maxFormat, polView)
 }
 
 // assertion checkers

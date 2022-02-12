@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -441,7 +441,8 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 
 	checkConflictsAndPresence := func(db *asserts.Database, bs asserts.Backstore) error {
 		vsets := snapasserts.NewValidationSets()
-		tmpDb := db.WithStackedBackstore(bs)
+		// XXX policy
+		tmpDb := db.WithStackedBackstore(bs).ROWithPolicy(nil)
 		for _, vs := range enforceModeSets {
 			headers := map[string]string{
 				"series":     release.Series,
@@ -530,8 +531,8 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 		"name":       name,
 	}
 
-	db := cachedDB(st)
 	// XXX policy
+	db := DB(st)
 
 	// try to get existing one from db
 	if sequence > 0 {
@@ -550,7 +551,7 @@ func validationSetAssertionForMonitor(st *state.State, accountID, name string, s
 
 	// try to resolve or update with pool
 	// XXX policy
-	pool := asserts.NewPool(db.ROWithPolicy(nil), maxGroups)
+	pool := asserts.NewPool(db, maxGroups)
 	atSeq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{release.Series, accountID, name},
@@ -626,7 +627,7 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		return nil, err
 	}
 
-	getSpecificSequenceOrLatest := func(db *asserts.Database, headers map[string]string) (vs *asserts.ValidationSet, err error) {
+	getSpecificSequenceOrLatest := func(db asserts.RODatabaseView, headers map[string]string) (vs *asserts.ValidationSet, err error) {
 		var a asserts.Assertion
 		if _, ok := headers["sequence"]; ok {
 			a, err = db.Find(asserts.ValidationSetType, headers)
@@ -644,7 +645,8 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	// tracked already and thus refreshed via RefreshValidationSetAssertions.
 	// Otherwise, it may be a local assertion that was tracked in the past and
 	// then forgotten, in which case we need to refresh it explicitly.
-	db := cachedDB(st)
+	// XXX policy
+	db := DB(st)
 	headers := map[string]string{
 		"series":     release.Series,
 		"account-id": accountID,
@@ -654,8 +656,7 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		headers["sequence"] = fmt.Sprintf("%d", sequence)
 	}
 
-	// XXX policy
-	pool := asserts.NewPool(db.ROWithPolicy(nil), maxGroups)
+	pool := asserts.NewPool(db, maxGroups)
 	atSeq := &asserts.AtSequence{
 		Type:        asserts.ValidationSetType,
 		SequenceKey: []string{release.Series, accountID, name},
@@ -717,7 +718,8 @@ func validationSetAssertionForEnforce(st *state.State, accountID, name string, s
 	}
 
 	checkBeforeCommit := func(db *asserts.Database, bs asserts.Backstore) error {
-		tmpDb := db.WithStackedBackstore(bs)
+		// XXX policy
+		tmpDb := db.WithStackedBackstore(bs).ROWithPolicy(nil)
 		// get the resolved validation set assert, add to validation sets and check
 		vs, err = getSpecificSequenceOrLatest(tmpDb, headers)
 		if err != nil {
