@@ -21,7 +21,6 @@ package assertstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -38,9 +37,12 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 
 // handleUnsupported behaves as a fallback in case of bugs, we do ask
 // the store to filter unsupported formats!
-func handleUnsupported(db snapasserts.Finder) func(ref *asserts.Ref, unsupportedErr error) error {
+func handleUnsupported(db *asserts.Database) func(ref *asserts.Ref, unsupportedErr error) error {
+	// we just check for assertion presence, not validity or use them
+	// so use TransparentAssertionPolicy
+	roView := db.ROWithPolicy(asserts.TransparentAssertionPolicy)
 	return func(ref *asserts.Ref, unsupportedErr error) error {
-		if _, err := ref.Resolve(db.Find); err != nil {
+		if _, err := ref.Resolve(roView.Find); err != nil {
 			// nothing there yet or any other error
 			return unsupportedErr
 		}
@@ -54,7 +56,6 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
 
 	db := cachedDB(s)
-	// XXX policy
 
 	b := asserts.NewBatch(handleUnsupported(db))
 
