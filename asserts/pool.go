@@ -95,8 +95,11 @@ func NewPool(groundDB RODatabaseView, n int) *Pool {
 	if err != nil {
 		panic(fmt.Sprintf("NewPool: %v", err))
 	}
+	// we want to transparently find any currently present
+	// assertions, any policy validation will happen when CommitTo
+	// adds to the database
+	groundDB = groundDB.WithPolicy(TransparentAssertionPolicy)
 	return &Pool{
-		// XXX policy: need transparent policy once Find is affected
 		groundDB:            groundDB,
 		numbering:           make(map[string]uint16),
 		groupings:           groupings,

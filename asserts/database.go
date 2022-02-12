@@ -227,6 +227,12 @@ type RODatabaseView interface {
 	// constraints that cover the timestamp will be considered
 	// matching.
 	DelegationConstraints(assert Assertion) ([]*AssertionConstraints, error)
+
+	// WithPolicy returns a RODatabaseView on the same
+	// database that respects the given policy.
+	// pol can be nil in which case the same RODatabaseView can be
+	// returned.
+	WithPolicy(pol AssertionPolicy) RODatabaseView
 }
 
 // AssertionPolicy can express local/site-specific assertion validation
@@ -494,6 +500,13 @@ func (db *Database) SetEarliestTime(earliest time.Time) {
 type roDBView struct {
 	*Database
 	pol AssertionPolicy
+}
+
+func (v *roDBView) WithPolicy(pol AssertionPolicy) RODatabaseView {
+	if pol == nil {
+		return v
+	}
+	return &roDBView{Database: v.Database, pol: pol}
 }
 
 func (v *roDBView) Check(assert Assertion) error {

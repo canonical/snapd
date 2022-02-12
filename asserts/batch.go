@@ -170,7 +170,6 @@ func (b *Batch) CommitToAndObserve(db *Database, pol AssertionPolicy, observe fu
 // commitTo does a best effort of adding all the batch assertions to
 // the target database.
 func (b *Batch) commitTo(db *Database, pol AssertionPolicy, observe func(Assertion)) error {
-	// XXX policy: need transparent policy once Find is affected
 	if err := b.prereqSort(db); err != nil {
 		return err
 	}
@@ -201,6 +200,10 @@ func (b *Batch) commitTo(db *Database, pol AssertionPolicy, observe func(Asserti
 }
 
 func (b *Batch) prereqSort(db *Database) error {
+	// we want to transparently find any currently present
+	// assertions, any policy validation will happen when commitTo
+	// adds to the database
+	roView := db.ROWithPolicy(TransparentAssertionPolicy)
 	if b.inPrereqOrder {
 		// nothing to do
 		return nil
@@ -212,7 +215,7 @@ func (b *Batch) prereqSort(db *Database) error {
 		a, err := b.bs.Get(ref.Type, ref.PrimaryKey, ref.Type.MaxSupportedFormat())
 		if IsNotFound(err) {
 			// fallback to pre-existing assertions
-			a, err = ref.Resolve(db.Find)
+			a, err = ref.Resolve(roView.Find)
 		}
 		if err != nil {
 			return nil, resolveError("cannot resolve prerequisite assertion: %s", ref, err)
@@ -223,7 +226,7 @@ func (b *Batch) prereqSort(db *Database) error {
 		ordered = append(ordered, a)
 		return nil
 	}
-	f := NewFetcher(db, retrieve, save)
+	f := NewFetcher(roView, retrieve, save)
 
 	for _, a := range b.added {
 		if err := f.Fetch(a.Ref()); err != nil {
