@@ -21,6 +21,7 @@ package testutil
 
 import (
 	"os"
+	"reflect"
 
 	"gopkg.in/check.v1"
 )
@@ -59,4 +60,33 @@ func (s *BaseTest) TearDownTest(c *check.C) {
 // AddCleanup adds a new cleanup function to the test
 func (s *BaseTest) AddCleanup(f func()) {
 	s.cleanupHandlers = append(s.cleanupHandlers, f)
+}
+
+// BackupBeforeMocking backups the specified list of elements before further mocking
+func BackupBeforeMocking(mockablesByPtr ...interface{}) (restore func()) {
+	backup := backupMockables(mockablesByPtr)
+
+	return func() {
+		for idx, ptr := range mockablesByPtr {
+			mockedPtr := reflect.ValueOf(ptr)
+			mockedPtr.Elem().Set(backup[idx].Elem())
+		}
+	}
+}
+
+func backupMockables(mockablesByPtr []interface{}) (backup []*reflect.Value) {
+	backup = make([]*reflect.Value, len(mockablesByPtr))
+
+	for idx, ptr := range mockablesByPtr {
+		mockedPtr := reflect.ValueOf(ptr)
+
+		if mockedPtr.Type().Kind() != reflect.Ptr {
+			panic("BackupBeforeMocking: each mockable must be passed by pointer!")
+		}
+
+		saved := reflect.New(mockedPtr.Elem().Type())
+		saved.Elem().Set(mockedPtr.Elem())
+		backup[idx] = &saved
+	}
+	return backup
 }
