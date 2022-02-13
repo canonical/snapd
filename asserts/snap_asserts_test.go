@@ -1025,7 +1025,6 @@ func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
 
 	// now add authority-delegation
 	headers = map[string]interface{}{
-		"type":         "account-key",
 		"authority-id": "canonical",
 		"account-id":   "canonical",
 		"delegate-id":  "other",
@@ -1068,7 +1067,6 @@ func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
 
 	// now add authority-delegation
 	headers = map[string]interface{}{
-		"type":         "account-key",
 		"authority-id": "canonical",
 		"account-id":   "canonical",
 		"delegate-id":  "other",
