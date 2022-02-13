@@ -153,6 +153,7 @@ execute: |
     cp gadget.yaml.backup gadget-dir/meta/gadget.yaml
 
     echo "Ensure we can deploy with mounting"
+    date --utc # for debugging hangs
     uc20-create-partitions --mount ./gadget-dir "$kerneldir" "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1\.2G\s* EFI System"

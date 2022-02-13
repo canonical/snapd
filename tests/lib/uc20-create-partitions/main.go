@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime/pprof"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -77,6 +79,16 @@ func main() {
 	if args.Encrypt {
 		encryptionType = secboot.EncryptionTypeLUKS
 	}
+
+	go func() {
+		// wait for 3 minutes in case we get hung
+		time.Sleep(3 * time.Minute)
+
+		fmt.Println("program is stuck for 3 minutes, all go routines:")
+		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+
+		os.Exit(1)
+	}()
 
 	options := install.Options{
 		Mount:          args.Mount,
