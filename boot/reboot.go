@@ -34,6 +34,12 @@ var rebootArgsPath = "/run/systemd/reboot-param"
 
 type RebootAction int
 
+const (
+	RebootReboot RebootAction = iota
+	RebootHalt
+	RebootPoweroff
+)
+
 func (a RebootAction) String() string {
 	switch a {
 	case RebootReboot:
@@ -46,12 +52,6 @@ func (a RebootAction) String() string {
 		panic(fmt.Sprintf("unknown reboot action %d", a))
 	}
 }
-
-const (
-	RebootReboot RebootAction = iota
-	RebootHalt
-	RebootPoweroff
-)
 
 var (
 	shutdownMsg = i18n.G("reboot scheduled to update the system")
