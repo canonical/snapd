@@ -199,6 +199,28 @@ type: base
 	c.Check(reboot, Equals, true)
 }
 
+func (s *linkSuite) TestLinkNoSetNextBootWhenPreseeding(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	be := backend.NewForPreseedMode()
+	coreDev := boottest.MockUC20Device("run", nil)
+
+	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	const yaml = `name: pc-kernel
+version: 1.0
+type: kernel
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	reboot, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(reboot, Equals, false)
+}
+
 func (s *linkSuite) TestLinkDoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 

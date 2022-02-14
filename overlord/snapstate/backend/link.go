@@ -135,9 +135,12 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 		})
 	}
 
-	reboot, err := boot.Participant(info, info.Type(), dev).SetNextBoot()
-	if err != nil {
-		return false, err
+	var reboot bool
+	if !b.preseed {
+		reboot, err = boot.Participant(info, info.Type(), dev).SetNextBoot()
+		if err != nil {
+			return false, err
+		}
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {
