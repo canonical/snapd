@@ -139,6 +139,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		if modeEnv != nil {
 			m.sysMode = modeEnv.Mode
 		}
+	} else {
+		m.sysMode = "run"
 	}
 
 	s.Lock()

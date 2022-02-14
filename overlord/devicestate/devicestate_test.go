@@ -1894,3 +1894,16 @@ func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
 	c.Check(msgs, Matches, "(?sm).*fixing permissions of .*/var/lib/snapd/void to 0111")
 	c.Check(strings.Split(msgs, "\n"), HasLen, 1)
 }
+
+func (s *deviceMgrSuite) TestSysModeIsRunWhenPreseeding(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	restoreOnClassic := release.MockOnClassic(true)
+	defer restoreOnClassic()
+
+	runner := state.NewTaskRunner(s.state)
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, nil)
+	c.Assert(err, IsNil)
+	c.Check(devicestate.GetSystemMode(mgr), Equals, "run")
+}

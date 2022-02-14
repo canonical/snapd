@@ -121,6 +121,10 @@ func SetSystemMode(m *DeviceManager, mode string) {
 	m.sysMode = mode
 }
 
+func GetSystemMode(m *DeviceManager) string {
+	return m.sysMode
+}
+
 func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
