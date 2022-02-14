@@ -467,6 +467,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	if d.expectedRebootDidNotHappen {
 		// make the reboot retry immediate
 		immediateReboot := true
+		// TODO: we do not know the RebootInfo from the previous snapd
+		// instance. Passing nil for the moment, but maybe we should
+		// cache to disk and recover at this point. In any case, it is
+		// expected that the reboot will not be harmful even if
+		// RebootInfo is unknown, and that things will end up in a
+		// kernel refresh failure, that can be retried later.
 		return d.doReboot(sigCh, restart.RestartSystem, nil, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
