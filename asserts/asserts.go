@@ -873,11 +873,11 @@ func Assemble(headers map[string]interface{}, body, content, signature []byte) (
 	return assemble(headers, body, content, signature)
 }
 
-func checkAuthority(assertType *AssertionType, headers map[string]interface{}) (hasSignatoryID bool, err error) {
-	_, hasSignatoryID = headers["signatory-id"]
+func checkAuthority(_ *AssertionType, headers map[string]interface{}) (hasSignatoryID bool, err error) {
 	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
 		return false, err
 	}
+	_, hasSignatoryID = headers["signatory-id"]
 	if hasSignatoryID {
 		if _, err := checkNotEmptyString(headers, "signatory-id"); err != nil {
 			return false, err
@@ -887,12 +887,10 @@ func checkAuthority(assertType *AssertionType, headers map[string]interface{}) (
 }
 
 func checkNoAuthority(assertType *AssertionType, headers map[string]interface{}) error {
-	_, ok := headers["authority-id"]
-	if ok {
+	if _, ok := headers["authority-id"]; ok {
 		return fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
 	}
-	_, ok = headers["signatory-id"]
-	if ok {
+	if _, ok := headers["signatory-id"]; ok {
 		return fmt.Errorf("%q assertion cannot have signatory-id set", assertType.Name)
 	}
 	return nil
