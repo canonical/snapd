@@ -474,6 +474,17 @@ func (safs *signAddFindSuite) TestSignMissingAuthorityId(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestSignInvalidSignatoryID(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"signatory-id": []interface{}{"foo"},
+		"primary-key":  "a",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, ErrorMatches, `"signatory-id" header must be a string`)
+	c.Check(a1, IsNil)
+}
+
 func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
