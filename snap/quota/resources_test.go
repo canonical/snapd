@@ -39,9 +39,9 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.Resources{Memory: &quota.ResourceMemory{}}, `memory quota must have a limit set`},
 		{quota.Resources{CPU: &quota.ResourceCPU{}}, `cannot validate quota limits with a cpu quota of 0 and allowed cpus of 0`},
 		{quota.Resources{Threads: &quota.ResourceThreads{}}, `cannot create quota group with a thread count of 0`},
-		{quota.NewResources(quantity.Size(0), 0, 0, nil, 0), `quota group must have at least one resource limit set`},
-		{quota.NewResources(quantity.SizeKiB, 0, 0, nil, 0), `memory limit 1024 is too small: size must be larger than 4KB`},
-		{quota.NewResources(0, 1, 0, nil, 0), `cannot validate quota limits with count of >0 and percentage of 0`},
+		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
+		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeKiB).Build(), `memory limit 1024 is too small: size must be larger than 4KB`},
+		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `cannot validate quota limits with count of >0 and percentage of 0`},
 	}
 
 	for _, t := range tests {
@@ -54,11 +54,10 @@ func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
 	tests := []struct {
 		limits quota.Resources
 	}{
-		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0)},
-		{quota.NewResources(0, 1, 50, nil, 0)},
-		{quota.NewResources(0, 4, 25, nil, 0)},
-		{quota.NewResources(0, 0, 0, []int{0, 1}, 0)},
-		{quota.NewResources(0, 0, 0, nil, 16)},
+		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build()},
+		{quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()},
+		{quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()},
+		{quota.NewResourcesBuilder().WithThreadLimit(16).Build()},
 	}
 
 	for _, t := range tests {
@@ -73,8 +72,16 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		updateLimits quota.Resources
 		err          string
 	}{
-		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0), quota.Resources{&quota.ResourceMemory{0}, nil, nil}, `cannot remove memory limit from quota group`},
-		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0), quota.NewResources(5*quantity.SizeKiB, 0, 0, nil, 0), `cannot decrease memory limit, remove and re-create it to decrease the limit`},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(0).Build(),
+			`cannot remove memory limit from quota group`,
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(5 * quantity.SizeKiB).Build(),
+			`cannot decrease memory limit, remove and re-create it to decrease the limit`,
+		},
 	}
 
 	for _, t := range tests {
@@ -93,11 +100,31 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 		// equal limits or newLimits as it can contain partial updates.
 		newLimits quota.Resources
 	}{
-		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0), quota.NewResources(quantity.SizeGiB, 0, 0, nil, 0), quota.NewResources(quantity.SizeGiB, 0, 0, nil, 0)},
-		{quota.NewResources(quantity.SizeMiB, 0, 0, nil, 0), quota.NewResources(0, 4, 25, nil, 0), quota.NewResources(quantity.SizeMiB, 4, 25, nil, 0)},
-		{quota.NewResources(quantity.SizeMiB, 4, 25, nil, 0), quota.NewResources(0, 0, 0, []int{0}, 0), quota.NewResources(quantity.SizeMiB, 4, 25, []int{0}, 0)},
-		{quota.NewResources(quantity.SizeMiB, 4, 25, []int{0}, 0), quota.NewResources(0, 0, 0, nil, 128), quota.NewResources(quantity.SizeMiB, 4, 25, []int{0}, 128)},
-		{quota.NewResources(0, 1, 100, nil, 0), quota.NewResources(quantity.SizeGiB, 0, 0, nil, 32), quota.NewResources(quantity.SizeGiB, 1, 100, nil, 32)},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).Build(),
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithThreadLimit(128).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).WithThreadLimit(128).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(100).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).WithThreadLimit(32).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).WithCPUCount(1).WithCPUPercentage(100).WithThreadLimit(32).Build(),
+		},
 	}
 
 	for _, t := range tests {

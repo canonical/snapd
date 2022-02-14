@@ -39,7 +39,7 @@ type ResourceThreads struct {
 	Limit int `json:"limit"`
 }
 
-// Resources is built up of multiple quota limits. Each quota limit is a pointer
+// Resources are built up of multiple quota limits. Each quota limit is a pointer
 // value to indicate that their presence may be optional, and because we want to detect
 // whenever someone changes a limit to '0' explicitly.
 type Resources struct {
@@ -169,26 +169,4 @@ func (qr *Resources) Change(newLimits Resources) error {
 		qr.Threads = newLimits.Threads
 	}
 	return nil
-}
-
-func NewResources(memoryLimit quantity.Size, cpuCount int, cpuPercentage int, allowedCpus []int, threadLimit int) Resources {
-	var quotaResources Resources
-	if memoryLimit != 0 {
-		quotaResources.Memory = &ResourceMemory{
-			Limit: memoryLimit,
-		}
-	}
-	if cpuCount != 0 || cpuPercentage != 0 || len(allowedCpus) != 0 {
-		quotaResources.CPU = &ResourceCPU{
-			Count:       cpuCount,
-			Percentage:  cpuPercentage,
-			AllowedCPUs: allowedCpus,
-		}
-	}
-	if threadLimit != 0 {
-		quotaResources.Threads = &ResourceThreads{
-			Limit: threadLimit,
-		}
-	}
-	return quotaResources
 }

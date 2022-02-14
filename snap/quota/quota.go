@@ -121,12 +121,19 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
 }
 
 func (grp *Group) GetQuotaResources() Resources {
-	if grp.CpuLimit != nil {
-		return NewResources(
-			grp.MemoryLimit, grp.CpuLimit.Count, grp.CpuLimit.Percentage,
-			grp.CpuLimit.AllowedCpus, grp.TaskLimit)
+	resourcesBuilder := NewResourcesBuilder()
+	if grp.MemoryLimit != 0 {
+		resourcesBuilder.WithMemoryLimit(grp.MemoryLimit)
 	}
-	return NewResources(grp.MemoryLimit, 0, 0, nil, grp.TaskLimit)
+	if grp.CpuLimit != nil {
+		resourcesBuilder.WithCPUCount(grp.CpuLimit.Count)
+		resourcesBuilder.WithCPUPercentage(grp.CpuLimit.Percentage)
+		resourcesBuilder.WithAllowedCPUs(grp.CpuLimit.AllowedCpus)
+	}
+	if grp.TaskLimit != 0 {
+		resourcesBuilder.WithThreadLimit(grp.TaskLimit)
+	}
+	return resourcesBuilder.Build()
 }
 
 // CurrentMemoryUsage returns the current memory usage of the quota group. For

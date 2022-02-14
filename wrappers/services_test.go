@@ -219,7 +219,13 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
-	resourceLimits := quota.NewResources(quantity.SizeGiB, 2, 50, []int{0, 1}, 32)
+	resourceLimits := quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithCPUCount(2).
+		WithCPUPercentage(50).
+		WithAllowedCPUs([]int{0, 1}).
+		WithThreadLimit(32).
+		Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
@@ -433,7 +439,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// use new memory limit
-	resourceLimits := quota.NewResources(memLimit2, 0, 0, nil, 0)
+	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(memLimit2).Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
@@ -530,7 +536,7 @@ WantedBy=multi-user.target
 	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
 	c.Assert(err, IsNil)
 
-	resourceLimits := quota.NewResources(memLimit, 0, 0, nil, taskLimit)
+	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(memLimit).WithThreadLimit(taskLimit).Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
@@ -554,7 +560,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	// create the group
-	resourceLimits := quota.NewResources(5*quantity.SizeKiB, 0, 0, nil, 0)
+	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(5 * quantity.SizeKiB).Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
@@ -623,7 +629,11 @@ apps:
 	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
 
 	var err error
-	resourceLimits := quota.NewResources(quantity.SizeGiB, 4, 25, nil, 0)
+	resourceLimits := quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithCPUCount(4).
+		WithCPUPercentage(25).
+		Build()
 	// make a root quota group and add the first snap to it
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
@@ -760,7 +770,10 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	var err error
-	resourceLimits := quota.NewResources(quantity.SizeGiB, 0, 0, []int{0}, 0)
+	resourceLimits := quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithAllowedCPUs([]int{0}).
+		Build()
 	// make a root quota group without any snaps in it
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
