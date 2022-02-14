@@ -27,13 +27,13 @@ execute: |
     not test -d "$HOME"/.snap/data
 
     echo "Take a snapshot"
-    "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data
+    "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data_file
     # get the snapshot number from the 2nd line (the 1st line is the header)
     snapshot=$(snap save "$NAME" | awk 'FNR == 2 {print $1}')
 
     echo "Write data to user data dirs"
-    "$NAME".echo "data" > "$HOME"/snap/"$NAME"/current/data
-    "$NAME".echo "common" > "$HOME"/snap/"$NAME"/common/common
+    "$NAME".echo "data" > "$HOME"/snap/"$NAME"/current/data_file
+    "$NAME".echo "common" > "$HOME"/snap/"$NAME"/common/common_file
 
     echo "Refresh the snap"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
@@ -57,8 +57,8 @@ execute: |
     fi
 
     echo "Check that the written data is in the new dir"
-    MATCH "common" < "$HOME"/.snap/data/"$NAME"/common/common
-    MATCH "data" < "$HOME"/.snap/data/"$NAME"/x2/data
+    MATCH "common" < "$HOME"/.snap/data/"$NAME"/common/common_file
+    MATCH "data" < "$HOME"/.snap/data/"$NAME"/x2/data_file
 
     echo "Check the snap can write to the new dirs"
     #shellcheck disable=SC2016
@@ -70,7 +70,7 @@ execute: |
 
     echo "Restore snapshot and check data was restored"
     snap restore "$snapshot"
-    MATCH "prev_data" < "$HOME"/.snap/data/"$NAME"/x2/data
+    MATCH "prev_data" < "$HOME"/.snap/data/"$NAME"/x2/data_file
 
     echo "Check that snap starts off hidden after a fresh install"
     snap remove --purge "$NAME"
@@ -82,8 +82,8 @@ execute: |
     echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x1"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
 
-    "$NAME".echo "data" > "$HOME"/.snap/data/"$NAME"/x1/data
-    "$NAME".echo "common" > "$HOME"/.snap/data/"$NAME"/common/common
+    "$NAME".echo "data" > "$HOME"/.snap/data/"$NAME"/x1/data_file
+    "$NAME".echo "common" > "$HOME"/.snap/data/"$NAME"/common/common_file
 
     echo "Revert migration (unset flag and refresh)"
     snap unset system experimental.hidden-snap-folder
@@ -93,8 +93,8 @@ execute: |
     not test -d "$HOME"/.snap/data
     test -d "$HOME"/snap/"$NAME"
 
-    MATCH "common" < "$HOME"/snap/"$NAME"/common/common
-    MATCH "data" < "$HOME"/snap/"$NAME"/x2/data
+    MATCH "common" < "$HOME"/snap/"$NAME"/common/common_file
+    MATCH "data" < "$HOME"/snap/"$NAME"/x2/data_file
 
     echo "Check environment variables were restored"
     snapEnv=$("$NAME".env)
