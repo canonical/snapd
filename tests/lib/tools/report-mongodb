@@ -48,6 +48,13 @@ def insert(db, col, value):
         print("report-mongodb: invalid db collection, it does not exist in db")
         sys.exit(1)
 
+    try:
+        date = value.get('date', '')
+        time = value.get('time', '')
+        value['created_at'] = datetime.fromisoformat("{} {}".format(date, time)).isoformat()
+    except:
+        value['created_at'] = datetime.now().isoformat('T', "seconds")
+
     json_value = _get_json(value)
     if not json_value:
         # This is an example of a correct value to be sent to mongodb
