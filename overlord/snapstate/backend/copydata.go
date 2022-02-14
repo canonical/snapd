@@ -288,6 +288,7 @@ func (b Backend) InitSnapUserHome(snapName string, rev snap.Revision) (err error
 		}
 
 		if maybeFailForTesting != nil {
+			osutil.MustBeTestBinary("'maybeFailForTesting' should only be used in tests")
 			if err := maybeFailForTesting(); err != nil {
 				return err
 			}
