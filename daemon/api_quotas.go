@@ -182,9 +182,15 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 		resourcesBuilder.WithMemoryLimit(values.Memory)
 	}
 	if values.Cpu != nil {
-		resourcesBuilder.WithCPUCount(values.Cpu.Count)
-		resourcesBuilder.WithCPUPercentage(values.Cpu.Percentage)
-		resourcesBuilder.WithAllowedCPUs(values.Cpu.AllowedCpus)
+		if values.Cpu.Count != 0 {
+			resourcesBuilder.WithCPUCount(values.Cpu.Count)
+		}
+		if values.Cpu.Percentage != 0 {
+			resourcesBuilder.WithCPUPercentage(values.Cpu.Percentage)
+		}
+		if len(values.Cpu.AllowedCpus) != 0 {
+			resourcesBuilder.WithAllowedCPUs(values.Cpu.AllowedCpus)
+		}
 	}
 	if values.Threads != 0 {
 		resourcesBuilder.WithThreadLimit(values.Threads)
