@@ -392,6 +392,13 @@ distro_install_build_snapd(){
         if os.query is-trusty && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
+    elif [ -n "$PPA_GPG_KEY" ] && [ -n "$PPA_SOURCE_LINE" ]; then
+        echo "$PPA_GPG_KEY" | apt-key add -
+        echo "$PPA_SOURCE_LINE" | sed s/YOUR_UBUNTU_VERSION_HERE/"$(lsb_release -c -s)"/g >> /etc/apt/sources.list
+        apt update
+        apt install -y snapd
+
+        apt show snapd | MATCH "APT-Sources: http.*private-ppa\.launchpad(content)?\.net"
     elif [ -n "$PPA_VALIDATION_NAME" ]; then
         apt install -y snapd
         add-apt-repository -y "$PPA_VALIDATION_NAME"
@@ -401,7 +408,7 @@ distro_install_build_snapd(){
         apt update
 
         # Double check that it really comes from the PPA
-        apt show snapd | grep -E "APT-Sources: http.*ppa\.launchpad(content)?\.net"
+        apt show snapd | MATCH "APT-Sources: http.*ppa\.launchpad(content)?\.net"
     else
         packages=
         case "$SPREAD_SYSTEM" in
