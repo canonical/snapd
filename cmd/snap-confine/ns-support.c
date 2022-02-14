@@ -289,7 +289,14 @@ static bool should_discard_current_ns(dev_t base_snap_dev)
 	}
 	for (mie = sc_first_mountinfo_entry(mi); mie != NULL;
 	     mie = sc_next_mountinfo_entry(mie)) {
-		if (!sc_streq(mie->mount_dir, "/")) {
+		// If the "/" directory is a tmpfs, then we'll look at the /usr
+		// directory
+		if (sc_streq(mie->fs_type, "tmpfs")) {
+			continue;
+		}
+
+		if (!sc_streq(mie->mount_dir, "/") &&
+			!sc_streq(mie->mount_dir, "/usr")) {
 			continue;
 		}
 		// NOTE: we want the initial rootfs just in case overmount
