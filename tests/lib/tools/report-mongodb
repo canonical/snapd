@@ -77,7 +77,7 @@ def insert(db, col, value):
     except:
         created_at = datetime.now().isoformat("T", "seconds")
 
-    json_value.append({"created_at": created_at})
+    json_value["created_at"] = created_at
 
     db[col].insert_one(json_value)
     print("report-mongodb: json value inserted in db")
