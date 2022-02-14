@@ -187,10 +187,6 @@ func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 	return bl.SetBootVars(blVars)
 }
 
-func SetRebootArgsPath(argsPath string) {
-	rebootArgsPath = argsPath
-}
-
 func (b *bootChain) SecbootModelForSealing() secboot.ModelForSealing {
 	return b.modelForSealing()
 }
@@ -201,6 +197,12 @@ func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 
 func (b *bootChain) KernelBootFile() bootloader.BootFile {
 	return b.kernelBootFile
+}
+
+func MockRebootArgsPath(argsPath string) (restore func()) {
+	oldRebootArgsPath := rebootArgsPath
+	rebootArgsPath = argsPath
+	return func() { rebootArgsPath = oldRebootArgsPath }
 }
 
 func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {

@@ -21,7 +21,6 @@ package boot_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -33,9 +32,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/testutil"
 )
-
-// Hook up check.v1 into the "go test" runner
-//func Test(t *testing.T) { TestingT(t) }
 
 type rebootSuite struct {
 	baseBootenvSuite
@@ -94,16 +90,15 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 	rbl.RebootArgs = "0 tryboot"
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
-	boot.SetRebootArgsPath(rebArgsPath)
+	restoreRebootArgs := boot.MockRebootArgsPath(rebArgsPath)
+	defer restoreRebootArgs()
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	err := boot.Reboot(0, 0, &boot.RebootInfo{RebootRequired: true, Rbl: rbl})
+	err := boot.Reboot(0, 0, &boot.RebootInfo{RebootRequired: true, RebootBootloader: rbl})
 	c.Assert(err, IsNil)
-	args, err := ioutil.ReadFile(rebArgsPath)
-	c.Assert(err, IsNil)
-	c.Assert(string(args), Equals, "0 tryboot\n")
+	c.Assert(rebArgsPath, testutil.FileEquals, "0 tryboot\n")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"shutdown", "-r", "+0", "reboot scheduled to update the system"},
 	})
@@ -116,7 +111,8 @@ func (s *rebootSuite) TestRebootNoArguments(c *C) {
 	rbl.RebootArgs = ""
 	dir := c.MkDir()
 	rebArgsPath := filepath.Join(dir, "reboot-param")
-	boot.SetRebootArgsPath(rebArgsPath)
+	restoreRebootArgs := boot.MockRebootArgsPath(rebArgsPath)
+	defer restoreRebootArgs()
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()

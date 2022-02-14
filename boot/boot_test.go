@@ -293,12 +293,14 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 
 	case *bootloadertest.MockBootloader:
 		// for non-extracted, we need to use the bootenv to set the current kernels
-		setupUC20MockBootloaderEnv(c, bl, opts, &cleanups)
+		r := setupUC20MockBootloaderEnv(c, bl, opts)
+		cleanups = append(cleanups, r)
 		// don't count any calls to SetBootVars made thus far
 		vbl.SetBootVarsCalls = 0
 	case *bootloadertest.MockRebootBootloader:
 		// for non-extracted, we need to use the bootenv to set the current kernels
-		setupUC20MockBootloaderEnv(c, bl, opts, &cleanups)
+		r := setupUC20MockBootloaderEnv(c, bl, opts)
+		cleanups = append(cleanups, r)
 		// don't count any calls to SetBootVars made thus far
 		vbl.SetBootVarsCalls = 0
 	default:
@@ -312,7 +314,7 @@ func setupUC20Bootenv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (res
 	}
 }
 
-func setupUC20MockBootloaderEnv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup, cleanups *[]func()) {
+func setupUC20MockBootloaderEnv(c *C, bl bootloader.Bootloader, opts *bootenv20Setup) (restore func()) {
 	origEnv, err := bl.GetBootVars("snap_kernel", "snap_try_kernel")
 	c.Assert(err, IsNil)
 	m := make(map[string]string, 2)
@@ -331,13 +333,10 @@ func setupUC20MockBootloaderEnv(c *C, bl bootloader.Bootloader, opts *bootenv20S
 	err = bl.SetBootVars(m)
 	c.Assert(err, IsNil)
 
-	// don't count any calls to SetBootVars made thus far
-	//bl.SetBootVarsCalls = 0
-
-	*cleanups = append(*cleanups, func() {
+	return func() {
 		err := bl.SetBootVars(origEnv)
 		c.Assert(err, IsNil)
-	})
+	}
 }
 
 func (s *bootenvSuite) TestInUseClassic(c *C) {
