@@ -239,7 +239,14 @@ backends:
                   username: ubuntu
                   password: ubuntu
                   bios: uefi
-                  # TODO: remove one everyone switch to official spread
+                  # TODO: remove once everyone switch to official spread
+                  flags: [virtio]
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
+                  username: ubuntu
+                  password: ubuntu
+                  bios: uefi
+                  # TODO: remove once everyone switch to official spread
                   flags: [virtio]
             - ubuntu-18.04-64:
                   username: ubuntu
