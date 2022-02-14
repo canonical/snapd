@@ -80,8 +80,8 @@ func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootIn
 	}
 
 	// Use reboot arguments if required by the bootloader
-	if rebootInfo != nil && rebootInfo.Rbl != nil {
-		rebArgs := rebootInfo.Rbl.GetRebootArguments()
+	if rebootInfo != nil && rebootInfo.RebootBootloader != nil {
+		rebArgs := rebootInfo.RebootBootloader.GetRebootArguments()
 		if rebArgs != "" {
 			if err := osutil.AtomicWriteFile(rebootArgsPath,
 				[]byte(rebArgs+"\n"), 0644, 0); err != nil {

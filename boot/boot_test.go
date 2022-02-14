@@ -4206,7 +4206,7 @@ func (s *bootenv20RebootBootloaderSuite) TestCoreParticipant20WithRebootBootload
 	c.Assert(err, IsNil)
 	c.Assert(rebootRequired.RebootRequired, Equals, true)
 	// Test that we retrieve a RebootBootloader interface
-	c.Assert(rebootRequired.Rbl, NotNil)
+	c.Assert(rebootRequired.RebootBootloader, NotNil)
 
 	// make sure the env was updated
 	m := s.bootloader.BootVars

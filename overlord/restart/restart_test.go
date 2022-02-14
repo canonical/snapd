@@ -161,12 +161,12 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	c.Check(t, Equals, restart.RestartUnset)
 
 	restart.Request(st, restart.RestartSystem, &boot.RebootInfo{
-		RebootRequired: true,
-		Rbl:            &bootloadertest.MockRebootBootloader{}})
+		RebootRequired:   true,
+		RebootBootloader: &bootloadertest.MockRebootBootloader{}})
 
 	c.Check(h.restartRequested, Equals, true)
 	c.Check(h.rebootInfo.RebootRequired, Equals, true)
-	c.Check(h.rebootInfo.Rbl, NotNil)
+	c.Check(h.rebootInfo.RebootBootloader, NotNil)
 
 	ok, t = restart.Pending(st)
 	c.Check(ok, Equals, true)

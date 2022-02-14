@@ -309,7 +309,7 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rbi RebootInfo, u b
 	rbi.RebootRequired = false
 	if nextStatus == TryStatus {
 		rbi.RebootRequired = true
-		if rbi.Rbl, err = ks20.getRebootBootloader(); err != nil {
+		if rbi.RebootBootloader, err = ks20.getRebootBootloader(); err != nil {
 			return RebootInfo{RebootRequired: false}, nil, err
 		}
 	}

@@ -46,9 +46,9 @@ const (
 type RebootInfo struct {
 	// rebootRequired is true if we need to reboot after an update
 	RebootRequired bool
-	// Rbl will not be nil if the bootloader has something to say on
-	// how to perform the rebot
-	Rbl bootloader.RebootBootloader
+	// RebootBootloader will not be nil if the bootloader has something to say on
+	// how to perform the reboot
+	RebootBootloader bootloader.RebootBootloader
 }
 
 // A BootParticipant handles the boot process details for a snap involved in it.

@@ -717,7 +717,7 @@ func (s *bootenv20RebootBootloaderSuite) TestSetNextBoot20ForKernel(c *C) {
 
 	c.Assert(rebootInfo.RebootRequired, Equals, true)
 	// Test that we retrieve a RebootBootloader interface
-	c.Assert(rebootInfo.Rbl, NotNil)
+	c.Assert(rebootInfo.RebootBootloader, NotNil)
 
 	// and that the modeenv now has this kernel listed
 	m2, err := boot.ReadModeenv("")
