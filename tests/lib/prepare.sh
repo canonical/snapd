@@ -1066,7 +1066,7 @@ EOF
     # expand the uc16 and uc18 images a little bit (400M) as it currently will
     # run out of space easily from local spread runs if there are extra files in
     # the project not included in the git ignore and spread ignore, etc.
-    if ! (os.query is-core20 && os.query is-core22); then
+    if ! (os.query is-core20 || os.query is-core22); then
         # grow the image by 400M
         truncate --size=+400M "$IMAGE_HOME/$IMAGE"
         # fix the GPT table because old versions of parted complain about this 
@@ -1090,7 +1090,7 @@ EOF
     dev=$(basename "$devloop")
 
     # resize the 2nd partition from that loop device to fix the size
-    if ! (os.query is-core20 && os.query is-core22); then
+    if ! (os.query is-core20 || os.query is-core22); then
         resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
     fi
 
