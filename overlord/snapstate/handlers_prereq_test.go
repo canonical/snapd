@@ -192,7 +192,7 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		}
 	}
-	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
+	c.Check(linkedSnaps, testutil.DeepUnsortedMatches, expectedLinkedSnaps)
 }
 
 func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
