@@ -20,6 +20,7 @@
 package disks_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -1532,6 +1533,9 @@ func (s *diskSuite) TestDiskSizeRelatedMethodsGPT(c *C) {
 	})
 	defer restore()
 
+	restoreCalculateLBA := disks.MockCalculateLastUsableLBA(42, nil)
+	defer restoreCalculateLBA()
+
 	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
 echo '{
 	"partitiontable": {
@@ -1550,10 +1554,7 @@ echo '{
 	endSectors, err := d.UsableSectorsEnd()
 	c.Assert(err, IsNil)
 	c.Assert(endSectors, Equals, uint64(43))
-	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "/dev/sda"},
-	})
-	sfdiskCmd.ForgetCalls()
+	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
 
 	blockDevCmd := testutil.MockCommand(c, "blockdev", `
 if [ "$1" = "--getsz" ]; then
@@ -1585,6 +1586,48 @@ fi
 
 	// we didn't use sfdisk again at all
 	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
+}
+
+func (s *diskSuite) TestDiskSizeRelatedMethodsGPTFallback(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":              "1",
+			"MINOR":              "2",
+			"DEVTYPE":            "disk",
+			"DEVNAME":            "/dev/sda",
+			"ID_PART_TABLE_UUID": "foo",
+			"ID_PART_TABLE_TYPE": "gpt",
+			"DEVPATH":            "/devices/foo/sda",
+		}, nil
+	})
+	defer restore()
+
+	restoreCalculateLBA := disks.MockCalculateLastUsableLBA(0, errors.New("Some error"))
+	defer restoreCalculateLBA()
+
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+echo '{
+	"partitiontable": {
+		"unit": "sectors",
+		"lastlba": 42
+	}
+}'
+`)
+	defer sfdiskCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	endSectors, err := d.UsableSectorsEnd()
+	c.Assert(err, IsNil)
+	c.Assert(endSectors, Equals, uint64(43))
+	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/sda"},
+	})
 }
 
 func (s *diskSuite) TestDiskUsableSectorsEndGPTUnexpectedSfdiskUnit(c *C) {

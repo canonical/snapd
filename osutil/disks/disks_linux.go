@@ -34,6 +34,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -45,6 +46,10 @@ var _ = Disk(&disk{})
 // the former returns a *disk, the latter returns a Disk
 var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPointImpl(mountpoint, opts)
+}
+
+var abstractCalculateLastUsableLBA = func(device string) (uint64, error) {
+	return CalculateLastUsableLBA(device)
 }
 
 func parseDeviceMajorMinor(s string) (int, int, error) {
@@ -373,6 +378,15 @@ func (d *disk) UsableSectorsEnd() (uint64, error) {
 		}
 		return byteSz / sectorSz, nil
 	}
+
+	calculated, err := abstractCalculateLastUsableLBA(d.devname)
+	if err == nil {
+		// calculated is last LBA
+		// end (or size) LBA is the last LBA + 1
+		return calculated + 1, nil
+	}
+
+	logger.Noticef("Cannot read GPT table from %v, will re-try with sfdisk: %v", d.devname, err)
 
 	// TODO: this could also be accomplished by reading from the GPT headers
 	// directly to get the last logical block address (LBA) instead of using
