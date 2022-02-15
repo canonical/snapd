@@ -180,10 +180,6 @@ func checkRFC3339DateWhat(m map[string]interface{}, name, what string) (time.Tim
 	return date, nil
 }
 
-func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, defl time.Time) (time.Time, error) {
-	return checkRFC3339DateWithDefaultWhat(headers, name, "header", defl)
-}
-
 func checkRFC3339DateWithDefaultWhat(m map[string]interface{}, name, what string, defl time.Time) (time.Time, error) {
 	value, ok := m[name]
 	if !ok {

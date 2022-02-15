@@ -321,6 +321,10 @@ func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (fu
 	return domatch, nil
 }
 
+var (
+	CompileDeviceScopeConstraint = compileDeviceScopeConstraint
+)
+
 // ifacedecls tests
 var (
 	CompileAttributeConstraints = compileAttributeConstraints

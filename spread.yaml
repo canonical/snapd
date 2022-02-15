@@ -958,13 +958,12 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
-            tests.backup prepare
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
         restore-each: |
             tests.nested vm remove
             tests.nested restore
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -1008,12 +1007,12 @@ suites:
             tests.nested prepare
             tests.nested build-image classic
         prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
             tests.nested vm remove
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
 
@@ -1059,12 +1058,12 @@ suites:
             tests.nested prepare
             tests.nested build-image core
         prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.backup prepare
             tests.nested create-vm core
         restore-each: |
             tests.nested vm remove
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
 

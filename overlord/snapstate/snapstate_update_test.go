@@ -4518,6 +4518,124 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-snap`, &si)
+	si2 := snap.SideInfo{
+		RealName: "some-other-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-other-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-other-snap`, &si2)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si},
+		Current:         si.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si2},
+		Current:         si2.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"some-snap", "some-other-snap"}, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 3)
+	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(updates, HasLen, 2)
+
+	// Last task is re-refresh, so it is a different lane
+	for _, ts := range tts[:len(tts)-1] {
+		checkIsAutoRefresh(c, ts.Tasks(), false)
+		// check that tasksets are all in one lane
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyTransactionallyFails(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// trigger download error on one of the snaps
+	s.fakeStore.downloadError["some-other-snap"] = fmt.Errorf("boom")
+
+	snapstate.ReplaceStore(s.state,
+		contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{si},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/stable",
+		Sequence: []*snap.SideInfo{{
+			RealName: "some-other-snap",
+			SnapID:   "some-other-snap-id",
+			Revision: snap.R(1),
+		}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh some snaps")
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"some-snap", "some-other-snap"}, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Check(updated, testutil.DeepUnsortedMatches,
+		[]string{"some-snap", "some-other-snap"})
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// content consumer snap fails to download
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"some-other-snap\" \\(11\\) from channel \"latest/stable\" \\(boom\\).*")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapSt snapstate.SnapState
+	// some-other-snap not updated due to download failure
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapSt), IsNil)
+	c.Check(snapSt.Current, Equals, snap.R(1))
+
+	// some-snap not updated either as this is a transactional refresh
+	// (on update revision is 11)
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapSt), IsNil)
+	c.Check(snapSt.Current, Equals, snap.R(7))
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
