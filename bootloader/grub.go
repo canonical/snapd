@@ -48,6 +48,7 @@ type grub struct {
 	uefiRunKernelExtraction bool
 	recovery                bool
 	nativePartitionLayout   bool
+	prepareImageTime        bool
 }
 
 // newGrub create a new Grub bootloader object
@@ -61,6 +62,7 @@ func newGrub(rootdir string, opts *Options) Bootloader {
 		g.uefiRunKernelExtraction = opts.Role == RoleRunMode
 		g.recovery = opts.Role == RoleRecovery
 		g.nativePartitionLayout = opts.NoSlashBoot || g.recovery
+		g.prepareImageTime = opts.PrepareImageTime
 	}
 	if g.nativePartitionLayout {
 		g.basedir = "EFI/ubuntu"
@@ -464,21 +466,32 @@ var grubBootAssetsForArch = map[string]grubBootAssetPath{
 		grubBinary: filepath.Join("EFI/boot/", "grubaa64.efi")},
 }
 
-func getGrubBootAssetsForArch() grubBootAssetPath {
-	return grubBootAssetsForArch[arch.DpkgArchitecture()]
+func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
+	if g.prepareImageTime {
+		return nil, fmt.Errorf("internal error: retrieving boot assets at prepare image time")
+	}
+	assets := grubBootAssetsForArch[arch.DpkgArchitecture()]
+	return &assets, nil
 }
 
 // getGrubRecoveryModeTrustedAssets returns the assets for recovery mode,
 // which are shim and grub from the seed partition.
-func getGrubRecoveryModeTrustedAssets() []string {
-	assets := getGrubBootAssetsForArch()
-	return []string{assets.shimBinary, assets.grubBinary}
+func (g *grub) getGrubRecoveryModeTrustedAssets() ([]string, error) {
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return nil, err
+	}
+	return []string{assets.shimBinary, assets.grubBinary}, nil
 }
 
 // getGrubRunModeTrustedAssets returns the assets for run mode, which is
 // grub from the boot partition.
-func getGrubRunModeTrustedAssets() []string {
-	return []string{getGrubBootAssetsForArch().grubBinary}
+func (g *grub) getGrubRunModeTrustedAssets() ([]string, error) {
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return nil, err
+	}
+	return []string{assets.grubBinary}, nil
 }
 
 // TrustedAssets returns the list of relative paths to assets inside
@@ -489,9 +502,9 @@ func (g *grub) TrustedAssets() ([]string, error) {
 		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
 	if g.recovery {
-		return getGrubRecoveryModeTrustedAssets(), nil
+		return g.getGrubRecoveryModeTrustedAssets()
 	}
-	return getGrubRunModeTrustedAssets(), nil
+	return g.getGrubRunModeTrustedAssets()
 }
 
 // RecoveryBootChain returns the load chain for recovery modes.
@@ -502,7 +515,10 @@ func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
 	}
 
 	// add trusted assets to the recovery chain
-	assets := getGrubRecoveryModeTrustedAssets()
+	assets, err := g.getGrubRecoveryModeTrustedAssets()
+	if err != nil {
+		return nil, err
+	}
 	chain := make([]BootFile, 0, len(assets)+1)
 	for _, ta := range assets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
@@ -525,8 +541,14 @@ func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error
 	}
 
 	// add trusted assets to the recovery chain
-	recoveryModeAssets := getGrubRecoveryModeTrustedAssets()
-	runModeAssets := getGrubRunModeTrustedAssets()
+	recoveryModeAssets, err := g.getGrubRecoveryModeTrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+	runModeAssets, err := g.getGrubRunModeTrustedAssets()
+	if err != nil {
+		return nil, err
+	}
 	chain := make([]BootFile, 0, len(recoveryModeAssets)+len(runModeAssets)+1)
 	for _, ta := range recoveryModeAssets {
 		chain = append(chain, NewBootFile("", ta, RoleRecovery))
