@@ -68,7 +68,7 @@ prepare: |
 
 execute: |
   # check the current snapd snap is vulnerable
-  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | NOMATCH 'SNAP_CONFINE_CVE_2021_44731=1'
+  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | MATCH '^VERSION=2\.4.*'
   VULN_REV=$(tests.nested exec "snap list $SNAPD_SOURCE_SNAP" | tail -n +2 | awk '{print $3}')
 
   # now install our snapd deb from the branch - this is so we know the patched
@@ -101,7 +101,7 @@ execute: |
   fi
 
   # check that the current revision is not vulnerable
-  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | MATCH 'SNAP_CONFINE_CVE_2021_44731=1'
+  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | NOMATCH '^VERSION=2\.4.*'
 
   # and there are no other revisions
   if [ "$(tests.nested exec "snap list $SNAPD_SOURCE_SNAP" | tail -n +2 | wc -l)"  != "1" ]; then

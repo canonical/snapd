@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -630,12 +631,16 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	for _, si := range snapSt.Sequence {
 		// check this version
 		s := snap.Info{SideInfo: *si}
-		_, flags, err := snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir))
+		ver, _, err := snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir))
 		if err != nil {
 			return err
 		}
-
-		revIsVulnerable := flags["SNAP_CONFINE_CVE_2021_44731"] != "1"
+		// res is < 0 if "ver" is lower than "2.54.3"
+		res, err := strutil.VersionCompare(ver, "2.54.3")
+		if err != nil {
+			return err
+		}
+		revIsVulnerable := (res < 0)
 		switch {
 		case !revIsVulnerable && si.Revision == snapSt.Current:
 			fixedVersionInstalled = true

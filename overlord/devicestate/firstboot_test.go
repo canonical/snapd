@@ -1321,7 +1321,7 @@ version: 1.0
 		{"usr/lib/snapd/info", `
 VERSION=2.54.3+git1.g479e745-dirty
 SNAPD_APPARMOR_REEXEC=0
-SNAP_CONFINE_CVE_2021_44731=1`},
+`},
 	}
 	snapdFname, snapdDecl, snapdRev := s.MakeAssertedSnap(c, snapdYaml, snapdSnapFiles, snap.R(2), "canonical")
 	s.WriteAssertions("snapd.asserts", snapdRev, snapdDecl)

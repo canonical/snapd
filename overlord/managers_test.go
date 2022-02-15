@@ -440,7 +440,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	defaultInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
 SNAPD_APPARMOR_REEXEC=0
-SNAP_CONFINE_CVE_2021_44731=1`
+`
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11", "30"} {
 			infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, rev, dirs.CoreLibExecDir, "info")

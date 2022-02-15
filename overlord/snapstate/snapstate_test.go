@@ -254,7 +254,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	defaultInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
 SNAPD_APPARMOR_REEXEC=0
-SNAP_CONFINE_CVE_2021_44731=1`
+`
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11"} {
 			infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, rev, dirs.CoreLibExecDir, "info")
@@ -2808,11 +2808,11 @@ func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string
 	fixedInfoFile := `
 VERSION=2.54.3+git1.g479e745-dirty
 SNAPD_APPARMOR_REEXEC=0
-SNAP_CONFINE_CVE_2021_44731=1`
+`
 	vulnInfoFile := `
-VERSION=2.54.3+git1.g479e745-dirty
+VERSION=2.54.2+git1.g479e745-dirty
 SNAPD_APPARMOR_REEXEC=0
-SNAP_CONFINE_CVE_2021_44731=0`
+`
 
 	// revision 1 vulnerable
 	infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, "1", dirs.CoreLibExecDir, "info")
