@@ -126,9 +126,15 @@ func (grp *Group) GetQuotaResources() Resources {
 		resourcesBuilder.WithMemoryLimit(grp.MemoryLimit)
 	}
 	if grp.CpuLimit != nil {
-		resourcesBuilder.WithCPUCount(grp.CpuLimit.Count)
-		resourcesBuilder.WithCPUPercentage(grp.CpuLimit.Percentage)
-		resourcesBuilder.WithAllowedCPUs(grp.CpuLimit.AllowedCpus)
+		if grp.CpuLimit.Count != 0 {
+			resourcesBuilder.WithCPUCount(grp.CpuLimit.Count)
+		}
+		if grp.CpuLimit.Percentage != 0 {
+			resourcesBuilder.WithCPUPercentage(grp.CpuLimit.Percentage)
+		}
+		if len(grp.CpuLimit.AllowedCpus) != 0 {
+			resourcesBuilder.WithAllowedCPUs(grp.CpuLimit.AllowedCpus)
+		}
 	}
 	if grp.TaskLimit != 0 {
 		resourcesBuilder.WithThreadLimit(grp.TaskLimit)
