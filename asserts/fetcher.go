@@ -117,6 +117,7 @@ func (f *fetcher) fetchAccountKey(keyID, signatoryID, authorityID string) error 
 	if err := f.Fetch(keyRef); err != nil {
 		return err
 	}
+	// signatoryID is never empty as it is equal to authorityID otherwise
 	if signatoryID == authorityID {
 		return nil
 	}

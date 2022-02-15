@@ -564,6 +564,7 @@ func (p *Pool) add(a Assertion, g *internal.Grouping) error {
 	if err := p.addPrerequisite(keyRef, g); err != nil {
 		return err
 	}
+	// signatoryID is never empty as it is equal to authorityID otherwise
 	if a.SignatoryID() != a.AuthorityID() {
 		delegationRef := &Ref{
 			Type:       AuthorityDelegationType,
