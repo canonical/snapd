@@ -35,20 +35,20 @@ execute: |
     check_dirs() {
       echo "Check directories were migrated"
 
-      test -d "$HOME"/.snap/data/"$NAME"
-      test -d "$HOME"/.snap/data/"$NAME"/common
-      test -d "$HOME"/.snap/data/"$NAME"/"$1"
-      if [ "$(readlink "$HOME"/.snap/data/"$NAME"/current)" != "$1" ]; then
+      test -d "$HOME/.snap/data/$NAME"
+      test -d "$HOME/.snap/data/$NAME/common"
+      test -d "$HOME/.snap/data/$NAME/$1"
+      if [ "$(readlink "$HOME/.snap/data/$NAME/current")" != "$1" ]; then
         echo "expected 'current' to point to new revision after refresh"
         exit 1
       fi
 
-      not test -d "$HOME"/snap/"$NAME"
-      test -d "$HOME"/Snap/"$NAME"
+      not test -d "$HOME/snap/$NAME"
+      test -d "$HOME/Snap/$NAME"
 
-      test -d "$HOME"/.snap/data/"$NAME"/"$1"/data
-      test -d "$HOME"/.snap/data/"$NAME"/"$1"/config
-      test -d "$HOME"/.snap/data/"$NAME"/"$1"/cache
+      test -d "$HOME/.snap/data/$NAME/$1/data"
+      test -d "$HOME/.snap/data/$NAME/$1/config"
+      test -d "$HOME/.snap/data/$NAME/$1/cache"
     }
 
     # Checks that there is a file named 'file' in the new dirs containing the
@@ -57,9 +57,9 @@ execute: |
     check_data() {
       echo "Check that the written data was migrated"
 
-      MATCH "$2" < "$HOME"/.snap/data/"$NAME"/common/file
-      MATCH "$2" < "$HOME"/.snap/data/"$NAME"/$1/file
-      MATCH "$2" < "$HOME"/Snap/"$NAME"/file
+      MATCH "$2" < "$HOME/.snap/data/$NAME/common/file"
+      MATCH "$2" < "$HOME/.snap/data/$NAME/$1/file"
+      MATCH "$2" < "$HOME/Snap/$NAME/file"
     }
 
     echo "Set experimental hidden snap folder feature"
@@ -74,14 +74,14 @@ execute: |
     not test -d "$HOME"/.snap/data
 
     echo "Take a snapshot"
-    "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/file
+    "$NAME".cmd echo "prev_data" > "$HOME/snap/$NAME/current/file"
     # get the snapshot number from the 2nd line (the 1st line is the header)
     snapshot=$(snap save "$NAME" | awk 'FNR == 2 {print $1}')
 
     echo "Write data to user data dirs"
     data="old_data"
-    "$NAME".echo "$data" > "$HOME"/snap/"$NAME"/current/file
-    "$NAME".echo "$data" > "$HOME"/snap/"$NAME"/common/file
+    "$NAME".echo "$data" > "$HOME/snap/$NAME/current/file"
+    "$NAME".echo "$data" > "$HOME/snap/$NAME/common/file"
 
     echo "Refresh the snap"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
@@ -106,7 +106,7 @@ execute: |
 
     echo "Restore snapshot and check data was restored"
     snap restore "$snapshot"
-    MATCH "prev_data" < "$HOME"/.snap/data/"$NAME"/x2/file
+    MATCH "prev_data" < "$HOME/.snap/data/$NAME/x2/file"
 
     echo "Check that snap starts off hidden after a fresh install"
     snap remove --purge "$NAME"
@@ -116,9 +116,9 @@ execute: |
     check_dirs "x1"
 
     data="new_data"
-    "$NAME".echo "$data" > "$HOME"/.snap/data/"$NAME"/x1/file
-    "$NAME".echo "$data" > "$HOME"/.snap/data/"$NAME"/common/file
-    "$NAME".echo "$data" > "$HOME"/Snap/"$NAME"/file
+    "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/x1/file"
+    "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/common/file"
+    "$NAME".echo "$data" > "$HOME/Snap/$NAME/file"
     check_data "x1" "$data"
 
     echo "Revert migration (unset flag and refresh)"
@@ -128,10 +128,10 @@ execute: |
     echo "Check snap user data was moved back"
     not test -d "$HOME"/.snap/data
     #TODO: check that ~/Snap is gone, once revert is implemented
-    test -d "$HOME"/snap/"$NAME"
+    test -d "$HOME/snap/$NAME"
 
-    MATCH "$data" < "$HOME"/snap/"$NAME"/common/file
-    MATCH "$data" < "$HOME"/snap/"$NAME"/x2/file
+    MATCH "$data" < "$HOME/snap/$NAME/common/file"
+    MATCH "$data" < "$HOME/snap/$NAME/x2/file"
 
     echo "Check environment variables were restored"
     snapEnv=$("$NAME".env)
