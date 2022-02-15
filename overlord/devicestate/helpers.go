@@ -57,7 +57,7 @@ func maybeGetSystemForPreseeding() (label string, err error) {
 		return "", fmt.Errorf("cannot list available systems: %v", err)
 	}
 	if len(systemLabels) == 0 {
-		return "", nil
+		return "", fmt.Errorf("no preseed system")
 	}
 	if len(systemLabels) > 1 {
 		return "", fmt.Errorf("expected a single system for preseeding, found %d", len(systemLabels))
