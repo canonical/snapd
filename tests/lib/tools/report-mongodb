@@ -74,7 +74,7 @@ def insert(db, col, value):
         date = json_value["date"]
         time = json_value["time"]
         created_at = datetime.fromisoformat("{} {}".format(date, time)).isoformat()
-    except:
+    except ValueError:
         created_at = datetime.now().isoformat("T", "seconds")
 
     json_value["created_at"] = created_at
