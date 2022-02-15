@@ -410,9 +410,6 @@ backends:
             - ubuntu-core-20-64:
                   username: external
                   password: ubuntu
-            - ubuntu-core-20-32:
-                  username: external
-                  password: ubuntu
             - ubuntu-core-20-arm-64:
                   username: external
                   password: ubuntu
@@ -420,9 +417,6 @@ backends:
                   username: external
                   password: ubuntu
             - ubuntu-core-22-64:
-                  username: external
-                  password: ubuntu
-            - ubuntu-core-22-32:
                   username: external
                   password: ubuntu
             - ubuntu-core-22-arm-64:
