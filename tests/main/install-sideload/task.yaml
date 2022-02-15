@@ -10,7 +10,7 @@ environment:
     SNAP_REEXEC/reexec1: 1
 
 prepare: |
-    for snap in basic test-snapd-tools basic-desktop test-snapd-devmode; do
+    for snap in basic test-snapd-tools basic-desktop test-snapd-devmode snap-hooks-bad-install; do
         snap pack "$TESTSLIB"/snaps/$snap
     done
 
@@ -84,3 +84,14 @@ execute: |
     expected="(basic 1.0 installed\stest-snapd-tools 1.0 installed)|(test-snapd-tools 1.0 installed\sbasic 1.0 installed)"
     snap install --dangerous test-snapd-tools_1.0_all.snap basic_1.0_all.snap | MATCH -z "$expected"
     snap install --devmode test-snapd-tools_1.0_all.snap basic_1.0_all.snap | MATCH -z "$expected"
+
+    echo "Install multiple local snaps transactionally"
+    snap remove test-snapd-tools basic
+    snap install --dangerous --transactional test-snapd-tools_1.0_all.snap basic_1.0_all.snap |
+        MATCH -z "$expected"
+
+    echo "Install multiple local snaps transactionally, one fails and none is installed"
+    snap remove test-snapd-tools basic
+    not snap install --dangerous --transactional basic_1.0_all.snap snap-hooks-bad-install_1.0_all.snap
+    not snap list basic
+    not snap list snap-hooks-bad-install
