@@ -621,12 +621,21 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 }
 
 func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
-	var removedYet bool
+	// Do not do anything if we have already done this removal before on this
+	// device. This is because if, after we have removed vulnerable snaps the
+	// user decides to refresh to a vulnerable version of snapd, that is their
+	// choice and furthermore, this removal is itself really just a last minute
+	// circumvention for the issue where vulnerable snaps are left in place, we
+	// do not intend to ever do this again and instead will unmount or remount
+	// vulnerable old snaps as nosuid to prevent the suid snap-confine binaries
+	// in them from being available to abuse for fixed vulnerabilies that are
+	// not exploitable in the current versions of snapd/core snaps.
+	var alreadyRemoved bool
 	key := fmt.Sprintf("%s-snap-cve-2021-44731-vuln-removed", name)
-	if err := m.state.Get(key, &removedYet); err != nil && err != state.ErrNoState {
+	if err := m.state.Get(key, &alreadyRemoved); err != nil && err != state.ErrNoState {
 		return err
 	}
-	if removedYet {
+	if alreadyRemoved {
 		return nil
 	}
 	var snapSt SnapState
@@ -659,8 +668,14 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 		case !revIsVulnerable && si.Revision == snapSt.Current:
 			fixedVersionInstalled = true
 		case revIsVulnerable && si.Revision == snapSt.Current:
-			// the active installed revision is not fixed, we can break out
-			// early since we know we won't be able to remove old revisions
+			// The active installed revision is not fixed, we can break out
+			// early since we know we won't be able to remove old revisions.
+			// Note that we do not attempt to refresh the snap right now, partly
+			// because it may not work due to validations on the core/snapd snap
+			// on some devices, but also because doing so out of band from
+			// normal, controllable refresh schedules introduces non-trivial
+			// load on store services and ignores user settings around refresh
+			// schedules which we ought to obey as best we can.
 			return nil
 		case revIsVulnerable && si.Revision != snapSt.Current:
 			// si revision is not fixed, but is not active, so it is a candidate
@@ -674,7 +689,6 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	if !fixedVersionInstalled {
 		return nil
 	}
-	// TODO: should we use one change for removing all the snap revisions?
 
 	// remove all the inactive vulnerable revisions
 	for _, rev := range inactiveVulnRevisions {
