@@ -29,6 +29,8 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
@@ -43,7 +45,8 @@ import (
 type grubTestSuite struct {
 	baseBootenvTestSuite
 
-	bootdir string
+	bootdir  string
+	realArch string
 }
 
 var _ = Suite(&grubTestSuite{})
@@ -53,6 +56,15 @@ func (s *grubTestSuite) SetUpTest(c *C) {
 	bootloader.MockGrubFiles(c, s.rootdir)
 
 	s.bootdir = filepath.Join(s.rootdir, "boot")
+	// By default assume amd64 in the tests: there are specialized
+	// tests for other arches
+	s.realArch = arch.DpkgArchitecture()
+	arch.SetArchitecture("amd64")
+}
+
+func (s *grubTestSuite) TearDownTest(c *C) {
+	arch.SetArchitecture(arch.ArchitectureType(s.realArch))
+	s.baseBootenvTestSuite.TearDownTest(c)
 }
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
@@ -1178,6 +1190,26 @@ func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
 	c.Check(ta, IsNil)
 }
 
+func (s *grubTestSuite) TestTrustedAssetsFailAtPrepareImageTime(c *C) {
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte("grub.cfg"))
+
+	opts := []bootloader.Options{
+		{NoSlashBoot: true, PrepareImageTime: true},
+		{NoSlashBoot: true, PrepareImageTime: true, Role: bootloader.RoleRecovery}}
+	for _, opt := range opts {
+		g := bootloader.NewGrub(s.rootdir, &opt)
+		c.Assert(g, NotNil)
+
+		tab, ok := g.(bootloader.TrustedAssetsBootloader)
+		c.Assert(ok, Equals, true)
+
+		ta, err := tab.TrustedAssets()
+		c.Assert(err, ErrorMatches, "internal error: retrieving boot assets at prepare image time")
+		c.Check(ta, IsNil)
+	}
+}
+
 func (s *grubTestSuite) TestRecoveryBootChains(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
 	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
@@ -1217,6 +1249,26 @@ func (s *grubTestSuite) TestBootChains(c *C) {
 		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsArm64(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	r := archtest.MockArchitecture("arm64")
+	defer r()
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chain, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
 		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
 	})
 }
