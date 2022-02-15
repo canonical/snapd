@@ -15,6 +15,53 @@ restore: |
     snap unset system experimental.hidden-snap-folder
 
 execute: |
+    # Checks that the env vars are as expected after the migration. 1st parameter
+    # is the current revision.
+    check_env() {
+      echo "Check the env vars were migrated"
+
+      snapEnv=$("$NAME".env)
+      echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/$1"
+      echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
+      echo "$snapEnv" | MATCH "HOME=$HOME/Snap"
+      echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap"
+      echo "$snapEnv" | MATCH "XDG_DATA_HOME=$HOME/\.snap/data/$NAME/$1/data"
+      echo "$snapEnv" | MATCH "XDG_CACHE_HOME=$HOME/\.snap/data/$NAME/$1/cache"
+      echo "$snapEnv" | MATCH "XDG_CONFIG_HOME=$HOME/\.snap/data/$NAME/$1/config"
+    }
+
+    # Checks that the snap dirs are as expected after the migration. 1st parameter
+    # is the current revision.
+    check_dirs() {
+      echo "Check directories were migrated"
+
+      test -d "$HOME"/.snap/data/"$NAME"
+      test -d "$HOME"/.snap/data/"$NAME"/common
+      test -d "$HOME"/.snap/data/"$NAME"/"$1"
+      if [ "$(readlink "$HOME"/.snap/data/"$NAME"/current)" != "$1" ]; then
+        echo "expected 'current' to point to new revision after refresh"
+        exit 1
+      fi
+
+      not test -d "$HOME"/snap/"$NAME"
+      test -d "$HOME"/Snap/"$NAME"
+
+      test -d "$HOME"/.snap/data/"$NAME"/"$1"/data
+      test -d "$HOME"/.snap/data/"$NAME"/"$1"/config
+      test -d "$HOME"/.snap/data/"$NAME"/"$1"/cache
+    }
+
+    # Checks that there is a file named 'file' in the new dirs containing the
+    # expected data. 1st parameter is the current revision; 2nd parameter is
+    # the expected file contents.
+    check_data() {
+      echo "Check that the written data was migrated"
+
+      MATCH "$2" < "$HOME"/.snap/data/"$NAME"/common/file
+      MATCH "$2" < "$HOME"/.snap/data/"$NAME"/$1/file
+      MATCH "$2" < "$HOME"/Snap/"$NAME"/file
+    }
+
     echo "Set experimental hidden snap folder feature"
     snap set system experimental.hidden-snap-folder=true
 
@@ -27,63 +74,52 @@ execute: |
     not test -d "$HOME"/.snap/data
 
     echo "Take a snapshot"
-    "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data_file
+    "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/file
     # get the snapshot number from the 2nd line (the 1st line is the header)
     snapshot=$(snap save "$NAME" | awk 'FNR == 2 {print $1}')
 
     echo "Write data to user data dirs"
-    "$NAME".echo "data" > "$HOME"/snap/"$NAME"/current/data_file
-    "$NAME".echo "common" > "$HOME"/snap/"$NAME"/common/common_file
+    data="old_data"
+    "$NAME".echo "$data" > "$HOME"/snap/"$NAME"/current/file
+    "$NAME".echo "$data" > "$HOME"/snap/"$NAME"/common/file
 
     echo "Refresh the snap"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
-    echo "Check snap directory was migrated"
-    test -d "$HOME"/.snap/data/"$NAME"
-    test -d "$HOME"/.snap/data/"$NAME"/common
-    test -d "$HOME"/.snap/data/"$NAME"/x2
-    not test -d "$HOME"/snap/"$NAME"
+    # Check env vars, dirs and data after the migration
+    check_env "x2"
+    # Note: some dirs are created just before the snap runs for the 1st time,
+    # so this check must come after a snap run
+    check_dirs "x2"
 
-    echo "Check the env vars point to ~/.snap/data"
-    snapEnv=$("$NAME".env)
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x2"
-    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
-
-    # 'current' symlink is created just before the snap runs, so this check
-    # must come after a snap run
-    if [ "$(readlink "$HOME"/.snap/data/"$NAME"/current)" != "x2" ]; then
-      echo "expected 'current' to point to new revision after refresh"
-      exit 1
-    fi
-
-    echo "Check that the written data is in the new dir"
-    MATCH "common" < "$HOME"/.snap/data/"$NAME"/common/common_file
-    MATCH "data" < "$HOME"/.snap/data/"$NAME"/x2/data_file
+    check_data "x2" "$data"
 
     echo "Check the snap can write to the new dirs"
     #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/new_data'
+    "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/file'
     #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "new_common" > "$SNAP_USER_COMMON"/new_common'
-    MATCH "new_common" < "$HOME"/.snap/data/"$NAME"/common/new_common
-    MATCH "new_data" < "$HOME"/.snap/data/"$NAME"/x2/new_data
+    "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_COMMON"/file'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "new_data" > "$HOME"/file'
+
+    check_data "x2" "new_data"
 
     echo "Restore snapshot and check data was restored"
     snap restore "$snapshot"
-    MATCH "prev_data" < "$HOME"/.snap/data/"$NAME"/x2/data_file
+    MATCH "prev_data" < "$HOME"/.snap/data/"$NAME"/x2/file
 
     echo "Check that snap starts off hidden after a fresh install"
     snap remove --purge "$NAME"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
-    test -d "$HOME"/.snap/data/"$NAME"
-    not test -d "$HOME"/snap/"$NAME"
-    snapEnv=$("$NAME".env)
-    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x1"
-    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
+    check_env "x1"
+    check_dirs "x1"
 
-    "$NAME".echo "data" > "$HOME"/.snap/data/"$NAME"/x1/data_file
-    "$NAME".echo "common" > "$HOME"/.snap/data/"$NAME"/common/common_file
+    data="new_data"
+    "$NAME".echo "$data" > "$HOME"/.snap/data/"$NAME"/x1/file
+    "$NAME".echo "$data" > "$HOME"/.snap/data/"$NAME"/common/file
+    "$NAME".echo "$data" > "$HOME"/Snap/"$NAME"/file
+    check_data "x1" "$data"
 
     echo "Revert migration (unset flag and refresh)"
     snap unset system experimental.hidden-snap-folder
@@ -91,12 +127,15 @@ execute: |
 
     echo "Check snap user data was moved back"
     not test -d "$HOME"/.snap/data
+    #TODO: check that ~/Snap is gone, once revert is implemented
     test -d "$HOME"/snap/"$NAME"
 
-    MATCH "common" < "$HOME"/snap/"$NAME"/common/common_file
-    MATCH "data" < "$HOME"/snap/"$NAME"/x2/data_file
+    MATCH "$data" < "$HOME"/snap/"$NAME"/common/file
+    MATCH "$data" < "$HOME"/snap/"$NAME"/x2/file
 
     echo "Check environment variables were restored"
     snapEnv=$("$NAME".env)
     echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/snap/$NAME/x2"
     echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/snap/$NAME/common"
+
+    #TODO: add core22 migration path
