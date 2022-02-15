@@ -2033,7 +2033,7 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 	})
 	defer restore()
 
-	// prepare an image with no model assetion but classic set to true
+	// prepare an image with no model assertion but classic set to true
 	// to ensure the GenericClassicModel is used without error
 	err := image.Prepare(&image.Options{
 		Architecture: "amd64",

@@ -317,7 +317,6 @@ type Fake16Seed struct {
 	Essential         []*seed.Snap
 	LoadMetaErr       error
 	LoadAssertionsErr error
-	IterErr           error
 	UsesSnapd         bool
 }
 
@@ -380,7 +379,7 @@ func (fs *Fake16Seed) NumSnaps() int {
 }
 
 func (fs *Fake16Seed) Iter(f func(sn *seed.Snap) error) error {
-	return fs.IterErr
+	return nil
 }
 
 func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {

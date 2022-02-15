@@ -117,11 +117,12 @@ type Seed interface {
 	// in the given mode as defined by the seed, after LoadMeta.
 	ModeSnaps(mode string) ([]*Snap, error)
 
-	// NumSnaps returns the total number of snaps in a seed
+	// NumSnaps returns the total number of snaps in a seed.
 	NumSnaps() int
 
 	// Iter provides a way to iterately perform a function on
-	// each of the snaps in a seed
+	// each of the snaps in a seed. For UC20 all snaps will be
+	// considered independent of mode.
 	Iter(f func(sn *Snap) error) error
 }
 
