@@ -113,8 +113,8 @@ type DeviceManager struct {
 	reg                          chan struct{}
 	noRegister                   bool
 
-	preseed       bool
-	preseedSystem string
+	preseed            bool
+	preseedSystemLabel string
 
 	ntpSyncedOrTimedOut bool
 }
@@ -143,7 +143,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// cache system label for preseeding if core20
 		if !release.OnClassic {
 			var err error
-			m.preseedSystem, err = maybeGetSystemForPreseeding()
+			m.preseedSystemLabel, err = maybeGetSystemForPreseeding()
 			if err != nil {
 				return nil, err
 			}
@@ -639,13 +639,17 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 	return perfTimings, nil
 }
 
+func (m *DeviceManager) preseedSystem() string {
+	if m.preseedSystemLabel == "" {
+		panic("no system to preseed")
+	}
+	return m.preseedSystemLabel
+}
+
 func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
 	if m.preseed {
-		if m.preseedSystem == "" {
-			return nil, nil, fmt.Errorf("no system to preseed")
-		}
-		sysLabel = m.preseedSystem
+		sysLabel = m.preseedSystem()
 	} else {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
@@ -752,11 +756,11 @@ func (m *DeviceManager) ensureSeeded() error {
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
 		if !release.OnClassic {
-			if m.preseedSystem == "" {
+			if m.preseedSystemLabel == "" {
 				return fmt.Errorf("no system to preseed")
 			}
 			opts.Mode = "run"
-			opts.Label = m.preseedSystem
+			opts.Label = m.preseedSystemLabel
 		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
