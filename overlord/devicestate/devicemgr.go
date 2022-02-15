@@ -140,7 +140,15 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 			m.sysMode = modeEnv.Mode
 		}
 	} else {
-		m.sysMode = "run"
+		// cache system label for preseeding if core20
+		if !release.OnClassic {
+			var err error
+			m.preseedSystem, err = maybeGetSystemForPreseeding()
+			if err != nil {
+				return nil, err
+			}
+			m.sysMode = "run"
+		}
 	}
 
 	s.Lock()
@@ -279,17 +287,6 @@ func (m *DeviceManager) StartUp() error {
 	}
 
 	// TODO: setup proper timings measurements for this
-
-	if m.preseed {
-		// cache system label for preseeding if core20
-		if !release.OnClassic {
-			var err error
-			m.preseedSystem, err = maybeGetSystemForPreseeding()
-			if err != nil {
-				return err
-			}
-		}
-	}
 
 	m.state.Lock()
 	defer m.state.Unlock()

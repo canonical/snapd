@@ -1899,7 +1899,7 @@ func (s *deviceMgrSuite) TestSysModeIsRunWhenPreseeding(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
-	restoreOnClassic := release.MockOnClassic(true)
+	restoreOnClassic := release.MockOnClassic(false)
 	defer restoreOnClassic()
 
 	runner := state.NewTaskRunner(s.state)

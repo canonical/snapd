@@ -680,12 +680,13 @@ func (s *preseedModeSuite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	})
 	_ = s.setupCore20Seed(c, "20220108")
 
-	s.mgr.StartUp()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, _, err := devicestate.PreloadGadget(s.mgr)
+	_, _, err = devicestate.PreloadGadget(mgr)
 	// error from mocked loadDeviceSeed results in ErrNoState from preloadGadget
 	c.Assert(err, Equals, state.ErrNoState)
 	c.Check(readSysLabel, Equals, "20220108")
@@ -710,9 +711,10 @@ func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 
-	s.mgr.StartUp()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
 
-	err := devicestate.EnsureSeeded(s.mgr)
+	err = devicestate.EnsureSeeded(mgr)
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
 }
