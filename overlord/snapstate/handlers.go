@@ -503,16 +503,33 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 		}
 	}
 
+	// If transactional, use a single lane for all tasks, so when
+	// one fails the changes for all affected snaps will be
+	// undone. Otherwise, have different lanes per snap so
+	// failures only affect the culprit snap.
+	var transactionLane int
+	if flags.Transactional {
+		transactionLane = st.NewLane()
+	}
+
 	chg := t.Change()
 	// add all required snaps, no ordering, this will be done in the
 	// auto-connect task handler
 	for _, ts := range tss {
-		ts.JoinLane(st.NewLane())
+		if flags.Transactional {
+			ts.JoinLane(transactionLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 		chg.AddAll(ts)
 	}
 	// add the base if needed, prereqs else must wait on this
 	if tsBase != nil {
-		tsBase.JoinLane(st.NewLane())
+		if flags.Transactional {
+			tsBase.JoinLane(transactionLane)
+		} else {
+			tsBase.JoinLane(st.NewLane())
+		}
 		for _, t := range chg.Tasks() {
 			t.WaitAll(tsBase)
 		}
@@ -520,7 +537,11 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	}
 	// add snapd if needed, everything must wait on this
 	if tsSnapd != nil {
-		tsSnapd.JoinLane(st.NewLane())
+		if flags.Transactional {
+			tsSnapd.JoinLane(transactionLane)
+		} else {
+			tsSnapd.JoinLane(st.NewLane())
+		}
 		for _, t := range chg.Tasks() {
 			t.WaitAll(tsSnapd)
 		}
