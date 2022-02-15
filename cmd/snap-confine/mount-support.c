@@ -383,6 +383,17 @@ static void sc_replicate_rootfs(const char *scratch_dir,
 			if (symlink(link_target, full_path) < 0) {
 				die("cannot create symbolic link \"%s\"", full_path);
 			}
+		} else if (ent->d_type == DT_REG) {
+			// Create an empty file which can be used as a mount point
+			int fd = open(full_path, O_CREAT | O_TRUNC, 0644);
+			if (fd < 0) {
+				die("cannot create mount point for file \"%s\"", full_path);
+			}
+			close(fd);
+			char src_path[PATH_MAX];
+			sc_must_snprintf(src_path, sizeof(src_path), "%s/%s",
+					 rootfs_dir, ent->d_name);
+			sc_do_mount(src_path, full_path, NULL, MS_BIND, NULL);
 		}
 	}
 
