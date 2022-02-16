@@ -497,6 +497,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		immediateShutdown = true
 	}
 	restartSocket := d.restartSocket
+	rebootInfo := d.rebootInfo
 	d.mu.Unlock()
 
 	// before not accepting any new client connections we need to write the
@@ -577,7 +578,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, &d.rebootInfo, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, d.requestedRestart, &rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
