@@ -28,10 +28,10 @@ setup() {
 
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
-    apt update -y
+    apt update
     
     if ! dpkg -s ubuntu-core-initramfs >/dev/null 2>&1; then
-        if ! apt install ubuntu-core-initramfs -y; then
+        if ! apt install -y ubuntu-core-initramfs; then
             echo "ubuntu-core-initramfs was not available in deb repository!"
             exit 1
         fi
@@ -40,11 +40,7 @@ setup() {
 
 get_kver() {
     local kerneldir="$1"
-    (
-        cd "$kerneldir"
-        #shellcheck disable=SC2010
-        ls "config"-* | grep -Po 'config-\K.*'
-    )
+    find "$kerneldir" -maxdepth 1 -name "config"-* | grep -Po 'config-\K.*'
 }
 
 extract() {
@@ -103,7 +99,9 @@ prepare() {
     fi
 
     target=$(realpath "$target")
-    local kver="$(get_kver "$target/kernel")"
+    
+    local kver
+    kver="$(get_kver "$target/kernel")"
 
     (
         # all the skeleton edits go to a local copy of distro directory
@@ -146,11 +144,10 @@ cull_firmware() {
         echo "repack-kernel: missing target for cull-firmware"
         exit 1
     fi
-    (
-        # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
-        # or the cloud system
-        rm -rf "$target"/kernel/firmware/*
-    )
+    
+    # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
+    # or the cloud system
+    rm -rf "$target"/kernel/firmware/*
 }
 
 cull_modules() {
@@ -161,8 +158,10 @@ cull_modules() {
         exit 1
     fi
 
-    target="$(realpath $target)"
-    local kver="$(get_kver "$target/kernel")"
+    target=$(realpath "$target")
+    
+    local kver
+    kver="$(get_kver "$target/kernel")"
 
     (
         cd "$target/kernel"
