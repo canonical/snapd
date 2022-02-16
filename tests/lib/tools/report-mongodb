@@ -73,7 +73,7 @@ def insert(db, col, value):
     try:
         date = json_value["date"]
         time = json_value["time"]
-        created_at = datetime.fromisoformat("{} {}".format(date, time)).isoformat()
+        created_at = datetime.strptime("{} {}".format(date, time), "%Y-%m-%d %X").isoformat()
     except ValueError:
         created_at = datetime.now().isoformat("T", "seconds")
 
