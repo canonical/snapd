@@ -260,6 +260,12 @@ func (s *firstbootPreseedingClassic16Suite) SetUpTest(c *C) {
 
 	restoreRelease := release.MockOnClassic(true)
 	s.AddCleanup(restoreRelease)
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	s.AddCleanup(mockMountCmd.Restore)
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	s.AddCleanup(mockUmountCmd.Restore)
 }
 
 func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappy(c *C) {
@@ -268,12 +274,6 @@ func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappy(c *C) {
 
 	// sanity
 	c.Assert(release.OnClassic, Equals, true)
-
-	mockMountCmd := testutil.MockCommand(c, "mount", "")
-	defer mockMountCmd.Restore()
-
-	mockUmountCmd := testutil.MockCommand(c, "umount", "")
-	defer mockUmountCmd.Restore()
 
 	coreFname, _, _ := s.makeCoreSnaps(c, "")
 
@@ -363,11 +363,8 @@ func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy
 	restorePreseedMode := snapdenv.MockPreseeding(true)
 	defer restorePreseedMode()
 
-	mockMountCmd := testutil.MockCommand(c, "mount", "")
-	defer mockMountCmd.Restore()
-
-	mockUmountCmd := testutil.MockCommand(c, "umount", "")
-	defer mockUmountCmd.Restore()
+	// sanity
+	c.Assert(release.OnClassic, Equals, true)
 
 	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{
 		classic: true,
