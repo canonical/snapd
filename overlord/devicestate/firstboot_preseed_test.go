@@ -40,12 +40,12 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type firstbootPreseed16Suite struct {
+type firstbootPreseedingClassic16Suite struct {
 	firstBootBaseTest
 	firstBoot16BaseTest
 }
 
-var _ = Suite(&firstbootPreseed16Suite{})
+var _ = Suite(&firstbootPreseedingClassic16Suite{})
 
 func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
 	// the tasks of the last taskset must be mark-preseeded, mark-seeded, in that order
@@ -246,7 +246,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	c.Check(matched, Equals, len(snaps))
 }
 
-func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
+func (s *firstbootPreseedingClassic16Suite) SetUpTest(c *C) {
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.setup16BaseTest(c, &s.firstBootBaseTest)
 
@@ -257,14 +257,17 @@ func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 
 	s.AddCleanup(interfaces.MockSystemKey(`{"core": "123"}`))
 	c.Assert(interfaces.WriteSystemKey(), IsNil)
+
+	restoreRelease := release.MockOnClassic(true)
+	s.AddCleanup(restoreRelease)
 }
 
-func (s *firstbootPreseed16Suite) TestPreseedOnClassicHappy(c *C) {
+func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappy(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
-	restoreRelease := release.MockOnClassic(true)
-	defer restoreRelease()
+	// sanity
+	c.Assert(release.OnClassic, Equals, true)
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
 	defer mockMountCmd.Restore()
@@ -356,12 +359,9 @@ snaps:
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
-func (s *firstbootPreseed16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
+func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
 	restorePreseedMode := snapdenv.MockPreseeding(true)
 	defer restorePreseedMode()
-
-	restore := release.MockOnClassic(true)
-	defer restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
 	defer mockMountCmd.Restore()
