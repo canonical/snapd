@@ -35,9 +35,16 @@ import (
 
 type rebootSuite struct {
 	baseBootenvSuite
+
+	restoreRebootState func()
 }
 
 var _ = Suite(&rebootSuite{})
+
+func (s *rebootSuite) SetUpTest(c *C) {
+	s.baseBootenvSuite.SetUpTest(c)
+	s.AddCleanup(boot.EnableTestingRebootFunction())
+}
 
 func (s *rebootSuite) TestRebootActionString(c *C) {
 	c.Assert(fmt.Sprint(boot.RebootReboot), Equals, "system reboot")

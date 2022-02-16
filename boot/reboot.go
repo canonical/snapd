@@ -57,9 +57,22 @@ var (
 	shutdownMsg = i18n.G("reboot scheduled to update the system")
 	haltMsg     = i18n.G("system halt scheduled")
 	poweroffMsg = i18n.G("system poweroff scheduled")
+
+	// testingRebootItself is set to true when we want to unit
+	// test the Reboot function.
+	testingRebootItself = false
 )
 
+func EnableTestingRebootFunction() (restore func()) {
+	testingRebootItself = true
+	return func() { testingRebootItself = false }
+}
+
 func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootInfo) error {
+	if osutil.IsTestBinary() && !testingRebootItself {
+		return nil
+	}
+
 	if rebootDelay < 0 {
 		rebootDelay = 0
 	}
