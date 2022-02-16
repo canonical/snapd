@@ -29,7 +29,6 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
@@ -58,13 +57,7 @@ func (s *grubTestSuite) SetUpTest(c *C) {
 	s.bootdir = filepath.Join(s.rootdir, "boot")
 	// By default assume amd64 in the tests: there are specialized
 	// tests for other arches
-	s.realArch = arch.DpkgArchitecture()
-	arch.SetArchitecture("amd64")
-}
-
-func (s *grubTestSuite) TearDownTest(c *C) {
-	arch.SetArchitecture(arch.ArchitectureType(s.realArch))
-	s.baseBootenvTestSuite.TearDownTest(c)
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
 
 // grubEditenvCmd finds the right grub{,2}-editenv command
