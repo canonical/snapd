@@ -394,7 +394,7 @@ distro_install_build_snapd(){
         fi
     elif [ -n "$PPA_GPG_KEY" ] && [ -n "$PPA_SOURCE_LINE" ]; then
         echo "$PPA_GPG_KEY" | apt-key add -
-        echo ${PPA_SOURCE_LINE//"YOUR_UBUNTU_VERSION_HERE"/"$(lsb_release -c -s)"} >> /etc/apt/sources.list
+        echo "${PPA_SOURCE_LINE//"YOUR_UBUNTU_VERSION_HERE"/"$(lsb_release -c -s)"}" >> /etc/apt/sources.list
         apt update
         apt install -y snapd
 
