@@ -44,8 +44,7 @@ import (
 type grubTestSuite struct {
 	baseBootenvTestSuite
 
-	bootdir  string
-	realArch string
+	bootdir string
 }
 
 var _ = Suite(&grubTestSuite{})
