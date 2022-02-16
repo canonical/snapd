@@ -35,8 +35,6 @@ import (
 
 type rebootSuite struct {
 	baseBootenvSuite
-
-	restoreRebootState func()
 }
 
 var _ = Suite(&rebootSuite{})
