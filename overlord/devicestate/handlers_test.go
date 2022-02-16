@@ -439,6 +439,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	c.Check(ok, Equals, false)
 }
 
+// TODO: move to preseeding_test.go
 type preseedingBaseSuite struct {
 	deviceMgrBaseSuite
 
