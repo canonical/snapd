@@ -147,6 +147,7 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 			lane++
 		}
 	}
+	c.Assert(lane, Equals, 3)
 	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
 }
 
@@ -164,9 +165,9 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 			"prereq1": {"some-content"}, "prereq2": {"other-content"}},
 		Flags: snapstate.Flags{Transactional: true},
 	})
-	// Ensure the manually created task matches the lane that will
-	// be shared across all tasks.
-	t.JoinLane(1)
+	// Set lane to make sure new tasks will match this one
+	lane := 3
+	t.JoinLane(lane)
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
@@ -182,9 +183,9 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 	expectedLinkedSnaps := []string{"prereq1", "prereq2", "snapd"}
 	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
 	for _, t := range chg.Tasks() {
-		// Make sure that the Transacation flag has been applied,
+		// Make sure that the Transactional flag has been applied,
 		// so we have only one lane.
-		c.Assert(t.Lanes(), DeepEquals, []int{1})
+		c.Assert(t.Lanes(), DeepEquals, []int{lane})
 
 		if t.Kind() == "link-snap" {
 			snapsup, err := snapstate.TaskSnapSetup(t)
@@ -193,6 +194,35 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 		}
 	}
 	c.Check(linkedSnaps, testutil.DeepUnsortedMatches, expectedLinkedSnaps)
+}
+
+func (s *prereqSuite) TestDoPrereqTransactionalFailTooManyLanes(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: "none",
+		PrereqContentAttrs: map[string][]string{
+			"prereq1": {"some-content"}},
+		Flags: snapstate.Flags{Transactional: true},
+	})
+	// There should be only one lane in a transactional change
+	t.JoinLane(1)
+	t.JoinLane(2)
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 
 func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
