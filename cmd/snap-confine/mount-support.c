@@ -361,6 +361,10 @@ static void sc_replicate_rootfs(const char *scratch_dir,
 			if (skip_dir) {
 				continue;
 			}
+			// Also skip the /snap directory, as we'll mount it later
+			if (sc_streq(path_in_rootfs, "/snap")) {
+				skip_dir = true;
+			}
 
 			char src_path[PATH_MAX];
 			sc_must_snprintf(src_path, sizeof(src_path), "%s/%s",
