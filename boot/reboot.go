@@ -63,11 +63,6 @@ var (
 	testingRebootItself = false
 )
 
-func EnableTestingRebootFunction() (restore func()) {
-	testingRebootItself = true
-	return func() { testingRebootItself = false }
-}
-
 func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootInfo) error {
 	if osutil.IsTestBinary() && !testingRebootItself {
 		return nil

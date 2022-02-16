@@ -242,3 +242,8 @@ func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()
 		writeModelToUbuntuBoot = old
 	}
 }
+
+func EnableTestingRebootFunction() (restore func()) {
+	testingRebootItself = true
+	return func() { testingRebootItself = false }
+}
