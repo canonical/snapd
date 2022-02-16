@@ -499,10 +499,6 @@ func (s *preseedingClassicSuite) SetUpTest(c *C) {
 	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
 }
 
-func (s *preseedingClassicSuite) TearDownTest(c *C) {
-	s.preseedingBaseSuite.TearDownTest(c)
-}
-
 func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 	now := time.Now()
 	restore := devicestate.MockTimeNow(func() time.Time {
@@ -600,10 +596,6 @@ func (s *preseedingClassicDoneSuite) SetUpTest(c *C) {
 	classic := true
 	preseed := false
 	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
-}
-
-func (s *preseedingClassicDoneSuite) TearDownTest(c *C) {
-	s.preseedingBaseSuite.TearDownTest(c)
 }
 
 func (s *preseedingClassicDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
