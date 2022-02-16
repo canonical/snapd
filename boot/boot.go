@@ -44,7 +44,7 @@ const (
 // RebootInfo contains information about how to perform a reboot if
 // required
 type RebootInfo struct {
-	// rebootRequired is true if we need to reboot after an update
+	// RebootRequired is true if we need to reboot after an update
 	RebootRequired bool
 	// RebootBootloader will not be nil if the bootloader has something to say on
 	// how to perform the reboot

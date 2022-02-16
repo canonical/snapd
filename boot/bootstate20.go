@@ -196,13 +196,6 @@ type bootState20Kernel struct {
 	dev Device
 }
 
-func (ks20 *bootState20Kernel) getRebootBootloader() (bootloader.RebootBootloader, error) {
-	if err := ks20.loadBootenv(); err != nil {
-		return nil, err
-	}
-	return ks20.rbl, nil
-}
-
 func (ks20 *bootState20Kernel) loadBootenv() error {
 	// don't setup multiple times
 	if ks20.bks != nil {
@@ -242,6 +235,13 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	}
 
 	return nil
+}
+
+func (ks20 *bootState20Kernel) getRebootBootloader() (bootloader.RebootBootloader, error) {
+	if err := ks20.loadBootenv(); err != nil {
+		return nil, err
+	}
+	return ks20.rbl, nil
 }
 
 func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
