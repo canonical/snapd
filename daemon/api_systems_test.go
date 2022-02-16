@@ -320,6 +320,9 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	bootloader.Force(bt)
 	defer func() { bootloader.Force(nil) }()
 
+	r := boot.EnableTestingRebootFunction()
+	defer r()
+
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 

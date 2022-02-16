@@ -1200,6 +1200,9 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	rebootRetryWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
+	r := boot.EnableTestingRebootFunction()
+	defer r()
+
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
