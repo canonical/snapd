@@ -1294,6 +1294,9 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 			expArgs: []string{"stop", "snap.test-snap.svc1.service"},
 			err:     fmt.Errorf("this service is still having a bad day"),
 		},
+		{
+			expArgs: []string{"show", "--property=ActiveState", "snap.test-snap.svc1.service"},
+		},
 	})
 	defer r()
 

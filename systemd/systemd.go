@@ -942,92 +942,118 @@ func (s *systemd) Stop(serviceNames []string) error {
 		panic("cannot call stop with GlobalUserMode")
 	}
 
-	// Start the stop command in blocking mode inside a go routine to allow for
-	// real time progress tracking and notifications on services taking a long
-	// time to stop. Note that this systemd 'Stop' function is still blocking
-	// (under no error conditions) because it will wait until all units have
-	// stopped, or the timeout is reached. The reason we use a parallel thread
-	// is because we need to know exactly when systemctl returns, as this is the
-	// point where we disable the progress polling and exit. We cannot elegantly
-	// achieve this, for example, using --no-block without a go routine.
-	sysdReturn := make(chan error)
+	// Start the real time progress tracking inside a go routine because the
+	// 'systemctl stop' request is blocking (which runs in the parent function).
+	// Note that although the status polling thread is separate, and could start
+	// before the 'systemctl stop' command, the poll ticker will not fire
+	// immediately, allowing the stop command to start first. The ordering is
+	// not assumed, but it helps make existing unit-test code work, because the
+	// systemctl mocking in some modules are implemented very simplistically, and
+	// assumes that the 'stop' argument comes before the 'show'.
+	errorRet := make(chan error)
+	exitSig := make(chan interface{})
+
 	go func() {
-		_, err := s.systemctl(append([]string{"stop"}, serviceNames...)...)
+		// The polling routine is the 'errorRet' channel sender, so we make
+		// sure we exit by closing the channel explicitly, even though we always
+		// return the error result first. Closing the channel does not free the
+		// object, the reader can still access the object. The object is only
+		// freed when no further references exit.
+		defer close(errorRet)
 
-		// Systemd has completed the stop request async, return the error
-		// to trigger the progress state machine exit
-		sysdReturn <- err
-	}()
+		notify := time.NewTimer(stopNotifyDelay)
+		check := time.NewTicker(stopCheckDelay)
+		defer check.Stop()
 
-	notify := time.NewTimer(stopNotifyDelay)
-	check := time.NewTicker(stopCheckDelay)
-	defer check.Stop()
+		// We start with a notice grace period to give services time to stop.
+		// Once this period expires, we provide user notifications every time
+		// the list of services we are waiting for changes (or on the first
+		// change of 'silenceNotify', which is detected by 'silenceNotifyEdge')
+		silenceNotify := true
+		silenceNotifyEdge := false
 
-	// We start with a notice grace period to give services time to stop.
-	// Once this period expires, we provide user notifications every time
-	// the list of services we are waiting for changes
-	silenceNotify := true
+		// Once the async systemd stop completes, we do one last status poll
+		// to make sure we have the most up to date state.
+		stopComplete := false
 
-	// Once the async systemd stop completes without an error, we do one
-	// last status poll to make sure everything has stopped.
-	stopComplete := false
-loop:
-	for {
-		select {
-		case sysdErr := <-sysdReturn:
-			if sysdErr != nil {
-				// The systemd stop request returned an error
-				return sysdErr
+		for {
+			select {
+			case <-exitSig:
+				// We are now complete, but poll final state of units
+				stopComplete = true
+
+			case <-check.C:
+				// Enable state poll of units
+
+			case <-notify.C:
+				// Enable user notifications and trigger first message
+				silenceNotify = false
+				silenceNotifyEdge = true
 			}
-			stopComplete = true
-			continue loop
 
-		case <-check.C:
-			allStopped := true
+			// Check if any of the remaining running units have stopped?
+			allUnitsStopped := true
 			stillRunningServices := []string{}
 			for _, service := range serviceNames {
 				bs, err := s.systemctl("show", "--property=ActiveState", service)
 				if err != nil {
-					return err
+					errorRet <- err
+					return
 				}
 				if !isStopDone(bs) {
 					stillRunningServices = append(stillRunningServices, service)
-					allStopped = false
+					allUnitsStopped = false
 				}
 			}
 
-			if allStopped {
-				return nil
-			}
+			// Any remaining running units stopped?
+			nothingChanged := len(serviceNames) == len(stillRunningServices)
 
-			nothingChanged := true
-			if len(serviceNames) != len(stillRunningServices) {
-				nothingChanged = false
-			}
-			// Only track the service units still not stopped
+			// We only poll units still running.
 			serviceNames = stillRunningServices
 
-			if stopComplete {
-				// Systemd has done what it can and exited
-				break loop
+			if allUnitsStopped || stopComplete {
+				// No error, but we need to still check the 'serviceNames' list to see
+				// if all units are stopped. This is done outside the go routine.
+				errorRet <- nil
+				return
 			}
 
-			if nothingChanged {
-				// Do not generate a new notification
-				continue loop
+			// The first time the notification silence period expires we print
+			// an update, or on any subsequent change to the list of waiting units.
+			if (!silenceNotify && !nothingChanged) || silenceNotifyEdge == true {
+				s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
+				silenceNotifyEdge = false
 			}
-
-		case <-notify.C:
-			// Enable user notifications after the grace period expired
-			silenceNotify = false
 		}
+	}()
 
-		if !silenceNotify {
-			s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
-		}
+	// This command blocks until the 'systemctl stop' completes
+	_, errStop := s.systemctl(append([]string{"stop"}, serviceNames...)...)
+
+	// Notify the progress loop to exit since systemctl completed the request
+	close(exitSig)
+
+	// Wait until the progress loop returns
+	errProgress := <-errorRet
+
+	// If we have an error from 'systemctl stop', return this as first priority
+	if errStop != nil {
+		return errStop
 	}
 
-	return &Timeout{action: "stop", services: serviceNames}
+	// If we have an error from 'systemctl show', return this as second priority
+	if errProgress != nil {
+		return errProgress
+	}
+
+	// No error, but units not all stopped
+	if len(serviceNames) != 0 {
+		return &Timeout{action: "stop", services: serviceNames}
+	}
+
+	// Stopped and no error
+	return nil
 }
 
 func (s *systemd) Kill(serviceName, signal, who string) error {

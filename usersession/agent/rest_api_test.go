@@ -286,6 +286,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
 }
 

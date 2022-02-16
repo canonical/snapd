@@ -8991,6 +8991,9 @@ WantedBy=multi-user.target
 			// service also dies?
 			c.Check(cmd, DeepEquals, []string{"stop", "snap.test-snap.svc1.service"})
 			return nil, fmt.Errorf("the snap service is still having a bad day")
+		case 15:
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "snap.test-snap.svc1.service"})
+			return nil, nil
 		default:
 			c.Errorf("unexpected call to systemctl: %+v", cmd)
 			return nil, fmt.Errorf("broken test")
@@ -8998,7 +9001,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 14) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 15) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
