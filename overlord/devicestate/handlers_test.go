@@ -446,12 +446,12 @@ type preseedBaseSuite struct {
 	cmdSystemctl *testutil.MockCmd
 }
 
-func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
+func (s *preseedBaseSuite) SetUpTest(c *C, preseed, classic bool) {
 	r := snapdenv.MockPreseeding(preseed)
 
 	// preseed mode helper needs to be mocked before setting up
 	// deviceMgrBaseSuite due to device Manager init.
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	// can use cleanup only after having called base SetUpTest
 	s.AddCleanup(r)
@@ -497,7 +497,9 @@ type preseedModeSuite struct {
 var _ = Suite(&preseedModeSuite{})
 
 func (s *preseedModeSuite) SetUpTest(c *C) {
-	s.preseedBaseSuite.SetUpTest(c, true)
+	classic := true
+	preseed := true
+	s.preseedBaseSuite.SetUpTest(c, preseed, classic)
 }
 
 func (s *preseedModeSuite) TearDownTest(c *C) {
@@ -598,7 +600,9 @@ type preseedDoneSuite struct {
 var _ = Suite(&preseedDoneSuite{})
 
 func (s *preseedDoneSuite) SetUpTest(c *C) {
-	s.preseedBaseSuite.SetUpTest(c, false)
+	classic := true
+	preseed := false
+	s.preseedBaseSuite.SetUpTest(c, preseed, classic)
 }
 
 func (s *preseedDoneSuite) TearDownTest(c *C) {

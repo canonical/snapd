@@ -27,9 +27,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot/boottest"
-	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -260,37 +257,6 @@ func (s *firstbootPreseed16Suite) SetUpTest(c *C) {
 
 	s.AddCleanup(interfaces.MockSystemKey(`{"core": "123"}`))
 	c.Assert(interfaces.WriteSystemKey(), IsNil)
-}
-
-func (s *firstbootPreseed16Suite) TestPreseedHappy(c *C) {
-	restore := snapdenv.MockPreseeding(true)
-	defer restore()
-
-	mockMountCmd := testutil.MockCommand(c, "mount", "")
-	defer mockMountCmd.Restore()
-
-	mockUmountCmd := testutil.MockCommand(c, "umount", "")
-	defer mockUmountCmd.Restore()
-
-	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
-	bootloader.Force(bloader)
-	defer bootloader.Force(nil)
-	bloader.SetBootKernel("pc-kernel_1.snap")
-	bloader.SetBootBase("core_1.snap")
-
-	s.startOverlord(c)
-	st := s.overlord.State()
-	opts := &devicestate.PopulateStateFromSeedOptions{Preseed: true}
-	chg, _ := s.makeSeedChange(c, st, opts, checkPreseedTasks, checkPreseedOrder)
-	err := s.overlord.Settle(settleTimeout)
-
-	st.Lock()
-	defer st.Unlock()
-
-	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
-
-	checkPreseedTaskStates(c, st)
 }
 
 func (s *firstbootPreseed16Suite) TestPreseedOnClassicHappy(c *C) {
