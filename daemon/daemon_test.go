@@ -1127,8 +1127,11 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	}()
 	rebootNoticeWait = 150 * time.Millisecond
 
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
+	var rebootAction boot.RebootAction
+	var durationUntilReboot time.Duration
+	var rebootInfo *boot.RebootInfo
+	r := MockRebootAndCaptureArgs(&rebootAction, &durationUntilReboot, rebootInfo)
+	defer r()
 
 	d := newTestDaemon(c)
 	makeDaemonListeners(c, d)
@@ -1146,6 +1149,11 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	// stop will check if we got a sigterm in between (which we did)
 	err := d.Stop(ch)
 	c.Assert(err, check.IsNil)
+
+	// Check arguments passed to reboot call
+	c.Check(rebootAction, check.Equals, boot.RebootReboot)
+	c.Check(durationUntilReboot, check.Equals, 1*time.Minute)
+	c.Check(rebootInfo, check.IsNil)
 }
 
 // This test tests that when there is a shutdown we close the sigterm
@@ -1160,8 +1168,11 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	rebootWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
+	var rebootAction boot.RebootAction
+	var durationUntilReboot time.Duration
+	var rebootInfo *boot.RebootInfo
+	r := MockRebootAndCaptureArgs(&rebootAction, &durationUntilReboot, rebootInfo)
+	defer r()
 
 	d := newTestDaemon(c)
 	makeDaemonListeners(c, d)
@@ -1181,6 +1192,11 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	// ensure that the sigCh got closed as part of the stop
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
+
+	// Check arguments passed to reboot call
+	c.Check(rebootAction, check.Equals, boot.RebootReboot)
+	c.Check(durationUntilReboot, check.Equals, 1*time.Minute)
+	c.Check(rebootInfo, check.IsNil)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
@@ -1200,11 +1216,11 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	rebootRetryWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	r := boot.EnableTestingRebootFunction()
+	var rebootAction boot.RebootAction
+	var durationUntilReboot time.Duration
+	var rebootInfo *boot.RebootInfo
+	r := MockRebootAndCaptureArgs(&rebootAction, &durationUntilReboot, rebootInfo)
 	defer r()
-
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
 
 	d := newTestDaemon(c)
 	c.Check(d.overlord, check.IsNil)
@@ -1232,9 +1248,9 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	d.Stop(sigCh)
 
 	// an immediate shutdown was scheduled again
-	c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-		{"shutdown", "-r", "+0", "reboot scheduled to update the system"},
-	})
+	c.Check(rebootAction, check.Equals, boot.RebootReboot)
+	c.Check(durationUntilReboot <= 0, check.Equals, true)
+	c.Check(rebootInfo, check.IsNil)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {

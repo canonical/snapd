@@ -29,6 +29,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -47,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&systemsSuite{})
@@ -320,11 +320,11 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	bootloader.Force(bt)
 	defer func() { bootloader.Force(nil) }()
 
-	r := boot.EnableTestingRebootFunction()
+	var rebootAction boot.RebootAction
+	var durationUntilReboot time.Duration
+	var rebootInfo *boot.RebootInfo
+	r := daemon.MockRebootAndCaptureArgs(&rebootAction, &durationUntilReboot, rebootInfo)
 	defer r()
-
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()
@@ -510,17 +510,14 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// reboot flag
 				c.Check(d.RequestedRestart(), check.Equals, restart.RestartSystemNow, check.Commentf(tc.comment))
 				// slow reboot schedule
-				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
-				},
-					check.Commentf(tc.comment),
-				)
+				c.Check(rebootAction, check.Equals, boot.RebootReboot)
+				c.Check(durationUntilReboot, check.Equals, 10*time.Minute)
+				c.Check(rebootInfo, check.IsNil)
 			}
 		}
 
 		c.Assert(rspBody, check.DeepEquals, expResp, check.Commentf(tc.comment))
 
-		cmd.ForgetCalls()
 		s.resetDaemon()
 	}
 
