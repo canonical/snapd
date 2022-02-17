@@ -504,7 +504,7 @@ const (
 // EnsureLayoutCompatibilityOptions.
 type DiskVolumeValidationOptions struct {
 	// AllowImplicitSystemData has the same meaning as the eponymously named
-	// filed in EnsureLayoutCompatibilityOptions.
+	// field in EnsureLayoutCompatibilityOptions.
 	AllowImplicitSystemData bool
 	// ExpectedEncryptedPartitions is a map of the names (gadget structure
 	// names) of partitions that are encrypted on the volume and information
