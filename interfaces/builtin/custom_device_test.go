@@ -187,6 +187,10 @@ apps:
 		expectedError string
 	}{
 		{
+			"custom-device: [one two]",
+			`custom-device "custom-device" attribute must be a string, not \[one two\]`,
+		},
+		{
 			"devices: 12",
 			`snap "provider" has interface "custom-device" with invalid value type int64 for "devices" attribute.*`,
 		},
@@ -201,6 +205,14 @@ apps:
 		{
 			"devices: [/dev/@foo]",
 			`custom-device "devices" path must start with / and cannot contain special characters.*`,
+		},
+		{
+			"devices: [/dev/foo|bar]",
+			`custom-device "devices" path must start with /dev/ and cannot contain special characters.*`,
+		},
+		{
+			"read-devices: [/dev/foo\\bar]",
+			`custom-device "read-devices" path must start with /dev/ and cannot contain special characters.*`,
 		},
 		{
 			"devices: [/run/foo]",
@@ -280,17 +292,37 @@ apps:
 	}
 }
 
-func (s *CustomDeviceInterfaceSuite) TestSlotAttribute(c *C) {
-	snapYaml := `name: consumer
+func (s *CustomDeviceInterfaceSuite) TestSlotNameAttribute(c *C) {
+	var slotYamlTemplate = `name: provider
 version: 0
 slots:
  hwdev:
   interface: custom-device
+  %s
 `
-	_, slot := MockConnectedSlot(c, snapYaml, nil, "hwdev")
-	err := interfaces.BeforePrepareSlot(s.iface, slot)
-	c.Assert(err, IsNil)
-	c.Check(slot.Attrs["custom-device"], Equals, "hwdev")
+
+	data := []struct {
+		slotYaml     string
+		expectedName string
+	}{
+		{
+			"",      // missing "custom-device" attribute
+			"hwdev", // use the name of the slot
+		},
+		{
+			"custom-device: shmemFoo",
+			"shmemFoo",
+		},
+	}
+
+	for _, testData := range data {
+		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
+		_, slot := MockConnectedSlot(c, snapYaml, nil, "hwdev")
+		err := interfaces.BeforePrepareSlot(s.iface, slot)
+		c.Assert(err, IsNil)
+		c.Check(slot.Attrs["custom-device"], Equals, testData.expectedName,
+			Commentf(`yaml: %q`, testData.slotYaml))
+	}
 }
 
 func (s *CustomDeviceInterfaceSuite) TestStaticInfo(c *C) {
@@ -321,38 +353,105 @@ func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *CustomDeviceInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	const slotYamlTemplate = `name: provider
+version: 0
+slots:
+ hwdev:
+  interface: custom-device
+  custom-device: foo
+  devices:
+    - /dev/input/event[0-9]
+    - /dev/input/mice
+  read-devices:
+    - /dev/js*
+  %s
+apps:
+ app:
+  slots: [hwdev]
+`
 
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	snippets := spec.Snippets()
-
-	c.Assert(snippets, testutil.Contains, `KERNEL=="input/event[0-9]"`)
-	// The following rule is not fixed since the order of the elements depend
-	// on the map iteration order, which in golang is not deterministic.
-	// Therefore, we decompose each rule into a map:
-	var decomposedSnippets []map[string]string
-	for _, snippet := range snippets {
-		ruleTags := strings.Split(snippet, ", ")
-		decomposedTags := make(map[string]string)
-		for _, ruleTag := range ruleTags {
-			tagMembers := strings.SplitN(ruleTag, "==", 2)
-			c.Assert(tagMembers, HasLen, 2)
-			decomposedTags[tagMembers[0]] = tagMembers[1]
-		}
-		decomposedSnippets = append(decomposedSnippets, decomposedTags)
-	}
-	c.Assert(decomposedSnippets, testutil.DeepUnsortedMatches, []map[string]string{
-		{`KERNEL`: `"input/event[0-9]"`},
-		{`KERNEL`: `"js*"`},
+	data := []struct {
+		slotYaml      string
+		expectedRules []map[string]string
+	}{
 		{
-			`KERNEL`:      `"input/mice"`,
-			`SUBSYSTEM`:   `"input"`,
-			`ENV{env1}`:   `"first"`,
-			`ENV{env2}`:   `"second|other"`,
-			`ATTR{attr1}`: `"one"`,
-			`ATTR{attr2}`: `"two"`,
+			"", // missing "udev-tagging" attribute
+			[]map[string]string{
+				// all rules are automatically-generated
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"js*"`},
+			},
 		},
-	})
+		{
+			"udev-tagging:\n   - kernel: input/mice\n     subsystem: input",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
+				{`KERNEL`: `"js*"`},
+			},
+		},
+		{
+			`udev-tagging:
+   - kernel: input/mice
+     subsystem: input
+   - kernel: js*
+     attributes:
+      attr1: one
+      attr2: two`,
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
+				{`KERNEL`: `"js*"`, `ATTR{attr1}`: `"one"`, `ATTR{attr2}`: `"two"`},
+			},
+		},
+		{
+			`udev-tagging:
+   - kernel: input/mice
+     attributes:
+      wheel: "true"
+   - kernel: input/event[0-9]
+     subsystem: input
+     environment:
+      env1: first
+      env2: second|other`,
+			[]map[string]string{
+				{
+					`KERNEL`:    `"input/event[0-9]"`,
+					`SUBSYSTEM`: `"input"`,
+					`ENV{env1}`: `"first"`,
+					`ENV{env2}`: `"second|other"`,
+				},
+				{`KERNEL`: `"input/mice"`, `ATTR{wheel}`: `"true"`},
+				{`KERNEL`: `"js*"`},
+			},
+		},
+	}
+
+	for _, testData := range data {
+		spec := &udev.Specification{}
+		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
+		slot, _ := MockConnectedSlot(c, snapYaml, nil, "hwdev")
+		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
+		snippets := spec.Snippets()
+
+		// The following rule is not fixed since the order of the elements depend
+		// on the map iteration order, which in golang is not deterministic.
+		// Therefore, we decompose each rule into a map:
+		var decomposedSnippets []map[string]string
+		for _, snippet := range snippets {
+			ruleTags := strings.Split(snippet, ", ")
+			decomposedTags := make(map[string]string)
+			for _, ruleTag := range ruleTags {
+				tagMembers := strings.SplitN(ruleTag, "==", 2)
+				c.Assert(tagMembers, HasLen, 2)
+				decomposedTags[tagMembers[0]] = tagMembers[1]
+			}
+			decomposedSnippets = append(decomposedSnippets, decomposedTags)
+		}
+		c.Assert(decomposedSnippets, testutil.DeepUnsortedMatches, testData.expectedRules,
+			Commentf("yaml: %s", testData.slotYaml))
+	}
 }
 
 func (s *CustomDeviceInterfaceSuite) TestAutoConnect(c *C) {
