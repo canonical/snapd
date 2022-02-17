@@ -676,7 +676,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 			return fmt.Errorf("cannot make task set for removing %s snap: %v", name, err)
 		}
 
-		msg := fmt.Sprintf(i18n.G("Remove vulnerable %q snap"), name)
+		msg := fmt.Sprintf(i18n.G("Remove inactive vulnerable %q snap rev %v"), name, rev)
 
 		chg := m.state.NewChange("remove-snap", msg)
 		chg.AddAll(tss)
