@@ -3362,6 +3362,83 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestInstallManyWithPrereqsTransactionally(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
+	defer restore()
+
+	// pretend we don't have core
+	snapstate.Set(s.state, "core", nil)
+
+	snapsToInstall := []string{"snap1", "snap2"}
+	installed, tts, err := snapstate.InstallMany(s.state, snapsToInstall, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(installed, DeepEquals, snapsToInstall)
+	numTasksBeforePrereq := 0
+
+	// Check that all tasks are in the same lane
+	for _, ts := range tts {
+		verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
+		prereq := ts.Tasks()[0]
+		c.Assert(prereq.Kind(), Equals, "prerequisites")
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+			numTasksBeforePrereq++
+		}
+	}
+
+	// Create change with tasks and run
+	chg := s.state.NewChange("install", "install some snaps")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// Check that all tasks in the change are in the same lane
+	for _, t := range chg.Tasks() {
+		c.Assert(t.Lanes(), DeepEquals, []int{1})
+	}
+	// Check that we have actually added new tasks to install the base
+	c.Assert(numTasksBeforePrereq < len(chg.Tasks()), Equals, true)
+
+	// verify core in the system state
+	var snaps map[string]*snapstate.SnapState
+	err = s.state.Get("snaps", &snaps)
+	c.Assert(err, IsNil)
+
+	snapst := snaps["core"]
+	c.Assert(snapst, NotNil)
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		RealName: "core",
+		SnapID:   "core-id",
+		Revision: snap.R(11),
+		Channel:  "stable",
+	})
+
+	// Verify the snaps we wanted to install
+	for _, s := range snapsToInstall {
+		snapst = snaps[s]
+		c.Assert(snapst, NotNil)
+		c.Assert(snapst.Active, Equals, true)
+		c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+			RealName: s,
+			SnapID:   s + "-id",
+			Channel:  "stable",
+			Revision: snap.R(11),
+		})
+	}
+}
+
 func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
