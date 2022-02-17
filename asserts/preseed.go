@@ -62,20 +62,16 @@ func (s *PreseedSnap) ID() string {
 }
 
 // Preseed holds preseed assertion, which is a statement about system-label,
-// model and a set of snaps used for preseeding of uc20 system.
+// model, set of snaps and preseed artifact used for preseeding of uc20 system.
 type Preseed struct {
 	assertionBase
 	snaps     []*PreseedSnap
 	timestamp time.Time
 }
 
+// Series returns the series that this assertion is valid for.
 func (p *Preseed) Series() string {
 	return p.HeaderString("series")
-}
-
-// AccountID returns the identifier of the account that signed this assertion.
-func (p *Preseed) AccountID() string {
-	return p.HeaderString("account-id")
 }
 
 // BrandID returns the brand identifier. Same as the authority id.
@@ -187,16 +183,14 @@ func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
 	return snaps, nil
 }
 
-func checkSystemLabel(headers map[string]interface{}) error {
-	_, err := checkStringMatches(headers, "system-label", validSystemLabel)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func assemblePreseed(assert assertionBase) (Assertion, error) {
-	err := checkAuthorityMatchesBrand(&assert)
+	_, err := checkStringMatches(assert.headers, "brand-id", validAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	// authority must match the brand (signer is the brand)
+	err = checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +200,8 @@ func assemblePreseed(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	if err := checkSystemLabel(assert.headers); err != nil {
+	_, err = checkStringMatches(assert.headers, "system-label", validSystemLabel)
+	if err != nil {
 		return nil, err
 	}
 
