@@ -46,6 +46,9 @@ const powerControlConnectedPlugAppArmor = `
 #/sys/devices/**/power/async w,
 #/sys/devices/**/power/autosuspend_delay_ms w,
 #/sys/devices/**/power/pm_qos* w,
+
+# for android kernels, see https://android.googlesource.com/kernel/msm/+/android-msm-bullhead-3.10-marshmallow-dr/Documentation/devicetree/bindings/arm/msm/lpm-levels.txt
+/sys/module/lpm_levels/parameters/sleep_disabled rw,
 `
 
 func init() {
