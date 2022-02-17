@@ -1,9 +1,19 @@
 snapd (2.54.3) xenial; urgency=medium
 
-  * New upstream release, LP: #1955137
-    - bugfixes
+  * SECURITY UPDATE: Local privilege escalation
+    - snap-confine: Add validations of the location of the snap-confine
+      binary within snapd.
+    - snap-confine: Fix race condition in snap-confine when preparing a
+      private mount namespace for a snap.
+    - CVE-2021-44730
+    - CVE-2021-44731
+  * SECURITY UPDATE: Data injection from malicious snaps
+    - interfaces: Add validations of snap content interface and layout
+      paths in snapd.
+    - CVE-2021-4120
+    - LP: #1949368
 
- -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 15 Feb 2022 12:55:24 +0100
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 15 Feb 2022 17:45:13 +0100
 
 snapd (2.54.2) xenial; urgency=medium
 

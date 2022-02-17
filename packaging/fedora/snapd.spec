@@ -991,7 +991,18 @@ fi
 %changelog
 * Tue Feb 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.54.3
- - bugfixes
+ - SECURITY UPDATE: Local privilege escalation
+  - snap-confine: Add validations of the location of the snap-confine
+    binary within snapd.
+  - snap-confine: Fix race condition in snap-confine when preparing a
+    private mount namespace for a snap.
+  - CVE-2021-44730
+  - CVE-2021-44731
+ - SECURITY UPDATE: Data injection from malicious snaps
+  - interfaces: Add validations of snap content interface and layout
+    paths in snapd.
+  - CVE-2021-4120
+  - LP: #1949368
 
 * Thu Jan 06 2022 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.54.2
