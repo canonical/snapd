@@ -151,9 +151,9 @@ const (
 	// HiddenSnapDataHomeDir is an experimental hidden directory for snap data
 	HiddenSnapDataHomeDir = ".snap/data"
 
-	// NewUserHomeSnapDir is the directory where snaps should place user-facing
+	// ExposedSnapDir is the directory where snaps should place user-facing
 	// data after ~/snap has been migrated to ~/.snap
-	NewUserHomeSnapDir = "Snap"
+	ExposedSnapDir = "Snap"
 
 	// LocalInstallBlobTempPrefix is used by local install code:
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
@@ -171,6 +171,8 @@ var (
 type SnapDirOptions struct {
 	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead of ~/snap
 	HiddenSnapDataDir bool
+	// UseExposedDir determines if ~/Snap is in use.
+	UseExposedDir bool
 }
 
 func init() {

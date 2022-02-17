@@ -112,5 +112,6 @@ type managerBackend interface {
 	// ~/.snap/data migration related
 	HideSnapData(snapName string) error
 	UndoHideSnapData(snapName string) error
-	InitSnapUserHome(snapName string, rev snap.Revision) error
+	InitExposedSnapHome(snapName string, rev snap.Revision) error
+	RemoveExposedSnapHome(snapName string) error
 }

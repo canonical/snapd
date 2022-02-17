@@ -927,9 +927,9 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	filePath := filepath.Join(revDir, "file")
 	c.Assert(ioutil.WriteFile(filePath, []byte("stuff"), 0664), IsNil)
 
-	c.Assert(s.be.InitSnapUserHome(snapName, rev), IsNil)
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
 
-	expectedFile := filepath.Join(homeDir, dirs.NewUserHomeSnapDir, snapName, "file")
+	expectedFile := filepath.Join(homeDir, dirs.ExposedSnapDir, snapName, "file")
 	data, err := ioutil.ReadFile(expectedFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, "stuff")
@@ -962,7 +962,7 @@ func (s *copydataSuite) TestInitSnapCleanupOnFailure(c *C) {
 		}
 
 		// the first ~/Snap dir was created
-		exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.NewUserHomeSnapDir))
+		exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapDir))
 		c.Assert(err, IsNil)
 		c.Assert(exists, Equals, true)
 
@@ -981,10 +981,10 @@ func (s *copydataSuite) TestInitSnapCleanupOnFailure(c *C) {
 	filePath := filepath.Join(revDir, "file")
 	c.Assert(ioutil.WriteFile(filePath, []byte("stuff"), 0664), IsNil)
 
-	c.Assert(s.be.InitSnapUserHome(snapName, rev), ErrorMatches, "boom")
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, "boom")
 
 	// the ~/Snap dirs are cleaned up on err
-	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.NewUserHomeSnapDir))
+	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapDir))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
 }
@@ -1003,9 +1003,9 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	c.Assert(s.be.InitSnapUserHome(snapName, rev), IsNil)
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
 
-	newHomeDir := filepath.Join(usr.HomeDir, dirs.NewUserHomeSnapDir, snapName)
+	newHomeDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapDir, snapName)
 	exists, _, err := osutil.DirExists(newHomeDir)
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
@@ -1013,4 +1013,75 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	entries, err := ioutil.ReadDir(newHomeDir)
 	c.Assert(err, IsNil)
 	c.Check(entries, HasLen, 0)
+}
+
+func (s *copydataSuite) TestRemoveExposedHome(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	exposedDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapDir, snapName)
+	c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0600), IsNil)
+
+	c.Assert(s.be.RemoveExposedSnapHome(snapName), IsNil)
+
+	exists, _, err := osutil.DirExists(exposedDir)
+	c.Assert(err, IsNil)
+	c.Assert(exists, Equals, false)
+
+	baseExposedDir := filepath.Base(exposedDir)
+	exists, _, err = osutil.DirExists(baseExposedDir)
+	c.Assert(err, IsNil)
+	c.Assert(exists, Equals, false)
+}
+
+func (s *copydataSuite) TestRemoveExposedKeepGoingOnFail(c *C) {
+	firstTime := true
+	restore := backend.MockRemoveIfEmpty(func(dir string) error {
+		var err error
+		if firstTime {
+			err = errors.New("first error")
+			firstTime = false
+		} else {
+			err = errors.New("other error")
+		}
+
+		return err
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	var usrs []*user.User
+	for _, usrName := range []string{"usr1", "usr2"} {
+		homedir := filepath.Join(s.tempdir, usrName)
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = homedir
+
+		exposedDir := filepath.Join(homedir, dirs.ExposedSnapDir, snapName)
+		c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0700), IsNil)
+		usrs = append(usrs, usr)
+	}
+
+	restUsers := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return usrs, nil
+	})
+	defer restUsers()
+
+	buf, restLogger := logger.MockLogger()
+	defer restLogger()
+
+	err := s.be.RemoveExposedSnapHome(snapName)
+	// the first error is returned
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot remove %q: first error`, filepath.Join(s.tempdir, "usr1", "Snap")))
+	// second error is logged
+	c.Assert(buf, Matches, fmt.Sprintf(`.*cannot remove %q: other error\n`, filepath.Join(s.tempdir, "usr2", "Snap")))
 }

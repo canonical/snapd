@@ -1098,7 +1098,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1155,9 +1155,38 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		oldBase = oldInfo.Base
 	}
 
-	// the migration hasn't been done - do it now
-	if shouldHideSnapData(opts, newInfo.Base) {
-		if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+	// snap is already migrated, the flag has been turned off but we're
+	// refreshing to a core22 based revision for the 1st time
+	if opts.MigratedToHidden && !opts.UseHidden && !opts.UseExposedDir && atLeastCore22(newInfo.Base) {
+		defer func() {
+			if err == nil {
+				return
+			}
+
+			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+				st.Lock()
+				st.Warnf("cannot remove ~/Snap (must remove manually): %v", err)
+				st.Unlock()
+			}
+		}()
+
+		// init ~/Snap only, rest was already done
+		snapsup.UseExposedDir = true
+		if err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), newInfo.Revision); err != nil {
+			return err
+		}
+
+		st.Lock()
+		err := SetTaskSnapSetup(t, snapsup)
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot set migration status to done: %w", err)
+		}
+	} else if shouldHideSnapData(opts, newInfo.Base) {
+		defer func() {
+			if err == nil {
+				return
+			}
 
 			// undo the migration. In contrast to copy data for which the new revision
 			// directory can just be discarded, the snap data migration introduces
@@ -1172,22 +1201,37 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 				st.Unlock()
 			}
 
+			if !snapsup.UseExposedDir {
+				// we didn't init ~/Snap; nothing to undo
+				return
+			}
+
+			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+				st.Lock()
+				st.Warnf("cannot remove ~/Snap (must remove manually): %v", err)
+				st.Unlock()
+			}
+		}()
+
+		snapsup.MigratedHidden = true
+		if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 			return err
 		}
 
-		snapsup.MigratedHidden = true
+		if atLeastCore22(newInfo.Base) {
+			snapsup.UseExposedDir = true
+			if err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), newInfo.Revision); err != nil {
+				return err
+			}
+		}
+
 		st.Lock()
 		err := SetTaskSnapSetup(t, snapsup)
 		st.Unlock()
 		if err != nil {
 			return fmt.Errorf("cannot set migration status to done: %w", err)
 		}
-
-		if err := m.backend.InitSnapUserHome(snapsup.InstanceName(), newInfo.Revision); err != nil {
-			return err
-		}
 	} else if shouldExposeSnapData(opts, oldBase, newInfo.Base) {
-		// migration was done but user turned the feature off, so undo migration
 		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 				src := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
@@ -1209,6 +1253,8 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			return fmt.Errorf("cannot set migration status to undone: %w", err)
 		}
+		// TODO: if installing revision that goes back from core22 base, snap might
+		// have written to ~/Snap. How to revert?
 	}
 
 	return nil
@@ -1262,25 +1308,31 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// we migrated the data in this run - undo that
-	if snapsup.MigratedHidden {
-		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-			return err
+	// if any migration action was taken, try to undo it and rewrite state
+	if snapsup.MigratedHidden || snapsup.MigratedExposed || snapsup.UseExposedDir {
+		if snapsup.MigratedHidden {
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.MigratedHidden = false
+			snapst.MigratedHidden = false
+		} else if snapsup.MigratedExposed {
+			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.MigratedExposed = false
+			snapst.MigratedHidden = true
 		}
 
-		snapsup.MigratedHidden = false
-		snapst.MigratedHidden = false
-		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
-			return err
+		if snapsup.UseExposedDir {
+			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+				return err
+			}
+			snapsup.UseExposedDir = false
+			snapst.UseExposedDir = false
 		}
-	} else if snapsup.MigratedExposed {
-		// we reverted the migration in this run - undo that
-		if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-			return err
-		}
-
-		snapsup.MigratedExposed = false
-		snapst.MigratedHidden = true
 		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
 			return err
 		}
@@ -1392,10 +1444,12 @@ func writeSeqFile(name string, snapst *SnapState) error {
 		Sequence       []*snap.SideInfo `json:"sequence"`
 		Current        string           `json:"current"`
 		MigratedHidden bool             `json:"migrated-hidden"`
+		UseExposedDir  bool             `json:"use-exposed-dir"`
 	}{
 		Sequence:       snapst.Sequence,
 		Current:        snapst.Current.String(),
 		MigratedHidden: snapst.MigratedHidden,
+		UseExposedDir:  snapst.UseExposedDir,
 	})
 	if err != nil {
 		return err
@@ -1572,6 +1626,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.MigratedHidden = true
 	} else if snapsup.MigratedExposed {
 		snapst.MigratedHidden = false
+	}
+	if snapsup.UseExposedDir {
+		snapst.UseExposedDir = true
 	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
@@ -3643,6 +3700,9 @@ type dirMigrationOptions struct {
 
 	// MigratedToHidden states whether the data has been migrated to the hidden dir
 	MigratedToHidden bool
+
+	// UseExposedDir
+	UseExposedDir bool
 }
 
 // GetSnapDirOpts returns the snap dir options based on the current the migration status
@@ -3679,6 +3739,7 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 
 	if snapst != nil {
 		opts.MigratedToHidden = snapst.MigratedHidden
+		opts.UseExposedDir = snapst.UseExposedDir
 	}
 
 	// it was migrated during this change (might not be in the state yet)
@@ -3691,6 +3752,10 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 			opts.MigratedToHidden = true
 		case snapsup.MigratedExposed:
 			opts.MigratedToHidden = false
+		}
+
+		if snapsup.UseExposedDir {
+			opts.UseExposedDir = snapsup.UseExposedDir
 		}
 	}
 

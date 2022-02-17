@@ -2003,8 +2003,10 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 	seqFile := filepath.Join(dirs.SnapSeqDir, "somesnap.json")
 	str := struct {
 		Migrated bool `json:"migrated-hidden"`
+		Exposed  bool `json:"use-exposed-dir"`
 	}{
 		Migrated: true,
+		Exposed:  true,
 	}
 	data, err := json.Marshal(&str)
 	c.Assert(err, check.IsNil)
@@ -2015,7 +2017,7 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 
 	opts, err := snaprun.GetSnapDirOptions("somesnap")
 	c.Assert(err, check.IsNil)
-	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true, UseExposedDir: true})
 }
 
 func (s *RunSuite) TestRunDebugLog(c *check.C) {

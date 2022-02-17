@@ -127,7 +127,7 @@ func userEnv(info *snap.Info, home string, opts *dirs.SnapDirOptions) osutil.Env
 	// Provide the location of the real home directory.
 	env["SNAP_REAL_HOME"] = home
 
-	if opts.HiddenSnapDataDir {
+	if opts.UseExposedDir {
 		env["XDG_DATA_HOME"] = filepath.Join(info.UserDataDir(home, opts), "data")
 		env["XDG_CONFIG_HOME"] = filepath.Join(info.UserDataDir(home, opts), "config")
 		env["XDG_CACHE_HOME"] = filepath.Join(info.UserDataDir(home, opts), "cache")

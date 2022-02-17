@@ -253,9 +253,9 @@ var removeIfEmpty = func(dir string) error {
 
 var maybeFailForTesting func() error
 
-// InitSnapUserHome creates and initializes ~/Snap/<snapName> based on the
+// InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
 // specified revision. Must be called after the snap has been migrated.
-func (b Backend) InitSnapUserHome(snapName string, rev snap.Revision) (err error) {
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err error) {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
 	users, err := allUsers(opts)
@@ -321,4 +321,39 @@ func (b Backend) InitSnapUserHome(snapName string, rev snap.Revision) (err error
 	}
 
 	return nil
+}
+
+// RemoveExposedSnapHome removes the ~/Snap dirs.
+func (b Backend) RemoveExposedSnapHome(snapName string) error {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+
+	var firstErr error
+	handle := func(err error) {
+		if firstErr == nil {
+			firstErr = err
+		} else {
+			logger.Noticef(err.Error())
+		}
+	}
+
+	users, err := allUsers(opts)
+	if err != nil {
+		return err
+	}
+
+	for _, usr := range users {
+		newUserHome := snap.ExposedUserSnapDir(usr.HomeDir, snapName)
+		if err := os.RemoveAll(newUserHome); err != nil {
+			handle(fmt.Errorf("cannot remove %q: %v", newUserHome, err))
+			continue
+		}
+
+		exposedSnapDir := filepath.Dir(newUserHome)
+		if err := removeIfEmpty(exposedSnapDir); err != nil {
+			handle(fmt.Errorf("cannot remove %q: %v", exposedSnapDir, err))
+			continue
+		}
+	}
+
+	return firstErr
 }

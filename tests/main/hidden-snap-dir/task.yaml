@@ -16,22 +16,27 @@ restore: |
 
 execute: |
     # Checks that the env vars are as expected after the migration. 1st parameter
-    # is the current revision.
+    # is the current revision; 2nd parameter toggles ~/Snap related checks
+    # ("true" does the checks, anything else doesn't)
     check_env() {
       echo "Check the env vars were migrated"
 
       snapEnv=$("$NAME".env)
       echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/$1"
       echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
-      echo "$snapEnv" | MATCH "HOME=$HOME/Snap"
-      echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap"
-      echo "$snapEnv" | MATCH "XDG_DATA_HOME=$HOME/\.snap/data/$NAME/$1/data"
-      echo "$snapEnv" | MATCH "XDG_CACHE_HOME=$HOME/\.snap/data/$NAME/$1/cache"
-      echo "$snapEnv" | MATCH "XDG_CONFIG_HOME=$HOME/\.snap/data/$NAME/$1/config"
+
+      if [ "$2" = "true" ]; then
+        echo "$snapEnv" | MATCH "HOME=$HOME/Snap"
+        echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap"
+        echo "$snapEnv" | MATCH "XDG_DATA_HOME=$HOME/\.snap/data/$NAME/$1/data"
+        echo "$snapEnv" | MATCH "XDG_CACHE_HOME=$HOME/\.snap/data/$NAME/$1/cache"
+        echo "$snapEnv" | MATCH "XDG_CONFIG_HOME=$HOME/\.snap/data/$NAME/$1/config"
+      fi
     }
 
     # Checks that the snap dirs are as expected after the migration. 1st parameter
-    # is the current revision.
+    # is the current revision. 2nd parameter toggles ~/Snap related checks
+    # ("true" does the checks, anything else doesn't)
     check_dirs() {
       echo "Check directories were migrated"
 
@@ -44,11 +49,13 @@ execute: |
       fi
 
       not test -d "$HOME/snap/$NAME"
-      test -d "$HOME/Snap/$NAME"
 
-      test -d "$HOME/.snap/data/$NAME/$1/data"
-      test -d "$HOME/.snap/data/$NAME/$1/config"
-      test -d "$HOME/.snap/data/$NAME/$1/cache"
+      if [ "$2" = "true" ]; then
+        test -d "$HOME/Snap/$NAME"
+        test -d "$HOME/.snap/data/$NAME/$1/data"
+        test -d "$HOME/.snap/data/$NAME/$1/config"
+        test -d "$HOME/.snap/data/$NAME/$1/cache"
+      fi
     }
 
     # Checks that there is a file named 'file' in the new dirs containing the
@@ -59,7 +66,6 @@ execute: |
 
       MATCH "$2" < "$HOME/.snap/data/$NAME/common/file"
       MATCH "$2" < "$HOME/.snap/data/$NAME/$1/file"
-      MATCH "$2" < "$HOME/Snap/$NAME/file"
     }
 
     echo "Set experimental hidden snap folder feature"
@@ -87,10 +93,10 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     # Check env vars, dirs and data after the migration
-    check_env "x2"
+    check_env "x2" ""
     # Note: some dirs are created just before the snap runs for the 1st time,
     # so this check must come after a snap run
-    check_dirs "x2"
+    check_dirs "x2" ""
 
     check_data "x2" "$data"
 
@@ -99,8 +105,6 @@ execute: |
     "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/file'
     #shellcheck disable=SC2016
     "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_COMMON"/file'
-    #shellcheck disable=SC2016
-    "$NAME".cmd sh -c 'echo "new_data" > "$HOME"/file'
 
     check_data "x2" "new_data"
 
@@ -112,13 +116,12 @@ execute: |
     snap remove --purge "$NAME"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
-    check_env "x1"
-    check_dirs "x1"
+    check_env "x1" ""
+    check_dirs "x1" ""
 
     data="new_data"
     "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/x1/file"
     "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/common/file"
-    "$NAME".echo "$data" > "$HOME/Snap/$NAME/file"
     check_data "x1" "$data"
 
     echo "Revert migration (unset flag and refresh)"
