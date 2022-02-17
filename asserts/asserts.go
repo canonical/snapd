@@ -94,7 +94,7 @@ var (
 	ValidationSetType       = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, sequenceForming}
 	StoreType               = &AssertionType{"store", []string{"store"}, assembleStore, 0}
 	AuthorityDelegationType = &AssertionType{"authority-delegation", []string{"account-id", "delegate-id"}, assembleAuthorityDelegation, 0}
-	PreseedType             = &AssertionType{"preseed", []string{"series", "account-id", "brand-id", "model"}, assemblePreseed, 0}
+	PreseedType             = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, assemblePreseed, 0}
 
 // ...
 )

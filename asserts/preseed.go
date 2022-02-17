@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
+// PreseedSnap holds the details about a snap constrained by a preseed assertion.
 type PreseedSnap struct {
 	Name     string
 	SnapID   string
@@ -44,6 +45,8 @@ func (s *PreseedSnap) ID() string {
 	return s.SnapID
 }
 
+// Preseed holds preseed assertion, which is a statement about system-label,
+// model and a set of snaps used for preseeding of uc20 system.
 type Preseed struct {
 	assertionBase
 	snaps     []*PreseedSnap
@@ -84,7 +87,7 @@ func (p *Preseed) PreseedSHA3_384() string {
 	return p.HeaderString("preseed-sha3-384")
 }
 
-// Snaps returns the snaps for preseeding
+// Snaps returns the snaps for preseeding.
 func (p *Preseed) Snaps() []*PreseedSnap {
 	return p.snaps
 }
@@ -100,6 +103,7 @@ func checkPreseedSnap(snap map[string]interface{}) (*PreseedSnap, error) {
 
 	what := fmt.Sprintf("of snap %q", name)
 
+	// snap id can be omitted if the model allows for unasserted snaps
 	var snapID string
 	if _, ok := snap["id"]; ok {
 		snapID, err = checkStringMatchesWhat(snap, "id", what, naming.ValidSnapID)
@@ -178,12 +182,17 @@ func checkSystemLabel(headers map[string]interface{}) error {
 }
 
 func assemblePreseed(assert assertionBase) (Assertion, error) {
-	if err := checkSystemLabel(assert.headers); err != nil {
+	err := checkAuthorityMatchesBrand(&assert)
+	if err != nil {
 		return nil, err
 	}
 
-	_, err := checkModel(assert.headers)
+	_, err = checkModel(assert.headers)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := checkSystemLabel(assert.headers); err != nil {
 		return nil, err
 	}
 
@@ -192,11 +201,6 @@ func assemblePreseed(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`"snaps" header is mandatory`)
 	}
 	snaps, err := checkPreseedSnaps(snapList)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = checkNotEmptyStringWhat(assert.headers, "system-label", "of snap")
 	if err != nil {
 		return nil, err
 	}

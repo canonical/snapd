@@ -44,7 +44,6 @@ const (
 	preseedExample = `type: preseed
 authority-id: brand-id1
 series: 16
-account-id: brand-id1
 brand-id: brand-id1
 model: baz-3000
 system-label: 20220210
@@ -72,7 +71,10 @@ func (ps *preseedSuite) TestDecodeOK(c *C) {
 	c.Check(preseed.AuthorityID(), Equals, "brand-id1")
 	c.Check(preseed.Timestamp(), Equals, ps.ts)
 	c.Check(preseed.Series(), Equals, "16")
-	c.Check(preseed.AccountID(), Equals, "brand-id1")
+	c.Check(preseed.BrandID(), Equals, "brand-id1")
+	c.Check(preseed.Model(), Equals, "baz-3000")
+	c.Check(preseed.SystemLabel(), Equals, "20220210")
+	c.Check(preseed.PreseedSHA3_384(), Equals, "KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj")
 	snaps := preseed.Snaps()
 	c.Assert(snaps, DeepEquals, []*asserts.PreseedSnap{
 		{
@@ -95,8 +97,11 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series: 16\n", "", `"series" header is mandatory`},
 		{"series: 16\n", "series: \n", `"series" header should not be empty`},
-		{"account-id: brand-id1\n", "", `"account-id" header is mandatory`},
-		{"account-id: brand-id1\n", "account-id: \n", `"account-id" header should not be empty`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"model: baz-3000\n", "model: -\n", `"model" header contains invalid characters: "-"`},
+		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"brand-id: brand-id1\n", "brand-id: brand-id2\n", `authority-id and brand-id must match, preseed assertions are expected to be signed by the brand: "brand-id1" != "brand-id2"`},
 		{"system-label: 20220210\n", "system-label: \n", `"system-label" header should not be empty`},
 		{"system-label: 20220210\n", "system-label: x\n", `"system-label" header contains invalid characters: "x"`},
 		{ps.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -137,4 +142,14 @@ func (ps *preseedSuite) TestSnapIdImpliesRevision(c *C) {
 
 	_, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, ErrorMatches, `assertion preseed: snap id is required when revision is set`)
+}
+
+func (ps *preseedSuite) TestSnapIdOptional(c *C) {
+	encoded := strings.Replace(preseedExample, "TSLINE", ps.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "    revision: 99\n", "", 1)
+	encoded = strings.Replace(encoded, "    id: bazlinuxidididididididididididid\n", "", 1)
+
+	_, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
 }
