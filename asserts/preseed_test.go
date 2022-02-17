@@ -20,6 +20,7 @@
 package asserts_test
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -59,6 +60,42 @@ OTHER` + "TSLINE" +
 		"\n\n" +
 		"AXNpZw=="
 )
+
+func (ps *preseedSuite) TestValidateSeedSystemLabel(c *C) {
+	valid := []string{
+		"a",
+		"ab",
+		"a-a",
+		"a-123",
+		"a-a-a",
+		"20191119",
+		"foobar",
+		"my-system",
+		"brand-system-date-1234",
+	}
+	for _, label := range valid {
+		c.Logf("trying valid label: %q", label)
+		err := asserts.IsValidSystemLabel(label)
+		c.Check(err, IsNil)
+	}
+
+	invalid := []string{
+		"",
+		"/bin",
+		"../../bin/bar",
+		":invalid:",
+		"日本語",
+		"-invalid",
+		"invalid-",
+		"MYSYSTEM",
+		"mySystem",
+	}
+	for _, label := range invalid {
+		c.Logf("trying invalid label: %q", label)
+		err := asserts.IsValidSystemLabel(label)
+		c.Check(err, ErrorMatches, fmt.Sprintf("invalid seed system label: %q", label))
+	}
+}
 
 func (ps *preseedSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(preseedExample, "TSLINE", ps.tsLine, 1)
@@ -103,7 +140,7 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
 		{"brand-id: brand-id1\n", "brand-id: brand-id2\n", `authority-id and brand-id must match, preseed assertions are expected to be signed by the brand: "brand-id1" != "brand-id2"`},
 		{"system-label: 20220210\n", "system-label: \n", `"system-label" header should not be empty`},
-		{"system-label: 20220210\n", "system-label: x\n", `"system-label" header contains invalid characters: "x"`},
+		{"system-label: 20220210\n", "system-label: -x\n", `"system-label" header contains invalid characters: "-x"`},
 		{ps.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{"preseed-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj\n", "preseed-sha3-384: 1\n", `"preseed-sha3-384" header cannot be decoded: illegal base64 data at input byte 0`},
 		{"revision: 99\n", "revision: 0\n", `"revision" of snap "baz-linux" must be >=1: 0`},

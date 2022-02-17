@@ -28,6 +28,22 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
+// validSystemLabel is the regex describing a valid system label. Typically
+// system labels are expected to be date based, eg. 20201116, but for
+// completeness follow the same rule as model names (incl. one letter model
+// names and thus system labels), with the exception that uppercase letters are
+// not allowed, as the systems will often be stored in a FAT filesystem.
+var validSystemLabel = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
+
+// IsValidSystemLabel checks whether the string is a valid UC20 seed system
+// label.
+func IsValidSystemLabel(label string) error {
+	if !validSystemLabel.MatchString(label) {
+		return fmt.Errorf("invalid seed system label: %q", label)
+	}
+	return nil
+}
+
 // PreseedSnap holds the details about a snap constrained by a preseed assertion.
 type PreseedSnap struct {
 	Name     string
@@ -170,8 +186,6 @@ func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
 
 	return snaps, nil
 }
-
-var validSystemLabel = regexp.MustCompile("^[0-9]{8}")
 
 func checkSystemLabel(headers map[string]interface{}) error {
 	_, err := checkStringMatches(headers, "system-label", validSystemLabel)
