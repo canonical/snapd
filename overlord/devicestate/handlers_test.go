@@ -635,12 +635,22 @@ func (s *preseedingClassicDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	c.Check(seedRestartTime.Equal(devicestate.StartTime()), Equals, true)
 }
 
-type preseedUC20Suite struct {
+type preseedingUC20Suite struct {
 	preseedingBaseSuite
 	*seedtest.TestingSeed20
 }
 
-func (s *preseedUC20Suite) SetUpTest(c *C) {
+var _ = Suite(&preseedingUC20Suite{})
+
+func (s *preseedingUC20Suite) SetUpTest(c *C) {
+	// mock a system for preseeding to make deviceMgr happy on init; it is
+	// intentionally restored inside SetUpTest. Tests use real getSystemForPreseeding
+	// and mock system label via filesystem where needed.
+	restore := devicestate.MockGetSystemForPreseeding(func() (string, error) {
+		return "fake system label", nil
+	})
+	defer restore()
+
 	preseed := true
 	classic := false
 	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
@@ -649,7 +659,7 @@ func (s *preseedUC20Suite) SetUpTest(c *C) {
 	s.SeedDir = dirs.SnapSeedDir
 }
 
-func (s *preseedUC20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
+func (s *preseedingUC20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -703,7 +713,7 @@ volumes:
 	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
 }
 
-func (s *preseedUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
+func (s *preseedingUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	// sanity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
@@ -734,7 +744,7 @@ func (s *preseedUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	c.Check(readSysLabel, Equals, "20220108")
 }
 
-func (s *preseedUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
+func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 	// sanity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
@@ -759,7 +769,7 @@ func (s *preseedUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 	c.Check(called, Equals, true)
 }
 
-func (s *preseedUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
+func (s *preseedingUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
 	// sanity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
@@ -772,9 +782,9 @@ func (s *preseedUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
 	c.Check(devicestate.GetSystemMode(mgr), Equals, "run")
 }
 
-func (s *preseedUC20Suite) TestSystemForPreseeding(c *C) {
+func (s *preseedingUC20Suite) TestSystemForPreseeding(c *C) {
 	_, err := devicestate.GetSystemForPreseeding()
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `no system to preseed`)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
 	systemLabel, err := devicestate.GetSystemForPreseeding()

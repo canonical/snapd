@@ -51,13 +51,13 @@ func gadgetDataFromInfo(info *snap.Info, model *asserts.Model) (*gadget.GadgetDa
 	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
 }
 
-func getSystemForPreseeding() (label string, err error) {
+var getSystemForPreseeding = func() (label string, err error) {
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
 		return "", fmt.Errorf("cannot list available systems: %v", err)
 	}
 	if len(systemLabels) == 0 {
-		return "", fmt.Errorf("no preseed system")
+		return "", fmt.Errorf("no system to preseed")
 	}
 	if len(systemLabels) > 1 {
 		return "", fmt.Errorf("expected a single system for preseeding, found %d", len(systemLabels))

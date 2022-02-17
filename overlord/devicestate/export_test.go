@@ -371,3 +371,11 @@ func MockTimeutilIsNTPSynchronized(f func() (bool, error)) (restore func()) {
 func DeviceManagerNTPSyncedOrWaitedLongerThan(mgr *DeviceManager, maxWait time.Duration) bool {
 	return mgr.ntpSyncedOrWaitedLongerThan(maxWait)
 }
+
+func MockGetSystemForPreseeding(f func() (string, error)) (restore func()) {
+	old := getSystemForPreseeding
+	getSystemForPreseeding = f
+	return func() {
+		getSystemForPreseeding = old
+	}
+}
