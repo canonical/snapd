@@ -33,7 +33,8 @@ type cloudInitSuite struct {
 var _ = Suite(&cloudInitSuite{})
 
 func (s *cloudInitBaseSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	// undo the cloud-init mocking from deviceMgrBaseSuite, since here we
 	// actually want the default function used to be the real one
@@ -571,7 +572,7 @@ func (s *cloudInitSuite) TestCloudInitRunningEnsuresUntilNotRunning(c *C) {
 	cloudInitScriptStateFile := filepath.Join(c.MkDir(), "cloud-init-state")
 
 	cmd := testutil.MockCommand(c, "cloud-init", fmt.Sprintf(`
-# the first time the script is called the file shouldn't exist, so return 
+# the first time the script is called the file shouldn't exist, so return
 # running
 # next time when the file exists, return done
 if [ -f %[1]s ]; then

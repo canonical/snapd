@@ -439,19 +439,19 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	c.Check(ok, Equals, false)
 }
 
-type preseedBaseSuite struct {
+// TODO: move to preseeding_test.go
+type preseedingBaseSuite struct {
 	deviceMgrBaseSuite
 
 	cmdUmount    *testutil.MockCmd
 	cmdSystemctl *testutil.MockCmd
 }
 
-func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
-	r := snapdenv.MockPreseeding(preseed)
-
+func (s *preseedingBaseSuite) SetUpTest(c *C, preseed, classic bool) {
 	// preseed mode helper needs to be mocked before setting up
 	// deviceMgrBaseSuite due to device Manager init.
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	r := snapdenv.MockPreseeding(preseed)
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	// can use cleanup only after having called base SetUpTest
 	s.AddCleanup(r)
@@ -487,24 +487,19 @@ apps:
 	})
 }
 
-// TODO: rename preesed mode to just preseeding as much as possible,
-// preseed mode souns like a UC20 system mode but is just a snapd mode
-// but preseed snapd mode is a mouthful
-type preseedModeSuite struct {
-	preseedBaseSuite
+type preseedingClassicSuite struct {
+	preseedingBaseSuite
 }
 
-var _ = Suite(&preseedModeSuite{})
+var _ = Suite(&preseedingClassicSuite{})
 
-func (s *preseedModeSuite) SetUpTest(c *C) {
-	s.preseedBaseSuite.SetUpTest(c, true)
+func (s *preseedingClassicSuite) SetUpTest(c *C) {
+	classic := true
+	preseed := true
+	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
 }
 
-func (s *preseedModeSuite) TearDownTest(c *C) {
-	s.preseedBaseSuite.TearDownTest(c)
-}
-
-func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
+func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 	now := time.Now()
 	restore := devicestate.MockTimeNow(func() time.Time {
 		return now
@@ -564,7 +559,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 }
 
-func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
+func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
 	now := time.Now()
 	restoreTimeNow := devicestate.MockTimeNow(func() time.Time {
 		return now
@@ -591,21 +586,19 @@ func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
 	c.Check(preseedStartTime.Equal(now), Equals, true)
 }
 
-type preseedDoneSuite struct {
-	preseedBaseSuite
+type preseedingClassicDoneSuite struct {
+	preseedingBaseSuite
 }
 
-var _ = Suite(&preseedDoneSuite{})
+var _ = Suite(&preseedingClassicDoneSuite{})
 
-func (s *preseedDoneSuite) SetUpTest(c *C) {
-	s.preseedBaseSuite.SetUpTest(c, false)
+func (s *preseedingClassicDoneSuite) SetUpTest(c *C) {
+	classic := true
+	preseed := false
+	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
 }
 
-func (s *preseedDoneSuite) TearDownTest(c *C) {
-	s.preseedBaseSuite.TearDownTest(c)
-}
-
-func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
+func (s *preseedingClassicDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
