@@ -137,7 +137,6 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: -\n", `"model" header contains invalid characters: "-"`},
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
-		{"brand-id: brand-id1\n", "brand-id: _\n", `"brand-id" header contains invalid characters: "_"`},
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
 		{"brand-id: brand-id1\n", "brand-id: brand-id2\n", `authority-id and brand-id must match, preseed assertions are expected to be signed by the brand: "brand-id1" != "brand-id2"`},
 		{"system-label: 20220210\n", "system-label: \n", `"system-label" header should not be empty`},

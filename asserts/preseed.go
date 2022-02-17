@@ -184,13 +184,8 @@ func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
 }
 
 func assemblePreseed(assert assertionBase) (Assertion, error) {
-	_, err := checkStringMatches(assert.headers, "brand-id", validAccountID)
-	if err != nil {
-		return nil, err
-	}
-
 	// authority must match the brand (signer is the brand)
-	err = checkAuthorityMatchesBrand(&assert)
+	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
 	}
