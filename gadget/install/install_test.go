@@ -483,15 +483,20 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	}
 
 	// check the disk-mapping.json that was written as well
-	mapping, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
+	mappingOnData, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
 	c.Assert(err, IsNil)
 	expMapping := gadgettest.ExpectedRaspiDiskVolumeDeviceTraits
 	if opts.encryption {
 		expMapping = gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits
 	}
-	c.Assert(mapping, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+	c.Assert(mappingOnData, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pi": expMapping,
 	})
+
+	// we get the same thing on ubuntu-save
+	dataFile := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "disk-mapping.json")
+	saveFile := filepath.Join(boot.InstallHostDeviceSaveDir, "disk-mapping.json")
+	c.Assert(dataFile, testutil.FileEquals, testutil.FileContentRef(saveFile))
 
 	// also for extra paranoia, compare the object we load with manually loading
 	// the static JSON to make sure they compare the same, this ensures that
@@ -501,18 +506,13 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 		jsonBytes = []byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON)
 	}
 
-	err = ioutil.WriteFile(
-		filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "disk-mapping.json"),
-		jsonBytes,
-		0644,
-	)
+	err = ioutil.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
 	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir))
 	c.Assert(err, IsNil)
 
-	c.Assert(mapping2, DeepEquals, mapping)
-
+	c.Assert(mapping2, DeepEquals, mappingOnData)
 }
 
 const mockGadgetYaml = `volumes:

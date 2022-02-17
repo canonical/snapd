@@ -158,6 +158,8 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 	partsEncrypted := map[string]gadget.StructureEncryptionParameters{}
 
+	hasSavePartition := false
+
 	for _, part := range created {
 		roleFmt := ""
 		if part.Role != "" {
@@ -166,6 +168,11 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		logger.Noticef("created new partition %v for structure %v (size %v) %s",
 			part.Node, part, part.Size.IECString(), roleFmt)
 		encrypt := (options.EncryptionType != secboot.EncryptionTypeNone)
+
+		if part.Role == gadget.SystemSave {
+			hasSavePartition = true
+		}
+
 		if encrypt && roleNeedsEncryption(part.Role) {
 			var keys *EncryptionKeySet
 			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
@@ -245,8 +252,16 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		return nil, err
 	}
 
+	// save the traits to ubuntu-data host
 	if err := gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), allVolTraits); err != nil {
 		return nil, fmt.Errorf("cannot save disk to volume device traits: %v", err)
+	}
+
+	// and also to ubuntu-save if it exists
+	if hasSavePartition {
+		if err := gadget.SaveDiskVolumesDeviceTraits(boot.InstallHostDeviceSaveDir, allVolTraits); err != nil {
+			return nil, fmt.Errorf("cannot save disk to volume device traits: %v", err)
+		}
 	}
 
 	return &InstalledSystemSideData{
