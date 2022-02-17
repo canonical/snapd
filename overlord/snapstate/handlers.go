@@ -3701,13 +3701,13 @@ type dirMigrationOptions struct {
 	// MigratedToHidden states whether the data has been migrated to the hidden dir
 	MigratedToHidden bool
 
-	// UseExposedDir
+	// UseExposedDir state whether the ~/Snap migration has been done.
 	UseExposedDir bool
 }
 
 // GetSnapDirOpts returns the snap dir options based on the current the migration status
 func (o *dirMigrationOptions) getSnapDirOpts() *dirs.SnapDirOptions {
-	return &dirs.SnapDirOptions{HiddenSnapDataDir: o.MigratedToHidden}
+	return &dirs.SnapDirOptions{HiddenSnapDataDir: o.MigratedToHidden, UseExposedDir: o.UseExposedDir}
 }
 
 // GetSnapDirOpts returns the options required to get the correct snap dir.

@@ -7361,6 +7361,50 @@ func (s *snapmgrTestSuite) TestUpdateAfterMigration(c *C) {
 	assertMigrationState(c, s.state, "some-snap", expected)
 }
 
+func (s *snapmgrTestSuite) TestUpdateAfterCore22Migration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+	snapst := &snapstate.SnapState{
+		Sequence:       []*snap.SideInfo{info},
+		Current:        info.Revision,
+		Active:         true,
+		MigratedHidden: true,
+		UseExposedDir:  true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// shouldn't do migration since it was already done
+	c.Check(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
+	c.Check(s.fakeBackend.ops.First("undo-hide-snap-data"), IsNil)
+	c.Check(s.fakeBackend.ops.First("init-exposed-snap-home"), IsNil)
+	c.Check(s.fakeBackend.ops.First("rm-exposed-snap-home"), IsNil)
+
+	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, UseExposedDir: true}
+	c.Check(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, expected)
+
+	assertMigrationState(c, s.state, "some-snap", expected)
+}
+
 func (s *snapmgrTestSuite) TestUndoRevertMigrationIfRevertFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7633,7 +7677,6 @@ func (s *snapmgrTestSuite) testUndoMigrationIfUpdateToCore22Fails(c *C, prepFail
 	assertMigrationState(c, s.state, "snap-for-core22", nil)
 }
 
-// TODO: add failure test case for this
 func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
