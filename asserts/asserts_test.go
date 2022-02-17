@@ -232,6 +232,47 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.SignKeyID(), Equals, exKeyID)
 }
 
+const exampleEmptyBodyOptionalPrimaryKeySet = "type: test-only\n" +
+	"authority-id: auth-id1\n" +
+	"primary-key: abc\n" +
+	"opt1: A\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+	"\n\n" +
+	"AXNpZw=="
+
+func (as *assertsSuite) TestDecodeOptionalPrimaryKeys(c *C) {
+	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.TestOnlyType)
+	_, ok := a.(*asserts.TestOnly)
+	c.Check(ok, Equals, true)
+	c.Check(a.Revision(), Equals, 0)
+	c.Check(a.Format(), Equals, 0)
+	c.Check(a.Body(), IsNil)
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+	c.Check(a.Header("header1"), IsNil)
+	c.Check(a.HeaderString("header1"), Equals, "")
+	c.Check(a.AuthorityID(), Equals, "auth-id1")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
+
+	a, err = asserts.Decode([]byte(exampleEmptyBodyOptionalPrimaryKeySet))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.TestOnlyType)
+	_, ok = a.(*asserts.TestOnly)
+	c.Check(ok, Equals, true)
+	c.Check(a.Revision(), Equals, 0)
+	c.Check(a.Format(), Equals, 0)
+	c.Check(a.Body(), IsNil)
+	c.Check(a.HeaderString("opt1"), Equals, "A")
+	c.Check(a.Header("header1"), IsNil)
+	c.Check(a.HeaderString("header1"), Equals, "")
+	c.Check(a.AuthorityID(), Equals, "auth-id1")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
+}
+
 const exampleEmptyBody2NlNl = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"primary-key: xyz\n" +

@@ -57,9 +57,37 @@ type AssertionType struct {
 	// PrimaryKey holds the names of the headers that constitute the
 	// unique primary key for this assertion type.
 	PrimaryKey []string
+	// OptionalPrimaryKeyDefaults holds the default values for
+	// optional primary key headers.
+	// Optional primary key headers can be added to types defined
+	// in previous versions of snapd, as long as they are added at
+	// the end of the old primary key together with a default value set in
+	// this map.
+	OptionalPrimaryKeyDefaults map[string]string
 
 	assembler func(assert assertionBase) (Assertion, error)
 	flags     typeFlags
+}
+
+func (at *AssertionType) validate() {
+	if len(at.OptionalPrimaryKeyDefaults) != 0 && at.flags&sequenceForming != 0 {
+		panic(fmt.Sprintf("assertion type %q cannot be both sequence forming and have optional primary keys", at.Name))
+	}
+	noptional := 0
+	for _, k := range at.PrimaryKey {
+		defl := at.OptionalPrimaryKeyDefaults[k]
+		if noptional > 0 {
+			if defl == "" {
+				panic(fmt.Sprintf("assertion type %q primary key header %q has no default, optional primary keys must be a proper suffix of the primary key", at.Name, k))
+			}
+			noptional++
+		} else if defl != "" {
+			noptional = 1
+		}
+	}
+	if len(at.OptionalPrimaryKeyDefaults) != noptional {
+		panic(fmt.Sprintf("assertion type %q has defaults values for unknown primary key headers", at.Name))
+	}
 }
 
 // MaxSupportedFormat returns the maximum supported format iteration for the type.
@@ -79,31 +107,31 @@ func (at *AssertionType) SequenceForming() bool {
 
 // Understood assertion types.
 var (
-	AccountType             = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
-	AccountKeyType          = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
-	RepairType              = &AssertionType{"repair", []string{"brand-id", "repair-id"}, assembleRepair, sequenceForming}
-	ModelType               = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
-	SerialType              = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
-	BaseDeclarationType     = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
-	SnapDeclarationType     = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
-	SnapBuildType           = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
-	SnapRevisionType        = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
-	SnapDeveloperType       = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, assembleSnapDeveloper, 0}
-	SystemUserType          = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
-	ValidationType          = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
-	ValidationSetType       = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, assembleValidationSet, sequenceForming}
-	StoreType               = &AssertionType{"store", []string{"store"}, assembleStore, 0}
-	AuthorityDelegationType = &AssertionType{"authority-delegation", []string{"account-id", "delegate-id"}, assembleAuthorityDelegation, 0}
-	PreseedType             = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, assemblePreseed, 0}
+	AccountType             = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
+	AccountKeyType          = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
+	RepairType              = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
+	ModelType               = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
+	SerialType              = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
+	BaseDeclarationType     = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
+	SnapDeclarationType     = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
+	SnapBuildType           = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
+	SnapRevisionType        = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, nil, assembleSnapRevision, 0}
+	SnapDeveloperType       = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
+	SystemUserType          = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
+	ValidationType          = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
+	ValidationSetType       = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
+	StoreType               = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
+	AuthorityDelegationType = &AssertionType{"authority-delegation", []string{"account-id", "delegate-id"}, nil, assembleAuthorityDelegation, 0}
+	PreseedType             = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
 
 // ...
 )
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
-	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, assembleDeviceSessionRequest, noAuthority}
-	SerialRequestType        = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
-	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, assembleAccountKeyRequest, noAuthority}
+	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, nil, assembleDeviceSessionRequest, noAuthority}
+	SerialRequestType        = &AssertionType{"serial-request", nil, nil, assembleSerialRequest, noAuthority}
+	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, nil, assembleAccountKeyRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -162,6 +190,10 @@ func init() {
 
 	// done here to untangle initialization loop via Type()
 	typeRegistry[AuthorityDelegationType.Name] = AuthorityDelegationType
+
+	for _, at := range typeRegistry {
+		at.validate()
+	}
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {
@@ -941,6 +973,11 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	}
 
 	for _, primKey := range assertType.PrimaryKey {
+		if _, ok := headers[primKey]; !ok {
+			if defl := assertType.OptionalPrimaryKeyDefaults[primKey]; defl != "" {
+				headers[primKey] = defl
+			}
+		}
 		if _, err := checkPrimaryKey(headers, primKey); err != nil {
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 		}
@@ -1066,6 +1103,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		"sign-key-sha3-384": true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
+		// XXX optional primary key support
 		if _, err := checkPrimaryKey(finalHeaders, primKey); err != nil {
 			return nil, err
 		}
