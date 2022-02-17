@@ -339,8 +339,7 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	for _, devicePath := range allDevicePaths {
 		if strings.HasPrefix(devicePath, "/dev/") {
 			deviceName := devicePath[5:]
-			deviceRule := fmt.Sprintf(`KERNEL=="%s"`, deviceName)
-			deviceRules[deviceName] = deviceRule
+			deviceRules[deviceName] = fmt.Sprintf(`KERNEL=="%s"`, deviceName)
 		}
 	}
 
