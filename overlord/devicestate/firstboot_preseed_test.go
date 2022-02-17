@@ -47,25 +47,6 @@ type firstbootPreseedingClassic16Suite struct {
 
 var _ = Suite(&firstbootPreseedingClassic16Suite{})
 
-func checkPreseedTasks(c *C, tsAll []*state.TaskSet) {
-	// the tasks of the last taskset must be mark-preseeded, mark-seeded, in that order
-	lastTasks := tsAll[len(tsAll)-1].Tasks()
-	c.Check(lastTasks, HasLen, 2)
-	preseedTask := lastTasks[0]
-	markSeededTask := lastTasks[1]
-	c.Assert(preseedTask.Kind(), Equals, "mark-preseeded")
-	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-
-	// mark-seeded waits for mark-preseeded
-	var waitsForPreseeded bool
-	for _, wt := range markSeededTask.WaitTasks() {
-		if wt.Kind() == "mark-preseeded" {
-			waitsForPreseeded = true
-		}
-	}
-	c.Check(waitsForPreseeded, Equals, true)
-}
-
 func checkPreseedTaskStates(c *C, st *state.State) {
 	doneTasks := map[string]bool{
 		"prerequisites":    true,
