@@ -194,7 +194,22 @@ plugs:
 `
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["content-plug"]
-	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "content interface target path is not clean:.*")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "content interface path is not clean:.*")
+}
+
+func (s *ContentSuite) TestSanitizePlugApparmorInterpretedChar(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  content: mycont
+  target: foo"bar
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`content interface path is invalid: "foo\\"bar" contains a reserved apparmor char.*`)
 }
 
 func (s *ContentSuite) TestSanitizePlugNilAttrMap(c *C) {
@@ -221,6 +236,22 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["content"]
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "read or write path must be set")
+}
+
+func (s *ContentSuite) TestSanitizeSlotApparmorInterpretedChar(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-plug:
+  interface: content
+  source:
+   read: [$SNAP/shared]
+   write: ["$SNAP_DATA/foo}bar"]
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["content-plug"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`content interface path is invalid: "\$SNAP_DATA/foo}bar" contains a reserved apparmor char.*`)
 }
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
@@ -310,143 +341,143 @@ slots:
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/snap/producer/5/export/** mrkix,
+"/snap/producer/5/export/**" mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind) /snap/producer/5/export/ -> /snap/consumer/7/import{,-[0-9]*}/,
-  remount options=(bind, ro) /snap/consumer/7/import{,-[0-9]*}/,
-  mount options=(rprivate) -> /snap/consumer/7/import{,-[0-9]*}/,
-  umount /snap/consumer/7/import{,-[0-9]*}/,
+  mount options=(bind) "/snap/producer/5/export/" -> "/snap/consumer/7/import{,-[0-9]*}/",
+  remount options=(bind, ro) "/snap/consumer/7/import{,-[0-9]*}/",
+  mount options=(rprivate) -> "/snap/consumer/7/import{,-[0-9]*}/",
+  umount "/snap/consumer/7/import{,-[0-9]*}/",
   # Writable mimic /snap/producer/5
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
   # Allow reading the mimic directory, it must exist in the first place.
-  / r,
+  "/" r,
   # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/ rw,
-  mount options=(rbind, rw) / -> /tmp/.snap/,
+  "/tmp/.snap/" rw,
+  mount options=(rbind, rw) "/" -> "/tmp/.snap/",
   # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /,
+  mount fstype=tmpfs options=(rw) tmpfs -> "/",
   # Allow creating empty files and directories for bind mounting things
   # to reconstruct the now-writable parent directory.
-  /tmp/.snap/*/ rw,
-  /*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/*/ -> /*/,
-  /tmp/.snap/* rw,
-  /* rw,
-  mount options=(bind, rw) /tmp/.snap/* -> /*,
+  "/tmp/.snap/*/" rw,
+  "/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/*/" -> "/*/",
+  "/tmp/.snap/*" rw,
+  "/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/*" -> "/*",
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  mount options=(rprivate) -> /tmp/.snap/,
-  umount /tmp/.snap/,
+  mount options=(rprivate) -> "/tmp/.snap/",
+  umount "/tmp/.snap/",
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
-  mount options=(rprivate) -> /,
-  mount options=(rprivate) -> /*,
-  mount options=(rprivate) -> /*/,
-  umount /,
-  umount /*,
-  umount /*/,
+  mount options=(rprivate) -> "/",
+  mount options=(rprivate) -> "/*",
+  mount options=(rprivate) -> "/*/",
+  umount "/",
+  umount "/*",
+  umount "/*/",
   # .. variant with mimic at /snap/
-  /snap/ r,
-  /tmp/.snap/snap/ rw,
-  mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
-  /tmp/.snap/snap/*/ rw,
-  /snap/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
-  /tmp/.snap/snap/* rw,
-  /snap/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/,
-  umount /tmp/.snap/snap/,
-  mount options=(rprivate) -> /snap/,
-  mount options=(rprivate) -> /snap/*,
-  mount options=(rprivate) -> /snap/*/,
-  umount /snap/,
-  umount /snap/*,
-  umount /snap/*/,
+  "/snap/" r,
+  "/tmp/.snap/snap/" rw,
+  mount options=(rbind, rw) "/snap/" -> "/tmp/.snap/snap/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/",
+  "/tmp/.snap/snap/*/" rw,
+  "/snap/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/*/" -> "/snap/*/",
+  "/tmp/.snap/snap/*" rw,
+  "/snap/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/*" -> "/snap/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/",
+  umount "/tmp/.snap/snap/",
+  mount options=(rprivate) -> "/snap/",
+  mount options=(rprivate) -> "/snap/*",
+  mount options=(rprivate) -> "/snap/*/",
+  umount "/snap/",
+  umount "/snap/*",
+  umount "/snap/*/",
   # .. variant with mimic at /snap/producer/
-  /snap/producer/ r,
-  /tmp/.snap/snap/producer/ rw,
-  mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
-  /tmp/.snap/snap/producer/*/ rw,
-  /snap/producer/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/*/ -> /snap/producer/*/,
-  /tmp/.snap/snap/producer/* rw,
-  /snap/producer/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/producer/,
-  umount /tmp/.snap/snap/producer/,
-  mount options=(rprivate) -> /snap/producer/,
-  mount options=(rprivate) -> /snap/producer/*,
-  mount options=(rprivate) -> /snap/producer/*/,
-  umount /snap/producer/,
-  umount /snap/producer/*,
-  umount /snap/producer/*/,
+  "/snap/producer/" r,
+  "/tmp/.snap/snap/producer/" rw,
+  mount options=(rbind, rw) "/snap/producer/" -> "/tmp/.snap/snap/producer/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/producer/",
+  "/tmp/.snap/snap/producer/*/" rw,
+  "/snap/producer/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/producer/*/" -> "/snap/producer/*/",
+  "/tmp/.snap/snap/producer/*" rw,
+  "/snap/producer/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/producer/*" -> "/snap/producer/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/producer/",
+  umount "/tmp/.snap/snap/producer/",
+  mount options=(rprivate) -> "/snap/producer/",
+  mount options=(rprivate) -> "/snap/producer/*",
+  mount options=(rprivate) -> "/snap/producer/*/",
+  umount "/snap/producer/",
+  umount "/snap/producer/*",
+  umount "/snap/producer/*/",
   # .. variant with mimic at /snap/producer/5/
-  /snap/producer/5/ r,
-  /tmp/.snap/snap/producer/5/ rw,
-  mount options=(rbind, rw) /snap/producer/5/ -> /tmp/.snap/snap/producer/5/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/5/,
-  /tmp/.snap/snap/producer/5/*/ rw,
-  /snap/producer/5/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/5/*/ -> /snap/producer/5/*/,
-  /tmp/.snap/snap/producer/5/* rw,
-  /snap/producer/5/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/5/* -> /snap/producer/5/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/producer/5/,
-  umount /tmp/.snap/snap/producer/5/,
-  mount options=(rprivate) -> /snap/producer/5/,
-  mount options=(rprivate) -> /snap/producer/5/*,
-  mount options=(rprivate) -> /snap/producer/5/*/,
-  umount /snap/producer/5/,
-  umount /snap/producer/5/*,
-  umount /snap/producer/5/*/,
+  "/snap/producer/5/" r,
+  "/tmp/.snap/snap/producer/5/" rw,
+  mount options=(rbind, rw) "/snap/producer/5/" -> "/tmp/.snap/snap/producer/5/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/producer/5/",
+  "/tmp/.snap/snap/producer/5/*/" rw,
+  "/snap/producer/5/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/producer/5/*/" -> "/snap/producer/5/*/",
+  "/tmp/.snap/snap/producer/5/*" rw,
+  "/snap/producer/5/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/producer/5/*" -> "/snap/producer/5/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/producer/5/",
+  umount "/tmp/.snap/snap/producer/5/",
+  mount options=(rprivate) -> "/snap/producer/5/",
+  mount options=(rprivate) -> "/snap/producer/5/*",
+  mount options=(rprivate) -> "/snap/producer/5/*/",
+  umount "/snap/producer/5/",
+  umount "/snap/producer/5/*",
+  umount "/snap/producer/5/*/",
   # Writable mimic /snap/consumer/7
   # .. variant with mimic at /snap/consumer/
-  /snap/consumer/ r,
-  /tmp/.snap/snap/consumer/ rw,
-  mount options=(rbind, rw) /snap/consumer/ -> /tmp/.snap/snap/consumer/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/,
-  /tmp/.snap/snap/consumer/*/ rw,
-  /snap/consumer/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/consumer/*/ -> /snap/consumer/*/,
-  /tmp/.snap/snap/consumer/* rw,
-  /snap/consumer/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/consumer/* -> /snap/consumer/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/consumer/,
-  umount /tmp/.snap/snap/consumer/,
-  mount options=(rprivate) -> /snap/consumer/,
-  mount options=(rprivate) -> /snap/consumer/*,
-  mount options=(rprivate) -> /snap/consumer/*/,
-  umount /snap/consumer/,
-  umount /snap/consumer/*,
-  umount /snap/consumer/*/,
+  "/snap/consumer/" r,
+  "/tmp/.snap/snap/consumer/" rw,
+  mount options=(rbind, rw) "/snap/consumer/" -> "/tmp/.snap/snap/consumer/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/consumer/",
+  "/tmp/.snap/snap/consumer/*/" rw,
+  "/snap/consumer/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/consumer/*/" -> "/snap/consumer/*/",
+  "/tmp/.snap/snap/consumer/*" rw,
+  "/snap/consumer/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/consumer/*" -> "/snap/consumer/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/consumer/",
+  umount "/tmp/.snap/snap/consumer/",
+  mount options=(rprivate) -> "/snap/consumer/",
+  mount options=(rprivate) -> "/snap/consumer/*",
+  mount options=(rprivate) -> "/snap/consumer/*/",
+  umount "/snap/consumer/",
+  umount "/snap/consumer/*",
+  umount "/snap/consumer/*/",
   # .. variant with mimic at /snap/consumer/7/
-  /snap/consumer/7/ r,
-  /tmp/.snap/snap/consumer/7/ rw,
-  mount options=(rbind, rw) /snap/consumer/7/ -> /tmp/.snap/snap/consumer/7/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/consumer/7/,
-  /tmp/.snap/snap/consumer/7/*/ rw,
-  /snap/consumer/7/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/consumer/7/*/ -> /snap/consumer/7/*/,
-  /tmp/.snap/snap/consumer/7/* rw,
-  /snap/consumer/7/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/consumer/7/* -> /snap/consumer/7/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/consumer/7/,
-  umount /tmp/.snap/snap/consumer/7/,
-  mount options=(rprivate) -> /snap/consumer/7/,
-  mount options=(rprivate) -> /snap/consumer/7/*,
-  mount options=(rprivate) -> /snap/consumer/7/*/,
-  umount /snap/consumer/7/,
-  umount /snap/consumer/7/*,
-  umount /snap/consumer/7/*/,
+  "/snap/consumer/7/" r,
+  "/tmp/.snap/snap/consumer/7/" rw,
+  mount options=(rbind, rw) "/snap/consumer/7/" -> "/tmp/.snap/snap/consumer/7/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/consumer/7/",
+  "/tmp/.snap/snap/consumer/7/*/" rw,
+  "/snap/consumer/7/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/consumer/7/*/" -> "/snap/consumer/7/*/",
+  "/tmp/.snap/snap/consumer/7/*" rw,
+  "/snap/consumer/7/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/consumer/7/*" -> "/snap/consumer/7/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/consumer/7/",
+  umount "/tmp/.snap/snap/consumer/7/",
+  mount options=(rprivate) -> "/snap/consumer/7/",
+  mount options=(rprivate) -> "/snap/consumer/7/*",
+  mount options=(rprivate) -> "/snap/consumer/7/*/",
+  umount "/snap/consumer/7/",
+  umount "/snap/consumer/7/*",
+  umount "/snap/consumer/7/*/",
 `
 	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
@@ -493,25 +524,25 @@ slots:
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
 # are needed for using named sockets within the exported
 # directory.
-/var/snap/producer/5/export/** mrwklix,
+"/var/snap/producer/5/export/**" mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/5/export/ -> /var/snap/consumer/7/import{,-[0-9]*}/,
-  mount options=(rprivate) -> /var/snap/consumer/7/import{,-[0-9]*}/,
-  umount /var/snap/consumer/7/import{,-[0-9]*}/,
+  mount options=(bind, rw) "/var/snap/producer/5/export/" -> "/var/snap/consumer/7/import{,-[0-9]*}/",
+  mount options=(rprivate) -> "/var/snap/consumer/7/import{,-[0-9]*}/",
+  umount "/var/snap/consumer/7/import{,-[0-9]*}/",
   # Writable directory /var/snap/producer/5/export
-  /var/snap/producer/5/export/ rw,
-  /var/snap/producer/5/ rw,
-  /var/snap/producer/ rw,
+  "/var/snap/producer/5/export/" rw,
+  "/var/snap/producer/5/" rw,
+  "/var/snap/producer/" rw,
   # Writable directory /var/snap/consumer/7/import
-  /var/snap/consumer/7/import/ rw,
-  /var/snap/consumer/7/ rw,
-  /var/snap/consumer/ rw,
+  "/var/snap/consumer/7/import/" rw,
+  "/var/snap/consumer/7/" rw,
+  "/var/snap/consumer/" rw,
   # Writable directory /var/snap/consumer/7/import-[0-9]*
-  /var/snap/consumer/7/import-[0-9]*/ rw,
+  "/var/snap/consumer/7/import-[0-9]*/" rw,
 `
 	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
@@ -558,25 +589,25 @@ slots:
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
 # are needed for using named sockets within the exported
 # directory.
-/var/snap/producer/common/export/** mrwklix,
+"/var/snap/producer/common/export/**" mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/common/export/ -> /var/snap/consumer/common/import{,-[0-9]*}/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import{,-[0-9]*}/,
-  umount /var/snap/consumer/common/import{,-[0-9]*}/,
+  mount options=(bind, rw) "/var/snap/producer/common/export/" -> "/var/snap/consumer/common/import{,-[0-9]*}/",
+  mount options=(rprivate) -> "/var/snap/consumer/common/import{,-[0-9]*}/",
+  umount "/var/snap/consumer/common/import{,-[0-9]*}/",
   # Writable directory /var/snap/producer/common/export
-  /var/snap/producer/common/export/ rw,
-  /var/snap/producer/common/ rw,
-  /var/snap/producer/ rw,
+  "/var/snap/producer/common/export/" rw,
+  "/var/snap/producer/common/" rw,
+  "/var/snap/producer/" rw,
   # Writable directory /var/snap/consumer/common/import
-  /var/snap/consumer/common/import/ rw,
-  /var/snap/consumer/common/ rw,
-  /var/snap/consumer/ rw,
+  "/var/snap/consumer/common/import/" rw,
+  "/var/snap/consumer/common/" rw,
+  "/var/snap/consumer/" rw,
   # Writable directory /var/snap/consumer/common/import-[0-9]*
-  /var/snap/consumer/common/import-[0-9]*/ rw,
+  "/var/snap/consumer/common/import-[0-9]*/" rw,
 `
 	c.Assert(strings.Join(updateNS[:], ""), Equals, profile0)
 }
@@ -650,34 +681,34 @@ slots:
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
 # are needed for using named sockets within the exported
 # directory.
-/var/snap/producer/common/write-common/** mrwklix,
-/var/snap/producer/2/write-data/** mrwklix,
+"/var/snap/producer/common/write-common/**" mrwklix,
+"/var/snap/producer/2/write-data/**" mrwklix,
 
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/var/snap/producer/common/read-common/** mrkix,
-/var/snap/producer/2/read-data/** mrkix,
-/snap/producer/2/read-snap/** mrkix,
+"/var/snap/producer/common/read-common/**" mrkix,
+"/var/snap/producer/2/read-data/**" mrkix,
+"/snap/producer/2/read-snap/**" mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 
 	updateNS := apparmorSpec.UpdateNS()
 	profile0 := `  # Read-write content sharing consumer:content -> producer:content (w#0)
-  mount options=(bind, rw) /var/snap/producer/common/write-common/ -> /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
-  umount /var/snap/consumer/common/import/write-common{,-[0-9]*}/,
+  mount options=(bind, rw) "/var/snap/producer/common/write-common/" -> "/var/snap/consumer/common/import/write-common{,-[0-9]*}/",
+  mount options=(rprivate) -> "/var/snap/consumer/common/import/write-common{,-[0-9]*}/",
+  umount "/var/snap/consumer/common/import/write-common{,-[0-9]*}/",
   # Writable directory /var/snap/producer/common/write-common
-  /var/snap/producer/common/write-common/ rw,
-  /var/snap/producer/common/ rw,
-  /var/snap/producer/ rw,
+  "/var/snap/producer/common/write-common/" rw,
+  "/var/snap/producer/common/" rw,
+  "/var/snap/producer/" rw,
   # Writable directory /var/snap/consumer/common/import/write-common
-  /var/snap/consumer/common/import/write-common/ rw,
-  /var/snap/consumer/common/import/ rw,
-  /var/snap/consumer/common/ rw,
-  /var/snap/consumer/ rw,
+  "/var/snap/consumer/common/import/write-common/" rw,
+  "/var/snap/consumer/common/import/" rw,
+  "/var/snap/consumer/common/" rw,
+  "/var/snap/consumer/" rw,
   # Writable directory /var/snap/consumer/common/import/write-common-[0-9]*
-  /var/snap/consumer/common/import/write-common-[0-9]*/ rw,
+  "/var/snap/consumer/common/import/write-common-[0-9]*/" rw,
 `
 	// Find the slice that describes profile0 by looking for the first unique
 	// line of the next profile.
@@ -686,16 +717,16 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile0)
 
 	profile1 := `  # Read-write content sharing consumer:content -> producer:content (w#1)
-  mount options=(bind, rw) /var/snap/producer/2/write-data/ -> /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
-  umount /var/snap/consumer/common/import/write-data{,-[0-9]*}/,
+  mount options=(bind, rw) "/var/snap/producer/2/write-data/" -> "/var/snap/consumer/common/import/write-data{,-[0-9]*}/",
+  mount options=(rprivate) -> "/var/snap/consumer/common/import/write-data{,-[0-9]*}/",
+  umount "/var/snap/consumer/common/import/write-data{,-[0-9]*}/",
   # Writable directory /var/snap/producer/2/write-data
-  /var/snap/producer/2/write-data/ rw,
-  /var/snap/producer/2/ rw,
+  "/var/snap/producer/2/write-data/" rw,
+  "/var/snap/producer/2/" rw,
   # Writable directory /var/snap/consumer/common/import/write-data
-  /var/snap/consumer/common/import/write-data/ rw,
+  "/var/snap/consumer/common/import/write-data/" rw,
   # Writable directory /var/snap/consumer/common/import/write-data-[0-9]*
-  /var/snap/consumer/common/import/write-data-[0-9]*/ rw,
+  "/var/snap/consumer/common/import/write-data-[0-9]*/" rw,
 `
 	// Find the slice that describes profile1 by looking for the first unique
 	// line of the next profile.
@@ -704,16 +735,16 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile1)
 
 	profile2 := `  # Read-only content sharing consumer:content -> producer:content (r#0)
-  mount options=(bind) /var/snap/producer/common/read-common/ -> /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
-  umount /var/snap/consumer/common/import/read-common{,-[0-9]*}/,
+  mount options=(bind) "/var/snap/producer/common/read-common/" -> "/var/snap/consumer/common/import/read-common{,-[0-9]*}/",
+  remount options=(bind, ro) "/var/snap/consumer/common/import/read-common{,-[0-9]*}/",
+  mount options=(rprivate) -> "/var/snap/consumer/common/import/read-common{,-[0-9]*}/",
+  umount "/var/snap/consumer/common/import/read-common{,-[0-9]*}/",
   # Writable directory /var/snap/producer/common/read-common
-  /var/snap/producer/common/read-common/ rw,
+  "/var/snap/producer/common/read-common/" rw,
   # Writable directory /var/snap/consumer/common/import/read-common
-  /var/snap/consumer/common/import/read-common/ rw,
+  "/var/snap/consumer/common/import/read-common/" rw,
   # Writable directory /var/snap/consumer/common/import/read-common-[0-9]*
-  /var/snap/consumer/common/import/read-common-[0-9]*/ rw,
+  "/var/snap/consumer/common/import/read-common-[0-9]*/" rw,
 `
 	// Find the slice that describes profile2 by looking for the first unique
 	// line of the next profile.
@@ -722,16 +753,16 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile2)
 
 	profile3 := `  # Read-only content sharing consumer:content -> producer:content (r#1)
-  mount options=(bind) /var/snap/producer/2/read-data/ -> /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
-  umount /var/snap/consumer/common/import/read-data{,-[0-9]*}/,
+  mount options=(bind) "/var/snap/producer/2/read-data/" -> "/var/snap/consumer/common/import/read-data{,-[0-9]*}/",
+  remount options=(bind, ro) "/var/snap/consumer/common/import/read-data{,-[0-9]*}/",
+  mount options=(rprivate) -> "/var/snap/consumer/common/import/read-data{,-[0-9]*}/",
+  umount "/var/snap/consumer/common/import/read-data{,-[0-9]*}/",
   # Writable directory /var/snap/producer/2/read-data
-  /var/snap/producer/2/read-data/ rw,
+  "/var/snap/producer/2/read-data/" rw,
   # Writable directory /var/snap/consumer/common/import/read-data
-  /var/snap/consumer/common/import/read-data/ rw,
+  "/var/snap/consumer/common/import/read-data/" rw,
   # Writable directory /var/snap/consumer/common/import/read-data-[0-9]*
-  /var/snap/consumer/common/import/read-data-[0-9]*/ rw,
+  "/var/snap/consumer/common/import/read-data-[0-9]*/" rw,
 `
 	// Find the slice that describes profile3 by looking for the first unique
 	// line of the next profile.
@@ -740,102 +771,102 @@ slots:
 	c.Assert(strings.Join(updateNS[start:end], ""), Equals, profile3)
 
 	profile4 := `  # Read-only content sharing consumer:content -> producer:content (r#2)
-  mount options=(bind) /snap/producer/2/read-snap/ -> /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
-  remount options=(bind, ro) /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
-  mount options=(rprivate) -> /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
-  umount /var/snap/consumer/common/import/read-snap{,-[0-9]*}/,
+  mount options=(bind) "/snap/producer/2/read-snap/" -> "/var/snap/consumer/common/import/read-snap{,-[0-9]*}/",
+  remount options=(bind, ro) "/var/snap/consumer/common/import/read-snap{,-[0-9]*}/",
+  mount options=(rprivate) -> "/var/snap/consumer/common/import/read-snap{,-[0-9]*}/",
+  umount "/var/snap/consumer/common/import/read-snap{,-[0-9]*}/",
   # Writable mimic /snap/producer/2
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
   # Allow reading the mimic directory, it must exist in the first place.
-  / r,
+  "/" r,
   # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/ rw,
-  mount options=(rbind, rw) / -> /tmp/.snap/,
+  "/tmp/.snap/" rw,
+  mount options=(rbind, rw) "/" -> "/tmp/.snap/",
   # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /,
+  mount fstype=tmpfs options=(rw) tmpfs -> "/",
   # Allow creating empty files and directories for bind mounting things
   # to reconstruct the now-writable parent directory.
-  /tmp/.snap/*/ rw,
-  /*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/*/ -> /*/,
-  /tmp/.snap/* rw,
-  /* rw,
-  mount options=(bind, rw) /tmp/.snap/* -> /*,
+  "/tmp/.snap/*/" rw,
+  "/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/*/" -> "/*/",
+  "/tmp/.snap/*" rw,
+  "/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/*" -> "/*",
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  mount options=(rprivate) -> /tmp/.snap/,
-  umount /tmp/.snap/,
+  mount options=(rprivate) -> "/tmp/.snap/",
+  umount "/tmp/.snap/",
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
-  mount options=(rprivate) -> /,
-  mount options=(rprivate) -> /*,
-  mount options=(rprivate) -> /*/,
-  umount /,
-  umount /*,
-  umount /*/,
+  mount options=(rprivate) -> "/",
+  mount options=(rprivate) -> "/*",
+  mount options=(rprivate) -> "/*/",
+  umount "/",
+  umount "/*",
+  umount "/*/",
   # .. variant with mimic at /snap/
-  /snap/ r,
-  /tmp/.snap/snap/ rw,
-  mount options=(rbind, rw) /snap/ -> /tmp/.snap/snap/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/,
-  /tmp/.snap/snap/*/ rw,
-  /snap/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/*/ -> /snap/*/,
-  /tmp/.snap/snap/* rw,
-  /snap/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/* -> /snap/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/,
-  umount /tmp/.snap/snap/,
-  mount options=(rprivate) -> /snap/,
-  mount options=(rprivate) -> /snap/*,
-  mount options=(rprivate) -> /snap/*/,
-  umount /snap/,
-  umount /snap/*,
-  umount /snap/*/,
+  "/snap/" r,
+  "/tmp/.snap/snap/" rw,
+  mount options=(rbind, rw) "/snap/" -> "/tmp/.snap/snap/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/",
+  "/tmp/.snap/snap/*/" rw,
+  "/snap/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/*/" -> "/snap/*/",
+  "/tmp/.snap/snap/*" rw,
+  "/snap/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/*" -> "/snap/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/",
+  umount "/tmp/.snap/snap/",
+  mount options=(rprivate) -> "/snap/",
+  mount options=(rprivate) -> "/snap/*",
+  mount options=(rprivate) -> "/snap/*/",
+  umount "/snap/",
+  umount "/snap/*",
+  umount "/snap/*/",
   # .. variant with mimic at /snap/producer/
-  /snap/producer/ r,
-  /tmp/.snap/snap/producer/ rw,
-  mount options=(rbind, rw) /snap/producer/ -> /tmp/.snap/snap/producer/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/,
-  /tmp/.snap/snap/producer/*/ rw,
-  /snap/producer/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/*/ -> /snap/producer/*/,
-  /tmp/.snap/snap/producer/* rw,
-  /snap/producer/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/* -> /snap/producer/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/producer/,
-  umount /tmp/.snap/snap/producer/,
-  mount options=(rprivate) -> /snap/producer/,
-  mount options=(rprivate) -> /snap/producer/*,
-  mount options=(rprivate) -> /snap/producer/*/,
-  umount /snap/producer/,
-  umount /snap/producer/*,
-  umount /snap/producer/*/,
+  "/snap/producer/" r,
+  "/tmp/.snap/snap/producer/" rw,
+  mount options=(rbind, rw) "/snap/producer/" -> "/tmp/.snap/snap/producer/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/producer/",
+  "/tmp/.snap/snap/producer/*/" rw,
+  "/snap/producer/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/producer/*/" -> "/snap/producer/*/",
+  "/tmp/.snap/snap/producer/*" rw,
+  "/snap/producer/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/producer/*" -> "/snap/producer/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/producer/",
+  umount "/tmp/.snap/snap/producer/",
+  mount options=(rprivate) -> "/snap/producer/",
+  mount options=(rprivate) -> "/snap/producer/*",
+  mount options=(rprivate) -> "/snap/producer/*/",
+  umount "/snap/producer/",
+  umount "/snap/producer/*",
+  umount "/snap/producer/*/",
   # .. variant with mimic at /snap/producer/2/
-  /snap/producer/2/ r,
-  /tmp/.snap/snap/producer/2/ rw,
-  mount options=(rbind, rw) /snap/producer/2/ -> /tmp/.snap/snap/producer/2/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /snap/producer/2/,
-  /tmp/.snap/snap/producer/2/*/ rw,
-  /snap/producer/2/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/snap/producer/2/*/ -> /snap/producer/2/*/,
-  /tmp/.snap/snap/producer/2/* rw,
-  /snap/producer/2/* rw,
-  mount options=(bind, rw) /tmp/.snap/snap/producer/2/* -> /snap/producer/2/*,
-  mount options=(rprivate) -> /tmp/.snap/snap/producer/2/,
-  umount /tmp/.snap/snap/producer/2/,
-  mount options=(rprivate) -> /snap/producer/2/,
-  mount options=(rprivate) -> /snap/producer/2/*,
-  mount options=(rprivate) -> /snap/producer/2/*/,
-  umount /snap/producer/2/,
-  umount /snap/producer/2/*,
-  umount /snap/producer/2/*/,
+  "/snap/producer/2/" r,
+  "/tmp/.snap/snap/producer/2/" rw,
+  mount options=(rbind, rw) "/snap/producer/2/" -> "/tmp/.snap/snap/producer/2/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/snap/producer/2/",
+  "/tmp/.snap/snap/producer/2/*/" rw,
+  "/snap/producer/2/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/snap/producer/2/*/" -> "/snap/producer/2/*/",
+  "/tmp/.snap/snap/producer/2/*" rw,
+  "/snap/producer/2/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/snap/producer/2/*" -> "/snap/producer/2/*",
+  mount options=(rprivate) -> "/tmp/.snap/snap/producer/2/",
+  umount "/tmp/.snap/snap/producer/2/",
+  mount options=(rprivate) -> "/snap/producer/2/",
+  mount options=(rprivate) -> "/snap/producer/2/*",
+  mount options=(rprivate) -> "/snap/producer/2/*/",
+  umount "/snap/producer/2/",
+  umount "/snap/producer/2/*",
+  umount "/snap/producer/2/*/",
   # Writable directory /var/snap/consumer/common/import/read-snap
-  /var/snap/consumer/common/import/read-snap/ rw,
+  "/var/snap/consumer/common/import/read-snap/" rw,
   # Writable directory /var/snap/consumer/common/import/read-snap-[0-9]*
-  /var/snap/consumer/common/import/read-snap-[0-9]*/ rw,
+  "/var/snap/consumer/common/import/read-snap-[0-9]*/" rw,
 `
 	// Find the slice that describes profile4 by looking till the end of the list.
 	start = end
@@ -911,13 +942,13 @@ slots:
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/snap/plugin-one/1/plugin/** mrkix,
+"/snap/plugin-one/1/plugin/**" mrkix,
 
 
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/snap/plugin-two/1/plugin/** mrkix,
+"/snap/plugin-two/1/plugin/**" mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.app.app"), Equals, expected)
 }
@@ -975,12 +1006,12 @@ slots:
 # to a limitation in the kernel's LSM hooks for AF_UNIX, these
 # are needed for using named sockets within the exported
 # directory.
-/var/snap/producer/2/directory/** mrwklix,
+"/var/snap/producer/2/directory/**" mrwklix,
 
 # In addition to the bind mount, add any AppArmor rules so that
 # snaps may directly access the slot implementation's files
 # read-only.
-/var/snap/producer/2/directory/** mrkix,
+"/var/snap/producer/2/directory/**" mrkix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app"), Equals, expected)
 }
@@ -1017,7 +1048,7 @@ apps:
 # implementation to access the slot's exported files at the plugging
 # snap's mountpoint to accommodate software where the plugging app
 # tells the slotting app about files to share.
-/var/snap/consumer/common/import/** mrwklix,
+"/var/snap/consumer/common/import/**" mrwklix,
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.producer.app"), Equals, expected)
 }

@@ -42,7 +42,15 @@ type BackendSuite struct {
 	testutil.BaseTest
 }
 
+// CoreSnapInfo is set in SetupSuite
+var DefaultInitializeOpts = &interfaces.SecurityBackendOptions{}
+
 func (s *BackendSuite) SetUpTest(c *C) {
+	coreSnapPlaceInfo := snap.MinimalPlaceInfo("core", snap.Revision{N: 123})
+	snInfo, ok := coreSnapPlaceInfo.(*snap.Info)
+	c.Assert(ok, Equals, true)
+	DefaultInitializeOpts.CoreSnapInfo = snInfo
+
 	// Isolate this test to a temporary directory
 	s.RootDir = c.MkDir()
 	dirs.SetRootDir(s.RootDir)

@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -110,7 +111,7 @@ func (iface *commonFilesInterface) validateSinglePath(np string) error {
 	if strings.Contains(p, "~") {
 		return fmt.Errorf(`%q cannot contain "~"`, p)
 	}
-	if err := apparmor.ValidateNoAppArmorRegexp(p); err != nil {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(p); err != nil {
 		return err
 	}
 
