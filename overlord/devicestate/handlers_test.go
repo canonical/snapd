@@ -706,9 +706,7 @@ volumes:
 func (s *preseedUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	// sanity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
-
-	restoreOnClassic := release.MockOnClassic(false)
-	defer restoreOnClassic()
+	c.Assert(release.OnClassic, Equals, false)
 
 	var readSysLabel string
 	restore := devicestate.MockLoadDeviceSeed(func(st *state.State, sysLabel string) (seed.Seed, error) {
@@ -739,9 +737,7 @@ func (s *preseedUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 func (s *preseedUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 	// sanity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
-
-	restoreOnClassic := release.MockOnClassic(false)
-	defer restoreOnClassic()
+	c.Assert(release.OnClassic, Equals, false)
 
 	called := false
 	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
@@ -763,16 +759,29 @@ func (s *preseedUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 	c.Check(called, Equals, true)
 }
 
+func (s *preseedUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
+	// sanity
+	c.Assert(snapdenv.Preseeding(), Equals, true)
+	c.Assert(release.OnClassic, Equals, false)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
+
+	runner := state.NewTaskRunner(s.state)
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, nil)
+	c.Assert(err, IsNil)
+	c.Check(devicestate.GetSystemMode(mgr), Equals, "run")
+}
+
 func (s *preseedUC20Suite) TestSystemForPreseeding(c *C) {
-	_, err := devicestate.MaybeGetSystemForPreseeding()
+	_, err := devicestate.GetSystemForPreseeding()
 	c.Assert(err, IsNil)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
-	systemLabel, err := devicestate.MaybeGetSystemForPreseeding()
+	systemLabel, err := devicestate.GetSystemForPreseeding()
 	c.Assert(err, IsNil)
 	c.Check(systemLabel, Equals, "20220105")
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
-	_, err = devicestate.MaybeGetSystemForPreseeding()
+	_, err = devicestate.GetSystemForPreseeding()
 	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
 }

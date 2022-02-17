@@ -39,7 +39,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var MaybeGetSystemForPreseeding = maybeGetSystemForPreseeding
+var GetSystemForPreseeding = getSystemForPreseeding
 
 func MockKeyLength(n int) (restore func()) {
 	if n < 1024 {

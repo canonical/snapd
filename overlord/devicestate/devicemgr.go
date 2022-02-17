@@ -143,7 +143,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// cache system label for preseeding if core20
 		if !release.OnClassic {
 			var err error
-			m.preseedSystemLabel, err = maybeGetSystemForPreseeding()
+			m.preseedSystemLabel, err = getSystemForPreseeding()
 			if err != nil {
 				return nil, err
 			}
@@ -756,11 +756,8 @@ func (m *DeviceManager) ensureSeeded() error {
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
 		if !release.OnClassic {
-			if m.preseedSystemLabel == "" {
-				return fmt.Errorf("no system to preseed")
-			}
 			opts.Mode = "run"
-			opts.Label = m.preseedSystemLabel
+			opts.Label = m.preseedSystem()
 		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
