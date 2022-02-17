@@ -2877,7 +2877,7 @@ SNAPD_APPARMOR_REEXEC=0
 	removeChg := allChgs[0]
 	c.Assert(removeChg.Status(), Equals, state.DoStatus)
 	c.Assert(removeChg.Kind(), Equals, "remove-snap")
-	c.Assert(removeChg.Summary(), Equals, fmt.Sprintf(`Remove vulnerable %q snap`, snapName))
+	c.Assert(removeChg.Summary(), Equals, fmt.Sprintf(`Remove inactive vulnerable %q snap (1)`, snapName))
 
 	c.Assert(removeChg.Tasks(), HasLen, 2)
 	clearSnap := removeChg.Tasks()[0]
