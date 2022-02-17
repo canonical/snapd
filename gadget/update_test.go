@@ -2109,6 +2109,10 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *
 
 	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
 	c.Assert(err, IsNil)
+	// we normally get nil returned, but for reasons, the traits object in
+	// gadgettest is not nil
+	c.Assert(traits.StructureEncryption, IsNil)
+	traits.StructureEncryption = map[string]gadget.StructureEncryptionParameters{}
 	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiDiskVolumeDeviceTraits)
 }
 

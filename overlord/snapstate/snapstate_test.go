@@ -4731,7 +4731,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4752,7 +4752,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4773,7 +4773,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4805,7 +4805,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4885,7 +4885,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWhenNotEnabled(c *C)
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4902,7 +4902,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4931,7 +4931,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
 		Current:  snap.R(1),
 		SnapType: "os",
 		// TrackingChannel

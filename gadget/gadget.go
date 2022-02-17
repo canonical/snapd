@@ -252,10 +252,45 @@ type DiskVolumeDeviceTraits struct {
 	Structure []DiskStructureDeviceTraits `json:"structure"`
 
 	// StructureEncryption is the set of partitions that are encrypted on the
-	// volume - this should only ever be ubuntu-data or ubuntu-save for now, but
-	// the map will indicate the name of the structure as the key and the type
-	// of encryption (currently only "LUKS") as the value in the map.
-	StructureEncryption map[string]map[string]string `json:"structure-encryption"`
+	// volume - this should only ever have ubuntu-data or ubuntu-save for now
+	// keys in the map. The value indicates parameters of the encryption present
+	// that enable matching/identifying encrypted structures with their laid out
+	// counterparts in the gadget.yaml.
+	StructureEncryption map[string]StructureEncryptionParameters `json:"structure-encryption"`
+}
+
+// StructureEncryptionParameters contains information about an encrypted
+// structure, used to match encrypted structures on disk with their abstract,
+// laid out counterparts in the gadget.yaml.
+type StructureEncryptionParameters struct {
+	// Method is the method of encryption used, currently only EncryptionLUKS is
+	// recognized.
+	Method DiskEncryptionMethod `json:"method"`
+
+	// unknownKeys is used to log messages about unknown, unrecognized keys that
+	// we may encounter and may be used in the future
+	unknownKeys map[string]string
+}
+
+func (s *StructureEncryptionParameters) UnmarshalJSON(b []byte) error {
+	m := map[string]string{}
+
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+
+	for key, val := range m {
+		if key == "method" {
+			s.Method = DiskEncryptionMethod(val)
+		} else {
+			if s.unknownKeys == nil {
+				s.unknownKeys = make(map[string]string)
+			}
+			s.unknownKeys[key] = val
+		}
+	}
+
+	return nil
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a

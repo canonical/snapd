@@ -64,6 +64,11 @@ type deviceMgrRemodelSuite struct {
 
 var _ = Suite(&deviceMgrRemodelSuite{})
 
+func (s *deviceMgrRemodelSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

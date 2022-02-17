@@ -60,59 +60,115 @@ volumes:
       type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
 `
 
+var expPiSeedStructureTraits = gadget.DiskStructureDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+	OriginalKernelPath: "/dev/mmcblk0p1",
+	PartitionUUID:      "7c301cbd-01",
+	PartitionType:      "0C",
+	FilesystemUUID:     "0E09-0822",
+	FilesystemLabel:    "ubuntu-seed",
+	FilesystemType:     "vfat",
+	Offset:             quantity.OffsetMiB,
+	Size:               (1200) * quantity.SizeMiB,
+}
+
+var expPiBootStructureTraits = gadget.DiskStructureDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+	OriginalKernelPath: "/dev/mmcblk0p2",
+	PartitionUUID:      "7c301cbd-02",
+	PartitionType:      "0C",
+	FilesystemUUID:     "23F9-881F",
+	FilesystemLabel:    "ubuntu-boot",
+	FilesystemType:     "vfat",
+	Offset:             (1 + 1200) * quantity.OffsetMiB,
+	Size:               (750) * quantity.SizeMiB,
+}
+
+var expPiSaveStructureTraits = gadget.DiskStructureDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+	OriginalKernelPath: "/dev/mmcblk0p3",
+	PartitionUUID:      "7c301cbd-03",
+	PartitionType:      "83",
+	FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
+	FilesystemType:     "ext4",
+	FilesystemLabel:    "ubuntu-save",
+	Offset:             (1 + 1200 + 750) * quantity.OffsetMiB,
+	Size:               16 * quantity.SizeMiB,
+}
+
+var expPiDataStructureTraits = gadget.DiskStructureDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+	OriginalKernelPath: "/dev/mmcblk0p4",
+	PartitionUUID:      "7c301cbd-04",
+	PartitionType:      "83",
+	FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
+	FilesystemLabel:    "ubuntu-data",
+	FilesystemType:     "ext4",
+	Offset:             (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+	// total size - offset of last structure
+	Size: (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
+}
+
 var ExpectedRaspiDiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
+	OriginalDevicePath:  "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+	OriginalKernelPath:  "/dev/mmcblk0",
+	DiskID:              "7c301cbd",
+	Size:                30528 * quantity.SizeMiB, // ~ 32 GB SD card
+	SectorSize:          512,
+	Schema:              "dos",
+	StructureEncryption: map[string]gadget.StructureEncryptionParameters{},
+	Structure: []gadget.DiskStructureDeviceTraits{
+		expPiSeedStructureTraits,
+		expPiBootStructureTraits,
+		expPiSaveStructureTraits,
+		expPiDataStructureTraits,
+	},
+}
+
+var expPiSaveEncStructureTraits = gadget.DiskStructureDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+	OriginalKernelPath: "/dev/mmcblk0p3",
+	PartitionUUID:      "7c301cbd-03",
+	PartitionType:      "83",
+	FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
+	FilesystemType:     "crypto_LUKS",
+	FilesystemLabel:    "ubuntu-save-enc",
+	Offset:             (1 + 1200 + 750) * quantity.OffsetMiB,
+	Size:               16 * quantity.SizeMiB,
+}
+
+var expPiDataEncStructureTraits = gadget.DiskStructureDeviceTraits{
+	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+	OriginalKernelPath: "/dev/mmcblk0p4",
+	PartitionUUID:      "7c301cbd-04",
+	PartitionType:      "83",
+	FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
+	FilesystemLabel:    "ubuntu-data-enc",
+	FilesystemType:     "crypto_LUKS",
+	Offset:             (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+	// total size - offset of last structure
+	Size: (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
+}
+
+// ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits is like
+// ExpectedRaspiDiskVolumeDeviceTraits, but it uses the "-enc" suffix for the
+// filesystem labels and has crypto_LUKS as the filesystem types
+var ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
 	OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
 	OriginalKernelPath: "/dev/mmcblk0",
 	DiskID:             "7c301cbd",
 	Size:               30528 * quantity.SizeMiB, // ~ 32 GB SD card
 	SectorSize:         512,
 	Schema:             "dos",
+	StructureEncryption: map[string]gadget.StructureEncryptionParameters{
+		"ubuntu-data": {Method: gadget.EncryptionLUKS},
+		"ubuntu-save": {Method: gadget.EncryptionLUKS},
+	},
 	Structure: []gadget.DiskStructureDeviceTraits{
-		{
-			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-			OriginalKernelPath: "/dev/mmcblk0p1",
-			PartitionUUID:      "7c301cbd-01",
-			PartitionType:      "0C",
-			FilesystemUUID:     "0E09-0822",
-			FilesystemLabel:    "ubuntu-seed",
-			FilesystemType:     "vfat",
-			Offset:             quantity.OffsetMiB,
-			Size:               (1200) * quantity.SizeMiB,
-		},
-		{
-			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-			OriginalKernelPath: "/dev/mmcblk0p2",
-			PartitionUUID:      "7c301cbd-02",
-			PartitionType:      "0C",
-			FilesystemUUID:     "23F9-881F",
-			FilesystemLabel:    "ubuntu-boot",
-			FilesystemType:     "vfat",
-			Offset:             (1 + 1200) * quantity.OffsetMiB,
-			Size:               (750) * quantity.SizeMiB,
-		},
-		{
-			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
-			OriginalKernelPath: "/dev/mmcblk0p3",
-			PartitionUUID:      "7c301cbd-03",
-			PartitionType:      "83",
-			FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
-			FilesystemType:     "ext4",
-			FilesystemLabel:    "ubuntu-save",
-			Offset:             (1 + 1200 + 750) * quantity.OffsetMiB,
-			Size:               16 * quantity.SizeMiB,
-		},
-		{
-			OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
-			OriginalKernelPath: "/dev/mmcblk0p4",
-			PartitionUUID:      "7c301cbd-04",
-			PartitionType:      "83",
-			FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
-			FilesystemLabel:    "ubuntu-data",
-			FilesystemType:     "ext4",
-			Offset:             (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
-			// total size - offset of last structure
-			Size: (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
-		},
+		expPiSeedStructureTraits,
+		expPiBootStructureTraits,
+		expPiSaveEncStructureTraits,
+		expPiDataEncStructureTraits,
 	},
 }
 
@@ -264,6 +320,7 @@ const ExpectedRaspiDiskVolumeDeviceTraitsJSON = `
     "size": 32010928128,
     "sector-size": 512,
     "schema": "dos",
+	"structure-encryption": {},
     "structure": [
       {
         "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
@@ -310,6 +367,77 @@ const ExpectedRaspiDiskVolumeDeviceTraitsJSON = `
         "filesystem-label": "ubuntu-data",
         "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
         "filesystem-type": "ext4",
+        "offset": 2062548992,
+        "size": 29948379136
+      }
+    ]
+  }
+}
+`
+
+const ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON = `
+{
+  "pi": {
+    "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
+    "kernel-path": "/dev/mmcblk0",
+    "disk-id": "7c301cbd",
+    "size": 32010928128,
+    "sector-size": 512,
+    "schema": "dos",
+	"structure-encryption": {
+		"ubuntu-data": {
+			"method": "LUKS"
+		},
+		"ubuntu-save": {
+			"method": "LUKS"
+		}
+	},
+    "structure": [
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
+        "kernel-path": "/dev/mmcblk0p1",
+        "partition-uuid": "7c301cbd-01",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-seed",
+        "filesystem-uuid": "0E09-0822",
+        "filesystem-type": "vfat",
+        "offset": 1048576,
+        "size": 1258291200
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
+        "kernel-path": "/dev/mmcblk0p2",
+        "partition-uuid": "7c301cbd-02",
+        "partition-label": "",
+        "partition-type": "0C",
+        "filesystem-label": "ubuntu-boot",
+        "filesystem-uuid": "23F9-881F",
+        "filesystem-type": "vfat",
+        "offset": 1259339776,
+        "size": 786432000
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
+        "kernel-path": "/dev/mmcblk0p3",
+        "partition-uuid": "7c301cbd-03",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "ubuntu-save-enc",
+        "filesystem-uuid": "1cdd5826-e9de-4d27-83f7-20249e710590",
+        "filesystem-type": "crypto_LUKS",
+        "offset": 2045771776,
+        "size": 16777216
+      },
+      {
+        "device-path": "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
+        "kernel-path": "/dev/mmcblk0p4",
+        "partition-uuid": "7c301cbd-04",
+        "partition-label": "",
+        "partition-type": "83",
+        "filesystem-label": "ubuntu-data-enc",
+        "filesystem-uuid": "d7f39661-1da0-48de-8967-ce41343d4345",
+        "filesystem-type": "crypto_LUKS",
         "offset": 2062548992,
         "size": 29948379136
       }

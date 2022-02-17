@@ -655,7 +655,6 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 
 	// now add authority-delegation
 	headers = map[string]interface{}{
-		"type":         "account-key",
 		"authority-id": "canonical",
 		"account-id":   "canonical",
 		"delegate-id":  "delegated-acct",
@@ -775,7 +774,6 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 
 	// now add authority-delegation
 	headers = map[string]interface{}{
-		"type":         "account-key",
 		"authority-id": "canonical",
 		"account-id":   "canonical",
 		"delegate-id":  "delegated-acct",
@@ -858,7 +856,6 @@ func (safs *signAddFindSuite) TestSignDelegationExpired(c *C) {
 
 	// add expired authority-delegation
 	headers = map[string]interface{}{
-		"type":         "account-key",
 		"authority-id": "canonical",
 		"account-id":   "canonical",
 		"delegate-id":  "delegated-acct",

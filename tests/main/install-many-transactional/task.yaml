@@ -1,0 +1,17 @@
+summary: Check that transactional install/refresh of multiple snaps works
+
+execute: |
+    echo "Install multiple snaps from the store"
+    snap install --transactional test-snapd-sh test-snapd-control-consumer
+    snap list | MATCH test-snapd-sh
+    snap list | MATCH test-snapd-control-consumer
+
+    echo "Removing the snaps now"
+    snap remove test-snapd-sh test-snapd-control-consumer
+    not snap list test-snapd-sh
+    not snap list test-snapd-control-consumer
+
+    echo "Install multiple snaps from the store, one fails and the full transaction is reverted"
+    not snap install --transactional test-snapd-sh nope
+    not snap list test-snapd-sh
+    not snap list nope

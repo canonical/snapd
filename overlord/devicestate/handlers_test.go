@@ -443,19 +443,19 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	c.Check(ok, Equals, false)
 }
 
-type preseedBaseSuite struct {
+// TODO: move to preseeding_test.go
+type preseedingBaseSuite struct {
 	deviceMgrBaseSuite
 
 	cmdUmount    *testutil.MockCmd
 	cmdSystemctl *testutil.MockCmd
 }
 
-func (s *preseedBaseSuite) SetUpTest(c *C, preseed bool) {
-	r := snapdenv.MockPreseeding(preseed)
-
+func (s *preseedingBaseSuite) SetUpTest(c *C, preseed, classic bool) {
 	// preseed mode helper needs to be mocked before setting up
 	// deviceMgrBaseSuite due to device Manager init.
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	r := snapdenv.MockPreseeding(preseed)
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	// can use cleanup only after having called base SetUpTest
 	s.AddCleanup(r)
@@ -491,31 +491,19 @@ apps:
 	})
 }
 
-// TODO: rename preesed mode to just preseeding as much as possible,
-// preseed mode souns like a UC20 system mode but is just a snapd mode
-// but preseed snapd mode is a mouthful
-type preseedModeSuite struct {
-	preseedBaseSuite
-
-	// TestingSeed20 helps populating seeds (it provides
-	// MakeAssertedSnap, MakeSeed) for tests.
-	*seedtest.TestingSeed20
+type preseedingClassicSuite struct {
+	preseedingBaseSuite
 }
 
-var _ = Suite(&preseedModeSuite{})
+var _ = Suite(&preseedingClassicSuite{})
 
-func (s *preseedModeSuite) SetUpTest(c *C) {
-	s.preseedBaseSuite.SetUpTest(c, true)
-
-	s.TestingSeed20 = &seedtest.TestingSeed20{}
-	s.SeedDir = dirs.SnapSeedDir
+func (s *preseedingClassicSuite) SetUpTest(c *C) {
+	classic := true
+	preseed := true
+	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
 }
 
-func (s *preseedModeSuite) TearDownTest(c *C) {
-	s.preseedBaseSuite.TearDownTest(c)
-}
-
-func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
+func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 	now := time.Now()
 	restore := devicestate.MockTimeNow(func() time.Time {
 		return now
@@ -575,10 +563,7 @@ func (s *preseedModeSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 }
 
-func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
-	restoreOnClassic := release.MockOnClassic(true)
-	defer restoreOnClassic()
-
+func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
 	now := time.Now()
 	restoreTimeNow := devicestate.MockTimeNow(func() time.Time {
 		return now
@@ -605,7 +590,66 @@ func (s *preseedModeSuite) TestEnsureSeededPreseedFlag(c *C) {
 	c.Check(preseedStartTime.Equal(now), Equals, true)
 }
 
-func (s *preseedModeSuite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
+type preseedingClassicDoneSuite struct {
+	preseedingBaseSuite
+}
+
+var _ = Suite(&preseedingClassicDoneSuite{})
+
+func (s *preseedingClassicDoneSuite) SetUpTest(c *C) {
+	classic := true
+	preseed := false
+	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
+}
+
+func (s *preseedingClassicDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("firstboot seeding", "...")
+	t := st.NewTask("mark-preseeded", "...")
+	chg.AddTask(t)
+	t.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	st.Lock()
+
+	// no umount calls expected, just transitioned to Done status.
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(s.cmdUmount.Calls(), HasLen, 0)
+	c.Check(s.restartRequests, HasLen, 0)
+
+	var systemKey map[string]interface{}
+	// in real world preseed-system-key would be present at this point because
+	// mark-preseeded would be run twice (before & after preseeding); this is
+	// not the case in this test.
+	c.Assert(st.Get("preseed-system-key", &systemKey), Equals, state.ErrNoState)
+	c.Assert(st.Get("seed-restart-system-key", &systemKey), IsNil)
+	c.Check(systemKey["build-id"], Equals, "abcde")
+
+	var seedRestartTime time.Time
+	c.Assert(st.Get("seed-restart-time", &seedRestartTime), IsNil)
+	c.Check(seedRestartTime.Equal(devicestate.StartTime()), Equals, true)
+}
+
+type preseedUC20Suite struct {
+	preseedingBaseSuite
+	*seedtest.TestingSeed20
+}
+
+func (s *preseedUC20Suite) SetUpTest(c *C) {
+	preseed := true
+	classic := false
+	s.preseedingBaseSuite.SetUpTest(c, preseed, classic)
+
+	s.TestingSeed20 = &seedtest.TestingSeed20{}
+	s.SeedDir = dirs.SnapSeedDir
+}
+
+func (s *preseedUC20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -659,7 +703,7 @@ volumes:
 	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
 }
 
-func (s *preseedModeSuite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
+func (s *preseedUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	// sanity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 
@@ -692,7 +736,7 @@ func (s *preseedModeSuite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 	c.Check(readSysLabel, Equals, "20220108")
 }
 
-func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
+func (s *preseedUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 	// sanity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 
@@ -719,7 +763,7 @@ func (s *preseedModeSuite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 	c.Check(called, Equals, true)
 }
 
-func (s *preseedModeSuite) TestSystemForPreseeding(c *C) {
+func (s *preseedUC20Suite) TestSystemForPreseeding(c *C) {
 	_, err := devicestate.MaybeGetSystemForPreseeding()
 	c.Assert(err, IsNil)
 
@@ -731,51 +775,4 @@ func (s *preseedModeSuite) TestSystemForPreseeding(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
 	_, err = devicestate.MaybeGetSystemForPreseeding()
 	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
-}
-
-type preseedDoneSuite struct {
-	preseedBaseSuite
-}
-
-var _ = Suite(&preseedDoneSuite{})
-
-func (s *preseedDoneSuite) SetUpTest(c *C) {
-	s.preseedBaseSuite.SetUpTest(c, false)
-}
-
-func (s *preseedDoneSuite) TearDownTest(c *C) {
-	s.preseedBaseSuite.TearDownTest(c)
-}
-
-func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	chg := st.NewChange("firstboot seeding", "...")
-	t := st.NewTask("mark-preseeded", "...")
-	chg.AddTask(t)
-	t.SetStatus(state.DoingStatus)
-
-	st.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
-	st.Lock()
-
-	// no umount calls expected, just transitioned to Done status.
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	c.Check(s.cmdUmount.Calls(), HasLen, 0)
-	c.Check(s.restartRequests, HasLen, 0)
-
-	var systemKey map[string]interface{}
-	// in real world preseed-system-key would be present at this point because
-	// mark-preseeded would be run twice (before & after preseeding); this is
-	// not the case in this test.
-	c.Assert(st.Get("preseed-system-key", &systemKey), Equals, state.ErrNoState)
-	c.Assert(st.Get("seed-restart-system-key", &systemKey), IsNil)
-	c.Check(systemKey["build-id"], Equals, "abcde")
-
-	var seedRestartTime time.Time
-	c.Assert(st.Get("seed-restart-time", &seedRestartTime), IsNil)
-	c.Check(seedRestartTime.Equal(devicestate.StartTime()), Equals, true)
 }

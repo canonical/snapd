@@ -2141,6 +2141,7 @@ func (s *plugSlotRulesSuite) TestSlotRuleFeatures(c *C) {
 }
 
 func (s *plugSlotRulesSuite) TestValidOnStoreBrandModel(c *C) {
+	// more extensive testing is now done in deviceScopeConstraintSuite
 	tests := []struct {
 		constr string
 		value  string
@@ -2150,43 +2151,20 @@ func (s *plugSlotRulesSuite) TestValidOnStoreBrandModel(c *C) {
 		{"on-store", "foo", true},
 		{"on-store", "F_o-O88", true},
 		{"on-store", "foo!", false},
-		{"on-store", "foo.", false},
-		{"on-store", "foo/", false},
 		{"on-brand", "", false},
 		// custom set brands (length 2-28)
 		{"on-brand", "dwell", true},
 		{"on-brand", "Dwell", false},
 		{"on-brand", "dwell-88", true},
 		{"on-brand", "dwell_88", false},
-		{"on-brand", "dwell.88", false},
-		{"on-brand", "dwell:88", false},
-		{"on-brand", "dwell!88", false},
-		{"on-brand", "a", false},
-		{"on-brand", "ab", true},
 		{"on-brand", "0123456789012345678901234567", true},
 		// snappy id brands (fixed length 32)
 		{"on-brand", "01234567890123456789012345678", false},
-		{"on-brand", "012345678901234567890123456789", false},
-		{"on-brand", "0123456789012345678901234567890", false},
 		{"on-brand", "01234567890123456789012345678901", true},
-		{"on-brand", "abcdefghijklmnopqrstuvwxyz678901", true},
-		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901", true},
-		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901X", false},
-		{"on-brand", "ABCDEFGHIJKLMNOPQ!STUVWCYZ678901", false},
-		{"on-brand", "ABCDEFGHIJKLMNOPQ_STUVWCYZ678901", false},
-		{"on-brand", "ABCDEFGHIJKLMNOPQ-STUVWCYZ678901", false},
 		{"on-model", "", false},
-		{"on-model", "/", false},
 		{"on-model", "dwell/dwell1", true},
 		{"on-model", "dwell", false},
 		{"on-model", "dwell/", false},
-		{"on-model", "dwell//dwell1", false},
-		{"on-model", "dwell/-dwell1", false},
-		{"on-model", "dwell/dwell1-", false},
-		{"on-model", "dwell/dwell1-23", true},
-		{"on-model", "dwell/dwell1!", false},
-		{"on-model", "dwell/dwe_ll1", false},
-		{"on-model", "dwell/dwe.ll1", false},
 	}
 
 	check := func(constr, value string, valid bool) {

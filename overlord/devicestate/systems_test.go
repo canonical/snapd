@@ -75,7 +75,8 @@ var (
 )
 
 func (s *createSystemSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.ss = &seedtest.SeedSnaps{
 		StoreSigning: s.storeSigning,
