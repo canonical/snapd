@@ -204,8 +204,16 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 	if slot.Attrs == nil {
 		slot.Attrs = make(map[string]interface{})
 	}
-	// custom-device defaults to "slot" name if unspecified
-	slot.Attrs["custom-device"] = slot.Name
+	customDeviceAttr, isSet := slot.Attrs["custom-device"]
+	customDevice, ok := customDeviceAttr.(string)
+	if isSet && !ok {
+		return fmt.Errorf(`custom-device "custom-device" attribute must be a string, not %v`,
+			customDeviceAttr)
+	}
+	if customDevice == "" {
+		// custom-device defaults to "slot" name if unspecified
+		slot.Attrs["custom-device"] = slot.Name
+	}
 
 	var devices []string
 	err := slot.Attr("devices", &devices)
