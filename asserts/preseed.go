@@ -62,7 +62,7 @@ func (s *PreseedSnap) ID() string {
 }
 
 // Preseed holds preseed assertion, which is a statement about system-label,
-// model, set of snaps and preseed artifact used for preseeding of uc20 system.
+// model, set of snaps and preseed artifact used for preseeding of UC20 system.
 type Preseed struct {
 	assertionBase
 	snaps     []*PreseedSnap
