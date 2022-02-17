@@ -40,7 +40,7 @@ setup() {
 
 get_kver() {
     local kerneldir="$1"
-    find "$kerneldir" -maxdepth 1 -name "config"-* | grep -Po 'config-\K.*'
+    find "$kerneldir" -maxdepth 1 -name "config-*" | grep -Po 'config-\K.*'
 }
 
 extract() {
