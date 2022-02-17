@@ -3095,20 +3095,25 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 
 	// if we set the EncryptedPartitions and assume partitions are already
 	// created then they match
+
+	encParams := gadget.StructureEncryptionParameters{Method: gadget.EncryptionLUKS}
+	encParams.SetUnknownKeys(map[string]string{"foo": "secret-foo"})
+
 	encOpts := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		ExpectedStructureEncryption: map[string]map[string]string{
-			"Writable": {
-				"method": gadget.EncryptionLUKS,
-				// unsupported keys are okay, they are just ignored with a msg
-				"foo": "bar",
-			},
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": encParams,
 		},
 	}
+
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, encOpts)
 	c.Assert(err, IsNil)
 
+	// we had a log message about the unknown/unsupported parameter
 	c.Assert(mockLog.String(), testutil.Contains, "ignoring unknown expected encryption structure parameter \"foo\"")
+	// but we didn't log anything about the value in case that is secret for
+	// whatever reason
+	c.Assert(mockLog.String(), Not(testutil.Contains), "secret-foo")
 
 	// but if the name of the partition does not match "-enc" then it is not
 	// valid
@@ -3138,8 +3143,8 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 	// unsupported encryption types
 	invalidEncOptions := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		ExpectedStructureEncryption: map[string]map[string]string{
-			"Writable": {"method": gadget.EncryptionICE},
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": {Method: gadget.EncryptionICE},
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
@@ -3147,8 +3152,8 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 
 	invalidEncOptions = &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		ExpectedStructureEncryption: map[string]map[string]string{
-			"Writable": {"method": "other"},
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": {Method: "other"},
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, invalidEncOptions)
@@ -3157,9 +3162,9 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 	// missing an encrypted partition from the gadget.yaml
 	missingEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		ExpectedStructureEncryption: map[string]map[string]string{
-			"Writable": {"method": gadget.EncryptionLUKS},
-			"missing":  {"method": gadget.EncryptionLUKS},
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": {Method: gadget.EncryptionLUKS},
+			"missing":  {Method: gadget.EncryptionLUKS},
 		},
 	}
 	err = gadget.EnsureLayoutCompatibility(gadgetLayout, &deviceLayout, missingEncStructureOptions)
@@ -3168,7 +3173,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithLUKSEncryptedPartitions
 	// missing required method
 	invalidEncStructureOptions := &gadget.EnsureLayoutCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
-		ExpectedStructureEncryption: map[string]map[string]string{
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
 			"Writable": {},
 		},
 	}
@@ -3291,6 +3296,23 @@ func (s *gadgetYamlTestSuite) TestSaveLoadDiskVolumeDeviceTraits(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(m3, DeepEquals, expPiMap)
+
+	// do the same for a mock LUKS encrypted raspi
+	expPiLUKSMap := map[string]gadget.DiskVolumeDeviceTraits{
+		"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+	}
+
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	m4, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+
+	c.Assert(m4, DeepEquals, expPiLUKSMap)
 }
 
 func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleUC16Implicit(c *C) {
