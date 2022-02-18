@@ -25,16 +25,27 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
-// ResourceMemory is the memory limit for a quota group.
 type ResourceMemory struct {
 	Limit quantity.Size `json:"limit"`
 }
 
-// Resources is built up of multiple quota limits. Each quota limit is a pointer
+type ResourceCPU struct {
+	Count       int   `json:"count"`
+	Percentage  int   `json:"percentage"`
+	AllowedCPUs []int `json:"allowed-cpus"`
+}
+
+type ResourceThreads struct {
+	Limit int `json:"limit"`
+}
+
+// Resources are built up of multiple quota limits. Each quota limit is a pointer
 // value to indicate that their presence may be optional, and because we want to detect
 // whenever someone changes a limit to '0' explicitly.
 type Resources struct {
-	Memory *ResourceMemory `json:"memory,omitempty"`
+	Memory  *ResourceMemory  `json:"memory,omitempty"`
+	CPU     *ResourceCPU     `json:"cpu,omitempty"`
+	Threads *ResourceThreads `json:"thread,omitempty"`
 }
 
 func (qr *Resources) validateMemoryQuota() error {
@@ -53,12 +64,35 @@ func (qr *Resources) validateMemoryQuota() error {
 	return nil
 }
 
+func (qr *Resources) validateCpuQuota() error {
+	// if cpu count is non-zero, then percentage should be set
+	if qr.CPU.Count != 0 && qr.CPU.Percentage == 0 {
+		return fmt.Errorf("cannot validate quota limits with count of >0 and percentage of 0")
+	}
+
+	// atleast one cpu limit value must be set
+	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 && len(qr.CPU.AllowedCPUs) == 0 {
+		return fmt.Errorf("cannot validate quota limits with a cpu quota of 0 and allowed cpus of 0")
+	}
+	return nil
+}
+
+func (qr *Resources) validateThreadQuota() error {
+	// make sure the thread count is not zero
+	if qr.Threads.Limit == 0 {
+		return fmt.Errorf("cannot create quota group with a thread count of 0")
+	}
+	return nil
+}
+
 // Validate performs validation of the provided quota resources for a group.
-// The restrictions imposed are that atleast one limit should exist (memory for now),
-// and the memory limit must be above 4KB.
+// The restrictions imposed are that atleast one limit should be set.
+// If memory limit is provided, it must be above 4KB.
+// If cpu percentage is provided, it must be between 1 and 100.
+// If thread count is provided, it must be above 0.
 func (qr *Resources) Validate() error {
-	if qr.Memory == nil {
-		return fmt.Errorf("quota group must have a memory limit set")
+	if qr.Memory == nil && qr.CPU == nil && qr.Threads == nil {
+		return fmt.Errorf("quota group must have at least one resource limit set")
 	}
 
 	if qr.Memory != nil {
@@ -67,6 +101,17 @@ func (qr *Resources) Validate() error {
 		}
 	}
 
+	if qr.CPU != nil {
+		if err := qr.validateCpuQuota(); err != nil {
+			return err
+		}
+	}
+
+	if qr.Threads != nil {
+		if err := qr.validateThreadQuota(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -104,15 +149,24 @@ func (qr *Resources) Change(newLimits Resources) error {
 	if newLimits.Memory != nil {
 		qr.Memory = newLimits.Memory
 	}
-	return nil
-}
+	if newLimits.CPU != nil {
+		if qr.CPU == nil {
+			qr.CPU = newLimits.CPU
+		} else {
+			// update count/percentage as one unit
+			if newLimits.CPU.Count != 0 || newLimits.CPU.Percentage != 0 {
+				qr.CPU.Count = newLimits.CPU.Count
+				qr.CPU.Percentage = newLimits.CPU.Percentage
+			}
 
-func NewResources(memoryLimit quantity.Size) Resources {
-	var quotaResources Resources
-	if memoryLimit != 0 {
-		quotaResources.Memory = &ResourceMemory{
-			Limit: memoryLimit,
+			// update allowed cpus as one unit
+			if len(newLimits.CPU.AllowedCPUs) != 0 {
+				qr.CPU.AllowedCPUs = newLimits.CPU.AllowedCPUs
+			}
 		}
 	}
-	return quotaResources
+	if newLimits.Threads != nil {
+		qr.Threads = newLimits.Threads
+	}
+	return nil
 }

@@ -33,6 +33,12 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+type GroupQuotaCpu struct {
+	Count       int   `json:"count,omitempty"`
+	Percentage  int   `json:"percentage,omitempty"`
+	AllowedCpus []int `json:"allowed-cpus,omitempty"`
+}
+
 // Group is a quota group of snaps, services or sub-groups that are all subject
 // to specific resource quotas. The only quota resource types currently
 // supported is memory, but this can be expanded in the future.
@@ -58,6 +64,16 @@ type Group struct {
 	// specific behavior of which processes are killed is subject to the
 	// ExhaustionBehavior. MemoryLimit is expressed in bytes.
 	MemoryLimit quantity.Size `json:"memory-limit,omitempty"`
+
+	// CpuLimit is the quotas for the cpu and consists of a couple of nubs.
+	// It is possible to control the percentage of the cpu available for the group
+	// and which cores (requires cgroupsv2) are allowed to be used.
+	CpuLimit *GroupQuotaCpu `json:"cpu-limit,omitempty"`
+
+	// TaskLimit is the limit of threads/processes that can be active at once in
+	// the group. Once the limit is reached, further forks() or clones() will be blocked
+	// for processes in the group.
+	TaskLimit int `json:"task-limit,omitempty"`
 
 	// ParentGroup is the the parent group that this group is a child of. If it
 	// is empty, then this is a "root" quota group.
@@ -92,10 +108,38 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
 	if resourceLimits.Memory != nil {
 		grp.MemoryLimit = resourceLimits.Memory.Limit
 	}
+	if resourceLimits.CPU != nil {
+		grp.CpuLimit = &GroupQuotaCpu{
+			Count:       resourceLimits.CPU.Count,
+			Percentage:  resourceLimits.CPU.Percentage,
+			AllowedCpus: resourceLimits.CPU.AllowedCPUs,
+		}
+	}
+	if resourceLimits.Threads != nil {
+		grp.TaskLimit = resourceLimits.Threads.Limit
+	}
 }
 
 func (grp *Group) GetQuotaResources() Resources {
-	return NewResources(grp.MemoryLimit)
+	resourcesBuilder := NewResourcesBuilder()
+	if grp.MemoryLimit != 0 {
+		resourcesBuilder.WithMemoryLimit(grp.MemoryLimit)
+	}
+	if grp.CpuLimit != nil {
+		if grp.CpuLimit.Count != 0 {
+			resourcesBuilder.WithCPUCount(grp.CpuLimit.Count)
+		}
+		if grp.CpuLimit.Percentage != 0 {
+			resourcesBuilder.WithCPUPercentage(grp.CpuLimit.Percentage)
+		}
+		if len(grp.CpuLimit.AllowedCpus) != 0 {
+			resourcesBuilder.WithAllowedCPUs(grp.CpuLimit.AllowedCpus)
+		}
+	}
+	if grp.TaskLimit != 0 {
+		resourcesBuilder.WithThreadLimit(grp.TaskLimit)
+	}
+	return resourcesBuilder.Build()
 }
 
 // CurrentMemoryUsage returns the current memory usage of the quota group. For
@@ -121,6 +165,31 @@ func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
 	}
 
 	return mem, nil
+}
+
+// CurrentTaskUsage returns the current task (processes, threads) usage of the quota group.
+// For quota groups which do not yet have a backing systemd slice on the system (
+// i.e. quota groups without any snaps in them), the task usage is reported
+// as 0
+func (grp *Group) CurrentTaskUsage() (int, error) {
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	// check if this group is actually active, it could not physically exist yet
+	// since it has no snaps in it
+	isActive, err := sysd.IsActive(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+	if !isActive {
+		return 0, nil
+	}
+
+	count, err := sysd.CurrentTasksCount(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
 }
 
 // SliceFileName returns the name of the slice file that should be used for this
@@ -182,22 +251,76 @@ func (grp *Group) validate() error {
 		}
 	}
 
-	// check that if this is a sub-group, then the parent group has enough space
+	// Check that if this is a sub-group, then the parent group has enough space
 	// to accommodate this new group (we assume that other existing sub-groups
-	// in the parent group have already been validated)
+	// in the parent group have already been validated).
 	if grp.parentGroup != nil {
-		alreadyUsed := quantity.Size(0)
+		memoryUsed := quantity.Size(0)
+		tasksUsed := 0
+		cpuQuotaUsed := 0
+
+		max := func(a, b int) int {
+			if a > b {
+				return a
+			}
+			return b
+		}
+
+		calculateCpuQuota := func(grp *Group) int {
+			if grp.CpuLimit == nil {
+				return 0
+			}
+			return max(grp.CpuLimit.Count, 1) * grp.CpuLimit.Percentage
+		}
+
 		for _, child := range grp.parentGroup.subGroups {
 			if child.Name == grp.Name {
 				continue
 			}
-			alreadyUsed += child.MemoryLimit
+
+			memoryUsed += child.MemoryLimit
+			tasksUsed += child.TaskLimit
+			cpuQuotaUsed += calculateCpuQuota(child)
 		}
-		// careful arithmetic here in case we somehow overflow the max size of
-		// quantity.Size
-		if grp.parentGroup.MemoryLimit-alreadyUsed < grp.MemoryLimit {
-			remaining := grp.parentGroup.MemoryLimit - alreadyUsed
-			return fmt.Errorf("sub-group memory limit of %s is too large to fit inside remaining quota space %s for parent group %s", grp.MemoryLimit.IECString(), remaining.IECString(), grp.parentGroup.Name)
+
+		if grp.parentGroup.CpuLimit != nil && grp.CpuLimit != nil {
+			arrayContains := func(arr []int, val int) bool {
+				for _, v := range arr {
+					if v == val {
+						return true
+					}
+				}
+				return false
+			}
+
+			upperLimit := calculateCpuQuota(grp.parentGroup)
+			if cpuQuotaUsed+calculateCpuQuota(grp) > upperLimit {
+				return fmt.Errorf("group %q would exceed its parent group's CPU limit", grp.Name)
+			}
+
+			if len(grp.parentGroup.CpuLimit.AllowedCpus) > 0 {
+				// check if the group's allowed cpus are a subset of the parent group's allowed cpus
+				for _, cpu := range grp.CpuLimit.AllowedCpus {
+					if !arrayContains(grp.parentGroup.CpuLimit.AllowedCpus, cpu) {
+						return fmt.Errorf("group %q has a CPU allowance that is not allowed by its parent group", grp.Name)
+					}
+				}
+			}
+		}
+
+		if grp.parentGroup.MemoryLimit != 0 {
+			// careful arithmetic here in case we somehow overflow the max size of
+			// quantity.Size
+			if grp.parentGroup.MemoryLimit-memoryUsed < grp.MemoryLimit {
+				remaining := grp.parentGroup.MemoryLimit - memoryUsed
+				return fmt.Errorf("sub-group memory limit of %s is too large to fit inside remaining quota space %s for parent group %s", grp.MemoryLimit.IECString(), remaining.IECString(), grp.parentGroup.Name)
+			}
+		}
+
+		if grp.parentGroup.TaskLimit != 0 {
+			if tasksUsed+grp.TaskLimit > grp.parentGroup.TaskLimit {
+				return fmt.Errorf("sub-group task limit of %d is too large to fit inside remaining tasks %d for parent group %s", grp.TaskLimit, grp.parentGroup.TaskLimit-tasksUsed, grp.parentGroup.Name)
+			}
 		}
 	}
 
