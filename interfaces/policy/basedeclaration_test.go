@@ -615,7 +615,6 @@ var (
 		"core-support":              {"core"},
 		"cups":                      {"app"},
 		"cups-control":              {"app", "core"},
-		"custom-device":             {"gadget"},
 		"dbus":                      {"app"},
 		"docker-support":            {"core"},
 		"desktop-launch":            {"core"},
@@ -670,6 +669,7 @@ var (
 		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
+		"custom-device":   nil,
 		"docker":          nil,
 		"lxd":             nil,
 		"shared-memory":   nil,

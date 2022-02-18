@@ -38,9 +38,7 @@ const customDeviceSummary = `provides access to custom devices specified via the
 
 const customDeviceBaseDeclarationSlots = `
   custom-device:
-    allow-installation:
-      slot-snap-type:
-        - gadget
+    allow-installation: false
     allow-connection:
       plug-attributes:
         content: $SLOT(custom-device)
@@ -196,7 +194,6 @@ func (iface *customDeviceInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              customDeviceSummary,
 		BaseDeclarationSlots: customDeviceBaseDeclarationSlots,
-		AffectsPlugOnRefresh: true,
 	}
 }
 
