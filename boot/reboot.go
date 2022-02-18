@@ -65,7 +65,7 @@ var (
 
 func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootInfo) error {
 	if osutil.IsTestBinary() && !testingRebootItself {
-		return nil
+		panic("Reboot must be mocked in tests")
 	}
 
 	if rebootDelay < 0 {
