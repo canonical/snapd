@@ -54,7 +54,6 @@ func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) fu
 	return func() {
 		allUsers = old
 	}
-
 }
 
 func MockRemoveIfEmpty(f func(dir string) error) func() {
@@ -62,5 +61,13 @@ func MockRemoveIfEmpty(f func(dir string) error) func() {
 	removeIfEmpty = f
 	return func() {
 		removeIfEmpty = old
+	}
+}
+
+func MockInitSnapMaybeFailForTesting(f func() error) func() {
+	old := maybeFailForTesting
+	maybeFailForTesting = f
+	return func() {
+		maybeFailForTesting = old
 	}
 }

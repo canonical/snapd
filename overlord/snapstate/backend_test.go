@@ -1249,6 +1249,16 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) error {
+	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) RemoveExposedSnapHome(snapName string) error {
+	f.appendOp(&fakeOp{op: "rm-exposed-snap-home", name: snapName})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

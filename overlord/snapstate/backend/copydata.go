@@ -239,3 +239,91 @@ var removeIfEmpty = func(dir string) error {
 
 	return os.Remove(dir)
 }
+
+var maybeFailForTesting func() error
+
+// InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
+// specified revision. Must be called after the snap has been migrated.
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err error) {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+
+	users, err := allUsers(opts)
+	if err != nil {
+		return err
+	}
+
+	for _, usr := range users {
+		uid, gid, err := osutil.UidGid(usr)
+		if err != nil {
+			return err
+		}
+
+		if maybeFailForTesting != nil {
+			osutil.MustBeTestBinary("'maybeFailForTesting' should only be used in tests")
+			if err := maybeFailForTesting(); err != nil {
+				return err
+			}
+		}
+
+		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+		if err := osutil.MkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
+			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
+		}
+
+		userData := snap.UserDataDir(usr.HomeDir, snapName, rev, opts)
+		entries, err := ioutil.ReadDir(userData)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// there's nothing to copy into ~/Snap/<snap> (like on a fresh install)
+				continue
+			}
+
+			return err
+		}
+		for _, e := range entries {
+			src := filepath.Join(userData, e.Name())
+			dst := filepath.Join(newUserHome, e.Name())
+
+			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// RemoveExposedSnapHome removes the ~/Snap dirs.
+func (b Backend) RemoveExposedSnapHome(snapName string) error {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+
+	var firstErr error
+	handle := func(err error) {
+		if firstErr == nil {
+			firstErr = err
+		} else {
+			logger.Noticef(err.Error())
+		}
+	}
+
+	users, err := allUsers(opts)
+	if err != nil {
+		return err
+	}
+
+	for _, usr := range users {
+		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+		if err := os.RemoveAll(newUserHome); err != nil {
+			handle(fmt.Errorf("cannot remove %q: %v", newUserHome, err))
+			continue
+		}
+
+		exposedSnapDir := filepath.Dir(newUserHome)
+		if err := removeIfEmpty(exposedSnapDir); err != nil {
+			handle(fmt.Errorf("cannot remove %q: %v", exposedSnapDir, err))
+			continue
+		}
+	}
+
+	return firstErr
+}
