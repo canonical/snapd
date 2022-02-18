@@ -7375,11 +7375,11 @@ func (s *snapmgrTestSuite) TestUpdateAfterCore22Migration(c *C) {
 		RealName: "some-snap",
 	}
 	snapst := &snapstate.SnapState{
-		Sequence:       []*snap.SideInfo{info},
-		Current:        info.Revision,
-		Active:         true,
-		MigratedHidden: true,
-		UseExposedDir:  true,
+		Sequence:              []*snap.SideInfo{info},
+		Current:               info.Revision,
+		Active:                true,
+		MigratedHidden:        true,
+		MigratedToExposedHome: true,
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
 	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
@@ -7399,7 +7399,7 @@ func (s *snapmgrTestSuite) TestUpdateAfterCore22Migration(c *C) {
 	c.Check(s.fakeBackend.ops.First("init-exposed-snap-home"), IsNil)
 	c.Check(s.fakeBackend.ops.First("rm-exposed-snap-home"), IsNil)
 
-	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, UseExposedDir: true}
+	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	c.Check(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, expected)
 
 	assertMigrationState(c, s.state, "some-snap", expected)
@@ -7609,7 +7609,7 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigrationOnCore22(c *C) {
 
 	containsInOrder(c, s.fakeBackend.ops, []string{"hide-snap-data", "init-exposed-snap-home"})
 
-	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, UseExposedDir: true}
+	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	assertMigrationState(c, s.state, "snap-for-core22", expected)
 }
 
@@ -7714,7 +7714,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) 
 	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
 	s.fakeBackend.ops.MustFindOp(c, "init-exposed-snap-home")
 
-	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, UseExposedDir: true}
+	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	assertMigrationState(c, s.state, "snap-for-core22", expected)
 }
 
@@ -7795,7 +7795,7 @@ func assertMigrationState(c *C, st *state.State, snap string, expected *dirs.Sna
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(st, snap, &snapst), IsNil)
 	c.Assert(snapst.MigratedHidden, Equals, expected.HiddenSnapDataDir)
-	c.Assert(snapst.UseExposedDir, Equals, expected.UseExposedDir)
+	c.Assert(snapst.MigratedToExposedHome, Equals, expected.MigratedToExposedHome)
 
 	assertMigrationInSeqFile(c, snap, expected)
 }
@@ -7815,13 +7815,13 @@ func assertMigrationInSeqFile(c *C, snap string, expected *dirs.SnapDirOptions) 
 
 	// check sequence file has expected migration value
 	type seqData struct {
-		MigratedHidden bool `json:"migrated-hidden"`
-		UseExposed     bool `json:"use-exposed-dir"`
+		MigratedHidden        bool `json:"migrated-hidden"`
+		MigratedToExposedHome bool `json:"migrated-exposed-home"`
 	}
 	var d seqData
 	c.Assert(json.Unmarshal(data, &d), IsNil)
 	c.Assert(d.MigratedHidden, Equals, expected.HiddenSnapDataDir)
-	c.Assert(d.UseExposed, Equals, expected.UseExposedDir)
+	c.Assert(d.MigratedToExposedHome, Equals, expected.MigratedToExposedHome)
 }
 
 func (s *snapmgrTestSuite) TestUndoInstallAfterDeletingRevisions(c *C) {

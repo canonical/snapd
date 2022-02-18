@@ -404,7 +404,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
 
-	if opts.UseExposedDir {
+	if opts.MigratedToExposedHome {
 		createDirs = append(createDirs,
 			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "data"),
 			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "config"),
@@ -1262,15 +1262,15 @@ func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 	}
 
 	var seq struct {
-		MigratedToHiddenDir bool `json:"migrated-hidden"`
-		UseExposedDir       bool `json:"use-exposed-dir"`
+		MigratedToHiddenDir   bool `json:"migrated-hidden"`
+		MigratedToExposedHome bool `json:"migrated-exposed-home"`
 	}
 	if err := json.Unmarshal(data, &seq); err != nil {
 		return nil, err
 	}
 
 	opts.HiddenSnapDataDir = seq.MigratedToHiddenDir
-	opts.UseExposedDir = seq.UseExposedDir
+	opts.MigratedToExposedHome = seq.MigratedToExposedHome
 
 	return &opts, nil
 }

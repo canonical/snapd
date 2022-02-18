@@ -294,7 +294,7 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 			}
 		}
 
-		newUserHome := snap.ExposedUserSnapDir(usr.HomeDir, snapName)
+		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
 		initedDirs = append(initedDirs, newUserHome)
 		if err := osutil.MkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
 			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
@@ -342,7 +342,7 @@ func (b Backend) RemoveExposedSnapHome(snapName string) error {
 	}
 
 	for _, usr := range users {
-		newUserHome := snap.ExposedUserSnapDir(usr.HomeDir, snapName)
+		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
 		if err := os.RemoveAll(newUserHome); err != nil {
 			handle(fmt.Errorf("cannot remove %q: %v", newUserHome, err))
 			continue

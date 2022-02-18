@@ -171,8 +171,9 @@ var (
 type SnapDirOptions struct {
 	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead of ~/snap
 	HiddenSnapDataDir bool
-	// UseExposedDir determines if ~/Snap is in use.
-	UseExposedDir bool
+
+	// MigratedToExposedHome determines if ~/Snap is in use.
+	MigratedToExposedHome bool
 }
 
 func init() {

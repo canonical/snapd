@@ -5067,6 +5067,6 @@ func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
 
 	containsInOrder(c, s.fakeBackend.ops, []string{"hide-snap-data", "init-exposed-snap-home"})
 
-	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, UseExposedDir: true}
+	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	assertMigrationState(c, s.state, "snap-for-core24", expected)
 }

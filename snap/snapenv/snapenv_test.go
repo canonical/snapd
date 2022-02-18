@@ -306,14 +306,14 @@ func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 	}{
 		{dir: dirs.UserHomeSnapDir, opts: nil},
 		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}},
-		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true, UseExposedDir: true}}} {
+		{dir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}}} {
 		env := osutil.Environment{}
 		ExtendEnvForRun(env, mockSnapInfo, t.opts)
 
 		c.Check(env["SNAP_USER_COMMON"], Equals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, "common"))
 		c.Check(env["SNAP_USER_DATA"], DeepEquals, filepath.Join(testDir, t.dir, mockSnapInfo.SuggestedName, mockSnapInfo.Revision.String()))
 
-		if t.opts != nil && t.opts.UseExposedDir {
+		if t.opts != nil && t.opts.MigratedToExposedHome {
 			exposedSnapDir := filepath.Join(testDir, dirs.ExposedSnapDir, mockSnapInfo.SuggestedName)
 			c.Check(env["HOME"], DeepEquals, exposedSnapDir)
 			c.Check(env["SNAP_USER_HOME"], DeepEquals, exposedSnapDir)

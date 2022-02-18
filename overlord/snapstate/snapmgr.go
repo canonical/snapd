@@ -112,11 +112,12 @@ type SnapSetup struct {
 	// the current change. A 'false' value doesn't mean the dir is hidden, just
 	// that it wasn't exposed in this change.
 	MigratedExposed bool `json:"migrated-exposed,omitempty"`
+	// TODO: rename this to MigratedHiddenUndone
 
-	// UseExposedDir is set if the ~/Snap dir was created and initialized in the
+	// MigratedToExposedHome is set if the ~/Snap dir was created and initialized in the
 	// current change. A 'false' value doesn't that ~/Snap doesn't exist, just
 	// that it wasn't create in the current change.
-	UseExposedDir bool `json:"use-exposed-dir,omitempty"`
+	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -213,9 +214,9 @@ type SnapState struct {
 	// to ~/.snap/data.
 	MigratedHidden bool `json:"migrated-hidden,omitempty"`
 
-	// UseExposedDir is set if ~/Snap was created and initialized. If set, ~/Snap
+	// MigratedToExposedHome is set if ~/Snap was created and initialized. If set, ~/Snap
 	// should be used as the snap's HOME.
-	UseExposedDir bool `json:"use-exposed-dir"`
+	MigratedToExposedHome bool `json:"migrated-exposed-home"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {

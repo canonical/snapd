@@ -228,7 +228,7 @@ func UserSnapDir(home string, name string, opts *dirs.SnapDirOptions) string {
 	return filepath.Join(home, snapDataDir(opts), name)
 }
 
-func ExposedUserSnapDir(home string, name string) string {
+func UserExposedHomeDir(home string, name string) string {
 	return filepath.Join(home, dirs.ExposedSnapDir, name)
 }
 
@@ -530,8 +530,8 @@ func (s *Info) UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string 
 	return UserCommonDataDir(home, s.InstanceName(), opts)
 }
 
-// NewSnapUserHome returns the new upper-case snap directory in the user home.
-func (s *Info) NewSnapUserHome(home string) string {
+// UserExposedHomeDir returns the new upper-case snap directory in the user home.
+func (s *Info) UserExposedHomeDir(home string) string {
 	return filepath.Join(home, dirs.ExposedSnapDir, s.InstanceName())
 }
 
