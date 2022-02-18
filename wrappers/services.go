@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,30 +76,109 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 	return genServiceFile(app, opts)
 }
 
+// max returns the maximum of two integers. Why is this
+// not provided by golang?
+func max(a, b int) int {
+	if a < b {
+		return b
+	}
+	return a
+}
+
+func min(a, b int) int {
+	if a > b {
+		return b
+	}
+	return a
+}
+
+func formatCpuGroupSlice(grp *quota.Group) string {
+	if grp.CpuLimit == nil {
+		return ""
+	}
+
+	// calculateSystemdCPULimit calculates the number of cpus and the allowed percentage
+	// to the systemd specific format. The CPUQuota setting is only available since systemd 213
+	calculateSystemdCPULimit := func() string {
+		if grp.CpuLimit.Count == 0 && grp.CpuLimit.Percentage == 0 {
+			return ""
+		}
+
+		cpuQuotaFormat := "CPUQuota=%d%%\n"
+		cpuQuotaSnap := max(grp.CpuLimit.Count, 1) * grp.CpuLimit.Percentage
+		cpuQuotaMax := runtime.NumCPU() * 100
+		return fmt.Sprintf(cpuQuotaFormat, min(cpuQuotaSnap, cpuQuotaMax))
+	}
+
+	// getAllowedCpusValue converts allowed CPUs array to a comma-delimited
+	// string that systemd expects it to be in. If the array is empty then
+	// an empty string is returned
+	getAllowedCpusValue := func() string {
+		if len(grp.CpuLimit.AllowedCpus) == 0 {
+			return ""
+		}
+
+		allowedCpusFormat := "AllowedCPUs=%s\n"
+		allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(grp.CpuLimit.AllowedCpus)), ","), "[]")
+		return fmt.Sprintf(allowedCpusFormat, allowedCpusValue)
+	}
+
+	// AllowedCpus is only available for cgroupsv2
+	template := `# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+`
+	return fmt.Sprint(template, calculateSystemdCPULimit(), getAllowedCpusValue(), "\n")
+}
+
+func formatMemoryGroupSlice(grp *quota.Group) string {
+	if grp.MemoryLimit == 0 {
+		return ""
+	}
+
+	template := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%[1]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[1]d
+
+`
+	return fmt.Sprintf(template, grp.MemoryLimit)
+}
+
+func formatTaskGroupSlice(grp *quota.Group) string {
+	if grp.TaskLimit == 0 {
+		return `# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+	}
+
+	template := `# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+TasksMax=%d
+`
+	return fmt.Sprintf(template, grp.TaskLimit)
+}
+
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) []byte {
 	buf := bytes.Buffer{}
 
+	cpuOptions := formatCpuGroupSlice(grp)
+	memoryOptions := formatMemoryGroupSlice(grp)
+	taskOptions := formatTaskGroupSlice(grp)
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
 X-Snappy=yes
 
 [Slice]
-# Always enable memory accounting otherwise the MemoryMax setting does nothing.
-MemoryAccounting=true
-MemoryMax=%[2]d
-# for compatibility with older versions of systemd
-MemoryLimit=%[2]d
-
-# Always enable task accounting in order to be able to count the processes/
-# threads, etc for a slice
-TasksAccounting=true
 `
 
-	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
-
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
 	return buf.Bytes()
 }
 

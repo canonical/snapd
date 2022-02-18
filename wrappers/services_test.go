@@ -218,8 +218,15 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	memLimit := quantity.SizeGiB
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
+	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	resourceLimits := quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithCPUCount(2).
+		WithCPUPercentage(50).
+		WithAllowedCPUs([]int{0, 1}).
+		WithThreadLimit(32).
+		Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -260,18 +267,29 @@ Before=slices.target
 X-Snappy=yes
 
 [Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+CPUQuota=%[2]d%%
+AllowedCPUs=%[3]s
+
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%[2]s
+MemoryMax=%[4]d
 # for compatibility with older versions of systemd
-MemoryLimit=%[2]s
+MemoryLimit=%[4]d
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
+TasksMax=%[5]d
 `
 
-	sliceContent := fmt.Sprintf(sliceTempl, grp.Name, memLimit.String())
+	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.CPU.AllowedCPUs)), ","), "[]")
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name,
+		resourceLimits.CPU.Count*resourceLimits.CPU.Percentage,
+		allowedCpusValue,
+		resourceLimits.Memory.Limit,
+		resourceLimits.Threads.Limit)
 
 	exp := []changesObservation{
 		{
@@ -421,7 +439,8 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// use new memory limit
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit2))
+	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(memLimit2).Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -458,6 +477,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoo
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	memLimit := quantity.SizeGiB
+	taskLimit := 32 // arbitrarily chosen
 
 	// write both the unit file and a slice before running the ensure
 	sliceTempl := `[Unit]
@@ -475,6 +495,7 @@ MemoryLimit=%[2]s
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
+TasksMax=%[3]d
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -509,13 +530,14 @@ WantedBy=multi-user.target
 	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())), 0644)
+	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit.String(), taskLimit)), 0644)
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
 	c.Assert(err, IsNil)
 
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
+	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(memLimit).WithThreadLimit(taskLimit).Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -533,12 +555,13 @@ WantedBy=multi-user.target
 
 	c.Assert(svcFile, testutil.FileEquals, svcContent)
 
-	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(sliceTempl, "foogroup", memLimit.String()))
+	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(sliceTempl, "foogroup", memLimit.String(), taskLimit))
 }
 
 func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	// create the group
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(5*quantity.SizeKiB))
+	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(5 * quantity.SizeKiB).Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -606,14 +629,18 @@ apps:
 	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
 
 	var err error
-	memLimit := quantity.SizeGiB
+	resourceLimits := quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithCPUCount(4).
+		WithCPUPercentage(25).
+		Build()
 	// make a root quota group and add the first snap to it
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but is for the
 	// second snap
-	subgrp, err := grp.NewSubGroup("subgroup", quota.NewResources(memLimit))
+	subgrp, err := grp.NewSubGroup("subgroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -630,19 +657,23 @@ Before=slices.target
 X-Snappy=yes
 
 [Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+CPUQuota=%[2]d%%
+
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%[2]s
+MemoryMax=%[3]d
 # for compatibility with older versions of systemd
-MemoryLimit=%[2]s
+MemoryLimit=%[3]d
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
 `
 
-	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())
-	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", memLimit.String())
+	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", resourceLimits.CPU.Count*resourceLimits.CPU.Percentage, resourceLimits.Memory.Limit)
+	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", resourceLimits.CPU.Count*resourceLimits.CPU.Percentage, resourceLimits.Memory.Limit)
 
 	svcTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -739,14 +770,17 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	var err error
-	memLimit := quantity.SizeGiB
+	resourceLimits := quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithAllowedCPUs([]int{0}).
+		Build()
 	// make a root quota group without any snaps in it
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but it is the one
 	// with the snap in it
-	subgrp, err := grp.NewSubGroup("subgroup", quota.NewResources(memLimit))
+	subgrp, err := grp.NewSubGroup("subgroup", resourceLimits)
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -802,19 +836,24 @@ Before=slices.target
 X-Snappy=yes
 
 [Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+AllowedCPUs=%[2]s
+
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%[2]s
+MemoryMax=%[3]d
 # for compatibility with older versions of systemd
-MemoryLimit=%[2]s
+MemoryLimit=%[3]d
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
 `
 
-	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))
-	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", memLimit.String()))
+	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.CPU.AllowedCPUs)), ","), "[]")
+	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", allowedCpusValue, resourceLimits.Memory.Limit))
+	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", allowedCpusValue, resourceLimits.Memory.Limit))
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
