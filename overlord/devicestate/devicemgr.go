@@ -140,7 +140,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 			m.sysMode = modeEnv.Mode
 		}
 	} else {
-		// cache system label for preseeding if core20
+		// cache system label for preseeding of core20; note, this will fail on
+		// core16/core18 (they are not supported by preseeding) as core20 system
+		// label is expected.
 		if !release.OnClassic {
 			var err error
 			m.preseedSystemLabel, err = systemForPreseeding()
