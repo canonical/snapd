@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-func newBootState20(typ snap.Type, dev Device) bootState {
+func newBootState20(typ snap.Type, dev snap.Device) bootState {
 	switch typ {
 	case snap.TypeBase:
 		return &bootState20Base{}
@@ -192,7 +192,7 @@ type bootState20Kernel struct {
 	blOpts *bootloader.Options
 	blDir  string
 
-	dev Device
+	dev snap.Device
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
@@ -657,7 +657,7 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, expectedTrySta
 // bootState20BootAssets implements the successfulBootState interface for trusted
 // boot assets UC20.
 type bootState20BootAssets struct {
-	dev Device
+	dev snap.Device
 }
 
 func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
@@ -698,7 +698,7 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 	return u20, nil
 }
 
-func trustedAssetsBootState(dev Device) *bootState20BootAssets {
+func trustedAssetsBootState(dev snap.Device) *bootState20BootAssets {
 	return &bootState20BootAssets{
 		dev: dev,
 	}
@@ -707,7 +707,7 @@ func trustedAssetsBootState(dev Device) *bootState20BootAssets {
 // bootState20CommandLine implements the successfulBootState interface for
 // kernel command line
 type bootState20CommandLine struct {
-	dev Device
+	dev snap.Device
 }
 
 func (bcl20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
@@ -723,7 +723,7 @@ func (bcl20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (boo
 	return u20, nil
 }
 
-func trustedCommandLineBootState(dev Device) *bootState20CommandLine {
+func trustedCommandLineBootState(dev snap.Device) *bootState20CommandLine {
 	return &bootState20CommandLine{
 		dev: dev,
 	}
@@ -732,7 +732,7 @@ func trustedCommandLineBootState(dev Device) *bootState20CommandLine {
 // bootState20RecoverySystem implements the successfulBootState interface for
 // tried recovery systems
 type bootState20RecoverySystem struct {
-	dev Device
+	dev snap.Device
 }
 
 func (brs20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
@@ -749,14 +749,14 @@ func (brs20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (
 	return u20, nil
 }
 
-func recoverySystemsBootState(dev Device) *bootState20RecoverySystem {
+func recoverySystemsBootState(dev snap.Device) *bootState20RecoverySystem {
 	return &bootState20RecoverySystem{dev: dev}
 }
 
 // bootState20Model implements the successfulBootState interface for device
 // model related bookkeeping
 type bootState20Model struct {
-	dev Device
+	dev snap.Device
 }
 
 func (brs20 *bootState20Model) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
@@ -776,6 +776,6 @@ func (brs20 *bootState20Model) markSuccessful(update bootStateUpdate) (bootState
 	return u20, nil
 }
 
-func modelBootState(dev Device) *bootState20Model {
+func modelBootState(dev snap.Device) *bootState20Model {
 	return &bootState20Model{dev: dev}
 }
