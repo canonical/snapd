@@ -940,7 +940,7 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	c.Check(isReg, Equals, true)
 }
 
-func (s *copydataSuite) TestInitSnapCleanupOnFailure(c *C) {
+func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 	usr1, err := user.Current()
 	c.Assert(err, IsNil)
 	usr1.HomeDir = filepath.Join(s.tempdir, "user1")
@@ -954,18 +954,7 @@ func (s *copydataSuite) TestInitSnapCleanupOnFailure(c *C) {
 	})
 	defer restore()
 
-	first := true
 	restore = backend.MockInitSnapMaybeFailForTesting(func() error {
-		if first {
-			first = false
-			return nil
-		}
-
-		// the first ~/Snap dir was created
-		exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapDir))
-		c.Assert(err, IsNil)
-		c.Assert(exists, Equals, true)
-
 		return errors.New("boom")
 	})
 	defer restore()
@@ -974,17 +963,13 @@ func (s *copydataSuite) TestInitSnapCleanupOnFailure(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	// create files to be copied
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	revDir := snap.UserDataDir(usr1.HomeDir, snapName, rev, opts)
-	c.Assert(os.MkdirAll(revDir, 0700), IsNil)
-	filePath := filepath.Join(revDir, "file")
-	c.Assert(ioutil.WriteFile(filePath, []byte("stuff"), 0664), IsNil)
-
 	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, "boom")
 
-	// the ~/Snap dirs are cleaned up on err
 	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapDir))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	exists, _, err = osutil.DirExists(filepath.Join(usr2.HomeDir, dirs.ExposedSnapDir))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
 }

@@ -263,24 +263,6 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 		return err
 	}
 
-	var initedDirs []string
-	defer func() {
-		if err == nil {
-			return
-		}
-
-		for _, dir := range initedDirs {
-			if err := os.RemoveAll(dir); err != nil && !errors.Is(err, os.ErrNotExist) {
-				logger.Noticef("cannot remove %q when recovering from failed ~/Snap init: %v", dir, err)
-			}
-
-			// remove ~/Snap if has no other dirs
-			if err := removeIfEmpty(filepath.Dir(dir)); err != nil && !errors.Is(err, os.ErrNotExist) {
-				logger.Noticef("cannot remove %q when recovering from failed ~/Snap init: %v", filepath.Dir(dir), err)
-			}
-		}
-	}()
-
 	for _, usr := range users {
 		uid, gid, err := osutil.UidGid(usr)
 		if err != nil {
@@ -295,7 +277,6 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 		}
 
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
-		initedDirs = append(initedDirs, newUserHome)
 		if err := osutil.MkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
 			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
 		}
