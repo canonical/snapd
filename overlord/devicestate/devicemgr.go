@@ -639,7 +639,7 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 	return perfTimings, nil
 }
 
-func (m *DeviceManager) preseedSystem() string {
+func (m *DeviceManager) systemForPreseeding() string {
 	if m.preseedSystemLabel == "" {
 		panic("no system to preseed")
 	}
@@ -649,7 +649,7 @@ func (m *DeviceManager) preseedSystem() string {
 func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
 	if m.preseed {
-		sysLabel = m.preseedSystem()
+		sysLabel = m.systemForPreseeding()
 	} else {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
@@ -757,7 +757,7 @@ func (m *DeviceManager) ensureSeeded() error {
 		opts = &populateStateFromSeedOptions{Preseed: true}
 		if !release.OnClassic {
 			opts.Mode = "run"
-			opts.Label = m.preseedSystem()
+			opts.Label = m.systemForPreseeding()
 		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
