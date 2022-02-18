@@ -48,6 +48,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -77,6 +78,8 @@ type Backend struct {
 
 	coreSnap  *snap.Info
 	snapdSnap *snap.Info
+
+	model *asserts.Model
 }
 
 // Name returns the name of the backend.
@@ -93,6 +96,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	if opts != nil {
 		b.coreSnap = opts.CoreSnapInfo
 		b.snapdSnap = opts.SnapdSnapInfo
+		b.model = opts.Model
 	}
 	// NOTE: It would be nice if we could also generate the profile for
 	// snap-confine executing from the core snap, right here, and not have to
@@ -724,6 +728,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 		case "###DEVMODE_SNAP_CONFINE###":
 			if !opts.DevMode {
 				// nothing to add if we are not in devmode
+				return ""
+			}
+
+			if b.model != nil && b.model.Base() == "core22" {
+				// nothing to add if we are on UC22
 				return ""
 			}
 

@@ -30,6 +30,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -227,6 +229,49 @@ func checkProfileExtraRules(c *C, profile string, exp expSnapConfineTransitionRu
 	} else {
 		c.Assert(profile, Not(testutil.FileMatches), "/snap/snapd/*/usr/lib/snapd/snap-confine Pxr ->.*,")
 	}
+}
+
+func (s *backendSuite) TestInstallingDevmodeSnapUC22NoExtraRules(c *C) {
+	// re-initialize with new options
+	uc22Model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"series":       "16",
+		"brand-id":     "foo-authority",
+		"model":        "uc22-model",
+		"authority-id": "foo-authority",
+		"architecture": "amd64",
+		"base":         "core22",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              "mysnapididididididididididididid",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              "mysnapididididididididididididdi",
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	}).(*asserts.Model)
+
+	backendOpts := &interfaces.SecurityBackendOptions{
+		Model:         uc22Model,
+		SnapdSnapInfo: ifacetest.DefaultInitializeOpts.SnapdSnapInfo,
+	}
+	err := s.Backend.Initialize(backendOpts)
+	c.Assert(err, IsNil)
+
+	devMode := interfaces.ConfinementOptions{DevMode: true}
+	s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1, 1)
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+
+	// no rules at all
+	checkProfileExtraRules(c, profile, expSnapConfineTransitionRules{})
 }
 
 func (s *backendSuite) TestInstallingDevmodeSnapCoreSnapOnlyExtraRules(c *C) {
