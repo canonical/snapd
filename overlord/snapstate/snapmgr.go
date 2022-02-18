@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,7 +44,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -617,6 +620,120 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	return autoRefreshChgsInFlight, nil
 }
 
+func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
+	var removedYet bool
+	key := fmt.Sprintf("%s-snap-cve-2021-44731-vuln-removed", name)
+	if err := m.state.Get(key, &removedYet); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if removedYet {
+		return nil
+	}
+	var snapSt SnapState
+	err := Get(m.state, name, &snapSt)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err == state.ErrNoState {
+		// not installed, nothing to do
+		return nil
+	}
+
+	// check if the installed, active version is fixed
+	fixedVersionInstalled := false
+	inactiveVulnRevisions := []snap.Revision{}
+	for _, si := range snapSt.Sequence {
+		// check this version
+		s := snap.Info{SideInfo: *si}
+		ver, _, err := snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir))
+		if err != nil {
+			return err
+		}
+		// res is < 0 if "ver" is lower than "2.54.3"
+		res, err := strutil.VersionCompare(ver, "2.54.3")
+		if err != nil {
+			return err
+		}
+		revIsVulnerable := (res < 0)
+		switch {
+		case !revIsVulnerable && si.Revision == snapSt.Current:
+			fixedVersionInstalled = true
+		case revIsVulnerable && si.Revision == snapSt.Current:
+			// the active installed revision is not fixed, we can break out
+			// early since we know we won't be able to remove old revisions
+			return nil
+		case revIsVulnerable && si.Revision != snapSt.Current:
+			// si revision is not fixed, but is not active, so it is a candidate
+			// for removal
+			inactiveVulnRevisions = append(inactiveVulnRevisions, si.Revision)
+		default:
+			// si revision is not active, but it is fixed, so just ignore it
+		}
+	}
+
+	if !fixedVersionInstalled {
+		return nil
+	}
+	// TODO: should we use one change for removing all the snap revisions?
+
+	// remove all the inactive vulnerable revisions
+	for _, rev := range inactiveVulnRevisions {
+		tss, err := Remove(m.state, name, rev, nil)
+
+		if err != nil {
+			// in case of conflict, just trigger another ensure in a little
+			// bit and try again later
+			if _, ok := err.(*ChangeConflictError); ok {
+				m.state.EnsureBefore(time.Minute)
+				return nil
+			}
+			return fmt.Errorf("cannot make task set for removing %s snap: %v", name, err)
+		}
+
+		msg := fmt.Sprintf(i18n.G("Remove inactive vulnerable %q snap (%v)"), name, rev)
+
+		chg := m.state.NewChange("remove-snap", msg)
+		chg.AddAll(tss)
+		chg.Set("snap-names", []string{name})
+	}
+
+	// TODO: is it okay to set state here as done or should we do this
+	// elsewhere after the change is done somehow?
+
+	// mark state as done
+	m.state.Set(key, true)
+
+	// not strictly necessary, but does not hurt to ensure anyways
+	m.state.EnsureBefore(0)
+
+	return nil
+}
+
+func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() error {
+	// only remove snaps on classic
+	if !release.OnClassic {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// we have to remove vulnerable versions of both the core and snapd snaps
+	// only when we now have fixed versions installed / active
+	// the fixed version is 2.54.3, so if the version of the current core/snapd
+	// snap is that or higher, then we proceed (if we didn't already do this)
+
+	if err := m.ensureVulnerableSnapRemoved("snapd"); err != nil {
+		return err
+	}
+
+	if err := m.ensureVulnerableSnapRemoved("core"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
@@ -916,6 +1033,7 @@ func (m *SnapManager) Ensure() error {
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
+		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 	}
 
 	//FIXME: use firstErr helper

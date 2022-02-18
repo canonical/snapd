@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.54.2
+Version:        2.54.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -980,6 +980,10 @@ fi
 
 
 %changelog
+* Tue Feb 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.54.3
+ - bugfixes
+
 * Thu Jan 06 2022 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.54.2
  - tests: exclude interfaces-kernel-module load on arm
