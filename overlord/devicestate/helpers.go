@@ -51,7 +51,7 @@ func gadgetDataFromInfo(info *snap.Info, model *asserts.Model) (*gadget.GadgetDa
 	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
 }
 
-var getSystemForPreseeding = func() (label string, err error) {
+var systemForPreseeding = func() (label string, err error) {
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
 	if err != nil && !os.IsNotExist(err) {
 		return "", fmt.Errorf("cannot list available systems: %v", err)

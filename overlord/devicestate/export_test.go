@@ -39,7 +39,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var GetSystemForPreseeding = getSystemForPreseeding
+var SystemForPreseeding = systemForPreseeding
 
 func MockKeyLength(n int) (restore func()) {
 	if n < 1024 {
@@ -372,10 +372,10 @@ func DeviceManagerNTPSyncedOrWaitedLongerThan(mgr *DeviceManager, maxWait time.D
 	return mgr.ntpSyncedOrWaitedLongerThan(maxWait)
 }
 
-func MockGetSystemForPreseeding(f func() (string, error)) (restore func()) {
-	old := getSystemForPreseeding
-	getSystemForPreseeding = f
+func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
+	old := systemForPreseeding
+	systemForPreseeding = f
 	return func() {
-		getSystemForPreseeding = old
+		systemForPreseeding = old
 	}
 }

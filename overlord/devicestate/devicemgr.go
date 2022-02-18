@@ -143,7 +143,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		// cache system label for preseeding if core20
 		if !release.OnClassic {
 			var err error
-			m.preseedSystemLabel, err = getSystemForPreseeding()
+			m.preseedSystemLabel, err = systemForPreseeding()
 			if err != nil {
 				return nil, err
 			}

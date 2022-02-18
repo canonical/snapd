@@ -644,9 +644,9 @@ var _ = Suite(&preseedingUC20Suite{})
 
 func (s *preseedingUC20Suite) SetUpTest(c *C) {
 	// mock a system for preseeding to make deviceMgr happy on init; it is
-	// intentionally restored inside SetUpTest. Tests use real getSystemForPreseeding
+	// intentionally restored inside SetUpTest. Tests use real systemForPreseeding
 	// and mock system label via filesystem where needed.
-	restore := devicestate.MockGetSystemForPreseeding(func() (string, error) {
+	restore := devicestate.MockSystemForPreseeding(func() (string, error) {
 		return "fake system label", nil
 	})
 	defer restore()
@@ -783,15 +783,15 @@ func (s *preseedingUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
 }
 
 func (s *preseedingUC20Suite) TestSystemForPreseeding(c *C) {
-	_, err := devicestate.GetSystemForPreseeding()
+	_, err := devicestate.SystemForPreseeding()
 	c.Assert(err, ErrorMatches, `no system to preseed`)
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20220105"), 0755), IsNil)
-	systemLabel, err := devicestate.GetSystemForPreseeding()
+	systemLabel, err := devicestate.SystemForPreseeding()
 	c.Assert(err, IsNil)
 	c.Check(systemLabel, Equals, "20220105")
 
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
-	_, err = devicestate.GetSystemForPreseeding()
+	_, err = devicestate.SystemForPreseeding()
 	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
 }
