@@ -204,16 +204,8 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	}
 }
 
-func MockRebootAndCaptureArgs(rebootAction *boot.RebootAction,
-	durationUntilReboot *time.Duration, rebootInfo *boot.RebootInfo) func() {
-
-	mockReboot := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
-		*rebootAction = ra
-		*durationUntilReboot = d
-		rebootInfo = ri
-		return nil
-	}
-	reboot = mockReboot
+func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
+	reboot = f
 	return func() { reboot = boot.Reboot }
 }
 

@@ -1127,10 +1127,22 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	}()
 	rebootNoticeWait = 150 * time.Millisecond
 
-	var rebootAction boot.RebootAction
-	var durationUntilReboot time.Duration
-	var rebootInfo *boot.RebootInfo
-	r := MockRebootAndCaptureArgs(&rebootAction, &durationUntilReboot, rebootInfo)
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		// Check arguments passed to reboot call
+		nRebootCall++
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		switch nRebootCall {
+		case 1:
+			c.Check(d, check.Equals, 10*time.Minute)
+			c.Check(ri, check.IsNil)
+		default:
+			c.Check(d, check.Equals, 1*time.Minute)
+			c.Check(ri, check.DeepEquals, &boot.RebootInfo{})
+		}
+		return nil
+	}
+	r := MockReboot(rebootCheck)
 	defer r()
 
 	d := newTestDaemon(c)
@@ -1150,10 +1162,8 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	err := d.Stop(ch)
 	c.Assert(err, check.IsNil)
 
-	// Check arguments passed to reboot call
-	c.Check(rebootAction, check.Equals, boot.RebootReboot)
-	c.Check(durationUntilReboot, check.Equals, 1*time.Minute)
-	c.Check(rebootInfo, check.IsNil)
+	// we must have called reboot twice
+	c.Check(nRebootCall, check.Equals, 2)
 }
 
 // This test tests that when there is a shutdown we close the sigterm
@@ -1168,10 +1178,22 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	rebootWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	var rebootAction boot.RebootAction
-	var durationUntilReboot time.Duration
-	var rebootInfo *boot.RebootInfo
-	r := MockRebootAndCaptureArgs(&rebootAction, &durationUntilReboot, rebootInfo)
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		// Check arguments passed to reboot call
+		nRebootCall++
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		switch nRebootCall {
+		case 1:
+			c.Check(d, check.Equals, 100*time.Millisecond)
+			c.Check(ri, check.IsNil)
+		default:
+			c.Check(d, check.Equals, 1*time.Minute)
+			c.Check(ri, check.DeepEquals, &boot.RebootInfo{})
+		}
+		return nil
+	}
+	r := MockReboot(rebootCheck)
 	defer r()
 
 	d := newTestDaemon(c)
@@ -1193,10 +1215,8 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	_, chOpen := <-sigCh
 	c.Assert(chOpen, check.Equals, false)
 
-	// Check arguments passed to reboot call
-	c.Check(rebootAction, check.Equals, boot.RebootReboot)
-	c.Check(durationUntilReboot, check.Equals, 1*time.Minute)
-	c.Check(rebootInfo, check.IsNil)
+	// we must have called reboot twice
+	c.Check(nRebootCall, check.Equals, 2)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
@@ -1216,10 +1236,16 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	rebootRetryWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
-	var rebootAction boot.RebootAction
-	var durationUntilReboot time.Duration
-	var rebootInfo *boot.RebootInfo
-	r := MockRebootAndCaptureArgs(&rebootAction, &durationUntilReboot, rebootInfo)
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		nRebootCall++
+		// an immediate shutdown was scheduled again
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		c.Check(d <= 0, check.Equals, true)
+		c.Check(ri, check.IsNil)
+		return nil
+	}
+	r := MockReboot(rebootCheck)
 	defer r()
 
 	d := newTestDaemon(c)
@@ -1247,10 +1273,8 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	// stop (this will timeout but thats not relevant for this test)
 	d.Stop(sigCh)
 
-	// an immediate shutdown was scheduled again
-	c.Check(rebootAction, check.Equals, boot.RebootReboot)
-	c.Check(durationUntilReboot <= 0, check.Equals, true)
-	c.Check(rebootInfo, check.IsNil)
+	// we must have called reboot once
+	c.Check(nRebootCall, check.Equals, 1)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
