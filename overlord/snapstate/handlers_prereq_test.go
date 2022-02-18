@@ -166,7 +166,7 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 		Flags: snapstate.Flags{Transactional: true},
 	})
 	// Set lane to make sure new tasks will match this one
-	lane := 3
+	lane := s.state.NewLane()
 	t.JoinLane(lane)
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -211,8 +211,8 @@ func (s *prereqSuite) TestDoPrereqTransactionalFailTooManyLanes(c *C) {
 		Flags: snapstate.Flags{Transactional: true},
 	})
 	// There should be only one lane in a transactional change
-	t.JoinLane(1)
-	t.JoinLane(2)
+	t.JoinLane(s.state.NewLane())
+	t.JoinLane(s.state.NewLane())
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
