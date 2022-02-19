@@ -43,14 +43,29 @@ const sharedMemoryBaseDeclarationPlugs = `
   shared-memory:
     allow-installation: true
     allow-connection:
-      slot-attributes:
-        shared-memory: $PLUG(shared-memory)
-        private: $PLUG(private)
+      -
+        plug-attributes:
+          private: false
+        slot-attributes:
+          shared-memory: $PLUG(shared-memory)
+      -
+        plug-attributes:
+          private: true
+        slot-snap-type:
+          - core
     allow-auto-connection:
-      slot-publisher-id:
-        - $PLUG_PUBLISHER_ID
-      slot-attributes:
-        shared-memory: $PLUG(shared-memory)
+      -
+        plug-attributes:
+          private: false
+        slot-publisher-id:
+          - $PLUG_PUBLISHER_ID
+        slot-attributes:
+          shared-memory: $PLUG(shared-memory)
+      -
+        plug-attributes:
+          private: true
+        slot-snap-type:
+          - core
 `
 
 // shared-memory slots are super-privileged and thus denied to any snap except
@@ -61,8 +76,8 @@ const sharedMemoryBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-    deny-connection: true
-    deny-auto-connection: true
+    deny-connection: false
+    deny-auto-connection: false
 `
 
 const sharedMemoryPrivateConnectedPlugAppArmor = `
