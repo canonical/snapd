@@ -101,7 +101,6 @@ type: os
 slots:
   shared-memory:
     interface: shared-memory
-    private: true
 apps:
  app:
 `
@@ -325,14 +324,6 @@ apps:
 			"read: [valid]\n  write: [../invalid]",
 			`shared-memory interface path should not contain '/': "../invalid"`,
 		},
-		{
-			"private: true",
-			`shared-memory slot cannot use "private: true"`,
-		},
-		{
-			"private: hello",
-			`shared-memory "private" attribute must be a bool, not hello`,
-		},
 	}
 
 	for _, testData := range data {
@@ -375,26 +366,9 @@ apps:
 		_, slot := MockConnectedSlot(c, snapYaml, nil, "shmem")
 		err := interfaces.BeforePrepareSlot(s.iface, slot)
 		c.Assert(err, IsNil)
-		c.Check(slot.Attrs["private"], Equals, false)
 		c.Check(slot.Attrs["shared-memory"], Equals, testData.expectedName,
 			Commentf(`yaml: %q`, testData.slotYaml))
 	}
-}
-
-func (s *SharedMemoryInterfaceSuite) TestSlotSystem(c *C) {
-	const snapYaml = `name: core
-version: 0
-type: os
-slots:
- shmem:
-  interface: shared-memory
-`
-
-	_, slot := MockConnectedSlot(c, snapYaml, nil, "shmem")
-	err := interfaces.BeforePrepareSlot(s.iface, slot)
-	c.Assert(err, IsNil)
-	c.Check(slot.Attrs["private"], Equals, true)
-	c.Check(slot.Attrs["shared-memory"], Equals, nil)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestStaticInfo(c *C) {

@@ -137,27 +137,6 @@ func (iface *sharedMemoryInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	privateAttr, isSet := slot.Attrs["private"]
-	private, ok := privateAttr.(bool)
-	if isSet && !ok {
-		return fmt.Errorf(`shared-memory "private" attribute must be a bool, not %v`, privateAttr)
-	}
-	if slot.Attrs == nil {
-		slot.Attrs = make(map[string]interface{})
-	}
-	slot.Attrs["private"] = private
-
-	if slot.Snap.Type() == snap.TypeOS || slot.Snap.Type() == snap.TypeSnapd {
-		// The implicit system:shared-memory slot is for
-		// connection of private shm plugs.
-		slot.Attrs["private"] = true
-		return nil
-	} else {
-		if private {
-			return fmt.Errorf(`shared-memory slot cannot use "private: true"`)
-		}
-	}
-
 	sharedMemoryAttr, isSet := slot.Attrs["shared-memory"]
 	sharedMemory, ok := sharedMemoryAttr.(string)
 	if isSet && !ok {
@@ -165,6 +144,9 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 			slot.Attrs["shared-memory"])
 	}
 	if sharedMemory == "" {
+		if slot.Attrs == nil {
+			slot.Attrs = make(map[string]interface{})
+		}
 		// shared-memory defaults to "slot" name if unspecified
 		slot.Attrs["shared-memory"] = slot.Name
 	}
@@ -270,12 +252,12 @@ func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 	return nil
 }
 
-func (iface *sharedMemoryInterface) isPrivate(attrer interfaces.Attrer) bool {
+func (iface *sharedMemoryInterface) isPrivate(plug *interfaces.ConnectedPlug) bool {
 	var private bool
-	if err := attrer.Attr("private", &private); err == nil {
+	if err := plug.Attr("private", &private); err == nil {
 		return private
 	}
-	panic("plug or slot is not sanitized")
+	panic("plug is not sanitized")
 }
 
 func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -293,7 +275,7 @@ func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 }
 
 func (iface *sharedMemoryInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if iface.isPrivate(slot) {
+	if slot.Snap().Type() == snap.TypeOS || slot.Snap().Type() == snap.TypeSnapd {
 		return nil
 	}
 
