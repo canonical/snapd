@@ -59,6 +59,8 @@ var (
 	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
 
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
+
+	SearchForVolumeWithTraits = searchForVolumeWithTraits
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
