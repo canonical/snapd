@@ -428,6 +428,9 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 		// traits for it, this will also validate concretely that the
 		// device we picked and the volume are compatible
 		opts := optsPerVolume[name]
+		if opts == nil {
+			opts = &DiskVolumeValidationOptions{}
+		}
 		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
 		if err != nil {
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
