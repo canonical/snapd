@@ -2140,3 +2140,225 @@ func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemD
 
 	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
 }
+
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingInvalidYAMLDoesNotBlockOverallRefresh(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+
+	// copied from managers tests
+	structureName := "ubuntu-seed"
+	gadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /`, structureName)
+
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgetYaml, nil)
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{
+				"volume-id": lvol.Volume,
+			},
+		},
+	}
+
+	// don't mock anything we don't get that far in the function
+
+	allLaidOutVolumes := map[string]*gadget.LaidOutVolume{
+		"volume-id": lvol,
+	}
+
+	preUC20 := true
+	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
+}
+
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC16(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: make(map[string]*gadget.Volume),
+		},
+	}
+
+	for volName, laidOutVol := range allLaidOutVolumes {
+		old.Info.Volumes[volName] = laidOutVol.Volume
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/sda1"): gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	preUC20 := true
+	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	c.Assert(err, IsNil)
+
+	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
+	})
+}
+
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: make(map[string]*gadget.Volume),
+		},
+	}
+
+	for volName, laidOutVol := range allLaidOutVolumes {
+		old.Info.Volumes[volName] = laidOutVol.Volume
+	}
+
+	// don't mock any symlinks so that it fails to find any disk matching the
+	// system-boot volume
+
+	preUC20 := true
+	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
+
+	// it's a fatal error on UC20 though
+	postUC20 := false
+	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, postUC20)
+	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
+}
+
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, &gadgettest.ModelCharacteristics{SystemSeed: true})
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: make(map[string]*gadget.Volume),
+		},
+	}
+
+	for volName, laidOutVol := range allLaidOutVolumes {
+		old.Info.Volumes[volName] = laidOutVol.Volume
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	postUC20 := false
+	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, postUC20)
+	c.Assert(err, IsNil)
+
+	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.VMSystemVolumeDeviceTraits,
+	})
+}
+
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, &gadgettest.ModelCharacteristics{SystemSeed: true})
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: make(map[string]*gadget.Volume),
+		},
+	}
+
+	for volName, laidOutVol := range allLaidOutVolumes {
+		old.Info.Volumes[volName] = laidOutVol.Volume
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0p1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0p1"): gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
+	})
+	defer restore()
+
+	// mock key files such that the function realizes this device was installed
+	// with encryption
+	recoveryKey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	err = os.MkdirAll(filepath.Dir(recoveryKey), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(recoveryKey, nil, 0644)
+	c.Assert(err, IsNil)
+
+	postUC20 := false
+	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, postUC20)
+	c.Assert(err, IsNil)
+
+	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+	})
+}

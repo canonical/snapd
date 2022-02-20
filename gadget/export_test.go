@@ -58,6 +58,9 @@ var (
 
 	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
 
+	BuildNewVolumeToDeviceMapping = buildNewVolumeToDeviceMapping
+	ErrSkipUpdateProceedRefresh   = errSkipUpdateProceedRefresh
+
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
 )
 

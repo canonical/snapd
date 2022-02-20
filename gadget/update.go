@@ -22,8 +22,10 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
@@ -662,6 +664,143 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		SectorSize:          diskLayout.SectorSize,
 		Schema:              disk.Schema(),
 		StructureEncryption: opts.ExpectedStructureEncryption,
+	}, nil
+}
+
+// unable to proceed with the gadget asset update, but not fatal to the refresh
+// operation itself
+var errSkipUpdateProceedRefresh = errors.New("could not identify disk for gadget asset update")
+
+// buildNewVolumeToDeviceMapping builds a DiskVolumeDeviceTraits for only the
+// system-boot role containing volume when we cannot load an existing traits
+// object from disk-mapping.json. It is meant to be used only with all UC16 /
+// UC18 installs as well as UC20 installs from before we started writing
+// disk-mapping.json during install mode.
+func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidOutVolume, preUC20 bool) (map[string]DiskVolumeDeviceTraits, error) {
+	var systemBootVolume string
+
+	// we need to pick the volume, since updates for this setup are best
+	// effort and mainly focused on the volume with system-* roles on it, we
+	// need to pick the volume with that role
+volumeLoop:
+	for volName, vol := range old.Info.Volumes {
+		for _, structure := range vol.Structure {
+			if structure.Role == SystemBoot {
+				// this is the volume
+				systemBootVolume = volName
+				break volumeLoop
+			}
+		}
+	}
+	if systemBootVolume == "" {
+		// didn't find system-boot anywhere somehow
+		if preUC20 {
+			logger.Noticef("WARNING: could not identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", systemBootVolume)
+			return nil, errSkipUpdateProceedRefresh
+		}
+		// shouldn't be possible on UC20
+		return nil, fmt.Errorf("unable to find any volume with system-boot, gadget is broken")
+	}
+
+	laidOutVol := laidOutVols[systemBootVolume]
+
+	// search for matching devices that correspond to the volume we laid out
+	dev := ""
+	for _, vs := range laidOutVol.LaidOutStructure {
+		// here it is okay that we require there to be either a partition label
+		// or a filesystem label since we require there to be a system-boot role
+		// on this volume which by definition must have a filesystem
+		structureDevice, err := FindDeviceForStructure(&vs)
+		if err == ErrDeviceNotFound {
+			continue
+		}
+		if err != nil {
+			// TODO: should this be a fatal error?
+			return nil, err
+		}
+
+		// we found a device for this structure, get the parent disk
+		// and save that as the device for this volume
+		disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
+		if err != nil {
+			// TODO: should we keep looping instead and try again with
+			// another structure? it probably wouldn't work because we found
+			// something on disk with the same name as something from the
+			// gadget.yaml, but then we failed to make a disk from that
+			// partition which suggests something is inconsistent with the
+			// state of the disk/udev database
+			return nil, err
+		}
+
+		dev = disk.KernelDeviceNode()
+		break
+	}
+
+	if dev == "" {
+		// couldn't find a disk at all, pre-UC20 we just warn about this
+		// but let the update continue
+		if preUC20 {
+			logger.Noticef("WARNING: could not identify disk for gadget asset update of volume %s", systemBootVolume)
+			return nil, errSkipUpdateProceedRefresh
+		}
+		// fatal error on UC20+
+		return nil, fmt.Errorf("could not identify disk for gadget asset update of volume %s", systemBootVolume)
+	}
+
+	// we found the device, construct the traits with validation options
+	validateOpts := &DiskVolumeValidationOptions{
+		// allow implicit system-data on pre-uc20 only
+		AllowImplicitSystemData: preUC20,
+	}
+
+	// setup encrypted structure information to perform validation if this
+	// device used encryption
+	if !preUC20 {
+		// TODO: this needs to check if the specified partitions are ICE when
+		// we support ICE too
+
+		// TODO: is this a good enough check to know if encryption was turned
+		// on? note that we can't import the boot pkg here
+		keysPattern := filepath.Join(dirs.SnapFDEDir, "*.key")
+		files, err := filepath.Glob(keysPattern)
+		if err != nil {
+			return nil, fmt.Errorf("internal glob pattern error: %v", err)
+		}
+
+		if len(files) != 0 {
+			// then we have keys for encryption stored from install mode, so we
+			// at least should have ubuntu-data encrypted
+			validateOpts.ExpectedStructureEncryption = map[string]StructureEncryptionParameters{
+				"ubuntu-data": {Method: EncryptionLUKS},
+			}
+
+			// check if ubuntu-save exists to know whether to also assume
+			// encryption for ubuntu-save too - this should always happen since
+			// we require ubuntu-save for encryption, but there was a time
+			// during UC20 development where you could have encryption without
+			// ubuntu-save, so there is a small chance such devices could have
+			// persisted
+			for _, s := range laidOutVol.Structure {
+				if s.Role == SystemSave {
+					validateOpts.ExpectedStructureEncryption["ubuntu-save"] = StructureEncryptionParameters{
+						Method: EncryptionLUKS,
+					}
+					break
+				}
+			}
+		}
+	}
+
+	traits, err := DiskTraitsFromDeviceAndValidate(laidOutVol, dev, validateOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: should we save the traits here so they can be re-used in another
+	// future update routine?
+
+	return map[string]DiskVolumeDeviceTraits{
+		systemBootVolume: traits,
 	}, nil
 }
 
