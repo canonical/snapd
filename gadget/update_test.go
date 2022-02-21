@@ -2345,13 +2345,12 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	})
 	defer restore()
 
-	// mock key files such that the function realizes this device was installed
-	// with encryption
-	recoveryKey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	err = os.MkdirAll(filepath.Dir(recoveryKey), 0755)
+	// write an encryption marker
+	markerFile := filepath.Join(dirs.SnapFDEDir, "marker")
+	err = os.MkdirAll(filepath.Dir(markerFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(recoveryKey, nil, 0644)
+	err = ioutil.WriteFile(markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	postUC20 := false

@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -759,17 +760,13 @@ volumeLoop:
 		// TODO: this needs to check if the specified partitions are ICE when
 		// we support ICE too
 
-		// TODO: is this a good enough check to know if encryption was turned
-		// on? note that we can't import the boot pkg here
-		keysPattern := filepath.Join(dirs.SnapFDEDir, "*.key")
-		files, err := filepath.Glob(keysPattern)
-		if err != nil {
-			return nil, fmt.Errorf("internal glob pattern error: %v", err)
-		}
-
-		if len(files) != 0 {
-			// then we have keys for encryption stored from install mode, so we
-			// at least should have ubuntu-data encrypted
+		// check if there is a marker file written, that will indicate if
+		// encryption was turned on
+		encryptionMarkerFile := filepath.Join(dirs.SnapFDEDir, "marker")
+		if osutil.FileExists(encryptionMarkerFile) {
+			// then we have the crypto marker file for encryption
+			// cross-validation between ubuntu-data and ubuntu-save stored from
+			// install mode, so we at least should have ubuntu-data encrypted
 			validateOpts.ExpectedStructureEncryption = map[string]StructureEncryptionParameters{
 				"ubuntu-data": {Method: EncryptionLUKS},
 			}
