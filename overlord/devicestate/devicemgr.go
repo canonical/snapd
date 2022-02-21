@@ -652,7 +652,9 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 	var sysLabel string
 	if m.preseed && !release.OnClassic {
 		sysLabel = m.systemForPreseeding()
-	} else {
+	}
+
+	if !m.preseed {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
 			return nil, nil, err
