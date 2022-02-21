@@ -133,7 +133,7 @@ func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDevic
 	// iterate over the different traits, validating whether the resulting disk
 	// actually exists and matches the volume we have in the gadget.yaml
 
-	checkCandidateDisk := func(candidate disks.Disk, method string, providedErr error) bool {
+	isCandidateCompatible := func(candidate disks.Disk, method string, providedErr error) bool {
 		if providedErr != nil {
 			if candidate != nil {
 				logger.Debugf("candidate disk %s not appropriate for volume %s because err: %v", candidate.KernelDeviceNode(), vol.Name, providedErr)
@@ -171,7 +171,7 @@ func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDevic
 	// first try the kernel device path if it is set
 	if traits.OriginalDevicePath != "" {
 		disk, err := disks.DiskFromDevicePath(traits.OriginalDevicePath)
-		if ok := checkCandidateDisk(disk, "device path", err); ok {
+		if isCandidateCompatible(disk, "device path", err) {
 			return disk, nil
 		}
 	}
@@ -179,7 +179,7 @@ func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDevic
 	// next try the kernel device node name
 	if traits.OriginalKernelPath != "" {
 		disk, err := disks.DiskFromDeviceName(traits.OriginalKernelPath)
-		if ok := checkCandidateDisk(disk, "device name", err); ok {
+		if isCandidateCompatible(disk, "device name", err) {
 			return disk, nil
 		}
 	}
@@ -195,7 +195,7 @@ func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDevic
 				if blockDevDisk.DiskID() == traits.DiskID {
 					// found the block device for this Disk ID, get the
 					// disks.Disk for it
-					if ok := checkCandidateDisk(blockDevDisk, "disk ID", err); ok {
+					if isCandidateCompatible(blockDevDisk, "disk ID", err) {
 						return blockDevDisk, nil
 					}
 
@@ -217,7 +217,7 @@ func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDevic
 	// structures to match a structure we measured previously to find a on disk
 	// device and then find a disk from that device and see if it matches
 
-	return nil, fmt.Errorf("could not find physical disk laid out to map with volume %s", vol.Name)
+	return nil, fmt.Errorf("cannot find physical disk laid out to map with volume %s", vol.Name)
 }
 
 // IsCreatableAtInstall returns whether the gadget structure would be created at
