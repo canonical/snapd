@@ -21,8 +21,8 @@ package snapstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // A DeviceContext provides for operating as a given device and with
@@ -43,8 +43,8 @@ type DeviceContext interface {
 	// SystemMode returns the system  mode (run,install,recover,...).
 	SystemMode() string
 
-	// DeviceContext should be usable as boot.Device
-	boot.Device
+	// DeviceContext should be usable as snap.Device
+	snap.Device
 }
 
 // Hook setup by devicestate to pick a device context from state,
