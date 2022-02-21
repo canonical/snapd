@@ -2155,6 +2155,39 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsImplicitSystemData(c *C) 
 	)
 }
 
+func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+	unrelatedDisk := &disks.MockDiskMapping{
+		DevNum:  "1:1",
+		DevPath: "/sys/devices/fooo",
+		DevNode: "/dev/fooo",
+	}
+
+	r := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/fooo": unrelatedDisk,
+	})
+	defer r()
+
+	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
+	c.Assert(err, IsNil)
+
+	laidOutVol := allVolumes["pc"]
+
+	// first go around we use the device path which matches
+	r = disks.MockDevicePathToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/sys/devices/fooo": unrelatedDisk,
+	})
+	defer r()
+
+	allowImplicitDataOpts := &gadget.DiskVolumeValidationOptions{
+		AllowImplicitSystemData: true,
+	}
+
+	_, err = gadget.SearchForVolumeWithTraits(laidOutVol, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
+	c.Assert(err, ErrorMatches, "cannot find physical disk laid out to map with volume pc")
+}
+
 func (s *updateTestSuite) TestSearchForVolumeWithTraitsNonSystemBoot(c *C) {
 	testSearchForVolumeWithTraits(c,
 		gadgettest.MultiVolumeUC20GadgetYaml,
@@ -2269,5 +2302,4 @@ func testSearchForVolumeWithTraits(c *C,
 	d3, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
 	c.Assert(err, IsNil)
 	c.Assert(d3.Dev(), Equals, realMapping.DevNum)
-
 }
