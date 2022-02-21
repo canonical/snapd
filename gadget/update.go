@@ -670,7 +670,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 
 // unable to proceed with the gadget asset update, but not fatal to the refresh
 // operation itself
-var errSkipUpdateProceedRefresh = errors.New("could not identify disk for gadget asset update")
+var errSkipUpdateProceedRefresh = errors.New("cannot identify disk for gadget asset update")
 
 // buildNewVolumeToDeviceMapping builds a DiskVolumeDeviceTraits for only the
 // volume containing the system-boot role, when we cannot load an existing
@@ -696,7 +696,7 @@ volumeLoop:
 	if systemBootVolume == "" {
 		// didn't find system-boot anywhere somehow
 		if preUC20 {
-			logger.Noticef("WARNING: could not identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", systemBootVolume)
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", systemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
 		// shouldn't be possible on UC20
@@ -741,11 +741,11 @@ volumeLoop:
 		// couldn't find a disk at all, pre-UC20 we just warn about this
 		// but let the update continue
 		if preUC20 {
-			logger.Noticef("WARNING: could not identify disk for gadget asset update of volume %s", systemBootVolume)
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s", systemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
 		// fatal error on UC20+
-		return nil, fmt.Errorf("could not identify disk for gadget asset update of volume %s", systemBootVolume)
+		return nil, fmt.Errorf("cannot identify disk for gadget asset update of volume %s", systemBootVolume)
 	}
 
 	// we found the device, construct the traits with validation options
