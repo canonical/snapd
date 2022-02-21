@@ -75,6 +75,7 @@ const sharedMemoryBaseDeclarationSlots = `
   shared-memory:
     allow-installation:
       slot-snap-type:
+        - app
         - core
     deny-connection: false
     deny-auto-connection: false
@@ -279,6 +280,8 @@ func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	if iface.isPrivate(plug) {
 		spec.AddSnippet(sharedMemoryPrivateConnectedPlugAppArmor)
 		spec.AddUpdateNSf(`  # Private /dev/shm
+  /dev/ r,
+  /dev/shm/{,**} rw,
   mount options=(bind, rw) /dev/shm/snap.%s/ -> /dev/shm/,
   umount /dev/shm/,`, plug.Snap().InstanceName())
 	} else {

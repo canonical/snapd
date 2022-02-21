@@ -68,7 +68,7 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	// remapping for parallel installs only when the snap has an instance key
 	as := &Assumptions{}
 	instanceName := upCtx.InstanceName()
-	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName)
+	as.AddUnrestrictedPaths("/tmp", "/var/snap", "/snap/"+instanceName, "/dev/shm")
 	if snapName := snap.InstanceSnap(instanceName); snapName != instanceName {
 		as.AddUnrestrictedPaths("/snap/" + snapName)
 	}

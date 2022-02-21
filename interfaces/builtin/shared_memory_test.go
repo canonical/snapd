@@ -424,6 +424,8 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/*" mrwlkix`)
 	c.Check(privateSlotSnippet, Equals, "")
 	c.Check(strings.Join(privateUpdateNS, ""), Equals, `  # Private /dev/shm
+  /dev/ r,
+  /dev/shm/{,**} rw,
   mount options=(bind, rw) /dev/shm/snap.consumer/ -> /dev/shm/,
   umount /dev/shm/,`)
 }
