@@ -72,7 +72,7 @@ func (qr *Resources) validateCpuQuota() error {
 
 	// atleast one cpu limit value must be set
 	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 && len(qr.CPU.AllowedCPUs) == 0 {
-		return fmt.Errorf("cannot validate quota limits with a cpu quota of 0 and allowed cpus of 0")
+		return fmt.Errorf("cannot validate quota limits with a cpu quota of 0 and no allowed cpus")
 	}
 	return nil
 }

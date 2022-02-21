@@ -36,7 +36,7 @@ import (
 type GroupQuotaCpu struct {
 	Count       int   `json:"count,omitempty"`
 	Percentage  int   `json:"percentage,omitempty"`
-	AllowedCpus []int `json:"allowed-cpus,omitempty"`
+	AllowedCPUs []int `json:"allowed-cpus,omitempty"`
 }
 
 // Group is a quota group of snaps, services or sub-groups that are all subject
@@ -112,7 +112,7 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
 		grp.CpuLimit = &GroupQuotaCpu{
 			Count:       resourceLimits.CPU.Count,
 			Percentage:  resourceLimits.CPU.Percentage,
-			AllowedCpus: resourceLimits.CPU.AllowedCPUs,
+			AllowedCPUs: resourceLimits.CPU.AllowedCPUs,
 		}
 	}
 	if resourceLimits.Threads != nil {
@@ -132,8 +132,8 @@ func (grp *Group) GetQuotaResources() Resources {
 		if grp.CpuLimit.Percentage != 0 {
 			resourcesBuilder.WithCPUPercentage(grp.CpuLimit.Percentage)
 		}
-		if len(grp.CpuLimit.AllowedCpus) != 0 {
-			resourcesBuilder.WithAllowedCPUs(grp.CpuLimit.AllowedCpus)
+		if len(grp.CpuLimit.AllowedCPUs) != 0 {
+			resourcesBuilder.WithAllowedCPUs(grp.CpuLimit.AllowedCPUs)
 		}
 	}
 	if grp.TaskLimit != 0 {
@@ -298,10 +298,10 @@ func (grp *Group) validate() error {
 				return fmt.Errorf("group %q would exceed its parent group's CPU limit", grp.Name)
 			}
 
-			if len(grp.parentGroup.CpuLimit.AllowedCpus) > 0 {
+			if len(grp.parentGroup.CpuLimit.AllowedCPUs) > 0 {
 				// check if the group's allowed cpus are a subset of the parent group's allowed cpus
-				for _, cpu := range grp.CpuLimit.AllowedCpus {
-					if !arrayContains(grp.parentGroup.CpuLimit.AllowedCpus, cpu) {
+				for _, cpu := range grp.CpuLimit.AllowedCPUs {
+					if !arrayContains(grp.parentGroup.CpuLimit.AllowedCPUs, cpu) {
 						return fmt.Errorf("group %q has a CPU allowance that is not allowed by its parent group", grp.Name)
 					}
 				}
@@ -311,7 +311,7 @@ func (grp *Group) validate() error {
 		if grp.parentGroup.MemoryLimit != 0 {
 			// careful arithmetic here in case we somehow overflow the max size of
 			// quantity.Size
-			if grp.parentGroup.MemoryLimit-memoryUsed < grp.MemoryLimit {
+			if grp.MemoryLimit+memoryUsed > grp.parentGroup.MemoryLimit {
 				remaining := grp.parentGroup.MemoryLimit - memoryUsed
 				return fmt.Errorf("sub-group memory limit of %s is too large to fit inside remaining quota space %s for parent group %s", grp.MemoryLimit.IECString(), remaining.IECString(), grp.parentGroup.Name)
 			}

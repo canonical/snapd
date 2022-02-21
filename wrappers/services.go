@@ -86,7 +86,7 @@ func max(a, b int) int {
 }
 
 func min(a, b int) int {
-	if a > b {
+	if b < a {
 		return b
 	}
 	return a
@@ -104,23 +104,21 @@ func formatCpuGroupSlice(grp *quota.Group) string {
 			return ""
 		}
 
-		cpuQuotaFormat := "CPUQuota=%d%%\n"
 		cpuQuotaSnap := max(grp.CpuLimit.Count, 1) * grp.CpuLimit.Percentage
 		cpuQuotaMax := runtime.NumCPU() * 100
-		return fmt.Sprintf(cpuQuotaFormat, min(cpuQuotaSnap, cpuQuotaMax))
+		return fmt.Sprintf("CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
 	}
 
 	// getAllowedCpusValue converts allowed CPUs array to a comma-delimited
 	// string that systemd expects it to be in. If the array is empty then
 	// an empty string is returned
 	getAllowedCpusValue := func() string {
-		if len(grp.CpuLimit.AllowedCpus) == 0 {
+		if len(grp.CpuLimit.AllowedCPUs) == 0 {
 			return ""
 		}
 
-		allowedCpusFormat := "AllowedCPUs=%s\n"
-		allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(grp.CpuLimit.AllowedCpus)), ","), "[]")
-		return fmt.Sprintf(allowedCpusFormat, allowedCpusValue)
+		allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(grp.CpuLimit.AllowedCPUs)), ","), "[]")
+		return fmt.Sprintf("AllowedCPUs=%s\n", allowedCpusValue)
 	}
 
 	// AllowedCpus is only available for cgroupsv2
