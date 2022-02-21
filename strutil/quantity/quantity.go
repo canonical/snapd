@@ -22,8 +22,8 @@ package quantity
 import (
 	"fmt"
 	"math"
-	"sort"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/i18n"
 )
@@ -203,21 +203,12 @@ func FormatDuration(dt float64) string {
 	return FormatAmount(uint64(dt), 4) + years
 }
 
-// Duration is represented in nano seconds.
-type Duration uint64
-
 const (
-	NSecond Duration = 1
-	USecond Duration = 1000
-	MSecond Duration = 1000000
-	Second  Duration = 1000000000
-	Minute  Duration = (60 * Second)
-	Hour    Duration = (60 * Minute)
-	Day     Duration = (24 * Hour)
-	Year    Duration = (1461 * Day / 4)
+	Day  time.Duration = time.Hour * 24
+	Year time.Duration = time.Hour * 8766
 )
 
-// Maximum number of places (units of time) to render starting with years.
+// Places is the maximum number (units of time) to render starting with years.
 // In the Compact case, at most the first two places will be rendered,
 // discarding the rest (never exceeding 6 runes). This allows for a more
 // predictable width (at the expense of accuracy).
@@ -228,7 +219,7 @@ const (
 	ShowCompact Places = 2
 )
 
-// Space delimit options
+// SpaceMode controls space delimit options
 type SpaceMode bool
 
 const (
@@ -236,10 +227,11 @@ const (
 	SpaceOn  SpaceMode = true
 )
 
-// The minimum Duration parameter allows the rendering to discard the units
-// of time less than the minimum. However, depending on what we are
-// rendering, we either need to peform a ceiling, floor or rounding
-// operation with the remainder below the minimum.
+// RenderMode controls rounding modes. The minimum Duration parameter
+// allows the rendering to discard the units of time less than the
+// minimum. However, depending on what we are rendering, we either
+// need to perform a ceiling, floor or rounding operation with the
+// remainder below the minimum.
 type RenderMode uint32
 
 const (
@@ -248,7 +240,7 @@ const (
 	TimeRounded
 )
 
-// FormatDurationGeneric formats time duration similar to systemd
+// formatDurationGeneric formats time duration similar to systemd
 // format_timespan, but with options allowing for a more compact
 // arrangement, including shortened suffixes. The function is provided
 // with dt in seconds (as in the output of time.Now().Seconds()). The 'min'
@@ -259,31 +251,25 @@ const (
 // This function is private and should not be used directly. If you want
 // a new rendering use case, create a suitable public function which the
 // correct rendering options set for your particular use case.
-func formatDurationGeneric(dt float64, min Duration, max Duration, count Places, mode RenderMode, space SpaceMode) string {
-	var units = map[Duration]string{
-		Year:    "y",
-		Day:     "d",
-		Hour:    "h",
-		Minute:  "m",
-		Second:  "s",
-		MSecond: "ms",
-		USecond: "µs",
-		NSecond: "ns",
+func formatDurationGeneric(dt float64, min time.Duration, max time.Duration, count Places, mode RenderMode, space SpaceMode) string {
+	var units = map[time.Duration]string{
+		Year:             "y",
+		Day:              "d",
+		time.Hour:        "h",
+		time.Minute:      "m",
+		time.Second:      "s",
+		time.Millisecond: "ms",
+		time.Microsecond: "µs",
+		time.Nanosecond:  "ns",
 	}
 
 	// We need to access the map in order using an ordered array
-	// Sort into iteration order: y, d, h, m, s, ...
-	var keys []Duration
-	for k := range units {
-		keys = append(keys, k)
-	}
-	sort.Slice(keys, func(i, j int) bool { return keys[i] > keys[j] })
-
-	var render string
+	// y, d, h, m, s, ...
+	keys := []time.Duration{Year, Day, time.Hour, time.Minute, time.Second, time.Millisecond, time.Microsecond, time.Nanosecond}
 
 	// Invalid case: min > max
 	if min > max {
-		return "inv!"
+		panic("Argument 'min' > 'max'. This is invalid")
 	}
 
 	// Special case: zero duration
@@ -291,13 +277,15 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 		return "0" + units[min]
 	}
 
-	// Special case: render as "ages!"
-	if dt >= float64(math.MaxUint64) {
+	// Special case: We can only handle a maximum duration that can fit into
+	// time.Duration (Int64). We also need to account for the fact that we
+	// could be required to ceiling up, which could mean up to 1 years more.
+	if dt > (time.Duration(math.MaxInt64).Seconds() - time.Duration(Year).Seconds()) {
 		return "ages!"
 	}
 
 	// Fractional seconds to nanoseconds
-	delta := Duration(dt * float64(Second))
+	delta := time.Duration(dt * float64(time.Second))
 
 	// If we only render a subset of place values (i.e. Compact Mode),
 	// apply the render mode to the last rendered place value. We do
@@ -308,11 +296,11 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 		// digits (allowing two places to be rendered). Place values which can
 		// be wider (y, d, ms, us and ns) which means we can only render a single
 		// place for some of the cases.
-		var compactMin Duration
+		var compactMin time.Duration
 		for i, key := range keys {
 			// Search for the most significant place value we need to render
 			if delta >= key {
-				if key >= Minute && key <= Day && delta/key <= 99 {
+				if key >= time.Minute && key <= Day && delta/key <= 99 {
 					// Compact mode can render up to two places, if either:
 					// 1. Most significant place is d, h or m
 					// 2. If days require less than 3 digits
@@ -352,7 +340,7 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 		}
 	default:
 		// Invalid mode
-		return "inv!"
+		panic("Invalid rendering mode")
 	}
 
 	// Special case: less than minimum accuracy
@@ -365,6 +353,7 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 	// iterate through the place values (y, d, h, m, s, ...)
 	remainingDelta := delta
 
+	var render string
 	// Iterate through units of time in order from
 	// highest to lowest (years, days, ...)
 	for _, key := range keys {
@@ -402,7 +391,7 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 		// 2. The remainder which will form the fractional part must be non-zero
 		// 3. The accuracy (minimum place value) must be smaller than the place value
 		// 4. Verbose rendering mode must be enabled
-		if remainingDelta < Minute && remainder > 0 && min < key && count == ShowVerbose {
+		if remainingDelta < time.Minute && remainder > 0 && min < key && count == ShowVerbose {
 			// In order to determine how many fractional places should we render
 			// we count how many fractional places the accuracy (minimum) allow, but
 			// in relation to the unit type we are rendering here (could be anything
@@ -429,7 +418,7 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 				render += " "
 			}
 
-			render += fmt.Sprintf("%v%s", unit, units[key])
+			render += fmt.Sprintf("%d%s", unit, units[key])
 			remainingDelta = remainder
 		}
 	}
@@ -441,17 +430,20 @@ func formatDurationGeneric(dt float64, min Duration, max Duration, count Places,
 // between (and includes) hours and seconds. The width is guaranteed not to
 // exceed 6 runes by rendering only the two most significant units of time.
 // The ceiling() operation is performed on the unrendered least significant
-// place values (+1 on the least significant rendered unit).
+// place values (+1 on the least significant rendered unit). This prevents
+// the case where 'time left' is reported as zero seconds, while we are still
+// waiting for a sub second period to elapse.
 func ProgressBarTimeLeft(dt float64) string {
-	return formatDurationGeneric(dt, Second, Hour, ShowCompact, TimeLeft, SpaceOff)
+	return formatDurationGeneric(dt, time.Second, time.Hour, ShowCompact, TimeLeft, SpaceOff)
 }
 
-// ProgressBarTimePassed presents duration in a layout suitable for progress
-// indicators such as ANSIMeter. The rendered duration (time elapse) range is
-// between (and includes) hours and seconds. The width is guaranteed not to
-// exceed 6 runes by rendering only the two most significant units of time.
-// The floor() operation is performed on the unrendered least significant
-// place values (discarded).
+// ProgressBarTimePassed presents duration in a layout suitable for time elapse
+// output such as 'age'. The rendered duration (time elapse) range is between
+// (and includes) hours and seconds. The width is guaranteed not to exceed 6
+// runes by rendering only the two most significant units of time. The floor()
+// operation is performed on the unrendered least significant place values
+// (discarded). This prevents the reported time elapse from ever being longer
+// than the actual period.
 func ProgressBarTimePassed(dt float64) string {
-	return formatDurationGeneric(dt, Second, Hour, ShowCompact, TimePassed, SpaceOff)
+	return formatDurationGeneric(dt, time.Second, time.Hour, ShowCompact, TimePassed, SpaceOff)
 }
