@@ -48,7 +48,7 @@ series: 16
 brand-id: brand-id1
 model: baz-3000
 system-label: 20220210
-preseed-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj
+artifact-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj
 snaps:
   -
     name: baz-linux
@@ -111,7 +111,7 @@ func (ps *preseedSuite) TestDecodeOK(c *C) {
 	c.Check(preseed.BrandID(), Equals, "brand-id1")
 	c.Check(preseed.Model(), Equals, "baz-3000")
 	c.Check(preseed.SystemLabel(), Equals, "20220210")
-	c.Check(preseed.PreseedSHA3_384(), Equals, "KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj")
+	c.Check(preseed.ArtifactSHA3_384(), Equals, "KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj")
 	snaps := preseed.Snaps()
 	c.Assert(snaps, DeepEquals, []*asserts.PreseedSnap{
 		{
@@ -142,7 +142,7 @@ func (ps *preseedSuite) TestDecodeInvalid(c *C) {
 		{"system-label: 20220210\n", "system-label: \n", `"system-label" header should not be empty`},
 		{"system-label: 20220210\n", "system-label: -x\n", `"system-label" header contains invalid characters: "-x"`},
 		{ps.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
-		{"preseed-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj\n", "preseed-sha3-384: 1\n", `"preseed-sha3-384" header cannot be decoded: illegal base64 data at input byte 0`},
+		{"artifact-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj\n", "artifact-sha3-384: 1\n", `"artifact-sha3-384" header cannot be decoded: illegal base64 data at input byte 0`},
 		{"revision: 99\n", "revision: 0\n", `"revision" of snap "baz-linux" must be >=1: 0`},
 		{snapsStanza, "", `"snaps" header is mandatory`},
 		{snapsStanza, "snaps: snap\n", `"snaps" header must be a list of maps`},

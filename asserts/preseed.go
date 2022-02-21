@@ -94,9 +94,9 @@ func (p *Preseed) Timestamp() time.Time {
 	return p.timestamp
 }
 
-// PreseedSHA3_384 returns the checksum of preseeding artifact.
-func (p *Preseed) PreseedSHA3_384() string {
-	return p.HeaderString("preseed-sha3-384")
+// ArtifactSHA3_384 returns the checksum of preseeding artifact.
+func (p *Preseed) ArtifactSHA3_384() string {
+	return p.HeaderString("artifact-sha3-384")
 }
 
 // Snaps returns the snaps for preseeding.
@@ -209,7 +209,7 @@ func assemblePreseed(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkDigest(assert.headers, "preseed-sha3-384", crypto.SHA3_384)
+	_, err = checkDigest(assert.headers, "artifact-sha3-384", crypto.SHA3_384)
 	if err != nil {
 		return nil, err
 	}
