@@ -951,11 +951,11 @@ func (s *systemd) Stop(serviceNames []string) error {
 	// systemctl mocking in some modules are implemented very simplistically, and
 	// assumes that the 'stop' argument comes before the 'show'.
 	errorRet := make(chan error)
-	exitSig := make(chan interface{})
+	quit := make(chan interface{})
 
 	go func() {
 		// The polling routine is the 'errorRet' channel sender, so we make
-		// sure we exit by closing the channel explicitly, even though we always
+		// sure we exit closing the channel explicitly, even though we always
 		// return the error result first. Closing the channel does not free the
 		// object, the reader can still access the object. The object is only
 		// freed when no further references exit.
@@ -968,9 +968,9 @@ func (s *systemd) Stop(serviceNames []string) error {
 		// We start with a notice grace period to give services time to stop.
 		// Once this period expires, we provide user notifications every time
 		// the list of services we are waiting for changes (or on the first
-		// change of 'silenceNotify', which is detected by 'silenceNotifyEdge')
-		silenceNotify := true
-		silenceNotifyEdge := false
+		// change of 'notifyEnable', which is detected by 'notifyShowFirst')
+		notifyEnable := false
+		notifyShowFirst := false
 
 		// Once the async systemd stop completes, we do one last status poll
 		// to make sure we have the most up to date state.
@@ -978,7 +978,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 
 		for {
 			select {
-			case <-exitSig:
+			case <-quit:
 				// We are now complete, but poll final state of units
 				stopComplete = true
 
@@ -987,12 +987,11 @@ func (s *systemd) Stop(serviceNames []string) error {
 
 			case <-notify.C:
 				// Enable user notifications and trigger first message
-				silenceNotify = false
-				silenceNotifyEdge = true
+				notifyEnable = true
+				notifyShowFirst = true
 			}
 
 			// Check if any of the remaining running units have stopped?
-			allUnitsStopped := true
 			stillRunningServices := []string{}
 			for _, service := range serviceNames {
 				bs, err := s.systemctl("show", "--property=ActiveState", service)
@@ -1002,28 +1001,28 @@ func (s *systemd) Stop(serviceNames []string) error {
 				}
 				if !isStopDone(bs) {
 					stillRunningServices = append(stillRunningServices, service)
-					allUnitsStopped = false
 				}
 			}
 
 			// Any remaining running units stopped?
-			nothingChanged := len(serviceNames) == len(stillRunningServices)
+			somethingChanged := len(serviceNames) != len(stillRunningServices)
 
 			// We only poll units still running.
 			serviceNames = stillRunningServices
 
-			if allUnitsStopped || stopComplete {
-				// No error, but we need to still check the 'serviceNames' list to see
-				// if all units are stopped. This is done outside the go routine.
+			if len(serviceNames) == 0 || stopComplete {
+				// We exit the go routine cleanly (no error caused it to exit). However,
+				// whether all units actually stopped is checked in the parent function
+				// once this routine returns.
 				errorRet <- nil
 				return
 			}
 
 			// The first time the notification silence period expires we print
 			// an update, or on any subsequent change to the list of waiting units.
-			if (!silenceNotify && !nothingChanged) || silenceNotifyEdge == true {
+			if (notifyEnable && somethingChanged) || notifyShowFirst {
 				s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
-				silenceNotifyEdge = false
+				notifyShowFirst = false
 			}
 		}
 	}()
@@ -1032,7 +1031,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 	_, errStop := s.systemctl(append([]string{"stop"}, serviceNames...)...)
 
 	// Notify the progress loop to exit since systemctl completed the request
-	close(exitSig)
+	close(quit)
 
 	// Wait until the progress loop returns
 	errProgress := <-errorRet
@@ -1047,7 +1046,7 @@ func (s *systemd) Stop(serviceNames []string) error {
 		return errProgress
 	}
 
-	// No error, but units not all stopped
+	// No error, but not all units have stopped
 	if len(serviceNames) != 0 {
 		return &Timeout{action: "stop", services: serviceNames}
 	}
