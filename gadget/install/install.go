@@ -22,9 +22,13 @@
 package install
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -33,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
+	secbootcore "github.com/snapcore/secboot"
 )
 
 // diskWithSystemSeed will locate a disk that has the partition corresponding
@@ -71,12 +76,222 @@ func roleOrLabelOrName(part gadget.OnDiskStructure) string {
 	}
 }
 
+type repartSummary []repartSummaryDisk
+
+type repartSummaryDisk struct {
+	Type       string `json:"type"`
+	Label      string `json:"label"`
+	UUID       string `json:"uuid"`
+	File       string `json:"file"`
+	Node       string `json:"node"`
+	Offset     uint64 `json:"offset"`
+	OldSize    uint64 `json:"old_size"`
+	RawSize    uint64 `json:"raw_size"`
+	OldPadding uint64 `json:"old_padding"`
+	RawPadding uint64 `json:"raw_padding"`
+	Activity   string `json:"activity"`
+}
+
+func RunWithSystemdRepart(model gadget.Model, gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+
+	var system_volume *gadget.Volume
+	for _, vol := range info.Volumes {
+		for _, structure := range vol.Structure {
+			if structure.Role == gadget.SystemBoot {
+				system_volume = vol
+			}
+		}
+	}
+	if system_volume == nil {
+		return nil, fmt.Errorf("System volume not found")
+	}
+
+	if device == "" {
+		disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+		if err != nil {
+			return nil, err
+		}
+		device = disk.KernelDeviceNode()
+	}
+
+	encrypt := options.EncryptionType != secboot.EncryptionTypeNone
+	err = gadget.GenerateRepartConfig(gadgetRoot, system_volume, options.EncryptionType != secboot.EncryptionTypeNone, observer)
+
+	labelRole := make(map[string]string)
+	labelFS := make(map[string]string)
+	labelLabel := make(map[string]string)
+	for _, struc := range system_volume.Structure {
+		label := struc.Label
+		if struc.Label == "" {
+			label = struc.Name
+		}
+		if label == "" {
+			continue
+		}
+		if encrypt && (struc.Role == "system-data" || struc.Role == "system-save") {
+			label = fmt.Sprintf("%v-enc", label)
+		}
+		labelRole[label] = struc.Role
+		labelFS[label] = struc.Filesystem
+		labelLabel[label] = struc.Label
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var temporaryKey secboot.EncryptionKey
+	if encrypt {
+		temporaryKey, err = secboot.NewEncryptionKey()
+		if err != nil {
+			return nil, err
+		}
+	}
+	args := []string{"--json=short", "--definitions=/run/repart.d", "--dry-run=no"}
+	if encrypt {
+		args = append(args, "--key-file=/proc/self/fd/3")
+	}
+	if device != "" {
+		args = append(args, device)
+	}
+	logger.Noticef("Calling: systemd-repart %v", strings.Join(args, " "))
+	cmd := exec.Command("systemd-repart", args...)
+
+	var keyRead *os.File
+	var keyWrite *os.File
+	if encrypt {
+		keyRead, keyWrite, err = os.Pipe()
+		defer keyRead.Close()
+		defer keyWrite.Close()
+		if err != nil {
+			return nil, err
+		}
+		cmd.ExtraFiles = []*os.File{keyRead}
+	}
+	var output bytes.Buffer
+	var errors bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &errors
+	err = cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+	if encrypt {
+		keyRead.Close()
+		// TODO: synchronize
+		go func () {
+			_, err = keyWrite.Write(temporaryKey)
+			if err != nil {
+				logger.Noticef("Error writing the key")
+			}
+			keyWrite.Close()
+		}()
+	}
+	err = cmd.Wait()
+	if err != nil {
+		return nil, fmt.Errorf("systemd-repart failed: %v\n%v", err, errors.String())
+	}
+
+	var dump repartSummary
+	if err := json.Unmarshal(output.Bytes(), &dump); err != nil {
+		return nil, fmt.Errorf("Cannot parse systemd-repart output: %v", err)
+	}
+
+	var keysForRoles map[string]*EncryptionKeySet
+
+	if encrypt {
+		for _, part := range dump {
+			if part.Activity != "create" {
+				continue
+			}
+			role, hasRole := labelRole[part.Label]
+			if hasRole && (role == "system-data" || role == "system-save") {
+				key, err := secboot.NewEncryptionKey()
+				if err != nil {
+					return nil, err
+				}
+				recoveryKey, err := secboot.NewRecoveryKey()
+				if err != nil {
+					return nil, err
+				}
+				err = secboot.AddRecoveryKey(temporaryKey, recoveryKey, part.Node)
+				if err != nil {
+					return nil, err
+				}
+				err = secbootcore.ChangeLUKS2KeyUsingRecoveryKey(part.Node, secbootcore.RecoveryKey(recoveryKey), key)
+				if err != nil {
+					return nil, err
+				}
+				if keysForRoles == nil {
+					keysForRoles = map[string]*EncryptionKeySet{}
+				}
+
+				keysForRoles[role] = &EncryptionKeySet{
+					Key:         key,
+					RecoveryKey: recoveryKey,
+				}
+			}
+		}
+	}
+
+	for _, part := range dump {
+		if part.Activity != "create" {
+			continue
+		}
+
+		node := part.Node
+
+		role, hasRole := labelRole[part.Label]
+		if hasRole && keysForRoles != nil {
+			keys, hasKeys := keysForRoles[role]
+			if hasKeys {
+				cmd := exec.Command("cryptsetup", "open", "--key-file", "-", part.Node, part.Label)
+				cmd.Stdin = bytes.NewReader(keys.Key[:])
+				if output, err := cmd.CombinedOutput(); err != nil {
+					logger.Noticef("cryptsetup: %v", output)
+					return nil, err
+				}
+				node = fmt.Sprintf("/dev/mapper/%s", part.Label)
+			}
+		}
+
+		FS, hasFS := labelFS[part.Label]
+		label, hasLabel := labelLabel[part.Label]
+		if options.Mount && hasFS && hasLabel {
+			mountpoint := filepath.Join(boot.InitramfsRunMntDir, label)
+			if err := os.MkdirAll(mountpoint, 0755); err != nil {
+				return nil, fmt.Errorf("cannot create mountpoint: %v", err)
+			}
+			err = os.MkdirAll(mountpoint, 0o777)
+			if err != nil {
+				return nil, err
+			}
+			err = sysMount(node, mountpoint, FS, 0, "")
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return &InstalledSystemSideData{
+		KeysForRoles: keysForRoles,
+	}, nil
+}
+
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
 func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
+
+	ret, err := RunWithSystemdRepart(model, gadgetRoot, device, options, observer)
+	if err == nil {
+		return ret, nil
+	} else {
+		logger.Noticef("Using systemd-repart failed: %v", err)
+	}
+
 	if gadgetRoot == "" {
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
