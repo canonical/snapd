@@ -82,6 +82,8 @@ get_test_model(){
         echo "${MODEL_NAME}-18.model"
     elif os.query is-core20; then
         echo "${MODEL_NAME}-20.model"
+    elif os.query is-core22; then
+        echo "${MODEL_NAME}-22.model"
     else
         echo "${MODEL_NAME}.model"
     fi
@@ -92,6 +94,8 @@ get_test_snap_suffix(){
         echo "-core18"
     elif os.query is-core20; then
         echo "-core20"
+    elif os.query is-core22; then
+        echo "-core22"
     fi
 }
 
