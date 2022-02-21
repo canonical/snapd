@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
@@ -902,6 +903,247 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 	return map[string]DiskVolumeDeviceTraits{
 		likelySystemBootVolume: traits,
 	}, nil
+}
+
+func buildVolumeStructureToLocation(old GadgetData,
+	isPreUC20 bool,
+	missingInitialMapping bool,
+	laidOutVols map[string]*LaidOutVolume,
+	volToDeviceMapping map[string]DiskVolumeDeviceTraits,
+) (map[string]map[int]StructureLocation, error) {
+
+	// helper function for handling non-fatal errors on pre-UC20
+	maybeDieOnMappingError := func(err error) (fatal bool) {
+		if missingInitialMapping && isPreUC20 {
+			// this is not a fatal error on pre-UC20
+			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error mapping volume to physical disk: %v", err)
+			return false
+		}
+		return true
+	}
+
+	volumeStructureToLocation := make(map[string]map[int]StructureLocation, len(old.Info.Volumes))
+	for volName := range old.Info.Volumes {
+		volumeStructureToLocation[volName] = make(map[int]StructureLocation)
+	}
+
+	// now for each volume, iterate over the structures, putting the
+	// necessary info into the map for that volume as we iterate
+
+	// this loop assumes that none of those things are different between the
+	// new and old volume, which may not be true in the case where an
+	// unsupported structure change is present in the new one, but we check that
+	// situation after we have built the mapping
+	for volName, diskDeviceTraits := range volToDeviceMapping {
+		vol, ok := old.Info.Volumes[volName]
+		if !ok {
+			return nil, fmt.Errorf("internal error: volume %s not present in gadget.yaml but present in traits mapping", volName)
+		}
+
+		laidOutVol := laidOutVols[volName]
+
+		// find the disk associated with this volume using the traits we
+		// measured for this volume
+		validateOpts := &DiskVolumeValidationOptions{
+			// implicit system-data role only allowed on pre UC20 systems
+			AllowImplicitSystemData:     isPreUC20,
+			ExpectedStructureEncryption: diskDeviceTraits.StructureEncryption,
+		}
+
+		disk, err := searchForVolumeWithTraits(laidOutVol, diskDeviceTraits, validateOpts)
+		if err != nil {
+			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
+			if fatal := maybeDieOnMappingError(dieErr); fatal {
+				return nil, dieErr
+			} else {
+				return nil, errSkipUpdateProceedRefresh
+			}
+		}
+
+		// the index here is 0-based and is equal to LaidOutStructure.YamlIndex
+		for volYamlIndex, volStruct := range vol.Structure {
+			// get the StartOffset using the laid out structure which will have
+			// all the math to find the correct start offset for structures that
+			// don't explicitly list their offset in the gadget.yaml (and thus
+			// would have a offset of 0 using the volStruct.Offset)
+			structStartOffset := laidOutVol.LaidOutStructure[volYamlIndex].StartOffset
+
+			if volStruct.HasFilesystem() {
+				// Here we know what disk is associated with this volume, so we
+				// just need to find what partition is associated with this
+				// structure to find it's root mount points. On GPT since
+				// partition labels/names are unique in the partition table, we
+				// could do a lookup by matching partition label, but this won't
+				// work on MBR which doesn't have such a concept, so instead we
+				// use the start offset to locate which disk partition this
+				// structure is equal to.
+
+				partitions, err := disk.Partitions()
+				if err != nil {
+					return nil, err
+				}
+
+				var foundP disks.Partition
+				found := false
+				for _, p := range partitions {
+					if p.StartInBytes == uint64(structStartOffset) {
+						foundP = p
+						found = true
+						break
+					}
+				}
+				if !found {
+					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: no matching start offset", volYamlIndex, volName)
+					if fatal := maybeDieOnMappingError(dieErr); fatal {
+						return nil, dieErr
+					} else {
+						return nil, errSkipUpdateProceedRefresh
+					}
+				}
+
+				// if this structure is an encrypted one, then we can't just
+				// get the root mount points for the device node, we would need
+				// to find the decrypted mapper device for the encrypted device
+				// node and then find the root mount point of the mapper device
+				if _, ok := diskDeviceTraits.StructureEncryption[volStruct.Name]; ok {
+					logger.Noticef("gadget asset update for assets on encrypted partition %s unsupported", volStruct.Name)
+
+					// setting this structure as having an empty location will
+					// mean when an update to this structure is actually
+					// performed it will fail, but we won't fail updates to
+					// other structures - it is treated like an unmounted
+					// partition
+					volumeStructureToLocation[volName][volYamlIndex] = StructureLocation{}
+					continue
+				}
+
+				// otherwise normal unencrypted filesystem, find the rw mount
+				// points
+				mountpts, err := disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""})
+				if err != nil {
+					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: error searching for root mount points: %v", volYamlIndex, volName, err)
+					if fatal := maybeDieOnMappingError(dieErr); fatal {
+						return nil, dieErr
+					} else {
+						return nil, errSkipUpdateProceedRefresh
+					}
+				}
+				var mountpt string
+				if len(mountpts) == 0 {
+					// this filesystem is not already mounted, we probably
+					// should mount it in order to proceed with the update?
+
+					// TODO: do something better here?
+					logger.Noticef("structure %d on volume %s (%s) is not mounted read/write anywhere to be able to update it", volYamlIndex, volName, foundP.KernelDeviceNode)
+				} else {
+					// use the first one, it doesn't really matter to us
+					// which one is used to update the contents
+					mountpt = mountpts[0]
+				}
+				volumeStructureToLocation[volName][volYamlIndex] = StructureLocation{
+					RootMountPoint: mountpt,
+				}
+			} else {
+				// no filesystem, the device for this one is just the device
+				// for the disk itself
+				bare := StructureLocation{
+					Device: disk.KernelDeviceNode(),
+					Offset: structStartOffset,
+				}
+				volumeStructureToLocation[volName][volYamlIndex] = bare
+			}
+		}
+	}
+
+	return volumeStructureToLocation, nil
+}
+
+// exposed for mocking later on
+var volumeStructureToLocationMap = volumeStructureToLocationMapImpl
+
+func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map[string]*LaidOutVolume) (map[string]map[int]StructureLocation, error) {
+	// first try to load the disk-mapping.json volume trait info
+	volToDeviceMapping, err := LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	if err != nil {
+		return nil, err
+	}
+
+	missingInitialMapping := false
+
+	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
+
+	// check if we had no mapping, if so then we try our best to build a mapping
+	// for the system-boot volume only to perform gadget asset updates there
+	// but if we fail to build a mapping, then on UC18 we non-fatally return
+	// without doing any updates, but on UC20 we fail the refresh because we
+	// expect UC20's gadget.yaml validation to be robust
+	if len(volToDeviceMapping) == 0 {
+		// then there was no mapping provided, this is a system which never
+		// performed the initial saving of disk/volume mapping info during
+		// install, so we build up a mapping specifically just for the
+		// volume with the system-boot role on it
+
+		// TODO: after we calculate this the first time should we save a new
+		// disk-mapping.json with this information and some marker that this
+		// was not calculated at first boot but a later date?
+
+		// TODO: the rest of this function in this case is technically not as
+		// efficient as we could be, since we build up these heuristics here and
+		// then immediately below treat them as if they were from the initial
+		// install boot and thus could have changed, but there is no way for
+		// this mapping to have changed between when this code runs here and the
+		// code below, but in the interest of sharing the same codepath for all
+		// cases below, we treat this heuristic mapping data the same
+		missingInitialMapping = true
+		var err error
+		volToDeviceMapping, err = buildNewVolumeToDeviceMapping(old, laidOutVols, isPreUC20)
+		if err != nil {
+			return nil, err
+		}
+
+		// volToDeviceMapping should always be of length one
+		var volName string
+		for volName = range volToDeviceMapping {
+			break
+		}
+
+		// if there are multiple volumes leave a message that we are only
+		// performing updates for the volume with the system-boot role
+		if len(old.Info.Volumes) != 1 {
+			logger.Noticef("WARNING: gadget has multiple volumes but updates are only being performed for volume %s", volName)
+		}
+	}
+
+	// now that we have some traits about the volume -> disk mapping, either
+	// because we just constructed it or that we were provided it the .json file
+	// we have to build up a map for the updaters to use to find the structure
+	// location to update given the LaidOutStructure
+	return buildVolumeStructureToLocation(
+		old,
+		isPreUC20,
+		missingInitialMapping,
+		laidOutVols,
+		volToDeviceMapping,
+	)
+}
+
+// StructureLocation represents the location of a structure for updating
+// purposes. Either Device + Offset must be set for a raw structure without a
+// filesystem, or RootMountPoint must be set for structures with a
+// filesystem.
+type StructureLocation struct {
+	// Device is the kernel device node path such as /dev/vda1 for the
+	// structure's backing physical disk.
+	Device string
+	// Offset is the offset from 0 for the physical disk that this structure
+	// starts at.
+	Offset quantity.Offset
+
+	// RootMountPoint is the directory where the root directory of the structure
+	// is mounted read/write. There may be other mount points for this structure
+	// on the system, but this one is guaranteed to be writable and thus
+	// suitable for gadget asset updates.
+	RootMountPoint string
 }
 
 // Update applies the gadget update given the gadget information and data from

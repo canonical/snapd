@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -39,7 +40,14 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type updateTestSuite struct{}
+type updateTestSuite struct {
+	testutil.BaseTest
+}
+
+func (s *updateTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
 
 var _ = Suite(&updateTestSuite{})
 
@@ -2306,9 +2314,6 @@ func testSearchForVolumeWithTraits(c *C,
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingInvalidYAMLDoesNotBlockOverallRefresh(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("") }()
-
 	// copied from managers tests
 	structureName := "ubuntu-seed"
 	gadgetYaml := fmt.Sprintf(`
@@ -2348,9 +2353,6 @@ volumes:
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC16(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("") }()
-
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
 	c.Assert(err, IsNil)
 
@@ -2395,9 +2397,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSingleVolume(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("") }()
-
 	// not there is no role or filesystem-label or name referencing system-boot
 	// here so there are no implicit roles set for this yaml, but it is valid as
 	// we used to allow installation of such gadget.yaml and as such need to
@@ -2466,9 +2465,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMultiVolumeNotSupported(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("") }()
-
 	// not there is no role or filesystem-label or name referencing system-boot
 	// here so there are no implicit roles set for this yaml, but it is valid as
 	// we used to allow installation of such gadget.yaml, but since it has
@@ -2530,9 +2526,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("") }()
-
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
 	c.Assert(err, IsNil)
 
@@ -2560,9 +2553,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("") }()
-
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, &gadgettest.ModelCharacteristics{SystemSeed: true})
 	c.Assert(err, IsNil)
 
@@ -2576,7 +2566,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 		old.Info.Volumes[volName] = laidOutVol.Volume
 	}
 
-	// setup symlink for the system-boot partition
+	// setup symlink for the ubuntu-seed partition
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
@@ -2607,9 +2597,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer func() { dirs.SetRootDir("") }()
-
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, &gadgettest.ModelCharacteristics{SystemSeed: true})
 	c.Assert(err, IsNil)
 
@@ -2623,7 +2610,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 		old.Info.Volumes[volName] = laidOutVol.Volume
 	}
 
-	// setup symlink for the system-boot partition
+	// setup symlink for the ubuntu-seed partition
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
 	c.Assert(err, IsNil)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0p1")
@@ -2659,4 +2646,635 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
 	})
+}
+
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20MultiVolume(c *C) {
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"pc":  gadgettest.VMSystemVolumeDeviceTraits,
+		"foo": gadgettest.VMExtraVolumeDeviceTraits,
+	}
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc":  gadgettest.VMSystemVolumeDiskMapping,
+		"foo": gadgettest.VMExtraVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot")},
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+		"foo": {
+			0: {Device: "/dev/vdb", Offset: quantity.OffsetMiB},                            // barething
+			1: {Device: "/dev/vdb", Offset: quantity.OffsetMiB + 4096},                     // nofspart
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem")}, // some-filesystem
+		},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore := osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 525:3 / %[1]s/foo/some-filesystem rw,relatime shared:7 - vfat %[1]s/dev/vdb2 rw
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testBuildVolumeStructureToLocation(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		traits,
+		volMappings,
+		expMap,
+	)
+}
+
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20SingleVolume(c *C) {
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.VMSystemVolumeDeviceTraits,
+	}
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc": gadgettest.VMSystemVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot")},
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore := osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testBuildVolumeStructureToLocation(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.SingleVolumeUC20GadgetYaml,
+		traits,
+		volMappings,
+		expMap,
+	)
+}
+
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC16ImplicitSystemData(c *C) {
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
+	}
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/sda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/sda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/boot/grub")},
+
+			// note that the implicit data partition is missing - it is not in
+			// the YAML and thus cannot be updated via a gadget asset update
+		},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore := osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/boot/grub rw,relatime shared:7 - vfat %[1]s/dev/vda1 rw
+27 27 600:3 / %[1]s/writable rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testBuildVolumeStructureToLocation(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: false},
+		gadgettest.UC16YAMLImplicitSystemData,
+		traits,
+		volMappings,
+		expMap,
+	)
+}
+
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20Encryption(c *C) {
+	mockLogBuf, restore := logger.MockLogger()
+	defer restore()
+
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"pi": gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+	}
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pi": gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pi": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// partition devices have RootMountPoint set
+			0: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			1: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot")},
+
+			// encrypted partitions are currently treated like they are
+			// unmounted
+			2: {RootMountPoint: ""},
+			3: {RootMountPoint: ""},
+		},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+
+	// also note that neither save nor data are present here since they are
+	// encrypted the mapper devices would show up here, but we don't currently
+	// support anything like that so just ignore that
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 179:1 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/mmcblk0p1 rw
+27 27 179:1 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/mmcblk0p1 rw
+28 27 179:2 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/mmcblk0p1 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testBuildVolumeStructureToLocation(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.RaspiSimplifiedYaml,
+		traits,
+		volMappings,
+		expMap,
+	)
+
+	// we logged a message about not supporting asset updates on encrypted
+	// partitions
+	c.Assert(mockLogBuf.String(), testutil.Contains, "gadget asset update for assets on encrypted partition ubuntu-data unsupported")
+	c.Assert(mockLogBuf.String(), testutil.Contains, "gadget asset update for assets on encrypted partition ubuntu-save unsupported")
+}
+
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20MultiVolumeNonMountedPartition(c *C) {
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"pc":  gadgettest.VMSystemVolumeDeviceTraits,
+		"foo": gadgettest.VMExtraVolumeDeviceTraits,
+	}
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc":  gadgettest.VMSystemVolumeDiskMapping,
+		"foo": gadgettest.VMExtraVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: ""}, // ubuntu-boot is not mounted for some reason
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+		"foo": {
+			0: {Device: "/dev/vdb", Offset: quantity.OffsetMiB},        // barething
+			1: {Device: "/dev/vdb", Offset: quantity.OffsetMiB + 4096}, // nofspart
+			2: {RootMountPoint: ""},                                    // some-filesystem is not mounted
+		},
+	}
+
+	mockLogBuf, restore := logger.MockLogger()
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with some of the filesystems mounted
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testBuildVolumeStructureToLocation(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		traits,
+		volMappings,
+		expMap,
+	)
+
+	c.Assert(mockLogBuf.String(), testutil.Contains, "structure 2 on volume foo (/dev/vdb2) is not mounted read/write anywhere to be able to update it")
+}
+
+func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
+	model gadget.Model,
+	yaml string,
+	traits map[string]gadget.DiskVolumeDeviceTraits,
+	volMappings map[string]*disks.MockDiskMapping,
+	expMapping map[string]map[int]gadget.StructureLocation,
+) {
+	old, allLaidOutVolumes := s.setupForVolumeStructureToLocation(c, model,
+		yaml,
+		traits,
+		volMappings,
+		expMapping,
+	)
+
+	preUC20 := model.Grade() == asserts.ModelGradeUnset
+	missingInitialMappingNo := false
+	structureMap, err := gadget.BuildVolumeStructureToLocation(old, preUC20, missingInitialMappingNo, allLaidOutVolumes, traits)
+	c.Assert(err, IsNil)
+	c.Assert(structureMap, DeepEquals, expMapping)
+}
+
+func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
+	model gadget.Model,
+	yaml string,
+	traits map[string]gadget.DiskVolumeDeviceTraits,
+	volMappings map[string]*disks.MockDiskMapping,
+	expMapping map[string]map[int]gadget.StructureLocation,
+) (gadget.GadgetData, map[string]*gadget.LaidOutVolume) {
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), yaml, model)
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: make(map[string]*gadget.Volume),
+		},
+	}
+
+	for volName, laidOutVol := range allLaidOutVolumes {
+		old.Info.Volumes[volName] = laidOutVol.Volume
+	}
+
+	devicePathMapping := map[string]*disks.MockDiskMapping{}
+
+	// mock two disks in /sys/block
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+	err = os.MkdirAll(blockDir, 0755)
+	c.Assert(err, IsNil)
+	for volName := range allLaidOutVolumes {
+		blockDevSym := filepath.Join(blockDir, volName)
+		err := os.Symlink("something", blockDevSym)
+		c.Assert(err, IsNil)
+
+		devicePathMapping[blockDevSym] = volMappings[volName]
+	}
+
+	restore := disks.MockDevicePathToDiskMapping(devicePathMapping)
+	s.AddCleanup(restore)
+
+	// setup symlinks in /dev
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label"), 0755)
+	c.Assert(err, IsNil)
+
+	partDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
+	diskDeviceNodeMappings := map[string]*disks.MockDiskMapping{}
+
+	for volName := range allLaidOutVolumes {
+		// only create udev symlinks for the fist partition, don't need the
+		// others
+		partlabel := ""
+		fslabel := ""
+		firstPartDev := ""
+		for _, p := range traits[volName].Structure {
+			firstPartDev = p.OriginalKernelPath
+			partlabel = p.PartitionLabel
+			fslabel = p.FilesystemLabel
+			break
+		}
+
+		switch traits[volName].Schema {
+		case "gpt":
+			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
+			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", partlabel))
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+			c.Assert(err, IsNil)
+		case "dos":
+			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
+			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", fslabel))
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+			c.Assert(err, IsNil)
+		default:
+			panic(fmt.Sprintf("unexpected schema %s", traits[volName].Schema))
+		}
+
+		partDeviceNodeMappings[filepath.Join(dirs.GlobalRootDir, firstPartDev)] = volMappings[volName]
+
+		diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
+	}
+
+	// mock the partition device node to mock disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(partDeviceNodeMappings)
+	s.AddCleanup(restore)
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(diskDeviceNodeMappings)
+	s.AddCleanup(restore)
+
+	return old, allLaidOutVolumes
+}
+
+func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
+	model gadget.Model,
+	yaml string,
+	traitsJSON string,
+	withTraits bool,
+	volMappings map[string]*disks.MockDiskMapping,
+	expMapping map[string]map[int]gadget.StructureLocation,
+) {
+	err := os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	// write out the provided traits JSON so we can at least load the traits for
+	// mocking via setupForVolumeStructureToLocation
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(traitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+
+	// if we aren't meant to have the traits written to disk for the test delete
+	// it
+	if !withTraits {
+		err := os.Remove(filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"))
+		c.Assert(err, IsNil)
+	}
+
+	old, allLaidOutVolumes := s.setupForVolumeStructureToLocation(c, model,
+		yaml,
+		traits,
+		volMappings,
+		expMapping,
+	)
+
+	structureMap, err := gadget.VolumeStructureToLocationMap(old, model, allLaidOutVolumes)
+	c.Assert(err, IsNil)
+	c.Assert(structureMap, DeepEquals, expMapping)
+}
+
+func (s *updateTestSuite) TestVolumeStructureToLocationMapUC20MultiVolume(c *C) {
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc":  gadgettest.VMSystemVolumeDiskMapping,
+		"foo": gadgettest.VMExtraVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot")},
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+		"foo": {
+			0: {Device: "/dev/vdb", Offset: quantity.OffsetMiB},                            // barething
+			1: {Device: "/dev/vdb", Offset: quantity.OffsetMiB + 4096},                     // nofspart
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem")}, // some-filesystem
+		},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore := osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 525:3 / %[1]s/foo/some-filesystem rw,relatime shared:7 - vfat %[1]s/dev/vdb2 rw
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testVolumeStructureToLocationMap(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		gadgettest.VMMultiVolumeUC20DiskTraitsJSON,
+		true,
+		volMappings,
+		expMap,
+	)
+}
+
+func (s *updateTestSuite) TestVolumeStructureToLocationMapUC20SingleVolume(c *C) {
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc": gadgettest.VMSystemVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot")},
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore := osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testVolumeStructureToLocationMap(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.SingleVolumeUC20GadgetYaml,
+		gadgettest.VMSingleVolumeUC20DiskTraitsJSON,
+		true,
+		volMappings,
+		expMap,
+	)
+}
+
+func (s *updateTestSuite) TestVolumeStructureToLocationMapMissingInitialTraitsMapUC20SingleVolume(c *C) {
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc": gadgettest.VMSystemVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot")},
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore := osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testVolumeStructureToLocationMap(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.SingleVolumeUC20GadgetYaml,
+		gadgettest.VMSingleVolumeUC20DiskTraitsJSON,
+		false,
+		volMappings,
+		expMap,
+	)
+}
+
+func (s *updateTestSuite) TestVolumeStructureToLocationMapMissingInitialTraitsMapUC20MultiVolume(c *C) {
+	mockLogBuf, restore := logger.MockLogger()
+	defer restore()
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc":  gadgettest.VMSystemVolumeDiskMapping,
+		"foo": gadgettest.VMExtraVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot")},
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+		// empty foo volume since because the disk-mapping.json was not written
+		// initially, we only handle updates to the pc / system-boot volume
+		"foo": {},
+	}
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 525:3 / %[1]s/foo/some-filesystem rw,relatime shared:7 - vfat %[1]s/dev/vdb2 rw
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testVolumeStructureToLocationMap(c,
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		gadgettest.VMMultiVolumeUC20DiskTraitsJSON,
+		false,
+		volMappings,
+		expMap,
+	)
+
+	c.Assert(mockLogBuf.String(), testutil.Contains, "WARNING: gadget has multiple volumes but updates are only being performed for volume pc")
 }
