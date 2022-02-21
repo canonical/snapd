@@ -766,24 +766,11 @@ volumeLoop:
 		if osutil.FileExists(encryptionMarkerFile) {
 			// then we have the crypto marker file for encryption
 			// cross-validation between ubuntu-data and ubuntu-save stored from
-			// install mode, so we at least should have ubuntu-data encrypted
+			// install mode, so mark ubuntu-save and data as expected to be
+			// encrypted
 			validateOpts.ExpectedStructureEncryption = map[string]StructureEncryptionParameters{
 				"ubuntu-data": {Method: EncryptionLUKS},
-			}
-
-			// check if ubuntu-save exists to know whether to also assume
-			// encryption for ubuntu-save too - this should always happen since
-			// we require ubuntu-save for encryption, but there was a time
-			// during UC20 development where you could have encryption without
-			// ubuntu-save, so there is a small chance such devices could have
-			// persisted
-			for _, s := range laidOutVol.Structure {
-				if s.Role == SystemSave {
-					validateOpts.ExpectedStructureEncryption["ubuntu-save"] = StructureEncryptionParameters{
-						Method: EncryptionLUKS,
-					}
-					break
-				}
+				"ubuntu-save": {Method: EncryptionLUKS},
 			}
 		}
 	}
