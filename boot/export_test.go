@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBootParticipant {
+func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev snap.Device) *coreBootParticipant {
 	bs, err := bootStateFor(t, dev)
 	if err != nil {
 		panic(err)
@@ -39,7 +39,7 @@ func NewCoreBootParticipant(s snap.PlaceInfo, t snap.Type, dev Device) *coreBoot
 	return &coreBootParticipant{s: s, bs: bs}
 }
 
-func NewCoreKernel(s snap.PlaceInfo, d Device) *coreKernel {
+func NewCoreKernel(s snap.PlaceInfo, d snap.Device) *coreKernel {
 	return &coreKernel{s, bootloaderOptionsForDeviceKernel(d)}
 }
 

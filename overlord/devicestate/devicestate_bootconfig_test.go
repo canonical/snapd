@@ -49,7 +49,8 @@ type deviceMgrBootconfigSuite struct {
 var _ = Suite(&deviceMgrBootconfigSuite{})
 
 func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(s.managedbl)

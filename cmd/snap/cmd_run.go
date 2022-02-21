@@ -73,6 +73,7 @@ type cmdRun struct {
 	HookName string `long:"hook" hidden:"yes"`
 	Revision string `short:"r" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" `
+	DebugLog bool   `long:"debug-log"`
 
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
@@ -119,6 +120,8 @@ and environment.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"trace-exec": i18n.G("Display exec calls timing data"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"debug-log":  i18n.G("Enable debug logging during early snap startup phases"),
 			"parser-ran": "",
 		}, nil)
 }
@@ -392,7 +395,7 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
 	}
 
-	snapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
+	snapDir := snap.SnapDir(usr.HomeDir, opts)
 	if err := os.MkdirAll(snapDir, 0700); err != nil {
 		return fmt.Errorf(i18n.G("cannot create snap home dir: %w"), err)
 	}
@@ -477,6 +480,10 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 }
 
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
+	if x.DebugLog {
+		os.Setenv("SNAPD_DEBUG", "1")
+		logger.Debugf("enabled debug logging of early snap startup")
+	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, snap.R(0))
 	if err != nil {
@@ -1023,6 +1030,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 		}
 		return fmt.Errorf(i18n.G("missing snap-confine: try updating your core/snapd package"))
 	}
+
+	logger.Debugf("executing snap-confine from %s", snapConfine)
 
 	snapName, _ := snap.SplitSnapApp(snapApp)
 	opts, err := getSnapDirOptions(snapName)

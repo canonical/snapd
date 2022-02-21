@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2017 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,7 +54,12 @@ func (ac *AttributeConstraints) feature(flabel string) bool {
 // compileAttributeConstraints checks and compiles a mapping or list
 // from the assertion format into AttributeConstraints.
 func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
-	matcher, err := compileAttrMatcher(compileContext{}, constraints)
+	cc := compileContext{
+		opts: &compileAttrMatcherOptions{
+			allowedOperations: []string{"SLOT", "PLUG"},
+		},
+	}
+	matcher, err := compileAttrMatcher(cc, constraints)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +74,7 @@ func (matcher fixedAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher fixedAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	return matcher.result
 }
 
@@ -84,8 +89,11 @@ type Attrer interface {
 }
 
 // Check checks whether attrs don't match the constraints.
-func (c *AttributeConstraints) Check(attrer Attrer, ctx AttrMatchContext) error {
-	return c.matcher.match("", attrer, ctx)
+func (c *AttributeConstraints) Check(attrer Attrer, helper AttrMatchContext) error {
+	return c.matcher.match("", attrer, &attrMatchingContext{
+		attrWord: "attribute",
+		helper:   helper,
+	})
 }
 
 // SideArityConstraint specifies a constraint for the overall arity of
@@ -172,66 +180,6 @@ var (
 type OnClassicConstraint struct {
 	Classic   bool
 	SystemIDs []string
-}
-
-// DeviceScopeConstraint specifies a constraints based on which brand
-// store, brand or model the device belongs to.
-type DeviceScopeConstraint struct {
-	Store []string
-	Brand []string
-	// Model is a list of precise "<brand>/<model>" constraints
-	Model []string
-}
-
-var (
-	validStoreID         = regexp.MustCompile("^[-A-Z0-9a-z_]+$")
-	validBrandSlashModel = regexp.MustCompile("^(" +
-		strings.Trim(validAccountID.String(), "^$") +
-		")/(" +
-		strings.Trim(validModel.String(), "^$") +
-		")$")
-	deviceScopeConstraints = map[string]*regexp.Regexp{
-		"on-store": validStoreID,
-		"on-brand": validAccountID,
-		// on-model constraints are of the form list of
-		// <brand>/<model> strings where <brand> are account
-		// IDs as they appear in the respective model assertion
-		"on-model": validBrandSlashModel,
-	}
-)
-
-func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
-	// for consistency and simplicity we support all of on-store,
-	// on-brand, and on-model to appear together. The interpretation
-	// layer will AND them as usual
-	for field := range deviceScopeConstraints {
-		if cMap[field] != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (constr *DeviceScopeConstraint, err error) {
-	// initial map size of 2: we expect usual cases to have just one of the
-	// constraints or rarely 2
-	deviceConstr := make(map[string][]string, 2)
-	for field, validRegexp := range deviceScopeConstraints {
-		vals, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp)
-		if err != nil {
-			return nil, err
-		}
-		deviceConstr[field] = vals
-	}
-
-	if len(deviceConstr) == 0 {
-		return nil, fmt.Errorf("internal error: misdetected device scope constraints in %s", context)
-	}
-	return &DeviceScopeConstraint{
-		Store: deviceConstr["on-store"],
-		Brand: deviceConstr["on-brand"],
-		Model: deviceConstr["on-model"],
-	}, nil
 }
 
 type nameMatcher interface {
@@ -449,14 +397,14 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 		}
 		target.setOnClassicConstraint(c)
 	}
-	if !detectDeviceScopeConstraint(cMap) {
+	dsc, err := compileDeviceScopeConstraint(cMap, context.String())
+	if err != nil {
+		return err
+	}
+	if dsc == nil {
 		defaultUsed++
 	} else {
-		c, err := compileDeviceScopeConstraint(cMap, context.String())
-		if err != nil {
-			return err
-		}
-		target.setDeviceScopeConstraint(c)
+		target.setDeviceScopeConstraint(dsc)
 	}
 	// checks whether defaults have been used for everything, which is not
 	// well-formed

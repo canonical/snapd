@@ -758,7 +758,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"first":  true,
@@ -810,7 +810,7 @@ func (u *updateTestSuite) TestUpdateApplyOnlyWhenNeeded(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
 
 	c.Assert(muo.beforeWriteCalled, Equals, 1)
@@ -857,13 +857,13 @@ func (u *updateTestSuite) TestUpdateApplyErrorLayout(c *C) {
 	// both old and new bare struct data is missing
 
 	// cannot lay out the new volume when bare struct data is missing
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot lay out the new volume: cannot lay out structure #0 \("foo"\): content "first.img": .* no such file or directory`)
 
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), quantity.SizeMiB, nil)
 
 	// Update does not error out when when the bare struct data of the old volume is missing
-	err = gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 }
 
@@ -910,7 +910,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalVolumeUpdate(c *C) {
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "first.img"), 900*quantity.SizeKiB, nil)
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot apply update to volume: cannot change the number of structures within volume from 1 to 2`)
 }
 
@@ -961,7 +961,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorIllegalStructureUpdate(c *C) {
 
 	makeSizedFile(c, filepath.Join(oldRootDir, "first.img"), quantity.SizeMiB, nil)
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #0 \("foo"\): cannot change a bare structure to filesystem one`)
 }
 
@@ -1000,7 +1000,7 @@ func (u *updateTestSuite) TestUpdateApplyErrorDifferentVolume(c *C) {
 	})
 	defer restore()
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot find entry for volume "foo" in updated gadget info`)
 }
 
@@ -1046,7 +1046,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesAreOptInWithDefaultPolicy(c *C) 
 	})
 	defer restore()
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 
 	// nothing was updated
@@ -1103,7 +1103,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	defer restore()
 
 	policySeen := map[string]int{}
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name]++
 		return false, nil
 	}, nil)
@@ -1119,7 +1119,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 	// try with different policy
 	policySeen = map[string]int{}
-	err = gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name]++
 		return to.Name == "second", nil
 	}, nil)
@@ -1153,7 +1153,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 	})
 	defer restore()
 
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, gadget.RemodelUpdatePolicy, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, gadget.RemodelUpdatePolicy, nil)
 	c.Assert(err, IsNil)
 	c.Assert(toUpdate, DeepEquals, map[string]int{
 		"first":        1,
@@ -1196,7 +1196,7 @@ func (u *updateTestSuite) TestUpdateApplyBackupFails(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot backup volume structure #1 \("second"\): failed`)
 
 	// update was canceled before backup pass completed
@@ -1245,7 +1245,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateFailsThenRollback(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("second"\): failed`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		// all were backed up
@@ -1320,7 +1320,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdateErrorRollbackFail(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	// preserves update error
 	c.Assert(err, ErrorMatches, `cannot update volume structure #2 \("third"\): update error`)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
@@ -1357,7 +1357,7 @@ func (u *updateTestSuite) TestUpdateApplyBadUpdater(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot prepare update for volume structure #0 \("first"\): bad updater for structure`)
 }
 
@@ -1434,13 +1434,13 @@ func (u *updateTestSuite) TestUpdaterMultiVolumesDoesNotError(c *C) {
 	}
 
 	// a new multi volume gadget update gives no error
-	err := gadget.Update(&modelCharateristics{}, singleVolume, multiVolume, "some-rollback-dir", nil, nil)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, singleVolume, multiVolume, "some-rollback-dir", nil, nil)
 	c.Assert(err, IsNil)
 	// but it warns that nothing happens either
 	c.Assert(logbuf.String(), testutil.Contains, "WARNING: gadget assests cannot be updated yet when multiple volumes are used")
 
 	// same for old
-	err = gadget.Update(&modelCharateristics{}, multiVolume, singleVolume, "some-rollback-dir", nil, nil)
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, multiVolume, singleVolume, "some-rollback-dir", nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(strings.Count(logbuf.String(), "WARNING: gadget assests cannot be updated yet when multiple volumes are used"), Equals, 2)
 }
@@ -1474,7 +1474,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInAll(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	// update called for 2 structures
 	c.Assert(updateCalls, Equals, 2)
@@ -1515,7 +1515,7 @@ func (u *updateTestSuite) TestUpdateApplyNoChangedContentInSome(c *C) {
 	defer restore()
 
 	// go go go
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
 	// update called for 2 structures
 	c.Assert(updateCalls, Equals, 2)
@@ -1543,7 +1543,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverBeforeWriteErrs(c *C) {
 	muo := &mockUpdateProcessObserver{
 		beforeWriteErr: errors.New("before write fail"),
 	}
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot observe prepared update: before write fail`)
 	// update was canceled before backup pass completed
 	c.Check(muo.canceledCalled, Equals, 0)
@@ -1572,7 +1572,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 	muo := &mockUpdateProcessObserver{
 		canceledErr: errors.New("canceled fail"),
 	}
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot backup volume structure #0 .*: backup fails`)
 	// canceled called after backup pass
 	c.Check(muo.canceledCalled, Equals, 1)
@@ -1582,7 +1582,7 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 
 	// backup works, update fails, triggers another canceled call
 	backupErr = nil
-	err = gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, nil, muo)
+	err = gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, ErrorMatches, `cannot update volume structure #0 .*: update fails`)
 	// canceled called after backup pass
 	c.Check(muo.canceledCalled, Equals, 2)
@@ -1760,7 +1760,7 @@ assets:
 	defer restore()
 
 	// exercise KernelUpdatePolicy here
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
 	c.Assert(err, IsNil)
 
 	// ensure update for kernel content happened
@@ -1818,7 +1818,7 @@ assets:
 	defer restore()
 
 	// exercise KernelUpdatePolicy here
-	err := gadget.Update(&modelCharateristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	err := gadget.Update(&gadgettest.ModelCharacteristics{}, oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
 	c.Assert(err, ErrorMatches, `gadget does not consume any of the kernel assets needing synced update "ref"`)
 
 	// ensure update for kernel content didn't happen
@@ -1827,79 +1827,17 @@ assets:
 
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateWithBareStructure(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/foo": {
-			DevNode: "/dev/foo",
-			DevPath: "/sys/block/foo",
-			DevNum:  "525:1",
-			// assume 34 sectors at end for GPT headers backup
-			DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
-			DiskSizeInBytes:     6000 * 1024 * 1024,
-			SectorSizeBytes:     512,
-			DiskSchema:          "gpt",
-			ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
-			Structure: []disks.Partition{
-				// the first real structure is "barething", but since that is
-				// not a partition and thus in the partition table it is not
-				// included here
-				{
-					PartitionLabel:   "some-filesystem",
-					PartitionUUID:    "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
-					FilesystemLabel:  "some-filesystem",
-					FilesystemUUID:   "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
-					FilesystemType:   "ext4",
-					Major:            525,
-					Minor:            3,
-					KernelDeviceNode: "/dev/foo1",
-					KernelDevicePath: "/sys/block/foo/foo1",
-					DiskIndex:        1,
-					StartInBytes:     1024*1024 + 4096,
-					SizeInBytes:      1024 * 1024 * 1024,
-				},
-			},
-		},
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
 	})
 	defer restore()
 
-	const yaml = `
-volumes:
-  foo:
-    bootloader: u-boot
-    schema: gpt
-    structure:
-      - name: barething
-        type: bare
-        size: 4096
-      - name: some-filesystem
-        filesystem: ext4
-        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
-        size: 1G
-`
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.MockExtraVolumeYAML, nil)
 	c.Assert(err, IsNil)
 
 	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
 	c.Assert(err, IsNil)
-	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
-		OriginalDevicePath: "/sys/block/foo",
-		OriginalKernelPath: "/dev/foo",
-		DiskID:             "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
-		SectorSize:         512,
-		Size:               6000 * 1024 * 1024,
-		Schema:             "gpt",
-		Structure: []gadget.DiskStructureDeviceTraits{
-			{
-				PartitionLabel:     "some-filesystem",
-				PartitionUUID:      "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
-				OriginalDevicePath: "/sys/block/foo/foo1",
-				OriginalKernelPath: "/dev/foo1",
-				FilesystemLabel:    "some-filesystem",
-				FilesystemUUID:     "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
-				FilesystemType:     "ext4",
-				Offset:             0x101000,
-				Size:               0x40000000,
-			},
-		},
-	})
+
+	c.Assert(traits, DeepEquals, gadgettest.MockExtraVolumeDeviceTraits)
 }
 
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTSingleVolume(c *C) {
@@ -1996,56 +1934,48 @@ volumes:
 	})
 }
 
-func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraOnDiskStructure(c *C) {
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/foo": {
-			DevNode: "/dev/foo",
-			DevPath: "/sys/block/foo",
-			DevNum:  "525:1",
-			// assume 34 sectors at end for GPT headers backup
-			DiskUsableSectorEnd: 6000*1024*1024/512 - 34,
-			DiskSizeInBytes:     6000 * 1024 * 1024,
-			SectorSizeBytes:     512,
-			DiskSchema:          "gpt",
-			ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
-			Structure: []disks.Partition{
-				{
-					PartitionLabel:   "nofspart",
-					PartitionUUID:    "C5A930DF-E86A-4BAE-A4C5-C861353796E6",
-					FilesystemType:   "",
-					Major:            525,
-					Minor:            2,
-					KernelDeviceNode: "/dev/foo1",
-					KernelDevicePath: "/sys/block/foo/foo1",
-					DiskIndex:        1,
-					StartInBytes:     1024 * 1024,
-					SizeInBytes:      4096,
-				},
-				{
-					PartitionLabel:   "some-filesystem",
-					PartitionUUID:    "DA2ADBC8-90DF-4B1D-A93F-A92516C12E01",
-					FilesystemLabel:  "some-filesystem",
-					FilesystemUUID:   "3E3D392C-5D50-4C84-8A6E-09B7A3FEA2C7",
-					FilesystemType:   "ext4",
-					Major:            525,
-					Minor:            3,
-					KernelDeviceNode: "/dev/foo2",
-					KernelDevicePath: "/sys/block/foo/foo2",
-					DiskIndex:        2,
-					StartInBytes:     1024*1024 + 4096,
-					SizeInBytes:      1024 * 1024 * 1024,
-				},
-			},
-		},
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
 	})
 	defer restore()
 
+	mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
+	}
+	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
+		c.MkDir(),
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		mod,
+	)
+	c.Assert(err, IsNil)
+
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(vols["pc"], "/dev/vda", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadgettest.VMSystemVolumeDeviceTraits)
+
+	traitsExtra, err := gadget.DiskTraitsFromDeviceAndValidate(vols["foo"], "/dev/vdb", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traitsExtra, DeepEquals, gadgettest.VMExtraVolumeDeviceTraits)
+}
+
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraOnDiskStructure(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/foo": gadgettest.MockExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// yaml doesn't have some-filesystem in it
 	const yaml = `
 volumes:
   foo:
     bootloader: u-boot
     schema: gpt
     structure:
+      - name: barething
+        type: bare
+        size: 1024
       - name: nofspart
         type: EBBEADAF-22C9-E33B-8F5D-0E81686A68CB
         size: 4096
@@ -2054,7 +1984,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/foo", nil)
-	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1052672\) in gadget`)
+	c.Assert(err, ErrorMatches, `volume foo is not compatible with disk /dev/foo: cannot find disk partition /dev/foo2 \(starting at 1053696\) in gadget`)
 }
 
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraLaidOutStructure(c *C) {
@@ -2069,6 +1999,7 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTExtraLaidOutStru
 		SectorSizeBytes:     512,
 		DiskSchema:          "gpt",
 		ID:                  "651AC800-B9FB-4B9D-B6D3-A72EB54D9006",
+		// on disk structure is missing ubuntu-data from the YAML below
 		Structure: []disks.Partition{
 			{
 				PartitionLabel:   "nofspart",
@@ -2168,293 +2099,31 @@ volumes:
 }
 
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *C) {
-	// from a rpi without the kernel assets though for simplicity's sake since
-	// we don't care about the kernel assets for this function at all
-	const yaml = `
-volumes:
-  pi:
-    bootloader: u-boot
-    schema: mbr
-    structure:
-    - content:
-      - source: boot-assets/
-        target: /
-      filesystem: vfat
-      name: ubuntu-seed
-      role: system-seed
-      size: 1200M
-      type: 0C
-    - content:
-      - source: boot.sel
-        target: uboot/ubuntu/boot.sel
-      filesystem: vfat
-      name: ubuntu-boot
-      role: system-boot
-      size: 750M
-      type: 0C
-    - filesystem: ext4
-      name: ubuntu-save
-      role: system-save
-      size: 16M
-      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
-    - filesystem: ext4
-      name: ubuntu-data
-      role: system-data
-      size: 1500M
-      type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
-`
-
-	// effectively same mock real disk used as an example in
-	// TestSaveLoadDiskVolumeDeviceTraits
-
-	const oneMeg = 1024 * 1024
-
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/mmcblk0": {
-			DevNode:             "/dev/mmcblk0",
-			DevPath:             "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
-			DevNum:              "179:0",
-			DiskUsableSectorEnd: 30528 * oneMeg / 512,
-			DiskSizeInBytes:     30528 * oneMeg,
-			SectorSizeBytes:     512,
-			DiskSchema:          "dos",
-			ID:                  "7c301cbd",
-			Structure: []disks.Partition{
-				{
-					PartitionUUID:    "7c301cbd-01",
-					FilesystemLabel:  "ubuntu-seed",
-					FilesystemUUID:   "0E09-0822",
-					FilesystemType:   "vfat",
-					Major:            179,
-					Minor:            1,
-					KernelDeviceNode: "/dev/mmcblk0p1",
-					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-					DiskIndex:        1,
-					StartInBytes:     oneMeg,
-					SizeInBytes:      1200 * oneMeg,
-				},
-				{
-					PartitionUUID:    "7c301cbd-02",
-					FilesystemLabel:  "ubuntu-boot",
-					FilesystemUUID:   "23F9-881F",
-					FilesystemType:   "vfat",
-					Major:            179,
-					Minor:            2,
-					KernelDeviceNode: "/dev/mmcblk0p2",
-					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-					DiskIndex:        2,
-					StartInBytes:     (1 + 1200) * oneMeg,
-					SizeInBytes:      750 * oneMeg,
-				},
-				{
-					PartitionUUID:    "7c301cbd-03",
-					FilesystemLabel:  "ubuntu-save",
-					FilesystemUUID:   "1cdd5826-e9de-4d27-83f7-20249e710590",
-					FilesystemType:   "ext4",
-					Major:            179,
-					Minor:            3,
-					KernelDeviceNode: "/dev/mmcblk0p3",
-					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
-					DiskIndex:        3,
-					StartInBytes:     (1 + 1200 + 750) * oneMeg,
-					SizeInBytes:      16 * oneMeg,
-				},
-				{
-					PartitionUUID:    "7c301cbd-04",
-					FilesystemLabel:  "ubuntu-data",
-					FilesystemUUID:   "d7f39661-1da0-48de-8967-ce41343d4345",
-					FilesystemType:   "ext4",
-					Major:            179,
-					Minor:            4,
-					KernelDeviceNode: "/dev/mmcblk0p4",
-					KernelDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
-					DiskIndex:        4,
-					StartInBytes:     (1 + 1200 + 750 + 16) * oneMeg,
-					SizeInBytes:      (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
-				},
-			},
-		},
+		"/dev/mmcblk0": gadgettest.ExpectedRaspiMockDiskMapping,
 	})
 	defer restore()
 
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), yaml, nil)
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, nil)
 	c.Assert(err, IsNil)
 
 	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
 	c.Assert(err, IsNil)
-	c.Assert(traits, DeepEquals, gadget.DiskVolumeDeviceTraits{
-		OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0",
-		OriginalKernelPath: "/dev/mmcblk0",
-		DiskID:             "7c301cbd",
-		Size:               30528 * oneMeg, // ~ 32 GB SD card
-		SectorSize:         512,
-		Schema:             "dos",
-		Structure: []gadget.DiskStructureDeviceTraits{
-			{
-				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p1",
-				OriginalKernelPath: "/dev/mmcblk0p1",
-				PartitionUUID:      "7c301cbd-01",
-				FilesystemLabel:    "ubuntu-seed",
-				FilesystemUUID:     "0E09-0822",
-				FilesystemType:     "vfat",
-				Offset:             oneMeg,
-				Size:               (1200) * oneMeg,
-			},
-			{
-				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p2",
-				OriginalKernelPath: "/dev/mmcblk0p2",
-				PartitionUUID:      "7c301cbd-02",
-				FilesystemLabel:    "ubuntu-boot",
-				FilesystemUUID:     "23F9-881F",
-				FilesystemType:     "vfat",
-				Offset:             (1 + 1200) * oneMeg,
-				Size:               (750) * oneMeg,
-			},
-			{
-				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p3",
-				OriginalKernelPath: "/dev/mmcblk0p3",
-				PartitionUUID:      "7c301cbd-03",
-				FilesystemLabel:    "ubuntu-save",
-				FilesystemUUID:     "1cdd5826-e9de-4d27-83f7-20249e710590",
-				FilesystemType:     "ext4",
-				Offset:             (1 + 1200 + 750) * oneMeg,
-				Size:               16 * oneMeg,
-			},
-			{
-				OriginalDevicePath: "/sys/devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0/mmcblk0p4",
-				OriginalKernelPath: "/dev/mmcblk0p4",
-				PartitionUUID:      "7c301cbd-04",
-				FilesystemLabel:    "ubuntu-data",
-				FilesystemUUID:     "d7f39661-1da0-48de-8967-ce41343d4345",
-				FilesystemType:     "ext4",
-				Offset:             (1 + 1200 + 750 + 16) * oneMeg,
-				// total size - offset of last structure
-				Size: (30528 - (1 + 1200 + 750 + 16)) * oneMeg,
-			},
-		},
-	})
-}
-
-// adapted from https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
-// but without the content
-const uc16YAMLImplicitSystemData = `volumes:
-  pc:
-    bootloader: grub
-    structure:
-      - name: mbr
-        type: mbr
-        size: 440
-      - name: BIOS Boot
-        type: DA,21686148-6449-6E6F-744E-656564454649
-        size: 1M
-        offset: 1M
-        offset-write: mbr+92
-      - name: EFI System
-        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-        filesystem: vfat
-        filesystem-label: system-boot
-        size: 50M
-`
-
-var uc16ImplicitSystemDataMockDiskMapping = &disks.MockDiskMapping{
-	DevNode: "/dev/sda",
-	DevPath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda",
-	DevNum:  "600:1",
-	// assume 34 sectors at end for GPT headers backup
-	DiskUsableSectorEnd: 10240*1024*1024/512 - 33,
-	DiskSizeInBytes:     10240 * 1024 * 1024,
-	SectorSizeBytes:     512,
-	DiskSchema:          "gpt",
-	ID:                  "f69dbcfe-1258-4b36-9d1f-817fdeb61aa3",
-	Structure: []disks.Partition{
-		{
-			KernelDeviceNode: "/dev/sda1",
-			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda1",
-			PartitionUUID:    "420e5a20-b888-42e2-b7df-ced5cbf14517",
-			PartitionLabel:   "BIOS\\x20Boot",
-			PartitionType:    "21686148-6449-6E6F-744E-656564454649",
-			StartInBytes:     1024 * 1024,
-			SizeInBytes:      1024 * 1024,
-			Major:            600,
-			Minor:            2,
-			DiskIndex:        1,
-		},
-		{
-			KernelDeviceNode: "/dev/sda2",
-			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda2",
-			PartitionUUID:    "fc8626b9-af30-4b3c-83c4-05bed39bb82e",
-			PartitionLabel:   "EFI\\x20System",
-			PartitionType:    "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			FilesystemUUID:   "6D21-B3FE",
-			FilesystemLabel:  "system-boot",
-			FilesystemType:   "vfat",
-			StartInBytes:     (1 + 1) * 1024 * 1024,
-			SizeInBytes:      50 * 1024 * 1024,
-			Major:            600,
-			Minor:            3,
-			DiskIndex:        2,
-		},
-		// has writable partition here since it does physically exist on disk
-		{
-			KernelDeviceNode: "/dev/sda3",
-			KernelDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda3",
-			PartitionUUID:    "ade3ba65-7831-fd40-bbe2-e01c9774ed5b",
-			PartitionLabel:   "writable",
-			PartitionType:    "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			FilesystemUUID:   "cba2b8b3-c2e4-4e51-9a57-d35041b7bf9a",
-			FilesystemLabel:  "writable",
-			FilesystemType:   "ext4",
-			StartInBytes:     (50 + 1 + 1) * 1024 * 1024,
-			SizeInBytes:      10682875392,
-			Major:            600,
-			Minor:            4,
-			DiskIndex:        3,
-		},
-	},
-}
-
-var uc16ImplicitSystemDataDeviceTraits = gadget.DiskVolumeDeviceTraits{
-	OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda",
-	OriginalKernelPath: "/dev/sda",
-	DiskID:             "f69dbcfe-1258-4b36-9d1f-817fdeb61aa3",
-	Size:               10737418240,
-	SectorSize:         512,
-	Schema:             "gpt",
-	Structure: []gadget.DiskStructureDeviceTraits{
-		{
-			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda1",
-			OriginalKernelPath: "/dev/sda1",
-			PartitionUUID:      "420e5a20-b888-42e2-b7df-ced5cbf14517",
-			PartitionType:      "21686148-6449-6E6F-744E-656564454649",
-			PartitionLabel:     "BIOS\\x20Boot",
-			Offset:             1024 * 1024,
-			Size:               1024 * 1024,
-		},
-		{
-			OriginalDevicePath: "/sys/devices/pci0000:00/0000:00:01.1/ata1/host0/target0:0:0/0:0:0:0/block/sda/sda2",
-			OriginalKernelPath: "/dev/sda2",
-			PartitionUUID:      "fc8626b9-af30-4b3c-83c4-05bed39bb82e",
-			PartitionType:      "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			PartitionLabel:     "EFI\\x20System",
-			FilesystemType:     "vfat",
-			FilesystemUUID:     "6D21-B3FE",
-			FilesystemLabel:    "system-boot",
-			Offset:             1024*1024 + 1024*1024,
-			Size:               52428800,
-		},
-		// note no writable structure here - since it's not in the YAML, we
-		// don't save it in the traits either
-	},
+	// we normally get nil returned, but for reasons, the traits object in
+	// gadgettest is not nil
+	c.Assert(traits.StructureEncryption, IsNil)
+	traits.StructureEncryption = map[string]gadget.StructureEncryptionParameters{}
+	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiDiskVolumeDeviceTraits)
 }
 
 func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataHappy(c *C) {
 	// mock the device name
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
-		"/dev/sda": uc16ImplicitSystemDataMockDiskMapping,
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
 	})
 	defer restore()
 
-	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), uc16YAMLImplicitSystemData, nil)
+	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, nil)
 	c.Assert(err, IsNil)
 
 	// the volume cannot be found with no opts set
@@ -2469,5 +2138,5 @@ func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemD
 	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/sda", opts)
 	c.Assert(err, IsNil)
 
-	c.Assert(traits, DeepEquals, uc16ImplicitSystemDataDeviceTraits)
+	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
 }

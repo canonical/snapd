@@ -10,9 +10,7 @@ environment:
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
-    # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
-    # a different go in gccgo tests)
-    PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
+    PATH: $GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
@@ -122,7 +120,6 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-                  image: ubuntu-os-cloud-devel/ubuntu-2204-lts
 
             - debian-10-64:
                   workers: 6
@@ -149,6 +146,10 @@ backends:
                   workers: 6
                   storage: preserve-size
                   image: centos-7-64
+            - centos-8-64:
+                  workers: 6
+                  storage: preserve-size
+                  image: centos-stream-8
             # unstable systems below
             - opensuse-15.2-64:
                   workers: 6
@@ -158,10 +159,6 @@ backends:
             - opensuse-tumbleweed-64:
                   workers: 6
                   manual: true
-            - centos-8-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-8-64
 
     google-sru:
         type: google
@@ -242,7 +239,14 @@ backends:
                   username: ubuntu
                   password: ubuntu
                   bios: uefi
-                  # TODO: remove one everyone switch to official spread
+                  # TODO: remove once everyone switch to official spread
+                  flags: [virtio]
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
+                  username: ubuntu
+                  password: ubuntu
+                  bios: uefi
+                  # TODO: remove once everyone switch to official spread
                   flags: [virtio]
             - ubuntu-18.04-64:
                   username: ubuntu
@@ -406,13 +410,19 @@ backends:
             - ubuntu-core-20-64:
                   username: external
                   password: ubuntu
-            - ubuntu-core-20-32:
-                  username: external
-                  password: ubuntu
             - ubuntu-core-20-arm-64:
                   username: external
                   password: ubuntu
             - ubuntu-core-20-arm-32:
+                  username: external
+                  password: ubuntu
+            - ubuntu-core-22-64:
+                  username: external
+                  password: ubuntu
+            - ubuntu-core-22-arm-64:
+                  username: external
+                  password: ubuntu
+            - ubuntu-core-22-arm-32:
                   username: external
                   password: ubuntu
 
@@ -583,6 +593,13 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
+    if [[ "$SPREAD_SYSTEM" == centos-8-* ]]; then
+        # the default image of CentOS 8 Stream is set up in enforcing mode,
+        # which may break some tests. Note that there are tests targeting
+        # SELinux which explicitly enable enforcing mode.
+        setenforce 0
+    fi
+
     # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
@@ -632,10 +649,18 @@ prepare: |
         apt-get update && apt-get install -y eatmydata
     fi
 
-    if [[ "$SPREAD_SYSTEM" == centos-* ]]; then
-        # make sure EPEL is enabled
-        yum install -y epel-release
-    fi
+    case "$SPREAD_SYSTEM" in
+        centos-7-*)
+            # make sure EPEL is enabled
+            yum install -y epel-release
+            ;;
+        centos-8-*)
+            # enable powertools repository
+            dnf config-manager --set-enabled powertools
+            # CentOS Stream requires EPEL Next too, see https://docs.fedoraproject.org/en-US/epel/
+            dnf install -y epel-release epel-next-release
+            ;;
+    esac
 
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
@@ -946,13 +971,12 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
-            tests.backup prepare
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
         restore-each: |
             tests.nested vm remove
             tests.nested restore
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -996,12 +1020,12 @@ suites:
             tests.nested prepare
             tests.nested build-image classic
         prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
             tests.nested vm remove
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
 
@@ -1047,12 +1071,12 @@ suites:
             tests.nested prepare
             tests.nested build-image core
         prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.backup prepare
             tests.nested create-vm core
         restore-each: |
             tests.nested vm remove
-            tests.cleanup restore
-            tests.backup restore
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             tests.nested restore
 

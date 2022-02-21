@@ -3083,7 +3083,7 @@ type recoveryBootenv20Suite struct {
 
 	bootloader *bootloadertest.MockBootloader
 
-	dev boot.Device
+	dev snap.Device
 }
 
 var _ = Suite(&recoveryBootenv20Suite{})
@@ -3510,7 +3510,7 @@ type bootKernelCommandLineSuite struct {
 
 	bootloader            *bootloadertest.MockTrustedAssetsBootloader
 	gadgetSnap            string
-	uc20dev               boot.Device
+	uc20dev               snap.Device
 	recoveryKernelBf      bootloader.BootFile
 	runKernelBf           bootloader.BootFile
 	modeenvWithEncryption *boot.Modeenv

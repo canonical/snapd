@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -155,6 +156,11 @@ func verifyLastTasksetIsRerefresh(c *C, tts []*state.TaskSet) {
 
 func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	// TODO: temporary: skip due to timeouts on riscv64
+	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow tests")
+	}
 
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
@@ -431,6 +437,21 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		},
 	})
 
+	// commonly used core and snapd revisions in tests
+	defaultInfoFile := `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+	for _, snapName := range []string{"snapd", "core"} {
+		for _, rev := range []string{"1", "11", "30"} {
+			infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, rev, dirs.CoreLibExecDir, "info")
+			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			c.Assert(err, IsNil)
+		}
+	}
+
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
@@ -650,8 +671,10 @@ hooks:
 
 	snapdirs, err := filepath.Glob(filepath.Join(dirs.SnapMountDir, "*"))
 	c.Assert(err, IsNil)
-	// just README and bin
-	c.Check(snapdirs, HasLen, 2)
+	// just README, bin, snapd, and core (snapd and core are there because we
+	// have info files for those snaps which need to be read from the snapstate
+	// Ensure loop)
+	c.Check(snapdirs, HasLen, 4)
 	for _, d := range snapdirs {
 		c.Check(filepath.Base(d), Not(Equals), "foo")
 	}
@@ -712,7 +735,13 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
+	// TODO: we need a variant of this test which disables the memory cgroup
+	// after installing the snap to ensure that the snap can be removed
+	// successfully when the memory cgroup is disabled
 	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
 	defer r()
 
 	st := s.o.State()
@@ -754,6 +783,64 @@ apps:
 	c.Assert(err, IsNil)
 }
 
+func (s *mgrsSuite) TestHappyRefreshWithQuotasInServiceUnitMaintained(c *C) {
+	// TODO: here we need a variant of this test which sets the memory cgroup
+	// as enabled here, and then disables it after installing the first revision
+	// before performing the refresh in order to catch a regression like what we
+	// had in https://github.com/snapcore/snapd/pull/11339
+
+	r := systemd.MockSystemdVersion(248, nil)
+	defer r()
+
+	r = servicestate.EnsureQuotaUsability()
+	defer r()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+  daemon: simple
+`
+	si := s.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
+
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
+	tr.Commit()
+
+	// add the snap to a quota group
+	ts, err := servicestate.CreateQuota(st, "grp", "", []string{"foo"}, quota.NewResources(quantity.SizeGiB))
+	c.Assert(err, IsNil)
+	quotaUpdateChg := st.NewChange("update-quota", "...")
+	quotaUpdateChg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// ensure that the service unit was written with the Slice=... setting
+	c.Assert(si.Apps["bar"].ServiceFile(), testutil.FileContains, "Slice=snap.grp.slice")
+
+	// now refresh the snap
+	s.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
+
+	// ensure that the snap service unit still has the Slice=... setting
+	c.Assert(si.Apps["bar"].ServiceFile(), testutil.FileContains, "Slice=snap.grp.slice")
+
+	// and also ensure that the snap is still referenced
+	// this is copied from servicestate/internal.AllQuotas, because
+	// servicestate.AllQuotas errors when the memory cgroup is disabled
+	var quotas map[string]*quota.Group
+	err = st.Get("quotas", &quotas)
+	c.Assert(err, IsNil)
+	c.Assert(quotas, HasLen, 1)
+	c.Assert(quotas["grp"].Snaps, DeepEquals, []string{"foo"})
+}
+
 func fakeSnapID(name string) string {
 	if id := naming.WellKnownSnapID(name); id != "" {
 		return id
@@ -776,6 +863,7 @@ const (
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
 	"snap-yaml": @SNAP_YAML@,
+        "base": @BASE@,
 	"summary": "Foo",
 	"description": "this is a description",
 	"version": "@VERSION@",
@@ -917,6 +1005,11 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
 		hit = strings.Replace(hit, `@SNAP_YAML@`, string(rawInfoBuf), -1)
+		baseStr := "null"
+		if info.Base != "" {
+			baseStr = fmt.Sprintf("%q", info.Base)
+		}
+		hit = strings.Replace(hit, `@BASE@`, baseStr, -1)
 		return hit
 	}
 
@@ -1508,6 +1601,216 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 		c.Check(info.Revision, Equals, snap.R(4))
 		c.Check(info.SnapID, Equals, fakeSnapID(name))
 		c.Check(info.Epoch.String(), Equals, "3*")
+	}
+}
+
+func (s *mgrsSuite) TestTransactionalInstallManyFails(c *C) {
+	// test transactional install through store, failing case
+
+	snapNames := []string{"aaaa", "bbbb", "cccc"}
+	for _, name := range snapNames {
+		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
+		s.serveSnap(snapPath, "1")
+	}
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, snapNames)
+	chg := st.NewChange("install-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	st.Unlock()
+	// the download for the refresh above will be performed below, during 'settle'.
+	// fail the refresh of cccc by failing its download
+	s.failNextDownload = "cccc"
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it failed
+	c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("install-snap change not failed"))
+
+	// sanity checks
+	for _, name := range snapNames {
+		_, err := snapstate.CurrentInfo(st, name)
+		c.Assert(err, DeepEquals,
+			&snap.NotInstalledError{Snap: name, Rev: snap.Revision{N: 0}})
+	}
+}
+
+func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
+	// test transactional install many through store, which works, and update
+	// many with a failure, so all refreshes fail
+
+	snapNames := []string{"aaaa", "bbbb", "cccc"}
+	for _, name := range snapNames {
+		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
+		s.serveSnap(snapPath, "1")
+	}
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, snapNames)
+	chg := st.NewChange("install-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it worked
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	// sanity checks
+	for _, name := range snapNames {
+		info, err := snapstate.CurrentInfo(st, name)
+		c.Assert(err, IsNil)
+		c.Assert(info.Revision, Equals, snap.R(1))
+		c.Assert(info.SnapID, Equals, fakeSnapID(name))
+		c.Assert(info.Epoch.String(), Equals, "0")
+	}
+
+	// now add some more snap revisions
+	revno := "2"
+	for _, name := range snapNames {
+		snapPath, _ := s.makeStoreTestSnap(c,
+			fmt.Sprintf("{name: %s, version: 1}", name), revno)
+		s.serveSnap(snapPath, revno)
+	}
+
+	// refresh
+	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, snapNames)
+	chg = st.NewChange("upgrade-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	st.Unlock()
+	// the download for the refresh above will be performed below, during 'settle'.
+	// fail the refresh of cccc by failing its download
+	s.failNextDownload = "cccc"
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), NotNil)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	for _, name := range snapNames {
+		comment := Commentf("%q", name)
+		info, err := snapstate.CurrentInfo(st, name)
+		c.Assert(err, IsNil, comment)
+
+		// All failed: still on rev 1 (epoch 0)
+		c.Assert(info.Revision, Equals, snap.R(1))
+		c.Assert(info.SnapID, Equals, fakeSnapID(name))
+		c.Assert(info.Epoch.String(), Equals, "0")
+	}
+}
+
+func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
+	// test transactional install many through store and update
+	// many, both with success
+
+	snapNames := []string{"aaaa", "bbbb", "cccc"}
+	for _, name := range snapNames {
+		s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", name), "1")
+		s.serveSnap(snapPath, "1")
+	}
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, snapNames)
+	chg := st.NewChange("install-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it worked
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	// sanity checks
+	for _, name := range snapNames {
+		info, err := snapstate.CurrentInfo(st, name)
+		c.Assert(err, IsNil)
+		c.Assert(info.Revision, Equals, snap.R(1))
+		c.Assert(info.SnapID, Equals, fakeSnapID(name))
+	}
+
+	// now add some more snap revisions
+	revno := "2"
+	for _, name := range snapNames {
+		snapPath, _ := s.makeStoreTestSnap(c,
+			fmt.Sprintf("{name: %s, version: 1}", name), revno)
+		s.serveSnap(snapPath, revno)
+	}
+
+	// refresh
+	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, snapNames)
+	chg = st.NewChange("upgrade-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+
+	for _, name := range snapNames {
+		comment := Commentf("%q", name)
+		info, err := snapstate.CurrentInfo(st, name)
+		c.Assert(err, IsNil, comment)
+
+		c.Check(info.Revision, Equals, snap.R(revno))
+		c.Check(info.SnapID, Equals, fakeSnapID(name))
 	}
 }
 
@@ -7761,6 +8064,75 @@ func (s *mgrsSuite) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) {
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set new model assertion`))
 	i++
 	c.Check(i, Equals, len(tasks))
+}
+
+const prereqSnapYaml = `
+name: prereq
+version: 1.0
+base: prereq-base
+plugs:
+  prereq-content:
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: prereq-content
+`
+
+func (s *mgrsSuite) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
+
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "proc"), 0755), IsNil)
+	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "prereq",
+				"id":   fakeSnapID("prereq"),
+			},
+			// prepreq requires prereq-base and prereq-content
+		},
+		"revision": "1",
+	})
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	s.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name": "prereq",
+	})
+
+	snapPath, _ := s.makeStoreTestSnap(c, prereqSnapYaml, "1")
+	s.serveSnap(snapPath, "1")
+
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+		Flags: snapstate.Flags{
+			Required: true,
+		},
+	})
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, ErrorMatches, `cannot remodel with incomplete model, the following snaps are required but not listed: "prereq-base", "prereq-content"`)
+	c.Assert(chg, IsNil)
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {

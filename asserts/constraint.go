@@ -25,6 +25,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 const (
@@ -34,8 +36,15 @@ const (
 	altAttrMatcherFeature = "alt-attr-matcher"
 )
 
+type attrMatchingContext struct {
+	// attrWord is the usage context word for "attribute", mainly
+	// useful in errors
+	attrWord string
+	helper   AttrMatchContext
+}
+
 type attrMatcher interface {
-	match(apath string, v interface{}, ctx AttrMatchContext) error
+	match(apath string, v interface{}, ctx *attrMatchingContext) error
 
 	feature(flabel string) bool
 }
@@ -47,10 +56,16 @@ func chain(path, k string) string {
 	return fmt.Sprintf("%s.%s", path, k)
 }
 
+type compileAttrMatcherOptions struct {
+	allowedOperations []string
+}
+
 type compileContext struct {
 	dotted string
 	hadMap bool
 	wasAlt bool
+
+	opts *compileAttrMatcherOptions
 }
 
 func (cc compileContext) String() string {
@@ -62,6 +77,7 @@ func (cc compileContext) keyEntry(k string) compileContext {
 		dotted: chain(cc.dotted, k),
 		hadMap: true,
 		wasAlt: false,
+		opts:   cc.opts,
 	}
 }
 
@@ -70,6 +86,7 @@ func (cc compileContext) alt(alt int) compileContext {
 		dotted: fmt.Sprintf("%s/alt#%d/", cc.dotted, alt+1),
 		hadMap: cc.hadMap,
 		wasAlt: true,
+		opts:   cc.opts,
 	}
 }
 
@@ -119,11 +136,11 @@ func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMat
 	return matcher, nil
 }
 
-func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMatchContext) error {
+func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx *attrMatchingContext) error {
 	apath = chain(apath, k)
 	// every entry matcher expects the attribute to be set except for $MISSING
 	if _, ok := matcher1.(missingAttrMatcher); !ok && v == nil {
-		return fmt.Errorf("attribute %q has constraints but is unset", apath)
+		return fmt.Errorf("%s %q has constraints but is unset", ctx.attrWord, apath)
 	}
 	if err := matcher1.match(apath, v, ctx); err != nil {
 		return err
@@ -131,7 +148,7 @@ func matchEntry(apath, k string, matcher1 attrMatcher, v interface{}, ctx AttrMa
 	return nil
 }
 
-func matchList(apath string, matcher attrMatcher, l []interface{}, ctx AttrMatchContext) error {
+func matchList(apath string, matcher attrMatcher, l []interface{}, ctx *attrMatchingContext) error {
 	for i, elem := range l {
 		if err := matcher.match(chain(apath, strconv.Itoa(i)), elem, ctx); err != nil {
 			return err
@@ -149,7 +166,7 @@ func (matcher mapAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	switch x := v.(type) {
 	case Attrer:
 		// we get Atter from root-level Check (apath is "")
@@ -168,7 +185,7 @@ func (matcher mapAttrMatcher) match(apath string, v interface{}, ctx AttrMatchCo
 	case []interface{}:
 		return matchList(apath, matcher, x, ctx)
 	default:
-		return fmt.Errorf("attribute %q must be a map", apath)
+		return fmt.Errorf("%s %q must be a map", ctx.attrWord, apath)
 	}
 	return nil
 }
@@ -179,9 +196,9 @@ func (matcher missingAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher missingAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	if v != nil {
-		return fmt.Errorf("attribute %q is constrained to be missing but is set", apath)
+		return fmt.Errorf("%s %q is constrained to be missing but is set", ctx.attrWord, apath)
 	}
 	return nil
 }
@@ -193,13 +210,27 @@ type evalAttrMatcher struct {
 }
 
 var (
-	validEvalAttrMatcher = regexp.MustCompile(`^\$(SLOT|PLUG)\((.+)\)$`)
+	validEvalAttrMatcher    = regexp.MustCompile(`^\$([A-Z]+)\(([^,]+)(?:,([^,]+))?\)$`)
+	validEvalAttrMatcherOps = map[string]bool{
+		"PLUG": true,
+		"SLOT": true,
+	}
 )
 
 func compileEvalAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
+	if len(cc.opts.allowedOperations) == 0 {
+		return nil, fmt.Errorf("cannot compile %q constraint %q: no $OP() constraints supported", cc, s)
+	}
 	ops := validEvalAttrMatcher.FindStringSubmatch(s)
-	if len(ops) == 0 {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid $SLOT()/$PLUG() constraint", cc, s)
+	if len(ops) == 0 || !validEvalAttrMatcherOps[ops[1]] || !strutil.ListContains(cc.opts.allowedOperations, ops[1]) {
+		oplst := make([]string, 0, len(cc.opts.allowedOperations))
+		for _, op := range cc.opts.allowedOperations {
+			oplst = append(oplst, fmt.Sprintf("$%s()", op))
+		}
+		return nil, fmt.Errorf("cannot compile %q constraint %q: not a valid %s constraint", cc, s, strings.Join(oplst, "/"))
+	}
+	if ops[3] != "" {
+		return nil, fmt.Errorf("cannot compile %q constraint %q: $%s() constraint expects 1 argument", cc, s, ops[1])
 	}
 	return evalAttrMatcher{
 		op:  ops[1],
@@ -211,23 +242,23 @@ func (matcher evalAttrMatcher) feature(flabel string) bool {
 	return flabel == dollarAttrConstraintsFeature
 }
 
-func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
-	if ctx == nil {
-		return fmt.Errorf("attribute %q cannot be matched without context", apath)
+func (matcher evalAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
+	if ctx.helper == nil {
+		return fmt.Errorf("%s %q cannot be matched without context", ctx.attrWord, apath)
 	}
 	var comp func(string) (interface{}, error)
 	switch matcher.op {
 	case "SLOT":
-		comp = ctx.SlotAttr
+		comp = ctx.helper.SlotAttr
 	case "PLUG":
-		comp = ctx.PlugAttr
+		comp = ctx.helper.PlugAttr
 	}
 	v1, err := comp(matcher.arg)
 	if err != nil {
-		return fmt.Errorf("attribute %q constraint $%s(%s) cannot be evaluated: %v", apath, matcher.op, matcher.arg, err)
+		return fmt.Errorf("%s %q constraint $%s(%s) cannot be evaluated: %v", ctx.attrWord, apath, matcher.op, matcher.arg, err)
 	}
 	if !reflect.DeepEqual(v, v1) {
-		return fmt.Errorf("attribute %q does not match $%s(%s): %v != %v", apath, matcher.op, matcher.arg, v, v1)
+		return fmt.Errorf("%s %q does not match $%s(%s): %v != %v", ctx.attrWord, apath, matcher.op, matcher.arg, v, v1)
 	}
 	return nil
 }
@@ -248,7 +279,7 @@ func (matcher regexpAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	var s string
 	switch x := v.(type) {
 	case string:
@@ -260,10 +291,10 @@ func (matcher regexpAttrMatcher) match(apath string, v interface{}, ctx AttrMatc
 	case []interface{}:
 		return matchList(apath, matcher, x, ctx)
 	default:
-		return fmt.Errorf("attribute %q must be a scalar or list", apath)
+		return fmt.Errorf("%s %q must be a scalar or list", ctx.attrWord, apath)
 	}
 	if !matcher.Regexp.MatchString(s) {
-		return fmt.Errorf("attribute %q value %q does not match %v", apath, s, matcher.Regexp)
+		return fmt.Errorf("%s %q value %q does not match %v", ctx.attrWord, apath, s, matcher.Regexp)
 	}
 	return nil
 
@@ -298,7 +329,7 @@ func (matcher altAttrMatcher) feature(flabel string) bool {
 	return false
 }
 
-func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchContext) error {
+func (matcher altAttrMatcher) match(apath string, v interface{}, ctx *attrMatchingContext) error {
 	// if the value is a list apply the alternative matcher to each element
 	// like we do for other matchers
 	switch x := v.(type) {
@@ -319,7 +350,115 @@ func (matcher altAttrMatcher) match(apath string, v interface{}, ctx AttrMatchCo
 	}
 	apathDescr := ""
 	if apath != "" {
-		apathDescr = fmt.Sprintf(" for attribute %q", apath)
+		apathDescr = fmt.Sprintf(" for %s %q", ctx.attrWord, apath)
 	}
 	return fmt.Errorf("no alternative%s matches: %v", apathDescr, firstErr)
+}
+
+// DeviceScopeConstraint specifies a constraint based on which brand
+// store, brand or model the device belongs to.
+type DeviceScopeConstraint struct {
+	Store []string
+	Brand []string
+	// Model is a list of precise "<brand>/<model>" constraints
+	Model []string
+}
+
+var (
+	validStoreID         = regexp.MustCompile("^[-A-Z0-9a-z_]+$")
+	validBrandSlashModel = regexp.MustCompile("^(" +
+		strings.Trim(validAccountID.String(), "^$") +
+		")/(" +
+		strings.Trim(validModel.String(), "^$") +
+		")$")
+	deviceScopeConstraints = map[string]*regexp.Regexp{
+		"on-store": validStoreID,
+		"on-brand": validAccountID,
+		// on-model constraints are of the form list of
+		// <brand>/<model> strings where <brand> are account
+		// IDs as they appear in the respective model assertion
+		"on-model": validBrandSlashModel,
+	}
+)
+
+func detectDeviceScopeConstraint(cMap map[string]interface{}) bool {
+	// for consistency and simplicity we support all of on-store,
+	// on-brand, and on-model to appear together. The interpretation
+	// layer will AND them as usual
+	for field := range deviceScopeConstraints {
+		if cMap[field] != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// compileDeviceScopeConstraint compiles a DeviceScopeConstraint out of cMap,
+// it returns nil and no error if there are no on-store/on-brand/on-model
+// constraints in cMap
+func compileDeviceScopeConstraint(cMap map[string]interface{}, context string) (constr *DeviceScopeConstraint, err error) {
+	if !detectDeviceScopeConstraint(cMap) {
+		return nil, nil
+	}
+	// initial map size of 2: we expect usual cases to have just one of the
+	// constraints or rarely 2
+	deviceConstr := make(map[string][]string, 2)
+	for field, validRegexp := range deviceScopeConstraints {
+		vals, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validRegexp)
+		if err != nil {
+			return nil, err
+		}
+		deviceConstr[field] = vals
+	}
+
+	return &DeviceScopeConstraint{
+		Store: deviceConstr["on-store"],
+		Brand: deviceConstr["on-brand"],
+		Model: deviceConstr["on-model"],
+	}, nil
+}
+
+type DeviceScopeConstraintCheckOptions struct {
+	UseFriendlyStores bool
+}
+
+// Check tests whether the model and the optional store match the constraints.
+func (c *DeviceScopeConstraint) Check(model *Model, store *Store, opts *DeviceScopeConstraintCheckOptions) error {
+	if model == nil {
+		return fmt.Errorf("cannot match on-store/on-brand/on-model without model")
+	}
+	if store != nil && store.Store() != model.Store() {
+		return fmt.Errorf("store assertion and model store must match")
+	}
+	if opts == nil {
+		opts = &DeviceScopeConstraintCheckOptions{}
+	}
+	if len(c.Store) != 0 {
+		if !strutil.ListContains(c.Store, model.Store()) {
+			mismatch := true
+			if store != nil && opts.UseFriendlyStores {
+				for _, sto := range c.Store {
+					if strutil.ListContains(store.FriendlyStores(), sto) {
+						mismatch = false
+						break
+					}
+				}
+			}
+			if mismatch {
+				return fmt.Errorf("on-store mismatch")
+			}
+		}
+	}
+	if len(c.Brand) != 0 {
+		if !strutil.ListContains(c.Brand, model.BrandID()) {
+			return fmt.Errorf("on-brand mismatch")
+		}
+	}
+	if len(c.Model) != 0 {
+		brandModel := fmt.Sprintf("%s/%s", model.BrandID(), model.Model())
+		if !strutil.ListContains(c.Model, brandModel) {
+			return fmt.Errorf("on-model mismatch")
+		}
+	}
+	return nil
 }

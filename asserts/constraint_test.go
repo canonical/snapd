@@ -62,7 +62,7 @@ func (s *attrMatcherSuite) TestSimple(c *C) {
   bar: BAR`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	values := map[string]interface{}{
@@ -79,14 +79,14 @@ func (s *attrMatcherSuite) TestSimple(c *C) {
 		"baz": "BAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^\(BAR\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BAZ" does not match \^\(BAR\)\$`)
 
 	values = map[string]interface{}{
 		"foo": "FOO",
 		"baz": "BAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" has constraints but is unset`)
+	c.Check(err, ErrorMatches, `field "bar" has constraints but is unset`)
 }
 
 func (s *attrMatcherSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
@@ -94,7 +94,7 @@ func (s *attrMatcherSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
   bar: BAR|BAZ`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	values := map[string]interface{}{
@@ -107,25 +107,25 @@ func (s *attrMatcherSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
 		"bar": "BARR",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
 
 	values = map[string]interface{}{
 		"bar": "BBAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
 
 	values = map[string]interface{}{
 		"bar": "BABAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
 
 	values = map[string]interface{}{
 		"bar": "BARAZ",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `attribute "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
+	c.Check(err, ErrorMatches, `field "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
 }
 
 func (s *attrMatcherSuite) TestNested(c *C) {
@@ -136,7 +136,7 @@ func (s *attrMatcherSuite) TestNested(c *C) {
     bar2: BAR2`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -154,7 +154,7 @@ foo: FOO
 bar: BAZ
 baz: BAZ
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "bar" must be a map`)
+	c.Check(err, ErrorMatches, `field "bar" must be a map`)
 
 	err = domatch(vals(`
 foo: FOO
@@ -164,7 +164,7 @@ bar:
   bar3: BAR3
 baz: BAZ
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "bar\.bar2" value "BAR22" does not match \^\(BAR2\)\$`)
+	c.Check(err, ErrorMatches, `field "bar\.bar2" value "BAR22" does not match \^\(BAR2\)\$`)
 
 	err = domatch(vals(`
 foo: FOO
@@ -175,7 +175,7 @@ bar:
   bar3: BAR3
 baz: BAZ
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "bar\.bar2" must be a scalar or list`)
+	c.Check(err, ErrorMatches, `field "bar\.bar2" must be a scalar or list`)
 }
 
 func (s *attrMatcherSuite) TestAlternative(c *C) {
@@ -188,7 +188,7 @@ func (s *attrMatcherSuite) TestAlternative(c *C) {
     bar: BAZ`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"])
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"], nil)
 	c.Assert(err, IsNil)
 
 	values := map[string]interface{}{
@@ -213,7 +213,7 @@ func (s *attrMatcherSuite) TestAlternative(c *C) {
 		"baz": "BAR",
 	}
 	err = domatch(values, nil)
-	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^\(BAR\)\$`)
+	c.Check(err, ErrorMatches, `no alternative matches: field "bar" value "BARR" does not match \^\(BAR\)\$`)
 }
 
 func (s *attrMatcherSuite) TestNestedAlternative(c *C) {
@@ -226,7 +226,7 @@ func (s *attrMatcherSuite) TestNestedAlternative(c *C) {
       - BAR22`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -251,7 +251,7 @@ bar:
   bar1: BAR1
   bar2: BAR3
 `), nil)
-	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
+	c.Check(err, ErrorMatches, `no alternative for field "bar\.bar2" matches: field "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
 }
 
 func (s *attrMatcherSuite) TestAlternativeMatchingStringList(c *C) {
@@ -264,7 +264,7 @@ write:
   write: /var/(tmp|lib/snapd/snapshots)`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(toMatch, nil)
@@ -276,7 +276,7 @@ write:
     - /var/lib/snapd/snapshots`))
 	c.Assert(err, IsNil)
 
-	domatchLst, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatchLst, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatchLst(toMatch, nil)
@@ -296,7 +296,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
       options: rw|bind|nodev`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(toMatch, nil)
@@ -318,7 +318,7 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
         - bind`))
 	c.Assert(err, IsNil)
 
-	domatchExtensive, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatchExtensive, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatchExtensive(toMatch, nil)
@@ -340,11 +340,11 @@ mnt: [{what: "/dev/x*", where: "/foo/*", options: ["rw", "nodev"]}, {what: "/bar
         - bind`))
 	c.Assert(err, IsNil)
 
-	domatchExtensiveNoMatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatchExtensiveNoMatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatchExtensiveNoMatch(toMatch, nil)
-	c.Check(err, ErrorMatches, `no alternative for attribute "mnt\.0" matches: no alternative for attribute "mnt\.0.options\.1" matches:.*`)
+	c.Check(err, ErrorMatches, `no alternative for field "mnt\.0" matches: no alternative for field "mnt\.0.options\.1" matches:.*`)
 }
 
 func (s *attrMatcherSuite) TestOtherScalars(c *C) {
@@ -353,7 +353,7 @@ func (s *attrMatcherSuite) TestOtherScalars(c *C) {
   bar: true`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -371,47 +371,58 @@ bar: true
 }
 
 func (s *attrMatcherSuite) TestCompileErrors(c *C) {
-	_, err := asserts.CompileAttrMatcher(1)
+	_, err := asserts.CompileAttrMatcher(1, nil)
 	c.Check(err, ErrorMatches, `top constraint must be a key-value map, regexp or a list of alternative constraints: 1`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": 1,
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `constraint "foo" must be a key-value map, regexp or a list of alternative constraints: 1`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": "[",
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\[": error parsing regexp:.*`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": []interface{}{"foo", "["},
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `cannot compile "foo/alt#2/" constraint "\[": error parsing regexp:.*`)
 
 	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
 		"foo": []interface{}{"foo", []interface{}{"bar", "baz"}},
-	})
+	}, nil)
 	c.Check(err, ErrorMatches, `cannot nest alternative constraints directly at "foo/alt#2/"`)
 
-	_, err = asserts.CompileAttrMatcher("FOO")
+	_, err = asserts.CompileAttrMatcher("FOO", nil)
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
 
-	_, err = asserts.CompileAttrMatcher([]interface{}{"FOO"})
+	_, err = asserts.CompileAttrMatcher([]interface{}{"FOO"}, nil)
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
+
+	_, err = asserts.CompileAttrMatcher(map[string]interface{}{
+		"foo": "$FOO()",
+	}, nil)
+	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\$FOO\(\)": no \$OP\(\) constraints supported`)
 
 	wrongDollarConstraints := []string{
 		"$",
 		"$FOO(a)",
 		"$SLOT",
 		"$SLOT()",
+		"$SLOT(x,y)",
+		"$SLOT(x,y,z)",
 	}
 
 	for _, wrong := range wrongDollarConstraints {
 		_, err := asserts.CompileAttrMatcher(map[string]interface{}{
 			"foo": wrong,
-		})
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$PLUG\(\) constraint`, regexp.QuoteMeta(wrong)))
+		}, []string{"SLOT", "OP"})
+		if wrong != "$SLOT(x,y)" {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": not a valid \$SLOT\(\)/\$OP\(\) constraint`, regexp.QuoteMeta(wrong)))
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot compile "foo" constraint "%s": \$SLOT\(\) constraint expects 1 argument`, regexp.QuoteMeta(wrong)))
+		}
 
 	}
 }
@@ -421,7 +432,7 @@ func (s *attrMatcherSuite) TestMatchingListsSimple(c *C) {
   foo: /foo/.*`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -432,7 +443,7 @@ foo: ["/foo/x", "/foo/y"]
 	err = domatch(vals(`
 foo: ["/foo/x", "/foo"]
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "foo\.1" value "/foo" does not match \^\(/foo/\.\*\)\$`)
+	c.Check(err, ErrorMatches, `field "foo\.1" value "/foo" does not match \^\(/foo/\.\*\)\$`)
 }
 
 func (s *attrMatcherSuite) TestMissingCheck(c *C) {
@@ -440,7 +451,7 @@ func (s *attrMatcherSuite) TestMissingCheck(c *C) {
   foo: $MISSING`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -451,7 +462,7 @@ bar: baz
 	err = domatch(vals(`
 foo: ["x"]
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "foo" is constrained to be missing but is set`)
+	c.Check(err, ErrorMatches, `field "foo" is constrained to be missing but is set`)
 }
 
 func (s *attrMatcherSuite) TestEvalCheck(c *C) {
@@ -461,14 +472,14 @@ func (s *attrMatcherSuite) TestEvalCheck(c *C) {
   bar: $PLUG(bar.baz)`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), []string{"SLOT", "PLUG"})
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
 foo: foo
 bar: bar
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "(foo|bar)" cannot be matched without context`)
+	c.Check(err, ErrorMatches, `field "(foo|bar)" cannot be matched without context`)
 
 	calls := make(map[[2]string]bool)
 	comp1 := func(op string, arg string) (interface{}, error) {
@@ -498,7 +509,7 @@ bar: bar.baz
 foo: foo
 bar: bar.baz
 `), testEvalAttr{comp2})
-	c.Check(err, ErrorMatches, `attribute "bar" constraint \$PLUG\(bar\.baz\) cannot be evaluated: boom`)
+	c.Check(err, ErrorMatches, `field "bar" constraint \$PLUG\(bar\.baz\) cannot be evaluated: boom`)
 
 	comp3 := func(op string, arg string) (interface{}, error) {
 		if op == "slot" {
@@ -511,7 +522,7 @@ bar: bar.baz
 foo: foo
 bar: bar.baz
 `), testEvalAttr{comp3})
-	c.Check(err, ErrorMatches, `attribute "foo" does not match \$SLOT\(foo\): foo != other-value`)
+	c.Check(err, ErrorMatches, `field "foo" does not match \$SLOT\(foo\): foo != other-value`)
 }
 
 func (s *attrMatcherSuite) TestMatchingListsMap(c *C) {
@@ -520,7 +531,7 @@ func (s *attrMatcherSuite) TestMatchingListsMap(c *C) {
     p: /foo/.*`))
 	c.Assert(err, IsNil)
 
-	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}))
+	domatch, err := asserts.CompileAttrMatcher(m["attrs"].(map[string]interface{}), nil)
 	c.Assert(err, IsNil)
 
 	err = domatch(vals(`
@@ -531,5 +542,281 @@ foo: [{p: "/foo/x"}, {p: "/foo/y"}]
 	err = domatch(vals(`
 foo: [{p: "zzz"}, {p: "/foo/y"}]
 `), nil)
-	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
+	c.Check(err, ErrorMatches, `field "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
+}
+
+type deviceScopeConstraintSuite struct {
+	testutil.BaseTest
+}
+
+var _ = Suite(&deviceScopeConstraintSuite{})
+
+func (s *deviceScopeConstraintSuite) TestCompile(c *C) {
+	tests := []struct {
+		m   map[string]interface{}
+		exp *asserts.DeviceScopeConstraint
+		err string
+	}{
+		{m: nil, exp: nil},
+		{m: map[string]interface{}{"on-store": []interface{}{"foo", "bar"}}, exp: &asserts.DeviceScopeConstraint{Store: []string{"foo", "bar"}}},
+		{m: map[string]interface{}{"on-brand": []interface{}{"foo", "bar"}}, exp: &asserts.DeviceScopeConstraint{Brand: []string{"foo", "bar"}}},
+		{m: map[string]interface{}{"on-model": []interface{}{"foo/model1", "bar/model-2"}}, exp: &asserts.DeviceScopeConstraint{Model: []string{"foo/model1", "bar/model-2"}}},
+		{
+			m: map[string]interface{}{
+				"on-brand": []interface{}{"foo", "bar"},
+				"on-model": []interface{}{"foo/model1", "bar/model-2"},
+				"on-store": []interface{}{"foo", "bar"},
+			},
+			exp: &asserts.DeviceScopeConstraint{
+				Store: []string{"foo", "bar"},
+				Brand: []string{"foo", "bar"},
+				Model: []string{"foo/model1", "bar/model-2"},
+			},
+		},
+		{m: map[string]interface{}{"on-store": ""}, err: `on-store in constraint must be a list of strings`},
+		{m: map[string]interface{}{"on-brand": "foo"}, err: `on-brand in constraint must be a list of strings`},
+		{m: map[string]interface{}{"on-model": map[string]interface{}{"brand": "x"}}, err: `on-model in constraint must be a list of strings`},
+	}
+
+	for _, t := range tests {
+		dsc, err := asserts.CompileDeviceScopeConstraint(t.m, "constraint")
+		if t.err == "" {
+			c.Check(err, IsNil)
+			c.Check(dsc, DeepEquals, t.exp)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+			c.Check(dsc, IsNil)
+		}
+	}
+}
+
+func (s *deviceScopeConstraintSuite) TestValidOnStoreBrandModel(c *C) {
+	tests := []struct {
+		constr string
+		value  string
+		valid  bool
+	}{
+		{"on-store", "", false},
+		{"on-store", "foo", true},
+		{"on-store", "F_o-O88", true},
+		{"on-store", "foo!", false},
+		{"on-store", "foo.", false},
+		{"on-store", "foo/", false},
+		{"on-brand", "", false},
+		// custom set brands (length 2-28)
+		{"on-brand", "dwell", true},
+		{"on-brand", "Dwell", false},
+		{"on-brand", "dwell-88", true},
+		{"on-brand", "dwell_88", false},
+		{"on-brand", "dwell.88", false},
+		{"on-brand", "dwell:88", false},
+		{"on-brand", "dwell!88", false},
+		{"on-brand", "a", false},
+		{"on-brand", "ab", true},
+		{"on-brand", "0123456789012345678901234567", true},
+		// snappy id brands (fixed length 32)
+		{"on-brand", "01234567890123456789012345678", false},
+		{"on-brand", "012345678901234567890123456789", false},
+		{"on-brand", "0123456789012345678901234567890", false},
+		{"on-brand", "01234567890123456789012345678901", true},
+		{"on-brand", "abcdefghijklmnopqrstuvwxyz678901", true},
+		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901", true},
+		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901X", false},
+		{"on-brand", "ABCDEFGHIJKLMNOPQ!STUVWCYZ678901", false},
+		{"on-brand", "ABCDEFGHIJKLMNOPQ_STUVWCYZ678901", false},
+		{"on-brand", "ABCDEFGHIJKLMNOPQ-STUVWCYZ678901", false},
+		{"on-model", "", false},
+		{"on-model", "/", false},
+		{"on-model", "dwell/dwell1", true},
+		{"on-model", "dwell", false},
+		{"on-model", "dwell/", false},
+		{"on-model", "dwell//dwell1", false},
+		{"on-model", "dwell/-dwell1", false},
+		{"on-model", "dwell/dwell1-", false},
+		{"on-model", "dwell/dwell1-23", true},
+		{"on-model", "dwell/dwell1!", false},
+		{"on-model", "dwell/dwe_ll1", false},
+		{"on-model", "dwell/dwe.ll1", false},
+	}
+
+	check := func(constr, value string, valid bool) {
+		cMap := map[string]interface{}{
+			constr: []interface{}{value},
+		}
+
+		_, err := asserts.CompileDeviceScopeConstraint(cMap, "constraint")
+		if valid {
+			c.Check(err, IsNil, Commentf("%v", cMap))
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`%s in constraint contains an invalid element: %q`, constr, value), Commentf("%v", cMap))
+		}
+	}
+
+	for _, t := range tests {
+		check(t.constr, t.value, t.valid)
+
+		if t.constr == "on-brand" {
+			// reuse and double check all brands also in the context of on-model!
+
+			check("on-model", t.value+"/foo", t.valid)
+		}
+	}
+}
+
+func (s *deviceScopeConstraintSuite) TestCheck(c *C) {
+	a, err := asserts.Decode([]byte(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model1
+store: store1
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	myModel1 := a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: model
+authority-id: my-brand-subbrand
+series: 16
+brand-id: my-brand-subbrand
+model: my-model2
+store: store2
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	myModel2 := a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model3
+store: substore1
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	myModel3 := a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: store
+store: substore1
+authority-id: canonical
+operator-id: canonical
+friendly-stores:
+  - a-store
+  - store1
+  - store2
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	substore1 := a.(*asserts.Store)
+
+	tests := []struct {
+		m                 map[string]interface{}
+		model             *asserts.Model
+		store             *asserts.Store
+		useFriendlyStores bool
+		err               string
+	}{
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel1},
+		{m: map[string]interface{}{"on-store": []interface{}{"a-store", "store1"}}, model: myModel1},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel2, err: "on-store mismatch"},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel3, store: substore1, useFriendlyStores: true},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel3, store: substore1, useFriendlyStores: false, err: "on-store mismatch"},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: nil, err: `cannot match on-store/on-brand/on-model without model`},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel2, store: substore1, err: `store assertion and model store must match`, useFriendlyStores: true},
+		{m: map[string]interface{}{"on-store": []interface{}{"other-store"}}, model: myModel3, store: substore1, err: "on-store mismatch"},
+		{m: map[string]interface{}{"on-brand": []interface{}{"my-brand"}}, model: myModel1},
+		{m: map[string]interface{}{"on-brand": []interface{}{"my-brand", "my-brand-subbrand"}}, model: myModel2},
+		{m: map[string]interface{}{"on-brand": []interface{}{"other-brand"}}, model: myModel2, err: "on-brand mismatch"},
+		{m: map[string]interface{}{"on-model": []interface{}{"my-brand/my-model1"}}, model: myModel1},
+		{m: map[string]interface{}{"on-model": []interface{}{"my-brand/other-model"}}, model: myModel1, err: "on-model mismatch"},
+		{m: map[string]interface{}{"on-model": []interface{}{"my-brand/my-model", "my-brand-subbrand/my-model2", "other-brand/other-model"}}, model: myModel2},
+		{
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel2,
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"other-store"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+			err:               "on-store mismatch",
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"other-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+			err:               "on-brand mismatch",
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model1", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+			err:               "on-model mismatch",
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model1", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: false,
+			err:               "on-store mismatch",
+		},
+	}
+
+	for _, t := range tests {
+		constr, err := asserts.CompileDeviceScopeConstraint(t.m, "constraint")
+		c.Assert(err, IsNil)
+
+		var opts *asserts.DeviceScopeConstraintCheckOptions
+		if t.useFriendlyStores {
+			opts = &asserts.DeviceScopeConstraintCheckOptions{
+				UseFriendlyStores: true,
+			}
+		}
+		err = constr.Check(t.model, t.store, opts)
+		if t.err == "" {
+			c.Check(err, IsNil, Commentf("%v", t.m))
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
 }

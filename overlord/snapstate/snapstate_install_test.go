@@ -3317,6 +3317,87 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestInstallManyDevMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapNames := []string{"one", "two"}
+	installed, tts, err := snapstate.InstallMany(s.state, snapNames, 0, &snapstate.Flags{DevMode: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(installed, DeepEquals, snapNames)
+
+	c.Check(s.fakeStore.seenPrivacyKeys["privacy-key"], Equals, true)
+
+	for i, ts := range tts {
+		verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
+		// check that tasksets are in separate lanes
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
+		}
+	}
+	for i := range snapNames {
+		snapsup, err := snapstate.TaskSnapSetup(tts[i].Tasks()[0])
+		c.Assert(err, IsNil)
+		c.Check(snapsup.DevMode, Equals, true)
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(installed, DeepEquals, []string{"one", "two"})
+
+	for _, ts := range tts {
+		verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
+		// check that tasksets are all in one lane
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// trigger download error on content provider
+	s.fakeStore.downloadError["some-other-snap"] = fmt.Errorf("boom")
+
+	snapstate.ReplaceStore(s.state,
+		contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	chg := s.state.NewChange("install", "install some snaps")
+	installed, tts, err := snapstate.InstallMany(s.state,
+		[]string{"some-snap", "some-other-snap"}, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Check(installed, DeepEquals, []string{"some-snap", "some-other-snap"})
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"some-other-snap\" \\(11\\) from channel \"stable\" \\(boom\\).*")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapSt snapstate.SnapState
+	// some-other-snap not installed due to download failure
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapSt), Equals, state.ErrNoState)
+	// some-snap not installed as this was a transactional install
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapSt), Equals, state.ErrNoState)
+}
+
 func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
 	defer restore()
@@ -4268,6 +4349,47 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
 	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
+	// we fail between writing the sequence file and the state
+	assertMigrationInSeqFile(c, "some-snap", false)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFailsAfterSettingState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
+	tr.Commit()
+
+	chg := s.state.NewChange("install", "")
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fail the change after the link-snap task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+
+	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// fail after writing seq file but before writing state
+	assertMigrationInSeqFile(c, "some-snap", false)
+
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
 }
@@ -4433,6 +4555,102 @@ epoch: 1
 
 	// other-snap is not
 	err = snapstate.Get(s.state, "other-snap", &snapstate.SnapState{})
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyTransactionally(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("3"),
+		}
+		sideInfos = append(sideInfos, si)
+	}
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
+		paths, 0, &snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+
+	for _, ts := range tss {
+		// check that tasksets are all in one lane
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+	}
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	for _, name := range snapNames {
+		var snapst snapstate.SnapState
+		err = snapstate.Get(s.state, name, &snapst)
+		c.Assert(err, IsNil)
+		c.Check(snapst.Current, Equals, snap.R("3"))
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallPathManyTransactionallyWithOneFailing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var paths []string
+	var sideInfos []*snap.SideInfo
+
+	snapNames := []string{"some-snap", "other-snap"}
+	for _, name := range snapNames {
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+		paths = append(paths, makeTestSnap(c, yaml))
+		sideInfos = append(sideInfos, &snap.SideInfo{RealName: name})
+	}
+
+	// make other-snap installation fail
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/other-snap/x1")
+
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
+		paths, 0, &snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+
+	chg := s.state.NewChange("install", "install local snaps")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Assert(chg.Err(), NotNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// other-snap is not installed
+	err = snapstate.Get(s.state, "other-snap", &snapstate.SnapState{})
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+	// and some-snap neither
+	err = snapstate.Get(s.state, "some-snap", &snapstate.SnapState{})
 	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
 }
 

@@ -32,8 +32,6 @@ import (
 
 type testhelperDummyFaultInjectionSuite struct {
 	testutil.BaseTest
-
-	sysroot string
 }
 
 var _ = Suite(&testhelperDummyFaultInjectionSuite{})

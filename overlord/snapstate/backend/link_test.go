@@ -511,7 +511,7 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
 	current := filepath.Join(s.info.MountDir(), "..", "current")
 
-	for _, dev := range []boot.Device{mockDev, mockClassicDev} {
+	for _, dev := range []snap.Device{mockDev, mockClassicDev} {
 		var updateFontconfigCaches int
 		restore := backend.MockUpdateFontconfigCaches(func() error {
 			c.Assert(osutil.FileExists(current), Equals, false)

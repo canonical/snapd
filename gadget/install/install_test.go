@@ -22,16 +22,21 @@
 package install_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -60,6 +65,421 @@ func (s *installSuite) TestInstallRunError(c *C) {
 	sys, err := install.Run(nil, "", "", "", install.Options{}, nil, timings.New(nil))
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 	c.Check(sys, IsNil)
+
+	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil))
+	c.Assert(err, ErrorMatches, `cannot run install mode on non-UC20\+ system`)
+	c.Check(sys, IsNil)
+}
+
+func (s *installSuite) TestInstallRunSimpleHappy(c *C) {
+	s.testInstall(c, installOpts{
+		encryption: false,
+	})
+}
+
+func (s *installSuite) TestInstallRunEncryptedLUKS(c *C) {
+	s.testInstall(c, installOpts{
+		encryption: true,
+	})
+}
+
+func (s *installSuite) TestInstallRunExistingPartitions(c *C) {
+	s.testInstall(c, installOpts{
+		encryption:    false,
+		existingParts: true,
+	})
+}
+
+func (s *installSuite) TestInstallRunEncryptionExistingPartitions(c *C) {
+	s.testInstall(c, installOpts{
+		encryption:    true,
+		existingParts: true,
+	})
+}
+
+type installOpts struct {
+	encryption    bool
+	existingParts bool
+}
+
+func (s *installSuite) testInstall(c *C, opts installOpts) {
+	cleanups := []func(){}
+	addCleanup := func(r func()) { cleanups = append(cleanups, r) }
+	defer func() {
+		for _, r := range cleanups {
+			r()
+		}
+	}()
+
+	uc20Mod := &gadgettest.ModelCharacteristics{
+		SystemSeed: true,
+	}
+
+	s.setupMockUdevSymlinks(c, "mmcblk0p1")
+
+	// mock single partition mapping to a disk with only ubuntu-seed partition
+	initialDisk := gadgettest.ExpectedRaspiMockDiskInstallModeMapping
+	if opts.existingParts {
+		// unless we are asked to mock with a full existing disk
+		if opts.encryption {
+			initialDisk = gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping
+		} else {
+			initialDisk = gadgettest.ExpectedRaspiMockDiskMapping
+		}
+	}
+	m := map[string]*disks.MockDiskMapping{
+		filepath.Join(s.dir, "/dev/mmcblk0p1"): initialDisk,
+	}
+
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer restore()
+
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/mmcblk0": initialDisk,
+	})
+	defer restore()
+
+	mockSfdisk := testutil.MockCommand(c, "sfdisk", "")
+	defer mockSfdisk.Restore()
+
+	mockPartx := testutil.MockCommand(c, "partx", "")
+	defer mockPartx.Restore()
+
+	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
+	defer mockUdevadm.Restore()
+
+	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", "")
+	defer mockCryptsetup.Restore()
+
+	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
+		c.Assert(timeout, Equals, 5*time.Second)
+		c.Assert(dss, DeepEquals, []gadget.OnDiskStructure{
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						VolumeName: "pi",
+						Name:       "ubuntu-boot",
+						Label:      "ubuntu-boot",
+						Size:       750 * quantity.SizeMiB,
+						Type:       "0C",
+						Role:       gadget.SystemBoot,
+						Filesystem: "vfat",
+					},
+					StartOffset: (1 + 1200) * quantity.OffsetMiB,
+					YamlIndex:   1,
+				},
+				// note this is YamlIndex + 1, the YamlIndex starts at 0
+				DiskIndex: 2,
+				Node:      "/dev/mmcblk0p2",
+				Size:      750 * quantity.SizeMiB,
+			},
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						VolumeName: "pi",
+						Name:       "ubuntu-save",
+						Label:      "ubuntu-save",
+						Size:       16 * quantity.SizeMiB,
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Role:       gadget.SystemSave,
+						Filesystem: "ext4",
+					},
+					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
+					YamlIndex:   2,
+				},
+				// note this is YamlIndex + 1, the YamlIndex starts at 0
+				DiskIndex: 3,
+				Node:      "/dev/mmcblk0p3",
+				Size:      16 * quantity.SizeMiB,
+			},
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						VolumeName: "pi",
+						Name:       "ubuntu-data",
+						Label:      "ubuntu-data",
+						// TODO: this is set from the yaml, not from the actual
+						// calculated disk size, probably should be updated
+						// somewhere
+						Size:       1500 * quantity.SizeMiB,
+						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+						Role:       gadget.SystemData,
+						Filesystem: "ext4",
+					},
+					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
+					YamlIndex:   3,
+				},
+				// note this is YamlIndex + 1, the YamlIndex starts at 0
+				DiskIndex: 4,
+				Node:      "/dev/mmcblk0p4",
+				Size:      (30528 - (1 + 1200 + 750 + 16)) * quantity.SizeMiB,
+			},
+		})
+
+		// after ensuring that the nodes exist, we now setup a different, full
+		// device mapping so that later on in the function when we query for
+		// device traits, etc. we see the "full" disk
+
+		newDisk := gadgettest.ExpectedRaspiMockDiskMapping
+		if opts.encryption {
+			newDisk = gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping
+		}
+
+		m := map[string]*disks.MockDiskMapping{
+			filepath.Join(s.dir, "/dev/mmcblk0p1"): newDisk,
+		}
+
+		restore := disks.MockPartitionDeviceNodeToDiskMapping(m)
+		addCleanup(restore)
+
+		restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+			"/dev/mmcblk0": newDisk,
+		})
+		addCleanup(restore)
+
+		return nil
+	})
+	defer restore()
+
+	mkfsCall := 0
+	restore = install.MockMkfsMake(func(typ, img, label string, devSize, sectorSize quantity.Size) error {
+		mkfsCall++
+		switch mkfsCall {
+		case 1:
+			c.Assert(typ, Equals, "vfat")
+			c.Assert(img, Equals, "/dev/mmcblk0p2")
+			c.Assert(label, Equals, "ubuntu-boot")
+			c.Assert(devSize, Equals, 750*quantity.SizeMiB)
+			c.Assert(sectorSize, Equals, quantity.Size(512))
+		case 2:
+			c.Assert(typ, Equals, "ext4")
+			if opts.encryption {
+				c.Assert(img, Equals, "/dev/mapper/ubuntu-save")
+			} else {
+				c.Assert(img, Equals, "/dev/mmcblk0p3")
+			}
+			c.Assert(label, Equals, "ubuntu-save")
+			c.Assert(devSize, Equals, 16*quantity.SizeMiB)
+			c.Assert(sectorSize, Equals, quantity.Size(512))
+		case 3:
+			c.Assert(typ, Equals, "ext4")
+			if opts.encryption {
+				c.Assert(img, Equals, "/dev/mapper/ubuntu-data")
+			} else {
+				c.Assert(img, Equals, "/dev/mmcblk0p4")
+			}
+			c.Assert(label, Equals, "ubuntu-data")
+			c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
+			c.Assert(sectorSize, Equals, quantity.Size(512))
+		default:
+			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
+	})
+	defer restore()
+
+	mockMountpoint := c.MkDir()
+	restore = install.MockContentMountpoint(mockMountpoint)
+	defer restore()
+
+	mountCall := 0
+	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		mountCall++
+		switch mountCall {
+		case 1:
+			c.Assert(source, Equals, "/dev/mmcblk0p2")
+			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(fstype, Equals, "vfat")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 2:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-save")
+			} else {
+				c.Assert(source, Equals, "/dev/mmcblk0p3")
+			}
+			c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		case 3:
+			if opts.encryption {
+				c.Assert(source, Equals, "/dev/mapper/ubuntu-data")
+			} else {
+				c.Assert(source, Equals, "/dev/mmcblk0p4")
+			}
+			c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+			c.Assert(fstype, Equals, "ext4")
+			c.Assert(flags, Equals, uintptr(0))
+			c.Assert(data, Equals, "")
+		default:
+			c.Errorf("unexpected mount call (%d)", mountCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
+	})
+	defer restore()
+
+	umountCall := 0
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		umountCall++
+		switch umountCall {
+		case 1:
+			c.Assert(target, Equals, filepath.Join(mockMountpoint, "2"))
+			c.Assert(flags, Equals, 0)
+		case 2:
+			c.Assert(target, Equals, filepath.Join(mockMountpoint, "3"))
+			c.Assert(flags, Equals, 0)
+		case 3:
+			c.Assert(target, Equals, filepath.Join(mockMountpoint, "4"))
+			c.Assert(flags, Equals, 0)
+		default:
+			c.Errorf("unexpected umount call (%d)", umountCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
+	})
+	defer restore()
+
+	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml)
+	c.Assert(err, IsNil)
+
+	var savePrimaryKey, dataPrimaryKey secboot.EncryptionKey
+
+	secbootFormatEncryptedDeviceCall := 0
+	restore = install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+		if !opts.encryption {
+			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
+			return fmt.Errorf("no encryption functions should be called")
+		}
+		secbootFormatEncryptedDeviceCall++
+		switch secbootFormatEncryptedDeviceCall {
+		case 1:
+			c.Assert(key, HasLen, 32)
+			c.Assert(label, Equals, "ubuntu-save-enc")
+			c.Assert(node, Equals, "/dev/mmcblk0p3")
+			savePrimaryKey = key
+		case 2:
+			c.Assert(key, HasLen, 32)
+			c.Assert(label, Equals, "ubuntu-data-enc")
+			c.Assert(node, Equals, "/dev/mmcblk0p4")
+			dataPrimaryKey = key
+		default:
+			c.Errorf("unexpected call to secboot.FormatEncryptedDevice (%d)", secbootFormatEncryptedDeviceCall)
+			return fmt.Errorf("test broken")
+		}
+
+		return nil
+	})
+	defer restore()
+
+	var saveRecoveryKey, dataRecoveryKey secboot.RecoveryKey
+
+	secbootAddRecoveryKeyCall := 0
+	restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
+		if !opts.encryption {
+			c.Error("unexpected call to secboot.AddRecoveryKey when encryption is off")
+			return fmt.Errorf("no encryption functions should be called")
+		}
+		secbootAddRecoveryKeyCall++
+		switch secbootAddRecoveryKeyCall {
+		case 1:
+			c.Assert(key, HasLen, 32)
+			c.Assert(key, DeepEquals, savePrimaryKey)
+			c.Assert(rkey, HasLen, 16)
+			c.Assert(node, Equals, "/dev/mmcblk0p3")
+			saveRecoveryKey = rkey
+		case 2:
+			c.Assert(key, HasLen, 32)
+			c.Assert(key, DeepEquals, dataPrimaryKey)
+			c.Assert(rkey, HasLen, 16)
+			c.Assert(node, Equals, "/dev/mmcblk0p4")
+			dataRecoveryKey = rkey
+		default:
+			c.Errorf("unexpected call to secboot.AddRecoveryKey (%d)", secbootAddRecoveryKeyCall)
+			return fmt.Errorf("test broken")
+		}
+
+		return nil
+	})
+	defer restore()
+
+	// 10 million mocks later ...
+	// finally actually run the install
+	runOpts := install.Options{}
+	if opts.encryption {
+		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
+	}
+	sys, err := install.Run(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil))
+	c.Assert(err, IsNil)
+	if opts.encryption {
+		c.Check(sys, Not(IsNil))
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
+			KeysForRoles: map[string]*install.EncryptionKeySet{
+				gadget.SystemData: {
+					Key:         dataPrimaryKey,
+					RecoveryKey: dataRecoveryKey,
+				},
+				gadget.SystemSave: {
+					Key:         savePrimaryKey,
+					RecoveryKey: saveRecoveryKey,
+				},
+			},
+		})
+	} else {
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{})
+	}
+
+	expSfdiskCalls := [][]string{}
+	if opts.existingParts {
+		expSfdiskCalls = append(expSfdiskCalls, []string{"sfdisk", "--no-reread", "--delete", "/dev/mmcblk0", "2", "3", "4"})
+	}
+	expSfdiskCalls = append(expSfdiskCalls, []string{"sfdisk", "--append", "--no-reread", "/dev/mmcblk0"})
+	c.Assert(mockSfdisk.Calls(), DeepEquals, expSfdiskCalls)
+
+	expPartxCalls := [][]string{
+		{"partx", "-u", "/dev/mmcblk0"},
+	}
+	if opts.existingParts {
+		expPartxCalls = append(expPartxCalls, []string{"partx", "-u", "/dev/mmcblk0"})
+	}
+	c.Assert(mockPartx.Calls(), DeepEquals, expPartxCalls)
+
+	udevmadmCalls := [][]string{
+		{"udevadm", "settle", "--timeout=180"},
+		{"udevadm", "trigger", "--settle", "/dev/mmcblk0p2"},
+	}
+
+	if opts.encryption {
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-save"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mapper/ubuntu-data"})
+	} else {
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p3"})
+		udevmadmCalls = append(udevmadmCalls, []string{"udevadm", "trigger", "--settle", "/dev/mmcblk0p4"})
+	}
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, udevmadmCalls)
+
+	if opts.encryption {
+		c.Assert(mockCryptsetup.Calls(), DeepEquals, [][]string{
+			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p3", "ubuntu-save"},
+			{"cryptsetup", "open", "--key-file", "-", "/dev/mmcblk0p4", "ubuntu-data"},
+		})
+	} else {
+		c.Assert(mockCryptsetup.Calls(), HasLen, 0)
+	}
+
+	c.Assert(mkfsCall, Equals, 3)
+	c.Assert(mountCall, Equals, 3)
+	c.Assert(umountCall, Equals, 3)
+	if opts.encryption {
+		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 2)
+		c.Assert(secbootAddRecoveryKeyCall, Equals, 2)
+	} else {
+		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 0)
+		c.Assert(secbootAddRecoveryKeyCall, Equals, 0)
+	}
 }
 
 const mockGadgetYaml = `volumes:
@@ -106,19 +526,19 @@ const mockUC20GadgetYaml = `volumes:
         size: 750M
 `
 
-func (s *installSuite) setupMockUdevSymlinks(c *C) {
+func (s *installSuite) setupMockUdevSymlinks(c *C, devName string) {
 	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/fakedevice0p1"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
 	c.Assert(err, IsNil)
-	err = os.Symlink("../../fakedevice0p1", filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
+	err = os.Symlink("../../"+devName, filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
 	c.Assert(err, IsNil)
 }
 
 func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 
-	s.setupMockUdevSymlinks(c)
+	s.setupMockUdevSymlinks(c, "fakedevice0p1")
 
 	m := map[string]*disks.MockDiskMapping{
 		filepath.Join(s.dir, "/dev/fakedevice0p1"): {
@@ -149,7 +569,7 @@ func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 }
 
 func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
-	s.setupMockUdevSymlinks(c)
+	s.setupMockUdevSymlinks(c, "fakedevice0p1")
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockGadgetYaml, nil)
 	c.Assert(err, IsNil)
 

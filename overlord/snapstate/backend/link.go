@@ -99,7 +99,7 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired boot.RebootInfo, e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired boot.RebootInfo, e error) {
 	if info.Revision.Unset() {
 		return boot.RebootInfo{}, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}

@@ -1,0 +1,6 @@
+name: test-snap
+version: 1.0
+plugs:
+    consumer0:
+        interface: system-observe
+

@@ -5,6 +5,7 @@ import json
 import os
 import sys
 
+from datetime import datetime
 from pymongo import MongoClient
 
 
@@ -68,6 +69,15 @@ def insert(db, col, value):
         # }
         print("report-mongodb: invalid value, it does not contain a valid json format")
         sys.exit(1)
+
+    try:
+        date = json_value["date"]
+        time = json_value["time"]
+        created_at = datetime.strptime("{} {}".format(date, time), "%Y-%m-%d %X").isoformat()
+    except ValueError:
+        created_at = datetime.now().isoformat("T", "seconds")
+
+    json_value["created_at"] = created_at
 
     db[col].insert_one(json_value)
     print("report-mongodb: json value inserted in db")

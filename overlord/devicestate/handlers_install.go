@@ -111,7 +111,7 @@ func writeLogs(rootdir string) error {
 	gz := gzip.NewWriter(f)
 	defer gz.Close()
 
-	cmd := exec.Command("journalctl", "-b", "0")
+	cmd := exec.Command("journalctl", "-b", "0", "--all")
 	cmd.Stdout = gz
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot collect journal output: %v", err)

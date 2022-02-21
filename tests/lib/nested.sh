@@ -85,12 +85,13 @@ nested_check_unit_stays_active() {
 }
 
 nested_check_boot_errors() {
+    local cursor=$1
     # Check if the service started and it is running without errors
     if nested_is_core_20_system && ! nested_check_unit_stays_active "$NESTED_VM" 15 1; then
         # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
         # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
         # The workaround is to restart the vm and check that qemu doesn't go into this bad state again
-        if nested_status_vm | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
+        if "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u "$NESTED_VM" | MATCH "cpu_asidx_from_attrs: Assertion.*failed"; then
             return 1
         fi
     fi
@@ -98,10 +99,14 @@ nested_check_boot_errors() {
 
 nested_retry_start_with_boot_errors() {
     local retry=3
+    local cursor
+    cursor="$("$TESTSTOOLS"/journal-state get-test-cursor)"
     while [ "$retry" -ge 0 ]; do
         retry=$(( retry - 1 ))
-        if ! nested_check_boot_errors; then
+        if ! nested_check_boot_errors "$cursor"; then
+            cursor="$("$TESTSTOOLS"/journal-state get-last-cursor)"
             nested_restart
+            sleep 3
         else
             return 0
         fi
@@ -582,6 +587,9 @@ nested_create_core_vm() {
 
     if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+            nested_create_assertions_disk
+        fi
         return
 
     elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
@@ -1244,6 +1252,8 @@ nested_start_classic_vm() {
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
+    # Give extra disk space for the image
+    qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +2G
 
     # Now qemu parameters are defined
     local PARAM_SMP PARAM_MEM

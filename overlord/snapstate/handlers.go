@@ -1157,10 +1157,13 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			// undo the migration. In contrast to copy data for which the new revision
 			// directory can just be discarded, the snap data migration introduces
 			// a change that affects all revisions of the snap and thus needs to be reverted
-			if undoErr := m.backend.UndoHideSnapData(snapsup.InstanceName()); undoErr != nil {
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+				src := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+				dst := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
+
 				st.Lock()
-				t.Logf("cannot undo snap dir migration (must manually restore %s's dirs from %s to %s): %v",
-					snapsup.InstanceName(), dirs.HiddenSnapDataHomeDir, dirs.UserHomeSnapDir, undoErr)
+				st.Warnf("cannot undo snap dir hiding (move all user's %s to %s): %v",
+					src, dst, err)
 				st.Unlock()
 			}
 
@@ -1172,7 +1175,30 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		err := SetTaskSnapSetup(t, snapsup)
 		st.Unlock()
 		if err != nil {
-			return fmt.Errorf("cannot set migration status to done (migration won't be undone if change fails): %w", err)
+			return fmt.Errorf("cannot set migration status to done: %w", err)
+		}
+	} else if !opts.UseHidden && opts.MigratedToHidden {
+		// migration was done but user turned the feature off, so undo migration
+		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+				src := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
+				dst := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+
+				st.Lock()
+				st.Warnf("cannot undo snap dir exposing (move all user's %s to %s): %v",
+					src, dst, err)
+				st.Unlock()
+			}
+
+			return err
+		}
+
+		snapsup.MigratedExposed = true
+		st.Lock()
+		err := SetTaskSnapSetup(t, snapsup)
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot set migration status to undone: %w", err)
 		}
 	}
 
@@ -1205,15 +1231,21 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		snapsup.MigratedHidden = false
-		st.Lock()
-		err := SetTaskSnapSetup(t, snapsup)
-		st.Unlock()
-		if err != nil {
+		snapst.MigratedHidden = false
+		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
+			return err
+		}
+	} else if snapsup.MigratedExposed {
+		// we reverted the migration in this run - undo that
+		if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 			return err
 		}
 
-		// persist the undone migration status before allowing the snap to be run
-		writeSeqFile(snapsup.InstanceName(), snapst)
+		snapsup.MigratedExposed = false
+		snapst.MigratedHidden = true
+		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
+			return err
+		}
 	}
 
 	st.Lock()
@@ -1247,6 +1279,41 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
 		return err
 	}
+	return nil
+}
+
+// writeMigrationStatus writes the SnapSetup, state and sequence file (if they
+// exist). This must be called after the migration undo procedure is done since
+// only then do we know the actual final state of the migration.
+func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) error {
+	st := t.State()
+	snapName := snapsup.InstanceName()
+
+	st.Lock()
+	defer st.Unlock()
+
+	if err := SetTaskSnapSetup(t, snapsup); err != nil {
+		return err
+	}
+
+	err := Get(st, snapName, &SnapState{})
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if err == nil {
+		// migration state might've been written in the change; update it after undo
+		Set(st, snapName, snapst)
+	}
+
+	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
+	if osutil.FileExists(seqFile) {
+		// might've written migration status to seq file in the change; update it
+		// after undo
+		return writeSeqFile(snapName, snapst)
+	}
+
+	// never got to write seq file; don't need to re-write migration status in it
 	return nil
 }
 
@@ -1460,12 +1527,13 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// keep instance key
 	snapst.InstanceKey = snapsup.InstanceKey
 
-	// this flag means that the migration happened in this change (later there
-	// will be another flag to signal that it's been undone). If it meant that
-	// the migration is "on" then we'd always have to set it for every change
-	// w/ a SnapSetup and link-snap (it'd be easy to forget and break state)
+	// don't keep the old state because, if we fail, we may or may not be able to
+	// revert the migration. We set the migration status after undoing any
+	// migration related ops
 	if snapsup.MigratedHidden {
 		snapst.MigratedHidden = true
+	} else if snapsup.MigratedExposed {
+		snapst.MigratedHidden = false
 	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
@@ -3574,9 +3642,17 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 		opts.MigratedToHidden = snapst.MigratedHidden
 	}
 
-	// it was migrated during this install (might not be in the state yet)
-	if snapsup != nil && snapsup.MigratedHidden {
-		opts.MigratedToHidden = true
+	// it was migrated during this change (might not be in the state yet)
+	if snapsup != nil {
+		switch {
+		case snapsup.MigratedHidden && snapsup.MigratedExposed:
+			// should never happen except for programmer error
+			return nil, fmt.Errorf("internal error: migration was done and reversed in same change without updating migration flags")
+		case snapsup.MigratedHidden:
+			opts.MigratedToHidden = true
+		case snapsup.MigratedExposed:
+			opts.MigratedToHidden = false
+		}
 	}
 
 	return opts, nil
