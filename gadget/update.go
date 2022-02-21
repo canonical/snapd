@@ -673,9 +673,9 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 var errSkipUpdateProceedRefresh = errors.New("could not identify disk for gadget asset update")
 
 // buildNewVolumeToDeviceMapping builds a DiskVolumeDeviceTraits for only the
-// system-boot role containing volume when we cannot load an existing traits
-// object from disk-mapping.json. It is meant to be used only with all UC16 /
-// UC18 installs as well as UC20 installs from before we started writing
+// volume containing the system-boot role, when we cannot load an existing
+// traits object from disk-mapping.json. It is meant to be used only with all
+// UC16/UC18 installs as well as UC20 installs from before we started writing
 // disk-mapping.json during install mode.
 func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidOutVolume, preUC20 bool) (map[string]DiskVolumeDeviceTraits, error) {
 	var systemBootVolume string
@@ -700,7 +700,7 @@ volumeLoop:
 			return nil, errSkipUpdateProceedRefresh
 		}
 		// shouldn't be possible on UC20
-		return nil, fmt.Errorf("unable to find any volume with system-boot, gadget is broken")
+		return nil, fmt.Errorf("cannot find any volume with system-boot, gadget is broken")
 	}
 
 	laidOutVol := laidOutVols[systemBootVolume]
