@@ -2230,6 +2230,141 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	})
 }
 
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSingleVolume(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+
+	// not there is no role or filesystem-label or name referencing system-boot
+	// here so there are no implicit roles set for this yaml, but it is valid as
+	// we used to allow installation of such gadget.yaml and as such need to
+	// continue to support updates for this
+	const implicitSystemBootVolumeYAML = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        size: 50M
+`
+
+	laidOutVolume, err := gadgettest.LayoutFromYaml(c.MkDir(), implicitSystemBootVolumeYAML, &gadgettest.ModelCharacteristics{})
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{
+				"pc": laidOutVolume.Volume,
+			},
+		},
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/sda1"): gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+	})
+	defer restore()
+
+	allLaidOutVolumes := map[string]*gadget.LaidOutVolume{
+		"pc": laidOutVolume,
+	}
+
+	preUC20 := true
+	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	c.Assert(err, IsNil)
+
+	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
+		"pc": gadgettest.UC16ImplicitSystemDataDeviceTraits,
+	})
+}
+
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMultiVolumeNotSupported(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+
+	// not there is no role or filesystem-label or name referencing system-boot
+	// here so there are no implicit roles set for this yaml, but it is valid as
+	// we used to allow installation of such gadget.yaml, but since it has
+	// multiple volumes, we need to make sure we fail with a specific error that
+	// allows the overall gadget refresh to proceed but skips the asset update
+	const implicitSystemBootVolumeYAML = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: EFI System
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        size: 50M
+  foo:
+    structure:
+      - name: some-thing
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: vfat
+        size: 50M
+`
+
+	// need to manually lay out this YAML, the helpers don't work for
+	// multi-volume non-UC20 setups like this
+	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), implicitSystemBootVolumeYAML)
+	c.Assert(err, IsNil)
+
+	constraints := gadget.LayoutConstraints{
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
+	}
+
+	info, err := gadget.ReadInfo(gadgetRoot, &gadgettest.ModelCharacteristics{})
+	c.Assert(err, IsNil)
+
+	allLaidOutVolumes := map[string]*gadget.LaidOutVolume{}
+
+	for volName, vol := range info.Volumes {
+		lvol, err := gadget.LayoutVolume(gadgetRoot, "", vol, constraints)
+		c.Assert(err, IsNil)
+		allLaidOutVolumes[volName] = lvol
+	}
+
+	old := gadget.GadgetData{Info: info}
+
+	// don't need to mock anything, we don't get far enough
+
+	// we fail with the error that skips the asset update but proceeds with the
+	// rest of the refresh
+	preUC20 := true
+	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
+}
+
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("") }()

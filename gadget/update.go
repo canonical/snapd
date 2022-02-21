@@ -678,32 +678,52 @@ var errSkipUpdateProceedRefresh = errors.New("cannot identify disk for gadget as
 // UC16/UC18 installs as well as UC20 installs from before we started writing
 // disk-mapping.json during install mode.
 func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidOutVolume, preUC20 bool) (map[string]DiskVolumeDeviceTraits, error) {
-	var systemBootVolume string
+	var likelySystemBootVolume string
 
-	// we need to pick the volume, since updates for this setup are best
-	// effort and mainly focused on the volume with system-* roles on it, we
-	// need to pick the volume with that role
-volumeLoop:
-	for volName, vol := range old.Info.Volumes {
-		for _, structure := range vol.Structure {
-			if structure.Role == SystemBoot {
-				// this is the volume
-				systemBootVolume = volName
-				break volumeLoop
+	if len(old.Info.Volumes) == 1 {
+		// If we only have one volume, then that is the volume we are concerned
+		// with, we do not validate that it has a system-boot role on it like
+		// we do in the multi-volume case below, this is because we used to
+		// allow installation of gadgets that have no system-boot role on them
+		// at all
+
+		// then we only have one volume to be concerned with
+		for volName := range old.Info.Volumes {
+			likelySystemBootVolume = volName
+		}
+	} else {
+		// we need to pick the volume, since updates for this setup are best
+		// effort and mainly focused on the main volume with system-* roles
+		// on it, we need to pick the volume with that role
+	volumeLoop:
+		for volName, vol := range old.Info.Volumes {
+			for _, structure := range vol.Structure {
+				if structure.Role == SystemBoot {
+					// this is the volume
+					likelySystemBootVolume = volName
+					break volumeLoop
+				}
 			}
 		}
 	}
-	if systemBootVolume == "" {
-		// didn't find system-boot anywhere somehow
+
+	if likelySystemBootVolume == "" {
+		// this is only possible in the case where there is more than one volume
+		// and we didn't find system-boot anywhere, in this case for pre-UC20
+		// we use a non-fatal error and just don't perform any update - this was
+		// always the old behavior so we are not regressing here
 		if preUC20 {
-			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", systemBootVolume)
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", likelySystemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
-		// shouldn't be possible on UC20
+
+		// on UC20 and later however this is a fatal error, we should never have
+		// allowed installation of a gadget which does not have the system-boot
+		// role on it
 		return nil, fmt.Errorf("cannot find any volume with system-boot, gadget is broken")
 	}
 
-	laidOutVol := laidOutVols[systemBootVolume]
+	laidOutVol := laidOutVols[likelySystemBootVolume]
 
 	// search for matching devices that correspond to the volume we laid out
 	dev := ""
@@ -741,11 +761,11 @@ volumeLoop:
 		// couldn't find a disk at all, pre-UC20 we just warn about this
 		// but let the update continue
 		if preUC20 {
-			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s", systemBootVolume)
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
 		// fatal error on UC20+
-		return nil, fmt.Errorf("cannot identify disk for gadget asset update of volume %s", systemBootVolume)
+		return nil, fmt.Errorf("cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
 	}
 
 	// we found the device, construct the traits with validation options
@@ -784,7 +804,7 @@ volumeLoop:
 	// future update routine?
 
 	return map[string]DiskVolumeDeviceTraits{
-		systemBootVolume: traits,
+		likelySystemBootVolume: traits,
 	}, nil
 }
 
