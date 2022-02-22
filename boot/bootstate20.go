@@ -309,6 +309,10 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rbi RebootInfo, u b
 	rbi.RebootRequired = false
 	if nextStatus == TryStatus {
 		rbi.RebootRequired = true
+		// kernels are usually loaded directly by the bootloader, for
+		// which we may need to pass additional data to make 'try'
+		// operation more robust - that might be provided by the
+		// RebootBootloader interface
 		if rbi.RebootBootloader, err = ks20.getRebootBootloader(); err != nil {
 			return RebootInfo{RebootRequired: false}, nil, err
 		}
@@ -448,6 +452,9 @@ func (bs20 *bootState20Base) setNext(next snap.PlaceInfo) (rbi RebootInfo, u boo
 	if nextStatus == TryStatus {
 		// only update the try base if we are actually in try status
 		u20.writeModeenv.TryBase = next.Filename()
+		// a 'try' base is handled by snap-bootstrap, hence we are not
+		// interested in the bootloader's opinion (no need for
+		// rbi.RebootBootloader, so it is not filled).
 		rbi.RebootRequired = true
 	}
 
