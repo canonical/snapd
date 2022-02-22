@@ -437,6 +437,21 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		},
 	})
 
+	// commonly used core and snapd revisions in tests
+	defaultInfoFile := `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+	for _, snapName := range []string{"snapd", "core"} {
+		for _, rev := range []string{"1", "11", "30"} {
+			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
+			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			c.Assert(err, IsNil)
+		}
+	}
+
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which happens in overlord.New)
 	snapstate.CanAutoRefresh = nil
@@ -656,8 +671,10 @@ hooks:
 
 	snapdirs, err := filepath.Glob(filepath.Join(dirs.SnapMountDir, "*"))
 	c.Assert(err, IsNil)
-	// just README and bin
-	c.Check(snapdirs, HasLen, 2)
+	// just README, bin, snapd, and core (snapd and core are there because we
+	// have info files for those snaps which need to be read from the snapstate
+	// Ensure loop)
+	c.Check(snapdirs, HasLen, 4)
 	for _, d := range snapdirs {
 		c.Check(filepath.Base(d), Not(Equals), "foo")
 	}

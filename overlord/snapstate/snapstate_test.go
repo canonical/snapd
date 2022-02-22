@@ -250,6 +250,21 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		SnapType: "os",
 	})
 
+	// commonly used revisions in tests
+	defaultInfoFile := `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+	for _, snapName := range []string{"snapd", "core"} {
+		for _, rev := range []string{"1", "11"} {
+			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
+			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			c.Assert(err, IsNil)
+		}
+	}
+
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 	s.state.Unlock()
@@ -2777,6 +2792,228 @@ func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 	s.settle(c)
 
 	// no failure report was generated
+}
+
+func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableCoreSnap(c *C) {
+	s.testEnsureRemovesVulnerableSnap(c, "core")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableSnapdSnap(c *C) {
+	s.testEnsureRemovesVulnerableSnap(c, "snapd")
+}
+
+func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string) {
+	// make the currently installed snap info file fixed but an old version
+	// vulnerable
+	fixedInfoFile := `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+	vulnInfoFile := `
+VERSION=2.54.2+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+
+	// revision 1 vulnerable
+	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
+	err := os.MkdirAll(filepath.Dir(infoFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
+	c.Assert(err, IsNil)
+
+	// revision 2 fixed
+	infoFile2 := filepath.Join(dirs.SnapMountDir, snapName, "2", dirs.CoreLibExecDir, "info")
+	err = os.MkdirAll(filepath.Dir(infoFile2), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
+	c.Assert(err, IsNil)
+
+	// revision 11 fixed
+	infoFile11 := filepath.Join(dirs.SnapMountDir, snapName, "11", dirs.CoreLibExecDir, "info")
+	err = os.MkdirAll(filepath.Dir(infoFile11), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
+	c.Assert(err, IsNil)
+
+	// use generic classic model
+	r := snapstatetest.UseFallbackDeviceModel()
+	defer r()
+
+	st := s.state
+	st.Lock()
+	// ensure that only this specific snap is installed
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", nil)
+
+	snapSt := &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: snapName, Revision: snap.R(1)},
+			{RealName: snapName, Revision: snap.R(2)},
+			{RealName: snapName, Revision: snap.R(11)},
+		},
+		Current:  snap.R(11),
+		SnapType: "os",
+	}
+	if snapName == "snapd" {
+		snapSt.SnapType = "snapd"
+	}
+	snapstate.Set(s.state, snapName, snapSt)
+	st.Unlock()
+
+	// special policy only on classic
+	r = release.MockOnClassic(true)
+	defer r()
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
+
+	// we should have created a single remove change for revision 1, revision 2
+	// should have been left alone
+	st.Lock()
+	defer st.Unlock()
+
+	allChgs := st.Changes()
+	c.Assert(allChgs, HasLen, 1)
+	removeChg := allChgs[0]
+	c.Assert(removeChg.Status(), Equals, state.DoStatus)
+	c.Assert(removeChg.Kind(), Equals, "remove-snap")
+	c.Assert(removeChg.Summary(), Equals, fmt.Sprintf(`Remove inactive vulnerable %q snap (1)`, snapName))
+
+	c.Assert(removeChg.Tasks(), HasLen, 2)
+	clearSnap := removeChg.Tasks()[0]
+	discardSnap := removeChg.Tasks()[1]
+	c.Assert(clearSnap.Kind(), Equals, "clear-snap")
+	c.Assert(discardSnap.Kind(), Equals, "discard-snap")
+	var snapsup snapstate.SnapSetup
+	err = clearSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.SideInfo.Revision, Equals, snap.R(1))
+
+	// and we set the appropriate key in the state
+	var removeDone bool
+	st.Get(snapName+"-snap-cve-2021-44731-vuln-removed", &removeDone)
+	c.Assert(removeDone, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestEnsureChecksSnapdInfoFileOnClassicOnly(c *C) {
+	// delete the core/snapd snap info files - they should always exist in real
+	// devices, but deleting them here makes it so we can see the failure
+	// trying to read the files easily
+
+	infoFile := filepath.Join(dirs.SnapMountDir, "core", "1", dirs.CoreLibExecDir, "info")
+	err := os.Remove(infoFile)
+	c.Assert(err, IsNil)
+
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, "cannot open snapd info file.*")
+
+	// if we are not on classic nothing happens
+	r = release.MockOnClassic(false)
+	defer r()
+
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSkipsCheckingSnapdSnapInfoFileWhenStateSet(c *C) {
+	// we default from SetUp to having the core snap installed, remove it so we
+	// only have the snapd snap available
+	s.state.Lock()
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+	s.state.Unlock()
+
+	s.testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c, "snapd")
+}
+
+func (s *snapmgrTestSuite) TestEnsureSkipsCheckingCoreSnapInfoFileWhenStateSet(c *C) {
+	s.testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c, "core")
+}
+
+func (s *snapmgrTestSuite) TestEnsureSkipsCheckingBothCoreAndSnapdSnapsInfoFileWhenStateSet(c *C) {
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+
+	st := s.state
+	// also set snapd snapd as installed
+	st.Lock()
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+	st.Unlock()
+
+	infoFileFor := func(snapName string) string {
+		return filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
+	}
+
+	// delete both snapd and core snap info files
+	for _, snapName := range []string{"core", "snapd"} {
+		err := os.Remove(infoFileFor(snapName))
+		c.Assert(err, IsNil)
+	}
+
+	// make sure Ensure makes a whole hearted attempt to read both files - snapd
+	// is tried first
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, fmt.Sprintf(`cannot open snapd info file "%s".*`, infoFileFor("snapd")))
+
+	st.Lock()
+	st.Set("snapd-snap-cve-2021-44731-vuln-removed", true)
+	st.Unlock()
+
+	// still unhappy about core file missing
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, fmt.Sprintf(`cannot open snapd info file "%s".*`, infoFileFor("core")))
+
+	// but with core state flag set too, we are now happy
+	st.Lock()
+	st.Set("core-snap-cve-2021-44731-vuln-removed", true)
+	st.Unlock()
+
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
+}
+
+func (s *snapmgrTestSuite) testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c *C, snapName string) {
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+
+	// delete the snap info file for this snap - they should always exist in
+	// real devices, but deleting them here makes it so we can see the failure
+	// trying to read the files easily
+	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
+	err := os.Remove(infoFile)
+	c.Assert(err, IsNil)
+
+	// make sure it makes a whole hearted attempt to read it
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, "cannot open snapd info file.*")
+
+	// now it should stop trying to check if state says so
+	st := s.state
+	st.Lock()
+	st.Set(snapName+"-snap-cve-2021-44731-vuln-removed", true)
+	st.Unlock()
+
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {

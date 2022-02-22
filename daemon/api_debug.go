@@ -286,13 +286,23 @@ func getGadgetDiskMapping(st *state.State) Response {
 	}
 	kernelDir := kernelInfo.MountDir()
 
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, deviceCtx.Model())
+	mod := deviceCtx.Model()
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod)
 	if err != nil {
 		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
 	}
 
-	// TODO: allow passing options in here
-	res, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, nil)
+	// TODO: allow passing in encrypted options info here
+
+	// allow implicit system-data on pre-uc20 only
+	optsMap := map[string]*gadget.DiskVolumeValidationOptions{}
+	for vol := range allLaidOutVols {
+		optsMap[vol] = &gadget.DiskVolumeValidationOptions{
+			AllowImplicitSystemData: mod.Grade() == asserts.ModelGradeUnset,
+		}
+	}
+
+	res, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsMap)
 	if err != nil {
 		return InternalError("cannot get all disk volume device traits: %v", err)
 	}

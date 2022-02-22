@@ -124,6 +124,102 @@ type ContentUpdateObserver interface {
 	Canceled() error
 }
 
+func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDeviceTraits, validateOpts *DiskVolumeValidationOptions) (disks.Disk, error) {
+	if validateOpts == nil {
+		validateOpts = &DiskVolumeValidationOptions{}
+	}
+
+	vol := laidOutVol.Volume
+	// iterate over the different traits, validating whether the resulting disk
+	// actually exists and matches the volume we have in the gadget.yaml
+
+	isCandidateCompatible := func(candidate disks.Disk, method string, providedErr error) bool {
+		if providedErr != nil {
+			if candidate != nil {
+				logger.Debugf("candidate disk %s not appropriate for volume %s because err: %v", candidate.KernelDeviceNode(), vol.Name, providedErr)
+				return false
+			}
+			logger.Debugf("cannot locate disk for volume %s with method %s because err: %v", vol.Name, method, providedErr)
+
+			return false
+		}
+		diskLayout, onDiskErr := OnDiskVolumeFromDevice(candidate.KernelDeviceNode())
+		if onDiskErr != nil {
+			// unexpected in reality, we already called one of
+			// DiskFromDeviceName or DiskFromDevicePath to get this reference,
+			// so it's unclear how those methods could return a disk that
+			// OnDiskVolumeFromDevice is unhappy about
+			logger.Debugf("cannot find on disk volume from candidate disk %s: %v", candidate.KernelDeviceNode(), onDiskErr)
+			return false
+		}
+		// then try to validate it by laying out the volume
+		opts := &EnsureLayoutCompatibilityOptions{
+			AssumeCreatablePartitionsCreated: true,
+			AllowImplicitSystemData:          validateOpts.AllowImplicitSystemData,
+			ExpectedStructureEncryption:      validateOpts.ExpectedStructureEncryption,
+		}
+		ensureErr := EnsureLayoutCompatibility(laidOutVol, diskLayout, opts)
+		if ensureErr != nil {
+			logger.Debugf("candidate disk %s not appropriate for volume %s due to incompatibility: %v", candidate.KernelDeviceNode(), vol.Name, ensureErr)
+			return false
+		}
+
+		// success, we found it
+		return true
+	}
+
+	// first try the kernel device path if it is set
+	if traits.OriginalDevicePath != "" {
+		disk, err := disks.DiskFromDevicePath(traits.OriginalDevicePath)
+		if isCandidateCompatible(disk, "device path", err) {
+			return disk, nil
+		}
+	}
+
+	// next try the kernel device node name
+	if traits.OriginalKernelPath != "" {
+		disk, err := disks.DiskFromDeviceName(traits.OriginalKernelPath)
+		if isCandidateCompatible(disk, "device name", err) {
+			return disk, nil
+		}
+	}
+
+	// next try the disk ID from the partition table
+	if traits.DiskID != "" {
+		// there isn't a way to find a disk using the disk ID directly, so we
+		// instead have to get all the disks and then check them all to see if
+		// the disk ID's match
+		blockdevDisks, err := disks.AllPhysicalDisks()
+		if err == nil {
+			for _, blockDevDisk := range blockdevDisks {
+				if blockDevDisk.DiskID() == traits.DiskID {
+					// found the block device for this Disk ID, get the
+					// disks.Disk for it
+					if isCandidateCompatible(blockDevDisk, "disk ID", err) {
+						return blockDevDisk, nil
+					}
+
+					// otherwise if it didn't match we keep iterating over
+					// the block devices, since we could have a situation
+					// where an attacker has cloned the disk and put their own
+					// content on it to attack the device and so there are two
+					// block devices with the same ID but non-matching
+					// structures
+				}
+			}
+		} else {
+			logger.Noticef("error getting all physical disks: %v", err)
+		}
+	}
+
+	// TODO: implement this final last ditch effort
+	// finally, try doing an inverse search using the individual
+	// structures to match a structure we measured previously to find a on disk
+	// device and then find a disk from that device and see if it matches
+
+	return nil, fmt.Errorf("cannot find physical disk laid out to map with volume %s", vol.Name)
+}
+
 // IsCreatableAtInstall returns whether the gadget structure would be created at
 // install - currently that is only ubuntu-save, ubuntu-data, and ubuntu-boot
 func IsCreatableAtInstall(gv *VolumeStructure) bool {
@@ -504,7 +600,7 @@ const (
 // EnsureLayoutCompatibilityOptions.
 type DiskVolumeValidationOptions struct {
 	// AllowImplicitSystemData has the same meaning as the eponymously named
-	// filed in EnsureLayoutCompatibilityOptions.
+	// field in EnsureLayoutCompatibilityOptions.
 	AllowImplicitSystemData bool
 	// ExpectedEncryptedPartitions is a map of the names (gadget structure
 	// names) of partitions that are encrypted on the volume and information
