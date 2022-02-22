@@ -147,6 +147,21 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "32a3",
 		ProductIDPattern: "3201",
 	},
+	{
+		Name:             "Trezor",
+		VendorIDPattern:  "534c",
+		ProductIDPattern: "0001|0002",
+	},
+	{
+		Name:             "Trezor v2",
+		VendorIDPattern:  "1209",
+		ProductIDPattern: "53c0|53c1",
+	},
+	{
+		Name:             "U2F-TOKEN (Tomu et al.)",
+		VendorIDPattern:  "16d0",
+		ProductIDPattern: "0e90",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `

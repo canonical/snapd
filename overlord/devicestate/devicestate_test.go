@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -64,6 +66,7 @@ import (
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -133,7 +136,7 @@ var (
 	brandPrivKey3, _ = assertstest.GenerateKey(752)
 )
 
-func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
+func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
@@ -154,7 +157,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	s.AddCleanup(release.MockOnClassic(false))
+	s.AddCleanup(release.MockOnClassic(classic))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
@@ -238,6 +241,10 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(func() { s.ancillary = nil })
 	s.AddCleanup(func() { s.newFakeStore = nil })
+
+	s.AddCleanup(devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return true, nil
+	}))
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -342,6 +349,11 @@ func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *s
 
 func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) *asserts.Serial {
 	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
+}
+
+func (s *deviceMgrSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSetTimeOnce(c *C) {
@@ -1779,4 +1791,111 @@ func (s *startOfOperationTimeSuite) TestStartOfOperationErrorIfPreseed(c *C) {
 	defer st.Unlock()
 	_, err := mgr.StartOfOperationTime()
 	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
+}
+
+func (s *deviceMgrSuite) TestCanAutoRefreshNTP(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// CanAutoRefresh is ready
+	s.state.Set("seeded", true)
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc", "8989")
+
+	// now check that the ntp-sync information is honored
+	n := 0
+	ntpSynced := false
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
+		return ntpSynced, nil
+	})
+	defer restore()
+
+	// not ntp-synced
+	ok, err := devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, false)
+	c.Check(n, Equals, 1)
+
+	// now ntp-synced
+	ntpSynced = true
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
+
+	// and the result was cached
+	ok, err = devicestate.CanAutoRefresh(s.state)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
+	c.Check(n, Equals, 2)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedLongerThan(c *C) {
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		return false, nil
+	})
+	defer restore()
+
+	// NTP is not synced yet and the (arbitrary selected) wait
+	// time of 12h since the device manager got started is not
+	// over yet
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, false)
+
+	// NTP is also not synced here but the wait time of 1
+	// Nanosecond since the device manager got started is
+	// certainly over
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 1*time.Nanosecond)
+	c.Check(syncedOrWaited, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
+	n := 0
+	restore := devicestate.MockTimeutilIsNTPSynchronized(func() (bool, error) {
+		n++
+		// no timedate1
+		return false, timeutil.NoTimedate1Error{Err: fmt.Errorf("boom")}
+	})
+	defer restore()
+
+	// There is no timedate1 dbus service, no point in waiting
+	syncedOrWaited := devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+
+	// and the result was cached
+	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
+	c.Check(syncedOrWaited, Equals, true)
+	c.Check(n, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
+	// create /var/lib/snapd/void with the wrong permissions
+	err := os.MkdirAll(dirs.SnapVoidDir, 0755)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(dirs.SnapVoidDir)
+	c.Assert(err, IsNil)
+	c.Check(int(st.Mode().Perm()), Equals, 0111)
+	msgs := strings.TrimSpace(logbuf.String())
+	c.Check(msgs, Matches, "(?sm).*fixing permissions of .*/var/lib/snapd/void to 0111")
+	c.Check(strings.Split(msgs, "\n"), HasLen, 1)
 }

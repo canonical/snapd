@@ -4,6 +4,13 @@ prepare: |
     snap install test-snapd-tools
     snap install --devmode jq
 
+debug: |
+    # GCE does not always NTP sync, try to figure out why here
+    # (LP: 1949886)
+    systemctl status systemd-timedated || true
+    journalctl -u systemd-timedated || true
+    timedatectl || true
+
 execute: |
     # Check help
     "$TESTSTOOLS"/snapd-state | MATCH "usage: check-state <jq-filter>"

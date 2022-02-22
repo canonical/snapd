@@ -627,6 +627,7 @@ var (
 		"hidraw":                    {"core", "gadget"},
 		"i2c":                       {"core", "gadget"},
 		"iio":                       {"core", "gadget"},
+		"kernel-module-load":        {"core"},
 		"kubernetes-support":        {"core"},
 		"location-control":          {"app"},
 		"location-observe":          {"app"},
@@ -636,6 +637,7 @@ var (
 		"mir":                       {"app"},
 		"microstack-support":        {"core"},
 		"modem-manager":             {"app", "core"},
+		"mount-control":             {"core"},
 		"mpris":                     {"app"},
 		"netlink-driver":            {"core", "gadget"},
 		"network-manager":           {"app", "core"},
@@ -649,6 +651,7 @@ var (
 		"pwm":                       {"core", "gadget"},
 		"qualcomm-ipc-router":       {"core"},
 		"raw-volume":                {"core", "gadget"},
+		"scsi-generic":              {"core"},
 		"sd-control":                {"core"},
 		"serial-port":               {"core", "gadget"},
 		"spi":                       {"core", "gadget"},
@@ -668,6 +671,7 @@ var (
 		"classic-support": nil,
 		"docker":          nil,
 		"lxd":             nil,
+		"shared-memory":   nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -734,12 +738,15 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"gpio-control":          true,
 		"ion-memory-control":    true,
 		"kernel-module-control": true,
+		"kernel-module-load":    true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"microstack-support":    true,
+		"mount-control":         true,
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"polkit":                true,
 		"sd-control":            true,
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
@@ -748,6 +755,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"tee":                   true,
 		"uinput":                true,
 		"unity8":                true,
+		"xilinx-dma":            true,
 	}
 
 	for _, iface := range all {
@@ -797,6 +805,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"raw-volume":                true,
+		"shared-memory":             true,
 		"storage-framework-service": true,
 		"thumbnailer-service":       true,
 		"ubuntu-download-manager":   true,
@@ -974,13 +983,17 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"gpio-control":          true,
 		"ion-memory-control":    true,
 		"kernel-module-control": true,
+		"kernel-module-load":    true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
 		"microstack-support":    true,
+		"mount-control":         true,
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"polkit":                true,
 		"sd-control":            true,
+		"shared-memory":         true,
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
@@ -990,6 +1003,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"uinput":                true,
 		"unity8":                true,
 		"wayland":               true,
+		"xilinx-dma":            true,
 	}
 
 	for _, iface := range all {

@@ -28,4 +28,9 @@ execute: |
     fi
 
     echo "With the plug connected, we can talk to fwupd"
-    test-snapd-fwupd.get-version | MATCH 'variant +string "[0-9.]+(-[0-9a-g-]+)?"'
+    VERSION_PREFIX=""
+    if os.query is-debian; then
+        # In Debian we might see "debian/" prepended to the version
+        VERSION_PREFIX="(debian/)?"
+    fi
+    test-snapd-fwupd.get-version | MATCH "variant +string \"${VERSION_PREFIX}[0-9.]+(-[0-9a-g-]+)?\""

@@ -73,6 +73,7 @@ if [ "$1" = "purge" ]; then
             done
             # modules
             rm -f "/etc/modules-load.d/snap.${snap}.conf"
+            rm -f "/etc/modprobe.d/snap.${snap}.conf"
             # udev rules
             find /etc/udev/rules.d -name "*-snap.${snap}.rules" -execdir rm -f "{}" \;
             # dbus policy files

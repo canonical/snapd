@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -25,26 +26,36 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
 
-func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
+// diskWithSystemSeed will locate a disk that has the partition corresponding
+// to a structure with SystemSeed role of the specified gadget volume and return
+// the device node.
+func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
-		if vs.Role == role {
+		if vs.Role == gadget.SystemSeed {
 			device, err = gadget.FindDeviceForStructure(&vs)
 			if err != nil {
-				return "", fmt.Errorf("cannot find device for role %q: %v", role, err)
+				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
-			return gadget.ParentDiskFromMountSource(device)
+
+			disk, err := disks.DiskFromPartitionDeviceNode(device)
+			if err != nil {
+				return "", err
+			}
+			return disk.KernelDeviceNode(), nil
 		}
 	}
-	return "", fmt.Errorf("cannot find role %s in gadget", role)
+	return "", fmt.Errorf("cannot find role system-seed in gadget")
 }
 
 func roleOrLabelOrName(part gadget.OnDiskStructure) string {
@@ -70,6 +81,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
+	if model.Grade() == asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot run install mode on non-UC20+ system")
+	}
+
 	lv, _, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
@@ -81,7 +96,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	//
 	// auto-detect device if no device is forced
 	if device == "" {
-		device, err = deviceFromRole(lv, gadget.SystemSeed)
+		device, err = diskWithSystemSeed(lv)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
@@ -94,12 +109,12 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureLayoutCompatibility(lv, diskLayout); err != nil {
+	if err := gadget.EnsureLayoutCompatibility(lv, diskLayout, nil); err != nil {
 		return nil, fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(lv, diskLayout); err != nil {
+	if err := removeCreatedPartitions(gadgetRoot, lv, diskLayout); err != nil {
 		return nil, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -114,7 +129,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 
 	var created []gadget.OnDiskStructure
 	timings.Run(perfTimings, "create-partitions", "Create partitions", func(timings.Measurer) {
-		created, err = createMissingPartitions(diskLayout, lv)
+		created, err = createMissingPartitions(gadgetRoot, diskLayout, lv)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
@@ -194,7 +209,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 
 		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-			err = writeContent(&part, gadgetRoot, observer)
+			err = writeContent(&part, observer)
 		})
 		if err != nil {
 			return nil, err

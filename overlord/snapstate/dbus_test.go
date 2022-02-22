@@ -280,7 +280,7 @@ func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
 	tr.Commit()
 
 	snapNames := []string{"some-snap", "other-snap"}
-	_, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID)
+	_, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID, nil)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("install", "install two snaps")
@@ -288,9 +288,7 @@ func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
 		chg.AddAll(ts)
 	}
 
-	s.state.Unlock()
 	s.settle(c)
-	s.state.Lock()
 
 	// The order of installation is indeterminant, but one will fail
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Make snap "(some|other)-snap" \(11\) available to the system \(snap "(some|other)-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "(some|other)-snap" use\)`)

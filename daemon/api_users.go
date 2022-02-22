@@ -408,6 +408,12 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 		return "", nil, fmt.Errorf("cannot create user for %q: no ssh keys found", email)
 	}
 
+	// Amend information where the key came from to ensure it can
+	// be update/replaced later
+	for i, k := range v.SSHKeys {
+		v.SSHKeys[i] = fmt.Sprintf(`%s # snapd {"origin":"store","email":%q}`, k, email)
+	}
+
 	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)
 	opts := &osutil.AddUserOptions{
 		SSHKeys: v.SSHKeys,

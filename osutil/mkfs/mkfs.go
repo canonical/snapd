@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil/shlex"
 )
 
 // MakeFunc defines a function signature that is used by all of the mkfs.<filesystem>
@@ -106,6 +107,19 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	var cmd *exec.Cmd
 	if os.Geteuid() != 0 {
 		// run through fakeroot so that files are owned by root
+		fakerootFlags := os.Getenv("FAKEROOT_FLAGS")
+		if fakerootFlags != "" {
+			// When executing fakeroot from a classic confinement snap the location of
+			// libfakeroot must be specified, or else it will be loaded from the host system
+			flags, err := shlex.Split(fakerootFlags)
+			if err != nil {
+				return fmt.Errorf("cannot split fakeroot command: %v", err)
+			}
+			if len(fakerootFlags) > 0 {
+				fakerootArgs := append(flags, "--")
+				mkfsArgs = append(fakerootArgs, mkfsArgs...)
+			}
+		}
 		cmd = exec.Command("fakeroot", mkfsArgs...)
 	} else {
 		// no need to fake it if we're already root

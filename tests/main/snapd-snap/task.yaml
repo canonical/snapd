@@ -120,12 +120,16 @@ prepare: |
         # on top of the repacked one, then snapd will just serve the correct
         # file over HTTP to snapcraft when it asks for it
 
-        CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
-        CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
-        ORIG_CORE_SNAP=${CORE_SNAP}.orig
-        
-        mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
-        tests.cleanup defer umount "$CORE_SNAP"
+        # When the SRU validation tests are executed, the core snap is not repacked
+        # and the var MODIFY_CORE_SNAP_FOR_REEXEC is 0
+        if [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = 1 ]; then
+            CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
+            CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
+            ORIG_CORE_SNAP=${CORE_SNAP}.orig
+
+            mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
+            tests.cleanup defer umount "$CORE_SNAP"
+        fi
     fi
 
 execute: |
