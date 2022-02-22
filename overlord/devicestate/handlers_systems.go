@@ -275,7 +275,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	t.SetStatus(state.DoneStatus)
 
 	logger.Noticef("restarting into candidate system %q", label)
-	restart.Request(m.state, restart.RestartSystemNow)
+	restart.Request(m.state, restart.RestartSystemNow, nil)
 	return nil
 }
 

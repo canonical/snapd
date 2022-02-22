@@ -62,6 +62,8 @@ var (
 	ErrSkipUpdateProceedRefresh   = errSkipUpdateProceedRefresh
 
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
+
+	SearchForVolumeWithTraits = searchForVolumeWithTraits
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

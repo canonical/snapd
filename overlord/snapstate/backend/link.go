@@ -99,9 +99,9 @@ func hasFontConfigCache(info *snap.Info) bool {
 }
 
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
-func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired bool, e error) {
+func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired boot.RebootInfo, e error) {
 	if info.Revision.Unset() {
-		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
+		return boot.RebootInfo{}, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
 
 	osutil.MaybeInjectFault("link-snap")
@@ -111,7 +111,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 		err = b.generateWrappers(info, linkCtx)
 	})
 	if err != nil {
-		return false, err
+		return boot.RebootInfo{}, err
 	}
 	defer func() {
 		if e == nil {
@@ -135,13 +135,13 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 		})
 	}
 
-	reboot, err := boot.Participant(info, info.Type(), dev).SetNextBoot()
+	rebootInfo, err := boot.Participant(info, info.Type(), dev).SetNextBoot()
 	if err != nil {
-		return false, err
+		return boot.RebootInfo{}, err
 	}
 
 	if err := updateCurrentSymlinks(info); err != nil {
-		return false, err
+		return boot.RebootInfo{}, err
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
@@ -158,10 +158,10 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 
 	// Stop inhibiting application startup by removing the inhibitor file.
 	if err := runinhibit.Unlock(info.InstanceName()); err != nil {
-		return false, err
+		return boot.RebootInfo{}, err
 	}
 
-	return reboot, nil
+	return rebootInfo, nil
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {

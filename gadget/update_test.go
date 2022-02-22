@@ -2107,16 +2107,17 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, nil)
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
+	opts := &gadget.DiskVolumeValidationOptions{
+		// make this non-nil so that it matches the non-nil (but empty) map in
+		// gadgettest/examples.go
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{},
+	}
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", opts)
 	c.Assert(err, IsNil)
-	// we normally get nil returned, but for reasons, the traits object in
-	// gadgettest is not nil
-	c.Assert(traits.StructureEncryption, IsNil)
-	traits.StructureEncryption = map[string]gadget.StructureEncryptionParameters{}
 	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiDiskVolumeDeviceTraits)
 }
 
-func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataHappy(c *C) {
+func (s *updateTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemDataHappy(c *C) {
 	// mock the device name
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
 		"/dev/sda": gadgettest.UC16ImplicitSystemDataMockDiskMapping,
@@ -2139,6 +2140,169 @@ func (s *gadgetYamlTestSuite) TestDiskTraitsFromDeviceAndValidateImplicitSystemD
 	c.Assert(err, IsNil)
 
 	c.Assert(traits, DeepEquals, gadgettest.UC16ImplicitSystemDataDeviceTraits)
+}
+
+func (s *updateTestSuite) TestSearchForVolumeWithTraitsImplicitSystemData(c *C) {
+	allowImplicitDataOpts := &gadget.DiskVolumeValidationOptions{
+		AllowImplicitSystemData: true,
+	}
+	testSearchForVolumeWithTraits(c,
+		gadgettest.UC16YAMLImplicitSystemData,
+		"pc",
+		&gadgettest.ModelCharacteristics{},
+		gadgettest.UC16ImplicitSystemDataMockDiskMapping,
+		gadgettest.UC16ImplicitSystemDataDeviceTraits,
+		allowImplicitDataOpts,
+	)
+}
+
+func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+	unrelatedDisk := &disks.MockDiskMapping{
+		DevNum:  "1:1",
+		DevPath: "/sys/devices/fooo",
+		DevNode: "/dev/fooo",
+	}
+
+	r := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/fooo": unrelatedDisk,
+	})
+	defer r()
+
+	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
+	c.Assert(err, IsNil)
+
+	laidOutVol := allVolumes["pc"]
+
+	// first go around we use the device path which matches
+	r = disks.MockDevicePathToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/sys/devices/fooo": unrelatedDisk,
+	})
+	defer r()
+
+	allowImplicitDataOpts := &gadget.DiskVolumeValidationOptions{
+		AllowImplicitSystemData: true,
+	}
+
+	_, err = gadget.SearchForVolumeWithTraits(laidOutVol, gadgettest.UC16ImplicitSystemDataDeviceTraits, allowImplicitDataOpts)
+	c.Assert(err, ErrorMatches, "cannot find physical disk laid out to map with volume pc")
+}
+
+func (s *updateTestSuite) TestSearchForVolumeWithTraitsNonSystemBoot(c *C) {
+	testSearchForVolumeWithTraits(c,
+		gadgettest.MultiVolumeUC20GadgetYaml,
+		"foo",
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.VMExtraVolumeDiskMapping,
+		gadgettest.VMExtraVolumeDeviceTraits,
+		nil,
+	)
+}
+
+func (s *updateTestSuite) TestSearchForVolumeWithTraitsUC20Encryption(c *C) {
+	encryptOpts := &gadget.DiskVolumeValidationOptions{
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"ubuntu-data": {Method: gadget.EncryptionLUKS},
+			"ubuntu-save": {Method: gadget.EncryptionLUKS},
+		},
+	}
+
+	testSearchForVolumeWithTraits(c,
+		gadgettest.RaspiSimplifiedYaml,
+		"pi",
+		&gadgettest.ModelCharacteristics{SystemSeed: true},
+		gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
+		gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
+		encryptOpts,
+	)
+}
+
+func testSearchForVolumeWithTraits(c *C,
+	gadgetYaml string,
+	volName string,
+	model *gadgettest.ModelCharacteristics,
+	realMapping *disks.MockDiskMapping,
+	traits gadget.DiskVolumeDeviceTraits,
+	validateOpts *gadget.DiskVolumeValidationOptions,
+) {
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("") }()
+	otherDisk := &disks.MockDiskMapping{
+		DevNum:  "1:1",
+		DevPath: traits.OriginalDevicePath,
+		DevNode: "/dev/fooo",
+	}
+
+	r := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		traits.OriginalKernelPath: realMapping,
+		"/dev/fooo":               otherDisk,
+	})
+	defer r()
+
+	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgetYaml, model)
+	c.Assert(err, IsNil)
+
+	laidOutVol := allVolumes[volName]
+
+	// first go around we use the device path which matches
+	r = disks.MockDevicePathToDiskMapping(map[string]*disks.MockDiskMapping{
+		traits.OriginalDevicePath: realMapping,
+	})
+	defer r()
+
+	d, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	c.Assert(err, IsNil)
+	c.Assert(d.Dev(), Equals, realMapping.DevNum)
+
+	// now make the device path change to something else
+	r = disks.MockDevicePathToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/sys/devices/new":        realMapping,
+		traits.OriginalDevicePath: otherDisk,
+	})
+	defer r()
+
+	// we still find it because we fall back on the device name from the traits
+	// (/dev/sda)
+	d2, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	c.Assert(err, IsNil)
+	c.Assert(d2.Dev(), Equals, realMapping.DevNum)
+
+	// now try the last fallback which is the disk ID
+
+	// because we can't make the first check of DiskFromDeviceName that comes
+	// from checking traits.OriginalKernelPath fail, but then the subsequent one
+	// to validate the disk successful, we have to instead just set the
+	// OriginalKernelPath to empty so it skips the check entirely
+	traits.OriginalKernelPath = ""
+
+	devicePathMapping := map[string]*disks.MockDiskMapping{
+		traits.OriginalDevicePath: otherDisk,
+	}
+
+	// mock two disks in /sys/block
+	blockDir := filepath.Join(dirs.SysfsDir, "block")
+	err = os.MkdirAll(blockDir, 0755)
+	c.Assert(err, IsNil)
+	for _, f := range []string{"real", "other"} {
+		blockDevSym := filepath.Join(blockDir, f)
+		err := os.Symlink("something", blockDevSym)
+		c.Assert(err, IsNil)
+
+		switch f {
+		case "real":
+			devicePathMapping[blockDevSym] = realMapping
+		case "other":
+			devicePathMapping[blockDevSym] = otherDisk
+		}
+	}
+
+	r = disks.MockDevicePathToDiskMapping(devicePathMapping)
+	defer r()
+
+	d3, err := gadget.SearchForVolumeWithTraits(laidOutVol, traits, validateOpts)
+	c.Assert(err, IsNil)
+	c.Assert(d3.Dev(), Equals, realMapping.DevNum)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingInvalidYAMLDoesNotBlockOverallRefresh(c *C) {
