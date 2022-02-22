@@ -229,8 +229,8 @@ func UserSnapDir(home string, name string, opts *dirs.SnapDirOptions) string {
 }
 
 // UserExposedHomeDir returns the snap's directory in the exposed home dir.
-func UserExposedHomeDir(home string, name string) string {
-	return filepath.Join(home, dirs.ExposedSnapDir, name)
+func UserExposedHomeDir(home string, snapName string) string {
+	return filepath.Join(home, dirs.ExposedSnapDir, snapName)
 }
 
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for

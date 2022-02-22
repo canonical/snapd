@@ -33,7 +33,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var allUsers = snap.AllUsers
+var (
+	allUsers      = snap.AllUsers
+	mkdirAllChown = osutil.MkdirAllChown
+)
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
 func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
@@ -240,8 +243,6 @@ var removeIfEmpty = func(dir string) error {
 	return os.Remove(dir)
 }
 
-var maybeFailForTesting func() error
-
 // InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
 // specified revision. Must be called after the snap has been migrated.
 func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err error) {
@@ -258,15 +259,8 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 			return err
 		}
 
-		if maybeFailForTesting != nil {
-			osutil.MustBeTestBinary("'maybeFailForTesting' should only be used in tests")
-			if err := maybeFailForTesting(); err != nil {
-				return err
-			}
-		}
-
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
-		if err := osutil.MkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
+		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
 			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
 		}
 

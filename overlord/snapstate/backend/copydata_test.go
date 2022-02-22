@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -954,7 +955,7 @@ func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 	})
 	defer restore()
 
-	restore = backend.MockInitSnapMaybeFailForTesting(func() error {
+	restore = backend.MockMkdirAllChown(func(string, os.FileMode, sys.UserID, sys.GroupID) error {
 		return errors.New("boom")
 	})
 	defer restore()
@@ -963,7 +964,7 @@ func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
 
-	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, "boom")
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, ".*: boom")
 
 	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapDir))
 	c.Assert(err, IsNil)

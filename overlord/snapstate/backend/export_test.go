@@ -20,10 +20,12 @@
 package backend
 
 import (
+	"os"
 	"os/exec"
 	"os/user"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var (
@@ -64,10 +66,10 @@ func MockRemoveIfEmpty(f func(dir string) error) func() {
 	}
 }
 
-func MockInitSnapMaybeFailForTesting(f func() error) func() {
-	old := maybeFailForTesting
-	maybeFailForTesting = f
+func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) error) func() {
+	old := mkdirAllChown
+	mkdirAllChown = f
 	return func() {
-		maybeFailForTesting = old
+		mkdirAllChown = old
 	}
 }
