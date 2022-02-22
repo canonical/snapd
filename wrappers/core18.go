@@ -285,7 +285,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 				// we can never restart the snapd.socket because
 				// this will also bring down snapd itself
 				if unit != "snapd.socket" {
-				if err := sysd.Restart(serviceUnits); err != nil {
+					if err := sysd.Restart(serviceUnits); err != nil {
 						return err
 					}
 				}

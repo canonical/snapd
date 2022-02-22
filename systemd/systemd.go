@@ -1011,10 +1011,9 @@ func (s *systemd) Stop(serviceNames []string) error {
 			serviceNames = stillRunningServices
 
 			if len(serviceNames) == 0 || stopComplete {
-				// We exit the go routine cleanly (no error caused it to exit). However,
-				// whether all units actually stopped is checked in the parent function
-				// once this routine returns.
-				errorRet <- nil
+				// We return without explicitly writing to the error channel
+				// because the deferred close will cause the pending channel
+				// read to return a nil error.
 				return
 			}
 
