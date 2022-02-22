@@ -962,11 +962,18 @@ func (m *recoverModeStateMachine) unlockMaybeEncryptedAloneSaveFallbackKey() (st
 	// which we will determine now
 
 	// first check whether there is an encrypted save
-	_, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save"))
-	if findErr == nil {
+	part, findErr := m.disk.FindMatchingPartitionWithFsLabel("ubuntu-save")
+	if findErr == nil && part.FilesystemType == "crypto_LUKS" {
 		// well there is one, go try and unlock it
 		return m.unlockEncryptedSaveFallbackKey, nil
 	}
+
+	_, findErrEnc := m.disk.FindMatchingPartitionWithFsLabel("ubuntu-save-enc")
+	if findErrEnc == nil {
+		// well there is one, go try and unlock it
+		return m.unlockEncryptedSaveFallbackKey, nil
+	}
+
 	// encrypted ubuntu-save does not exist, there may still be an
 	// unencrypted one
 	return m.openUnencryptedSave, nil
@@ -976,8 +983,13 @@ func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 	// do we have ubuntu-save at all?
 	partSave := m.degradedState.partition("ubuntu-save")
 	const partitionOptional = true
-	partUUID, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save")
-	if err := m.setFindState("ubuntu-save", partUUID, findErr, partitionOptional); err != nil {
+	part, findErr := m.disk.FindMatchingPartitionWithFsLabel("ubuntu-save")
+	if part.FilesystemType == "crypto_LUKS" {
+		logger.Noticef("ignoring unexpected encrypted ubuntu-save with UUID %q", part.PartitionUUID)
+		partSave.MountState = partitionAbsentOptional
+		return nil, nil
+	}
+	if err := m.setFindState("ubuntu-save", part.PartitionUUID, findErr, partitionOptional); err != nil {
 		return nil, err
 	}
 	if partSave.FindState == partitionFound {
@@ -987,9 +999,9 @@ func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 
 	// unencrypted ubuntu-save was not found, try to log something in case
 	// the early boot output can be collected for debugging purposes
-	if uuid, err := m.disk.FindMatchingPartitionUUIDWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save")); err == nil {
+	if part, err := m.disk.FindMatchingPartitionWithFsLabel("ubuntu-save-enc"); err == nil{
 		// highly unlikely that encrypted save exists
-		logger.Noticef("ignoring unexpected encrypted ubuntu-save with UUID %q", uuid)
+		logger.Noticef("ignoring unexpected encrypted ubuntu-save with UUID %q", part.PartitionUUID)
 	} else {
 		logger.Noticef("ubuntu-save was not found")
 	}

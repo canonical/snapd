@@ -172,9 +172,3 @@ type UnlockResult struct {
 	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
 }
-
-// EncryptedPartitionName returns the name/label used by an encrypted partition
-// corresponding to a given name.
-func EncryptedPartitionName(name string) string {
-	return name + "-enc"
-}

@@ -65,7 +65,7 @@ func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key secboot.Encryption
 		node: fmt.Sprintf("/dev/mapper/%s", name),
 	}
 
-	if err := secbootFormatEncryptedDevice(key, name+"-enc", part.Node); err != nil {
+	if err := secbootFormatEncryptedDevice(key, name, part.Node); err != nil {
 		return nil, fmt.Errorf("cannot format encrypted device: %v", err)
 	}
 

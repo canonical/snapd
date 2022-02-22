@@ -292,8 +292,8 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
-					if dv.Label != gv.Name+"-enc" {
-						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
+					if dv.Label != gv.Name && dv.Label != gv.Name+"-enc" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc or %[1]s", gv.Name)
 					}
 
 					// the filesystem should also be "crypto_LUKS"
