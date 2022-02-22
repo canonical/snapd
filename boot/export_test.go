@@ -199,6 +199,12 @@ func (b *bootChain) KernelBootFile() bootloader.BootFile {
 	return b.kernelBootFile
 }
 
+func MockRebootArgsPath(argsPath string) (restore func()) {
+	oldRebootArgsPath := rebootArgsPath
+	rebootArgsPath = argsPath
+	return func() { rebootArgsPath = oldRebootArgsPath }
+}
+
 func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f
@@ -235,4 +241,9 @@ func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()
 	return func() {
 		writeModelToUbuntuBoot = old
 	}
+}
+
+func EnableTestingRebootFunction() (restore func()) {
+	testingRebootItself = true
+	return func() { testingRebootItself = false }
 }
