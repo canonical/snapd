@@ -203,29 +203,28 @@ func checkProfileExtraRules(c *C, profile string, exp expSnapConfineTransitionRu
 		c.Assert(profile, testutil.FileContains, "  /usr/bin/snap ixr,")
 		c.Assert(profile, testutil.FileContains, " /snap/{snapd,core}/*/usr/bin/snap ixr,")
 	} else {
-		c.Assert(profile, Not(testutil.FileContains), "  /usr/bin/snap ixr,")
-		c.Assert(profile, Not(testutil.FileContains), " /snap/{snapd,core}/*/usr/bin/snap ixr,")
+		c.Assert(profile, Not(testutil.FileContains), "/usr/bin/snap")
 	}
 
 	if exp.usrLibSnapdTarget != "" {
 		rule := fmt.Sprintf("/usr/lib/snapd/snap-confine Pxr -> %s,", exp.usrLibSnapdTarget)
 		c.Assert(profile, testutil.FileContains, rule)
 	} else {
-		c.Assert(profile, Not(testutil.FileMatches), "/usr/lib/snapd/snap-confine Pxr ->.*,")
+		c.Assert(profile, Not(testutil.FileMatches), "/usr/lib/snapd/snap-confine")
 	}
 
 	if exp.coreSnapTarget != "" {
 		rule := fmt.Sprintf("/snap/core/*/usr/lib/snapd/snap-confine Pxr -> %s,", exp.coreSnapTarget)
 		c.Assert(profile, testutil.FileContains, rule)
 	} else {
-		c.Assert(profile, Not(testutil.FileMatches), "/snap/core/*/usr/lib/snapd/snap-confine Pxr ->.*,")
+		c.Assert(profile, Not(testutil.FileMatches), `/snap/core/\*/usr/lib/snapd/snap-confine`)
 	}
 
 	if exp.snapdSnapTarget != "" {
 		rule := fmt.Sprintf("/snap/snapd/*/usr/lib/snapd/snap-confine Pxr -> %s,", exp.snapdSnapTarget)
 		c.Assert(profile, testutil.FileContains, rule)
 	} else {
-		c.Assert(profile, Not(testutil.FileMatches), "/snap/snapd/*/usr/lib/snapd/snap-confine Pxr ->.*,")
+		c.Assert(profile, Not(testutil.FileMatches), `/snap/snapd/\*/usr/lib/snapd/snap-confine`)
 	}
 }
 
