@@ -365,15 +365,6 @@ prepare_classic() {
 
         disable_refreshes
 
-        echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
-        # shellcheck disable=SC2119
-        output=$("$TESTSTOOLS"/boot-state bootenv show)
-        if echo "$output" | MATCH snap_ ; then
-            echo "Expected bootloader environment without snap_*, got:"
-            echo "$output"
-            exit 1
-        fi
-
         setup_experimental_features
         systemctl stop snapd.{service,socket}
         save_snapd_state
