@@ -51,7 +51,7 @@ func (s *baseSystemsSuite) SetUpTest(c *C) {
 type systemsSuite struct {
 	baseSystemsSuite
 
-	uc20dev boot.Device
+	uc20dev snap.Device
 
 	runKernelBf      bootloader.BootFile
 	recoveryKernelBf bootloader.BootFile

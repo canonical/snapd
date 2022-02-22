@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -201,7 +202,7 @@ func InitramfsExposeBootFlagsForSystem(flags []string) error {
 // error will have IsUnknownFlagErroror() return true. This is to allow gracefully
 // ignoring unknown boot flags while still processing supported flags.
 // Only to be used on UC20+ systems with recovery systems.
-func BootFlags(dev Device) ([]string, error) {
+func BootFlags(dev snap.Device) ([]string, error) {
 	if !dev.HasModeenv() {
 		return nil, errNotUC20
 	}
@@ -235,7 +236,7 @@ func BootFlags(dev Device) ([]string, error) {
 // Only to be used on UC20+ systems with recovery systems.
 // TODO: should this accept a modeenv that was previously read from i.e.
 // devicestate manager?
-func nextBootFlags(dev Device) ([]string, error) {
+func nextBootFlags(dev snap.Device) ([]string, error) {
 	if !dev.HasModeenv() {
 		return nil, errNotUC20
 	}
@@ -251,7 +252,7 @@ func nextBootFlags(dev Device) ([]string, error) {
 // setNextBootFlags sets the boot flags for the next boot to take effect after
 // rebooting. This information always gets saved to the modeenv.
 // Only to be used on UC20+ systems with recovery systems.
-func setNextBootFlags(dev Device, rootDir string, flags []string) error {
+func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 	if !dev.HasModeenv() {
 		return errNotUC20
 	}

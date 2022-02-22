@@ -187,7 +187,7 @@ execute: |
         fi
 
         # undo the purging
-        apt install -y "$PROJECT_PATH/../snapd_1337.2.54.2_amd64.deb"
+        apt install -y "$PROJECT_PATH/../"snapd_1337.*_amd64.deb
 
     else
         echo "unknown variant $SNAP_TO_USE_FIRST"

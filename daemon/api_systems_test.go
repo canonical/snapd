@@ -29,6 +29,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -47,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&systemsSuite{})
@@ -320,8 +320,17 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	bootloader.Force(bt)
 	defer func() { bootloader.Force(nil) }()
 
-	cmd := testutil.MockCommand(c, "shutdown", "")
-	defer cmd.Restore()
+	nRebootCall := 0
+	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
+		nRebootCall++
+		// slow reboot schedule
+		c.Check(ra, check.Equals, boot.RebootReboot)
+		c.Check(d, check.Equals, 10*time.Minute)
+		c.Check(ri, check.IsNil)
+		return nil
+	}
+	r := daemon.MockReboot(rebootCheck)
+	defer r()
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()
@@ -353,6 +362,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		"seed-time": "2009-11-10T23:00:00Z",
 	}}
 
+	numExpRestart := 0
 	tt := []struct {
 		currentMode    string
 		actionMode     string
@@ -505,22 +515,18 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
+				numExpRestart++
 				c.Check(d.RequestedRestart(), check.Equals, restart.RestartSystemNow, check.Commentf(tc.comment))
-				// slow reboot schedule
-				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
-				},
-					check.Commentf(tc.comment),
-				)
 			}
 		}
 
 		c.Assert(rspBody, check.DeepEquals, expResp, check.Commentf(tc.comment))
 
-		cmd.ForgetCalls()
 		s.resetDaemon()
 	}
 
+	// we must have called reboot numExpRestart times
+	c.Check(nRebootCall, check.Equals, numExpRestart)
 }
 
 func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {

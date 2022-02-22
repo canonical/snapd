@@ -62,6 +62,7 @@ var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelIma
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
 var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
 var _ bootloader.TrustedAssetsBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
+var _ bootloader.RebootBootloader = (*MockRebootBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -515,6 +516,30 @@ type MockRecoveryAwareTrustedAssetsBootloader struct {
 
 func (b *MockBootloader) WithRecoveryAwareTrustedAssets() *MockRecoveryAwareTrustedAssetsBootloader {
 	return &MockRecoveryAwareTrustedAssetsBootloader{
+		MockBootloader: b,
+	}
+}
+
+// MockRebootBootloaderMixin implements the bootloader.RebootBootloader
+// interface.
+type MockRebootBootloaderMixin struct {
+	RebootArgs string
+}
+
+// MockRebootBootloader mocks a bootloader implementing the
+// bootloader.RebootBootloader interface.
+type MockRebootBootloader struct {
+	*MockBootloader
+
+	MockRebootBootloaderMixin
+}
+
+func (b *MockRebootBootloaderMixin) GetRebootArguments() string {
+	return b.RebootArgs
+}
+
+func (b *MockBootloader) WithRebootBootloader() *MockRebootBootloader {
+	return &MockRebootBootloader{
 		MockBootloader: b,
 	}
 }

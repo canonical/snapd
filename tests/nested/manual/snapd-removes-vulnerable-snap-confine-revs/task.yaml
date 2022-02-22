@@ -25,14 +25,11 @@ environment:
   REPACKED_SNAP_NAME/core: core-from-snapd-deb.snap
   REPACKED_SNAP_NAME/snapd: snapd-from-deb.snap
 
-  # TODO: use more up to date, but still vulnerable revisions of core and snapd
-  # for this test to reduce the delta in functionality we end up testing here
-
   # a specific vulnerable snapd version we can base our image on
-  VULN_SNAP_REV_URL/snapd: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.1_11402.snap
+  VULN_SNAP_REV_URL/snapd: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_14549.snap
 
   # a specific vulnerable core version we can base our image on
-  VULN_SNAP_REV_URL/core: https://storage.googleapis.com/snapd-spread-tests/snaps/core_2.45_9289.snap
+  VULN_SNAP_REV_URL/core: https://storage.googleapis.com/snapd-spread-tests/snaps/core_12603.snap
 
 prepare: |
   #shellcheck source=tests/lib/preseed.sh
@@ -68,7 +65,7 @@ prepare: |
 
 execute: |
   # check the current snapd snap is vulnerable
-  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | MATCH '^VERSION=2\.4.*'
+  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | MATCH '^VERSION=2\.54\.2$'
   VULN_REV=$(tests.nested exec "snap list $SNAPD_SOURCE_SNAP" | tail -n +2 | awk '{print $3}')
 
   # now install our snapd deb from the branch - this is so we know the patched
@@ -101,7 +98,7 @@ execute: |
   fi
 
   # check that the current revision is not vulnerable
-  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | NOMATCH '^VERSION=2\.4.*'
+  tests.nested exec cat /snap/$SNAPD_SOURCE_SNAP/current/usr/lib/snapd/info | NOMATCH '^VERSION=2\.54\.2$'
 
   # and there are no other revisions
   if [ "$(tests.nested exec "snap list $SNAPD_SOURCE_SNAP" | tail -n +2 | wc -l)"  != "1" ]; then

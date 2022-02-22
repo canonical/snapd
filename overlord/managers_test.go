@@ -444,7 +444,7 @@ SNAPD_APPARMOR_REEXEC=0
 `
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11", "30"} {
-			infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, rev, dirs.CoreLibExecDir, "info")
+			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
 			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
 			c.Assert(err, IsNil)
 			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)

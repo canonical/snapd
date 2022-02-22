@@ -257,7 +257,7 @@ SNAPD_APPARMOR_REEXEC=0
 `
 	for _, snapName := range []string{"snapd", "core"} {
 		for _, rev := range []string{"1", "11"} {
-			infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, rev, dirs.CoreLibExecDir, "info")
+			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
 			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
 			c.Assert(err, IsNil)
 			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
@@ -2815,21 +2815,21 @@ SNAPD_APPARMOR_REEXEC=0
 `
 
 	// revision 1 vulnerable
-	infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, "1", dirs.CoreLibExecDir, "info")
+	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
 	err := os.MkdirAll(filepath.Dir(infoFile), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 2 fixed
-	infoFile2 := filepath.Join(dirs.GlobalRootDir, "snap", snapName, "2", dirs.CoreLibExecDir, "info")
+	infoFile2 := filepath.Join(dirs.SnapMountDir, snapName, "2", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile2), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 11 fixed
-	infoFile11 := filepath.Join(dirs.GlobalRootDir, "snap", snapName, "11", dirs.CoreLibExecDir, "info")
+	infoFile11 := filepath.Join(dirs.SnapMountDir, snapName, "11", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile11), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
@@ -2900,7 +2900,7 @@ func (s *snapmgrTestSuite) TestEnsureChecksSnapdInfoFileOnClassicOnly(c *C) {
 	// devices, but deleting them here makes it so we can see the failure
 	// trying to read the files easily
 
-	infoFile := filepath.Join(dirs.GlobalRootDir, "snap", "core", "1", dirs.CoreLibExecDir, "info")
+	infoFile := filepath.Join(dirs.SnapMountDir, "core", "1", dirs.CoreLibExecDir, "info")
 	err := os.Remove(infoFile)
 	c.Assert(err, IsNil)
 
@@ -2959,7 +2959,7 @@ func (s *snapmgrTestSuite) TestEnsureSkipsCheckingBothCoreAndSnapdSnapsInfoFileW
 	st.Unlock()
 
 	infoFileFor := func(snapName string) string {
-		return filepath.Join(dirs.GlobalRootDir, "snap", snapName, "1", dirs.CoreLibExecDir, "info")
+		return filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
 	}
 
 	// delete both snapd and core snap info files
@@ -2998,7 +2998,7 @@ func (s *snapmgrTestSuite) testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c *C
 	// delete the snap info file for this snap - they should always exist in
 	// real devices, but deleting them here makes it so we can see the failure
 	// trying to read the files easily
-	infoFile := filepath.Join(dirs.GlobalRootDir, "snap", snapName, "1", dirs.CoreLibExecDir, "info")
+	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
 	err := os.Remove(infoFile)
 	c.Assert(err, IsNil)
 
