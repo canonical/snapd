@@ -1136,9 +1136,11 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 		case 1:
 			c.Check(d, check.Equals, 10*time.Minute)
 			c.Check(ri, check.IsNil)
-		default:
+		case 2:
 			c.Check(d, check.Equals, 1*time.Minute)
 			c.Check(ri, check.DeepEquals, &boot.RebootInfo{})
+		default:
+			c.Error("reboot called more times than expected")
 		}
 		return nil
 	}
@@ -1187,9 +1189,11 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 		case 1:
 			c.Check(d, check.Equals, 100*time.Millisecond)
 			c.Check(ri, check.IsNil)
-		default:
+		case 2:
 			c.Check(d, check.Equals, 1*time.Minute)
 			c.Check(ri, check.DeepEquals, &boot.RebootInfo{})
+		default:
+			c.Error("reboot called more times than expected")
 		}
 		return nil
 	}
