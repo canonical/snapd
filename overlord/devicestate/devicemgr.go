@@ -1568,10 +1568,12 @@ var defaultSystemActions = []SystemAction{
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 var recoverSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 

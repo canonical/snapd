@@ -140,9 +140,9 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 		ModelSignKeyID: s.model.SignKeyID(),
 	}
 	err := modeenv.WriteTo("")
-	s.state.Set("seeded", true)
-
 	c.Assert(err, IsNil)
+
+	s.state.Set("seeded", true)
 
 	logbuf, restore := logger.MockLogger()
 	s.logbuf = logbuf
@@ -279,6 +279,13 @@ var defaultSystemActions []devicestate.SystemAction = []devicestate.SystemAction
 var currentSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
+	{Title: "Run normally", Mode: "run"},
+}
+
+var recoverySystemActions []devicestate.SystemAction = []devicestate.SystemAction{
+	{Title: "Reinstall", Mode: "install"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 
@@ -383,6 +390,59 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentManySeeded(c *C) {
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
 		Actions: currentSystemActions,
+	}})
+}
+
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentInRecoveryMode(c *C) {
+	// mock recovery mode
+	modeenv := boot.Modeenv{
+		Mode:           "recover",
+		RecoverySystem: s.mockedSystemSeeds[1].label,
+
+		Model:          s.mockedSystemSeeds[1].model.Model(),
+		BrandID:        s.mockedSystemSeeds[1].brand.AccountID(),
+		Grade:          string(s.mockedSystemSeeds[1].model.Grade()),
+		ModelSignKeyID: s.mockedSystemSeeds[1].model.SignKeyID(),
+	}
+	err := modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+	// update the internal mode
+	devicestate.SetSystemMode(s.mgr, "recover")
+
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[1].label,
+			Model:   s.mockedSystemSeeds[1].model.Model(),
+			BrandID: s.mockedSystemSeeds[1].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	systems, err := s.mgr.Systems()
+	c.Assert(err, IsNil)
+	c.Assert(systems, HasLen, 3)
+	c.Check(systems, DeepEquals, []*devicestate.System{{
+		Current: false,
+		Label:   s.mockedSystemSeeds[0].label,
+		Model:   s.mockedSystemSeeds[0].model,
+		Brand:   s.mockedSystemSeeds[0].brand,
+		Actions: defaultSystemActions,
+	}, {
+		// this seed was used for installing the running system, but
+		// since we are in recovery mode, the available actions are
+		// slightly different
+		Current: true,
+		Label:   s.mockedSystemSeeds[1].label,
+		Model:   s.mockedSystemSeeds[1].model,
+		Brand:   s.mockedSystemSeeds[1].brand,
+		Actions: recoverySystemActions,
+	}, {
+		Current: false,
+		Label:   s.mockedSystemSeeds[2].label,
+		Model:   s.mockedSystemSeeds[2].model,
+		Brand:   s.mockedSystemSeeds[2].brand,
+		Actions: defaultSystemActions,
 	}})
 }
 
