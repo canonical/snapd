@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -95,10 +96,22 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 		}
 	}
 
+	// get the model
+	deviceCtx, err := devicestate.DeviceCtx(m.state, nil, nil)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	var model *asserts.Model
+	if deviceCtx != nil {
+		model = deviceCtx.Model()
+	}
+
 	opts := interfaces.SecurityBackendOptions{
 		Preseed:       m.preseed,
 		CoreSnapInfo:  coreSnapInfo,
 		SnapdSnapInfo: snapdSnapInfo,
+		Model:         model,
 	}
 	for _, backend := range backends.All {
 		if err := backend.Initialize(&opts); err != nil {

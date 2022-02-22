@@ -20,6 +20,7 @@
 package interfaces
 
 import (
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -76,6 +77,8 @@ type SecurityBackendOptions struct {
 	// SnapdSnapInfo is the current revision of the snapd snap (if it is
 	// installed)
 	SnapdSnapInfo *snap.Info
+	// Model is the model assertion of the device.
+	Model *asserts.Model
 }
 
 // SecurityBackend abstracts interactions between the interface system and the

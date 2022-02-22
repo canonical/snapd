@@ -48,6 +48,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -77,6 +78,8 @@ type Backend struct {
 
 	coreSnap  *snap.Info
 	snapdSnap *snap.Info
+
+	model *asserts.Model
 }
 
 // Name returns the name of the backend.
@@ -93,6 +96,7 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	if opts != nil {
 		b.coreSnap = opts.CoreSnapInfo
 		b.snapdSnap = opts.SnapdSnapInfo
+		b.model = opts.Model
 	}
 	// NOTE: It would be nice if we could also generate the profile for
 	// snap-confine executing from the core snap, right here, and not have to
@@ -727,6 +731,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				return ""
 			}
 
+			if b.model != nil && b.model.Base() == "core22" {
+				// nothing to add if we are on UC22
+				return ""
+			}
+
 			// otherwise we need to generate special policy to allow executing
 			// snap-confine from inside a devmode snap
 
@@ -785,10 +794,9 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				usrLibSnapdConfineTransitionTarget = snapdProfileTarget()
 			case b.snapdSnap != nil && b.coreSnap != nil:
 				// both are installed - need to check which one to use
-				// TODO: is snapInfo.Base sometimes unset for snaps w/o bases
-				// these days? maybe this needs to be this instead ?
-				// if release.OnClassic && (snapInfo.Base == "core" || snapInfo.Base == "")
-				if release.OnClassic && snapInfo.Base == "core" {
+				// note that a base of "core" is represented by base == "" for
+				// historical reasons
+				if release.OnClassic && snapInfo.Base == "" {
 					// use the core snap as the target only if we are on
 					// classic and the base is core
 					usrLibSnapdConfineTransitionTarget = coreProfileTarget()
