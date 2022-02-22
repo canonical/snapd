@@ -218,7 +218,7 @@ type: kernel
 
 	reboot, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Check(reboot, Equals, false)
+	c.Check(reboot, DeepEquals, boot.RebootInfo{})
 }
 
 func (s *linkSuite) TestLinkDoIdempotent(c *C) {
