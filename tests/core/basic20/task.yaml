@@ -71,6 +71,13 @@ execute: |
         fi
     done
 
+    # ensure that disk-mapping.json is created - we check the format of this 
+    # file in unit tests and in uc20-create-partitions so we don't check 
+    # anything here, just that the file exists
+    test -e /var/lib/snapd/device/disk-mapping.json
+    # ubuntu-save has it too
+    test -e /run/mnt/ubuntu-save/device/disk-mapping.json
+
     # ensure the "snap recovery" command works
     MODEL="$(snap model --verbose | grep '^model' | awk '{ print $2 }')"
     BRAND_ID="$(snap model --verbose | grep '^brand-id:' | awk '{print $2}')"

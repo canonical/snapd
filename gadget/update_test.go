@@ -2107,12 +2107,13 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateDOSSingleVolume(c *
 	lvol, err := gadgettest.LayoutFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, nil)
 	c.Assert(err, IsNil)
 
-	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", nil)
+	opts := &gadget.DiskVolumeValidationOptions{
+		// make this non-nil so that it matches the non-nil (but empty) map in
+		// gadgettest/examples.go
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{},
+	}
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol, "/dev/mmcblk0", opts)
 	c.Assert(err, IsNil)
-	// we normally get nil returned, but for reasons, the traits object in
-	// gadgettest is not nil
-	c.Assert(traits.StructureEncryption, IsNil)
-	traits.StructureEncryption = map[string]gadget.StructureEncryptionParameters{}
 	c.Assert(traits, DeepEquals, gadgettest.ExpectedRaspiDiskVolumeDeviceTraits)
 }
 

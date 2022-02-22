@@ -252,8 +252,8 @@ type DiskVolumeDeviceTraits struct {
 	Structure []DiskStructureDeviceTraits `json:"structure"`
 
 	// StructureEncryption is the set of partitions that are encrypted on the
-	// volume - this should only ever have ubuntu-data or ubuntu-save for now
-	// keys in the map. The value indicates parameters of the encryption present
+	// volume - this should only ever have ubuntu-data or ubuntu-save keys for
+	// now in the map. The value indicates parameters of the encryption present
 	// that enable matching/identifying encrypted structures with their laid out
 	// counterparts in the gadget.yaml.
 	StructureEncryption map[string]StructureEncryptionParameters `json:"structure-encryption"`
