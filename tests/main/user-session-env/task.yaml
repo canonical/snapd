@@ -93,6 +93,9 @@ execute: |
                 # similarly the right paths are set for subprocesses
                 MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-child-env"
                 MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
+                # make sure that XDG_DATA_DIRS contains the default locations as well
+                MATCH 'XDG_DATA_DIRS=.*[:]?/usr/share[:]?.*' < "${user}-profile-env"
+                MATCH 'XDG_DATA_DIRS=.*[:]?/usr/local/share[:]?.*' < "${user}-profile-env"
                 ;;
         esac
     done
