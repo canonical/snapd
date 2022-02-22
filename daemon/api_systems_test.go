@@ -191,6 +191,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 				Actions: []client.SystemAction{
 					{Title: "Reinstall", Mode: "install"},
 					{Title: "Recover", Mode: "recover"},
+					{Title: "Factory reset", Mode: "factory-reset"},
 					{Title: "Run normally", Mode: "run"},
 				},
 			},
