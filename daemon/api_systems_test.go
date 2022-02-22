@@ -392,14 +392,23 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			comment:     "run mode to run mode",
 		},
 		{
-			// from recover mode -> run mode works to stop recovering and "restore" the system to normal
+			// from run mode -> factory-reset
+			currentMode: "run",
+			actionMode:  "factory-reset",
+			expRestart:  true,
+			comment:     "run mode to factory-reset mode",
+		},
+		{
+			// from recover mode -> run mode works to stop
+			// recovering and "restore" the system to normal
 			currentMode: "recover",
 			actionMode:  "run",
 			expRestart:  true,
 			comment:     "recover mode to run mode",
 		},
 		{
-			// from recover mode -> install mode works to stop recovering and reinstall the system if all is lost
+			// from recover mode -> install mode works to stop
+			// recovering and reinstall the system if all is lost
 			currentMode: "recover",
 			actionMode:  "install",
 			expRestart:  true,
@@ -411,6 +420,13 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			actionMode:     "recover",
 			expUnsupported: true,
 			comment:        "recover mode to recover mode",
+		},
+		{
+			// from recover mode -> factory-reset works
+			currentMode: "recover",
+			actionMode:  "factory-reset",
+			expRestart:  true,
+			comment:     "recover mode to factory-reset mode",
 		},
 		{
 			// from install mode -> install mode is no-no
@@ -629,8 +645,10 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 		{"20200101", ""},
 		{"", "run"},
 		{"", "recover"},
+		{"", "factory-reset"},
 		{"20200101", "run"},
 		{"20200101", "recover"},
+		{"20200101", "factory-reset"},
 	} {
 		called := 0
 		restore := daemon.MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
