@@ -35,10 +35,15 @@ import (
 
 const sharedMemorySummary = `allows two snaps to use predefined shared memory objects`
 
-// The plug side of shared-memory implements auto-connect to a matching slot -
-// this is permitted even though the interface is super-privileged because using
-// a slot requires a store declaration anyways so just declaring a plug will not
-// grant access unless a slot was also granted at some point.
+// The plug side of shared-memory can operate in two modes: if the
+// private attribute is set to true, then it can be connected to the
+// implicit system slot to be given a private version of /dev/shm.
+//
+// For a plug without that attribute set, it will connect to a
+// matching application snap slot - this is permitted even though the
+// interface is super-privileged because using a slot requires a store
+// declaration anyways so just declaring a plug will not grant access
+// unless a slot was also granted at some point.
 const sharedMemoryBaseDeclarationPlugs = `
   shared-memory:
     allow-installation: true
@@ -68,9 +73,16 @@ const sharedMemoryBaseDeclarationPlugs = `
           - core
 `
 
-// shared-memory slots are super-privileged and thus denied to any snap except
-// those that get a store declaration to do so, but the intent is for
-// application or gadget snaps to use the slot much like the content interface.
+// shared-memory slots can appear either as an implicit system slot,
+// or as a slot on an application snap.
+//
+// The implicit version of the slot is intended to auto-connect with
+// plugs that have the private attribute set to true.
+//
+// Slots on app snaps connect to non-private plugs. They are are
+// super-privileged and thus denied to any snap except those that get
+// a store declaration to do so, but the intent is for application or
+// gadget snaps to use the slot much like the content interface.
 const sharedMemoryBaseDeclarationSlots = `
   shared-memory:
     allow-installation:
@@ -226,9 +238,9 @@ func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
 }
 
 func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-	privateAttr, isSet := plug.Attrs["private"]
+	privateAttr, isPrivateSet := plug.Attrs["private"]
 	private, ok := privateAttr.(bool)
-	if isSet && !ok {
+	if isPrivateSet && !ok {
 		return fmt.Errorf(`shared-memory "private" attribute must be a bool, not %v`, privateAttr)
 	}
 	if plug.Attrs == nil {

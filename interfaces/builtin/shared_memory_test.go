@@ -99,8 +99,8 @@ const sharedMemoryCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  shared-memory:
-    interface: shared-memory
+ shared-memory:
+  interface: shared-memory
 apps:
  app:
 `
