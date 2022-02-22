@@ -1,9 +1,13 @@
 summary: Ensure that the shared-memory interface's private mode works.
 
 details: |
-    The shared-memory interface has a "private" attribute.
-    The shared-memory interface allows two snaps to share a POSIX shared memory
-    object declared in the slot of the provider snap.
+    The shared-memory interface has a "private" attribute. If set on a
+    plug, then it can connect to the implicit system:shared-memory
+    slot to enable a private /dev/shm namespace.
+
+    This removes the naming restrictions on POSIX shared memory
+    objects usually enforced by snapd at the expense of limiting their
+    scope to other processes within the snap's sandbox.
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local shm-private
