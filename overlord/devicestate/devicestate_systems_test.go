@@ -498,7 +498,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
 	label := s.mockedSystemSeeds[0].label
 
 	happyModes := []string{"run"}
-	sadModes := []string{"install", "recover"}
+	sadModes := []string{"install", "recover", "factory-reset"}
 
 	for _, mode := range append(happyModes, sadModes...) {
 		s.logbuf.Reset()
