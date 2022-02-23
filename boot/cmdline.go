@@ -41,10 +41,13 @@ const (
 	// ModeRecover is a mode in which the device boots into the recovery
 	// system.
 	ModeRecover = "recover"
+	// ModeFactoryReset is a mode in which the device performs a factory
+	// reset.
+	ModeFactoryReset = "factory-reset"
 )
 
 var (
-	validModes = []string{ModeInstall, ModeRecover, ModeRun}
+	validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun}
 )
 
 // ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
