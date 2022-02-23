@@ -69,9 +69,10 @@ slots:
     - /dev/input/mice
   read-devices:
     - /dev/js*
-  write: [ /bar ]
-  read:
-    - /dev/input/by-id/*
+  files:
+    write: [ /bar ]
+    read:
+      - /dev/input/by-id/*
   udev-tagging:
     - kernel: input/mice
       subsystem: input
@@ -231,19 +232,35 @@ apps:
 			`cannot specify path "/dev/foo" both in "devices" and "read-devices" attributes`,
 		},
 		{
-			`read: [23]`,
-			`snap "provider" has interface "custom-device" with invalid value type \[\]interface {} for "read" attribute.*`,
+			`files: {read: [23]}`,
+			`snap "provider" has interface "custom-device" with invalid value type map\[string\]interface {} for "files" attribute.*`,
 		},
 		{
-			`read: [etc]`,
+			`files: {write: [23]}`,
+			`snap "provider" has interface "custom-device" with invalid value type map\[string\]interface {} for "files" attribute.*`,
+		},
+		{
+			`files: {foo: [ /etc/foo ]}`,
+			`cannot specify \"foo\" in \"files\" section, only \"read\" and \"write\" allowed`,
+		},
+		{
+			`files: {read: [etc]}`,
 			`custom-device "read" path must start with / and cannot contain special characters.*`,
 		},
 		{
-			`write: [one, 2]`,
-			`snap "provider" has interface "custom-device" with invalid value type \[\]interface {} for "write" attribute.*`,
+			`files: {write: [one, 2]}`,
+			`snap "provider" has interface "custom-device" with invalid value type map\[string\]interface {} for "files" attribute.*`,
 		},
 		{
-			`read: ["/dev/\"quote"]`,
+			`files: {read: [/etc/foo], write: [one, 2]}`,
+			`snap "provider" has interface "custom-device" with invalid value type map\[string\]interface {} for "files" attribute.*`,
+		},
+		{
+			`files: {read: [222], write: [/etc/one]}`,
+			`snap "provider" has interface "custom-device" with invalid value type map\[string\]interface {} for "files" attribute.*`,
+		},
+		{
+			`files: {read: ["/dev/\"quote"]}`,
 			`custom-device "read" path must start with / and cannot contain special characters.*`,
 		},
 		{

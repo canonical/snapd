@@ -17,12 +17,13 @@ prepare: |
         interface: custom-device
         devices:
           - /dev/video[0-9]
-        read:
-          - /sys/bus/usb/devices
-          - /sys/class/video4linux
-          - /sys/kernel/debug/sleep_time
-        write:
-          - /proc/sys/vm/stat_interval
+        files:
+          read:
+            - /sys/bus/usb/devices
+            - /sys/class/video4linux
+            - /sys/kernel/debug/sleep_time
+          write:
+            - /proc/sys/vm/stat_interval
         udev-tagging:
           - kernel: video[0-9]
             subsystem: v4l

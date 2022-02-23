@@ -102,14 +102,7 @@ func (iface *customDeviceInterface) validateDevice(path string, attrName string)
 	return nil
 }
 
-func (iface *customDeviceInterface) validatePaths(slot *snap.SlotInfo, attrName string) error {
-	var paths []string
-	if err := slot.Attr(attrName, &paths); err != nil {
-		if !errors.Is(err, snap.AttributeNotFoundError{}) {
-			return err
-		}
-	}
-
+func (iface *customDeviceInterface) validatePaths(slot *snap.SlotInfo, attrName string, paths []string) error {
 	for _, path := range paths {
 		if err := iface.validateFilePath(path, attrName); err != nil {
 			return err
@@ -239,11 +232,31 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 
 	allDevices := devices
 	allDevices = append(allDevices, readDevices...)
-	if err := iface.validatePaths(slot, "read"); err != nil {
+
+	// validate files
+	var filesMap map[string][]string
+	err = slot.Attr("files", &filesMap)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
 		return err
 	}
-	if err := iface.validatePaths(slot, "write"); err != nil {
-		return err
+	for key, val := range filesMap {
+		// fmt.Printf("val is %#v\n", val)
+		// filesList, ok := val.([]string)
+		// if !ok {
+		// 	return fmt.Errorf(`attribute %q in files section must be a list of strings, not %T`, key, val)
+		// }
+		switch key {
+		case "read":
+			if err := iface.validatePaths(slot, "read", val); err != nil {
+				return err
+			}
+		case "write":
+			if err := iface.validatePaths(slot, "write", val); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf(`cannot specify %q in "files" section, only "read" and "write" allowed`, key)
+		}
 	}
 
 	var udevTaggingRules []map[string]interface{}
@@ -297,13 +310,28 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	_ = slot.Attr("read-devices", &readDevicePaths)
 	emitRule(readDevicePaths, "r")
 
-	var writablePaths []string
-	_ = slot.Attr("write", &writablePaths)
-	emitRule(writablePaths, "rw")
+	var filesMap map[string][]string
+	err := slot.Attr("files", &filesMap)
+	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+		return err
+	}
+	for key, val := range filesMap {
+		// filesList, ok := val.([]string)
+		// if !ok {
+		// 	return fmt.Errorf(`attribute %q in files section must be a list of strings, not %T`, key, val)
+		// }
+		perm := ""
+		switch key {
+		case "read":
+			perm = "r"
+		case "write":
+			perm = "rw"
+		default:
+			return fmt.Errorf(`cannot specify %q in "files" section, only "read" and "write" allowed`, key)
+		}
 
-	var readOnlyPaths []string
-	_ = slot.Attr("read", &readOnlyPaths)
-	emitRule(readOnlyPaths, "r")
+		emitRule(val, perm)
+	}
 
 	spec.AddSnippet(snippet.String())
 	return nil
