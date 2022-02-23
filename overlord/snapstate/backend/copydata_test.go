@@ -927,6 +927,8 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 
 	filePath := filepath.Join(revDir, "file")
 	c.Assert(ioutil.WriteFile(filePath, []byte("stuff"), 0664), IsNil)
+	dirPath := filepath.Join(revDir, "dir")
+	c.Assert(os.Mkdir(dirPath, 0775), IsNil)
 
 	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
 
@@ -939,6 +941,17 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
 	c.Check(isReg, Equals, true)
+
+	expectedDir := filepath.Join(homeDir, dirs.ExposedSnapDir, snapName, "dir")
+	exists, isDir, err := osutil.DirExists(expectedDir)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isDir, Equals, true)
+
+	exists, isDir, err = osutil.DirExists(dirPath)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isDir, Equals, true)
 }
 
 func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
