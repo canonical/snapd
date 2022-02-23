@@ -144,6 +144,8 @@ func generateInitramfsMounts() (err error) {
 		err = generateMountsModeRecover(mst)
 	case "install":
 		err = generateMountsModeInstall(mst)
+	case "factory-reset":
+		err = generateMountsModeFactoryReset(mst)
 	case "run":
 		err = generateMountsModeRun(mst)
 	default:
@@ -291,16 +293,21 @@ func copyUbuntuDataAuth(src, dst string) error {
 	return nil
 }
 
-// copySafeDefaultData will copy to the destination a "safe" set of data for
-// a blank recover mode, i.e. one where we cannot copy authentication, etc. from
-// the actual host ubuntu-data. Currently this is just a file to disable
-// console-conf from running.
-func copySafeDefaultData(dst string) error {
+// drop a marker file that disables console-conf
+func disableConsoleConf(dst string) error {
 	consoleConfCompleteFile := filepath.Join(dst, "system-data/var/lib/console-conf/complete")
 	if err := os.MkdirAll(filepath.Dir(consoleConfCompleteFile), 0755); err != nil {
 		return err
 	}
 	return ioutil.WriteFile(consoleConfCompleteFile, nil, 0644)
+}
+
+// copySafeDefaultData will copy to the destination a "safe" set of data for
+// a blank recover mode, i.e. one where we cannot copy authentication, etc. from
+// the actual host ubuntu-data. Currently this is just a file to disable
+// console-conf from running.
+func copySafeDefaultData(dst string) error {
+	return disableConsoleConf(dst)
 }
 
 func copyFromGlobHelper(src, dst, globEx string) error {
@@ -1198,6 +1205,124 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
 	return nil
+}
+
+func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
+	// steps 1 and 2 are shared with install mode
+	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	if err != nil {
+		return err
+	}
+	// get the disk that we mounted the ubuntu-seed partition from as a
+	// reference point for future mounts
+	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+	if err != nil {
+		return err
+	}
+	// step 3: find ubuntu-save, unlock and mount, note that factory-reset
+	// mode only cares about ubuntu-save, as ubuntu-data and ubuntu-boot
+	// will be wiped anyway so we do not even bother looking up those
+	// partitions (which may be corrupted too, hence factory-reset was
+	// invoked)
+	degradedState := recoverDegradedState{}
+	part := degradedState.partition("ubuntu-save")
+	degraded := false
+	isEncrypted := false
+	_, findErr := disk.FindMatchingPartitionUUIDWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save"))
+	if findErr == nil {
+		// found it and it's encrypted
+		isEncrypted = true
+		unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+			// we want to allow using the recovery key if the fallback key fails
+			AllowRecoveryKey: true,
+			WhichModel:       func() (*asserts.Model, error) { return model, nil },
+		}
+		saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
+		// TODO: this prompts again for a recover key, but really this is the
+		// reinstall key we will prompt for
+		// TODO: we should somehow customize the prompt to mention what key we need
+		// the user to enter, and what we are unlocking (as currently the prompt
+		// says "recovery key" and the partition UUID for what is being unlocked)
+		unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-save", saveFallbackKey, unlockOpts)
+		part.FindState = partitionFound
+		part.partDevice = unlockRes.PartDevice
+		part.fsDevice = unlockRes.FsDevice
+		if unlockErr != nil {
+			degradedState.LogErrorf("cannot unlock encrypted ubuntu-save (device %v) with sealed fallback key: %v", part.partDevice, unlockErr)
+			part.UnlockState = partitionErrUnlocking
+			degraded = true
+		} else {
+			// unlocked successfully
+			part.UnlockState = partitionUnlocked
+			switch unlockRes.UnlockMethod {
+			case secboot.UnlockedWithSealedKey:
+				part.UnlockKey = keyFallback
+			case secboot.UnlockedWithRecoveryKey:
+				part.UnlockKey = keyRecovery
+				degraded = true
+			}
+		}
+	} else if partUUID, findErr := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save"); findErr == nil {
+		// found it and it's unencrypted
+		part.FindState = partitionFound
+		dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
+		part.partDevice = dev
+		part.fsDevice = dev
+	} else {
+		degradedState.LogErrorf("cannot find ubuntu-save: %v", findErr)
+		part.FindState = partitionAbsentOptional
+		degraded = true
+	}
+
+	if (isEncrypted && part.UnlockState == partitionUnlocked) ||
+		(!isEncrypted && part.FindState == partitionFound) {
+		// TODO: should we fsck ubuntu-save ?
+		mountErr := doSystemdMount(part.fsDevice, boot.InitramfsUbuntuSaveDir, nil)
+		if mountErr != nil {
+			degradedState.LogErrorf("cannot mount ubuntu-save (device %v): %v", part.fsDevice, mountErr)
+			degraded = true
+		} else {
+			part.MountState = partitionMounted
+		}
+	}
+
+	if degraded {
+		// update the partition's device
+		part.Device = part.partDevice
+		if part.fsDevice != "" {
+			part.Device = part.fsDevice
+		}
+
+		b, err := json.Marshal(degradedState)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
+			return err
+		}
+		// leave the information about degraded state at an ephemeral location
+		if err := ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644); err != nil {
+			return err
+		}
+	}
+
+	// disable console-conf as it won't be needed
+	if err := disableConsoleConf(boot.InitramfsDataDir); err != nil {
+		return err
+	}
+
+	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
+	if err != nil {
+		return err
+	}
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
+		return err
+	}
+
+	// done, no output, no error indicates to initramfs we are done with
+	// mounting stuff
+	return nil
+
 }
 
 // checkDataAndSavePairing make sure that ubuntu-data and ubuntu-save
