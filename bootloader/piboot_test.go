@@ -318,10 +318,6 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_2/cmdline.txt"),
 			data: "  snapd_recovery_mode=run kernel_status=trying\n",
 		},
-		{
-			path: filepath.Join(s.rootdir, "reboot-param"),
-			data: "0 tryboot\n",
-		},
 	}
 	for _, fInfo := range files {
 		readData, err := ioutil.ReadFile(fInfo.path)
@@ -468,4 +464,41 @@ func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
+}
+
+func (s *pibootTestSuite) TestGetRebootArguments(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+	c.Assert(p, NotNil)
+	rbl, ok := p.(bootloader.RebootBootloader)
+	c.Assert(ok, Equals, true)
+
+	args, err := rbl.GetRebootArguments()
+	c.Assert(err, IsNil)
+	c.Assert(args, Equals, "")
+
+	err = p.SetBootVars(map[string]string{"kernel_status": "try"})
+	c.Assert(err, IsNil)
+
+	args, err = rbl.GetRebootArguments()
+	c.Assert(err, IsNil)
+	c.Assert(args, Equals, "0 tryboot")
+	err = p.SetBootVars(map[string]string{"kernel_status": ""})
+	c.Assert(err, IsNil)
+}
+
+func (s *pibootTestSuite) TestGetRebootArgumentsNoEnv(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+	c.Assert(p, NotNil)
+	rbl, ok := p.(bootloader.RebootBootloader)
+	c.Assert(ok, Equals, true)
+
+	args, err := rbl.GetRebootArguments()
+	c.Assert(err, ErrorMatches, "open .*/piboot.conf: no such file or directory")
+	c.Assert(args, Equals, "")
 }

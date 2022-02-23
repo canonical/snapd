@@ -38,6 +38,7 @@ var (
 	_ Bootloader                             = (*piboot)(nil)
 	_ ExtractedRecoveryKernelImageBootloader = (*piboot)(nil)
 	_ NotScriptableBootloader                = (*piboot)(nil)
+	_ RebootBootloader                       = (*piboot)(nil)
 )
 
 const (
@@ -53,14 +54,9 @@ func getSeedPartDirRuntime() string {
 	return ubuntuSeedDir
 }
 
-func getRebootParamPathRuntime() string {
-	return "/run/systemd/reboot-param"
-}
-
 // Get absolute dirs via variables so we can mock in tests
 var (
-	getSeedPartDir     = getSeedPartDirRuntime
-	getRebootParamPath = getRebootParamPathRuntime
+	getSeedPartDir = getSeedPartDirRuntime
 )
 
 type piboot struct {
@@ -308,7 +304,6 @@ func (p *piboot) createCmdline(env *ubootenv.Env, defaultsFile, outFile string) 
 func (p *piboot) applyConfig(env *ubootenv.Env,
 	configFile, prefix, cfgDir, dstDir string) error {
 
-	kernStat := env.Get("kernel_status")
 	cmdlineFile := filepath.Join(dstDir, "cmdline.txt")
 	refCmdlineFile := filepath.Join(cfgDir, "cmdline.txt")
 	currentConfigFile := filepath.Join(cfgDir, "config.txt")
@@ -319,15 +314,6 @@ func (p *piboot) applyConfig(env *ubootenv.Env,
 	if err := p.setRPiCfgOsPrefix(prefix, currentConfigFile,
 		filepath.Join(cfgDir, configFile)); err != nil {
 		return err
-	}
-
-	if kernStat == "try" {
-		// The reboot parameter makes sure we use tryboot.cfg config
-		// TODO Maybe this should be done somewhere else in snapd?
-		if err := osutil.AtomicWriteFile(getRebootParamPath(),
-			[]byte("0 tryboot\n"), 0644, 0); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -433,4 +419,19 @@ func (p *piboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pl
 func (p *piboot) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return removeKernelAssetsFromBootDir(
 		filepath.Join(getSeedPartDir(), pibootPartFolder), s)
+}
+
+func (p *piboot) GetRebootArguments() (string, error) {
+	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
+	if err != nil {
+		return "", err
+	}
+
+	kernStat := env.Get("kernel_status")
+	if kernStat == "try" {
+		// The reboot parameter makes sure we use tryboot.cfg config
+		return "0 tryboot", nil
+	}
+
+	return "", nil
 }
