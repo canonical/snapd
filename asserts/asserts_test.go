@@ -845,6 +845,69 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 	c.Check(a1.SupportedFormat(), Equals, true)
 }
 
+func (as *assertsSuite) TestSignFormatOptionalPrimaryKeys(c *C) {
+	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "k1",
+		"header1":      "a",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b := asserts.Encode(a)
+	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
+authority-id: auth-id1
+primary-key: k1
+header1:`)), Equals, true)
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
+
+	// defaults are always normalized away
+	headers = map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "k1",
+		"opt1":         "o1-defl",
+		"header1":      "a",
+	}
+	a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b = asserts.Encode(a)
+	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
+authority-id: auth-id1
+primary-key: k1
+header1:`)), Equals, true)
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "k1",
+		"opt1":         "A",
+		"header1":      "a",
+	}
+	a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b = asserts.Encode(a)
+	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
+authority-id: auth-id1
+primary-key: k1
+opt1: A
+header1:`)), Equals, true)
+	c.Check(a.HeaderString("opt1"), Equals, "A")
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
+}
+
 func (as *assertsSuite) TestSignBodyIsUTF8Text(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",

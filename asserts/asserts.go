@@ -1103,11 +1103,21 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		"sign-key-sha3-384": true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
-		// XXX optional primary key support
-		if _, err := checkPrimaryKey(finalHeaders, primKey); err != nil {
+		defl := assertType.OptionalPrimaryKeyDefaults[primKey]
+		_, ok := finalHeaders[primKey]
+		if !ok && defl != "" {
+			// optional but expected to be set in headers
+			// in the result assertion
+			finalHeaders[primKey] = defl
+			continue
+		}
+		value, err := checkPrimaryKey(finalHeaders, primKey)
+		if err != nil {
 			return nil, err
 		}
-		writeHeader(buf, finalHeaders, primKey)
+		if value != defl {
+			writeHeader(buf, finalHeaders, primKey)
+		}
 		written[primKey] = true
 	}
 
