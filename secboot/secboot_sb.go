@@ -66,8 +66,19 @@ func LockSealedKeys() error {
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	res := UnlockResult{}
 
+	// TODO: this branch here is too early for devices where the disk is
+	// unencrypted due to i.e. storage-safety: prefer-unencrypted but the kernel
+	// still has the relevant hooks - in this case we should ignore the hooks,
+	// but it's unclear the right way currently to determine if a device has
+	// the fde-device-unlock hook whether or not encryption should be attempted
+
+	// systems that need the "fde-device-unlock" are special
+	if fde.HasDeviceUnlock() {
+		return unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk, name, sealedEncryptionKeyFile, opts)
+	}
+
+	res := UnlockResult{}
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
@@ -115,6 +126,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
 func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+	// systems that need the "fde-device-unlock" are special
+	if fde.HasDeviceUnlock() {
+		return unlockEncryptedVolumeUsingKeyViaDeviceUnlockHook(disk, name, key)
+	}
+
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
 	}
@@ -167,4 +183,106 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 	}
 
 	return nil
+}
+
+func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (string, string, error) {
+	// 1. mount name under the right mapper with 1mb offset
+
+	// XXX: we're assuming that partition name is well known at this point
+	// and the assumption has been verified at install time
+	part, err := disk.FindMatchingPartitionWithPartLabel(name)
+	if err != nil {
+		return "", "", err
+	}
+	// TODO: use part.KernelDeviceNode
+	partDevice := filepath.Join("/dev/disk/by-partuuid", part.PartitionUUID)
+	partSize, err := disks.Size(partDevice)
+	if err != nil {
+		return "", "", err
+	}
+	// XXX: This is the location of both locked and unlocked
+	//      paths because inline-encryption is transparent. So
+	//      What is the best name?
+	mapperName := fde.EncryptedDeviceMapperName(name)
+
+	offset := fde.DeviceSetupHookPartitionOffset
+	mapperSize := partSize - offset
+	mapperDevice, err := disks.CreateLinearMapperDevice(partDevice, mapperName, part.PartitionUUID, offset, mapperSize)
+	if err != nil {
+		return "", "", err
+	}
+
+	return partDevice, mapperDevice, err
+}
+
+func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{}
+
+	// 1. setup mapper
+	partDevice, mapperDevice, err := setupDeviceMapperTargetForDeviceUnlock(disk, name)
+	if err != nil {
+		return res, err
+	}
+
+	// 2. unseal the key using fde-reveal-key (implicit via
+	//    the registered platform handler for fde-reveal-key)
+	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
+	if err != nil {
+		return res, err
+	}
+	keyData, err := sb.ReadKeyData(f)
+	if err != nil {
+		fmt := "cannot read key data: %w"
+		return res, xerrors.Errorf(fmt, err)
+	}
+	unlockKey, _, err := keyData.RecoverKeys()
+	if err != nil {
+		fmt := "cannot recover key data: %w"
+		return res, xerrors.Errorf(fmt, err)
+	}
+
+	// 3. call fde-device-unlock to unlock device
+	params := &fde.DeviceUnlockParams{
+		Key:           unlockKey,
+		Device:        partDevice,
+		PartitionName: name,
+	}
+	if err := fde.DeviceUnlock(params); err != nil {
+		return res, err
+	}
+	res.UnlockMethod = UnlockedWithKey
+	res.IsEncrypted = true
+	res.PartDevice = partDevice
+	res.FsDevice = mapperDevice
+	return res, nil
+}
+
+func unlockEncryptedVolumeUsingKeyViaDeviceUnlockHook(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+	res := UnlockResult{}
+
+	// 1. setup mapper
+	partDevice, mapperDevice, err := setupDeviceMapperTargetForDeviceUnlock(disk, name)
+	if err != nil {
+		return res, err
+	}
+
+	// 2. call fde-device-unlock to unlock device
+	params := &fde.DeviceUnlockParams{
+		Key:    key,
+		Device: partDevice,
+		// the device corresponds to a partition with this name and
+		// carries similarly named filesystem inside, this relation is
+		// checked at install time
+		PartitionName: name,
+	}
+	if err := fde.DeviceUnlock(params); err != nil {
+		return res, err
+	}
+
+	return UnlockResult{
+		IsEncrypted:  true,
+		PartDevice:   partDevice,
+		FsDevice:     mapperDevice,
+		UnlockMethod: UnlockedWithKey,
+	}, nil
 }
