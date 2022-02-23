@@ -1856,6 +1856,14 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	// state must be locked
 	st := m.state
 
+	// The fde-setup "device-setup" is called during install in
+	// which the state is unlocked so we need to lock it here
+	// XXX: this is very inelegant
+	if req.Op == "device-setup" {
+		st.Lock()
+		defer st.Unlock()
+	}
+
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
