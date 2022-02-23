@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -122,7 +121,7 @@ type Seed interface {
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
 	if label != "" {
-		if err := internal.ValidateUC20SeedSystemLabel(label); err != nil {
+		if err := asserts.IsValidSystemLabel(label); err != nil {
 			return nil, err
 		}
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil

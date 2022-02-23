@@ -22,11 +22,14 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -758,6 +761,146 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		SectorSize:          diskLayout.SectorSize,
 		Schema:              disk.Schema(),
 		StructureEncryption: opts.ExpectedStructureEncryption,
+	}, nil
+}
+
+// unable to proceed with the gadget asset update, but not fatal to the refresh
+// operation itself
+var errSkipUpdateProceedRefresh = errors.New("cannot identify disk for gadget asset update")
+
+// buildNewVolumeToDeviceMapping builds a DiskVolumeDeviceTraits for only the
+// volume containing the system-boot role, when we cannot load an existing
+// traits object from disk-mapping.json. It is meant to be used only with all
+// UC16/UC18 installs as well as UC20 installs from before we started writing
+// disk-mapping.json during install mode.
+func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidOutVolume, preUC20 bool) (map[string]DiskVolumeDeviceTraits, error) {
+	var likelySystemBootVolume string
+
+	if len(old.Info.Volumes) == 1 {
+		// If we only have one volume, then that is the volume we are concerned
+		// with, we do not validate that it has a system-boot role on it like
+		// we do in the multi-volume case below, this is because we used to
+		// allow installation of gadgets that have no system-boot role on them
+		// at all
+
+		// then we only have one volume to be concerned with
+		for volName := range old.Info.Volumes {
+			likelySystemBootVolume = volName
+		}
+	} else {
+		// we need to pick the volume, since updates for this setup are best
+		// effort and mainly focused on the main volume with system-* roles
+		// on it, we need to pick the volume with that role
+	volumeLoop:
+		for volName, vol := range old.Info.Volumes {
+			for _, structure := range vol.Structure {
+				if structure.Role == SystemBoot {
+					// this is the volume
+					likelySystemBootVolume = volName
+					break volumeLoop
+				}
+			}
+		}
+	}
+
+	if likelySystemBootVolume == "" {
+		// this is only possible in the case where there is more than one volume
+		// and we didn't find system-boot anywhere, in this case for pre-UC20
+		// we use a non-fatal error and just don't perform any update - this was
+		// always the old behavior so we are not regressing here
+		if preUC20 {
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", likelySystemBootVolume)
+			return nil, errSkipUpdateProceedRefresh
+		}
+
+		// on UC20 and later however this is a fatal error, we should never have
+		// allowed installation of a gadget which does not have the system-boot
+		// role on it
+		return nil, fmt.Errorf("cannot find any volume with system-boot, gadget is broken")
+	}
+
+	laidOutVol := laidOutVols[likelySystemBootVolume]
+
+	// search for matching devices that correspond to the volume we laid out
+	dev := ""
+	for _, vs := range laidOutVol.LaidOutStructure {
+		// here it is okay that we require there to be either a partition label
+		// or a filesystem label since we require there to be a system-boot role
+		// on this volume which by definition must have a filesystem
+		structureDevice, err := FindDeviceForStructure(&vs)
+		if err == ErrDeviceNotFound {
+			continue
+		}
+		if err != nil {
+			// TODO: should this be a fatal error?
+			return nil, err
+		}
+
+		// we found a device for this structure, get the parent disk
+		// and save that as the device for this volume
+		disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
+		if err != nil {
+			// TODO: should we keep looping instead and try again with
+			// another structure? it probably wouldn't work because we found
+			// something on disk with the same name as something from the
+			// gadget.yaml, but then we failed to make a disk from that
+			// partition which suggests something is inconsistent with the
+			// state of the disk/udev database
+			return nil, err
+		}
+
+		dev = disk.KernelDeviceNode()
+		break
+	}
+
+	if dev == "" {
+		// couldn't find a disk at all, pre-UC20 we just warn about this
+		// but let the update continue
+		if preUC20 {
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
+			return nil, errSkipUpdateProceedRefresh
+		}
+		// fatal error on UC20+
+		return nil, fmt.Errorf("cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
+	}
+
+	// we found the device, construct the traits with validation options
+	validateOpts := &DiskVolumeValidationOptions{
+		// allow implicit system-data on pre-uc20 only
+		AllowImplicitSystemData: preUC20,
+	}
+
+	// setup encrypted structure information to perform validation if this
+	// device used encryption
+	if !preUC20 {
+		// TODO: this needs to check if the specified partitions are ICE when
+		// we support ICE too
+
+		// check if there is a marker file written, that will indicate if
+		// encryption was turned on
+		encryptionMarkerFile := filepath.Join(dirs.SnapFDEDir, "marker")
+		if osutil.FileExists(encryptionMarkerFile) {
+			// then we have the crypto marker file for encryption
+			// cross-validation between ubuntu-data and ubuntu-save stored from
+			// install mode, so mark ubuntu-save and data as expected to be
+			// encrypted
+			validateOpts.ExpectedStructureEncryption = map[string]StructureEncryptionParameters{
+				"ubuntu-data": {Method: EncryptionLUKS},
+				"ubuntu-save": {Method: EncryptionLUKS},
+			}
+		}
+	}
+
+	traits, err := DiskTraitsFromDeviceAndValidate(laidOutVol, dev, validateOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: should we save the traits here so they can be re-used in another
+	// future update routine?
+
+	return map[string]DiskVolumeDeviceTraits{
+		likelySystemBootVolume: traits,
 	}, nil
 }
 

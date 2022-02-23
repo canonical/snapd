@@ -113,7 +113,9 @@ type DeviceManager struct {
 	reg                          chan struct{}
 	noRegister                   bool
 
-	preseed             bool
+	preseed            bool
+	preseedSystemLabel string
+
 	ntpSyncedOrTimedOut bool
 }
 
@@ -129,12 +131,26 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:  snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
-	if modeEnv != nil {
-		m.sysMode = modeEnv.Mode
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, err
+		}
+		if modeEnv != nil {
+			m.sysMode = modeEnv.Mode
+		}
+	} else {
+		// cache system label for preseeding of core20; note, this will fail on
+		// core16/core18 (they are not supported by preseeding) as core20 system
+		// label is expected.
+		if !release.OnClassic {
+			var err error
+			m.preseedSystemLabel, err = systemForPreseeding()
+			if err != nil {
+				return nil, err
+			}
+			m.sysMode = "run"
+		}
 	}
 
 	s.Lock()
@@ -625,14 +641,27 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 	return perfTimings, nil
 }
 
+func (m *DeviceManager) systemForPreseeding() string {
+	if m.preseedSystemLabel == "" {
+		panic("no system to preseed")
+	}
+	return m.preseedSystemLabel
+}
+
 func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, nil, err
+	if m.preseed && !release.OnClassic {
+		sysLabel = m.systemForPreseeding()
 	}
-	if modeEnv != nil {
-		sysLabel = modeEnv.RecoverySystem
+
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, nil, err
+		}
+		if modeEnv != nil {
+			sysLabel = modeEnv.RecoverySystem
+		}
 	}
 
 	// we time preloadGadget + first ensureSeeded together
@@ -730,6 +759,10 @@ func (m *DeviceManager) ensureSeeded() error {
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
+		if !release.OnClassic {
+			opts.Mode = "run"
+			opts.Label = m.systemForPreseeding()
+		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
