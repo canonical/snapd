@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -254,7 +253,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		if opts.Label == "" {
 			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
 		}
-		if err := internal.ValidateUC20SeedSystemLabel(opts.Label); err != nil {
+		if err := asserts.IsValidSystemLabel(opts.Label); err != nil {
 			return nil, err
 		}
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
