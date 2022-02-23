@@ -54,7 +54,8 @@ func (s *pibootTestSuite) TestNewPiboot(c *C) {
 	c.Assert(present, Equals, false)
 
 	// now with files present, the bl is present
-	bootloader.MockPibootFiles(c, s.rootdir, nil)
+	r := bootloader.MockPibootFiles(c, s.rootdir, nil)
+	defer r()
 	present, err = p.Present()
 	c.Assert(err, IsNil)
 	c.Assert(present, Equals, true)
@@ -64,7 +65,8 @@ func (s *pibootTestSuite) TestPibootGetEnvVar(c *C) {
 	// We need PrepareImageTime due to fixed reference to /run/mnt otherwise
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 	c.Assert(p, NotNil)
 	err := p.SetBootVars(map[string]string{
@@ -82,7 +84,8 @@ func (s *pibootTestSuite) TestPibootGetEnvVar(c *C) {
 }
 
 func (s *pibootTestSuite) TestGetBootloaderWithPiboot(c *C) {
-	bootloader.MockPibootFiles(c, s.rootdir, nil)
+	r := bootloader.MockPibootFiles(c, s.rootdir, nil)
+	defer r()
 
 	bootloader, err := bootloader.Find(s.rootdir, nil)
 	c.Assert(err, IsNil)
@@ -92,7 +95,8 @@ func (s *pibootTestSuite) TestGetBootloaderWithPiboot(c *C) {
 func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 	c.Assert(p, NotNil)
 
@@ -120,7 +124,8 @@ func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 
 	files := [][]string{
@@ -163,7 +168,8 @@ func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 
 	files := [][]string{
@@ -236,7 +242,7 @@ func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
 
 	for _, t := range tt {
 		dir := c.MkDir()
-		bootloader.MockPibootFiles(c, dir, t.blOpts)
+		restore := bootloader.MockPibootFiles(c, dir, t.blOpts)
 		p := bootloader.NewPiboot(dir, t.blOpts)
 		c.Assert(p, NotNil, Commentf(t.comment))
 		c.Assert(bootloader.PibootConfigFile(p), Equals,
@@ -249,13 +255,15 @@ func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
 			ubootenv.OpenBestEffort)
 		c.Assert(err, IsNil)
 		c.Assert(env.Get("hello"), Equals, "there")
+		restore()
 	}
 }
 
 func (s *pibootTestSuite) TestCreateConfig(c *C) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 
 	err := p.SetBootVars(map[string]string{
@@ -287,7 +295,8 @@ func (s *pibootTestSuite) TestCreateConfig(c *C) {
 func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 
 	err := p.SetBootVars(map[string]string{
@@ -353,7 +362,8 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 
 	// Get some extra kernel command line parameters
 	err := ioutil.WriteFile(filepath.Join(s.rootdir, "cmdline.txt"),
@@ -425,7 +435,8 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
-	bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
 
 	// Introuce two os_prefix lines
 	err := ioutil.WriteFile(filepath.Join(s.rootdir, "config.txt"),

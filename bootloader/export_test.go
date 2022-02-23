@@ -247,10 +247,9 @@ func NewPiboot(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootlo
 	return newPiboot(rootdir, opts).(ExtractedRecoveryKernelImageBootloader)
 }
 
-func MockPibootFiles(c *C, rootdir string, blOpts *Options) {
-	// Override absolute paths - no need to revert while testing
+func MockPibootFiles(c *C, rootdir string, blOpts *Options) func() {
+	oldSeedPartDir := getSeedPartDir
 	getSeedPartDir = func() string { return rootdir }
-	getRebootParamPath = func() string { return filepath.Join(rootdir, "reboot-param") }
 
 	p := &piboot{rootdir: rootdir}
 	p.setDefaults()
@@ -271,6 +270,8 @@ func MockPibootFiles(c *C, rootdir string, blOpts *Options) {
 	cfgFile, err := os.Create(filepath.Join(rootdir, "config.txt"))
 	c.Assert(err, IsNil)
 	cfgFile.Close()
+
+	return func() { getSeedPartDir = oldSeedPartDir }
 }
 
 func PibootConfigFile(b Bootloader) string {
