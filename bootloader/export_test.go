@@ -248,8 +248,8 @@ func NewPiboot(rootdir string, opts *Options) ExtractedRecoveryKernelImageBootlo
 }
 
 func MockPibootFiles(c *C, rootdir string, blOpts *Options) func() {
-	oldSeedPartDir := getSeedPartDir
-	getSeedPartDir = func() string { return rootdir }
+	oldSeedPartDir := ubuntuSeedDir
+	ubuntuSeedDir = rootdir
 
 	p := &piboot{rootdir: rootdir}
 	p.setDefaults()
@@ -271,7 +271,7 @@ func MockPibootFiles(c *C, rootdir string, blOpts *Options) func() {
 	c.Assert(err, IsNil)
 	cfgFile.Close()
 
-	return func() { getSeedPartDir = oldSeedPartDir }
+	return func() { ubuntuSeedDir = oldSeedPartDir }
 }
 
 func PibootConfigFile(b Bootloader) string {

@@ -44,20 +44,12 @@ var (
 const (
 	pibootCfgFilename = "piboot.conf"
 	pibootPartFolder  = "/piboot/ubuntu/"
-	// TODO The ubuntu-seed folder should be eventually passed
-	// around when creating the bootloader
-	runMntDir     = "/run/mnt/"
-	ubuntuSeedDir = runMntDir + "ubuntu-seed/"
 )
 
-func getSeedPartDirRuntime() string {
-	return ubuntuSeedDir
-}
-
-// Get absolute dirs via variables so we can mock in tests
-var (
-	getSeedPartDir = getSeedPartDirRuntime
-)
+// TODO The ubuntu-seed folder should be eventually passed around when
+// creating the bootloader.
+// This is in a variable so it can be mocked in tests
+var ubuntuSeedDir = "/run/mnt/ubuntu-seed/"
 
 type piboot struct {
 	rootdir string
@@ -76,7 +68,7 @@ func (p *piboot) processBlOpts(blOpts *Options) {
 	switch {
 	case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
 		if !blOpts.PrepareImageTime {
-			p.rootdir = getSeedPartDir()
+			p.rootdir = ubuntuSeedDir
 		}
 		// RoleRecovery or NoSlashBoot imply we use
 		// the environment file in /piboot/ubuntu as
@@ -155,7 +147,7 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 			// it is safe as tryboot.txt is used only when a special
 			// volatile boot flag is set, so we always have a valid
 			// config.txt that will allow booting.
-			trybootPath := filepath.Join(getSeedPartDir(), "tryboot.txt")
+			trybootPath := filepath.Join(ubuntuSeedDir, "tryboot.txt")
 			if err := os.Remove(trybootPath); err != nil {
 				logger.Noticef("cannot remove %s: %v", trybootPath, err)
 			}
@@ -215,8 +207,8 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 			cfgFile = "tryboot.txt"
 		}
 		prefix = filepath.Join(pibootPartFolder, kernelSnap)
-		cfgDir = getSeedPartDir()
-		dstDir = filepath.Join(getSeedPartDir(), prefix)
+		cfgDir = ubuntuSeedDir
+		dstDir = filepath.Join(ubuntuSeedDir, prefix)
 	} else {
 		// install/recovery modes, use recovery kernel
 		prefix = filepath.Join("/systems", env.Get("snapd_recovery_system"),
@@ -396,7 +388,7 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 
 func (p *piboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// Rootdir will point to ubuntu-boot, but we need to put things in ubuntu-seed
-	dstDir := filepath.Join(getSeedPartDir(), pibootPartFolder, s.Filename())
+	dstDir := filepath.Join(ubuntuSeedDir, pibootPartFolder, s.Filename())
 
 	logger.Debugf("ExtractKernelAssets to %s", dstDir)
 
@@ -418,7 +410,7 @@ func (p *piboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pl
 
 func (p *piboot) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return removeKernelAssetsFromBootDir(
-		filepath.Join(getSeedPartDir(), pibootPartFolder), s)
+		filepath.Join(ubuntuSeedDir, pibootPartFolder), s)
 }
 
 func (p *piboot) GetRebootArguments() (string, error) {
