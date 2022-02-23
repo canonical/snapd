@@ -58,6 +58,11 @@ prepare: |
     cat >> snapcraft-cleanup.sh <<EOF
     #!/bin/sh
     cd $PROJECT_PATH
+    # we may have uninstalled snapcraft in the snapd_first variant, so we need
+    # to re-install it in order to clean up
+    if ! command -v snapcraft; then 
+        snap install snapcraft --channel=4.x/candidate --classic
+    fi
     snap run snapcraft clean
     EOF
     chmod +x snapcraft-cleanup.sh
@@ -188,7 +193,6 @@ execute: |
 
         # undo the purging
         apt install -y "$PROJECT_PATH/../"snapd_1337.*_amd64.deb
-
     else
         echo "unknown variant $SNAP_TO_USE_FIRST"
         exit 1
