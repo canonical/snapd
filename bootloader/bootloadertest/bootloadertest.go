@@ -588,8 +588,8 @@ type MockRebootBootloader struct {
 	MockRebootBootloaderMixin
 }
 
-func (b *MockRebootBootloaderMixin) GetRebootArguments() string {
-	return b.RebootArgs
+func (b *MockRebootBootloaderMixin) GetRebootArguments() (string, error) {
+	return b.RebootArgs, nil
 }
 
 func (b *MockBootloader) WithRebootBootloader() *MockRebootBootloader {

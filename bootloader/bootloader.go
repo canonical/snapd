@@ -244,7 +244,7 @@ type RebootBootloader interface {
 	Bootloader
 
 	// GetRebootArguments returns the needed reboot arguments
-	GetRebootArguments() string
+	GetRebootArguments() (string, error)
 }
 
 func genericInstallBootConfig(gadgetFile, systemFile string) error {
