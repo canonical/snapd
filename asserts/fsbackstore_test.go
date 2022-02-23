@@ -22,6 +22,7 @@ package asserts_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -561,4 +562,356 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
 	c.Check(err, DeepEquals, &asserts.NotFoundError{
 		Type: asserts.TestOnlyType,
 	})
+}
+
+func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeysSearch(c *C) {
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
+
+	a1, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k1\n" +
+		"v: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a1)
+	c.Assert(err, IsNil)
+
+	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	a2, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k1\n" +
+		"opt1: A\n" +
+		"v: y\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a2)
+	c.Assert(err, IsNil)
+
+	a3, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k2\n" +
+		"opt1: A\n" +
+		"v: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a3)
+	c.Assert(err, IsNil)
+
+	a4, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k3\n" +
+		"opt1: B\n" +
+		"v: y\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a4)
+	c.Assert(err, IsNil)
+
+	a5, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k4\n" +
+		"opt1: B\n" +
+		"v: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a5)
+	c.Assert(err, IsNil)
+
+	a6, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k3\n" +
+		"v: y\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a6)
+	c.Assert(err, IsNil)
+
+	var found map[string]string
+	foundCb := func(a asserts.Assertion) {
+		if found == nil {
+			found = make(map[string]string)
+		}
+		found[strings.Join(a.Ref().PrimaryKey, "/")] = a.HeaderString("v")
+	}
+
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl": "x",
+		"k1/A":       "y",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k3",
+		"opt1":        "o1-defl",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k3/o1-defl": "y",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt1": "o1-defl",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl": "x",
+		"k3/o1-defl": "y",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt1": "A",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/A": "y",
+		"k2/A": "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt1": "B",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k3/B": "y",
+		"k4/B": "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"v": "x",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl": "x",
+		"k2/A":       "x",
+		"k4/B":       "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"v": "y",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/A":       "y",
+		"k3/B":       "y",
+		"k3/o1-defl": "y",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, nil, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl": "x",
+		"k1/A":       "y",
+		"k2/A":       "x",
+		"k3/o1-defl": "y",
+		"k3/B":       "y",
+		"k4/B":       "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k4",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k4/B": "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k3",
+		"opt1":        "B",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k3/B": "y",
+	})
+
+	// revert to initial type definition
+	r()
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1": "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k3",
+		"opt1":        "o1-defl",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	// found nothing
+	c.Check(found, IsNil)
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"v": "x",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1": "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"v": "y",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k3": "y",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, nil, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1": "x",
+		"k3": "y",
+	})
+}
+
+func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeysSearchTwoOptional(c *C) {
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	bs, err := asserts.OpenFSBackstore(topDir)
+	c.Assert(err, IsNil)
+
+	a1, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k1\n" +
+		"v: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a1)
+	c.Assert(err, IsNil)
+
+	a2, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k2\n" +
+		"v: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a2)
+	c.Assert(err, IsNil)
+
+	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+	asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt2", "o2-defl")
+
+	a3, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k1\n" +
+		"opt1: A\n" +
+		"v: y\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a3)
+	c.Assert(err, IsNil)
+
+	a4, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k2\n" +
+		"opt2: B\n" +
+		"v: y\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a4)
+	c.Assert(err, IsNil)
+
+	a5, err := asserts.Decode([]byte("type: test-only\n" +
+		"authority-id: auth-id1\n" +
+		"primary-key: k2\n" +
+		"opt1: A2\n" +
+		"opt2: B2\n" +
+		"v: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
+	c.Assert(err, IsNil)
+	err = bs.Put(asserts.TestOnlyType, a5)
+	c.Assert(err, IsNil)
+
+	var found map[string]string
+	foundCb := func(a asserts.Assertion) {
+		if found == nil {
+			found = make(map[string]string)
+		}
+		found[strings.Join(a.Ref().PrimaryKey, "/")] = a.HeaderString("v")
+	}
+
+	err = bs.Search(asserts.TestOnlyType, nil, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k1/o1-defl/o2-defl": "x",
+		"k2/o1-defl/o2-defl": "x",
+		"k1/A/o2-defl":       "y",
+		"k2/o1-defl/B":       "y",
+		"k2/A2/B2":           "x",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt2": "B",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k2/o1-defl/B": "y",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt1": "o1-defl",
+		"opt2": "B",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k2/o1-defl/B": "y",
+	})
+
+	found = nil
+	err = bs.Search(asserts.TestOnlyType, map[string]string{
+		"opt1": "A2",
+	}, foundCb, 0)
+	c.Assert(err, IsNil)
+	c.Check(found, DeepEquals, map[string]string{
+		"k2/A2/B2": "x",
+	})
+
 }

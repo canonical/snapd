@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -219,15 +219,42 @@ func (fsbs *filesystemBackstore) search(assertType *AssertionType, diskPattern [
 	return nil
 }
 
+func (fsbs *filesystemBackstore) searchOptional(assertType *AssertionType, kopt, pattPos, firstOpt int, diskPattern []string, headers map[string]string, foundCb func(Assertion), maxFormat int) error {
+	if kopt == len(assertType.PrimaryKey) {
+		candCb := func(a Assertion) {
+			if searchMatch(a, headers) {
+				foundCb(a)
+			}
+		}
+
+		diskPattern[pattPos] = "active*"
+		return fsbs.search(assertType, diskPattern[:pattPos+1], candCb, maxFormat)
+	}
+	k := assertType.PrimaryKey[kopt]
+	keyVal := headers[k]
+	switch keyVal {
+	case "":
+		diskPattern[pattPos] = fmt.Sprintf("%d:*", kopt-firstOpt)
+		if err := fsbs.searchOptional(assertType, kopt+1, pattPos+1, firstOpt, diskPattern, headers, foundCb, maxFormat); err != nil {
+			return err
+		}
+		fallthrough
+	case assertType.OptionalPrimaryKeyDefaults[k]:
+		return fsbs.searchOptional(assertType, kopt+1, pattPos, firstOpt, diskPattern, headers, foundCb, maxFormat)
+	default:
+		diskPattern[pattPos] = fmt.Sprintf("%d:%s", kopt-firstOpt, url.QueryEscape(keyVal))
+		return fsbs.searchOptional(assertType, kopt+1, pattPos+1, firstOpt, diskPattern, headers, foundCb, maxFormat)
+	}
+}
+
 func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[string]string, foundCb func(Assertion), maxFormat int) error {
 	fsbs.mu.RLock()
 	defer fsbs.mu.RUnlock()
 
-	// XXX optional primary key support, need multiple patterns support
-
 	n := len(assertType.PrimaryKey)
+	nopt := len(assertType.OptionalPrimaryKeyDefaults)
 	diskPattern := make([]string, n+1)
-	for i, k := range assertType.PrimaryKey {
+	for i, k := range assertType.PrimaryKey[:n-nopt] {
 		keyVal := headers[k]
 		if keyVal == "" {
 			diskPattern[i] = "*"
@@ -235,14 +262,9 @@ func (fsbs *filesystemBackstore) Search(assertType *AssertionType, headers map[s
 			diskPattern[i] = url.QueryEscape(keyVal)
 		}
 	}
-	diskPattern[n] = "active*"
+	pattPos := n - nopt
 
-	candCb := func(a Assertion) {
-		if searchMatch(a, headers) {
-			foundCb(a)
-		}
-	}
-	return fsbs.search(assertType, diskPattern, candCb, maxFormat)
+	return fsbs.searchOptional(assertType, pattPos, pattPos, pattPos, diskPattern, headers, foundCb, maxFormat)
 }
 
 // errFound marks the case an assertion was found
