@@ -229,11 +229,6 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCorePreseeding(c *C) {
 	// reset root dir
 	dirs.SetRootDir(s.tempdir)
 
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		return nil, fmt.Errorf("not expected")
-	})
-	defer systemctlRestorer()
-
 	info := makeMockSnapdSnap(c)
 	// add the snapd service
 	err := wrappers.AddSnapdSnapServices(info, &wrappers.AddSnapdSnapServicesOptions{Preseeding: true}, progress.Null)
@@ -308,7 +303,6 @@ WantedBy=snapd.service
 		{"--root", s.tempdir, "enable", "snapd.autoimport.service"},
 		{"--root", s.tempdir, "enable", "snapd.service"},
 		{"--root", s.tempdir, "enable", "snapd.snap-repair.timer"},
-		// test pretends snapd.socket is disabled and needs enabling
 		{"--root", s.tempdir, "enable", "snapd.socket"},
 		{"--root", s.tempdir, "enable", "snapd.system-shutdown.service"},
 		{"--user", "--global", "disable", "snapd.session-agent.service"},
