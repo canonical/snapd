@@ -174,7 +174,8 @@ type SnapDirOptions struct {
 	HiddenSnapDataDir bool
 
 	// MigratedToExposedHome determines if the snap's directory in ~/Snap has been
-	// initialized.
+	// initialized with the contents of the snap's previous home (i.e., the
+	// revisioned data directory).
 	MigratedToExposedHome bool
 }
 
