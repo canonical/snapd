@@ -531,6 +531,7 @@ pkg_dependencies_ubuntu_classic(){
         avahi-daemon
         cups
         dbus-user-session
+        fish
         fontconfig
         gnome-keyring
         jq
@@ -669,6 +670,7 @@ pkg_dependencies_fedora_centos_common(){
         dbus-x11
         evolution-data-server
         expect
+        fish
         fontconfig
         fwupd
         git
@@ -706,6 +708,7 @@ pkg_dependencies_amazon(){
         curl
         dbus-x11
         expect
+        fish
         fontconfig
         fwupd
         git
@@ -741,6 +744,7 @@ pkg_dependencies_opensuse(){
         dbus-1-python3
         evolution-data-server
         expect
+        fish
         fontconfig
         fwupd
         git
@@ -776,6 +780,7 @@ pkg_dependencies_arch(){
     curl
     evolution-data-server
     expect
+    fish
     fontconfig
     fwupd
     git
