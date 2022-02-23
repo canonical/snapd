@@ -744,7 +744,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // It considers how the Change the task belongs to is configured
 // (system-restart-immediate) to choose whether request an immediate
 // restart or not.
-func RestartSystem(task *state.Task) {
+func RestartSystem(task *state.Task, rebootInfo *boot.RebootInfo) {
 	chg := task.Change()
 	var immediate bool
 	if chg != nil {
@@ -758,7 +758,7 @@ func RestartSystem(task *state.Task) {
 	if immediate {
 		rst = restart.RestartSystemNow
 	}
-	restart.Request(task.State(), rst)
+	restart.Request(task.State(), rst, rebootInfo)
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -1168,7 +1168,11 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
+
 	// need to have a model set before trying to talk the store
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
@@ -1214,13 +1218,16 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	var transactionLane int
+	if flags.Transactional {
+		transactionLane = st.NewLane()
+	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
 		var snapst SnapState
-		var flags Flags
 
-		flags, err := ensureInstallPreconditions(st, info, flags, &snapst)
+		validatedFlags, err := ensureInstallPreconditions(st, info, *flags, &snapst)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1237,7 +1244,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Prereq:             getKeys(providerContentAttrs),
 			PrereqContentAttrs: providerContentAttrs,
 			UserID:             userID,
-			Flags:              flags.ForSnapSetup(),
+			Flags:              validatedFlags.ForSnapSetup(),
 			DownloadInfo:       &info.DownloadInfo,
 			SideInfo:           &info.SideInfo,
 			Type:               info.Type(),
@@ -1249,7 +1256,15 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		if err != nil {
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
+		if flags.Transactional {
+			ts.JoinLane(transactionLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 		tasksets = append(tasksets, ts)
 	}
 
@@ -1482,6 +1497,10 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
+	var transactionLane int
+	if globalFlags.Transactional {
+		transactionLane = st.NewLane()
+	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
 		if err != nil {
@@ -1501,7 +1520,15 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
+		if globalFlags.Transactional {
+			ts.JoinLane(transactionLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup

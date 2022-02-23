@@ -66,6 +66,11 @@ type deviceMgrSerialSuite struct {
 
 var _ = Suite(&deviceMgrSerialSuite{})
 
+func (s *deviceMgrSerialSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
+}
+
 func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 	brandID := headers["brand-id"].(string)
 	model := headers["model"].(string)

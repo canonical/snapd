@@ -36,6 +36,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -84,7 +85,7 @@ func fakePruneTicker() (w *ticker, restore func()) {
 }
 
 func (ovs *overlordSuite) SetUpTest(c *C) {
-	// temporary: skip due to timeouts on riscv64
+	// TODO: temporary: skip due to timeouts on riscv64
 	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
 		c.Skip("skipping slow test")
 	}
@@ -1140,7 +1141,7 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	restart.Request(st, restart.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon, nil)
 }
 
 type testRestartHandler struct {
@@ -1149,7 +1150,7 @@ type testRestartHandler struct {
 	rebootVerifiedErr error
 }
 
-func (rb *testRestartHandler) HandleRestart(t restart.RestartType) {
+func (rb *testRestartHandler) HandleRestart(t restart.RestartType, ri *boot.RebootInfo) {
 	rb.restartRequested = t
 }
 
@@ -1173,7 +1174,7 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	restart.Request(st, restart.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon, nil)
 
 	c.Check(rb.restartRequested, Equals, restart.RestartDaemon)
 }

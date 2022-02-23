@@ -31,24 +31,6 @@ import (
 	"strings"
 )
 
-// MountInfoEntry contains data from /proc/$PID/mountinfo
-//
-// For details please refer to mountinfo documentation at
-// https://www.kernel.org/doc/Documentation/filesystems/proc.txt
-type MountInfoEntry struct {
-	MountID        int
-	ParentID       int
-	DevMajor       int
-	DevMinor       int
-	Root           string
-	MountDir       string
-	MountOptions   map[string]string
-	OptionalFields []string
-	FsType         string
-	MountSource    string
-	SuperOptions   map[string]string
-}
-
 func flattenMap(m map[string]string) string {
 	keys := make([]string, 0, len(m))
 	for key := range m {

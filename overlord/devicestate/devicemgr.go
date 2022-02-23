@@ -186,6 +186,20 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+func ensureFileDirPermissions() error {
+	// Ensure the /var/lib/snapd/void dir has correct permissions, we
+	// do this in the postinst for classic systems already but it's
+	// needed here for Core systems.
+	st, err := os.Stat(dirs.SnapVoidDir)
+	if err == nil && st.Mode().Perm() != 0111 {
+		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
+		if err := os.Chmod(dirs.SnapVoidDir, 0111); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type genericHook struct{}
 
 func (h genericHook) Before() error                 { return nil }
@@ -251,6 +265,11 @@ func (m *DeviceManager) StartUp() error {
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
+	}
+
+	// ensure /var/lib/snapd/void permissions are ok
+	if err := ensureFileDirPermissions(); err != nil {
+		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
 	}
 
 	// TODO: setup proper timings measurements for this
@@ -1571,7 +1590,7 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	rebootCurrent := func() {
 		logger.Noticef("rebooting system")
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 
 	// most simple case: just reboot
@@ -1595,7 +1614,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
@@ -1614,7 +1633,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	nop := func() {}
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// we do nothing (nop) if the mode and system are the same
 	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)

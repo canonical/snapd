@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -180,10 +180,6 @@ func checkRFC3339DateWhat(m map[string]interface{}, name, what string) (time.Tim
 	return date, nil
 }
 
-func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, defl time.Time) (time.Time, error) {
-	return checkRFC3339DateWithDefaultWhat(headers, name, "header", defl)
-}
-
 func checkRFC3339DateWithDefaultWhat(m map[string]interface{}, name, what string, defl time.Time) (time.Time, error) {
 	value, ok := m[name]
 	if !ok {
@@ -300,13 +296,17 @@ func checkOptionalBool(headers map[string]interface{}, name string) (bool, error
 }
 
 func checkMap(headers map[string]interface{}, name string) (map[string]interface{}, error) {
-	value, ok := headers[name]
+	return checkMapWhat(headers, name, "header")
+}
+
+func checkMapWhat(m map[string]interface{}, name, what string) (map[string]interface{}, error) {
+	value, ok := m[name]
 	if !ok {
 		return nil, nil
 	}
-	m, ok := value.(map[string]interface{})
+	mv, ok := value.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("%q header must be a map", name)
+		return nil, fmt.Errorf("%q %s must be a map", name, what)
 	}
-	return m, nil
+	return mv, nil
 }

@@ -31,7 +31,7 @@ type bootState16 struct {
 	errName   string
 }
 
-func newBootState16(typ snap.Type, dev Device) bootState {
+func newBootState16(typ snap.Type, dev snap.Device) bootState {
 	var varSuffix, errName string
 	switch typ {
 	case snap.TypeKernel:
@@ -159,7 +159,7 @@ func (s16 *bootState16) markSuccessful(update bootStateUpdate) (bootStateUpdate,
 	return u16, nil
 }
 
-func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootStateUpdate, err error) {
+func (s16 *bootState16) setNext(s snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
 	nextBoot := s.Filename()
 
 	nextBootVar := fmt.Sprintf("snap_try_%s", s16.varSuffix)
@@ -167,14 +167,14 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootSt
 
 	u16, err := newBootStateUpdate16(nil, "snap_mode", goodBootVar)
 	if err != nil {
-		return false, nil, err
+		return RebootInfo{RebootRequired: false}, nil, err
 	}
 
 	env := u16.env
 	toCommit := u16.toCommit
 
 	snapMode := TryStatus
-	rebootRequired = true
+	rbi.RebootRequired = true
 	if env[goodBootVar] == nextBoot {
 		// If we were in anything but default ("") mode before
 		// and switched to the good core/kernel again, make
@@ -182,16 +182,16 @@ func (s16 *bootState16) setNext(s snap.PlaceInfo) (rebootRequired bool, u bootSt
 		// mitigates https://forum.snapcraft.io/t/5253
 		if env["snap_mode"] == DefaultStatus {
 			// already clean
-			return false, nil, nil
+			return RebootInfo{RebootRequired: false}, nil, nil
 		}
 		// clean
 		snapMode = DefaultStatus
 		nextBoot = ""
-		rebootRequired = false
+		rbi.RebootRequired = false
 	}
 
 	toCommit["snap_mode"] = snapMode
 	toCommit[nextBootVar] = nextBoot
 
-	return rebootRequired, u16, nil
+	return rbi, u16, nil
 }

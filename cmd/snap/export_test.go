@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
 var RunMain = run
@@ -190,14 +191,6 @@ func MockGetEnv(f func(name string) string) (restore func()) {
 	osGetenv = f
 	return func() {
 		osGetenv = osGetenvOrig
-	}
-}
-
-func MockMountInfoPath(newMountInfoPath string) (restore func()) {
-	mountInfoPathOrig := mountInfoPath
-	mountInfoPath = newMountInfoPath
-	return func() {
-		mountInfoPath = mountInfoPathOrig
 	}
 }
 
@@ -418,7 +411,7 @@ func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
 	}
 }
 
-func MockWaitInhibitUnlock(f func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) (bool, error)) (restore func()) {
+func MockWaitInhibitUnlock(f func(snapName string, waitFor runinhibit.Hint) (bool, error)) (restore func()) {
 	old := waitInhibitUnlock
 	waitInhibitUnlock = f
 	return func() {
@@ -441,6 +434,22 @@ func MockIsGraphicalSession(graphical bool) (restore func()) {
 	}
 	return func() {
 		isGraphicalSession = old
+	}
+}
+
+func MockPendingRefreshNotification(f func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error) (restore func()) {
+	old := pendingRefreshNotification
+	pendingRefreshNotification = f
+	return func() {
+		pendingRefreshNotification = old
+	}
+}
+
+func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error) (restore func()) {
+	old := finishRefreshNotification
+	finishRefreshNotification = f
+	return func() {
+		finishRefreshNotification = old
 	}
 }
 

@@ -76,7 +76,8 @@ func (s *deviceMgrInstallModeSuite) findInstallSystem() *state.Change {
 }
 
 func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.ConfigureTargetSystemOptsPassed = nil
 	s.ConfigureTargetSystemErr = nil

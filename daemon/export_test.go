@@ -26,6 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -171,7 +172,7 @@ func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision
 	}
 }
 
-func MockSnapstateInstallMany(mock func(*state.State, []string, int) ([]string, []*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallMany(mock func(*state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
 	oldSnapstateInstallMany := snapstateInstallMany
 	snapstateInstallMany = mock
 	return func() {
@@ -201,6 +202,11 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	return func() {
 		snapstateInstallPathMany = old
 	}
+}
+
+func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error) func() {
+	reboot = f
+	return func() { reboot = boot.Reboot }
 }
 
 type (
