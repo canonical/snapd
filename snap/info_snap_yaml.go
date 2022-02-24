@@ -67,6 +67,11 @@ func (td *typoDetector) UnmarshalYAML(func(interface{}) error) error {
 	return fmt.Errorf("typo detected: %s", td.Hint)
 }
 
+type RestartLimits struct {
+	Count  int             `yaml:"count,omitempty"`
+	Period timeout.Timeout `yaml:"period,omitempty"`
+}
+
 type appYaml struct {
 	Aliases []string `yaml:"aliases,omitempty"`
 
@@ -86,6 +91,7 @@ type appYaml struct {
 	RefreshMode     string          `yaml:"refresh-mode,omitempty"`
 	StopMode        StopModeType    `yaml:"stop-mode,omitempty"`
 	InstallMode     string          `yaml:"install-mode,omitempty"`
+	RestartLimits   RestartLimits   `yaml:"restart-limits,omitempty"`
 
 	RestartCond  RestartCondition `yaml:"restart-condition,omitempty"`
 	RestartDelay timeout.Timeout  `yaml:"restart-delay,omitempty"`
@@ -364,6 +370,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			ReloadCommand:   yApp.ReloadCommand,
 			PostStopCommand: yApp.PostStopCommand,
 			RestartCond:     yApp.RestartCond,
+			RestartLimits:   yApp.RestartLimits,
 			RestartDelay:    yApp.RestartDelay,
 			BusName:         yApp.BusName,
 			CommonID:        yApp.CommonID,

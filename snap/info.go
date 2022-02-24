@@ -931,6 +931,7 @@ type AppInfo struct {
 	RefreshMode     string
 	StopMode        StopModeType
 	InstallMode     string
+	RestartLimits   RestartLimits
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor

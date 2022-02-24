@@ -262,6 +262,71 @@ apps:
 	c.Check(string(generatedWrapper), testutil.Contains, "\nTimeoutStartSec=600\n")
 }
 
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithRestartLimitsBurst(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        daemon: simple
+        restart-limits:
+            count: 50
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), testutil.Contains, "\nStartLimitBurst=50\n")
+}
+
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithRestartLimitsInterval(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        daemon: simple
+        restart-limits:
+            period: 1m
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), testutil.Contains, "\nStartLimitInterval=60\n")
+}
+
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithRestartLimitsBurstAndInterval(c *C) {
+	yamlText := `
+name: snap
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        daemon: simple
+        restart-limits:
+            period: 1m
+            count: 100
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), testutil.Contains, "\nStartLimitInterval=60\n")
+	c.Check(string(generatedWrapper), testutil.Contains, "\nStartLimitBurst=100\n")
+}
+
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileRestart(c *C) {
 	yamlTextTemplate := `
 name: snap

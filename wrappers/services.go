@@ -987,6 +987,12 @@ TimeoutStopSec={{.StopTimeout.Seconds}}
 {{- if .StartTimeout}}
 TimeoutStartSec={{.StartTimeout.Seconds}}
 {{- end}}
+{{- if .RestartLimitCount}}
+StartLimitBurst={{.RestartLimitCount}}
+{{- end}}
+{{- if .RestartLimitInterval}}
+StartLimitInterval={{.RestartLimitInterval.Seconds}}
+{{- end}}
 Type={{.App.Daemon}}
 {{- if .Remain}}
 RemainAfterExit={{.Remain}}
@@ -1068,10 +1074,13 @@ WantedBy={{.ServicesTarget}}
 	wrapperData := struct {
 		App *snap.AppInfo
 
-		Restart                  string
-		WorkingDir               string
-		StopTimeout              time.Duration
-		StartTimeout             time.Duration
+		Restart              string
+		WorkingDir           string
+		StopTimeout          time.Duration
+		StartTimeout         time.Duration
+		RestartLimitCount    int
+		RestartLimitInterval time.Duration
+
 		ServicesTarget           string
 		PrerequisiteTarget       string
 		MountUnit                string
@@ -1094,14 +1103,16 @@ WantedBy={{.ServicesTarget}}
 
 		InterfaceServiceSnippets: ifaceSpecifiedServiceSnippet,
 
-		Restart:        restartCond,
-		StopTimeout:    serviceStopTimeout(appInfo),
-		StartTimeout:   time.Duration(appInfo.StartTimeout),
-		Remain:         remain,
-		KillMode:       killMode,
-		KillSignal:     appInfo.StopMode.KillSignal(),
-		OOMAdjustScore: oomAdjustScore,
-		BusName:        busName,
+		Restart:              restartCond,
+		RestartLimitCount:    appInfo.RestartLimits.Count,
+		RestartLimitInterval: time.Duration(appInfo.RestartLimits.Period),
+		StopTimeout:          serviceStopTimeout(appInfo),
+		StartTimeout:         time.Duration(appInfo.StartTimeout),
+		Remain:               remain,
+		KillMode:             killMode,
+		KillSignal:           appInfo.StopMode.KillSignal(),
+		OOMAdjustScore:       oomAdjustScore,
+		BusName:              busName,
 
 		Before: genServiceNames(appInfo.Snap, appInfo.Before),
 		After:  genServiceNames(appInfo.Snap, appInfo.After),
