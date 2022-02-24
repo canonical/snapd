@@ -719,7 +719,7 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 	}
 
 	err = s.callDoQuotaControl(&qc3)
-	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo-group`)
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside group \"foo-group\" remaining quota space 1 GiB`)
 
 	// now we can create a sub-quota
 	qc4 := servicestate.QuotaControlAction{
@@ -1184,7 +1184,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 	}
 
 	err = s.callDoQuotaControl(&qc4)
-	c.Assert(err, ErrorMatches, `cannot update quota "foo2": group "foo2" is invalid: sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo`)
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside group \"foo\" remaining quota space 1 GiB`)
 
 	// and make sure that the existing memory limit is still in place
 	checkQuotaState(c, st, map[string]quotaGroupState{
