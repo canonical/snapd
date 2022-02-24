@@ -275,7 +275,7 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 
 func GenerateSnapdWrappers(s *snap.Info) error {
 	// snapd services are handled separately via an explicit helper
-	return wrappers.AddSnapdSnapServices(s, progress.Null)
+	return wrappers.AddSnapdSnapServices(s, nil, progress.Null)
 }
 
 func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progress.Meter) error {

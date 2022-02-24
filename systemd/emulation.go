@@ -51,7 +51,7 @@ func (s *emulation) Backend() Backend {
 }
 
 func (s *emulation) DaemonReload() error {
-	return &notImplementedError{"DaemonReload"}
+	return nil
 }
 
 func (s *emulation) DaemonReexec() error {
@@ -69,15 +69,15 @@ func (s *emulation) Disable(services []string) error {
 }
 
 func (s *emulation) Start(services []string) error {
-	return &notImplementedError{"Start"}
+	return nil
 }
 
 func (s *emulation) StartNoBlock(services []string) error {
-	return &notImplementedError{"StartNoBlock"}
+	return nil
 }
 
 func (s *emulation) Stop(services []string, timeout time.Duration) error {
-	return &notImplementedError{"Stop"}
+	return nil
 }
 
 func (s *emulation) Kill(service, signal, who string) error {
@@ -85,7 +85,7 @@ func (s *emulation) Kill(service, signal, who string) error {
 }
 
 func (s *emulation) Restart(services []string, timeout time.Duration) error {
-	return &notImplementedError{"Restart"}
+	return nil
 }
 
 func (s *emulation) ReloadOrRestart(service string) error {
