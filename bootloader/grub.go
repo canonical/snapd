@@ -498,19 +498,28 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 
 // grubBootAssetPath contains the paths for assets in the boot chain.
 type grubBootAssetPath struct {
-	shimBinary string
-	grubBinary string
+	shimBinary         string
+	grubBinary         string
+	fallbackBinary     string
+	shimFallbackBinary string
+	grubFallbackBinary string
 }
 
 // grubBootAssetsForArch contains the paths for assets for different
 // architectures in a map
 var grubBootAssetsForArch = map[string]grubBootAssetPath{
 	"amd64": {
-		shimBinary: filepath.Join("EFI/boot/", "bootx64.efi"),
-		grubBinary: filepath.Join("EFI/boot/", "grubx64.efi")},
+		shimBinary:         filepath.Join("EFI/boot/", "bootx64.efi"),
+		grubBinary:         filepath.Join("EFI/boot/", "grubx64.efi"),
+		fallbackBinary:     filepath.Join("EFI/boot/", "fbx64.efi"),
+		shimFallbackBinary: filepath.Join("EFI/ubuntu/", "shimx64.efi"),
+		grubFallbackBinary: filepath.Join("EFI/ubuntu/", "grubx64.efi")},
 	"arm64": {
-		shimBinary: filepath.Join("EFI/boot/", "bootaa64.efi"),
-		grubBinary: filepath.Join("EFI/boot/", "grubaa64.efi")},
+		shimBinary:         filepath.Join("EFI/boot/", "bootaa64.efi"),
+		grubBinary:         filepath.Join("EFI/boot/", "grubaa64.efi"),
+		fallbackBinary:     filepath.Join("EFI/boot/", "fbaa64.efi"),
+		shimFallbackBinary: filepath.Join("EFI/ubuntu/", "shimaa64.efi"),
+		grubFallbackBinary: filepath.Join("EFI/ubuntu/", "grubaa64.efi")},
 }
 
 func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
@@ -531,6 +540,9 @@ func (g *grub) getGrubRecoveryModeTrustedAssets() ([]string, error) {
 	assets, err := g.getGrubBootAssetsForArch()
 	if err != nil {
 		return nil, err
+	}
+	if osutil.FileExists(filepath.Join(g.rootdir, assets.fallbackBinary)) {
+		return []string{assets.shimFallbackBinary, assets.grubFallbackBinary}, nil
 	}
 	return []string{assets.shimBinary, assets.grubBinary}, nil
 }

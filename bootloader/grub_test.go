@@ -256,6 +256,15 @@ func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
 	c.Assert(err, IsNil)
 }
 
+func (s *grubTestSuite) makeFakeShimFallback(c *C) {
+	err := os.MkdirAll(filepath.Join(s.rootdir, "/EFI/boot"), 0755)
+	c.Assert(err, IsNil)
+	_, err = os.Create(filepath.Join(s.rootdir, "/EFI/boot/fbx64.efi"))
+	c.Assert(err, IsNil)
+	_, err = os.Create(filepath.Join(s.rootdir, "/EFI/boot/fbaa64.efi"))
+	c.Assert(err, IsNil)
+}
+
 func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
 
@@ -1194,6 +1203,17 @@ func (s *grubTestSuite) TestTrustedAssetsNativePartitionLayout(c *C) {
 		"EFI/boot/grubx64.efi",
 	})
 
+	// recovery bootloader, with fallback implemented
+	s.makeFakeShimFallback(c)
+	tarb = bootloader.NewGrub(s.rootdir, recoveryOpts).(bootloader.TrustedAssetsBootloader)
+	c.Assert(tarb, NotNil)
+
+	ta, err = tarb.TrustedAssets()
+	c.Assert(err, IsNil)
+	c.Check(ta, DeepEquals, []string{
+		"EFI/ubuntu/shimx64.efi",
+		"EFI/ubuntu/grubx64.efi",
+	})
 }
 
 func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
@@ -1242,6 +1262,22 @@ func (s *grubTestSuite) TestRecoveryBootChains(c *C) {
 	})
 }
 
+func (s *grubTestSuite) TestRecoveryBootChainsWithFallback(c *C) {
+	s.makeFakeShimFallback(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	chain, err := tab.RecoveryBootChain("kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRecovery},
+	})
+}
+
 func (s *grubTestSuite) TestRecoveryBootChainsNotRecoveryBootloader(c *C) {
 	s.makeFakeGrubEnv(c)
 	g := bootloader.NewGrub(s.rootdir, nil)
@@ -1270,6 +1306,25 @@ func (s *grubTestSuite) TestBootChains(c *C) {
 	})
 }
 
+func (s *grubTestSuite) TestBootChainsWithFallback(c *C) {
+	s.makeFakeShimFallback(c)
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chain, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
 func (s *grubTestSuite) TestBootChainsArm64(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
 	r := archtest.MockArchitecture("arm64")
@@ -1285,6 +1340,27 @@ func (s *grubTestSuite) TestBootChainsArm64(c *C) {
 	c.Assert(chain, DeepEquals, []bootloader.BootFile{
 		{Path: "EFI/boot/bootaa64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsArm64WithFallback(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	s.makeFakeShimFallback(c)
+	r := archtest.MockArchitecture("arm64")
+	defer r()
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chain, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/ubuntu/shimaa64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/ubuntu/grubaa64.efi", Role: bootloader.RoleRecovery},
 		{Path: "EFI/boot/grubaa64.efi", Role: bootloader.RoleRunMode},
 		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
 	})
