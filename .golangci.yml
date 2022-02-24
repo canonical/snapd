@@ -180,8 +180,7 @@ linters:
     # gosimple may suggest patterns that work only with more recent Go versions
     # - gosimple
     - nakedret
-    # formatting is disabled until we move to Go 1.13
-    # - gofmt
+    - gofmt
     - ineffassign
     - gci
     - testpackage

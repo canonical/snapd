@@ -134,27 +134,46 @@ if [ "$STATIC" = 1 ]; then
     # check commit author/committer name for unicode
     ./check-commit-email.py
 
-    if [ -z "${SKIP_GOFMT:-}" ]; then
-        echo Checking formatting
-        fmt=""
-        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/\(c-\)\?vendor/' ); do
-            # skip vendor packages
-            s="$(${GOFMT:-gofmt} -s -d "$dir" || true)"
-            if [ -n "$s" ]; then
-                fmt="$s\\n$fmt"
-            fi
-        done
-        if [ -n "$fmt" ]; then
-            echo "Formatting wrong in following files:"
-            # shellcheck disable=SC2001
-            echo "$fmt" | sed -e 's/\\n/\n/g'
-            exit 1
-        fi
+    # golangci's output isn't as clear when there are compilation errors
+    go build github.com/snapcore/snapd/...
+
+    if ! command -v golangci-lint >/dev/null; then
+      # go get (with go 1.13) is killed by OOM killer
+      curl -s -XGET -L https://github.com/golangci/golangci-lint/releases/download/v1.40.1/golangci-lint-1.40.1-linux-amd64.tar.gz --output golangci.tar.gz
+      tar xfz golangci.tar.gz
+      mkdir -p "${GOPATH%%:*}"/bin
+      mv golangci-lint-1.40.1-linux-amd64/golangci-lint "${GOPATH%%:*}"/bin/
+      rm -r golangci.tar.gz golangci-lint-1.40.1-linux-amd64/
     fi
 
-    # go vet
-    echo Running vet
-    go list ./... | grep -v '/vendor/' | xargs go vet
+    ignore=""
+    if [ -n "${SKIP_GOFMT:-}" ]; then
+      ignore="gofmt"
+    fi
+
+    if [ -n "${SKIP_NAKEDRET:-}" ]; then
+      if [ -n "${ignore:-}" ]; then
+        ignore="$ignore|"
+      fi
+
+      ignore="${ignore}nakedret"
+    fi
+
+    echo 'Running golangci-lint'
+    if [ -z "${ignore:-}" ]; then
+      golangci-lint run
+    else
+      # golangci --disable doesn't work with 'disable-all: true' in the config,
+      # so we must filter ignored linters from the output
+      out="$(golangci-lint run --out-format json |
+        grep -E "\"FromLinter\":\"[a-zA-Z0-9]+\"" --only-matching |
+        grep -v -E "$ignore" || :)"
+
+      if [ -n "${out:-}" ]; then
+        # if there non-ignored linter errors, show them in a more readable format
+        golangci-lint run
+      fi
+    fi
 
     echo 'Checking for usages of http.Status*'
     got=""
@@ -206,40 +225,6 @@ if [ "$STATIC" = 1 ]; then
         unset regexp
         # also run spread-shellcheck
         ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
-    fi
-
-    echo "Checking spelling errors"
-    if ! command -v misspell >/dev/null; then
-        go get -u github.com/client9/misspell/cmd/misspell
-    fi
-    # FIXME: auter is only misspelled in the changelog so we should fix there
-    # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
-    # exportfs is used in the nfs-support test
-    MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs"
-    git ls-files -z -- . ':!:./po' ':!:./vendor' ':!:./c-vendor' ':!:./cmd/libsnap-confine-private/bpf/vendor' |
-        xargs -0 misspell -error -i "$MISSPELL_IGNORE"
-
-    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
-        echo "Checking for ineffective assignments"
-        if ! command -v ineffassign >/dev/null; then
-            go get -u github.com/gordonklaus/ineffassign
-        fi
-        # ineffassign knows about ignoring vendor/ \o/
-        ineffassign ./...
-    fi
-
-    echo "Checking for naked returns"
-    if ! command -v nakedret >/dev/null; then
-        go get -u github.com/alexkohler/nakedret
-    fi
-    got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
-    if [ -n "$got" ]; then
-        echo "$got"
-        if [ -z "${SKIP_NAKEDRET:-}" ]; then
-            exit 1
-        else
-            echo "Ignoring nakedret errors as requested"
-        fi
     fi
 
     echo "Checking all interfaces have minimal spread test"
