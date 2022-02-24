@@ -93,18 +93,18 @@ func min(a, b int) int {
 }
 
 func formatCpuGroupSlice(grp *quota.Group) string {
-	if grp.CpuLimit == nil {
+	if grp.CPULimit == nil {
 		return ""
 	}
 
 	// calculateSystemdCPULimit calculates the number of cpus and the allowed percentage
 	// to the systemd specific format. The CPUQuota setting is only available since systemd 213
 	calculateSystemdCPULimit := func() string {
-		if grp.CpuLimit.Count == 0 && grp.CpuLimit.Percentage == 0 {
+		if grp.CPULimit.Count == 0 && grp.CPULimit.Percentage == 0 {
 			return ""
 		}
 
-		cpuQuotaSnap := max(grp.CpuLimit.Count, 1) * grp.CpuLimit.Percentage
+		cpuQuotaSnap := max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
 		cpuQuotaMax := runtime.NumCPU() * 100
 		return fmt.Sprintf("CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
 	}
@@ -113,15 +113,14 @@ func formatCpuGroupSlice(grp *quota.Group) string {
 	// string that systemd expects it to be in. If the array is empty then
 	// an empty string is returned
 	getAllowedCpusValue := func() string {
-		if len(grp.CpuLimit.AllowedCPUs) == 0 {
+		if len(grp.CPULimit.AllowedCPUs) == 0 {
 			return ""
 		}
 
-		allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(grp.CpuLimit.AllowedCPUs)), ","), "[]")
+		allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(grp.CPULimit.AllowedCPUs)), ","), "[]")
 		return fmt.Sprintf("AllowedCPUs=%s\n", allowedCpusValue)
 	}
 
-	// AllowedCpus is only available for cgroupsv2
 	template := `# Always enable cpu accounting, so the following cpu quota options have an effect
 CPUAccounting=true
 `
@@ -129,34 +128,37 @@ CPUAccounting=true
 }
 
 func formatMemoryGroupSlice(grp *quota.Group) string {
-	if grp.MemoryLimit == 0 {
-		return ""
-	}
-
+	buf := bytes.Buffer{}
 	template := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%[1]d
+`
+	fmt.Fprint(&buf, template)
+
+	if grp.MemoryLimit != 0 {
+		valuesTemplate := `MemoryMax=%[1]d
 # for compatibility with older versions of systemd
 MemoryLimit=%[1]d
 
 `
-	return fmt.Sprintf(template, grp.MemoryLimit)
+		memoryValues := fmt.Sprintf(valuesTemplate, grp.MemoryLimit)
+		fmt.Fprint(&buf, memoryValues)
+	}
+	return buf.String()
 }
 
 func formatTaskGroupSlice(grp *quota.Group) string {
-	if grp.TaskLimit == 0 {
-		return `# Always enable task accounting in order to be able to count the processes/
-# threads, etc for a slice
-TasksAccounting=true
-`
-	}
-
+	buf := bytes.Buffer{}
 	template := `# Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
-TasksMax=%d
 `
-	return fmt.Sprintf(template, grp.TaskLimit)
+	fmt.Fprint(&buf, template)
+
+	if grp.TaskLimit != 0 {
+		taskValue := fmt.Sprintf("TasksMax=%d\n", grp.TaskLimit)
+		fmt.Fprint(&buf, taskValue)
+	}
+	return buf.String()
 }
 
 // generateGroupSliceFile generates a systemd slice unit definition for the
