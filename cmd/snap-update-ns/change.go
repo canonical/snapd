@@ -28,7 +28,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mount"
@@ -459,23 +458,6 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			if kind == "" && (err == syscall.ENOTEMPTY || err == syscall.EEXIST) {
 				return nil
 			}
-			if features.RobustMountNamespaceUpdates.IsEnabled() {
-				// FIXME: This should not be necessary. It is necessary because
-				// mimic construction code is not considering all layouts in tandem
-				// and doesn't know enough about base file system to construct
-				// mimics in the order that would prevent them from nesting.
-				//
-				// By ignoring EBUSY here and by continuing to tear down the mimic
-				// tmpfs entirely (without any reuse) we guarantee that at the end
-				// of the day the nested mimic case is entirely removed.
-				//
-				// In an ideal world we would model this better and could do
-				// without this edge case.
-				if (kind == "" || kind == "file") && err == syscall.EBUSY {
-					logger.Debugf("cannot remove busy mount point %q", path)
-					return nil
-				}
-			}
 		}
 		return err
 	case Keep:
@@ -788,8 +770,5 @@ func neededChangesNew(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 // computed. Some of the mount entries from the current profile may be reused.
 // The diff approach doesn't function correctly in cases of nested mimics.
 var NeededChanges = func(current, desired *osutil.MountProfile) []*Change {
-	if features.RobustMountNamespaceUpdates.IsEnabled() {
-		return neededChangesNew(current, desired)
-	}
 	return neededChangesOld(current, desired)
 }
