@@ -102,7 +102,7 @@ func (iface *customDeviceInterface) validateDevice(path string, attrName string)
 	return nil
 }
 
-func (iface *customDeviceInterface) validatePaths(slot *snap.SlotInfo, attrName string, paths []string) error {
+func (iface *customDeviceInterface) validatePaths(attrName string, paths []string) error {
 	for _, path := range paths {
 		if err := iface.validateFilePath(path, attrName); err != nil {
 			return err
@@ -242,11 +242,11 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 	for key, val := range filesMap {
 		switch key {
 		case "read":
-			if err := iface.validatePaths(slot, "read", val); err != nil {
+			if err := iface.validatePaths("read", val); err != nil {
 				return err
 			}
 		case "write":
-			if err := iface.validatePaths(slot, "write", val); err != nil {
+			if err := iface.validatePaths("write", val); err != nil {
 				return err
 			}
 		default:
