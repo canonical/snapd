@@ -284,7 +284,7 @@ TasksAccounting=true
 TasksMax=%[5]d
 `
 
-	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.CPU.AllowedCPUs)), ","), "[]")
+	allowedCpusValue := strutil.SliceToCommaSeparatedString(resourceLimits.CPU.AllowedCPUs)
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name,
 		resourceLimits.CPU.Count*resourceLimits.CPU.Percentage,
 		allowedCpusValue,
@@ -851,7 +851,7 @@ MemoryLimit=%[3]d
 TasksAccounting=true
 `
 
-	allowedCpusValue := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(resourceLimits.CPU.AllowedCPUs)), ","), "[]")
+	allowedCpusValue := strutil.SliceToCommaSeparatedString(resourceLimits.CPU.AllowedCPUs)
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", allowedCpusValue, resourceLimits.Memory.Limit))
 	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", allowedCpusValue, resourceLimits.Memory.Limit))
 }
