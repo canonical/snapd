@@ -221,7 +221,9 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
-type verificationLimits struct {
+// groupQuotaStats contains information about current quotas of a group
+// and is used by getGroupQuotaStats to contain this information
+type groupQuotaStats struct {
 	memoryLimit quantity.Size
 	memoryUsed  quantity.Size
 
@@ -263,12 +265,16 @@ func (grp *Group) getTotalCPUPercentage() int {
 	return max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
 }
 
-func (grp *Group) getGroupLimitsUsage(skipGrp *Group) verificationLimits {
-	var limits verificationLimits
-	limits.memoryLimit = grp.MemoryLimit
-	limits.cpuLimit = grp.getTotalCPUPercentage()
-	limits.threadsLimit = grp.TaskLimit
-	limits.allowedCPUsLimit = grp.getAllowedCPUs()
+// getGroupQuotaStats Recursively retrieve current group quotas statistics, this should just
+// be invoked on the upper parent of a group tree, and then it will gather active quotas for the
+// tree and store them in the allQuotas paramater
+func (grp *Group) getGroupQuotaStats(allQuotas map[string]*groupQuotaStats, skipGrp *Group) *groupQuotaStats {
+	limits := &groupQuotaStats{
+		memoryLimit:      grp.MemoryLimit,
+		cpuLimit:         grp.getTotalCPUPercentage(),
+		threadsLimit:     grp.TaskLimit,
+		allowedCPUsLimit: grp.getAllowedCPUs(),
+	}
 
 	for _, subGroup := range grp.subGroups {
 		// Skip the group that has requested the count, as this is called when creating subgroups
@@ -278,7 +284,7 @@ func (grp *Group) getGroupLimitsUsage(skipGrp *Group) verificationLimits {
 			continue
 		}
 
-		subGroupLimits := subGroup.getGroupLimitsUsage(skipGrp)
+		subGroupLimits := subGroup.getGroupQuotaStats(allQuotas, skipGrp)
 
 		// As we count up the usage of quotas across our sub-groups we must either use the actual
 		// limits of the below sub-group, or the actual usage of the sub-group. The reason we must do this
@@ -293,14 +299,17 @@ func (grp *Group) getGroupLimitsUsage(skipGrp *Group) verificationLimits {
 			limits.allowedCPUsUsed = append(limits.allowedCPUsUsed, subGroupLimits.allowedCPUsUsed...)
 		}
 	}
+
+	// Store the retrieved limits for the group
+	allQuotas[grp.Name] = limits
 	return limits
 }
 
-func (grp *Group) validateMemoryResourceFit(memoryLimit quantity.Size) error {
+func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaStats, memoryLimit quantity.Size) error {
 	parent := grp.parentGroup
 	for parent != nil {
-		limits := parent.getGroupLimitsUsage(grp)
-		if limits.memoryLimit != 0 {
+		limits := allQuotas[parent.Name]
+		if limits != nil && limits.memoryLimit != 0 {
 			memoryAvailable := limits.memoryLimit - limits.memoryUsed
 			if memoryLimit > memoryAvailable {
 				return fmt.Errorf("sub-group memory limit of %s is too large to fit inside group %q remaining quota space %s",
@@ -313,11 +322,11 @@ func (grp *Group) validateMemoryResourceFit(memoryLimit quantity.Size) error {
 	return nil
 }
 
-func (grp *Group) validateCPUResourceFit(cpuCount, cpuPercentage int) error {
+func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaStats, cpuCount, cpuPercentage int) error {
 	parent := grp.parentGroup
 	for parent != nil {
-		limits := parent.getGroupLimitsUsage(grp)
-		if limits.cpuLimit != 0 {
+		limits := allQuotas[parent.Name]
+		if limits != nil && limits.cpuLimit != 0 {
 			cpuRequested := max(cpuCount, 1) * cpuPercentage
 			cpuAvailable := limits.cpuLimit - limits.cpuUsed
 			if cpuRequested > cpuAvailable {
@@ -340,14 +349,14 @@ func contains(s []int, e int) bool {
 	return false
 }
 
-func (grp *Group) validateCPUsAllowedResourceFit(cpusAllowed []int) error {
+func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuotaStats, cpusAllowed []int) error {
 	parent := grp.parentGroup
 	for parent != nil {
-		limits := parent.getGroupLimitsUsage(grp)
-		if len(limits.allowedCPUsLimit) != 0 {
+		limits := allQuotas[parent.Name]
+		if limits != nil && len(limits.allowedCPUsLimit) != 0 {
 			for _, cpu := range cpusAllowed {
 				if !contains(limits.allowedCPUsLimit, cpu) {
-					return fmt.Errorf("sub-group request allowed cpu id of %d which is not allowed by group %q", cpu, parent.Name)
+					return fmt.Errorf("sub-group allowed cpu id of %d is not allowed by group %q", cpu, parent.Name)
 				}
 			}
 			break
@@ -357,11 +366,11 @@ func (grp *Group) validateCPUsAllowedResourceFit(cpusAllowed []int) error {
 	return nil
 }
 
-func (grp *Group) validateThreadResourceFit(threadLimit int) error {
+func (grp *Group) validateThreadResourceFit(allQuotas map[string]*groupQuotaStats, threadLimit int) error {
 	parent := grp.parentGroup
 	for parent != nil {
-		limits := parent.getGroupLimitsUsage(grp)
-		if limits.threadsLimit != 0 {
+		limits := allQuotas[parent.Name]
+		if limits != nil && limits.threadsLimit != 0 {
 			threadsAvailable := limits.threadsLimit - limits.threadsUsed
 			if threadLimit > threadsAvailable {
 				return fmt.Errorf("sub-group thread limit of %d is too large to fit inside group %q remaining quota space %d",
@@ -381,27 +390,36 @@ func (grp *Group) validateQuotaLimits(resourceLimits Resources) error {
 		return nil
 	}
 
+	// Retrieve all limits for our entire group tree
+	upperParent := grp
+	for upperParent.parentGroup != nil {
+		upperParent = upperParent.parentGroup
+	}
+
+	allQuotas := make(map[string]*groupQuotaStats)
+	upperParent.getGroupQuotaStats(allQuotas, grp)
+
 	// for each limit we want to impose, we need to find the closes parent
 	// limit that matches it, and then verify against it's usage if we have room
 	if resourceLimits.Memory != nil {
-		if err := grp.validateMemoryResourceFit(resourceLimits.Memory.Limit); err != nil {
+		if err := grp.validateMemoryResourceFit(allQuotas, resourceLimits.Memory.Limit); err != nil {
 			return err
 		}
 	}
 	if resourceLimits.CPU != nil {
 		if resourceLimits.CPU.Percentage != 0 {
-			if err := grp.validateCPUResourceFit(resourceLimits.CPU.Count, resourceLimits.CPU.Percentage); err != nil {
+			if err := grp.validateCPUResourceFit(allQuotas, resourceLimits.CPU.Count, resourceLimits.CPU.Percentage); err != nil {
 				return err
 			}
 		}
 		if len(resourceLimits.CPU.AllowedCPUs) != 0 {
-			if err := grp.validateCPUsAllowedResourceFit(resourceLimits.CPU.AllowedCPUs); err != nil {
+			if err := grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPU.AllowedCPUs); err != nil {
 				return err
 			}
 		}
 	}
 	if resourceLimits.Threads != nil {
-		if err := grp.validateThreadResourceFit(resourceLimits.Threads.Limit); err != nil {
+		if err := grp.validateThreadResourceFit(allQuotas, resourceLimits.Threads.Limit); err != nil {
 			return err
 		}
 	}

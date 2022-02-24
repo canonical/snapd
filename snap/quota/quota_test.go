@@ -202,7 +202,7 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithAllowedCPUs([]int{1}).Build(),
-			err:        "sub-group request allowed cpu id of 1 which is not allowed by group \"myroot\"",
+			err:        "sub-group allowed cpu id of 1 is not allowed by group \"myroot\"",
 			comment:    "sub group with different cpu allowance quota than parent unhappy",
 		},
 		{
