@@ -48,6 +48,14 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
+func isWSL() bool {
+	if output, err := exec.Command("systemd-detect-virt", "--container").Output(); err == nil {
+		virt := strings.TrimSpace(string(output))
+		return virt == "wsl"
+	}
+	return false
+}
+
 // Checks to see if the current container is capable of having internal AppArmor
 // profiles that should be loaded.
 //
@@ -67,10 +75,14 @@ import (
 // process should continue without any loss of functionality. This is an
 // unsupported configuration that cannot be properly handled by this function.
 //
-func isContainerWithInternalLXDPolicy() bool {
+func isContainerWithInternalPolicy() bool {
 	var appArmorSecurityFSPath = filepath.Join(dirs.GlobalRootDir, "/sys/kernel/security/apparmor")
 	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
 	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
+
+	if isWSL() {
+		return true
+	}
 
 	for _, path := range []string{nsStackedPath, nsNamePath} {
 		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
@@ -145,7 +157,7 @@ func main() {
 		// in container environment - see if container has own
 		// policy that we need to manage otherwise get out of the
 		// way
-		if !isContainerWithInternalLXDPolicy() {
+		if !isContainerWithInternalPolicy() {
 			logger.Noticef("Inside container environment without internal policy")
 			os.Exit(0)
 		}
