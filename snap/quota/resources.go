@@ -70,7 +70,7 @@ func (qr *Resources) validateCpuQuota() error {
 		return fmt.Errorf("cannot validate quota limits with count of >0 and percentage of 0")
 	}
 
-	// atleast one cpu limit value must be set
+	// at least one cpu limit value must be set
 	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 && len(qr.CPU.AllowedCPUs) == 0 {
 		return fmt.Errorf("cannot validate quota limits with a cpu quota of 0 and no allowed cpus")
 	}
@@ -78,15 +78,15 @@ func (qr *Resources) validateCpuQuota() error {
 }
 
 func (qr *Resources) validateThreadQuota() error {
-	// make sure the thread count is not zero
-	if qr.Threads.Limit == 0 {
-		return fmt.Errorf("cannot create quota group with a thread count of 0")
+	// make sure the thread count is greater than 0
+	if qr.Threads.Limit <= 0 {
+		return fmt.Errorf("cannot create quota group with a thread count of %d", qr.Threads.Limit)
 	}
 	return nil
 }
 
 // Validate performs validation of the provided quota resources for a group.
-// The restrictions imposed are that atleast one limit should be set.
+// The restrictions imposed are that at least one limit should be set.
 // If memory limit is provided, it must be above 4KB.
 // If cpu percentage is provided, it must be between 1 and 100.
 // If thread count is provided, it must be above 0.

@@ -93,16 +93,5 @@ func (rb *ResourcesBuilder) Build() Resources {
 }
 
 func NewResourcesBuilder() *ResourcesBuilder {
-	return &ResourcesBuilder{
-		MemoryLimit:      0,
-		MemoryLimitSet:   false,
-		CPUCount:         0,
-		CPUCountSet:      false,
-		CPUPercentage:    0,
-		CPUPercentageSet: false,
-		AllowedCPUs:      nil,
-		AllowedCPUsSet:   false,
-		ThreadLimit:      0,
-		ThreadLimitSet:   false,
-	}
+	return &ResourcesBuilder{}
 }

@@ -188,28 +188,28 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB * 2).Build(),
-			err:        "sub-group memory limit of 2 MiB is too large to fit inside remaining quota space 1 MiB for parent group myroot",
+			err:        "sub-group memory limit of 2 MiB is too large to fit inside group \"myroot\" remaining quota space 1 MiB",
 			comment:    "sub group with larger memory quota than parent unhappy",
 		},
 		{
 			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).Build(),
-			err:        "group \"sub\" would exceed its parent group's CPU limit",
+			err:        "sub-group cpu limit of 200% is too large to fit inside group \"myroot\" remaining quota space 100%",
 			comment:    "sub group with larger cpu count quota than parent unhappy",
 		},
 		{
 			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithAllowedCPUs([]int{1}).Build(),
-			err:        "group \"sub\" has a CPU allowance that is not allowed by its parent group",
+			err:        "sub-group request allowed cpu id of 1 which is not allowed by group \"myroot\"",
 			comment:    "sub group with different cpu allowance quota than parent unhappy",
 		},
 		{
 			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithThreadLimit(64).Build(),
-			err:        "sub-group task limit of 64 is too large to fit inside remaining tasks 32 for parent group myroot",
+			err:        "sub-group thread limit of 64 is too large to fit inside group \"myroot\" remaining quota space 32",
 			comment:    "sub group with larger task allowance quota than parent unhappy",
 		},
 		{
@@ -761,4 +761,51 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 	c.Assert(err, IsNil)
 	const sixteenExb = quantity.Size(1<<64 - 1)
 	c.Assert(currentMem, Equals, sixteenExb)
+}
+
+func (ts *quotaTestSuite) TestNestingOfLimitsWithExceedingParent(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	_, err = grp1.NewSubGroup("thread-sub", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
+	c.Assert(err, IsNil)
+
+	_, err = grp1.NewSubGroup("cpus-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	// Now we have the root with a memory limit, and three subgroups with
+	// each with one of the remaining limits. The point of this test is to make
+	// sure nested cases of limits that don't fit are caught and reported. So in a
+	// sub-sub group we create a limit higher than the upper parent
+	_, err = subgrp1.NewSubGroup("mem-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB*2).Build())
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside group \"groot\" remaining quota space 1 GiB`)
+}
+
+func (ts *quotaTestSuite) TestNestingOfLimitsWithExceedingSiblings(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	_, err = grp1.NewSubGroup("thread-sub", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
+	c.Assert(err, IsNil)
+
+	subgrp2, err := grp1.NewSubGroup("cpus-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	// The point here is to catch if we, in a nested, scenario, together with our siblings
+	// exceed one of the parent's limits.
+	subgrp3, err := subgrp1.NewSubGroup("mem-sub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	_, err = subgrp3.NewSubGroup("mem-sub-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// now we have consumed the entire memory quota set by the parent, so this should fail
+	_, err = subgrp2.NewSubGroup("mem-sub2", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 1 GiB is too large to fit inside group \"groot\" remaining quota space 0 B`)
 }
