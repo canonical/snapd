@@ -6,14 +6,14 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func ExampleBackupBeforeMocking_mockingSimple() {
+func ExampleBackup_mockingSimple() {
 
 	mockable := func() {
 		fmt.Println("Original")
 	}
 
 	// Mock
-	restore := testutil.BackupBeforeMocking(&mockable)
+	restore := testutil.Backup(&mockable)
 	mockable = func() {
 		fmt.Println("Mock")
 	}
@@ -24,10 +24,9 @@ func ExampleBackupBeforeMocking_mockingSimple() {
 	mockable()
 
 	// Output: Original
-
 }
 
-func ExampleBackupBeforeMocking_mockingMultiple() {
+func ExampleBackup_mockingMultiple() {
 	mockableFunc := func() {
 		fmt.Println("Original function")
 	}
@@ -42,7 +41,7 @@ func ExampleBackupBeforeMocking_mockingMultiple() {
 	}
 
 	// Mock
-	restore := testutil.BackupBeforeMocking(&mockableFunc, &mockableNumber, &mockableString, &mockableStruct)
+	restore := testutil.Backup(&mockableFunc, &mockableNumber, &mockableString, &mockableStruct)
 	mockableFunc = func() {
 		fmt.Println("Mock")
 	}
