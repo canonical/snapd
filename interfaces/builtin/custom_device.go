@@ -240,11 +240,6 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		return err
 	}
 	for key, val := range filesMap {
-		// fmt.Printf("val is %#v\n", val)
-		// filesList, ok := val.([]string)
-		// if !ok {
-		// 	return fmt.Errorf(`attribute %q in files section must be a list of strings, not %T`, key, val)
-		// }
 		switch key {
 		case "read":
 			if err := iface.validatePaths(slot, "read", val); err != nil {
@@ -316,10 +311,6 @@ func (iface *customDeviceInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 		return err
 	}
 	for key, val := range filesMap {
-		// filesList, ok := val.([]string)
-		// if !ok {
-		// 	return fmt.Errorf(`attribute %q in files section must be a list of strings, not %T`, key, val)
-		// }
 		perm := ""
 		switch key {
 		case "read":
