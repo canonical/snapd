@@ -409,8 +409,14 @@ func (grp *Group) validateQuotaLimits(resourceLimits Resources) error {
 }
 
 // UpdateQuotaLimits updates all the quota limits set for the group to the new limits
-// given. The limits must be validated prior to calling this function.
+// given. The limits will be validated against the group's parent group's limits, to verify
+// that they fit. For instance, if the parent group has a memory limit of 1GB, and the new limit
+// given here is 2GB, then the new limit will be rejected.
 func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
+	if err := resourceLimits.Validate(); err != nil {
+		return err
+	}
+
 	if err := grp.validateQuotaLimits(resourceLimits); err != nil {
 		return err
 	}
