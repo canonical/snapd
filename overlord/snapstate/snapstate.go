@@ -278,13 +278,13 @@ func refreshRetain(st *state.State) int {
 		case string:
 			retain, err = strconv.Atoi(v)
 		default:
-			logger.Noticef("refresh.retain system option has unexpected type: %v (type: %T):", val, val)
+			logger.Noticef("internal error: refresh.retain system option has unexpected type: %T", v)
 		}
 	}
 
 	// this covers error from Get() and strconv above.
 	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("refresh.retain system option is not valid: %v:", err)
+		logger.Noticef("internal error: refresh.retain system option is not valid: %v:", err)
 	}
 
 	// not set, use default value
