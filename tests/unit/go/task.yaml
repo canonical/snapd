@@ -12,6 +12,12 @@ prepare: |
         tests.session -u test prepare
     fi
 
+    if test -f golangci-lint; then
+      # put binary in GOPATH to avoid redownloading every time
+      mkdir -p /tmp/static-unit-tests/bin/
+      mv golangci-lint /tmp/static-unit-tests/bin/
+    fi
+
 restore: |
     if not os.query is-trusty; then
         tests.session -u test restore
