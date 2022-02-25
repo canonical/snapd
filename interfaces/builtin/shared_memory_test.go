@@ -68,7 +68,7 @@ plugs:
   shared-memory: foo-wildcard
   private: false
  shmem-private:
-  interrface: shared-memory
+  interface: shared-memory
   private: true
 apps:
  app:
