@@ -282,8 +282,8 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	c.Assert(sub2.SliceFileName(), Equals, "snap.myroot-sub2.slice")
 
 	// adding another sub-group to this group fails
-	_, err = rootGrp.NewSubGroup("sub3", quota.NewResourcesBuilder().WithMemoryLimit(1).Build())
-	c.Assert(err, ErrorMatches, "memory limit 1 is too small: size must be larger than 4KB")
+	_, err = rootGrp.NewSubGroup("sub3", quota.NewResourcesBuilder().WithMemoryLimit(5*quantity.SizeKiB).Build())
+	c.Assert(err, ErrorMatches, "sub-group memory limit of 5 KiB is too large to fit inside group \"myroot\" remaining quota space 0 B")
 
 	// we can however add a sub-group to one of the sub-groups with the exact
 	// size of the parent sub-group
