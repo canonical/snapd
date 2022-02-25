@@ -284,7 +284,7 @@ func refreshRetain(st *state.State) int {
 
 	// this covers error from Get() and strconv above.
 	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("internal error: refresh.retain system option is not valid: %v:", err)
+		logger.Noticef("internal error: refresh.retain system option is not valid: %v", err)
 	}
 
 	// not set, use default value
