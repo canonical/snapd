@@ -4527,6 +4527,19 @@ func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestRefreshRetain(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	for i, val := range []interface{}{1, json.Number("2"), "3"} {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.retain", val)
+		tr.Commit()
+		c.Assert(snapstate.RefreshRetain(st), Equals, i+1, Commentf("#%d", i))
+	}
+}
+
 func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
