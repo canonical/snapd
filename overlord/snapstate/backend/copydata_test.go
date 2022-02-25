@@ -932,7 +932,7 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 
 	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
 
-	expectedFile := filepath.Join(homeDir, dirs.ExposedSnapDir, snapName, "file")
+	expectedFile := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName, "file")
 	data, err := ioutil.ReadFile(expectedFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, "stuff")
@@ -942,7 +942,7 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	c.Check(exists, Equals, true)
 	c.Check(isReg, Equals, true)
 
-	expectedDir := filepath.Join(homeDir, dirs.ExposedSnapDir, snapName, "dir")
+	expectedDir := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName, "dir")
 	exists, isDir, err := osutil.DirExists(expectedDir)
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
@@ -979,11 +979,11 @@ func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 
 	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, ".*: boom")
 
-	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapDir))
+	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapHomeDir))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
 
-	exists, _, err = osutil.DirExists(filepath.Join(usr2.HomeDir, dirs.ExposedSnapDir))
+	exists, _, err = osutil.DirExists(filepath.Join(usr2.HomeDir, dirs.ExposedSnapHomeDir))
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, false)
 }
@@ -1004,7 +1004,7 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 
 	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
 
-	newHomeDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapDir, snapName)
+	newHomeDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapHomeDir, snapName)
 	exists, _, err := osutil.DirExists(newHomeDir)
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
@@ -1025,7 +1025,7 @@ func (s *copydataSuite) TestRemoveExposedHome(c *C) {
 	defer restore()
 
 	snapName := "some-snap"
-	exposedDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapDir, snapName)
+	exposedDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapHomeDir, snapName)
 	c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0600), IsNil)
 
@@ -1064,7 +1064,7 @@ func (s *copydataSuite) TestRemoveExposedKeepGoingOnFail(c *C) {
 		c.Assert(err, IsNil)
 		usr.HomeDir = homedir
 
-		exposedDir := filepath.Join(homedir, dirs.ExposedSnapDir, snapName)
+		exposedDir := filepath.Join(homedir, dirs.ExposedSnapHomeDir, snapName)
 		c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
 		c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0700), IsNil)
 		usrs = append(usrs, usr)

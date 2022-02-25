@@ -151,9 +151,9 @@ const (
 	// HiddenSnapDataHomeDir is an experimental hidden directory for snap data
 	HiddenSnapDataHomeDir = ".snap/data"
 
-	// ExposedSnapDir is the directory where snaps should place user-facing
+	// ExposedSnapHomeDir is the directory where snaps should place user-facing
 	// data after ~/snap has been migrated to ~/.snap
-	ExposedSnapDir = "Snap"
+	ExposedSnapHomeDir = "Snap"
 
 	// LocalInstallBlobTempPrefix is used by local install code:
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*

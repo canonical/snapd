@@ -230,7 +230,7 @@ func UserSnapDir(home string, name string, opts *dirs.SnapDirOptions) string {
 
 // UserExposedHomeDir returns the snap's directory in the exposed home dir.
 func UserExposedHomeDir(home string, snapName string) string {
-	return filepath.Join(home, dirs.ExposedSnapDir, snapName)
+	return filepath.Join(home, dirs.ExposedSnapHomeDir, snapName)
 }
 
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
@@ -533,7 +533,7 @@ func (s *Info) UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string 
 
 // UserExposedHomeDir returns the new upper-case snap directory in the user home.
 func (s *Info) UserExposedHomeDir(home string) string {
-	return filepath.Join(home, dirs.ExposedSnapDir, s.InstanceName())
+	return filepath.Join(home, dirs.ExposedSnapHomeDir, s.InstanceName())
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
