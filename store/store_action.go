@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -433,7 +433,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			for j, at := range ats {
 				aj := &assertAtJSON{
 					Type:       at.Type.Name,
-					PrimaryKey: at.PrimaryKey,
+					PrimaryKey: asserts.ReducePrimaryKey(at.Type, at.PrimaryKey),
 				}
 				rev := at.Revision
 				if rev != asserts.RevisionNotKnown {
