@@ -138,6 +138,20 @@ func (as *assertsSuite) TestPrimaryKeyHelpers(c *C) {
 	c.Check(err, ErrorMatches, `must provide primary key: pk2`)
 }
 
+func (as *assertsSuite) TestPrimaryKeyHelpersOptionalPrimaryKeys(c *C) {
+	// optional primary key headers
+	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1"})
+	c.Assert(err, IsNil)
+	c.Check(pk, DeepEquals, []string{"k1", "o1-defl"})
+
+	pk, err = asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1", "opt1": "B"})
+	c.Assert(err, IsNil)
+	c.Check(pk, DeepEquals, []string{"k1", "B"})
+}
+
 func (as *assertsSuite) TestRef(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,

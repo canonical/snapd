@@ -287,17 +287,23 @@ func HeadersFromSequenceKey(assertType *AssertionType, sequenceKey []string) (he
 
 // PrimaryKeyFromHeaders extracts the tuple of values from headers
 // corresponding to a primary key under the assertion type, it errors
-// if there are missing primary key headers.
+// if there are missing primary key headers unless they are optional
+// in which case it fills in their default values.
 func PrimaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
-	return keysFromHeaders(assertType.PrimaryKey, headers)
+	return keysFromHeaders(assertType.PrimaryKey, headers, assertType.OptionalPrimaryKeyDefaults)
 }
 
-func keysFromHeaders(keys []string, headers map[string]string) (keyValues []string, err error) {
+func keysFromHeaders(keys []string, headers map[string]string, defaults map[string]string) (keyValues []string, err error) {
 	keyValues = make([]string, len(keys))
 	for i, k := range keys {
 		keyVal := headers[k]
 		if keyVal == "" {
-			return nil, fmt.Errorf("must provide primary key: %v", k)
+			defl := defaults[k]
+			if defl != "" {
+				keyVal = defl
+			} else {
+				return nil, fmt.Errorf("must provide primary key: %v", k)
+			}
 		}
 		keyValues[i] = keyVal
 	}

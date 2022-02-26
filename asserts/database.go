@@ -199,18 +199,26 @@ type RODatabase interface {
 	IsTrustedAccount(accountID string) bool
 	// Find an assertion based on arbitrary headers.
 	// Provided headers must contain the primary key for the assertion type.
+	// Optional primary key headers can be omitted in which case
+	// their default values will be used.
 	// It returns a NotFoundError if the assertion cannot be found.
 	Find(assertionType *AssertionType, headers map[string]string) (Assertion, error)
 	// FindPredefined finds an assertion in the predefined sets
 	// (trusted or not) based on arbitrary headers.  Provided
 	// headers must contain the primary key for the assertion
-	// type.  It returns a NotFoundError if the assertion cannot
+	// type.
+	// Optional primary key headers can be omitted in which case
+	// their default values will be used.
+	// It returns a NotFoundError if the assertion cannot
 	// be found.
 	FindPredefined(assertionType *AssertionType, headers map[string]string) (Assertion, error)
 	// FindTrusted finds an assertion in the trusted set based on
 	// arbitrary headers.  Provided headers must contain the
-	// primary key for the assertion type.  It returns a
-	// NotFoundError if the assertion cannot be found.
+	// primary key for the assertion type.
+	// Optional primary key headers can be omitted in which case
+	// their default values will be used.
+	// It returns a NotFoundError if the assertion cannot be
+	// found.
 	FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error)
 	// FindMany finds assertions based on arbitrary headers.
 	// It returns a NotFoundError if no assertion can be found.
@@ -580,6 +588,8 @@ func find(backstores []Backstore, assertionType *AssertionType, headers map[stri
 
 // Find an assertion based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
+// Optional primary key headers can be omitted in which case
+// their default values will be used.
 // It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
 	return find(db.backstores, assertionType, headers, -1)
@@ -594,14 +604,18 @@ func (db *Database) FindMaxFormat(assertionType *AssertionType, headers map[stri
 
 // FindPredefined finds an assertion in the predefined sets (trusted
 // or not) based on arbitrary headers.  Provided headers must contain
-// the primary key for the assertion type.  It returns a NotFoundError
-// if the assertion cannot be found.
+// the primary key for the assertion type.
+// Optional primary key headers can be omitted in which case
+// their default values will be used.
+// It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) FindPredefined(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
 	return find([]Backstore{db.trusted, db.predefined}, assertionType, headers, -1)
 }
 
 // FindTrusted finds an assertion in the trusted set based on arbitrary headers.
 // Provided headers must contain the primary key for the assertion type.
+// Optional primary key headers can be omitted in which case
+// their default values will be used.
 // It returns a NotFoundError if the assertion cannot be found.
 func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
 	return find([]Backstore{db.trusted}, assertionType, headers, -1)
@@ -677,7 +691,7 @@ func (db *Database) FindSequence(assertType *AssertionType, sequenceHeaders map[
 
 	// form the sequence key using all keys but the last one which
 	// is the sequence number
-	seqKey, err := keysFromHeaders(assertType.PrimaryKey[:len(assertType.PrimaryKey)-1], sequenceHeaders)
+	seqKey, err := keysFromHeaders(assertType.PrimaryKey[:len(assertType.PrimaryKey)-1], sequenceHeaders, nil)
 	if err != nil {
 		return nil, err
 	}
