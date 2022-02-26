@@ -110,6 +110,17 @@ func (at *AssertionType) SequenceForming() bool {
 	return at.flags&sequenceForming != 0
 }
 
+// AcceptablePrimaryKey returns whether the given key could be an acceptable primary key for this type, allowing for the omission of optional primary key headers.
+func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
+	n := len(at.PrimaryKey)
+	nopt := len(at.OptionalPrimaryKeyDefaults)
+	ninp := len(key)
+	if ninp > n || ninp < (n-nopt) {
+		return false
+	}
+	return true
+}
+
 // Understood assertion types.
 var (
 	AccountType             = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}

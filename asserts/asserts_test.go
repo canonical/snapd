@@ -305,6 +305,29 @@ func (as *assertsSuite) TestRefOptionalPrimaryKeys(c *C) {
 	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt1:A opt2:B)`)
 }
 
+func (as *assertsSuite) TestAcceptablePrimaryKey(c *C) {
+	// optional primary key headers
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+
+	tests := []struct {
+		pk []string
+		ok bool
+	}{
+		{nil, false},
+		{[]string{"k1"}, false},
+		{[]string{"k1", "k2"}, true},
+		{[]string{"k1", "k2", "A"}, true},
+		{[]string{"k1", "k2", "o1-defl"}, true},
+		{[]string{"k1", "k2", "A", "B"}, true},
+		{[]string{"k1", "k2", "o1-defl", "o2-defl", "what"}, false},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.TestOnly2Type.AcceptablePrimaryKey(t.pk), Equals, t.ok)
+	}
+}
+
 func (as *assertsSuite) TestAtRevisionString(c *C) {
 	ref := asserts.Ref{
 		Type:       asserts.AccountType,

@@ -677,7 +677,7 @@ func reportFetchAssertionsError(res *snapActionResult, assertq AssertionQuery) e
 	errl := res.ErrorList
 	carryingRef := func(ent *errorListEntry) bool {
 		aType := asserts.Type(ent.Type)
-		return aType != nil && len(ent.PrimaryKey) == len(aType.PrimaryKey)
+		return aType != nil && aType.AcceptablePrimaryKey(ent.PrimaryKey)
 	}
 	carryingSeqKey := func(ent *errorListEntry) bool {
 		aType := asserts.Type(ent.Type)
