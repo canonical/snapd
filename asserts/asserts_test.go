@@ -150,6 +150,26 @@ func (as *assertsSuite) TestPrimaryKeyHelpersOptionalPrimaryKeys(c *C) {
 	pk, err = asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1", "opt1": "B"})
 	c.Assert(err, IsNil)
 	c.Check(pk, DeepEquals, []string{"k1", "B"})
+
+	hdrs, err := asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1", "B"})
+	c.Assert(err, IsNil)
+	c.Check(hdrs, DeepEquals, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "B",
+	})
+
+	hdrs, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1"})
+	c.Assert(err, IsNil)
+	c.Check(hdrs, DeepEquals, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "o1-defl",
+	})
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, nil)
+	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"pk", "opt1", "what"})
+	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
 }
 
 func (as *assertsSuite) TestRef(c *C) {

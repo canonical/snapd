@@ -247,16 +247,25 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 
 // HeadersFromPrimaryKey constructs a headers mapping from the
 // primaryKey values and the assertion type, it errors if primaryKey
-// has the wrong length.
+// does not cover all the non-optional primary key headers or provides
+// too many values.
 func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
-	if len(primaryKey) != len(assertType.PrimaryKey) {
+	n := len(assertType.PrimaryKey)
+	nopt := len(assertType.OptionalPrimaryKeyDefaults)
+	ninp := len(primaryKey)
+	if ninp > n || ninp < (n-nopt) {
 		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
 	}
 	headers = make(map[string]string, len(assertType.PrimaryKey))
 	for i, name := range assertType.PrimaryKey {
-		keyVal := primaryKey[i]
-		if keyVal == "" {
-			return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+		var keyVal string
+		if i < ninp {
+			keyVal = primaryKey[i]
+			if keyVal == "" {
+				return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+			}
+		} else {
+			keyVal = assertType.OptionalPrimaryKeyDefaults[name]
 		}
 		headers[name] = keyVal
 	}
