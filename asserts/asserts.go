@@ -319,6 +319,31 @@ func keysFromHeaders(keys []string, headers map[string]string, defaults map[stri
 	return keyValues, nil
 }
 
+// ReducePrimaryKey produces a primary key prefix by omitting any
+// suffix of optional primary key headers default values.
+// Too short or long primary keys are returned as is.
+func ReducePrimaryKey(assertType *AssertionType, primaryKey []string) []string {
+	n := len(assertType.PrimaryKey)
+	nopt := len(assertType.OptionalPrimaryKeyDefaults)
+	ninp := len(primaryKey)
+	if ninp > n || ninp < (n-nopt) {
+		return primaryKey
+	}
+	reduced := make([]string, n-nopt, n)
+	copy(reduced, primaryKey[:n-nopt])
+	rest := ninp - (n - nopt)
+	for i := ninp - 1; i >= n-nopt; i-- {
+		defl := assertType.OptionalPrimaryKeyDefaults[assertType.PrimaryKey[i]]
+		if primaryKey[i] != defl {
+			break
+		}
+		// it matches the default value, leave it out
+		rest--
+	}
+	reduced = append(reduced, primaryKey[n-nopt:n-nopt+rest]...)
+	return reduced
+}
+
 // Ref expresses a reference to an assertion.
 type Ref struct {
 	Type       *AssertionType
@@ -328,14 +353,25 @@ type Ref struct {
 func (ref *Ref) String() string {
 	pkStr := "-"
 	n := len(ref.Type.PrimaryKey)
-	if n != len(ref.PrimaryKey) {
+	nopt := len(ref.Type.OptionalPrimaryKeyDefaults)
+	ninp := len(ref.PrimaryKey)
+	if ninp > n || ninp < (n-nopt) {
 		pkStr = "???"
 	} else if n > 0 {
-		pkStr = ref.PrimaryKey[n-1]
+		pkStr = ref.PrimaryKey[n-nopt-1]
 		if n > 1 {
 			sfx := []string{pkStr + ";"}
-			for i, k := range ref.Type.PrimaryKey[:n-1] {
+			for i, k := range ref.Type.PrimaryKey[:n-nopt-1] {
 				sfx = append(sfx, fmt.Sprintf("%s:%s", k, ref.PrimaryKey[i]))
+			}
+			// optional primary keys
+			for i := n - nopt; i < ninp; i++ {
+				v := ref.PrimaryKey[i]
+				k := ref.Type.PrimaryKey[i]
+				defl := ref.Type.OptionalPrimaryKeyDefaults[k]
+				if v != defl {
+					sfx = append(sfx, fmt.Sprintf("%s:%s", k, v))
+				}
 			}
 			pkStr = strings.Join(sfx, " ")
 		}
@@ -345,7 +381,7 @@ func (ref *Ref) String() string {
 
 // Unique returns a unique string representing the reference that can be used as a key in maps.
 func (ref *Ref) Unique() string {
-	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ref.PrimaryKey, "/"))
+	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ReducePrimaryKey(ref.Type, ref.PrimaryKey), "/"))
 }
 
 // Resolve resolves the reference using the given find function.
