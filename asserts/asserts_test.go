@@ -140,7 +140,7 @@ func (as *assertsSuite) TestPrimaryKeyHelpers(c *C) {
 
 func (as *assertsSuite) TestPrimaryKeyHelpersOptionalPrimaryKeys(c *C) {
 	// optional primary key headers
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1"})
@@ -226,8 +226,8 @@ func (as *assertsSuite) TestRefResolveError(c *C) {
 
 func (as *assertsSuite) TestReducePrimaryKey(c *C) {
 	// optional primary key headers
-	defer asserts.AddOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
-	defer asserts.AddOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
 
 	tests := []struct {
 		pk      []string
@@ -252,8 +252,8 @@ func (as *assertsSuite) TestReducePrimaryKey(c *C) {
 
 func (as *assertsSuite) TestRefOptionalPrimaryKeys(c *C) {
 	// optional primary key headers
-	defer asserts.AddOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
-	defer asserts.AddOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
 
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
@@ -356,7 +356,7 @@ const exampleEmptyBodyOptionalPrimaryKeySet = "type: test-only\n" +
 	"AXNpZw=="
 
 func (as *assertsSuite) TestDecodeOptionalPrimaryKeys(c *C) {
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
@@ -961,7 +961,7 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatOptionalPrimaryKeys(c *C) {
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	headers := map[string]interface{}{

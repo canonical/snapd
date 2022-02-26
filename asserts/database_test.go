@@ -1511,7 +1511,7 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 }
 
 func (safs *signAddFindSuite) TestFindOptionalPrimaryKeys(c *C) {
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	headers := map[string]interface{}{

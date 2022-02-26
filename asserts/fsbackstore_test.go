@@ -392,7 +392,7 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Ref().PrimaryKey, DeepEquals, []string{"k1"})
 
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	a2, err := asserts.Decode([]byte("type: test-only\n" +
@@ -437,7 +437,7 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeys(c *C) {
 	c.Check(a.Ref().PrimaryKey, DeepEquals, []string{"k3", "o1-a3"})
 	c.Check(a.HeaderString("marker"), Equals, "a3")
 
-	r2 := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt2", "o2-defl")
+	r2 := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt2", "o2-defl")
 	defer r()
 
 	a4, err := asserts.Decode([]byte("type: test-only\n" +
@@ -580,7 +580,7 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeysSearch(c *C) {
 	err = bs.Put(asserts.TestOnlyType, a1)
 	c.Assert(err, IsNil)
 
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
 
 	a2, err := asserts.Decode([]byte("type: test-only\n" +
@@ -827,9 +827,9 @@ func (fsbss *fsBackstoreSuite) TestOptionalPrimaryKeysSearchTwoOptional(c *C) {
 	err = bs.Put(asserts.TestOnlyType, a2)
 	c.Assert(err, IsNil)
 
-	r := asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
 	defer r()
-	asserts.AddOptionalPrimaryKey(asserts.TestOnlyType, "opt2", "o2-defl")
+	asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt2", "o2-defl")
 
 	a3, err := asserts.Decode([]byte("type: test-only\n" +
 		"authority-id: auth-id1\n" +

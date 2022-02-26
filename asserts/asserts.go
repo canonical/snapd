@@ -29,6 +29,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type typeFlags int
@@ -205,6 +207,23 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 	maxSupportedFormat[assertType.Name] = maxFormat
 	return func() {
 		maxSupportedFormat[assertType.Name] = prev
+	}
+}
+
+func MockOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string) (restore func()) {
+	osutil.MustBeTestBinary("mocking new assertion optional primary keys can be done only from tests")
+	oldPrimaryKey := assertType.PrimaryKey
+	oldOptionalPrimaryKeyDefaults := assertType.OptionalPrimaryKeyDefaults
+	newOptionalPrimaryKeyDefaults := make(map[string]string, len(oldOptionalPrimaryKeyDefaults)+1)
+	for k, defl := range oldOptionalPrimaryKeyDefaults {
+		newOptionalPrimaryKeyDefaults[k] = defl
+	}
+	assertType.PrimaryKey = append(assertType.PrimaryKey, key)
+	assertType.OptionalPrimaryKeyDefaults = newOptionalPrimaryKeyDefaults
+	newOptionalPrimaryKeyDefaults[key] = defaultValue
+	return func() {
+		assertType.PrimaryKey = oldPrimaryKey
+		assertType.OptionalPrimaryKeyDefaults = oldOptionalPrimaryKeyDefaults
 	}
 }
 
