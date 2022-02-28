@@ -264,39 +264,51 @@ apps:
 			`custom-device "read" path must start with / and cannot contain special characters.*`,
 		},
 		{
-			`udev-tagging: why not`,
-			`snap "provider" has interface "custom-device" with invalid value type string for "udev-tagging" attribute.*`,
+			`files: {write: ["/dev/\"quote"]}`,
+			`custom-device "write" path must start with / and cannot contain special characters.*`,
 		},
 		{
-			"udev-tagging:\n    - foo: bar}",
-			`custom-device "udev-tagging" invalid "foo" tag: unknown key`,
+			`files: {remove: ["/just/a/file"]}`,
+			`cannot specify "remove" in "files" section, only "read" and "write" allowed`,
 		},
 		{
-			"udev-tagging:\n    - subsystem: 12",
+			`udev-tagging: []`,
+			`cannot use custom-device slot without any files or devices`,
+		},
+		{
+			"devices: [/dev/null]\n  udev-tagging: true",
+			`snap "provider" has interface "custom-device" with invalid value type bool for "udev-tagging" attribute.*`,
+		},
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - foo: bar}",
+			`custom-device "udev-tagging" invalid "foo" tag: unknown tag`,
+		},
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - subsystem: 12",
 			`custom-device "udev-tagging" invalid "subsystem" tag: value "12" is not a string`,
 		},
 		{
-			"udev-tagging:\n    - subsystem: deal{which,this}",
+			"devices: [/dev/null]\n  udev-tagging:\n    - subsystem: deal{which,this}",
 			`custom-device "udev-tagging" invalid "subsystem" tag: value "deal{which,this}" contains invalid characters`,
 		},
 		{
-			"udev-tagging:\n    - subsystem: bar",
+			"devices: [/dev/null]\n  udev-tagging:\n    - subsystem: bar",
 			`custom-device udev tagging rule missing mandatory "kernel" key`,
 		},
 		{
-			"udev-tagging:\n    - kernel: bar",
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: bar",
 			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
 		},
 		{
-			"udev-tagging:\n    - attributes: foo",
+			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
 			`custom-device "udev-tagging" invalid "attributes" tag: value "foo" is not a map`,
 		},
 		{
-			"udev-tagging:\n    - attributes: {key\": noquotes}",
+			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: {key\": noquotes}",
 			`custom-device "udev-tagging" invalid "attributes" tag: key "key"" contains invalid characters`,
 		},
 		{
-			"udev-tagging:\n    - environment: {key: \"va{ue}\"}",
+			"devices: [/dev/null]\n  udev-tagging:\n    - environment: {key: \"va{ue}\"}",
 			`custom-device "udev-tagging" invalid "environment" tag: value "va{ue}" contains invalid characters`,
 		},
 	}
@@ -315,6 +327,7 @@ version: 0
 slots:
  hwdev:
   interface: custom-device
+  devices: [ /dev/null ]
   %s
 `
 

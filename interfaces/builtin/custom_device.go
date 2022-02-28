@@ -164,7 +164,7 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 		case "attributes", "environment":
 			err = iface.validateUDevValueMap(value)
 		default:
-			err = errors.New(`unknown key`)
+			err = errors.New(`unknown tag`)
 		}
 
 		if err != nil {
@@ -252,6 +252,10 @@ func (iface *customDeviceInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		default:
 			return fmt.Errorf(`cannot specify %q in "files" section, only "read" and "write" allowed`, key)
 		}
+	}
+
+	if len(allDevices) == 0 && len(filesMap) == 0 {
+		return fmt.Errorf("cannot use custom-device slot without any files or devices")
 	}
 
 	var udevTaggingRules []map[string]interface{}
