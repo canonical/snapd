@@ -312,13 +312,12 @@ func (p *piboot) applyConfig(env *ubootenv.Env,
 }
 
 func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
-	out := make(map[string]string)
-
 	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
 	if err != nil {
 		return nil, err
 	}
 
+	out := make(map[string]string, len(names))
 	for _, name := range names {
 		out[name] = env.Get(name)
 	}
