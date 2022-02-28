@@ -94,10 +94,23 @@ func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
+var newToolingStoreFromModel = NewToolingStoreFromModel
+
 func Prepare(opts *Options) error {
-	model, err := decodeModelAssertion(opts)
-	if err != nil {
-		return err
+	var model *asserts.Model
+	var err error
+	if opts.Classic && opts.ModelFile == "" {
+		// ubuntu-image has a use case for preseeding snaps in an arbitrary rootfs
+		// using its --filesystem flag. This rootfs may or may not already have
+		// snaps preseeded in it. In the case where the provided rootfs has no
+		// snaps seeded image.Prepare will be called with no model assertion,
+		// and we then use the GenericClassicModel.
+		model = sysdb.GenericClassicModel()
+	} else {
+		model, err = decodeModelAssertion(opts)
+		if err != nil {
+			return err
+		}
 	}
 
 	if model.Architecture() != "" && opts.Architecture != "" && model.Architecture() != opts.Architecture {
@@ -117,7 +130,7 @@ func Prepare(opts *Options) error {
 		}
 	}
 
-	tsto, err := NewToolingStoreFromModel(model, opts.Architecture)
+	tsto, err := newToolingStoreFromModel(model, opts.Architecture)
 	if err != nil {
 		return err
 	}

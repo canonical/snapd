@@ -205,7 +205,7 @@ if [ "$STATIC" = 1 ]; then
         fi
         unset regexp
         # also run spread-shellcheck
-        ./spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
     fi
 
     echo "Checking spelling errors"
@@ -267,7 +267,7 @@ if [ "$STATIC" = 1 ]; then
 
     if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
         echo "Checking tests formatting"
-        ./tests/utils/check-test-format ./tests
+        ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
     fi
 fi
 
