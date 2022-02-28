@@ -80,7 +80,7 @@ grub and U-Boot environment files.
 The piboot environment files have the same format as U-Boot
 environment files so we leverage the existing snapd codebase and take
 advantage of error detection capabilities. We store there key/value
-paris. The `GetBootVars()`/`SetBootVars()` methods for the bootloader
+pairs. The `GetBootVars()`/`SetBootVars()` methods for the bootloader
 interface read and modify these files in the usual way. However, these
 files do not directly affect the bootloader any more, so we need to
 generate the bootloader configuration files when some of the variables
@@ -95,12 +95,12 @@ bootloaders (see `bootloader/assets/data/grub.cfg`) cannot be done by
 piboot as it does not support scripting and is closed source. Instead,
 basically the same thing has been implemented in the initramfs, and it
 is run as part of the snap bootstrap code (see
-`boot.updatePibootKernelStatus()` function). Running it from the
-initramfs ensures that the code is run only once in boot. This code
-looks at the kernel command line and checks if `kernel_status=trying` is
-present to change the status in the environment file to `try`. Once
-snapd starts, it will check and set `kernel_status` in the usual way
-for any bootloader.
+`boot.updateNotScriptableBootloaderStatus()` function). Running it
+from the initramfs ensures that the code is run only once in
+boot. This code looks at the kernel command line and checks if
+`kernel_status=trying` is present to change the status in the
+environment file to `try`. Once snapd starts, it will check and set
+`kernel_status` in the usual way for any bootloader.
 
 ### RPi gadget
 
