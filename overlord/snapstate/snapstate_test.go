@@ -4527,6 +4527,44 @@ func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestRefreshRetain(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// default value for classic
+	c.Assert(snapstate.RefreshRetain(st), Equals, 2)
+
+	release.MockOnClassic(false)
+	// default value for core
+	c.Assert(snapstate.RefreshRetain(st), Equals, 3)
+
+	buf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	for i, val := range []struct {
+		input    interface{}
+		expected int
+		msg      string
+	}{
+		{1, 1, "^$"},
+		{json.Number("2"), 2, "^$"},
+		{"6", 6, "^$"},
+		// invalid => default value for core
+		{map[string]interface{}{"foo": "bar"}, 3, `.*internal error: refresh.retain system option has unexpected type: map\[string\]interface {}\n`},
+	} {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.retain", val.input)
+		tr.Commit()
+		c.Assert(snapstate.RefreshRetain(st), Equals, val.expected, Commentf("#%d", i))
+		c.Assert(buf.String(), Matches, val.msg, Commentf("#%d", i))
+		buf.Reset()
+	}
+}
+
 func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
