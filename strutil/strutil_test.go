@@ -71,7 +71,7 @@ func (ts *strutilSuite) TestSizeToStr(c *check.C) {
 	}
 }
 
-func (ts *strutilSuite) TestSliceToCommaSeparatedString(c *check.C) {
+func (ts *strutilSuite) TestIntsToCommaSeparatedString(c *check.C) {
 	for _, t := range []struct {
 		values []int
 		str    string
@@ -82,7 +82,7 @@ func (ts *strutilSuite) TestSliceToCommaSeparatedString(c *check.C) {
 		{[]int{0, -1}, "0,-1"},
 		{[]int{1, 2, 3}, "1,2,3"},
 	} {
-		c.Check(strutil.SliceToCommaSeparatedString(t.values), check.Equals, t.str)
+		c.Check(strutil.IntsToCommaSeparatedString(t.values), check.Equals, t.str)
 	}
 }
 

@@ -117,22 +117,22 @@ func formatCpuGroupSlice(grp *quota.Group) string {
 			return ""
 		}
 
-		allowedCpusValue := strutil.SliceToCommaSeparatedString(grp.CPULimit.AllowedCPUs)
+		allowedCpusValue := strutil.IntsToCommaSeparatedString(grp.CPULimit.AllowedCPUs)
 		return fmt.Sprintf("AllowedCPUs=%s\n", allowedCpusValue)
 	}
 
-	template := `# Always enable cpu accounting, so the following cpu quota options have an effect
+	header := `# Always enable cpu accounting, so the following cpu quota options have an effect
 CPUAccounting=true
 `
-	return fmt.Sprint(template, calculateSystemdCPULimit(), getAllowedCpusValue(), "\n")
+	return fmt.Sprint(header, calculateSystemdCPULimit(), getAllowedCpusValue(), "\n")
 }
 
 func formatMemoryGroupSlice(grp *quota.Group) string {
 	buf := bytes.Buffer{}
-	template := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+	header := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 `
-	fmt.Fprint(&buf, template)
+	fmt.Fprint(&buf, header)
 
 	if grp.MemoryLimit != 0 {
 		valuesTemplate := `MemoryMax=%[1]d
@@ -148,11 +148,11 @@ MemoryLimit=%[1]d
 
 func formatTaskGroupSlice(grp *quota.Group) string {
 	buf := bytes.Buffer{}
-	template := `# Always enable task accounting in order to be able to count the processes/
+	header := `# Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
 `
-	fmt.Fprint(&buf, template)
+	fmt.Fprint(&buf, header)
 
 	if grp.TaskLimit != 0 {
 		taskValue := fmt.Sprintf("TasksMax=%d\n", grp.TaskLimit)
