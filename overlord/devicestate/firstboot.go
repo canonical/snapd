@@ -371,7 +371,7 @@ func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, erro
 // it is meant to be used before and during seeding.
 // It is an error to call it with different sysLabel values once one
 // seed has been loaded and cached.
-func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
+var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
 	cached := st.Cached(loadedDeviceSeedKey{})
 	if cached != nil {
 		loaded := cached.(*loadedDeviceSeed)

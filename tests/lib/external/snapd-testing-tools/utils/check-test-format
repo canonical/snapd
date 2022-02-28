@@ -1,5 +1,11 @@
 #!/usr/bin/python3
 
+"""
+This tool is used to varify a correct format of spread tests
+The imput is a directory which is scanned recursively and all
+the task.yaml files are check
+"""
+
 import argparse
 import glob
 import os
@@ -69,8 +75,12 @@ def check_task_format(filepath):
         return False
 
     filemap = dict()
-    with open(filepath, "r") as task:
-        filemap = yaml.load(task, Loader=yamlordereddictloader.Loader)
+    try:
+        with open(filepath, "r") as task:
+            filemap = yaml.load(task, Loader=yamlordereddictloader.Loader)
+    except yaml.scanner.ScannerError:
+        print("Invalid task format, checks failed for task {}".format(filepath))
+        return False
 
     findings = check_keys_order(filemap.keys())
     findings.extend(check_mandatory_keys(filemap.keys()))

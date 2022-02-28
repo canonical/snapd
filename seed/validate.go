@@ -105,13 +105,10 @@ func ValidateFromYaml(seedYamlFile string) error {
 		return newValidationError("", err)
 	}
 
-	// TODO:UC20: make the NumSnaps/Iter part of Seed
-	seed16 := seed.(*seed16)
-
 	ve := &ValidationError{}
 	// read the snap infos
-	snapInfos := make([]*snap.Info, 0, seed16.NumSnaps())
-	seed16.Iter(func(sn *Snap) error {
+	snapInfos := make([]*snap.Info, 0, seed.NumSnaps())
+	seed.Iter(func(sn *Snap) error {
 		snapf, err := snapfile.Open(sn.Path)
 		if err != nil {
 			ve.addErr("", err)

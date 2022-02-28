@@ -18,6 +18,12 @@ prepare: |
 restore: |
     tests.session -u test restore
 
+debug: |
+    # Print snap-confine stdout
+    cat /tmp/snap-confine-stdout.log || true
+    # Print snap-confine stderr
+    cat /tmp/snap-confine-stderr.log || true
+
 execute: |
     rm -rf /tmp/snap.test-snapd-sh
     # create /tmp/snap.test-snapd-sh as a regular user
