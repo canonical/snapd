@@ -467,9 +467,8 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 	return fmt.Errorf("cannot process mount change: unknown action: %q", c.Action)
 }
 
-// neededChangesOld is the real implementation of NeededChanges
-// This function is used when RobustMountNamespaceUpdate is not enabled.
-func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
+// neededChanges is the real implementation of NeededChanges
+func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
 	// Copy both profiles as we will want to mutate them.
 	current := make([]osutil.MountEntry, len(currentProfile.Entries))
 	copy(current, currentProfile.Entries)
@@ -682,93 +681,10 @@ func findFirstRootDirectoryThatExists(desiredParentDir string) string {
 	return findFirstRootDirectoryThatExists(filepath.Dir(desiredParentDir))
 }
 
-// neededChangesNew is the real implementation of NeededChanges
-// This function is used when RobustMountNamespaceUpdate is enabled.
-func neededChangesNew(currentProfile, desiredProfile *osutil.MountProfile) []*Change {
-	// Copy both profiles as we will want to mutate them.
-	current := make([]osutil.MountEntry, len(currentProfile.Entries))
-	copy(current, currentProfile.Entries)
-	desired := make([]osutil.MountEntry, len(desiredProfile.Entries))
-	copy(desired, desiredProfile.Entries)
-
-	// Clean the directory part of both profiles. This is done so that we can
-	// easily test if a given directory is a subdirectory with
-	// strings.HasPrefix coupled with an extra slash character.
-	for i := range current {
-		current[i].Dir = filepath.Clean(current[i].Dir)
-	}
-	for i := range desired {
-		desired[i].Dir = filepath.Clean(desired[i].Dir)
-	}
-
-	// Sort both lists by directory name with implicit trailing slash.
-	sort.Sort(byOriginAndMagicDir(current))
-	sort.Sort(byOriginAndMagicDir(desired))
-
-	// We are now ready to compute the necessary mount changes.
-	var changes []*Change
-
-	// Unmount entries in reverse order, so that the most nested element is
-	// always processed first.
-	for i := len(current) - 1; i >= 0; i-- {
-		var entry osutil.MountEntry = current[i]
-		entry.Options = append([]string(nil), entry.Options...)
-		switch {
-		case entry.XSnapdSynthetic() && entry.Type == "tmpfs":
-			// Synthetic changes are rooted under a tmpfs, detach that tmpfs to
-			// remove them all.
-			if !entry.XSnapdDetach() {
-				entry.Options = append(entry.Options, osutil.XSnapdDetach())
-			}
-		case entry.XSnapdSynthetic():
-			// Consume all other syn ethic entries without emitting either a
-			// mount, unmount or keep change.  This relies on the fact that all
-			// synthetic mounts are created by a mimic underneath a tmpfs that
-			// is detached, as coded above.
-			continue
-		case entry.OptBool("rbind") || entry.Type == "tmpfs":
-			// Recursive bind mounts and non-mimic tmpfs mounts need to be
-			// detached because they can contain other mount points that can
-			// otherwise propagate in a self-conflicting way.
-			if !entry.XSnapdDetach() {
-				entry.Options = append(entry.Options, osutil.XSnapdDetach())
-			}
-		case entry.OptBool("bind") && entry.XSnapdKind() == "file":
-			// Bind mounted files are detached. If a bind mounted file open or
-			// mapped into a process as a library, then attempting to unmount
-			// it will result in EBUSY.
-			//
-			// This can happen when a snap has a service, for example one using
-			// a library mounted via a bind mount and an absent content
-			// connection. Subsequent connection of the content connection will
-			// trigger re-population of the mount namespace, which will start
-			// by tearing down the existing file bind-mount. To prevent this,
-			// detach the mount instead.
-			if !entry.XSnapdDetach() {
-				entry.Options = append(entry.Options, osutil.XSnapdDetach())
-			}
-		}
-		// Unmount all changes that were not eliminated.
-		changes = append(changes, &Change{Action: Unmount, Entry: entry})
-	}
-
-	// Mount desired entries.
-	for i := range desired {
-		changes = append(changes, &Change{Action: Mount, Entry: desired[i]})
-	}
-
-	return changes
-}
-
 // NeededChanges computes the changes required to change current to desired mount entries.
 //
-// The algorithm differs depending on the value of the robust mount namespace
-// updates feature flag. If the flag is enabled then the current profile is
-// entirely undone and the desired profile is constructed from scratch.
-//
-// If the flag is disabled then a diff-like operation on the mount profile is
-// computed. Some of the mount entries from the current profile may be reused.
-// The diff approach doesn't function correctly in cases of nested mimics.
+// A diff-like operation on the mount profile is computed. Some of the mount
+// entries from the current profile may be reused.
 var NeededChanges = func(current, desired *osutil.MountProfile) []*Change {
-	return neededChangesOld(current, desired)
+	return neededChanges(current, desired)
 }

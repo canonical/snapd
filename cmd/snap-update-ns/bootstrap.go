@@ -30,7 +30,7 @@ package main
 
 // The bootstrap function is called by the loader before passing
 // control to main. We are using `preinit_array` rather than
-// `init_array` because the Go linker adds its own initialization
+// `init_array` because the Go linker adds its own initialisation
 // function to `init_array`, and having ours run second would defeat
 // the purpose of the C bootstrap code.
 //
