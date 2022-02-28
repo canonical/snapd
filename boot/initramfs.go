@@ -147,7 +147,11 @@ func updateNotScriptableBootloaderStatus(bl bootloader.NotScriptableBootloader) 
 		return err
 	}
 	args := strings.Split(cmdLine, " ")
-	// "" would be the value for the error case
+	// "" would be the value for the error case, which at this point is any
+	// case different to kernel_status=trying in kernel command line and
+	// kernel_status=try in configuration file. Note that kernel_status in
+	// the file should be only "try" or empty, and for the latter we should
+	// have returned a few lines up.
 	newStatus := ""
 	for _, arg := range args {
 		if arg == "kernel_status=trying" && curKernStatus == "try" {
