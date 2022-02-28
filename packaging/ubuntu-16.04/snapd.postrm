@@ -103,6 +103,8 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
+    # Units may have been removed do a reload
+    systemctl -q daemon-reload || true
 
     # snapd session-agent
     rm -f /etc/systemd/user/snapd.session-agent.socket
