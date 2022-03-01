@@ -75,6 +75,10 @@ const cpuControlConnectedPlugAppArmor = `
 /proc/sys/kernel/sched_group_downmigrate rw,
 /proc/sys/kernel/sched_walt_rotate_big_tasks rw,
 /proc/sys/kernel/sched_boost rw,
+
+# see https://www.osadl.org/monitoring/add-on-patches/4.16.7-rt1...4.16.15-rt7/sched-add-per-cpu-load-measurement.patch.html
+/proc/idleruntime/{all,cpu[0-9][0-9]*}/data r,
+/proc/idleruntime/{all,cpu[0-9][0-9]*}/reset w,
 `
 
 func init() {
