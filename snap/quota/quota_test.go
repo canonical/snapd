@@ -763,6 +763,126 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 	c.Assert(currentMem, Equals, sixteenExb)
 }
 
+func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
+	// Verify we get the correct allocations for a group with a more complex tree-structure
+	// and different quotas split out into different sub-groups.
+	// The tree we will be verifying will be like this
+	//                   <groot>                     (root group, 1GB Memory)
+	// 				  /    |      \
+	// 	     <cpu-q0>      |       \                 (subgroup, 2x50% Cpu Quota)
+	// 		 /        <thread-q0>   \                (subgroup, 32 threads)
+	//      /	           |     <cpus-q0>           (subgroup, cpu-set quota with cpus 0,1)
+	// <mem-q1>        <mem-q2>       \              (2 subgroups, 256 Memory each)
+	//    |                |       <cpus-q1>         (subgroup, cpu-set quota with cpus 0)
+	// <cpu-q1>        <thread-q1>                   (subgroups, cpu quota of 50%, thread quota of 16)
+	//                     |
+	//                 <mem-q3>
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	cpuq0, err := grp1.NewSubGroup("cpu-q0", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	thrq0, err := grp1.NewSubGroup("thread-q0", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
+	c.Assert(err, IsNil)
+
+	cpusq0, err := grp1.NewSubGroup("cpus-q0", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	memq1, err := cpuq0.NewSubGroup("mem-q1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*256).Build())
+	c.Assert(err, IsNil)
+
+	memq2, err := thrq0.NewSubGroup("mem-q2", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*256).Build())
+	c.Assert(err, IsNil)
+
+	_, err = cpusq0.NewSubGroup("cpus-q1", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build())
+	c.Assert(err, IsNil)
+
+	_, err = memq1.NewSubGroup("cpu-q1", quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	thrq1, err := memq2.NewSubGroup("thread-q1", quota.NewResourcesBuilder().WithThreadLimit(16).Build())
+	c.Assert(err, IsNil)
+
+	_, err = thrq1.NewSubGroup("mem-q3", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB*128).Build())
+	c.Assert(err, IsNil)
+
+	// Now we verify that the reservations made for the relevant groups are correct. The upper parent group will
+	// contained a combined overview of reserveations made.
+	allReservations := grp1.InspectInternalQuotaAllocations()
+
+	// Verify the root group
+	c.Assert(allReservations["groot"], DeepEquals, &quota.GroupQuotaAllocations{
+		MemoryLimit:         quantity.SizeGiB,
+		MemoryReserved:      quantity.SizeMiB * 512,
+		CpuReserved:         100,
+		ThreadsReserved:     32,
+		AllowedCPUsLimit:    []int{},
+		AllowedCPUsReserved: []int{0, 1},
+	})
+
+	// Verify the subgroup cpu-q0
+	c.Assert(allReservations["cpu-q0"], DeepEquals, &quota.GroupQuotaAllocations{
+		CpuLimit:         100,
+		CpuReserved:      50,
+		MemoryReserved:   quantity.SizeMiB * 256,
+		AllowedCPUsLimit: []int{},
+	})
+
+	// Verify the subgroup thread-q0
+	c.Assert(allReservations["thread-q0"], DeepEquals, &quota.GroupQuotaAllocations{
+		MemoryReserved:   quantity.SizeMiB * 256,
+		ThreadsLimit:     32,
+		ThreadsReserved:  16,
+		AllowedCPUsLimit: []int{},
+	})
+
+	// Verify the subgroup cpus-q0
+	c.Assert(allReservations["cpus-q0"], DeepEquals, &quota.GroupQuotaAllocations{
+		AllowedCPUsLimit:    []int{0, 1},
+		AllowedCPUsReserved: []int{0},
+	})
+
+	// Verify the subgroup cpus-q1
+	c.Assert(allReservations["cpus-q1"], DeepEquals, &quota.GroupQuotaAllocations{
+		AllowedCPUsLimit: []int{0},
+	})
+
+	// Verify the subgroup mem-q1
+	c.Assert(allReservations["mem-q1"], DeepEquals, &quota.GroupQuotaAllocations{
+		MemoryLimit:      quantity.SizeMiB * 256,
+		CpuReserved:      50,
+		AllowedCPUsLimit: []int{},
+	})
+
+	// Verify the subgroup mem-q2
+	c.Assert(allReservations["mem-q2"], DeepEquals, &quota.GroupQuotaAllocations{
+		MemoryLimit:      quantity.SizeMiB * 256,
+		MemoryReserved:   quantity.SizeMiB * 128,
+		ThreadsReserved:  16,
+		AllowedCPUsLimit: []int{},
+	})
+
+	// Verify the subgroup cpu-q1
+	c.Assert(allReservations["cpu-q1"], DeepEquals, &quota.GroupQuotaAllocations{
+		CpuLimit:         50,
+		AllowedCPUsLimit: []int{},
+	})
+
+	// Verify the subgroup thread-q1
+	c.Assert(allReservations["thread-q1"], DeepEquals, &quota.GroupQuotaAllocations{
+		MemoryReserved:   quantity.SizeMiB * 128,
+		ThreadsLimit:     16,
+		AllowedCPUsLimit: []int{},
+	})
+
+	// Verify the subgroup mem-q3
+	c.Assert(allReservations["mem-q3"], DeepEquals, &quota.GroupQuotaAllocations{
+		MemoryLimit:      quantity.SizeMiB * 128,
+		AllowedCPUsLimit: []int{},
+	})
+}
+
 func (ts *quotaTestSuite) TestNestingOfLimitsWithExceedingParent(c *C) {
 	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, IsNil)

@@ -22,3 +22,9 @@ package quota
 func (grp *Group) SetInternalSubGroups(grps []*Group) {
 	grp.subGroups = grps
 }
+
+func (grp *Group) InspectInternalQuotaAllocations() map[string]*GroupQuotaAllocations {
+	allQuotas := make(map[string]*GroupQuotaAllocations)
+	grp.getgroupQuotaAllocations(allQuotas, nil)
+	return allQuotas
+}
