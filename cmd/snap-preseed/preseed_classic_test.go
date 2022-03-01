@@ -149,7 +149,7 @@ exit 32
 	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
 	defer restoreSystemSnapFromSeed()
 
 	parser := testParser(c)
@@ -217,7 +217,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
 	defer restoreSystemSnapFromSeed()
 
 	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
@@ -280,7 +280,7 @@ func (s *startPreseedSuite) TestRunPreseedHappyDebVersionIsNewer(c *C) {
 	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
 	defer restoreSystemSnapFromSeed()
 
 	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
@@ -393,7 +393,7 @@ func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 	})
 	defer restore()
 
-	path, err := main.SystemSnapFromSeed(tmpDir)
+	path, _, err := main.SystemSnapFromSeed(tmpDir, "")
 	c.Assert(err, IsNil)
 	c.Check(path, Equals, "/some/path/core")
 }
@@ -410,7 +410,7 @@ func (s *startPreseedSuite) TestSystemSnapFromSnapdSeed(c *C) {
 	})
 	defer restore()
 
-	path, err := main.SystemSnapFromSeed(tmpDir)
+	path, _, err := main.SystemSnapFromSeed(tmpDir, "")
 	c.Assert(err, IsNil)
 	c.Check(path, Equals, "/some/path/snapd.snap")
 }
@@ -421,7 +421,7 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedOpenError(c *C) {
 	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return nil, fmt.Errorf("fail") })
 	defer restore()
 
-	_, err := main.SystemSnapFromSeed(tmpDir)
+	_, _, err := main.SystemSnapFromSeed(tmpDir, "")
 	c.Assert(err, ErrorMatches, "fail")
 }
 
@@ -435,46 +435,21 @@ func (s *startPreseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	defer restore()
 
 	fakeSeed.Essential = []*seed.Snap{{Path: "", SideInfo: &snap.SideInfo{RealName: "core"}}}
-	_, err := main.SystemSnapFromSeed(tmpDir)
+	_, _, err := main.SystemSnapFromSeed(tmpDir, "")
 	c.Assert(err, ErrorMatches, "core snap not found")
 
 	fakeSeed.Essential = []*seed.Snap{{Path: "/some/path", SideInfo: &snap.SideInfo{RealName: "foosnap"}}}
-	_, err = main.SystemSnapFromSeed(tmpDir)
+	_, _, err = main.SystemSnapFromSeed(tmpDir, "")
 	c.Assert(err, ErrorMatches, "core snap not found")
 
 	fakeSeed.LoadMetaErr = fmt.Errorf("load meta failed")
-	_, err = main.SystemSnapFromSeed(tmpDir)
+	_, _, err = main.SystemSnapFromSeed(tmpDir, "")
 	c.Assert(err, ErrorMatches, "load meta failed")
 
 	fakeSeed.LoadMetaErr = nil
 	fakeSeed.LoadAssertionsErr = fmt.Errorf("load assertions failed")
-	_, err = main.SystemSnapFromSeed(tmpDir)
+	_, _, err = main.SystemSnapFromSeed(tmpDir, "")
 	c.Assert(err, ErrorMatches, "load assertions failed")
-}
-
-func (s *startPreseedSuite) TestClassicRequired(c *C) {
-	tmpDir := c.MkDir()
-
-	headers := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "brand",
-		"series":       "16",
-		"brand-id":     "brand",
-		"model":        "baz-3000",
-		"architecture": "armhf",
-		"gadget":       "brand-gadget",
-		"kernel":       "kernel",
-		"timestamp":    "2018-01-01T08:00:00+00:00",
-	}
-
-	fakeSeed := &Fake16Seed{}
-	fakeSeed.AssertsModel = assertstest.FakeAssertion(headers, nil).(*asserts.Model)
-
-	restore := main.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
-	defer restore()
-
-	_, err := main.SystemSnapFromSeed(tmpDir)
-	c.Assert(err, ErrorMatches, "preseeding is only supported on classic systems")
 }
 
 func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
@@ -496,7 +471,7 @@ func (s *startPreseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
 	defer restoreSystemSnapFromSeed()
 
 	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, "usr/lib/snapd/"), 0755), IsNil)
