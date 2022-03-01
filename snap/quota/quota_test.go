@@ -772,11 +772,11 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 	// 	     <cpu-q0>      |       \                 (subgroup, 2x50% Cpu Quota)
 	// 		 /        <thread-q0>   \                (subgroup, 32 threads)
 	//      /	           |     <cpus-q0>           (subgroup, cpu-set quota with cpus 0,1)
-	// <mem-q1>        <mem-q2>       \              (2 subgroups, 256 Memory each)
+	// <mem-q1>        <mem-q2>       \              (2 subgroups, 256MB Memory each)
 	//    |                |       <cpus-q1>         (subgroup, cpu-set quota with cpus 0)
 	// <cpu-q1>        <thread-q1>                   (subgroups, cpu quota of 50%, thread quota of 16)
 	//                     |
-	//                 <mem-q3>
+	//                 <mem-q3>                      (subgroup, 128MB Memory)
 	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, IsNil)
 
