@@ -212,6 +212,14 @@ apps:
 			`custom-device "devices" path must start with /dev/ and cannot contain special characters.*`,
 		},
 		{
+			`devices: [/dev/foo"bar]`,
+			`custom-device "devices" path must start with /dev/ and cannot contain special characters.*`,
+		},
+		{
+			`devices: ["/dev/{foo}bar"]`,
+			`custom-device "devices" path must start with /dev/ and cannot contain special characters.*`,
+		},
+		{
 			"read-devices: [/dev/foo\\bar]",
 			`custom-device "read-devices" path must start with /dev/ and cannot contain special characters.*`,
 		},
