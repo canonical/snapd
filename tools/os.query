@@ -3,10 +3,10 @@
 show_help() {
     echo "usage: os.query is-core, is-classic"
     echo "       os.query is-core16, is-core18, is-core20, is-core22"
-    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-impish"
+    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-impish, is-jammy"
     echo "       os.query is-ubuntu, is-debian, is-fedora, is-amazon-linux, is-arch-linux, is-centos, is-centos-7, is-centos-8, is-opensuse"
     echo "       os.query is-opensuse-tumbleweed, is-debian-sid, is-debian-11, is-debian-10"
-    echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64"
+    echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64, is-s390x"
     echo ""
     echo "Get general information about the current system"
 }
@@ -129,6 +129,10 @@ is_armhf() {
 
 is_arm64() {
     uname -m | grep -Eq '(aarch64.*|armv8.*)'
+}
+
+is_s390x() {
+    uname -m | grep -qFx 's390x'
 }
 
 
