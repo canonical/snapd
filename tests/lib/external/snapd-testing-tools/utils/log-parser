@@ -409,8 +409,8 @@ class LogReader:
             task = parts[4]
             extra = None
         elif info_type == DEBUG_TYPE:
-            verb = parts[3]
-            task = parts[4]
+            verb = None
+            task = parts[5]
             extra = None
         else:
             print('log-parser: detail type not recognized: {}'.format(info_type))
