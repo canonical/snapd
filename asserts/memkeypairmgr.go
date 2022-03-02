@@ -53,7 +53,7 @@ func (mkm *memoryKeypairManager) Get(keyID string) (PrivateKey, error) {
 
 	privKey := mkm.pairs[keyID]
 	if privKey == nil {
-		return nil, &keyNotFoundError{keyID: keyID, where: "in the memory"}
+		return nil, errKeypairNotFound
 	}
 	return privKey, nil
 }
@@ -64,7 +64,7 @@ func (mkm *memoryKeypairManager) Delete(keyID string) error {
 
 	_, ok := mkm.pairs[keyID]
 	if !ok {
-		return &keyNotFoundError{keyID: keyID, where: "in the memory"}
+		return errKeypairNotFound
 	}
 	delete(mkm.pairs, keyID)
 	return nil

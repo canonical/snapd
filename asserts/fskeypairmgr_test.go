@@ -20,7 +20,6 @@
 package asserts_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -89,10 +88,10 @@ func (fsbss *fsKeypairMgrSuite) TestDelete(c *C) {
 	c.Assert(err, IsNil)
 
 	err = keypairMgr.Delete(keyID)
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q", keyID))
+	c.Check(err, ErrorMatches, "cannot find key pair")
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 
 	_, err = keypairMgr.Get(keyID)
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q", keyID))
+	c.Check(err, ErrorMatches, "cannot find key pair")
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }

@@ -247,6 +247,8 @@ type gpgKeypairInfo struct {
 	fingerprint string
 }
 
+var errKeypairNotFoundInGPGKeyring = &keyNotFoundError{msg: "cannot find key pair in GPG keyring"}
+
 func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
 	stop := errors.New("stop marker")
 	var hit *gpgKeypairInfo
@@ -267,7 +269,7 @@ func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, &keyNotFoundError{keyID: keyID, where: "in GPG keyring"}
+	return nil, errKeypairNotFoundInGPGKeyring
 }
 
 func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
@@ -330,28 +332,7 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, &namedKeyNotFoundError{keyNotFoundError{keyID: name, where: "in GPG keyring"}}
-}
-
-type namedKeyNotFoundError struct {
-	keyNotFoundError
-}
-
-func (e *namedKeyNotFoundError) Error() string {
-	where := ""
-	if e.where != "" {
-		where = fmt.Sprintf(" %s", e.where)
-	}
-	return fmt.Sprintf("cannot find key named %q%s", e.keyID, where)
-}
-
-func (e *namedKeyNotFoundError) Is(target error) bool {
-	switch target.(type) {
-	case *keyNotFoundError, *namedKeyNotFoundError:
-
-		return true
-	}
-	return false
+	return nil, errKeypairNotFoundInGPGKeyring
 }
 
 // GetByName looks up a private key by name and returns it.

@@ -24,7 +24,6 @@ import (
 	"crypto"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -193,13 +192,13 @@ func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
 	keyID := pk.PublicKey().ID()
 
 	_, err := dbs.db.PublicKey(keyID)
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q", keyID))
+	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	err = dbs.db.ImportKey(pk)
 	c.Assert(err, IsNil)
 
 	_, err = dbs.db.PublicKey("ff" + keyID)
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q", "ff"+keyID))
+	c.Check(err, ErrorMatches, "cannot find key pair")
 }
 
 type checkSuite struct {
@@ -511,7 +510,7 @@ func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, "abcd")
-	c.Assert(err, ErrorMatches, `cannot find key "abcd" in the memory`)
+	c.Assert(err, ErrorMatches, "cannot find key pair")
 	c.Check(a1, IsNil)
 }
 

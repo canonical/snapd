@@ -96,17 +96,10 @@ func (nbs nullBackstore) SequenceMemberAfter(t *AssertionType, kp []string, afte
 
 // keyNotFoundError is returned when the key with a given ID cannot be found.
 type keyNotFoundError struct {
-	keyID string
-	where string
+	msg string
 }
 
-func (e *keyNotFoundError) Error() string {
-	where := ""
-	if e.where != "" {
-		where = fmt.Sprintf(" %s", e.where)
-	}
-	return fmt.Sprintf("cannot find key %q%s", e.keyID, where)
-}
+func (e *keyNotFoundError) Error() string { return e.msg }
 
 func (e *keyNotFoundError) Is(target error) bool {
 	_, ok := target.(*keyNotFoundError)
