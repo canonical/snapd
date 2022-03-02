@@ -934,14 +934,15 @@ func buildVolumeStructureToLocation(mod Model,
 ) (map[string]map[int]StructureLocation, error) {
 
 	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
+
 	// helper function for handling non-fatal errors on pre-UC20
-	maybeDieOnMappingError := func(err error) (fatal bool) {
+	maybeFatalError := func(err error) error {
 		if missingInitialMapping && isPreUC20 {
 			// this is not a fatal error on pre-UC20
 			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error mapping volume to physical disk: %v", err)
-			return false
+			return errSkipUpdateProceedRefresh
 		}
-		return true
+		return err
 	}
 
 	volumeStructureToLocation := make(map[string]map[int]StructureLocation, len(old.Info.Volumes))
@@ -963,6 +964,9 @@ func buildVolumeStructureToLocation(mod Model,
 		}
 
 		laidOutVol := laidOutVols[volName]
+		if laidOutVol == nil {
+			return nil, fmt.Errorf("internal error: missing LaidOutVolume for volume %s", volName)
+		}
 
 		// find the disk associated with this volume using the traits we
 		// measured for this volume
@@ -975,11 +979,7 @@ func buildVolumeStructureToLocation(mod Model,
 		disk, err := searchForVolumeWithTraits(laidOutVol, diskDeviceTraits, validateOpts)
 		if err != nil {
 			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
-			if fatal := maybeDieOnMappingError(dieErr); fatal {
-				return nil, dieErr
-			} else {
-				return nil, errSkipUpdateProceedRefresh
-			}
+			return nil, maybeFatalError(dieErr)
 		}
 
 		// the index here is 0-based and is equal to LaidOutStructure.YamlIndex
@@ -989,6 +989,8 @@ func buildVolumeStructureToLocation(mod Model,
 			// don't explicitly list their offset in the gadget.yaml (and thus
 			// would have a offset of 0 using the volStruct.Offset)
 			structStartOffset := laidOutVol.LaidOutStructure[volYamlIndex].StartOffset
+
+			loc := StructureLocation{}
 
 			if volStruct.HasFilesystem() {
 				// Here we know what disk is associated with this volume, so we
@@ -1016,11 +1018,7 @@ func buildVolumeStructureToLocation(mod Model,
 				}
 				if !found {
 					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: no matching start offset", volYamlIndex, volName)
-					if fatal := maybeDieOnMappingError(dieErr); fatal {
-						return nil, dieErr
-					} else {
-						return nil, errSkipUpdateProceedRefresh
-					}
+					return nil, maybeFatalError(dieErr)
 				}
 
 				// if this structure is an encrypted one, then we can't just
@@ -1030,12 +1028,12 @@ func buildVolumeStructureToLocation(mod Model,
 				if _, ok := diskDeviceTraits.StructureEncryption[volStruct.Name]; ok {
 					logger.Noticef("gadget asset update for assets on encrypted partition %s unsupported", volStruct.Name)
 
-					// setting this structure as having an empty location will
+					// leaving this structure as an empty location will
 					// mean when an update to this structure is actually
 					// performed it will fail, but we won't fail updates to
 					// other structures - it is treated like an unmounted
 					// partition
-					volumeStructureToLocation[volName][volYamlIndex] = StructureLocation{}
+					volumeStructureToLocation[volName][volYamlIndex] = loc
 					continue
 				}
 
@@ -1044,11 +1042,7 @@ func buildVolumeStructureToLocation(mod Model,
 				mountpts, err := disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""})
 				if err != nil {
 					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: error searching for root mount points: %v", volYamlIndex, volName, err)
-					if fatal := maybeDieOnMappingError(dieErr); fatal {
-						return nil, dieErr
-					} else {
-						return nil, errSkipUpdateProceedRefresh
-					}
+					return nil, maybeFatalError(dieErr)
 				}
 				var mountpt string
 				if len(mountpts) == 0 {
@@ -1062,18 +1056,15 @@ func buildVolumeStructureToLocation(mod Model,
 					// which one is used to update the contents
 					mountpt = mountpts[0]
 				}
-				volumeStructureToLocation[volName][volYamlIndex] = StructureLocation{
-					RootMountPoint: mountpt,
-				}
+				loc.RootMountPoint = mountpt
 			} else {
 				// no filesystem, the device for this one is just the device
 				// for the disk itself
-				bare := StructureLocation{
-					Device: disk.KernelDeviceNode(),
-					Offset: structStartOffset,
-				}
-				volumeStructureToLocation[volName][volYamlIndex] = bare
+				loc.Device = disk.KernelDeviceNode()
+				loc.Offset = structStartOffset
 			}
+
+			volumeStructureToLocation[volName][volYamlIndex] = loc
 		}
 	}
 
