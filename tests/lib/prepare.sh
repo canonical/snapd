@@ -524,17 +524,46 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
-
-uc20_build_initramfs_kernel_snap() {
+install_core_initrd_deps() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
     apt install ubuntu-core-initramfs linux-firmware -y
+}
 
+uc22_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
+
+    install_core_initrd_deps
+
+    # extract the kernel snap, including extracting the initrd from the kernel.efi
+    kerneldir="$(mktemp --tmpdir -d kernel-workdirXXXXXXXXXX)"
+
+    unsquashfs -f -d "${kerneldir}" "$ORIG_SNAP"
+    (
+        cd "${kerneldir}"
+        config="$(echo config-*)"
+        kernelver="${config#config-}"
+        objcopy -O binary -j .linux kernel.efi kernel.img-"${kernelver}"
+        ubuntu-core-initramfs create-initrd --kerneldir modules/"${kernelver}" --kernelver "${kernelver}" --firmwaredir firmware --output ubuntu-core-initramfs.img
+        ubuntu-core-initramfs create-efi --initrd ubuntu-core-initramfs.img --kernel kernel.img --output kernel.efi --kernelver "${kernelver}"
+        mv "kernel.efi-${kernelver}" kernel.efi
+        rm kernel.img-"${kernelver}"
+        rm ubuntu-core-initramfs.img-"${kernelver}"
+    )
+
+    snap pack "${kerneldir}" "$TARGET"
+    rm -rf "${kerneldir}"
+}
+
+uc20_build_initramfs_kernel_snap() {
+    local ORIG_SNAP="$1"
+    local TARGET="$2"
+
+    install_core_initrd_deps
 
     # TODO proper option support here would be nice but bash is hard and this is
     # easier, and likely we won't need to both inject a panic and set the epoch

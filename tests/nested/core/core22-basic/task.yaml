@@ -1,0 +1,32 @@
+summary: Run a smoke test on UC22 with encryption enabled
+
+details: |
+    This test checks basic snapd commands on UC22 with secure boot and encryption enabled
+
+systems: [ubuntu-22.04-64]
+
+execute: |
+    echo "Wait for the system to be seeded first"
+    tests.nested exec "sudo snap wait system seed.loaded"
+
+    echo "Ensure 'snap install' works"
+    # The install command could cause a ssh break, so || true is used
+    # and then we check the installation was completed successfully
+    tests.nested exec "sudo snap install test-snapd-sh" || true
+
+    echo "Ensure 'snap list' works and test-snapd-sh snap is installed"
+    tests.nested exec "snap list" | MATCH test-snapd-sh
+
+    echo "Ensure 'snap find' works"
+    tests.nested exec "snap find test-snapd-sh" | MATCH ^test-snapd-sh
+
+    echo "Ensure 'snap info' works"
+    tests.nested exec "snap info test-snapd-sh" | MATCH '^name:\ +test-snapd-sh'
+
+    echo "Ensure 'snap remove' works"
+    # The install command could cause a ssh break, so || true is used
+    # and then we check the removal was completed successfully
+    tests.nested exec "sudo snap remove test-snapd-sh" || true
+
+    echo "Ensure 'snap list' works and test-snapd-sh snap is removed"
+    tests.nested exec "! snap list test-snapd-sh"
