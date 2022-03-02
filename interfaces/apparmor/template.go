@@ -342,6 +342,9 @@ var templateCommon = `
   owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
   owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
 
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/                          mrkix,
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/**                        mrkixwl,
+
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
