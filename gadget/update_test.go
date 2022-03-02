@@ -29,7 +29,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
@@ -2349,13 +2348,12 @@ volumes:
 		"volume-id": lvol,
 	}
 
-	preUC20 := true
-	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC16(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2389,8 +2387,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	})
 	defer restore()
 
-	preUC20 := true
-	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -2421,7 +2418,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
         size: 50M
 `
 
-	laidOutVolume, err := gadgettest.LayoutFromYaml(c.MkDir(), implicitSystemBootVolumeYAML, &gadgettest.ModelCharacteristics{})
+	laidOutVolume, err := gadgettest.LayoutFromYaml(c.MkDir(), implicitSystemBootVolumeYAML, uc16Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2457,8 +2454,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 		"pc": laidOutVolume,
 	}
 
-	preUC20 := true
-	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -2522,13 +2518,12 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 
 	// we fail with the error that skips the asset update but proceeds with the
 	// rest of the refresh
-	preUC20 := true
-	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, &gadgettest.ModelCharacteristics{})
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2544,18 +2539,16 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 	// don't mock any symlinks so that it fails to find any disk matching the
 	// system-boot volume
 
-	preUC20 := true
-	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, preUC20)
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, allLaidOutVolumes)
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
 
 	// it's a fatal error on UC20 though
-	postUC20 := false
-	_, err = gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, postUC20)
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, allLaidOutVolumes)
 	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, &gadgettest.ModelCharacteristics{SystemSeed: true})
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2589,8 +2582,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	})
 	defer restore()
 
-	postUC20 := false
-	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, postUC20)
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, allLaidOutVolumes)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -2599,7 +2591,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, &gadgettest.ModelCharacteristics{SystemSeed: true})
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -2641,8 +2633,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	err = ioutil.WriteFile(markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	postUC20 := false
-	m, err := gadget.BuildNewVolumeToDeviceMapping(old, allLaidOutVolumes, postUC20)
+	m, err := gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, allLaidOutVolumes)
 	c.Assert(err, IsNil)
 
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
@@ -2936,9 +2927,8 @@ func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
 		expMapping,
 	)
 
-	preUC20 := model.Grade() == asserts.ModelGradeUnset
 	missingInitialMappingNo := false
-	structureMap, err := gadget.BuildVolumeStructureToLocation(old, preUC20, missingInitialMappingNo, allLaidOutVolumes, traits)
+	structureMap, err := gadget.BuildVolumeStructureToLocation(model, old, allLaidOutVolumes, traits, missingInitialMappingNo)
 	c.Assert(err, IsNil)
 	c.Assert(structureMap, DeepEquals, expMapping)
 }

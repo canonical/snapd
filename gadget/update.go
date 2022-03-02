@@ -774,8 +774,10 @@ var errSkipUpdateProceedRefresh = errors.New("cannot identify disk for gadget as
 // traits object from disk-mapping.json. It is meant to be used only with all
 // UC16/UC18 installs as well as UC20 installs from before we started writing
 // disk-mapping.json during install mode.
-func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidOutVolume, preUC20 bool) (map[string]DiskVolumeDeviceTraits, error) {
+func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[string]*LaidOutVolume) (map[string]DiskVolumeDeviceTraits, error) {
 	var likelySystemBootVolume string
+
+	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
 
 	if len(old.Info.Volumes) == 1 {
 		// If we only have one volume, then that is the volume we are concerned
@@ -809,7 +811,7 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 		// and we didn't find system-boot anywhere, in this case for pre-UC20
 		// we use a non-fatal error and just don't perform any update - this was
 		// always the old behavior so we are not regressing here
-		if preUC20 {
+		if isPreUC20 {
 			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", likelySystemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
@@ -857,7 +859,7 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 	if dev == "" {
 		// couldn't find a disk at all, pre-UC20 we just warn about this
 		// but let the update continue
-		if preUC20 {
+		if isPreUC20 {
 			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
@@ -868,12 +870,12 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 	// we found the device, construct the traits with validation options
 	validateOpts := &DiskVolumeValidationOptions{
 		// allow implicit system-data on pre-uc20 only
-		AllowImplicitSystemData: preUC20,
+		AllowImplicitSystemData: isPreUC20,
 	}
 
 	// setup encrypted structure information to perform validation if this
 	// device used encryption
-	if !preUC20 {
+	if !isPreUC20 {
 		// TODO: this needs to check if the specified partitions are ICE when
 		// we support ICE too
 
@@ -905,13 +907,14 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 	}, nil
 }
 
-func buildVolumeStructureToLocation(old GadgetData,
-	isPreUC20 bool,
-	missingInitialMapping bool,
+func buildVolumeStructureToLocation(mod Model,
+	old GadgetData,
 	laidOutVols map[string]*LaidOutVolume,
 	volToDeviceMapping map[string]DiskVolumeDeviceTraits,
+	missingInitialMapping bool,
 ) (map[string]map[int]StructureLocation, error) {
 
+	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
 	// helper function for handling non-fatal errors on pre-UC20
 	maybeDieOnMappingError := func(err error) (fatal bool) {
 		if missingInitialMapping && isPreUC20 {
@@ -1070,8 +1073,6 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map
 
 	missingInitialMapping := false
 
-	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
-
 	// check if we had no mapping, if so then we try our best to build a mapping
 	// for the system-boot volume only to perform gadget asset updates there
 	// but if we fail to build a mapping, then on UC18 we non-fatally return
@@ -1096,7 +1097,7 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map
 		// cases below, we treat this heuristic mapping data the same
 		missingInitialMapping = true
 		var err error
-		volToDeviceMapping, err = buildNewVolumeToDeviceMapping(old, laidOutVols, isPreUC20)
+		volToDeviceMapping, err = buildNewVolumeToDeviceMapping(mod, old, laidOutVols)
 		if err != nil {
 			return nil, err
 		}
@@ -1119,11 +1120,11 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map
 	// we have to build up a map for the updaters to use to find the structure
 	// location to update given the LaidOutStructure
 	return buildVolumeStructureToLocation(
+		mod,
 		old,
-		isPreUC20,
-		missingInitialMapping,
 		laidOutVols,
 		volToDeviceMapping,
+		missingInitialMapping,
 	)
 }
 
