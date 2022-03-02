@@ -572,20 +572,40 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 	}
 
-	// Mount desired entries not reused, ordering by the mimic directories they
-	// need created
-
 	var desiredNotReused []osutil.MountEntry
-	for i := range desired {
-		if !reuse[desired[i].Dir] {
-			desiredNotReused = append(desiredNotReused, desired[i])
+	for _, entry := range desired {
+		if !reuse[entry.Dir] {
+			desiredNotReused = append(desiredNotReused, entry)
 		}
 	}
 
+	// Mount desired entries not reused, ordering by the mimic directories they
+	// need created
+	// We proceeds in three steps:
+	// 1. Perform the mounts for the "overname" entries
+	// 2. Perform the mounts for the entries which need a mimic
+	// 3. Perform all the remaining desired mounts
+
+	var newDesiredEntries []osutil.MountEntry
+	// Indexed by mount point path.
+	addedDesiredEntries := make(map[string]bool)
+	ensureDesiredEntry := func(entry osutil.MountEntry) {
+		if !addedDesiredEntries[entry.Dir] {
+			newDesiredEntries = append(newDesiredEntries, entry)
+			addedDesiredEntries[entry.Dir] = true
+		}
+	}
+
+	// Create a map of the target directories (mimics) needed for the  visited
+	// entries
 	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
-	for _, desiredEntry := range desiredNotReused {
-		parentTargetDir := filepath.Dir(desiredEntry.Dir)
-		affectedTargetCreationDirs[parentTargetDir] = append(affectedTargetCreationDirs[parentTargetDir], desiredEntry)
+	for _, entry := range desiredNotReused {
+		if entry.XSnapdOrigin() == "overname" {
+			ensureDesiredEntry(entry)
+		}
+
+		parentTargetDir := filepath.Dir(entry.Dir)
+		affectedTargetCreationDirs[parentTargetDir] = append(affectedTargetCreationDirs[parentTargetDir], entry)
 	}
 
 	if len(affectedTargetCreationDirs) != 0 {
@@ -622,9 +642,6 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			}
 		}
 
-		// now we have a set of locations to create mimics in
-		reorderedEntriesNeeded := []osutil.MountEntry{}
-
 		// sort the mimic creation dirs to get the correct ordering of mimics to
 		// create dirs in
 		allMimicCreationDirs := []string{}
@@ -640,29 +657,17 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			entries := entriesForMimicDir[mimicDir]
 			sort.Sort(byOriginAndMagicDir(entries))
 
-			reorderedEntriesNeeded = append(reorderedEntriesNeeded, entries...)
-		}
-
-		// now add all the unrelated entries that don't need mimic creation to
-		// be done last, after the mimic creating changes
-		for _, entry := range desiredNotReused {
-			// check if this entry is already in reorderedEntriesNeeded
-			exists := false
-			for _, mimicNeedingEntry := range reorderedEntriesNeeded {
-				if mimicNeedingEntry.Equal(&entry) {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				reorderedEntriesNeeded = append(reorderedEntriesNeeded, entry)
+			for _, entry := range entries {
+				ensureDesiredEntry(entry)
 			}
 		}
-
-		desiredNotReused = reorderedEntriesNeeded
 	}
 
 	for _, entry := range desiredNotReused {
+		ensureDesiredEntry(entry)
+	}
+
+	for _, entry := range newDesiredEntries {
 		changes = append(changes, &Change{Action: Mount, Entry: entry})
 	}
 
