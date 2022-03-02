@@ -1150,59 +1150,123 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return copyDataErr
 	}
 
-	// the migration hasn't been done - do it now
-	if opts.UseHidden && !opts.MigratedToHidden {
-		if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+	action := triggeredMigration(newInfo.Base, opts)
+	var undo func()
 
-			// undo the migration. In contrast to copy data for which the new revision
-			// directory can just be discarded, the snap data migration introduces
-			// a change that affects all revisions of the snap and thus needs to be reverted
-			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-				src := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
-				dst := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
+	switch action {
+	case hidden:
+		undo, err = m.doHiddenMigration(t, st, snapsup, newInfo)
+	case revertHidden:
+		undo, err = m.revertHiddenMigration(t, st, snapsup)
+	default:
+		err = nil
+	}
 
-				st.Lock()
-				st.Warnf("cannot undo snap dir hiding (move all user's %s to %s): %v",
-					src, dst, err)
-				st.Unlock()
-			}
+	// if task fails, undo any migration actions taken
+	defer func() {
+		if err != nil && undo != nil {
+			undo()
+		}
+	}()
 
-			return err
+	return err
+}
+
+type migration string
+
+const (
+	// none states that no action should be taken
+	none migration = "none"
+	// hidden migrates ~/snap to ~/.snap
+	hidden migration = "hidden"
+	// revertHidden undoes the hidden migration (i.e., moves ~/.snap to ~/snap)
+	revertHidden migration = "revertHidden"
+)
+
+func triggeredMigration(newBase string, opts *dirMigrationOptions) migration {
+		if !opts.MigratedToHidden && opts.UseHidden {
+			// flag is set and not migrated yet
+			return hidden
+		} else if opts.MigratedToHidden && !opts.UseHidden {
+			// migration was done but flag was unset
+			return revertHidden
 		}
 
-		snapsup.MigratedHidden = true
-		st.Lock()
-		err := SetTaskSnapSetup(t, snapsup)
-		st.Unlock()
-		if err != nil {
-			return fmt.Errorf("cannot set migration status to done: %w", err)
-		}
-	} else if !opts.UseHidden && opts.MigratedToHidden {
-		// migration was done but user turned the feature off, so undo migration
+	return none
+}
+
+
+
+func (m *SnapManager) doHiddenMigration(t *state.Task, st *state.State, snapsup *SnapSetup, newInfo *snap.Info) (undo func(), err error) {
+	undo = func() {
+		// unlike the copy data (which can just be discarded), the migration affects
+		// all revisions of a snap and must be reverted
 		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-				src := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
-				dst := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+			src := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+			dst := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
 
-				st.Lock()
-				st.Warnf("cannot undo snap dir exposing (move all user's %s to %s): %v",
-					src, dst, err)
-				st.Unlock()
-			}
-
-			return err
-		}
-
-		snapsup.MigratedExposed = true
-		st.Lock()
-		err := SetTaskSnapSetup(t, snapsup)
-		st.Unlock()
-		if err != nil {
-			return fmt.Errorf("cannot set migration status to undone: %w", err)
+			st.Lock()
+			st.Warnf("cannot undo snap dir hiding (move all user's %s to %s): %v",
+				src, dst, err)
+			st.Unlock()
 		}
 	}
 
-	return nil
+	snapsup.MigratedHidden = true
+	if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+		return undo, err
+	}
+
+	st.Lock()
+	err = SetTaskSnapSetup(t, snapsup)
+	st.Unlock()
+	if err != nil {
+		return undo, fmt.Errorf("cannot set migration status to done: %w", err)
+	}
+
+	return undo, nil
+}
+
+func (m *SnapManager) revertHiddenMigration(t *state.Task, st *state.State, snapsup *SnapSetup) (undo func(), err error) {
+	undo = func() {
+		if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+			src := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
+			dst := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+
+			st.Lock()
+			st.Warnf("cannot undo snap dir exposing (move all user's %s to %s): %v",
+				src, dst, err)
+			st.Unlock()
+		}
+	}
+
+	if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+		return undo, err
+	}
+
+	snapsup.MigratedExposed = true
+	st.Lock()
+	err = SetTaskSnapSetup(t, snapsup)
+	st.Unlock()
+	if err != nil {
+		return undo, fmt.Errorf("cannot set hidden migration status to undone: %w", err)
+	}
+
+	return undo, nil
+}
+
+// atLeastCore22 returns true if 'base' is core22 or newer. Returns
+// false if it's older or it cannot be determined.
+func atLeastCore22(base string) bool {
+	if !strings.HasPrefix(base, "core") {
+		return false
+	}
+
+	if num, err := strconv.Atoi(base[4:]); err != nil || num < 22 {
+		return false
+	}
+
+	return true
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
