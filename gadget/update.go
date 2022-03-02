@@ -907,6 +907,25 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[st
 	}, nil
 }
 
+// StructureLocation represents the location of a structure for updating
+// purposes. Either Device + Offset must be set for a raw structure without a
+// filesystem, or RootMountPoint must be set for structures with a
+// filesystem.
+type StructureLocation struct {
+	// Device is the kernel device node path such as /dev/vda1 for the
+	// structure's backing physical disk.
+	Device string
+	// Offset is the offset from 0 for the physical disk that this structure
+	// starts at.
+	Offset quantity.Offset
+
+	// RootMountPoint is the directory where the root directory of the structure
+	// is mounted read/write. There may be other mount points for this structure
+	// on the system, but this one is guaranteed to be writable and thus
+	// suitable for gadget asset updates.
+	RootMountPoint string
+}
+
 func buildVolumeStructureToLocation(mod Model,
 	old GadgetData,
 	laidOutVols map[string]*LaidOutVolume,
@@ -1126,25 +1145,6 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map
 		volToDeviceMapping,
 		missingInitialMapping,
 	)
-}
-
-// StructureLocation represents the location of a structure for updating
-// purposes. Either Device + Offset must be set for a raw structure without a
-// filesystem, or RootMountPoint must be set for structures with a
-// filesystem.
-type StructureLocation struct {
-	// Device is the kernel device node path such as /dev/vda1 for the
-	// structure's backing physical disk.
-	Device string
-	// Offset is the offset from 0 for the physical disk that this structure
-	// starts at.
-	Offset quantity.Offset
-
-	// RootMountPoint is the directory where the root directory of the structure
-	// is mounted read/write. There may be other mount points for this structure
-	// on the system, but this one is guaranteed to be writable and thus
-	// suitable for gadget asset updates.
-	RootMountPoint string
 }
 
 // Update applies the gadget update given the gadget information and data from
