@@ -2115,7 +2115,8 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	c.Check(device.SessionMacaroon, Equals, "")
 	// key was deleted
 	_, err = devicestate.KeypairManager(s.mgr).Get(keyID1)
-	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q", keyID1))
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 
 	noRegistrationUntilReboot := opts != nil && opts.NoRegistrationUntilReboot
 	noregister := filepath.Join(dirs.SnapRunDir, "noregister")

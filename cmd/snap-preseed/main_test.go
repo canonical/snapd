@@ -374,6 +374,14 @@ func (fs *Fake16Seed) ModeSnaps(mode string) ([]*seed.Snap, error) {
 	return nil, nil
 }
 
+func (fs *Fake16Seed) NumSnaps() int {
+	return 0
+}
+
+func (fs *Fake16Seed) Iter(f func(sn *seed.Snap) error) error {
+	return nil
+}
+
 func (s *startPreseedSuite) TestSystemSnapFromSeed(c *C) {
 	tmpDir := c.MkDir()
 

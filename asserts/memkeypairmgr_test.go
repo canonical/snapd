@@ -20,6 +20,8 @@
 package asserts_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -62,14 +64,16 @@ func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 
 	got, err := mkms.keypairMgr.Get(keyID)
 	c.Check(got, IsNil)
-	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q in the memory", keyID))
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 
 	err = mkms.keypairMgr.Put(pk1)
 	c.Assert(err, IsNil)
 
 	got, err = mkms.keypairMgr.Get(keyID + "x")
 	c.Check(got, IsNil)
-	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q in the memory", keyID+"x"))
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
 func (mkms *memKeypairMgtSuite) TestDelete(c *C) {
@@ -85,8 +89,8 @@ func (mkms *memKeypairMgtSuite) TestDelete(c *C) {
 	c.Assert(err, IsNil)
 
 	err = mkms.keypairMgr.Delete(keyID)
-	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q in the memory", keyID))
 
 	_, err = mkms.keypairMgr.Get(keyID)
-	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot find key %q in the memory", keyID))
 }
