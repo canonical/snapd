@@ -159,7 +159,7 @@ func (s *extKeypairMgrSuite) TestGetByNameNotFound(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = kmgr.GetByName("missing")
-	c.Check(err, ErrorMatches, `cannot find external key pair`)
+	c.Check(err, ErrorMatches, `cannot find external key pair: external keypair manager "keymgr" .* failed: .*`)
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
