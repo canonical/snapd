@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
@@ -56,6 +57,8 @@ func (s *assetsSuite) SetUpTest(c *C) {
 
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
+
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
 
 func checkContentGlob(c *C, glob string, expected []string) {
