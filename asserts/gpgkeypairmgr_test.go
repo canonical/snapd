@@ -75,6 +75,15 @@ func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 	got, err := gkms.keypairMgr.Get("ffffffffffffffff")
 	c.Check(err, ErrorMatches, `cannot find key "ffffffffffffffff" in GPG keyring`)
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
+	c.Check(got, IsNil)
+}
+
+func (gkms *gpgKeypairMgrSuite) TestGetByNameNotFound(c *C) {
+	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
+	got, err := gpgKeypairMgr.GetByName("missing")
+	c.Check(err, ErrorMatches, `cannot find key named "missing" in GPG keyring`)
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 	c.Check(got, IsNil)
 }
 

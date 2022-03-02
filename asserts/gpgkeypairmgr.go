@@ -267,7 +267,7 @@ func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
+	return nil, &keyNotFoundError{keyID: keyID, where: "in GPG keyring"}
 }
 
 func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
@@ -330,7 +330,28 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("cannot find key named %q in GPG keyring", name)
+	return nil, &namedKeyNotFoundError{keyNotFoundError{keyID: name, where: "in GPG keyring"}}
+}
+
+type namedKeyNotFoundError struct {
+	keyNotFoundError
+}
+
+func (e *namedKeyNotFoundError) Error() string {
+	where := ""
+	if e.where != "" {
+		where = fmt.Sprintf(" %s", e.where)
+	}
+	return fmt.Sprintf("cannot find key named %q%s", e.keyID, where)
+}
+
+func (e *namedKeyNotFoundError) Is(target error) bool {
+	switch target.(type) {
+	case *keyNotFoundError, *namedKeyNotFoundError:
+
+		return true
+	}
+	return false
 }
 
 // GetByName looks up a private key by name and returns it.

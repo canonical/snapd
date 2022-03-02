@@ -71,15 +71,13 @@ func (fskm *filesystemKeypairManager) Put(privKey PrivateKey) error {
 	return nil
 }
 
-var errKeypairNotFound = errors.New("cannot find key pair")
-
 func (fskm *filesystemKeypairManager) Get(keyID string) (PrivateKey, error) {
 	fskm.mu.RLock()
 	defer fskm.mu.RUnlock()
 
 	encoded, err := readEntry(fskm.top, keyID)
 	if os.IsNotExist(err) {
-		return nil, errKeypairNotFound
+		return nil, &keyNotFoundError{keyID: keyID}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read key pair: %v", err)
@@ -98,7 +96,7 @@ func (fskm *filesystemKeypairManager) Delete(keyID string) error {
 	err := removeEntry(fskm.top, keyID)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return errKeypairNotFound
+			return &keyNotFoundError{keyID: keyID}
 		}
 		return err
 	}
