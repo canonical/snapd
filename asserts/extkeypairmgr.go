@@ -114,13 +114,11 @@ func (em *ExternalKeypairManager) keyNames() ([]string, error) {
 	return knames.Names, nil
 }
 
-var errExternalKeypairNotFound = &keyNotFoundError{msg: "cannot find external key pair"}
-
 func (em *ExternalKeypairManager) findByName(name string) (PublicKey, *rsa.PublicKey, error) {
 	var k []byte
 	err := em.keyMgr("get-public-key", []string{"-f", "DER", "-k", name}, nil, &k)
 	if err != nil {
-		return nil, nil, errExternalKeypairNotFound
+		return nil, nil, &keyNotFoundError{msg: fmt.Sprintf("cannot find external key pair: %v", err)}
 	}
 	pubk, err := x509.ParsePKIXPublicKey(k)
 	if err != nil {
@@ -240,7 +238,7 @@ func (em *ExternalKeypairManager) Get(keyID string) (PrivateKey, error) {
 		}
 		cachedKey, ok = em.cache[keyID]
 		if !ok {
-			return nil, errExternalKeypairNotFound
+			return nil, &keyNotFoundError{msg: "cannot find external key pair"}
 		}
 	}
 	return em.privateKey(cachedKey), nil
