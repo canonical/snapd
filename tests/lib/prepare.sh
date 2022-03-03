@@ -585,11 +585,6 @@ uc22_build_initramfs_kernel_snap() {
         skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
 
-        if [ "$injectKernelPanic" = "true" ]; then
-            # add a kernel panic to the end of the-tool execution
-            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
-        fi
-
         # bump the epoch time file timestamp, converting unix timestamp to
         # touch's date format
         touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
