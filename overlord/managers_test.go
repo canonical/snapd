@@ -43,6 +43,7 @@ import (
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -168,6 +169,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	// needed for system key generation
 	s.AddCleanup(osutil.MockMountInfo(""))
+
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
