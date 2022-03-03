@@ -338,28 +338,11 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 			err = osRemove(c.Entry.Dir)
 			logger.Debugf("remove %q (error: %v)", c.Entry.Dir, err)
 		case "", "file":
-			// Detach the mount point instead of unmounting it if requested.
-			flags := umountNoFollow
-			if c.Entry.XSnapdDetach() {
-				flags |= syscall.MNT_DETACH
-				// If we are detaching something then before performing the actual detach
-				// switch the entire hierarchy to private event propagation (that is,
-				// none). This works around a bit of peculiar kernel behavior when the
-				// kernel reports EBUSY during a detach operation, because the changes
-				// propagate in a way that conflicts with itself. This is also documented
-				// in umount(2).
-				err = sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, "")
-				logger.Debugf("mount --make-rprivate %q (error: %v)", c.Entry.Dir, err)
-			}
-
-			// Perform the raw unmount operation.
-			if err == nil {
-				err = sysUnmount(c.Entry.Dir, flags)
-				umountOpts, unknownFlags := mount.UnmountFlagsToOpts(flags)
-				if unknownFlags != 0 {
-					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
-				}
-				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
+			// Unmount and remount operations can fail with EINVAL if the given
+			// mount does not exist; since here we only care about the
+			// resulting configuration, let's not treat such situations as
+			// errors.
+			clearMissingMountError := func(err error) error {
 				if err == syscall.EINVAL {
 					// We attempted to unmount but got an EINVAL, one of the
 					// possibilities and the only one unless we provided wrong
@@ -380,6 +363,32 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 					logger.Debugf("ignoring EINVAL from unmount, %q is not mounted", c.Entry.Dir)
 					err = nil
 				}
+				return err
+			}
+			// Detach the mount point instead of unmounting it if requested.
+			flags := umountNoFollow
+			if c.Entry.XSnapdDetach() {
+				flags |= syscall.MNT_DETACH
+				// If we are detaching something then before performing the actual detach
+				// switch the entire hierarchy to private event propagation (that is,
+				// none). This works around a bit of peculiar kernel behavior when the
+				// kernel reports EBUSY during a detach operation, because the changes
+				// propagate in a way that conflicts with itself. This is also documented
+				// in umount(2).
+				err = sysMount("none", c.Entry.Dir, "", syscall.MS_REC|syscall.MS_PRIVATE, "")
+				logger.Debugf("mount --make-rprivate %q (error: %v)", c.Entry.Dir, err)
+				err = clearMissingMountError(err)
+			}
+
+			// Perform the raw unmount operation.
+			if err == nil {
+				err = sysUnmount(c.Entry.Dir, flags)
+				umountOpts, unknownFlags := mount.UnmountFlagsToOpts(flags)
+				if unknownFlags != 0 {
+					umountOpts = append(umountOpts, fmt.Sprintf("%#x", unknownFlags))
+				}
+				logger.Debugf("umount %q %s (error: %v)", c.Entry.Dir, strings.Join(umountOpts, "|"), err)
+				err = clearMissingMountError(err)
 				if err != nil {
 					return err
 				}
