@@ -7542,7 +7542,7 @@ func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
 	for _, t := range testCases {
 		action := snapstate.TriggeredMigration(t.newBase, &t.opts)
 		if action != t.expected {
-			c.Errorf("expected install from %q to %q w/ %+v to result in %q but got %q", t.newBase, t.opts, t.expected, action)
+			c.Errorf("expected install of %q w/ %+v to result in %q but got %q", t.newBase, t.opts, t.expected, action)
 		}
 	}
 }
