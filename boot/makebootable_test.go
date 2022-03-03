@@ -165,6 +165,7 @@ func (s *makeBootable20Suite) SetUpTest(c *C) {
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).RecoveryAware()
 	s.forceBootloader(s.bootloader)
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
 
 func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
