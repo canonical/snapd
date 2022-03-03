@@ -539,24 +539,143 @@ uc22_build_initramfs_kernel_snap() {
 
     install_core_initrd_deps
 
-    # extract the kernel snap, including extracting the initrd from the kernel.efi
-    kerneldir="$(mktemp --tmpdir -d kernel-workdirXXXXXXXXXX)"
+    # TODO proper option support here would be nice but bash is hard and this is
+    # easier, and likely we won't need to both inject a panic and set the epoch
+    # bump simultaneously
+    local injectKernelPanic=false
+    local initramfsEpochBumpTime
+    initramfsEpochBumpTime=$(date '+%s')
+    optArg=${3:-}
+    case "$optArg" in
+        --inject-kernel-panic-in-initramfs)
+            injectKernelPanic=true
+            ;;
+        --epoch-bump-time=*)
+            # this strips the option and just gives us the value
+            initramfsEpochBumpTime="${optArg#--epoch-bump-time=}"
+            ;;
+    esac
+    
+    # kernel snap is huge, unpacking to current dir
+    unsquashfs -d repacked-kernel "$ORIG_SNAP"
 
-    unsquashfs -f -d "${kerneldir}" "$ORIG_SNAP"
+    # repack initrd magic, beware
+    # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
+    # at the beginning of initrd image
     (
-        cd "${kerneldir}"
-        config="$(echo config-*)"
-        kernelver="${config#config-}"
-        objcopy -O binary -j .linux kernel.efi kernel.img-"${kernelver}"
-        ubuntu-core-initramfs create-initrd --kerneldir modules/"${kernelver}" --kernelver "${kernelver}" --firmwaredir firmware --output ubuntu-core-initramfs.img
-        ubuntu-core-initramfs create-efi --initrd ubuntu-core-initramfs.img --kernel kernel.img --output kernel.efi --kernelver "${kernelver}"
-        mv "kernel.efi-${kernelver}" kernel.efi
-        rm kernel.img-"${kernelver}"
-        rm ubuntu-core-initramfs.img-"${kernelver}"
+        cd repacked-kernel
+        unpackeddir="$PWD"
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
+        # XXX: ideally we should unpack the initrd, replace snap-boostrap and
+        # repack it using ubuntu-core-initramfs --skeleton=<unpacked> this does not
+        # work and the rebuilt kernel.efi panics unable to start init, but we
+        # still need the unpacked initrd to get the right kernel modules
+        objcopy -j .initrd -O binary kernel.efi initrd
+        # this works on 20.04 but not on 18.04
+        unmkinitramfs initrd unpacked-initrd
+
+        # use only the initrd we got from the kernel snap to inject our changes
+        # we don't use the distro package because the distro package may be
+        # different systemd version, etc. in the initrd from the one in the
+        # kernel and we don't want to test that, just test our snap-bootstrap
+        cp -ar unpacked-initrd skeleton
+        # all the skeleton edits go to a local copy of distro directory
+        skeletondir=$PWD/skeleton
+        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
+        fi
+
+        # bump the epoch time file timestamp, converting unix timestamp to
+        # touch's date format
+        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
+
+        # copy any extra files to the same location inside the initrd
+        if [ -d ../extra-initrd/ ]; then
+            cp -a ../extra-initrd/* "$skeletondir"/main
+        fi
+
+        # XXX: need to be careful to build an initrd using the right kernel
+        # modules from the unpacked initrd, rather than the host which may be
+        # running a different kernel
+        (
+            # accommodate assumptions about tree layout, use the unpacked initrd
+            # to pick up the right modules
+            cd unpacked-initrd/main
+            # XXX: pass feature 'main' and u-c-i picks up any directory named
+            # after feature inside skeletondir and uses that a template
+            ubuntu-core-initramfs create-initrd \
+                                  --kernelver "$kver" \
+                                  --skeleton "$skeletondir" \
+                                  --kerneldir "lib/modules/$kver" \
+                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --feature 'main' \
+                                  --output ../../repacked-initrd
+        )
+
+        # copy out the kernel image for create-efi command
+        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
+
+        # assumes all files are named <name>-$kver
+        ubuntu-core-initramfs create-efi \
+                              --kernelver "$kver" \
+                              --initrd repacked-initrd \
+                              --kernel vmlinuz \
+                              --output repacked-kernel.efi
+
+        mv "repacked-kernel.efi-$kver" kernel.efi
+
+        # XXX: needed?
+        chmod +x kernel.efi
+
+        rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
     )
 
-    snap pack "${kerneldir}" "$TARGET"
-    rm -rf "${kerneldir}"
+    (
+        # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
+        # or the cloud system
+        cd repacked-kernel
+        rm -rf firmware/*
+
+        # the code below drops the modules that are not loaded on the
+        # current host, this should work for most cases, since the image will be
+        # running on the same host
+        # TODO:UC20: enable when ready
+        exit 0
+
+        # drop unnecessary modules
+        awk '{print $1}' <  /proc/modules  | sort > /tmp/mods
+        #shellcheck disable=SC2044
+        for m in $(find modules/ -name '*.ko'); do
+            noko=$(basename "$m"); noko="${noko%.ko}"
+            if echo "$noko" | grep -f /tmp/mods -q ; then
+                echo "keeping $m - $noko"
+            else
+                rm -f "$m"
+            fi
+        done
+
+        #shellcheck disable=SC2010
+        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+
+        # depmod assumes that /lib/modules/$kver is under basepath
+        mkdir -p fake/lib
+        ln -s "$PWD/modules" fake/lib/modules
+        depmod -b "$PWD/fake" -A -v "$kver"
+        rm -rf fake
+    )
+
+    # copy any extra files that tests may need for the kernel
+    if [ -d ./extra-kernel-snap/ ]; then
+        cp -a ./extra-kernel-snap/* ./repacked-kernel
+    fi
+
+    snap pack repacked-kernel "$TARGET"
+    rm -rf repacked-kernel
 }
 
 uc20_build_initramfs_kernel_snap() {

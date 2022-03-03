@@ -659,7 +659,7 @@ nested_create_core_vm() {
                         epochBumpTime="--epoch-bump-time=$epochBumpTime"
                     fi
                     if nested_is_core_22_system; then
-                        uc22_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+                        uc22_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
                     else
                         uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
                     fi
@@ -748,7 +748,11 @@ EOF
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core${VERSION}.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+                        CORE_SNAP_IP=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+                        if nested_is_core_22_system; then
+                            CORE_SNAP_IP=amcUKQILKXHHTlmSa7NMdnXSx02dNeeT
+                        fi
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core${VERSION}.snap" "$CORE_SNAP_IP"
                     fi
 
                 else
@@ -1294,7 +1298,7 @@ nested_start_classic_vm() {
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
     PARAM_USB="-usb"
     PARAM_CPU=""
-    PARAM_CD="${NESTED_PARAM_CD:-}"on
+    PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_SNAPSHOT="-snapshot"
 
