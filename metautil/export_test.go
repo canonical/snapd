@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,8 @@
  *
  */
 
-package snap
+package metautil
 
 var (
-	ValidateSocketName           = validateSocketName
-	ValidateDescription          = validateDescription
-	ValidateTitle                = validateTitle
-	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
-	GetAttribute                 = getAttribute
+	ConvertValue = convertValue
 )
-
-func (info *Info) ForceRenamePlug(oldName, newName string) {
-	info.forceRenamePlug(oldName, newName)
-}
-
-func NewScopedTracker() *scopedTracker {
-	return new(scopedTracker)
-}
