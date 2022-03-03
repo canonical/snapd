@@ -120,6 +120,10 @@ type SnapSetup struct {
 	// current change. A 'false' value doesn't that ~/Snap doesn't exist, just
 	// that it wasn't create in the current change.
 	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
+
+	// UndidHomeMigration is set if the migration to the ~/Snap dir was undone
+	// in the current change.
+	UndidHomeMigration bool `json:"undid-home-migration,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {

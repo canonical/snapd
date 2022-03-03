@@ -910,6 +910,7 @@ apps:
 		}
 		info.SideInfo = *si
 	case "snap-for-core22":
+		info.Base = "core18"
 		if info.Revision.N > 1 {
 			info.Base = "core22"
 		}
@@ -1266,7 +1267,7 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 }
 
 func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) error {
-	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName})
+	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
 	return f.maybeErrForLastOp()
 }
 
