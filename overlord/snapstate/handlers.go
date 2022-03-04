@@ -1198,7 +1198,9 @@ func triggeredMigration(newBase string, opts *dirMigrationOptions) migration {
 		if opts.MigratedToHidden && !opts.MigratedToExposedHome {
 			// ~/.snap migration already happened so initialize ~/Snap only
 			return home
-		} else if !opts.MigratedToHidden {
+		}
+
+		if !opts.MigratedToHidden {
 			//  nothing was migrated yet, so migrate to ~/.snap and ~/Snap
 			return full
 		}
@@ -1206,7 +1208,9 @@ func triggeredMigration(newBase string, opts *dirMigrationOptions) migration {
 		if !opts.MigratedToHidden && opts.UseHidden {
 			// flag is set and not migrated yet
 			return hidden
-		} else if opts.MigratedToHidden && !opts.UseHidden {
+		}
+
+		if opts.MigratedToHidden && !opts.UseHidden {
 			// migration was done but flag was unset
 			return revertHidden
 		}
