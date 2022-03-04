@@ -253,10 +253,15 @@ static void setup_current_tags_support(void)
 	if (sym == NULL) {
 		debug("cannot find current tags symbol: %s", dlerror());
 		/* symbol is not found in the library version */
+		(void)dlclose(lib);
 		return;
 	}
 	debug("libudev has current tags support");
 	__sc_udev_device_has_current_tag = sym;
+	/* lib goes out of scope and is leaked but we need sym and hence
+	 * lib to be valid for the entire lifetime of the application
+	 * lifecycle so this is fine. */
+	/* coverity[leaked_storage] */
 }
 
 void sc_setup_device_cgroup(const char *security_tag)
