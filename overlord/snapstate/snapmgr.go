@@ -218,7 +218,7 @@ type SnapState struct {
 
 	// MigratedToExposedHome is set if ~/Snap was created and initialized. If set, ~/Snap
 	// should be used as the snap's HOME.
-	MigratedToExposedHome bool `json:"migrated-exposed-home"`
+	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {

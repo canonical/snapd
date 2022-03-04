@@ -1234,15 +1234,15 @@ func (m *SnapManager) doHiddenMigration(t *state.Task, st *state.State, snapsup 
 		}
 	}
 
-	snapsup.MigratedHidden = true
 	if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 		return undo, err
 	}
 
 	st.Lock()
-	err = SetTaskSnapSetup(t, snapsup)
-	st.Unlock()
-	if err != nil {
+	defer st.Unlock()
+
+	snapsup.MigratedHidden = true
+	if err = SetTaskSnapSetup(t, snapsup); err != nil {
 		return undo, fmt.Errorf("cannot set migration status to done: %w", err)
 	}
 
@@ -1266,11 +1266,11 @@ func (m *SnapManager) revertHiddenMigration(t *state.Task, st *state.State, snap
 		return undo, err
 	}
 
-	snapsup.UndidHiddenMigration = true
 	st.Lock()
-	err = SetTaskSnapSetup(t, snapsup)
-	st.Unlock()
-	if err != nil {
+	defer st.Unlock()
+
+	snapsup.UndidHiddenMigration = true
+	if err = SetTaskSnapSetup(t, snapsup); err != nil {
 		return undo, fmt.Errorf("cannot set hidden migration status to undone: %w", err)
 	}
 
@@ -1287,14 +1287,15 @@ func (m *SnapManager) doHomeMigration(t *state.Task, st *state.State, snapsup *S
 		}
 	}
 
-	snapsup.MigratedToExposedHome = true
 	if err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), newRev); err != nil {
 		return undo, err
 	}
+
 	st.Lock()
-	err = SetTaskSnapSetup(t, snapsup)
-	st.Unlock()
-	if err != nil {
+	defer st.Unlock()
+
+	snapsup.MigratedToExposedHome = true
+	if err = SetTaskSnapSetup(t, snapsup); err != nil {
 		return undo, fmt.Errorf("cannot set migration status to done: %w", err)
 	}
 
@@ -3744,7 +3745,7 @@ type dirMigrationOptions struct {
 	// MigratedToHidden states whether the data has been migrated to the hidden dir
 	MigratedToHidden bool
 
-	// MigratedToExposedHome state whether the ~/Snap migration has been done.
+	// MigratedToExposedHome states whether the ~/Snap migration has been done.
 	MigratedToExposedHome bool
 }
 
