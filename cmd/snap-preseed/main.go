@@ -129,9 +129,9 @@ func run(parser *flags.Parser, args []string) (err error) {
 
 		// XXX: if prepareClassicChroot & runPreseedMode were refactored to
 		// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
-		// beginning of prepareClassicChroot, then we could have a single
+		// beginning of prepareClassicChroot), then we could have a single
 		// runPreseedMode/runUC20PreseedMode function that handles both classic
-		// and core20).
+		// and core20.
 		targetSnapd, cleanup, err = prepareClassicChroot(chrootDir)
 		if err != nil {
 			return err
