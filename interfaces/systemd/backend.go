@@ -99,17 +99,16 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
-	// Ensure the service is running right now and on reboots
-	for _, service := range changed {
-		serviceUnits := []string{service}
-		if err := systemd.Enable(serviceUnits); err != nil {
-			logger.Noticef("cannot enable service %q: %s", service, err)
+	if len(changed) > 0 {
+		// Ensure the services are running right now and on reboots
+		if err := systemd.Enable(changed); err != nil {
+			logger.Noticef("cannot enable services %q: %s", changed, err)
 		}
 		if !b.preseed {
-			// If we have a new service here which isn't started yet the restart
-			// operation will start it.
-			if err := systemd.Restart(serviceUnits, 10*time.Second); err != nil {
-				logger.Noticef("cannot restart service %q: %s", service, err)
+			// If we have new services here which aren't started yet the restart
+			// operation will start them.
+			if err := systemd.Restart(changed, 10*time.Second); err != nil {
+				logger.Noticef("cannot restart services %q: %s", changed, err)
 			}
 		}
 	}
@@ -126,7 +125,7 @@ func (b *Backend) Remove(snapName string) error {
 	var systemd sysd.Systemd
 	if b.preseed {
 		// removing while preseeding is not a viable scenario, but implemented
-		// for completness.
+		// for completeness.
 		systemd = sysd.NewEmulationMode(dirs.GlobalRootDir)
 	} else {
 		systemd = sysd.New(sysd.SystemMode, &dummyReporter{})
@@ -134,14 +133,15 @@ func (b *Backend) Remove(snapName string) error {
 	// Remove all the files matching snap glob
 	glob := serviceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
-	for _, service := range removed {
-		serviceUnits := []string{service}
-		if err := systemd.Disable(serviceUnits); err != nil {
-			logger.Noticef("cannot disable service %q: %s", service, err)
+
+	if len(removed) > 0 {
+		logger.Noticef("systemd-backend: Disable: removed services: %q", removed)
+		if err := systemd.Disable(removed); err != nil {
+			logger.Noticef("cannot disable services %q: %s", removed, err)
 		}
 		if !b.preseed {
-			if err := systemd.Stop(serviceUnits, 5*time.Second); err != nil {
-				logger.Noticef("cannot stop service %q: %s", service, err)
+			if err := systemd.Stop(removed, 5*time.Second); err != nil {
+				logger.Noticef("cannot stop services %q: %s", removed, err)
 			}
 		}
 	}
@@ -187,18 +187,26 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 	if err != nil {
 		return err
 	}
+
+	var stopUnits []string
+	var disableUnits []string
 	for _, path := range paths {
 		service := filepath.Base(path)
-		serviceUnits := []string{service}
 		if content[service] == nil {
-			if err := systemd.Disable(serviceUnits); err != nil {
-				logger.Noticef("cannot disable service %q: %s", service, err)
-			}
+			disableUnits = append(disableUnits, service)
 			if !b.preseed {
-				if err := systemd.Stop(serviceUnits, 5*time.Second); err != nil {
-					logger.Noticef("cannot stop service %q: %s", service, err)
-				}
+				stopUnits = append(stopUnits, service)
 			}
+		}
+	}
+	if len(disableUnits) > 0 {
+		if err := systemd.Disable(disableUnits); err != nil {
+			logger.Noticef("cannot disable services %q: %s", disableUnits, err)
+		}
+	}
+	if len(stopUnits) > 0 {
+		if err := systemd.Stop(stopUnits, 5*time.Second); err != nil {
+			logger.Noticef("cannot stop services %q: %s", stopUnits, err)
 		}
 	}
 	return nil

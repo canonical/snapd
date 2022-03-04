@@ -559,3 +559,16 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 	}
 	return res, nil
 }
+
+func (s *seed20) NumSnaps() int {
+	return len(s.snaps)
+}
+
+func (s *seed20) Iter(f func(sn *Snap) error) error {
+	for _, sn := range s.snaps {
+		if err := f(sn); err != nil {
+			return err
+		}
+	}
+	return nil
+}

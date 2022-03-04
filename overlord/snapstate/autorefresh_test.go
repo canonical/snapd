@@ -905,7 +905,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		notificationCount++
 		c.Check(refreshInfo.InstanceName, Equals, "pkg")
-		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24)
+		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24-time.Second)
 	})
 	defer restore()
 

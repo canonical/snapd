@@ -143,20 +143,13 @@ func (s *backendSuite) TestSettingInstallManyUpdateSecurityWithFewerServices(c *
 	c.Check(serviceFoo, testutil.FilePresent)
 	c.Check(serviceBar, testutil.FilePresent)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		// units were added
 		{"systemctl", "daemon-reload"},
-		// bar
-		{"systemctl", "--no-reload", "enable", "snap.samba.interface.bar.service"},
-		// foo restart
-		{"systemctl", "stop", "snap.samba.interface.bar.service"},
+		// units were added
+		{"systemctl", "--no-reload", "enable", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
+		{"systemctl", "stop", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.bar.service"},
-		{"systemctl", "start", "snap.samba.interface.bar.service"},
-		// foo
-		{"systemctl", "--no-reload", "enable", "snap.samba.interface.foo.service"},
-		// foo restart
-		{"systemctl", "stop", "snap.samba.interface.foo.service"},
 		{"systemctl", "show", "--property=ActiveState", "snap.samba.interface.foo.service"},
-		{"systemctl", "start", "snap.samba.interface.foo.service"},
+		{"systemctl", "start", "snap.samba.interface.bar.service", "snap.samba.interface.foo.service"},
 		// update state in systemd
 		{"systemctl", "daemon-reload"},
 	})

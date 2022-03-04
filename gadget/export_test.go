@@ -58,7 +58,12 @@ var (
 
 	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
 
+	BuildNewVolumeToDeviceMapping = buildNewVolumeToDeviceMapping
+	ErrSkipUpdateProceedRefresh   = errSkipUpdateProceedRefresh
+
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
+
+	SearchForVolumeWithTraits = searchForVolumeWithTraits
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -71,4 +76,9 @@ func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
 
 func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, preserveInDst []string) error {
 	return m.writeDirectory(volumeRoot, src, dst, preserveInDst)
+}
+
+// to test handling of unknown keys when we un-marshal
+func (s *StructureEncryptionParameters) SetUnknownKeys(m map[string]string) {
+	s.unknownKeys = m
 }

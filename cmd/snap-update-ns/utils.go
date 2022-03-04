@@ -41,6 +41,7 @@ const (
 	// SquashfsMagic is the equivalent of SQUASHFS_MAGIC
 	SquashfsMagic = 0x73717368
 	// Ext4Magic is the equivalent of EXT4_SUPER_MAGIC
+	//nolint:deadcode
 	Ext4Magic = 0xef53
 	// TmpfsMagic is the equivalent of TMPFS_MAGIC
 	TmpfsMagic = 0x01021994

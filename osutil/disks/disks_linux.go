@@ -635,8 +635,23 @@ func (d *disk) populatePartitions() error {
 				continue
 			}
 
-			// then the device is a partition, get the udev props for it
 			partDev := filepath.Base(path)
+
+			// then the device is a partition, trigger any udev events for it
+			// that might be sitting around and then get the udev props for it
+
+			// trigger
+			out, err := exec.Command("udevadm", "trigger", "--name-match="+partDev).CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(out, err)
+			}
+
+			// then settle
+			out, err = exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput()
+			if err != nil {
+				return osutil.OutputErr(out, err)
+			}
+
 			udevProps, err := udevPropertiesForName(partDev)
 			if err != nil {
 				continue

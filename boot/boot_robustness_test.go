@@ -120,8 +120,8 @@ func pureenvBootloaderLogic(c *C, modeVar string, bl bootloader.Bootloader) (sna
 // SetBootVars
 func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 	c *C,
-	dev boot.Device,
-	bootFunc func(boot.Device) error,
+	dev snap.Device,
+	bootFunc func(snap.Device) error,
 	panicFunc string,
 	expectedBootedKernel snap.PlaceInfo,
 	expectedModeenvCurrentKernels []snap.PlaceInfo,
@@ -302,7 +302,7 @@ func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c 
 		// make sure it's not a trivial boot participant
 		c.Assert(bootKern.IsTrivial(), Equals, false)
 
-		setNextFunc := func(boot.Device) error {
+		setNextFunc := func(snap.Device) error {
 			// we don't care about the reboot required logic here
 			_, err := bootKern.SetNextBoot()
 			return err

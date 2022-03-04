@@ -78,8 +78,10 @@ func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since ti
 				"public-key-sha3-384": openPGPPubKey.ID(),
 			},
 		},
-		since:  since.UTC(),
-		until:  since.UTC().AddDate(validYears, 0, 0),
+		sinceUntil: sinceUntil{
+			since: since.UTC(),
+			until: since.UTC().AddDate(validYears, 0, 0),
+		},
 		pubKey: openPGPPubKey,
 	}
 }
@@ -255,12 +257,16 @@ func init() {
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
-	return ak.isKeyValidAt(when)
+	return ak.isValidAt(when)
 }
 
-// AccountKeyIsKeyValidAssumingCurTimeWithin exposes isKeyValidAssumingCurTimeWithin on AccountKey for tests
-func AccountKeyIsKeyValidAssumingCurTimeWithin(ak *AccountKey, earliest, latest time.Time) bool {
-	return ak.isKeyValidAssumingCurTimeWithin(earliest, latest)
+type sinceUntilLike interface {
+	isValidAssumingCurTimeWithin(earliest, latest time.Time) bool
+}
+
+// IsValidAssumingCurTimeWithin exposes sinceUntil.isValidAssumingCurTimeWithin
+func IsValidAssumingCurTimeWithin(su sinceUntilLike, earliest, latest time.Time) bool {
+	return su.isValidAssumingCurTimeWithin(earliest, latest)
 }
 
 type GPGRunner func(input []byte, args ...string) ([]byte, error)
@@ -314,6 +320,10 @@ func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (fu
 	}
 	return domatch, nil
 }
+
+var (
+	CompileDeviceScopeConstraint = compileDeviceScopeConstraint
+)
 
 // ifacedecls tests
 var (

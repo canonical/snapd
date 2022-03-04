@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -43,7 +44,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -107,6 +110,11 @@ type SnapSetup struct {
 	// ~/.snap/data in the current change. So a 'false' value doesn't mean the
 	// dir isn't hidden. This prevents us from always having to set it.
 	MigratedHidden bool `json:"migrated-hidden,omitempty"`
+
+	// MigratedExposed is set if the migration to a hidden snap dir was undone in
+	// the current change. A 'false' value doesn't mean the dir is hidden, just
+	// that it wasn't exposed in this change.
+	MigratedExposed bool `json:"migrated-exposed,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -612,6 +620,134 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	return autoRefreshChgsInFlight, nil
 }
 
+func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
+	// Do not do anything if we have already done this removal before on this
+	// device. This is because if, after we have removed vulnerable snaps the
+	// user decides to refresh to a vulnerable version of snapd, that is their
+	// choice and furthermore, this removal is itself really just a last minute
+	// circumvention for the issue where vulnerable snaps are left in place, we
+	// do not intend to ever do this again and instead will unmount or remount
+	// vulnerable old snaps as nosuid to prevent the suid snap-confine binaries
+	// in them from being available to abuse for fixed vulnerabilies that are
+	// not exploitable in the current versions of snapd/core snaps.
+	var alreadyRemoved bool
+	key := fmt.Sprintf("%s-snap-cve-2021-44731-vuln-removed", name)
+	if err := m.state.Get(key, &alreadyRemoved); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if alreadyRemoved {
+		return nil
+	}
+	var snapSt SnapState
+	err := Get(m.state, name, &snapSt)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err == state.ErrNoState {
+		// not installed, nothing to do
+		return nil
+	}
+
+	// check if the installed, active version is fixed
+	fixedVersionInstalled := false
+	inactiveVulnRevisions := []snap.Revision{}
+	for _, si := range snapSt.Sequence {
+		// check this version
+		s := snap.Info{SideInfo: *si}
+		ver, _, err := snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir))
+		if err != nil {
+			return err
+		}
+		// res is < 0 if "ver" is lower than "2.54.3"
+		res, err := strutil.VersionCompare(ver, "2.54.3")
+		if err != nil {
+			return err
+		}
+		revIsVulnerable := (res < 0)
+		switch {
+		case !revIsVulnerable && si.Revision == snapSt.Current:
+			fixedVersionInstalled = true
+		case revIsVulnerable && si.Revision == snapSt.Current:
+			// The active installed revision is not fixed, we can break out
+			// early since we know we won't be able to remove old revisions.
+			// Note that we do not attempt to refresh the snap right now, partly
+			// because it may not work due to validations on the core/snapd snap
+			// on some devices, but also because doing so out of band from
+			// normal, controllable refresh schedules introduces non-trivial
+			// load on store services and ignores user settings around refresh
+			// schedules which we ought to obey as best we can.
+			return nil
+		case revIsVulnerable && si.Revision != snapSt.Current:
+			// si revision is not fixed, but is not active, so it is a candidate
+			// for removal
+			inactiveVulnRevisions = append(inactiveVulnRevisions, si.Revision)
+		default:
+			// si revision is not active, but it is fixed, so just ignore it
+		}
+	}
+
+	if !fixedVersionInstalled {
+		return nil
+	}
+
+	// remove all the inactive vulnerable revisions
+	for _, rev := range inactiveVulnRevisions {
+		tss, err := Remove(m.state, name, rev, nil)
+
+		if err != nil {
+			// in case of conflict, just trigger another ensure in a little
+			// bit and try again later
+			if _, ok := err.(*ChangeConflictError); ok {
+				m.state.EnsureBefore(time.Minute)
+				return nil
+			}
+			return fmt.Errorf("cannot make task set for removing %s snap: %v", name, err)
+		}
+
+		msg := fmt.Sprintf(i18n.G("Remove inactive vulnerable %q snap (%v)"), name, rev)
+
+		chg := m.state.NewChange("remove-snap", msg)
+		chg.AddAll(tss)
+		chg.Set("snap-names", []string{name})
+	}
+
+	// TODO: is it okay to set state here as done or should we do this
+	// elsewhere after the change is done somehow?
+
+	// mark state as done
+	m.state.Set(key, true)
+
+	// not strictly necessary, but does not hurt to ensure anyways
+	m.state.EnsureBefore(0)
+
+	return nil
+}
+
+func (m *SnapManager) ensureVulnerableSnapConfineVersionsRemovedOnClassic() error {
+	// only remove snaps on classic
+	if !release.OnClassic {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// we have to remove vulnerable versions of both the core and snapd snaps
+	// only when we now have fixed versions installed / active
+	// the fixed version is 2.54.3, so if the version of the current core/snapd
+	// snap is that or higher, then we proceed (if we didn't already do this)
+
+	if err := m.ensureVulnerableSnapRemoved("snapd"); err != nil {
+		return err
+	}
+
+	if err := m.ensureVulnerableSnapRemoved("core"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ensureForceDevmodeDropsDevmodeFromState undoes the forced devmode
 // in snapstate for forced devmode distros.
 func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
@@ -911,6 +1047,7 @@ func (m *SnapManager) Ensure() error {
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
+		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 	}
 
 	//FIXME: use firstErr helper

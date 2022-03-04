@@ -64,6 +64,11 @@ type deviceMgrRemodelSuite struct {
 
 var _ = Suite(&deviceMgrRemodelSuite{})
 
+func (s *deviceMgrRemodelSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4116,7 +4121,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			defer st.Unlock()
 			// not strictly needed, but underlines there's a reboot
 			// happening
-			restart.Request(st, restart.RestartSystemNow)
+			restart.Request(st, restart.RestartSystemNow, nil)
 		}
 		if fakeRebootCallsReady {
 			return nil

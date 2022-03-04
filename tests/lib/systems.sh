@@ -10,6 +10,9 @@ get_snap_for_system(){
         ubuntu-core-20-*)
             echo "${snap}-core20"
             ;;
+        ubuntu-core-22-*)
+            echo "${snap}-core22"
+            ;;
         *)
             echo "$snap"
             ;;
@@ -23,6 +26,9 @@ get_core_for_system(){
             ;;
         ubuntu-core-20-*)
             echo "core20"
+            ;;
+        ubuntu-core-22-*)
+            echo "core22"
             ;;
         *)
             echo "core"

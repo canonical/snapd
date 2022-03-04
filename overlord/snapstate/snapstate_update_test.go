@@ -146,6 +146,53 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	c.Check(opsTail, DeepEquals, expectedTail)
 }
 
+func (s *snapmgrTestSuite) TestRepeatedUpdatesDoGC(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// start with a single revision
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Channel: "some-channel", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	tr := config.NewTransaction(s.state)
+	// allow 2 revisions
+	c.Assert(tr.Set("core", "refresh.retain", 2), IsNil)
+	tr.Commit()
+
+	s.fakeStore.refreshRevnos = make(map[string]snap.Revision)
+
+	defer s.se.Stop()
+
+	for refreshRev := 2; refreshRev < 10; refreshRev++ {
+		s.fakeStore.refreshRevnos["some-snap-id"] = snap.R(refreshRev)
+
+		chg := s.state.NewChange("update", "update a snap")
+		ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+		c.Assert(err, IsNil)
+		chg.AddAll(ts)
+
+		s.settle(c)
+
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+		// and we expect 2 revisions at all times
+		c.Check(snapst.Sequence, HasLen, 2)
+		c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Channel: "some-channel", Revision: snap.R(refreshRev - 1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Channel: "some-channel", Revision: snap.R(refreshRev)},
+		})
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateScenarios(c *C) {
 	// TODO: also use channel-for-7 or equiv to check updates that are switches
 	for k, t := range switchScenarios {
@@ -4518,6 +4565,124 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-snap`, &si)
+	si2 := snap.SideInfo{
+		RealName: "some-other-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-other-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-other-snap`, &si2)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si},
+		Current:         si.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si2},
+		Current:         si2.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"some-snap", "some-other-snap"}, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 3)
+	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(updates, HasLen, 2)
+
+	// Last task is re-refresh, so it is a different lane
+	for _, ts := range tts[:len(tts)-1] {
+		checkIsAutoRefresh(c, ts.Tasks(), false)
+		// check that tasksets are all in one lane
+		for _, t := range ts.Tasks() {
+			c.Assert(t.Lanes(), DeepEquals, []int{1})
+		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyTransactionallyFails(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// trigger download error on one of the snaps
+	s.fakeStore.downloadError["some-other-snap"] = fmt.Errorf("boom")
+
+	snapstate.ReplaceStore(s.state,
+		contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{si},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/stable",
+		Sequence: []*snap.SideInfo{{
+			RealName: "some-other-snap",
+			SnapID:   "some-other-snap-id",
+			Revision: snap.R(1),
+		}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh some snaps")
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"some-snap", "some-other-snap"}, 0,
+		&snapstate.Flags{Transactional: true})
+	c.Assert(err, IsNil)
+	c.Check(updated, testutil.DeepUnsortedMatches,
+		[]string{"some-snap", "some-other-snap"})
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	// content consumer snap fails to download
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"some-other-snap\" \\(11\\) from channel \"latest/stable\" \\(boom\\).*")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapSt snapstate.SnapState
+	// some-other-snap not updated due to download failure
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapSt), IsNil)
+	c.Check(snapSt.Current, Equals, snap.R(1))
+
+	// some-snap not updated either as this is a transactional refresh
+	// (on update revision is 11)
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapSt), IsNil)
+	c.Check(snapSt.Current, Equals, snap.R(7))
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -7242,6 +7407,104 @@ func (s *snapmgrTestSuite) TestUpdateAfterMigration(c *C) {
 	assertMigrationState(c, s.state, "some-snap", true)
 }
 
+func (s *snapmgrTestSuite) TestUndoRevertMigrationIfRevertFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+
+	snapst := &snapstate.SnapState{
+		Sequence:       []*snap.SideInfo{info},
+		Current:        info.Revision,
+		Active:         true,
+		MigratedHidden: true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fail the change after the link-snap task (after state is saved)
+	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
+		return errors.New("expected")
+	}, nil)
+
+	failingTask := s.state.NewTask("fail", "expected failure")
+	chg.AddTask(failingTask)
+	linkTask := findLastTask(chg, "link-snap")
+	failingTask.WaitFor(linkTask)
+	for _, lane := range linkTask.Lanes() {
+		failingTask.JoinLane(lane)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Err(), Not(IsNil))
+
+	// check migration is reverted and then re-done
+	expected := []string{"undo-hide-snap-data", "hide-snap-data"}
+	c.Assert(containsInOrder(s.fakeBackend.ops, expected), Equals, true)
+
+	// check migration reversion was undone in state and seq file
+	assertMigrationState(c, s.state, "some-snap", true)
+}
+
+func containsInOrder(ops fakeOps, expected []string) bool {
+	var i int
+
+	for _, op := range []fakeOp(ops) {
+		if op.op == expected[i] {
+			i++
+
+			// found all ops
+			if i == len(expected) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *snapmgrTestSuite) TestRevertMigration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+		RealName: "some-snap",
+	}
+
+	snapst := &snapstate.SnapState{
+		Sequence:       []*snap.SideInfo{info},
+		Current:        info.Revision,
+		Active:         true,
+		MigratedHidden: true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
+
+	// check migration status is 'off' in state and seq file
+	assertMigrationState(c, s.state, "some-snap", false)
+}
+
 func (s *snapmgrTestSuite) TestUndoMigrationAfterHidingFails(c *C) {
 	const failInUndo = false
 	s.testUndoMigration(c, failInUndo)
@@ -7294,13 +7557,17 @@ func (s *snapmgrTestSuite) testUndoMigration(c *C, failUndo bool) {
 	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
-	copyTaskLogs := findLastTask(chg, "copy-snap-data").Log()
-	failedUndoLog := `.*cannot undo snap dir migration \(must manually restore some-snap's dirs from .* to .*\): boom`
+	warns := s.state.AllWarnings()
+	msgs := make([]string, len(warns))
+	for i, warn := range warns {
+		msgs[i] = warn.String()
+	}
+	failedUndoMsg := `.*cannot undo snap dir hiding \(move all user's ~/\.snap/data/some-snap to ~/snap/some-snap\): boom`
 
 	if failUndo {
-		mustMatch(c, copyTaskLogs, failedUndoLog)
+		mustMatch(c, msgs, failedUndoMsg)
 	} else {
-		mustNotMatch(c, copyTaskLogs, failedUndoLog)
+		mustNotMatch(c, msgs, failedUndoMsg)
 	}
 
 	assertMigrationState(c, s.state, "some-snap", false)

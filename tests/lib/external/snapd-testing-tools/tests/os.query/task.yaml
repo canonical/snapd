@@ -9,6 +9,7 @@ execute: |
             os.query is-trusty
             os.query is-classic
             ! os.query is-core
+            ! os.query is-s390x
             ;;
         ubuntu-16.04-64)
             os.query is-xenial
@@ -34,11 +35,6 @@ execute: |
             ! os.query is-core
             os.query is-pc-amd64
             ! os.query is-arm
-            ;;
-        ubuntu-21.04-64)
-            os.query is-hirsute
-            os.query is-classic
-            ! os.query is-core
             ;;
         ubuntu-21.10-64)
             os.query is-impish

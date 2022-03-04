@@ -74,7 +74,8 @@ var _ = Suite(&deviceMgrSystemsSuite{})
 var _ = Suite(&deviceMgrSystemsCreateSuite{})
 
 func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.brands.Register("other-brand", brandPrivKey3, map[string]interface{}{
 		"display-name": "other publisher",
