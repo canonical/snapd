@@ -37,6 +37,8 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 The tools included in this project are intended to be reused by other projects.
 
+Tools are supported in all the systems included in spread.yaml file.
+
 Read the following considerations before adding new tools:
 
  - Each tool needs to be accompanied by at least 1 spread test in `tests/<tool-name>/`
@@ -44,6 +46,23 @@ Read the following considerations before adding new tools:
  - If the tool is a shell script, it needs to first pass a [ShellCheck](https://github.com/koalaman/shellcheck) assessment
  - All tools need to be as generic as possible
  - Each tool must also provide a command line interface (CLI), including _help_ output
+
+## Adding new utils
+
+The utils included in this project are intended to be reused by other projects.
+
+Utils are used as a complement for spread tests executions. Those are not intended to be used by spread tests.
+For example utils are used on github action workflows to analyze tests code and outputs.
+
+Utils are supported in ubuntu-18.04 and higher.
+
+Read the following considerations before adding new utils:
+
+ - Each util needs to be accompanied by at least 1 spread test in `tests/<util-name>/`
+ - At least 1 spread test needs to be included in the tests directory for each util
+ - If the util is a shell script, it needs to first pass a [ShellCheck](https://github.com/koalaman/shellcheck) assessment
+ - All utils need to be as generic as possible
+ - Each util must also provide a command line interface (CLI), including _help_ output
 
 
 ## Project status

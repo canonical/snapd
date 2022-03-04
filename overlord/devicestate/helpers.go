@@ -20,7 +20,12 @@
 package devicestate
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
@@ -44,4 +49,18 @@ func gadgetDataFromInfo(info *snap.Info, model *asserts.Model) (*gadget.GadgetDa
 		return nil, err
 	}
 	return &gadget.GadgetData{Info: gi, RootDir: info.MountDir()}, nil
+}
+
+var systemForPreseeding = func() (label string, err error) {
+	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
+	if err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("cannot list available systems: %v", err)
+	}
+	if len(systemLabels) == 0 {
+		return "", fmt.Errorf("no system to preseed")
+	}
+	if len(systemLabels) > 1 {
+		return "", fmt.Errorf("expected a single system for preseeding, found %d", len(systemLabels))
+	}
+	return filepath.Base(systemLabels[0]), nil
 }

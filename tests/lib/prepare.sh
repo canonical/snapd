@@ -365,13 +365,16 @@ prepare_classic() {
 
         disable_refreshes
 
-        echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
-        # shellcheck disable=SC2119
-        output=$("$TESTSTOOLS"/boot-state bootenv show)
-        if echo "$output" | MATCH snap_ ; then
-            echo "Expected bootloader environment without snap_*, got:"
-            echo "$output"
-            exit 1
+        # Check bootloader environment output in architectures different to s390x which uses zIPL
+        if ! [ "$(uname  -m)" = "s390x" ]; then
+            echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
+            # shellcheck disable=SC2119
+            output=$("$TESTSTOOLS"/boot-state bootenv show)
+            if echo "$output" | MATCH snap_ ; then
+                echo "Expected bootloader environment without snap_*, got:"
+                echo "$output"
+                exit 1
+            fi
         fi
 
         setup_experimental_features

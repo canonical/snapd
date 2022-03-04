@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -116,13 +115,21 @@ type Seed interface {
 	// ModeSnaps returns the snaps that should be available
 	// in the given mode as defined by the seed, after LoadMeta.
 	ModeSnaps(mode string) ([]*Snap, error)
+
+	// NumSnaps returns the total number of snaps in a seed.
+	NumSnaps() int
+
+	// Iter provides a way to iterately perform a function on
+	// each of the snaps in a seed. For UC20 all snaps will be
+	// considered independent of mode.
+	Iter(f func(sn *Snap) error) error
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
 	if label != "" {
-		if err := internal.ValidateUC20SeedSystemLabel(label); err != nil {
+		if err := asserts.IsValidSystemLabel(label); err != nil {
 			return nil, err
 		}
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
