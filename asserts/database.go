@@ -22,6 +22,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -93,6 +94,24 @@ func (nbs nullBackstore) SequenceMemberAfter(t *AssertionType, kp []string, afte
 	return nil, &NotFoundError{Type: t}
 }
 
+// keyNotFoundError is returned when the key with a given ID cannot be found.
+type keyNotFoundError struct {
+	msg string
+}
+
+func (e *keyNotFoundError) Error() string { return e.msg }
+
+func (e *keyNotFoundError) Is(target error) bool {
+	_, ok := target.(*keyNotFoundError)
+	return ok
+}
+
+// IsKeyNotFound returns true when the error indicates that a given key was not
+// found.
+func IsKeyNotFound(err error) bool {
+	return errors.Is(err, &keyNotFoundError{})
+}
+
 // A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
 	// Put stores the given private/public key pair,
@@ -100,7 +119,9 @@ type KeypairManager interface {
 	// Trying to store a key with an already present key id should
 	// result in an error.
 	Put(privKey PrivateKey) error
-	// Get returns the private/public key pair with the given key id.
+	// Get returns the private/public key pair with the given key id. The
+	// error can be tested with IsKeyNotFound to check whether the given key
+	// was not found, or other error occurred.
 	Get(keyID string) (PrivateKey, error)
 	// Delete deletes the private/public key pair with the given key id.
 	Delete(keyID string) error

@@ -83,6 +83,9 @@ apps:
   cups-control:
     command: bin/run
     plugs: [ cups-control ]
+  custom-device:
+    command: bin/run
+    plugs: [ custom-device ]
   dbus-session:
     command: bin/run
     plugs: [ dbus-session ]
@@ -503,6 +506,9 @@ plugs:
     interface: content
     content: test-content
     target: $SNAP/content
+  custom-device:
+    interface: custom-device
+    custom-device: mydevice
   dbus-session:
     interface: dbus
     bus: session

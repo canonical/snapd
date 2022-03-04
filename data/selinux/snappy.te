@@ -805,6 +805,8 @@ can_exec(snappy_cli_t, snappy_exec_t)
 fs_getattr_tmpfs(snappy_cli_t)
 fs_getattr_cgroup(snappy_cli_t)
 
+# execute systemctl is-system-running when system-key mismatch is detected
+systemd_exec_systemctl(snappy_cli_t)
 
 ########################################
 #
