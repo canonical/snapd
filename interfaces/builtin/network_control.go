@@ -61,6 +61,13 @@ dbus send
      member="Resolve{Address,Hostname,Record,Service}"
      peer=(name="org.freedesktop.resolve1"),
 
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="SetLink{DNS,MulticastDNS,Domains,LLMNR}"
+     peer=(label=unconfined),
+
 #include <abstractions/ssl_certs>
 
 capability net_admin,
