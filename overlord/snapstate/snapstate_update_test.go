@@ -146,6 +146,53 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	c.Check(opsTail, DeepEquals, expectedTail)
 }
 
+func (s *snapmgrTestSuite) TestRepeatedUpdatesDoGC(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// start with a single revision
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Channel: "some-channel", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	tr := config.NewTransaction(s.state)
+	// allow 2 revisions
+	c.Assert(tr.Set("core", "refresh.retain", 2), IsNil)
+	tr.Commit()
+
+	s.fakeStore.refreshRevnos = make(map[string]snap.Revision)
+
+	defer s.se.Stop()
+
+	for refreshRev := 2; refreshRev < 10; refreshRev++ {
+		s.fakeStore.refreshRevnos["some-snap-id"] = snap.R(refreshRev)
+
+		chg := s.state.NewChange("update", "update a snap")
+		ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+		c.Assert(err, IsNil)
+		chg.AddAll(ts)
+
+		s.settle(c)
+
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+		// and we expect 2 revisions at all times
+		c.Check(snapst.Sequence, HasLen, 2)
+		c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Channel: "some-channel", Revision: snap.R(refreshRev - 1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Channel: "some-channel", Revision: snap.R(refreshRev)},
+		})
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateScenarios(c *C) {
 	// TODO: also use channel-for-7 or equiv to check updates that are switches
 	for k, t := range switchScenarios {

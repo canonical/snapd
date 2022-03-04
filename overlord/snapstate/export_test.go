@@ -340,6 +340,7 @@ var (
 	PruneSnapsHold             = pruneSnapsHold
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
+	RefreshRetain              = refreshRetain
 )
 
 func MockTimeNow(f func() time.Time) (restore func()) {

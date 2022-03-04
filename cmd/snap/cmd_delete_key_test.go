@@ -38,7 +38,7 @@ func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
 func (s *SnapKeysSuite) TestDeleteKeyNonexistent(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "nonexistent"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot find key named \"nonexistent\" in GPG keyring")
+	c.Check(err.Error(), Equals, `cannot delete key named "nonexistent": cannot find key pair in GPG keyring`)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
