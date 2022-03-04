@@ -247,6 +247,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundNoSuid := false
 			foundBind := false
 			foundReadOnly := false
+			foundPrivate := false
 
 			for _, arg := range call[len(args):] {
 				switch {
@@ -269,6 +270,8 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 							foundBind = true
 						case "ro":
 							foundReadOnly = true
+						case "private":
+							foundPrivate = true
 						default:
 							c.Logf("Option '%s' unexpected", opt)
 							c.Fail()
@@ -287,6 +290,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundNoSuid, Equals, opts.NoSuid)
 			c.Assert(foundBind, Equals, opts.Bind)
 			c.Assert(foundReadOnly, Equals, opts.ReadOnly)
+			c.Assert(foundPrivate, Equals, opts.Private)
 
 			// check that the overrides are present if opts.Ephemeral is false,
 			// or check the overrides are not present if opts.Ephemeral is true
