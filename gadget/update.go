@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
@@ -773,8 +774,10 @@ var errSkipUpdateProceedRefresh = errors.New("cannot identify disk for gadget as
 // traits object from disk-mapping.json. It is meant to be used only with all
 // UC16/UC18 installs as well as UC20 installs from before we started writing
 // disk-mapping.json during install mode.
-func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidOutVolume, preUC20 bool) (map[string]DiskVolumeDeviceTraits, error) {
+func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[string]*LaidOutVolume) (map[string]DiskVolumeDeviceTraits, error) {
 	var likelySystemBootVolume string
+
+	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
 
 	if len(old.Info.Volumes) == 1 {
 		// If we only have one volume, then that is the volume we are concerned
@@ -808,7 +811,7 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 		// and we didn't find system-boot anywhere, in this case for pre-UC20
 		// we use a non-fatal error and just don't perform any update - this was
 		// always the old behavior so we are not regressing here
-		if preUC20 {
+		if isPreUC20 {
 			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", likelySystemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
@@ -856,7 +859,7 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 	if dev == "" {
 		// couldn't find a disk at all, pre-UC20 we just warn about this
 		// but let the update continue
-		if preUC20 {
+		if isPreUC20 {
 			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
 			return nil, errSkipUpdateProceedRefresh
 		}
@@ -867,12 +870,12 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 	// we found the device, construct the traits with validation options
 	validateOpts := &DiskVolumeValidationOptions{
 		// allow implicit system-data on pre-uc20 only
-		AllowImplicitSystemData: preUC20,
+		AllowImplicitSystemData: isPreUC20,
 	}
 
 	// setup encrypted structure information to perform validation if this
 	// device used encryption
-	if !preUC20 {
+	if !isPreUC20 {
 		// TODO: this needs to check if the specified partitions are ICE when
 		// we support ICE too
 
@@ -902,6 +905,237 @@ func buildNewVolumeToDeviceMapping(old GadgetData, laidOutVols map[string]*LaidO
 	return map[string]DiskVolumeDeviceTraits{
 		likelySystemBootVolume: traits,
 	}, nil
+}
+
+// StructureLocation represents the location of a structure for updating
+// purposes. Either Device + Offset must be set for a raw structure without a
+// filesystem, or RootMountPoint must be set for structures with a
+// filesystem.
+type StructureLocation struct {
+	// Device is the kernel device node path such as /dev/vda1 for the
+	// structure's backing physical disk.
+	Device string
+	// Offset is the offset from 0 for the physical disk that this structure
+	// starts at.
+	Offset quantity.Offset
+
+	// RootMountPoint is the directory where the root directory of the structure
+	// is mounted read/write. There may be other mount points for this structure
+	// on the system, but this one is guaranteed to be writable and thus
+	// suitable for gadget asset updates.
+	RootMountPoint string
+}
+
+func buildVolumeStructureToLocation(mod Model,
+	old GadgetData,
+	laidOutVols map[string]*LaidOutVolume,
+	volToDeviceMapping map[string]DiskVolumeDeviceTraits,
+	missingInitialMapping bool,
+) (map[string]map[int]StructureLocation, error) {
+
+	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
+
+	// helper function for handling non-fatal errors on pre-UC20
+	maybeFatalError := func(err error) error {
+		if missingInitialMapping && isPreUC20 {
+			// this is not a fatal error on pre-UC20
+			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error mapping volume to physical disk: %v", err)
+			return errSkipUpdateProceedRefresh
+		}
+		return err
+	}
+
+	volumeStructureToLocation := make(map[string]map[int]StructureLocation, len(old.Info.Volumes))
+	for volName := range old.Info.Volumes {
+		volumeStructureToLocation[volName] = make(map[int]StructureLocation)
+	}
+
+	// now for each volume, iterate over the structures, putting the
+	// necessary info into the map for that volume as we iterate
+
+	// this loop assumes that none of those things are different between the
+	// new and old volume, which may not be true in the case where an
+	// unsupported structure change is present in the new one, but we check that
+	// situation after we have built the mapping
+	for volName, diskDeviceTraits := range volToDeviceMapping {
+		vol, ok := old.Info.Volumes[volName]
+		if !ok {
+			return nil, fmt.Errorf("internal error: volume %s not present in gadget.yaml but present in traits mapping", volName)
+		}
+
+		laidOutVol := laidOutVols[volName]
+		if laidOutVol == nil {
+			return nil, fmt.Errorf("internal error: missing LaidOutVolume for volume %s", volName)
+		}
+
+		// find the disk associated with this volume using the traits we
+		// measured for this volume
+		validateOpts := &DiskVolumeValidationOptions{
+			// implicit system-data role only allowed on pre UC20 systems
+			AllowImplicitSystemData:     isPreUC20,
+			ExpectedStructureEncryption: diskDeviceTraits.StructureEncryption,
+		}
+
+		disk, err := searchForVolumeWithTraits(laidOutVol, diskDeviceTraits, validateOpts)
+		if err != nil {
+			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
+			return nil, maybeFatalError(dieErr)
+		}
+
+		// the index here is 0-based and is equal to LaidOutStructure.YamlIndex
+		for volYamlIndex, volStruct := range vol.Structure {
+			// get the StartOffset using the laid out structure which will have
+			// all the math to find the correct start offset for structures that
+			// don't explicitly list their offset in the gadget.yaml (and thus
+			// would have a offset of 0 using the volStruct.Offset)
+			structStartOffset := laidOutVol.LaidOutStructure[volYamlIndex].StartOffset
+
+			loc := StructureLocation{}
+
+			if volStruct.HasFilesystem() {
+				// Here we know what disk is associated with this volume, so we
+				// just need to find what partition is associated with this
+				// structure to find it's root mount points. On GPT since
+				// partition labels/names are unique in the partition table, we
+				// could do a lookup by matching partition label, but this won't
+				// work on MBR which doesn't have such a concept, so instead we
+				// use the start offset to locate which disk partition this
+				// structure is equal to.
+
+				partitions, err := disk.Partitions()
+				if err != nil {
+					return nil, err
+				}
+
+				var foundP disks.Partition
+				found := false
+				for _, p := range partitions {
+					if p.StartInBytes == uint64(structStartOffset) {
+						foundP = p
+						found = true
+						break
+					}
+				}
+				if !found {
+					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: no matching start offset", volYamlIndex, volName)
+					return nil, maybeFatalError(dieErr)
+				}
+
+				// if this structure is an encrypted one, then we can't just
+				// get the root mount points for the device node, we would need
+				// to find the decrypted mapper device for the encrypted device
+				// node and then find the root mount point of the mapper device
+				if _, ok := diskDeviceTraits.StructureEncryption[volStruct.Name]; ok {
+					logger.Noticef("gadget asset update for assets on encrypted partition %s unsupported", volStruct.Name)
+
+					// leaving this structure as an empty location will
+					// mean when an update to this structure is actually
+					// performed it will fail, but we won't fail updates to
+					// other structures - it is treated like an unmounted
+					// partition
+					volumeStructureToLocation[volName][volYamlIndex] = loc
+					continue
+				}
+
+				// otherwise normal unencrypted filesystem, find the rw mount
+				// points
+				mountpts, err := disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""})
+				if err != nil {
+					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: error searching for root mount points: %v", volYamlIndex, volName, err)
+					return nil, maybeFatalError(dieErr)
+				}
+				var mountpt string
+				if len(mountpts) == 0 {
+					// this filesystem is not already mounted, we probably
+					// should mount it in order to proceed with the update?
+
+					// TODO: do something better here?
+					logger.Noticef("structure %d on volume %s (%s) is not mounted read/write anywhere to be able to update it", volYamlIndex, volName, foundP.KernelDeviceNode)
+				} else {
+					// use the first one, it doesn't really matter to us
+					// which one is used to update the contents
+					mountpt = mountpts[0]
+				}
+				loc.RootMountPoint = mountpt
+			} else {
+				// no filesystem, the device for this one is just the device
+				// for the disk itself
+				loc.Device = disk.KernelDeviceNode()
+				loc.Offset = structStartOffset
+			}
+
+			volumeStructureToLocation[volName][volYamlIndex] = loc
+		}
+	}
+
+	return volumeStructureToLocation, nil
+}
+
+// exposed for mocking later on
+var volumeStructureToLocationMap = volumeStructureToLocationMapImpl
+
+func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map[string]*LaidOutVolume) (map[string]map[int]StructureLocation, error) {
+	// first try to load the disk-mapping.json volume trait info
+	volToDeviceMapping, err := LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	if err != nil {
+		return nil, err
+	}
+
+	missingInitialMapping := false
+
+	// check if we had no mapping, if so then we try our best to build a mapping
+	// for the system-boot volume only to perform gadget asset updates there
+	// but if we fail to build a mapping, then on UC18 we non-fatally return
+	// without doing any updates, but on UC20 we fail the refresh because we
+	// expect UC20's gadget.yaml validation to be robust
+	if len(volToDeviceMapping) == 0 {
+		// then there was no mapping provided, this is a system which never
+		// performed the initial saving of disk/volume mapping info during
+		// install, so we build up a mapping specifically just for the
+		// volume with the system-boot role on it
+
+		// TODO: after we calculate this the first time should we save a new
+		// disk-mapping.json with this information and some marker that this
+		// was not calculated at first boot but a later date?
+
+		// TODO: the rest of this function in this case is technically not as
+		// efficient as we could be, since we build up these heuristics here and
+		// then immediately below treat them as if they were from the initial
+		// install boot and thus could have changed, but there is no way for
+		// this mapping to have changed between when this code runs here and the
+		// code below, but in the interest of sharing the same codepath for all
+		// cases below, we treat this heuristic mapping data the same
+		missingInitialMapping = true
+		var err error
+		volToDeviceMapping, err = buildNewVolumeToDeviceMapping(mod, old, laidOutVols)
+		if err != nil {
+			return nil, err
+		}
+
+		// volToDeviceMapping should always be of length one
+		var volName string
+		for volName = range volToDeviceMapping {
+			break
+		}
+
+		// if there are multiple volumes leave a message that we are only
+		// performing updates for the volume with the system-boot role
+		if len(old.Info.Volumes) != 1 {
+			logger.Noticef("WARNING: gadget has multiple volumes but updates are only being performed for volume %s", volName)
+		}
+	}
+
+	// now that we have some traits about the volume -> disk mapping, either
+	// because we just constructed it or that we were provided it the .json file
+	// we have to build up a map for the updaters to use to find the structure
+	// location to update given the LaidOutStructure
+	return buildVolumeStructureToLocation(
+		mod,
+		old,
+		laidOutVols,
+		volToDeviceMapping,
+		missingInitialMapping,
+	)
 }
 
 // Update applies the gadget update given the gadget information and data from

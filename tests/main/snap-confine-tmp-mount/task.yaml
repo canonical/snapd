@@ -43,11 +43,19 @@ execute: |
     # dir but execute id successfully - snap-confine outputs to stderr and
     # id will output to stdout so capture each separately
     SNAP_CONFINE=$(os.paths libexec-dir)/snapd/snap-confine
-    if os.query is-core; then
-        # on Ubuntu Core we need to use the correct path to ensure it is
-        # appropriately confined by apparmor as it may be from the snapd
-        # snap
-        SNAP_CONFINE=$(aa-status | grep "snap-confine$")
+
+    # on Ubuntu Core we need to use the correct path to ensure it is
+    # appropriately confined by apparmor as it may be from the snapd
+    # snap
+    if os.query is-core16; then
+        # on uc16, we should just use /usr/lib/snapd/snap-confine from the host 
+        # which by definition will come from the currently installed core snap 
+        SNAP_CONFINE=/usr/lib/snapd/snap-confine
+    elif os.query is-core; then
+        # on UC18+, snap-confine will come from the snapd snap, so use the 
+        # active installed revision as the snap-confine to execute
+        SNAPD_SNAP_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
+        SNAP_CONFINE="/snap/snapd/$SNAPD_SNAP_REV/usr/lib/snapd/snap-confine"
     fi
     tests.session -u test exec sh -c "env -i SNAPD_DEBUG=1 SNAP_INSTANCE_NAME=test-snapd-sh $SNAP_CONFINE --base core snap.test-snapd-sh.sh /bin/bash -c id 1>/tmp/snap-confine-stdout.log 2>/tmp/snap-confine-stderr.log"
     tests.cleanup defer rm -f /tmp/snap-confine-stdout.log /tmp/snap-confine-stderr.log
@@ -62,4 +70,3 @@ execute: |
     stat -c "%U %G %a" /tmp/snap.test-snapd-sh | MATCH "root root 700"
     # and snap-confine should ensure the target binary is executed as the test user
     MATCH "uid=12345\(test\) gid=12345\(test\)" /tmp/snap-confine-stdout.log
-
