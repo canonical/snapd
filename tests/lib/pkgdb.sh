@@ -746,6 +746,7 @@ pkg_dependencies_amazon(){
         net-tools
         nfs-utils
         PackageKit
+        strace
         system-lsb-core
         rpm-build
         xdg-user-dirs
