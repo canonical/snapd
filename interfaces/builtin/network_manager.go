@@ -124,7 +124,7 @@ network packet,
 #
 # Allow access to the safe members of the systemd-resolved D-Bus API:
 #
-#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#   https://www.freedesktop.org/software/systemd/man/org.freedesktop.resolve1.html
 #
 # This API may be used directly over the D-Bus system bus or it may be used
 # indirectly via the nss-resolve plugin:
@@ -136,13 +136,13 @@ dbus send
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
      member="Resolve{Address,Hostname,Record,Service}"
-     peer=(name="org.freedesktop.resolve1"),
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
 
 dbus (send)
      bus=system
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
-     member="SetLink{DNS,MulticastDNS,Domains,LLMNR}"
+     member="SetLink{DefaultRoute,DNSOverTLS,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
      peer=(label=unconfined),
 
 dbus (send)
