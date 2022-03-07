@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
@@ -60,6 +61,8 @@ func (s *makeBootableSuite) SetUpTest(c *C) {
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir())
 	s.forceBootloader(s.bootloader)
+
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
 
 func makeSnap(c *C, name, yaml string, revno snap.Revision) (fn string, info *snap.Info) {
@@ -162,6 +165,7 @@ func (s *makeBootable20Suite) SetUpTest(c *C) {
 
 	s.bootloader = bootloadertest.Mock("mock", c.MkDir()).RecoveryAware()
 	s.forceBootloader(s.bootloader)
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
 
 func (s *makeBootable20UbootSuite) SetUpTest(c *C) {
