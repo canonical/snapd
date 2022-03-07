@@ -196,7 +196,13 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, modeenv *M
 	}
 
 	includeTryModel := false
-	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, tbl, modeenv, includeTryModel)
+	systems := []string{modeenv.RecoverySystem}
+	modes := map[string][]string{
+		// the system we are installing from is considered current and
+		// tested, hence allow both recover and factory reset modes
+		modeenv.RecoverySystem: {ModeRecover, ModeFactoryReset},
+	}
+	recoveryBootChains, err := recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -396,13 +402,15 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 		// TODO:UC20: later the exact kind of bootloaders we expect here might change
 		return fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
 	}
+	// derive the allowed modes for each system mentioned in the modeenv
+	modes := modesForSystems(modeenv)
 
 	// the recovery boot chains for the run key are generated for all
 	// recovery systems, including those that are being tried; since this is
 	// a run key, the boot chains are generated for both models to
 	// accommodate the dynamics of a remodel
 	includeTryModel := true
-	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl,
+	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
 		modeenv, includeTryModel)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
@@ -421,7 +429,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	// use the current model as the recovery keys are not expected to be
 	// used during a remodel
 	includeTryModel = false
-	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, tbl, modeenv, includeTryModel)
+	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -551,13 +559,46 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 	return nil
 }
 
+// recoveryModesForSystems returns a map for recovery modes for recovery systems
+// mentioned in the modeenv. The returned map contains both tested and candidate
+// recovery systems
+func modesForSystems(modeenv *Modeenv) map[string][]string {
+	if len(modeenv.GoodRecoverySystems) == 0 && len(modeenv.CurrentRecoverySystems) == 0 {
+		return nil
+	}
+
+	systemToModes := map[string][]string{}
+
+	// first go through tested recovery systems
+	modesForTestedSystem := []string{ModeRecover, ModeFactoryReset}
+	// tried systems can only boot to recovery mode
+	modesForCandidateSystem := []string{ModeRecover}
+
+	// go through recovery systems that were tested
+	for _, sys := range modeenv.GoodRecoverySystems {
+		systemToModes[sys] = modesForTestedSystem
+	}
+	// go through current recovery systems which can contain systems that
+	// are only being tried
+	for _, sys := range modeenv.CurrentRecoverySystems {
+		if _, ok := systemToModes[sys]; !ok {
+			// since we already went through tested system, this is
+			// a candidate system
+			systemToModes[sys] = modesForCandidateSystem
+		}
+	}
+	return systemToModes
+}
+
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
-func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool) (chains []bootChain, err error) {
-
+func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool) (chains []bootChain, err error) {
 	chainsForModel := func(model secboot.ModelForSealing) error {
 		modelID := modelUniqueID(model)
 		for _, system := range systems {
+			if len(modesForSystems) == 0 {
+				return errors.New("internal error: cannot compute recovery boot chains without modes for systems")
+			}
 			// get kernel and gadget information from seed
 			perf := timings.New(nil)
 			seedSystemModel, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
@@ -583,10 +624,18 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 				seedKernel, seedGadget = seedGadget, seedKernel
 			}
 
-			// get the command line
-			cmdline, err := composeCommandLine(currentEdition, ModeRecover, system, seedGadget.Path)
-			if err != nil {
-				return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+			var cmdlines []string
+			modes, ok := modesForSystems[system]
+			if !ok {
+				return fmt.Errorf("internal error: no modes for system %q", system)
+			}
+			for _, mode := range modes {
+				// get the command line for this mode
+				cmdline, err := composeCommandLine(currentEdition, mode, system, seedGadget.Path)
+				if err != nil {
+					return fmt.Errorf("cannot obtain kernel command line for mode %q: %v", mode, err)
+				}
+				cmdlines = append(cmdlines, cmdline)
 			}
 
 			var kernelRev string
@@ -613,7 +662,7 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 				AssetChain:     assetChain,
 				Kernel:         seedKernel.SnapName(),
 				KernelRevision: kernelRev,
-				KernelCmdlines: []string{cmdline},
+				KernelCmdlines: cmdlines,
 				kernelBootFile: kbf,
 			})
 		}
