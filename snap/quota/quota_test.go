@@ -763,6 +763,63 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 	c.Assert(currentMem, Equals, sixteenExb)
 }
 
+func (ts *quotaTestSuite) TestCurrentTaskUsage(c *C) {
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+
+		// inactive case, number of tasks must be 0
+		case 1:
+			// first time pretend the service is inactive
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("inactive"), systemctlInactiveServiceError{}
+
+		// active cases
+		case 2:
+			// now pretend it is active
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 3:
+			// and the memory count can be non-zero like
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=32"), nil
+
+		case 4:
+			// now pretend it is active
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 5:
+			// and no tasks are active
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=0"), nil
+
+		default:
+			c.Errorf("too many systemctl calls (%d) (current call is %+v)", systemctlCalls, args)
+			return []byte("broken test"), fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	grp1, err := quota.NewGroup("group", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
+	c.Assert(err, IsNil)
+
+	// group initially is inactive, so it has no current memory usage
+	currentMem, err := grp1.CurrentTaskUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, 0)
+
+	// now with the slice mocked as active it has real usage
+	currentMem, err = grp1.CurrentTaskUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, 32)
+
+	// but it can also have 0 usage
+	currentMem, err = grp1.CurrentTaskUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, 0)
+}
+
 func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 	// Verify we get the correct allocations for a group with a more complex tree-structure
 	// and different quotas split out into different sub-groups.
@@ -813,12 +870,11 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the root group
 	c.Assert(allReservations["groot"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryLimit:         quantity.SizeGiB,
-		MemoryReserved:      quantity.SizeMiB * 512,
-		CpuReserved:         100,
-		ThreadsReserved:     32,
-		AllowedCPUsLimit:    []int{},
-		AllowedCPUsReserved: []int{0, 1},
+		MemoryLimit:      quantity.SizeGiB,
+		MemoryReserved:   quantity.SizeMiB * 512,
+		CpuReserved:      100,
+		ThreadsReserved:  32,
+		AllowedCPUsLimit: []int{},
 	})
 
 	// Verify the subgroup cpu-q0
@@ -839,8 +895,7 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the subgroup cpus-q0
 	c.Assert(allReservations["cpus-q0"], DeepEquals, &quota.GroupQuotaAllocations{
-		AllowedCPUsLimit:    []int{0, 1},
-		AllowedCPUsReserved: []int{0},
+		AllowedCPUsLimit: []int{0, 1},
 	})
 
 	// Verify the subgroup cpus-q1

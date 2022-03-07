@@ -187,7 +187,6 @@ func (grp *Group) CurrentTaskUsage() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	return int(count), nil
 }
 
@@ -222,7 +221,7 @@ func (grp *Group) SliceFileName() string {
 }
 
 // groupQuotaAllocations contains information about current quotas of a group
-// and is used by getgroupQuotaAllocations to contain this information.
+// and is used by getQuotaAllocations to contain this information.
 // There are two types of values for each quota - the quota limit set by this group,
 // and the quota reserved by children of this group. Examples:
 // Group that has a non-memory quota, but has a child group that has a memory quota of 512mb:
@@ -237,7 +236,7 @@ func (grp *Group) SliceFileName() string {
 // If the limit value is non-zero, then the reserved value can never be greater than the limit, however
 // if the limit is zero, then the reserved value must be below the nearest non-zero limit as you traverse
 // up the tree.
-type GroupQuotaAllocations struct {
+type groupQuotaAllocations struct {
 	MemoryLimit    quantity.Size
 	MemoryReserved quantity.Size
 
@@ -247,8 +246,7 @@ type GroupQuotaAllocations struct {
 	ThreadsLimit    int
 	ThreadsReserved int
 
-	AllowedCPUsLimit    []int
-	AllowedCPUsReserved []int
+	AllowedCPUsLimit []int
 }
 
 func max(a, b int) int {
@@ -279,11 +277,11 @@ func (grp *Group) getTotalCPUPercentage() int {
 	return max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
 }
 
-// getgroupQuotaAllocations Recursively retrieve current group quotas statistics, this should just
+// getQuotaAllocations Recursively retrieve current group quotas statistics, this should just
 // be invoked on the upper parent of a group tree, and then it will gather active quotas for the
 // tree and store them in the allQuotas paramater
-func (grp *Group) getgroupQuotaAllocations(allQuotas map[string]*GroupQuotaAllocations, skipGrp *Group) *GroupQuotaAllocations {
-	limits := &GroupQuotaAllocations{
+func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocations, skipGrp *Group) *groupQuotaAllocations {
+	limits := &groupQuotaAllocations{
 		MemoryLimit:      grp.MemoryLimit,
 		CpuLimit:         grp.getTotalCPUPercentage(),
 		ThreadsLimit:     grp.TaskLimit,
@@ -298,7 +296,7 @@ func (grp *Group) getgroupQuotaAllocations(allQuotas map[string]*GroupQuotaAlloc
 			continue
 		}
 
-		subGroupLimits := subGroup.getgroupQuotaAllocations(allQuotas, skipGrp)
+		subGroupLimits := subGroup.getQuotaAllocations(allQuotas, skipGrp)
 
 		// As we count up the usage of quotas across our sub-groups we must either use the actual
 		// limits of the below sub-group, or the actual usage of the sub-group. The reason we must do this
@@ -307,11 +305,6 @@ func (grp *Group) getgroupQuotaAllocations(allQuotas map[string]*GroupQuotaAlloc
 		limits.MemoryReserved += maxq(subGroupLimits.MemoryLimit, subGroupLimits.MemoryReserved)
 		limits.CpuReserved += max(subGroupLimits.CpuLimit, subGroupLimits.CpuReserved)
 		limits.ThreadsReserved += max(subGroupLimits.ThreadsLimit, subGroupLimits.ThreadsReserved)
-		if len(subGroupLimits.AllowedCPUsLimit) > 0 {
-			limits.AllowedCPUsReserved = append(limits.AllowedCPUsReserved, subGroupLimits.AllowedCPUsLimit...)
-		} else {
-			limits.AllowedCPUsReserved = append(limits.AllowedCPUsReserved, subGroupLimits.AllowedCPUsReserved...)
-		}
 	}
 
 	// Store the retrieved limits for the group
@@ -322,7 +315,7 @@ func (grp *Group) getgroupQuotaAllocations(allQuotas map[string]*GroupQuotaAlloc
 // validateMemoryResourceFit locates the nearest parent group that has a memory quota, and then verifies
 // if that group has any space available by checking its 'memoryReserved'. The 'memoryReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
-func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*GroupQuotaAllocations, memoryLimit quantity.Size) error {
+func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllocations, memoryLimit quantity.Size) error {
 	parent := grp.parentGroup
 	for parent != nil {
 		limits := allQuotas[parent.Name]
@@ -342,7 +335,7 @@ func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*GroupQuotaAllo
 // validateCPUResourceFit locates the nearest parent group that has a cpu quota, and then verifies
 // if that group has any space available by checking its 'cpuReserved'. The 'cpuReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
-func (grp *Group) validateCPUResourceFit(allQuotas map[string]*GroupQuotaAllocations, cpuCount, cpuPercentage int) error {
+func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocations, cpuCount, cpuPercentage int) error {
 	parent := grp.parentGroup
 	for parent != nil {
 		limits := allQuotas[parent.Name]
@@ -371,7 +364,7 @@ func contains(s []int, e int) bool {
 
 // validateCPUsAllowedResourceFit locates the nearest parent group that has a cpu-set quota, and then verifies
 // that the requested cpu cores match a subset of the previously set allowance.
-func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*GroupQuotaAllocations, cpusAllowed []int) error {
+func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuotaAllocations, cpusAllowed []int) error {
 	parent := grp.parentGroup
 	for parent != nil {
 		limits := allQuotas[parent.Name]
@@ -391,7 +384,7 @@ func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*GroupQuot
 // validateThreadResourceFit locates the nearest parent group that has a thread quota, and then verifies
 // if that group has any space available by checking its 'threadsReserved'. The 'threadsReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
-func (grp *Group) validateThreadResourceFit(allQuotas map[string]*GroupQuotaAllocations, threadLimit int) error {
+func (grp *Group) validateThreadResourceFit(allQuotas map[string]*groupQuotaAllocations, threadLimit int) error {
 	parent := grp.parentGroup
 	for parent != nil {
 		limits := allQuotas[parent.Name]
@@ -423,8 +416,8 @@ func (grp *Group) validateQuotasFit(resourceLimits Resources) error {
 		upperParent = upperParent.parentGroup
 	}
 
-	allQuotas := make(map[string]*GroupQuotaAllocations)
-	upperParent.getgroupQuotaAllocations(allQuotas, grp)
+	allQuotas := make(map[string]*groupQuotaAllocations)
+	upperParent.getQuotaAllocations(allQuotas, grp)
 
 	// for each limit we want to set, we need to find the closes parent
 	// limit that matches it, and then verify against it's usage if we have room
