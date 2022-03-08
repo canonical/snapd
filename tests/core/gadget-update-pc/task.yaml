@@ -56,7 +56,7 @@ prepare: |
     cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
     system_seed=""
-    if os.query is-core20 ; then
+    if os.query is-core20 || os.query is-core22 ; then
         system_seed="--system-seed"
     fi
 
@@ -65,7 +65,7 @@ prepare: |
     echo 'this is foo-x2' > foo-x2.img
     cp foo-x2.img pc-snap/foo.img
     echo 'this is foo.cfg' > pc-snap/foo.cfg
-    if os.query is-core20; then
+    if os.query is-core20 || os.query is-core22; then
         echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
     fi
     sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
@@ -79,7 +79,7 @@ prepare: |
     echo 'this is updated foo-x3' > foo-x3.img
     cp foo-x3.img pc-snap/foo.img
     echo 'this is updated foo.cfg' > pc-snap/foo.cfg
-    if os.query is-core20; then
+    if os.query is-core20 || os.query is-core22; then
         echo 'this is updated foo-seed.cfg' > pc-snap/foo-seed.cfg
     fi
     echo 'this is bar.cfg' > pc-snap/bar.cfg
@@ -89,7 +89,7 @@ prepare: |
     {"snap-id": "$PC_SNAP_ID", "snap-revision": "$((START_REVISION+2))"}
     EOF
 
-    if os.query is-core20; then
+    if os.query is-core20 || os.query is-core22; then
         # on uc20, the pc snap we booted with is unasserted for extra debugging
         snap install pc_x1.snap --dangerous
     else
@@ -141,7 +141,7 @@ execute: |
     # - 'EFI System' is mounted at /boot/efi
 
     bootdir=/boot/efi
-    if os.query is-core20; then
+    if os.query is-core20 || os.query is-core22; then
         # /boot/efi is not mounted on UC20, so use the /run/mnt hierarchy
         bootdir=/run/mnt/ubuntu-boot
     fi
@@ -153,7 +153,7 @@ execute: |
         cp -av pc_x2.snap "$BLOB_DIR/"
 
         
-        if os.query is-core20; then
+        if os.query is-core20 || os.query is-core22; then
             # on uc20, the pc snap we booted with is unasserted for extra debugging
             snap install pc_x2.snap --dangerous
         else
@@ -180,7 +180,7 @@ execute: |
         dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-written.img
         test "$(cat foo-written.img)" = 'this is foo-x2'
 
-        if os.query is-core20; then
+        if os.query is-core20 || os.query is-core20; then
             # a filesystem structure entry was copied to the right place
             test "$(cat /run/mnt/ubuntu-seed/foo-seed.cfg)" = 'this is foo-seed.cfg'
 
@@ -194,7 +194,7 @@ execute: |
         snap ack "$p"
         cp -av pc_x3.snap "$BLOB_DIR/"
 
-        if os.query is-core20; then
+        if os.query is-core20 || os.query is-core22; then
             # on uc20, the pc snap we booted with is unasserted for extra debugging
             snap install pc_x3.snap --dangerous
         else
@@ -224,7 +224,7 @@ execute: |
         dd if='/dev/disk/by-partlabel/BIOS\x20Boot' skip="$szimg" bs=1 count="$szfoo" of=foo-updated-written.img
         test "$(cat foo-updated-written.img)" = 'this is updated foo-x3'
 
-        if os.query is-core20; then
+        if os.query is-core20 || os.query is-core22; then
             # a filesystem structure entry was copied to the right place
             test "$(cat /run/mnt/ubuntu-seed/foo-seed.cfg)" = 'this is updated foo-seed.cfg'
 

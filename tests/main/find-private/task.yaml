@@ -9,8 +9,11 @@ details: |
     the find results without specifying private search or without the owner logged) is
     performed.
 
-# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-*-ppc64el]
+systems:
+  # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
+  - -ubuntu-*-ppc64el
+  # TODO: issues with dbus
+  - -ubuntu-core-22-*
 
 restore: |
     snap logout || true

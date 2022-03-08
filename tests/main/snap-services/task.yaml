@@ -1,5 +1,9 @@
 summary: verify the output of 'snap services' command
 
+systems:
+  # TODO: dbus issue
+  - -ubuntu-core-22-*
+
 prepare: |
     snap set system experimental.user-daemons=true
 

@@ -26,6 +26,12 @@ execute: |
     snap model --serial --assertion | MATCH "authority-id: canonical"
     snap model --serial --assertion | MATCH "brand-id: canonical"
     case "$SPREAD_SYSTEM" in
+        ubuntu-core-22-64)
+            snap model --serial --assertion | MATCH "model: ubuntu-core-22-amd64"
+            ;;
+        ubuntu-core-22-arm-*)
+            snap model --serial --assertion | MATCH "model: ubuntu-core-22-$gadget_name"
+            ;;
         ubuntu-core-20-64)
             snap model --serial --assertion | MATCH "model: ubuntu-core-20-amd64"
             ;;

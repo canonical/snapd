@@ -30,7 +30,9 @@ execute: |
         TARGET_SNAP_NAME=core18
     elif os.query is-core20; then
         TARGET_SNAP_NAME=core20
-    fi    
+    elif os.query is-core22; then
+        TARGET_SNAP_NAME=core22
+    fi
 
     # After installing a new version of the core/core18 snap the system is rebooted
     if [ "$SPREAD_REBOOT" = 0 ]; then

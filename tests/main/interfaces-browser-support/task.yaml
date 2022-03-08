@@ -35,6 +35,7 @@ prepare: |
     sed "s/@ALLOW_SANDBOX@/$ALLOW_SANDBOX/" browser-support-consumer/meta/snap.yaml.in > browser-support-consumer/meta/snap.yaml
     chmod 644 browser-support-consumer/meta/snap.yaml
     "$TESTSTOOLS"/snaps-state install-local browser-support-consumer
+    touch created_dirs
 
 restore: |
     rm -f /var/tmp/test

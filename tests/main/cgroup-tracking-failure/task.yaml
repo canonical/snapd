@@ -17,6 +17,7 @@ systems:
     - ubuntu-core-16-*
     - ubuntu-core-18-*
     - ubuntu-core-20-*  # tracking works correctly, for completeness
+    - ubuntu-core-22-*  # tracking works correctly, for completeness
 
 prepare: |
     # This feature depends on the release-app-awareness feature
@@ -143,6 +144,12 @@ execute: |
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd.sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
+        ubuntu-core-22-*)
+            MATCH 'DEBUG: using session bus' <debug.txt
+            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            MATCH 'DEBUG: transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
+            MATCH '0::/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
+            ;;
         *)
             echo "unexpected system $SPREAD_SYSTEM"
             exit 1
@@ -222,7 +229,7 @@ execute: |
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-21.10-*)
+        ubuntu-21.10-*|ubuntu-core-22-*)
             # Same as Ubuntu 20.04, but the system uses a unified cgroup hierarchy
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt

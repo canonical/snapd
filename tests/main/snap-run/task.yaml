@@ -1,8 +1,11 @@
 summary: Check that `snap run` runs
 
-# strace does not support _newselect on s390x
-# (https://github.com/strace/strace/issues/57)
-systems: [-*-s390x]
+systems:
+  # strace does not support _newselect on s390x
+  # (https://github.com/strace/strace/issues/57)
+  - -*-s390x
+  # TODO: segfault on core22
+  - -ubuntu-core-22-*
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
