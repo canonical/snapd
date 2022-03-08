@@ -82,6 +82,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "sshd.service"},
 		{"unmask", "sshd.service"},
 		{"--no-reload", "enable", "sshd.service"},
+		{"daemon-reload"},
 		{"start", "sshd.service"},
 	})
 }
@@ -297,6 +298,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 					{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srv},
 					{"unmask", srv},
 					{"--no-reload", "enable", srv},
+					{"daemon-reload"},
 					{"start", srv},
 				})
 			} else {
