@@ -184,6 +184,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		if err := sysd.Mask(serviceName); err != nil {
 			return err
 		}
+		// mask triggered a reload already
 		if opts == nil {
 			return sysd.Stop(units, 5*time.Minute)
 		}
@@ -193,6 +194,10 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		}
 		if opts == nil {
 			if err := sysd.Enable(units); err != nil {
+				return err
+			}
+			// enable does not trigger reloads, so issue one now
+			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
 		}
