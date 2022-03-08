@@ -4325,7 +4325,9 @@ func (s *snapmgrTestSuite) TestInstallMigrateData(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 
 	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), Not(IsNil))
-	assertMigrationState(c, s.state, "some-snap", true)
+
+	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	assertMigrationState(c, s.state, "some-snap", expected)
 }
 
 func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
@@ -4350,7 +4352,7 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFails(c *C) {
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
 	// we fail between writing the sequence file and the state
-	assertMigrationInSeqFile(c, "some-snap", false)
+	assertMigrationInSeqFile(c, "some-snap", nil)
 
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
@@ -4388,7 +4390,7 @@ func (s *snapmgrTestSuite) TestUndoMigrationIfInstallFailsAfterSettingState(c *C
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
 	// fail after writing seq file but before writing state
-	assertMigrationInSeqFile(c, "some-snap", false)
+	assertMigrationInSeqFile(c, "some-snap", nil)
 
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), Equals, state.ErrNoState)
@@ -5047,4 +5049,24 @@ type: base
 
 	op := s.fakeBackend.ops.First("storesvc-snap-action")
 	c.Assert(op, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(context.Background(), s.state, "snap-for-core24", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install", "install a snap")
+	chg.AddAll(ts)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	containsInOrder(c, s.fakeBackend.ops, []string{"hide-snap-data", "init-exposed-snap-home"})
+
+	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
+	assertMigrationState(c, s.state, "snap-for-core24", expected)
 }

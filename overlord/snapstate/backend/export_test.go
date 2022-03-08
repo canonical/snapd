@@ -22,9 +22,7 @@ package backend
 import (
 	"os"
 	"os/exec"
-	"os/user"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 )
 
@@ -47,14 +45,6 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	commandFromSystemSnap = f
 	return func() {
 		commandFromSystemSnap = old
-	}
-}
-
-func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) func() {
-	old := allUsers
-	allUsers = f
-	return func() {
-		allUsers = old
 	}
 }
 

@@ -7484,3 +7484,65 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
 	c.Assert(tsNew, IsNil)
 }
+
+func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
+	testCases := []struct {
+		newBase  string
+		opts     snapstate.DirMigrationOptions
+		expected snapstate.Migration
+	}{
+		// refreshing to core22 or later
+		{
+			newBase:  "core22",
+			expected: snapstate.Full,
+		},
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, UseHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core24",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, UseHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core24",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.None,
+		},
+		// reverting to another core22
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.None,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true},
+			expected: snapstate.RevertHidden,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.RevertHidden,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true, UseHidden: true},
+			expected: snapstate.None,
+		},
+	}
+
+	for _, t := range testCases {
+		action := snapstate.TriggeredMigration(t.newBase, &t.opts)
+		if action != t.expected {
+			c.Errorf("expected install of %q w/ %+v to result in %q but got %q", t.newBase, t.opts, t.expected, action)
+		}
+	}
+}
