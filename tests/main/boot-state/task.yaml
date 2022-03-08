@@ -1,6 +1,6 @@
 summary: smoke test for the boot-state tool
 
-backends: [google]
+backends: [google, qemu]
 
 execute: |
     # Check help

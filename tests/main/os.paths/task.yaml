@@ -1,6 +1,6 @@
 summary: smoke test for the os.paths tool
 
-backends: [google]
+backends: [google, qemu]
 
 execute: |
     # Check help

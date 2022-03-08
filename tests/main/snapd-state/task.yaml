@@ -1,6 +1,6 @@
 summary: smoke test for the snapd-state test tool
 
-backends: [google]
+backends: [google, qemu]
 
 prepare: |
     snap install test-snapd-tools

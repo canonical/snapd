@@ -1,6 +1,6 @@
 summary: smoke test for the snaps-state tool
 
-backends: [google]
+backends: [google, qemu]
 
 prepare: |
     snap set system experimental.parallel-instances=true
