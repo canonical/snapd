@@ -191,6 +191,173 @@ func (s *backendSuite) TestName(c *C) {
 	c.Check(s.Backend.Name(), Equals, interfaces.SecurityAppArmor)
 }
 
+type expSnapConfineTransitionRules struct {
+	usrBinSnapRules   bool
+	usrLibSnapdTarget string
+	coreSnapTarget    string
+	snapdSnapTarget   string
+}
+
+func checkProfileExtraRules(c *C, profile string, exp expSnapConfineTransitionRules) {
+	if exp.usrBinSnapRules {
+		c.Assert(profile, testutil.FileContains, "  /usr/bin/snap ixr,")
+		c.Assert(profile, testutil.FileContains, " /snap/{snapd,core}/*/usr/bin/snap ixr,")
+	} else {
+		c.Assert(profile, Not(testutil.FileContains), "/usr/bin/snap")
+	}
+
+	if exp.usrLibSnapdTarget != "" {
+		rule := fmt.Sprintf("/usr/lib/snapd/snap-confine Pxr -> %s,", exp.usrLibSnapdTarget)
+		c.Assert(profile, testutil.FileContains, rule)
+	} else {
+		c.Assert(profile, Not(testutil.FileMatches), "/usr/lib/snapd/snap-confine")
+	}
+
+	if exp.coreSnapTarget != "" {
+		rule := fmt.Sprintf("/snap/core/*/usr/lib/snapd/snap-confine Pxr -> %s,", exp.coreSnapTarget)
+		c.Assert(profile, testutil.FileContains, rule)
+	} else {
+		c.Assert(profile, Not(testutil.FileMatches), `/snap/core/\*/usr/lib/snapd/snap-confine`)
+	}
+
+	if exp.snapdSnapTarget != "" {
+		rule := fmt.Sprintf("/snap/snapd/*/usr/lib/snapd/snap-confine Pxr -> %s,", exp.snapdSnapTarget)
+		c.Assert(profile, testutil.FileContains, rule)
+	} else {
+		c.Assert(profile, Not(testutil.FileMatches), `/snap/snapd/\*/usr/lib/snapd/snap-confine`)
+	}
+}
+
+func (s *backendSuite) TestInstallingDevmodeSnapCoreSnapOnlyExtraRules(c *C) {
+	// re-initialize with new options
+	backendOpts := &interfaces.SecurityBackendOptions{
+		CoreSnapInfo: ifacetest.DefaultInitializeOpts.CoreSnapInfo,
+	}
+	err := s.Backend.Initialize(backendOpts)
+	c.Assert(err, IsNil)
+
+	devMode := interfaces.ConfinementOptions{DevMode: true}
+	s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1, 1)
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+
+	checkProfileExtraRules(c, profile, expSnapConfineTransitionRules{
+		usrBinSnapRules:   true,
+		usrLibSnapdTarget: "/usr/lib/snapd/snap-confine",
+		coreSnapTarget:    "/snap/core/123/usr/lib/snapd/snap-confine",
+	})
+}
+
+func (s *backendSuite) TestInstallingDevmodeSnapSnapdSnapOnlyExtraRules(c *C) {
+	// re-initialize with new options
+	backendOpts := &interfaces.SecurityBackendOptions{
+		SnapdSnapInfo: ifacetest.DefaultInitializeOpts.SnapdSnapInfo,
+	}
+	err := s.Backend.Initialize(backendOpts)
+	c.Assert(err, IsNil)
+
+	devMode := interfaces.ConfinementOptions{DevMode: true}
+	s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1, 1)
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+
+	checkProfileExtraRules(c, profile, expSnapConfineTransitionRules{
+		usrBinSnapRules:   true,
+		usrLibSnapdTarget: "/snap/snapd/321/usr/lib/snapd/snap-confine",
+		snapdSnapTarget:   "/snap/snapd/321/usr/lib/snapd/snap-confine",
+	})
+}
+
+func (s *backendSuite) TestInstallingDevmodeSnapBothSnapdAndCoreSnapOnlyExtraRulesCore(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	// re-initialize with new options
+	backendOpts := &interfaces.SecurityBackendOptions{
+		SnapdSnapInfo: ifacetest.DefaultInitializeOpts.SnapdSnapInfo,
+		CoreSnapInfo:  ifacetest.DefaultInitializeOpts.CoreSnapInfo,
+	}
+	err := s.Backend.Initialize(backendOpts)
+	c.Assert(err, IsNil)
+
+	devMode := interfaces.ConfinementOptions{DevMode: true}
+	// snap base is core, but we are not on classic
+	s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1, 1)
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	checkProfileExtraRules(c, profile, expSnapConfineTransitionRules{
+		usrBinSnapRules:   true,
+		usrLibSnapdTarget: "/snap/snapd/321/usr/lib/snapd/snap-confine",
+		snapdSnapTarget:   "/snap/snapd/321/usr/lib/snapd/snap-confine",
+		coreSnapTarget:    "/snap/core/123/usr/lib/snapd/snap-confine",
+	})
+}
+
+func (s *backendSuite) TestInstallingDevmodeSnapBothSnapdAndCoreSnapOnlyExtraRulesClassic(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	// re-initialize with new options
+	backendOpts := &interfaces.SecurityBackendOptions{
+		SnapdSnapInfo: ifacetest.DefaultInitializeOpts.SnapdSnapInfo,
+		CoreSnapInfo:  ifacetest.DefaultInitializeOpts.CoreSnapInfo,
+	}
+	err := s.Backend.Initialize(backendOpts)
+	c.Assert(err, IsNil)
+
+	devMode := interfaces.ConfinementOptions{DevMode: true}
+	// base core snap
+	s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1, 1)
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	checkProfileExtraRules(c, profile, expSnapConfineTransitionRules{
+		usrBinSnapRules:   true,
+		usrLibSnapdTarget: "/snap/core/123/usr/lib/snapd/snap-confine",
+		snapdSnapTarget:   "/snap/snapd/321/usr/lib/snapd/snap-confine",
+		coreSnapTarget:    "/snap/core/123/usr/lib/snapd/snap-confine",
+	})
+}
+
+func (s *backendSuite) TestInstallingDevmodeSnapNonCoreBaseBothSnapdAndCoreSnapOnlyExtraRulesClassic(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	// re-initialize with new options
+	backendOpts := &interfaces.SecurityBackendOptions{
+		SnapdSnapInfo: ifacetest.DefaultInitializeOpts.SnapdSnapInfo,
+		CoreSnapInfo:  ifacetest.DefaultInitializeOpts.CoreSnapInfo,
+	}
+	err := s.Backend.Initialize(backendOpts)
+	c.Assert(err, IsNil)
+
+	devMode := interfaces.ConfinementOptions{DevMode: true}
+	// non-base core
+	s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1Core20Base, 1)
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+	checkProfileExtraRules(c, profile, expSnapConfineTransitionRules{
+		usrBinSnapRules:   true,
+		usrLibSnapdTarget: "/snap/snapd/321/usr/lib/snapd/snap-confine",
+		snapdSnapTarget:   "/snap/snapd/321/usr/lib/snapd/snap-confine",
+		coreSnapTarget:    "/snap/core/123/usr/lib/snapd/snap-confine",
+	})
+}
+
+func (s *backendSuite) TestInstallingDevmodeSnapNeitherSnapdNorCoreSnapInstalledPanicsLikeUC16InitialSeedWithDevmodeSnapInSeed(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	// neither snap is installed
+	backendOpts := &interfaces.SecurityBackendOptions{}
+	err := s.Backend.Initialize(backendOpts)
+	c.Assert(err, IsNil)
+
+	devMode := interfaces.ConfinementOptions{DevMode: true}
+	c.Assert(func() {
+		s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1, 1)
+	}, PanicMatches, "neither snapd nor core snap available while preparing apparmor profile for devmode snap samba, panicing to restart snapd to continue seeding")
+}
+
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
 	updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.samba")
