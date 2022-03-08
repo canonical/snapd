@@ -97,7 +97,9 @@ func (s *launcherSuite) TestOpenURLWithAllowedSchemeHappy(c *C) {
 	}
 }
 
-func (s *launcherSuite) testOpenURLWithFallbackHappy(c *C, desktopFileName string) {
+func (s *launcherSuite) testOpenURLWithFallbackAndUserYes(c *C, desktopFileName string) {
+	restore := mockUICommands(c, "true")
+	defer restore()
 	mockXdgMime := testutil.MockCommand(c, "xdg-mime", fmt.Sprintf(`echo "%s"`, desktopFileName))
 	defer mockXdgMime.Restore()
 	defer s.mockXdgOpen.ForgetCalls()
@@ -106,6 +108,20 @@ func (s *launcherSuite) testOpenURLWithFallbackHappy(c *C, desktopFileName strin
 	c.Assert(s.mockXdgOpen.Calls(), DeepEquals, [][]string{
 		{"xdg-open", "fallback-scheme://snapcraft.io"},
 	})
+	c.Assert(mockXdgMime.Calls(), DeepEquals, [][]string{
+		{"xdg-mime", "query", "default", "x-scheme-handler/fallback-scheme"},
+	})
+}
+
+func (s *launcherSuite) testOpenURLWithFallbackAndUserNo(c *C, desktopFileName string) {
+	restore := mockUICommands(c, "false")
+	defer restore()
+	mockXdgMime := testutil.MockCommand(c, "xdg-mime", fmt.Sprintf(`echo "%s"`, desktopFileName))
+	defer mockXdgMime.Restore()
+	defer s.mockXdgOpen.ForgetCalls()
+	err := s.launcher.OpenURL("fallback-scheme://snapcraft.io", ":some-dbus-sender")
+	c.Assert(err, ErrorMatches, `Supplied URL scheme "fallback-scheme" is not allowed`)
+	c.Assert(s.mockXdgOpen.Calls(), HasLen, 0)
 	c.Assert(mockXdgMime.Calls(), DeepEquals, [][]string{
 		{"xdg-mime", "query", "default", "x-scheme-handler/fallback-scheme"},
 	})
@@ -123,9 +139,12 @@ func (s *launcherSuite) testOpenURLWithFallbackInvalidDesktopFile(c *C, desktopF
 }
 
 func (s *launcherSuite) TestOpenURLWithFallback(c *C) {
-	s.testOpenURLWithFallbackHappy(c, "open-this-scheme.desktop")
-	s.testOpenURLWithFallbackHappy(c, "open.this.scheme.desktop")
-	s.testOpenURLWithFallbackHappy(c, "org._7_zip.Archiver.desktop")
+	s.testOpenURLWithFallbackAndUserYes(c, "open-this-scheme.desktop")
+	s.testOpenURLWithFallbackAndUserYes(c, "open.this.scheme.desktop")
+	s.testOpenURLWithFallbackAndUserYes(c, "org._7_zip.Archiver.desktop")
+	// now user picks No in the dialog
+	s.testOpenURLWithFallbackAndUserNo(c, "open-this-scheme.desktop")
+	// invalid handlers
 	s.testOpenURLWithFallbackInvalidDesktopFile(c, "1.2.3.4.desktop")
 	s.testOpenURLWithFallbackInvalidDesktopFile(c, "1org.foo.bar.desktop")
 	s.testOpenURLWithFallbackInvalidDesktopFile(c, "foo bar baz.desktop")

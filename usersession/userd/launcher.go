@@ -160,18 +160,21 @@ func checkOnClassic() *dbus.Error {
 // see https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#file-naming
 var validDesktopFileName = regexp.MustCompile(`^[A-Za-z-_][A-Za-z0-9-_]*(\.[A-Za-z-_][A-Za-z0-9-_]*)*\.desktop$`)
 
-func schemeHasHandler(scheme string) (bool, error) {
+func schemeHandler(scheme string) (string, error) {
 	cmd := exec.Command("xdg-mime", "query", "default", "x-scheme-handler/"+scheme)
 	// TODO: consider using Output() in case xdg-mime starts logging to
 	// stderr
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return false, osutil.OutputErr(out, err)
+		return "", osutil.OutputErr(out, err)
 	}
 	out = bytes.TrimSpace(out)
 	// if the output is a valid desktop file we have a handler for the given
 	// scheme
-	return validDesktopFileName.Match(out), nil
+	if validDesktopFileName.Match(out) {
+		return string(out), nil
+	}
+	return "", nil
 }
 
 // OpenURL implements the 'OpenURL' method of the 'io.snapcraft.Launcher'
@@ -196,9 +199,23 @@ func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
 		// scheme is not listed in our allowed schemes list, perform
 		// fallback and check whether the local system has a handler for
 		// it
-		isAllowed, err = schemeHasHandler(u.Scheme)
+		handler, err := schemeHandler(u.Scheme)
 		if err != nil {
 			logger.Noticef("cannot obtain scheme handler for %q: %v", u.Scheme, err)
+		} else if handler != "" {
+			// we have a handler, let's ask the user
+			dialog, err := ui.New()
+			if err == nil {
+				answeredYes := dialog.YesNo(
+					i18n.G("Allow opening a URL?"),
+					fmt.Sprintf(i18n.G("Allow application %q to open URL %s?"), handler, addr),
+					&ui.DialogOptions{
+						Timeout: 5 * 60 * time.Second,
+						Footer:  i18n.G("This dialog will close automatically after 5 minutes of inactivity."),
+					},
+				)
+				isAllowed = answeredYes
+			}
 		}
 	}
 	if !isAllowed {
