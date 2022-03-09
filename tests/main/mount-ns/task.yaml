@@ -73,6 +73,12 @@ environment:
     MACHINE_STATE/reboot: reboot
 
 prepare: |
+    # The package qemu-utils creates a tmpfs on /run/qemu on Ubuntu 18.04
+    # (though not always). This causes failures in this test, as the
+    # mount-point list is not consistent with what we expect. Therefore,
+    # unmount it.
+    umount /run/qemu || true
+
     case "$MACHINE_STATE" in
         inherit)
             # The test will run with whatever the machine state was originally.

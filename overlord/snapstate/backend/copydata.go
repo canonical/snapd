@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -37,6 +38,17 @@ var (
 	allUsers      = snap.AllUsers
 	mkdirAllChown = osutil.MkdirAllChown
 )
+
+// MockAllUsers allows tests to mock snap.AllUsers. Panics if called outside of
+// tests.
+func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) func() {
+	osutil.MustBeTestBinary("MockAllUsers can only be called in tests")
+	old := allUsers
+	allUsers = f
+	return func() {
+		allUsers = old
+	}
+}
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
 func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
