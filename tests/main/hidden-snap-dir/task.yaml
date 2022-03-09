@@ -20,17 +20,22 @@ execute: |
       exit 0
     fi
 
-    # Checks that the env vars are as expected after the migration. 1st parameter
-    # is the current revision; 2nd parameter toggles ~/Snap related checks
-    # ("true" does the checks, anything else doesn't)
+    # Checks that the env vars are as expected after the migration.
     check_env() {
+      local CHECK_EXPOSED_HOME="no"
+      if [ "$1" = "--with-exposed-home" ]; then
+        CHECK_EXPOSED_HOME="yes"
+        shift
+      fi
+
       echo "Check the env vars were migrated"
+      local REV="$1"
 
       snapEnv=$("$NAME".env)
-      echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/$1"
+      echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/$REV"
       echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
 
-      if [ "$2" = "true" ]; then
+      if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
         echo "Checking core22 migration related env vars"
         echo "$snapEnv" | MATCH "HOME=$HOME/Snap"
         echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap"
@@ -42,42 +47,54 @@ execute: |
       fi
     }
 
-    # Checks that the snap dirs are as expected after the migration. 1st parameter
-    # is the current revision. 2nd parameter toggles ~/Snap related checks
-    # ("true" does the checks, anything else doesn't)
+    # Checks that the snap dirs are as expected after the migration.
     check_dirs() {
+      local CHECK_EXPOSED_HOME="no"
+      if [ "$1" = "--with-exposed-home" ]; then
+        CHECK_EXPOSED_HOME="yes"
+        shift
+      fi
+
       echo "Check directories were migrated"
+      local REV="$1"
 
       test -d "$HOME/.snap/data/$NAME"
       test -d "$HOME/.snap/data/$NAME/common"
-      test -d "$HOME/.snap/data/$NAME/$1"
-      if [ "$(readlink "$HOME/.snap/data/$NAME/current")" != "$1" ]; then
+      test -d "$HOME/.snap/data/$NAME/$REV"
+      if [ "$(readlink "$HOME/.snap/data/$NAME/current")" != "$REV" ]; then
         echo "expected 'current' to point to new revision after refresh"
         exit 1
       fi
 
       not test -d "$HOME/snap/$NAME"
 
-      if [ "$2" = "true" ]; then
+      if [ "$2" = "yes" ]; then
         echo "Checking core22 migration related dirs"
         test -d "$HOME/Snap/$NAME"
-        test -d "$HOME/.snap/data/$NAME/$1/data"
-        test -d "$HOME/.snap/data/$NAME/$1/config"
-        test -d "$HOME/.snap/data/$NAME/$1/cache"
+        test -d "$HOME/.snap/data/$NAME/$REV/data"
+        test -d "$HOME/.snap/data/$NAME/$REV/config"
+        test -d "$HOME/.snap/data/$NAME/$REV/cache"
       fi
     }
 
     # Checks that there is a file named 'file' in the new dirs containing the
-    # expected data. 1st parameter is the current revision; 2nd parameter is
-    # the expected file contents; 3rd parameter toggles ~/Snap related checks
+    # expected data
     check_data() {
+      local CHECK_EXPOSED_HOME="no"
+      if [ "$1" = "--with-exposed-home" ]; then
+        CHECK_EXPOSED_HOME="yes"
+        shift
+      fi
+
       echo "Check that the written data was migrated"
+      local REV="$1"
+      local EXPECTED_DATA="$2"
 
-      MATCH "$2" < "$HOME/.snap/data/$NAME/common/file"
-      MATCH "$2" < "$HOME/.snap/data/$NAME/$1/file"
+      MATCH "$EXPECTED_DATA" < "$HOME/.snap/data/$NAME/common/file"
+      MATCH "$EXPECTED_DATA" < "$HOME/.snap/data/$NAME/$REV/file"
 
-      if [ "$3" = "true" ]; then
-        MATCH "$2" < "$HOME/Snap/$NAME/file"
+      if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
+        MATCH "$EXPECTED_DATA" < "$HOME/Snap/$NAME/file"
       fi
     }
 
@@ -106,11 +123,11 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     # Check env vars, dirs and data after the migration
-    check_env "x2" ""
+    check_env "x2"
     # Note: some dirs are created just before the snap runs for the 1st time,
     # so this check must come after a snap run
     check_dirs "x2" ""
-    check_data "x2" "$data" ""
+    check_data "x2" "$data"
 
     echo "Check the snap can write to the new dirs"
     #shellcheck disable=SC2016
@@ -118,7 +135,7 @@ execute: |
     #shellcheck disable=SC2016
     "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_COMMON"/file'
 
-    check_data "x2" "new_data" ""
+    check_data "x2" "new_data"
 
     echo "Restore snapshot and check data was restored"
     snap restore "$snapshot"
@@ -128,13 +145,13 @@ execute: |
     snap remove --purge "$NAME"
     "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
-    check_env "x1" ""
-    check_dirs "x1" ""
+    check_env "x1"
+    check_dirs "x1"
 
     data="new_data"
     "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/x1/file"
     "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/common/file"
-    check_data "x1" "$data" ""
+    check_data "x1" "$data"
 
     echo "Revert migration (unset flag and refresh)"
     snap unset system experimental.hidden-snap-folder
@@ -163,6 +180,6 @@ execute: |
     snap pack "$TESTSLIB/snaps/$NAME"
     snap install --dangerous "$NAME"_1.0_all.snap
 
-    check_env "x3" "true"
-    check_dirs "x3" "true"
-    check_data "x3" "$data" "true"
+    check_env "--with-exposed-home" "x3"
+    check_dirs "--with-exposed-home" "x3"
+    check_data "--with-exposed-home" "x3" "$data"
