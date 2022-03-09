@@ -79,7 +79,7 @@ def insert(db, col, metadata, value):
         created_at = datetime.now().isoformat("T", "seconds")
 
     json_value["created_at"] = created_at
-    metadata_value = _get_json(value)
+    metadata_value = _get_json(metadata)
     json_value["metadata"] = metadata_value
 
     db[col].insert_one(json_value)
