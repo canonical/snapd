@@ -22,13 +22,13 @@ execute: |
 
     # Checks that the env vars are as expected after the migration.
     check_env() {
+      echo "Check the env vars were migrated"
+
       local CHECK_EXPOSED_HOME="no"
       if [ "$1" = "--with-exposed-home" ]; then
         CHECK_EXPOSED_HOME="yes"
         shift
       fi
-
-      echo "Check the env vars were migrated"
       local REV="$1"
 
       snapEnv=$("$NAME".env)
@@ -49,13 +49,13 @@ execute: |
 
     # Checks that the snap dirs are as expected after the migration.
     check_dirs() {
+      echo "Check directories were migrated"
+
       local CHECK_EXPOSED_HOME="no"
       if [ "$1" = "--with-exposed-home" ]; then
         CHECK_EXPOSED_HOME="yes"
         shift
       fi
-
-      echo "Check directories were migrated"
       local REV="$1"
 
       test -d "$HOME/.snap/data/$NAME"
@@ -68,7 +68,7 @@ execute: |
 
       not test -d "$HOME/snap/$NAME"
 
-      if [ "$2" = "yes" ]; then
+      if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
         echo "Checking core22 migration related dirs"
         test -d "$HOME/Snap/$NAME"
         test -d "$HOME/.snap/data/$NAME/$REV/data"
@@ -80,13 +80,13 @@ execute: |
     # Checks that there is a file named 'file' in the new dirs containing the
     # expected data
     check_data() {
+      echo "Check that the written data was migrated"
+
       local CHECK_EXPOSED_HOME="no"
       if [ "$1" = "--with-exposed-home" ]; then
         CHECK_EXPOSED_HOME="yes"
         shift
       fi
-
-      echo "Check that the written data was migrated"
       local REV="$1"
       local EXPECTED_DATA="$2"
 
