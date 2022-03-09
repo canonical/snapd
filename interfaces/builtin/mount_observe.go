@@ -43,6 +43,9 @@ owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
 owner @{PROC}/@{pid}/mountstats r,
 /sys/devices/*/block/{,**} r,
+# Some applications look at pid 1's info when operating as non-root
+@{PROC}/1/mounts r,
+@{PROC}/1/mountinfo r,
 
 @{PROC}/swaps r,
 
