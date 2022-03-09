@@ -296,6 +296,14 @@ dbus (receive, send)
     path=/org/freedesktop
     interface=org.freedesktop.DBus.ObjectManager
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# nmcli uses this in newer versions
+dbus (receive, send)
+   bus=system
+   path=/org/freedesktop/DBus
+   interface=org.freedesktop.DBus
+   member=GetConnectionUnixUser
+   peer=(label=unconfined),
 `
 
 const networkManagerConnectedPlugIntrospectionSnippet = `
