@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -903,4 +904,183 @@ func (s *copydataSuite) TestUndoHideKeepGoingPreserveFirstErr(c *C) {
 	c.Assert(err, ErrorMatches, `cannot remove dir ".*": first error`)
 	// the undo keeps going and logs the next error
 	c.Assert(buf, Matches, `.*cannot remove dir ".*": other error\n`)
+}
+
+func (s *copydataSuite) TestInitSnapUserHome(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(usr.HomeDir, snapName, rev, opts)
+	c.Assert(os.MkdirAll(revDir, 0700), IsNil)
+
+	filePath := filepath.Join(revDir, "file")
+	c.Assert(ioutil.WriteFile(filePath, []byte("stuff"), 0664), IsNil)
+	dirPath := filepath.Join(revDir, "dir")
+	c.Assert(os.Mkdir(dirPath, 0775), IsNil)
+
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
+
+	expectedFile := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName, "file")
+	data, err := ioutil.ReadFile(expectedFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), Equals, "stuff")
+
+	exists, isReg, err := osutil.RegularFileExists(filePath)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isReg, Equals, true)
+
+	expectedDir := filepath.Join(homeDir, dirs.ExposedSnapHomeDir, snapName, "dir")
+	exists, isDir, err := osutil.DirExists(expectedDir)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isDir, Equals, true)
+
+	exists, isDir, err = osutil.DirExists(dirPath)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isDir, Equals, true)
+}
+
+func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
+	usr1, err := user.Current()
+	c.Assert(err, IsNil)
+	usr1.HomeDir = filepath.Join(s.tempdir, "user1")
+
+	usr2, err := user.Current()
+	c.Assert(err, IsNil)
+	usr2.HomeDir = filepath.Join(s.tempdir, "user2")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr1, usr2}, nil
+	})
+	defer restore()
+
+	restore = backend.MockMkdirAllChown(func(string, os.FileMode, sys.UserID, sys.GroupID) error {
+		return errors.New("boom")
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, ".*: boom")
+
+	exists, _, err := osutil.DirExists(filepath.Join(usr1.HomeDir, dirs.ExposedSnapHomeDir))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	exists, _, err = osutil.DirExists(filepath.Join(usr2.HomeDir, dirs.ExposedSnapHomeDir))
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, false)
+}
+
+func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
+
+	newHomeDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapHomeDir, snapName)
+	exists, _, err := osutil.DirExists(newHomeDir)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+
+	entries, err := ioutil.ReadDir(newHomeDir)
+	c.Assert(err, IsNil)
+	c.Check(entries, HasLen, 0)
+}
+
+func (s *copydataSuite) TestRemoveExposedHome(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	exposedDir := filepath.Join(usr.HomeDir, dirs.ExposedSnapHomeDir, snapName)
+	c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0600), IsNil)
+
+	c.Assert(s.be.RemoveExposedSnapHome(snapName), IsNil)
+
+	exists, _, err := osutil.DirExists(exposedDir)
+	c.Assert(err, IsNil)
+	c.Assert(exists, Equals, false)
+
+	baseExposedDir := filepath.Base(exposedDir)
+	exists, _, err = osutil.DirExists(baseExposedDir)
+	c.Assert(err, IsNil)
+	c.Assert(exists, Equals, false)
+}
+
+func (s *copydataSuite) TestRemoveExposedKeepGoingOnFail(c *C) {
+	firstTime := true
+	restore := backend.MockRemoveIfEmpty(func(dir string) error {
+		var err error
+		if firstTime {
+			err = errors.New("first error")
+			firstTime = false
+		} else {
+			err = errors.New("other error")
+		}
+
+		return err
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	var usrs []*user.User
+	for _, usrName := range []string{"usr1", "usr2"} {
+		homedir := filepath.Join(s.tempdir, usrName)
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = homedir
+
+		exposedDir := filepath.Join(homedir, dirs.ExposedSnapHomeDir, snapName)
+		c.Assert(os.MkdirAll(exposedDir, 0700), IsNil)
+		c.Assert(ioutil.WriteFile(filepath.Join(exposedDir, "file"), []byte("foo"), 0700), IsNil)
+		usrs = append(usrs, usr)
+	}
+
+	restUsers := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return usrs, nil
+	})
+	defer restUsers()
+
+	buf, restLogger := logger.MockLogger()
+	defer restLogger()
+
+	err := s.be.RemoveExposedSnapHome(snapName)
+	// the first error is returned
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot remove %q: first error`, filepath.Join(s.tempdir, "usr1", "Snap")))
+	// second error is logged
+	c.Assert(buf, Matches, fmt.Sprintf(`.*cannot remove %q: other error\n`, filepath.Join(s.tempdir, "usr2", "Snap")))
 }

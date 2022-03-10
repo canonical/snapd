@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2018 Canonical Ltd
+# Copyright (C) 2022 Canonical Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -14,22 +14,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import argparse
+import binascii
+import hashlib
+import itertools
 import logging
 import os
 import subprocess
-import argparse
-import itertools
-import hashlib
-import binascii
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
-from multiprocessing import cpu_count
-from typing import Dict
-from pathlib import Path
-from collections import namedtuple
-
-
 import yaml
+
+from collections import namedtuple
+from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import cpu_count
+from pathlib import Path
+from threading import Lock
+from typing import Dict
 
 
 # default shell for shellcheck

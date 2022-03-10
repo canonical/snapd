@@ -785,10 +785,9 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				usrLibSnapdConfineTransitionTarget = snapdProfileTarget()
 			case b.snapdSnap != nil && b.coreSnap != nil:
 				// both are installed - need to check which one to use
-				// TODO: is snapInfo.Base sometimes unset for snaps w/o bases
-				// these days? maybe this needs to be this instead ?
-				// if release.OnClassic && (snapInfo.Base == "core" || snapInfo.Base == "")
-				if release.OnClassic && snapInfo.Base == "core" {
+				// note that a base of "core" is represented by base == "" for
+				// historical reasons
+				if release.OnClassic && snapInfo.Base == "" {
 					// use the core snap as the target only if we are on
 					// classic and the base is core
 					usrLibSnapdConfineTransitionTarget = coreProfileTarget()

@@ -33,6 +33,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -43,6 +44,7 @@ import (
 	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -73,6 +75,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -168,6 +171,8 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	// needed for system key generation
 	s.AddCleanup(osutil.MockMountInfo(""))
+
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
@@ -8238,6 +8243,17 @@ func dumpTasks(c *C, when string, tasks []*state.Task) {
 func (s *mgrsSuite) TestRemodelUC20ToUC22(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	restore := osutil.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+
+	restore = backend.MockAllUsers(func(*dirs.SnapDirOptions) ([]*user.User, error) {
+		usr, err := user.Current()
+		if err != nil {
+			return nil, err
+		}
+
+		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, usr.HomeDir)
+		return []*user.User{usr}, nil
+	})
 	defer restore()
 
 	st := s.o.State()

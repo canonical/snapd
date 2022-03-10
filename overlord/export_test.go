@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -43,17 +44,11 @@ func MockEnsureInterval(d time.Duration) (restore func()) {
 
 // MockPruneInterval sets the overlord prune interval for tests.
 func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
-	oldPruneInterval := pruneInterval
-	oldPruneWait := pruneWait
-	oldAbortWait := abortWait
+	r := testutil.Backup(&pruneInterval, &pruneWait, &abortWait)
 	pruneInterval = prunei
 	pruneWait = prunew
 	abortWait = abortw
-	return func() {
-		pruneInterval = oldPruneInterval
-		pruneWait = oldPruneWait
-		abortWait = oldAbortWait
-	}
+	return r
 }
 
 // MockStateLockTimeout sets the overlord state lock timeout for the tests.
