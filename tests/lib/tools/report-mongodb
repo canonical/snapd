@@ -15,8 +15,8 @@ def _make_parser():
                         **environ_or_required('MONGO_HOST'))
     parser.add_argument('--port', help="Port for the mongo database",
                         **environ_or_required('MONGO_PORT'))
-    parser.add_argument('--db-name', help="Name for the database used to insert")
-    parser.add_argument('--db-collection', help="Name for the collection used to insert")
+    parser.add_argument('--db-name', help="Name for the database used to insert", required=True)
+    parser.add_argument('--db-collection', help="Name for the collection used to insert", required=True)
     parser.add_argument('--metadata', help="Matedata to be included in the insert")
     parser.add_argument("value", help="value to insert in the mongodb")
 
@@ -81,7 +81,6 @@ def insert(db, col, metadata, value):
     json_value["created_at"] = created_at
     metadata_value = _get_json(metadata)
     json_value["metadata"] = metadata_value
-
     db[col].insert_one(json_value)
     print("report-mongodb: json value inserted in db")
 
