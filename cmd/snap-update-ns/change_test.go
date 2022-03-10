@@ -29,6 +29,7 @@ import (
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -128,15 +129,64 @@ func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 
 // When mounting we mount the parents before the children.
 func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
+	existingDirectories := []string{}
+
+	restore := update.MockIsDirectory(func(path string) bool {
+		return strutil.ListContains(existingDirectories, path)
+	})
+	defer restore()
+
 	current := &osutil.MountProfile{}
 	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
-		{Dir: "/common/stuff/extra"},
-		{Dir: "/common/stuff"},
+		{Dir: "/c/stuff/dir/symlink1"},
+		{Dir: "/c/stuff/dir/file2", Options: []string{"x-snapd.kind=file"}},
+		{Dir: "/c/stuff/dir"},
+		{Dir: "/c/stuff"},
+		{Dir: "/c/stuff/dir/file1", Options: []string{"x-snapd.kind=file"}},
+	}}
+
+	for _, testData := range []struct {
+		existingDirs  []string
+		expectedOrder []string
+	}{
+		{
+			existingDirs:  []string{"/c"},
+			expectedOrder: []string{"/c/stuff", "/c/stuff/dir", "/c/stuff/dir/file1", "/c/stuff/dir/file2", "/c/stuff/dir/symlink1"},
+		},
+		{
+			existingDirs:  []string{"/c", "/c/stuff"},
+			expectedOrder: []string{"/c/stuff/dir", "/c/stuff/dir/file1", "/c/stuff/dir/file2", "/c/stuff/dir/symlink1", "/c/stuff"},
+		},
+		{
+			existingDirs:  []string{"/c", "/c/stuff", "/c/stuff/dir"},
+			expectedOrder: []string{"/c/stuff/dir/file1", "/c/stuff/dir/file2", "/c/stuff/dir/symlink1", "/c/stuff", "/c/stuff/dir"},
+		},
+	} {
+		existingDirectories = testData.existingDirs
+		changes := update.NeededChanges(current, desired)
+
+		// Check that every change is sane, and extract their path in order
+		actualOrder := make([]string, 0, len(changes))
+		for _, change := range changes {
+			c.Check(change.Action, Equals, update.Mount)
+			actualOrder = append(actualOrder, change.Entry.Dir)
+		}
+
+		c.Check(actualOrder, DeepEquals, testData.expectedOrder,
+			Commentf("Existing dirs: %q", existingDirectories))
+	}
+}
+
+func (s *changeSuite) TestNeededChangesKind(c *C) {
+	current := &osutil.MountProfile{}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Dir: "/common/file", Options: []string{"x-snapd.kind=file"}},
+		{Dir: "/common/symlink", Options: []string{"x-snapd.kind=symlink"}},
 	}}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Mount},
-		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Dir: "/common/file", Options: []string{"x-snapd.kind=file"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Dir: "/common/symlink", Options: []string{"x-snapd.kind=symlink"}}, Action: update.Mount},
 	})
 }
 

@@ -47,6 +47,11 @@ const (
 )
 
 var (
+	// function calls for mocking
+	osutilIsDirectory = osutil.IsDirectory
+)
+
+var (
 	// ErrIgnoredMissingMount is returned when a mount entry has
 	// been marked with x-snapd.ignore-missing, and the mount
 	// source or target do not exist.
@@ -631,7 +636,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 				case "":
 					// implicit dir creation, if the dir doesn't exist then we need
 					// a mimic
-					if !osutil.IsDirectory(entry.Dir) {
+					if !osutilIsDirectory(entry.Dir) {
 						neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
 						entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
 					}
@@ -685,7 +690,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 func findFirstRootDirectoryThatExists(desiredParentDir string) string {
 	// trivial case - the dir already exists
-	if osutil.IsDirectory(desiredParentDir) {
+	if osutilIsDirectory(desiredParentDir) {
 		return desiredParentDir
 	}
 
