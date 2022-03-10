@@ -75,15 +75,7 @@ func (s *changeSuite) TestString(c *C) {
 }
 
 // When there are no profiles we don't do anything.
-func (s *changeSuite) TestNeededChangesNoProfilesOld(c *C) {
-	current := &osutil.MountProfile{}
-	desired := &osutil.MountProfile{}
-	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, IsNil)
-}
-
-// When there are no profiles we don't do anything.
-func (s *changeSuite) TestNeededChangesNoProfilesNew(c *C) {
+func (s *changeSuite) TestNeededChangesNoProfiles(c *C) {
 	current := &osutil.MountProfile{}
 	desired := &osutil.MountProfile{}
 	changes := update.NeededChanges(current, desired)
@@ -101,17 +93,7 @@ func (s *changeSuite) TestNeededChangesNoChange(c *C) {
 }
 
 // When the content interface is connected we should mount the new entry.
-func (s *changeSuite) TestNeededChangesTrivialMountOld(c *C) {
-
-	current := &osutil.MountProfile{}
-	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
-	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []*update.Change{
-		{Entry: desired.Entries[0], Action: update.Mount},
-	})
-}
-
-func (s *changeSuite) TestNeededChangesTrivialMountNew(c *C) {
+func (s *changeSuite) TestNeededChangesTrivialMount(c *C) {
 	current := &osutil.MountProfile{}
 	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
 	changes := update.NeededChanges(current, desired)
@@ -121,17 +103,7 @@ func (s *changeSuite) TestNeededChangesTrivialMountNew(c *C) {
 }
 
 // When the content interface is disconnected we should unmount the mounted entry.
-func (s *changeSuite) TestNeededChangesTrivialUnmountOld(c *C) {
-
-	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
-	desired := &osutil.MountProfile{}
-	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []*update.Change{
-		{Entry: current.Entries[0], Action: update.Unmount},
-	})
-}
-
-func (s *changeSuite) TestNeededChangesTrivialUnmountNew(c *C) {
+func (s *changeSuite) TestNeededChangesTrivialUnmount(c *C) {
 	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
 	desired := &osutil.MountProfile{}
 	changes := update.NeededChanges(current, desired)
@@ -141,21 +113,7 @@ func (s *changeSuite) TestNeededChangesTrivialUnmountNew(c *C) {
 }
 
 // When umounting we unmount children before parents.
-func (s *changeSuite) TestNeededChangesUnmountOrderOld(c *C) {
-
-	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
-		{Dir: "/common/stuff/extra"},
-		{Dir: "/common/stuff"},
-	}}
-	desired := &osutil.MountProfile{}
-	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []*update.Change{
-		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.Unmount},
-		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Unmount},
-	})
-}
-
-func (s *changeSuite) TestNeededChangesUnmountOrderNew(c *C) {
+func (s *changeSuite) TestNeededChangesUnmountOrder(c *C) {
 	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff/extra"},
 		{Dir: "/common/stuff"},
@@ -169,21 +127,7 @@ func (s *changeSuite) TestNeededChangesUnmountOrderNew(c *C) {
 }
 
 // When mounting we mount the parents before the children.
-func (s *changeSuite) TestNeededChangesMountOrderOld(c *C) {
-
-	current := &osutil.MountProfile{}
-	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
-		{Dir: "/common/stuff/extra"},
-		{Dir: "/common/stuff"},
-	}}
-	changes := update.NeededChanges(current, desired)
-	c.Assert(changes, DeepEquals, []*update.Change{
-		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Mount},
-		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.Mount},
-	})
-}
-
-func (s *changeSuite) TestNeededChangesMountOrderNew(c *C) {
+func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 	current := &osutil.MountProfile{}
 	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
 		{Dir: "/common/stuff/extra"},
