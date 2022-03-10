@@ -643,7 +643,7 @@ func (ts *taskRunnerSuite) TestUndoSingleLane(c *C) {
 
 	st.Unlock()
 
-        var done bool
+	var done bool
 	for !done {
 		c.Assert(r.Ensure(), Equals, nil)
 		st.Lock()
