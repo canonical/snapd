@@ -643,14 +643,12 @@ func (ts *taskRunnerSuite) TestUndoSingleLane(c *C) {
 
 	st.Unlock()
 
-	for {
+        var done bool
+	for !done {
 		c.Assert(r.Ensure(), Equals, nil)
 		st.Lock()
-		done := chg.IsReady() && chg.IsClean()
+		done = chg.IsReady() && chg.IsClean()
 		st.Unlock()
-		if done {
-			break
-		}
 	}
 
 	st.Lock()
