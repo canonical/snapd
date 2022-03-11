@@ -556,6 +556,22 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
 	}
+	if device.KeyID == "" && model.Grade() != "" {
+		// UC20+ devices support factory reset
+		keyID, serial, err := m.maybeRestoreAfterReset(device)
+		if err != nil {
+			return err
+		}
+		if keyID != "" && serial != "" {
+			logger.Debugf("restored device key %v and serial %v", keyID, serial)
+			device.KeyID = keyID
+			device.Serial = serial
+			if err := m.setDevice(device); err != nil {
+				return fmt.Errorf("cannot set device: %v", err)
+			}
+			return nil
+		}
+	}
 
 	// have some backoff between full retries
 	if m.ensureOperationalShouldBackoff(time.Now()) {
@@ -597,6 +613,52 @@ func (m *DeviceManager) ensureOperational() error {
 	perfTimings.Save(m.state)
 
 	return nil
+}
+
+// maybeRestoreAfterReset attempts to restore the serial assertion with a
+// matching key in a post-factory reset scenario. It is possible that it is
+// called when the device was unregistered, but when doing so, the device key is
+// removed.
+func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (keyID, serial string, err error) {
+	// there should be a serial assertion for the current model
+	serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+		"brand-id": device.Brand,
+		"model":    device.Model,
+	})
+	if (err != nil && asserts.IsNotFound(err)) || len(serials) == 0 {
+		// no serial assertion
+		return "", "", nil
+	}
+	for _, serial := range serials {
+		serialAs, ok := serial.(*asserts.Serial)
+		if !ok {
+			return "", "", fmt.Errorf("cannot use an invalid serial assertion")
+		}
+		deviceKeyID := serialAs.DeviceKey().ID()
+		logger.Debugf("processing candidate serial assertion for %v/%v signed with key %v",
+			device.Brand, device.Model, deviceKeyID)
+		// serial assertion is signed with the device key, its ID is in
+		// the header; factory-reset would have restored the serial
+		// assertion and a matching device key, OTOH when the device is
+		// unregistered we explicitly remove the key, hence should this
+		// code process such serial assertion, there will be no matching
+		// key for it
+		err = m.withKeypairMgr(func(kpmgr asserts.KeypairManager) error {
+			_, err := kpmgr.Get(deviceKeyID)
+			return err
+		})
+		if err != nil {
+			if asserts.IsKeyNotFound(err) {
+				// there is no key matching this serial assertion,
+				// perhaps device was unregistered at some point
+				continue
+			}
+			return "", "", err
+		}
+		return deviceKeyID, serialAs.Serial(), nil
+	}
+	// none of the assertions has a matching key
+	return "", "", nil
 }
 
 var startTime time.Time
