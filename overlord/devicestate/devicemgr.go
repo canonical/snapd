@@ -99,7 +99,8 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
-	ensureInstalledRan bool
+	ensureInstalledRan    bool
+	ensureFactoryResetRan bool
 
 	ensureTriedRecoverySystemRan bool
 
@@ -169,6 +170,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("factory-reset", m.doFactoryReset, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
@@ -1095,6 +1097,54 @@ func (m *DeviceManager) ensureInstalled() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureFactoryReset() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureFactoryResetRan {
+		return nil
+	}
+
+	if m.SystemMode(SysHasModeenv) != "factory-reset" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	if m.changeInFlight("factory-reset") {
+		return nil
+	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
+
+	m.ensureFactoryResetRan = true
+
+	factoryReset := m.state.NewTask("factory-reset", i18n.G("Perform factory reset of the system"))
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	restartSystem.WaitFor(factoryReset)
+
+	// TODO: add factory-reset hooks?
+
+	chg := m.state.NewChange("factory-reset", i18n.G("Perform factory reset"))
+	chg.AddAll(state.NewTaskSet(factoryReset, restartSystem))
+
+	state.TagTimingsWithChange(perfTimings, chg)
+	perfTimings.Save(m.state)
+
+	return nil
+}
+
 var timeNow = time.Now
 
 // StartOfOperationTime returns the time when snapd started operating,
@@ -1292,6 +1342,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureTriedRecoverySystem(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureFactoryReset(); err != nil {
 			errs = append(errs, err)
 		}
 	}

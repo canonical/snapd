@@ -328,6 +328,14 @@ func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device st
 	}
 }
 
+func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
+	old := installFactoryReset
+	installFactoryReset = f
+	return func() {
+		installFactoryReset = old
+	}
+}
+
 func MockCloudInitStatus(f func() (sysconfig.CloudInitState, error)) (restore func()) {
 	old := cloudInitStatus
 	cloudInitStatus = f

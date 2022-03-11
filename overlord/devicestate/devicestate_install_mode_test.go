@@ -32,6 +32,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -1635,4 +1637,523 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C)
 	// install failed copying the timestamp
 	c.Check(installSystem.Err(), ErrorMatches, `(?s).*\(cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
 	c.Check(installSystem.Status(), Equals, state.ErrorStatus)
+}
+
+type resetTestCase struct {
+	tpm bool
+}
+
+func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts.Model, tc resetTestCase) error {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// inject trusted keys
+	defer sysdb.InjectTrusted([]asserts.Assertion{s.storeSigning.TrustedKey})()
+
+	var brGadgetRoot, brDevice string
+	var brOpts install.Options
+	var installFactoryResetCalled int
+	var installSealingObserver gadget.ContentObserver
+	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
+		// ensure we can grab the lock here, i.e. that it's not taken
+		s.state.Lock()
+		s.state.Unlock()
+
+		c.Check(mod.Grade(), Equals, model.Grade())
+
+		brGadgetRoot = gadgetRoot
+		brDevice = device
+		brOpts = options
+		installFactoryResetCalled++
+		// TODO encryption
+		return &install.InstalledSystemSideData{}, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
+		if tc.tpm {
+			return nil
+		} else {
+			return fmt.Errorf("TPM not available")
+		}
+	})
+	defer restore()
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "", "")
+	s.state.Unlock()
+
+	bootMakeBootableCalled := 0
+	restore = devicestate.MockBootMakeSystemRunnable(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+		c.Check(makeRunnableModel, DeepEquals, model)
+		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
+		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
+		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
+		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
+		c.Check(seal, IsNil)
+		bootMakeBootableCalled++
+		return nil
+	})
+	defer restore()
+
+	modeenv := boot.Modeenv{
+		Mode:           "factory-reset",
+		RecoverySystem: "20191218",
+	}
+	c.Assert(modeenv.WriteTo(""), IsNil)
+	devicestate.SetSystemMode(s.mgr, "factory-reset")
+
+	// normally done by snap-bootstrap when booting info factory-reset
+	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	s.settle(c)
+
+	// the factory-reset change is created
+	s.state.Lock()
+	defer s.state.Unlock()
+	factoryReset := s.findFactoryReset()
+	c.Assert(factoryReset, NotNil)
+
+	// and was run successfully
+	if err := factoryReset.Err(); err != nil {
+		// we failed, no further checks needed
+		return err
+	}
+
+	c.Assert(factoryReset.Status(), Equals, state.DoneStatus)
+
+	c.Assert(installFactoryResetCalled, Equals, 1)
+	c.Assert(brGadgetRoot, Equals, filepath.Join(dirs.SnapMountDir, "/pc/1"))
+	c.Assert(brDevice, Equals, "")
+	c.Assert(brOpts, DeepEquals, install.Options{
+		Mount: true,
+	})
+	c.Assert(installSealingObserver, IsNil)
+	c.Assert(bootMakeBootableCalled, Equals, 1)
+	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	return nil
+}
+
+func makeDeviceSerialAssertionInDir(c *C, where string, storeStack *assertstest.StoreStack, brands *assertstest.SigningAccounts, model *asserts.Model, key asserts.PrivateKey, serialN string) *asserts.Serial {
+	encDevKey, err := asserts.EncodePublicKey(key.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := brands.Signing(model.BrandID()).Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            model.BrandID(),
+		"model":               model.Model(),
+		"serial":              serialN,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": key.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	kp, err := asserts.OpenFSKeypairManager(where)
+	c.Assert(err, IsNil)
+	c.Assert(kp.Put(key), IsNil)
+	bs, err := asserts.OpenFSBackstore(where)
+	c.Assert(err, IsNil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         storeStack.Trusted,
+		OtherPredefined: storeStack.Generic,
+	})
+	c.Assert(err, IsNil)
+
+	b := asserts.NewBatch(nil)
+	c.Logf("root key ID: %v", storeStack.RootSigning.KeyID)
+	c.Assert(b.Add(storeStack.StoreAccountKey("")), IsNil)
+	c.Assert(b.Add(brands.AccountKey(model.BrandID())), IsNil)
+	c.Assert(b.Add(brands.Account(model.BrandID())), IsNil)
+	c.Assert(b.Add(serial), IsNil)
+	c.Assert(b.Add(model), IsNil)
+	c.Assert(b.CommitTo(db, nil), IsNil)
+	return serial.(*asserts.Serial)
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetNoEncryptionHappyFull(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// for debug timinigs
+	mockedSnapCmd := testutil.MockCommand(c, "snap", `
+echo "mock output of: $(basename "$0") $*"
+`)
+	defer mockedSnapCmd.Restore()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+	// and it has some content
+
+	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
+		model, devKey, "serial-1234")
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// verify that the serial assertion has been restored
+	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
+	c.Assert(err, IsNil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         s.storeSigning.Trusted,
+		OtherPredefined: s.storeSigning.Generic,
+	})
+	c.Assert(err, IsNil)
+	ass, err := db.FindMany(asserts.SerialType, map[string]string{
+		"brand-id":            serial.BrandID(),
+		"model":               serial.Model(),
+		"device-key-sha3-384": serial.DeviceKey().ID(),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ass, HasLen, 1)
+	asSerial, _ := ass[0].(*asserts.Serial)
+	c.Assert(asSerial, NotNil)
+	c.Assert(asSerial, DeepEquals, serial)
+
+	kp, err := asserts.OpenFSKeypairManager(assertsInResetSystem)
+	c.Assert(err, IsNil)
+	_, err = kp.Get(serial.DeviceKey().ID())
+	// the will not have been found, as this is a device with ubuntu-save
+	// and key is stored on that partition
+	c.Assert(asserts.IsKeyNotFound(err), Equals, true)
+	// which we verify here
+	kpInSave, err := asserts.OpenFSKeypairManager(boot.InstallHostDeviceSaveDir)
+	c.Assert(err, IsNil)
+	_, err = kpInSave.Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+
+	logsPath := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/factory-reset-mode.log.gz")
+	c.Check(logsPath, testutil.FilePresent)
+	timingsPath := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/factory-reset-timings.txt.gz")
+	c.Check(timingsPath, testutil.FilePresent)
+	// and the right commands are run
+	c.Check(mockedSnapCmd.Calls(), DeepEquals, [][]string{
+		{"snap", "changes"},
+		{"snap", "debug", "timings", "--ensure=seed"},
+		{"snap", "debug", "timings", "--ensure=factory-reset"},
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	kp, err := asserts.OpenFSKeypairManager(boot.InstallHostDeviceSaveDir)
+	c.Assert(err, IsNil)
+	// generate the serial assertions
+	for i := 0; i < 5; i++ {
+		key, _ := assertstest.GenerateKey(testKeyLength)
+		makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
+			model, key, fmt.Sprintf("serial-%d", i))
+		// remove the key such that the assert cannot be used
+		c.Assert(kp.Delete(key.PublicKey().ID()), IsNil)
+	}
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// nothing has been restored in the assertions dir
+	matches, err := filepath.Glob(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions/*/*"))
+	c.Assert(err, IsNil)
+	c.Assert(matches, HasLen, 0)
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSerials(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	// no serials, no device keys
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// nothing has been restored in the assertions dir
+	matches, err := filepath.Glob(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions/*/*"))
+	c.Assert(err, IsNil)
+	c.Assert(matches, HasLen, 0)
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSave(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// no ubuntu-save directory, what makes the whole process behave like reinstall
+
+	// no serials, no device keys
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err := s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// nothing has been restored in the assertions dir as nothing was there
+	// to begin with
+	matches, err := filepath.Glob(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions/*/*"))
+	c.Assert(err, IsNil)
+	c.Assert(matches, HasLen, 0)
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyEncrypted(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// pretend snap-bootstrap mounted ubuntu-save and there is an encryption marker file
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	// no serials, no device keys
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		// no TPM
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, ErrorMatches, `(?s).*cannot perform factory reset using different encryption, the original system was encrypted\)`)
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyUnencrypted(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// pretend snap-bootstrap mounted ubuntu-save but there is no encryption marker
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
+	c.Assert(err, IsNil)
+
+	// no serials, no device keys
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		// no TPM
+		tpm: true,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, ErrorMatches, `(?s).*cannot perform factory reset using different encryption, the original system was unencrypted\)`)
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialManyOneValid(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	kp, err := asserts.OpenFSKeypairManager(boot.InstallHostDeviceSaveDir)
+	c.Assert(err, IsNil)
+	// generate some invalid the serial assertions
+	for i := 0; i < 5; i++ {
+		key, _ := assertstest.GenerateKey(testKeyLength)
+		makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
+			model, key, fmt.Sprintf("serial-%d", i))
+		// remove the key such that the assert cannot be used
+		c.Assert(kp.Delete(key.PublicKey().ID()), IsNil)
+	}
+	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
+		model, devKey, "serial-1234")
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// verify that only one serial assertion has been restored
+	assertsInResetSystem := filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions")
+	bs, err := asserts.OpenFSBackstore(assertsInResetSystem)
+	c.Assert(err, IsNil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         s.storeSigning.Trusted,
+		OtherPredefined: s.storeSigning.Generic,
+	})
+	c.Assert(err, IsNil)
+	ass, err := db.FindMany(asserts.SerialType, map[string]string{
+		"brand-id":            serial.BrandID(),
+		"model":               serial.Model(),
+		"device-key-sha3-384": serial.DeviceKey().ID(),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ass, HasLen, 1)
+	asSerial, _ := ass[0].(*asserts.Serial)
+	c.Assert(asSerial, NotNil)
+	c.Assert(asSerial, DeepEquals, serial)
+}
+
+func (s *deviceMgrInstallModeSuite) findFactoryReset() *state.Change {
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "factory-reset" {
+			return chg
+		}
+	}
+	return nil
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	m := boot.Modeenv{
+		Mode:           "factory-reset",
+		RecoverySystem: "1234",
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	s.state.Lock()
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
+	devicestate.SetSystemMode(s.mgr, "factory-reset")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	factoryReset := s.findFactoryReset()
+	c.Assert(factoryReset, NotNil)
+	c.Check(factoryReset.Err(), IsNil)
+
+	tasks := factoryReset.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	factoryResetTask := tasks[0]
+	restartSystemToRunModeTask := tasks[1]
+
+	c.Assert(factoryResetTask.Kind(), Equals, "factory-reset")
+	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
+
+	// factory-reset has no pre-reqs
+	c.Assert(factoryResetTask.WaitTasks(), HasLen, 0)
+
+	// restart-system-to-run-mode has a pre-req of factory-reset
+	waitTasks := restartSystemToRunModeTask.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Assert(waitTasks[0].ID(), Equals, factoryResetTask.ID())
+
+	// we did request a restart through restartSystemToRunModeTask
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetRunSysconfig(c *C) {
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	// and sysconfig.ConfigureTargetSystem was run exactly once
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit: true,
+			TargetRootDir:  boot.InstallHostWritableDir,
+			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
+	})
+
+	// and the special dirs in _writable_defaults were created
+	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
+		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir), dir)
+		c.Assert(fullDir, testutil.FilePresent)
+	}
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetWritesTimesyncdClock(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+	// a month old timestamp file
+	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
+
+	s.state.Lock()
+	model := s.makeMockInstallModel(c, "dangerous")
+	s.state.Unlock()
+
+	// pretend snap-bootstrap mounted ubuntu-save
+	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = s.doRunFactoryResetChange(c, model, resetTestCase{
+		tpm: false,
+	})
+	c.Logf("logs:\n%v", logbuf.String())
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	clockTsInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/clock")
+	fi, err := os.Stat(clockTsInDst)
+	c.Assert(err, IsNil)
+	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
+	c.Check(fi.Size(), Equals, int64(0))
 }
