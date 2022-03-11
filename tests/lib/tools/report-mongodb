@@ -15,8 +15,9 @@ def _make_parser():
                         **environ_or_required('MONGO_HOST'))
     parser.add_argument('--port', help="Port for the mongo database",
                         **environ_or_required('MONGO_PORT'))
-    parser.add_argument('--db-name', help="Name for the database used to insert")
-    parser.add_argument('--db-collection', help="Name for the collection used to insert")
+    parser.add_argument('--db-name', help="Name for the database used to insert", required=True)
+    parser.add_argument('--db-collection', help="Name for the collection used to insert", required=True)
+    parser.add_argument('--metadata', help="Matedata to be included in the insert")
     parser.add_argument("value", help="value to insert in the mongodb")
 
     return parser
@@ -44,7 +45,7 @@ def _get_json(value):
         return None
 
 
-def insert(db, col, value):
+def insert(db, col, metadata, value):
     if not col in db.list_collection_names():
         print("report-mongodb: invalid db collection, it does not exist in db")
         sys.exit(1)
@@ -78,7 +79,8 @@ def insert(db, col, value):
         created_at = datetime.now().isoformat("T", "seconds")
 
     json_value["created_at"] = created_at
-
+    metadata_value = _get_json(metadata)
+    json_value["metadata"] = metadata_value
     db[col].insert_one(json_value)
     print("report-mongodb: json value inserted in db")
 
@@ -100,7 +102,7 @@ def main():
         sys.exit(1)
 
     db = connect(args.host, args.port, args.db_name)
-    insert(db, args.db_collection, args.value)
+    insert(db, args.db_collection, args.metadata, args.value)
 
 
 if __name__ == "__main__":
