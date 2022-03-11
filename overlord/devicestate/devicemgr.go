@@ -1568,10 +1568,12 @@ var defaultSystemActions = []SystemAction{
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 var recoverSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 
@@ -1724,8 +1726,9 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 			sameSystemAndMode()
 			return nil
 		}
-	case "install":
-		// requesting system actions in install mode does not make sense atm
+	case "install", "factory-reset":
+		// requesting system actions in install or factory-reset modes
+		// does not make sense atm
 		//
 		// TODO:UC20: maybe factory hooks will be able to something like
 		// this?
