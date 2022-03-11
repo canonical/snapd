@@ -219,7 +219,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	memLimit := quantity.SizeGiB
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -421,7 +421,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// use new memory limit
-	grp, err := quota.NewGroup("foogroup", memLimit2)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit2))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -515,7 +515,7 @@ WantedBy=multi-user.target
 	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
 	c.Assert(err, IsNil)
 
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -538,7 +538,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	// create the group
-	grp, err := quota.NewGroup("foogroup", quantity.SizeKiB)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(5*quantity.SizeKiB))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -608,12 +608,12 @@ apps:
 	var err error
 	memLimit := quantity.SizeGiB
 	// make a root quota group and add the first snap to it
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but is for the
 	// second snap
-	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
+	subgrp, err := grp.NewSubGroup("subgroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -741,12 +741,12 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	var err error
 	memLimit := quantity.SizeGiB
 	// make a root quota group without any snaps in it
-	grp, err := quota.NewGroup("foogroup", memLimit)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but it is the one
 	// with the snap in it
-	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
+	subgrp, err := grp.NewSubGroup("subgroup", quota.NewResources(memLimit))
 	c.Assert(err, IsNil)
 
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
@@ -2096,9 +2096,9 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysServices, userServices []string
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		if cmd[0] == "stop" {
-			sysServices = append(sysServices, cmd[1])
+			sysServices = append(sysServices, cmd[1:]...)
 		} else if cmd[0] == "--user" && cmd[1] == "stop" {
-			userServices = append(userServices, cmd[2])
+			userServices = append(userServices, cmd[2:]...)
 		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
@@ -2137,10 +2137,14 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 
 	sort.Strings(sysServices)
 	c.Check(sysServices, DeepEquals, []string{
-		"snap.hello-snap.svc1.service", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"})
+		"snap.hello-snap.svc1.service",
+		"snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket",
+	})
 	sort.Strings(userServices)
 	c.Check(userServices, DeepEquals, []string{
-		"snap.hello-snap.svc2.service", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"})
+		"snap.hello-snap.svc2.service",
+		"snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket",
+	})
 }
 
 func (s *servicesTestSuite) TestStartServices(c *C) {
@@ -2269,33 +2273,24 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 	c.Check(svcFiles, HasLen, 0)
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		c.Logf("cmd: %q", cmd)
 		sysdLog = append(sysdLog, cmd)
 		sdcmd := cmd[0]
 		if sdcmd == "show" {
 			return []byte("ActiveState=inactive"), nil
 		}
-		if len(cmd) >= 2 {
-			sdcmd = cmd[len(cmd)-2]
-		}
 		switch sdcmd {
 		case "enable":
 			numEnables++
-			switch numEnables {
-			case 1:
-				if cmd[len(cmd)-1] == svc2Name {
-					// the services are being iterated in the "wrong" order
-					svc1Name, svc2Name = svc2Name, svc1Name
-				}
-				return nil, nil
-			case 2:
-				return nil, fmt.Errorf("failed")
-			default:
-				panic("expected no more than 2 enables")
+			c.Assert(cmd, HasLen, 3)
+			if cmd[1] == svc2Name {
+				svc1Name, svc2Name = svc2Name, svc1Name
 			}
+			return nil, fmt.Errorf("failed")
 		case "disable", "daemon-reload", "stop":
 			return nil, nil
 		default:
-			panic("unexpected systemctl command " + sdcmd)
+			panic(fmt.Sprintf("unexpected systemctl command %q", cmd))
 		}
 	})
 	defer r()
@@ -2318,9 +2313,8 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"}, // from AddSnapServices
-		{"enable", svc1Name},
-		{"enable", svc2Name}, // this one fails
-		{"disable", svc1Name},
+		{"enable", svc1Name, svc2Name},
+		{"disable", svc1Name, svc2Name},
 	})
 }
 
@@ -2596,18 +2590,16 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(svcs, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Name},
+		{"enable", svc1Name, svc2Name},
 		{"start", svc1Name},
 		{"start", svc2Name}, // one of the services fails
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name},
-		{"disable", svc2Name},
+		{"disable", svc1Name, svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -2623,7 +2615,7 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 		sysdLog = append(sysdLog, cmd)
 		c.Logf("call: %v", cmd)
 		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc3SocketName {
-			// svc2 socket fails
+			// svc3 socket fails
 			return nil, fmt.Errorf("failed")
 		}
 		return []byte("ActiveState=inactive\n"), nil
@@ -2654,26 +2646,90 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Logf("sysdlog: %v", sysdLog)
-	c.Assert(sysdLog, HasLen, 18, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 14, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2SocketName},
+		{"enable", svc2SocketName, svc3SocketName, svc1Name},
 		{"start", svc2SocketName},
-		{"enable", svc3SocketName},
 		{"start", svc3SocketName}, // start failed, what follows is the cleanup
 		{"stop", svc3SocketName},
 		{"show", "--property=ActiveState", svc3SocketName},
 		{"stop", svc3Name},
 		{"show", "--property=ActiveState", svc3Name},
-		{"disable", svc3SocketName},
 		{"stop", svc2SocketName},
 		{"show", "--property=ActiveState", svc2SocketName},
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
-		{"disable", svc2SocketName},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name},
+		{"disable", svc2SocketName, svc3SocketName, svc1Name},
+	}, Commentf("calls: %v", sysdLog))
+}
+
+func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable(c *C) {
+	// start services is called without the enable flag (eg. as during snap
+	// start foo), in which case, the cleanup does not call disable (unless
+	// there are timers and socket, in which the buggy behavior kicks in,
+	// but only for those units)
+	var sysdLog [][]string
+	svc1Name := "snap.hello-snap.svc1.service"
+	svc2Name := "snap.hello-snap.svc2.service"
+	svc2SocketName := "snap.hello-snap.svc2.sock1.socket"
+	svc3Name := "snap.hello-snap.svc3.service"
+	svc3SocketName := "snap.hello-snap.svc3.sock1.socket"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		c.Logf("call: %v", cmd)
+		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc1Name {
+			// svc1 fails
+			return nil, fmt.Errorf("failed")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	info := snaptest.MockSnap(c, packageHello+`
+ svc2:
+  command: bin/hello
+  daemon: simple
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+ svc3:
+  command: bin/hello
+  daemon: simple
+  sockets:
+    sock1:
+      listen-stream: $SNAP_COMMON/sock1.socket
+      socket-mode: 0666
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	// ensure desired order
+	apps := []*snap.AppInfo{info.Apps["svc1"], info.Apps["svc2"], info.Apps["svc3"]}
+
+	// no enable
+	flags := &wrappers.StartServicesFlags{Enable: false}
+	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, "failed")
+	c.Logf("sysdlog: %v", sysdLog)
+	c.Assert(sysdLog, HasLen, 15, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"enable", svc2SocketName, svc3SocketName},
+		{"start", svc2SocketName},
+		{"start", svc3SocketName},
+		{"start", svc1Name}, // start failed, what follows is the cleanup
+		{"stop", svc3SocketName},
+		{"show", "--property=ActiveState", svc3SocketName},
+		{"stop", svc3Name},
+		{"show", "--property=ActiveState", svc3Name},
+		{"stop", svc2SocketName},
+		{"show", "--property=ActiveState", svc2SocketName},
+		{"stop", svc2Name},
+		{"show", "--property=ActiveState", svc2Name},
+		{"stop", svc1Name},
+		{"show", "--property=ActiveState", svc1Name},
+		{"disable", svc2SocketName, svc3SocketName},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -2713,10 +2769,9 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(svcs, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "some user services failed to start")
-	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"--user", "--global", "enable", svc1Name},
-		{"--user", "--global", "enable", svc2Name},
+		{"--user", "--global", "enable", svc1Name, svc2Name},
 		{"--user", "start", svc1Name},
 		{"--user", "start", svc2Name}, // one of the services fails
 		// session agent attempts to stop the non-failed services
@@ -2727,8 +2782,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 		{"--user", "show", "--property=ActiveState", svc2Name},
 		{"--user", "stop", svc1Name},
 		{"--user", "show", "--property=ActiveState", svc1Name},
-		{"--user", "--global", "disable", svc1Name},
-		{"--user", "--global", "disable", svc2Name},
+		{"--user", "--global", "disable", svc1Name, svc2Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -2766,11 +2820,9 @@ apps:
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err = wrappers.StartServices(sorted, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 4, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc3Name},
-		{"enable", svc2Name},
+		{"enable", svc1Name, svc3Name, svc2Name},
 		{"start", svc1Name},
 		{"start", svc3Name},
 		{"start", svc2Name},
@@ -2782,11 +2834,9 @@ apps:
 	// we should observe the calls done in the same order as services
 	err = wrappers.StartServices(sorted, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 12, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
-	c.Check(sysdLog[6:], DeepEquals, [][]string{
-		{"enable", svc3Name},
-		{"enable", svc1Name},
-		{"enable", svc2Name},
+	c.Assert(sysdLog, HasLen, 8, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Check(sysdLog[4:], DeepEquals, [][]string{
+		{"enable", svc3Name, svc1Name, svc2Name},
 		{"start", svc3Name},
 		{"start", svc1Name},
 		{"start", svc2Name},
@@ -3043,14 +3093,13 @@ func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Assert(s.sysdLog, HasLen, 5, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Sock},
-		{"start", svc2Sock},
+		{"enable", svc2Sock, svc1Name},
 		{"--user", "--global", "enable", svc3Sock},
-		{"--user", "start", svc3Sock},
+		{"start", svc2Sock},
 		{"start", svc1Name},
+		{"--user", "start", svc3Sock},
 	}, Commentf("calls: %v", s.sysdLog))
 }
 
@@ -3077,14 +3126,13 @@ func (s *servicesTestSuite) TestStartSnapTimerEnableStart(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Assert(s.sysdLog, HasLen, 5, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Timer},
-		{"start", svc2Timer},
+		{"enable", svc2Timer, svc1Name},
 		{"--user", "--global", "enable", svc3Timer},
-		{"--user", "start", svc3Timer},
+		{"start", svc2Timer},
 		{"start", svc1Name},
+		{"--user", "start", svc3Timer},
 	}, Commentf("calls: %v", s.sysdLog))
 }
 
@@ -3115,19 +3163,17 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(apps, nil, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "failed")
-	c.Assert(sysdLog, HasLen, 11, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 9, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
-		{"enable", svc1Name},
-		{"enable", svc2Timer},
+		{"enable", svc2Timer, svc1Name},
 		{"start", svc2Timer}, // this call fails
 		{"stop", svc2Timer},
 		{"show", "--property=ActiveState", svc2Timer},
 		{"stop", svc2Name},
 		{"show", "--property=ActiveState", svc2Name},
-		{"disable", svc2Timer},
 		{"stop", svc1Name},
 		{"show", "--property=ActiveState", svc1Name},
-		{"disable", svc1Name},
+		{"disable", svc2Timer, svc1Name},
 	}, Commentf("calls: %v", sysdLog))
 }
 
@@ -3282,12 +3328,10 @@ apps:
 	err = wrappers.StartServices(apps, nil, flags, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.sysdLog, HasLen, 6, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
+	c.Assert(s.sysdLog, HasLen, 4, Commentf("len: %v calls: %v", len(s.sysdLog), s.sysdLog))
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"enable", svc3Name},
-		{"enable", svc1Socket},
+		{"enable", svc1Socket, svc2Timer, svc3Name},
 		{"start", svc1Socket},
-		{"enable", svc2Timer},
 		{"start", svc2Timer},
 		{"start", svc3Name},
 	}, Commentf("calls: %v", s.sysdLog))
@@ -3353,7 +3397,7 @@ apps:
 	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"reload-or-restart", srvFile},
 	})
 
@@ -3361,7 +3405,7 @@ apps:
 	flags.Reload = false
 	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3370,7 +3414,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3424,7 +3468,7 @@ apps:
 	sort.Sort(snap.AppInfoBySnapApp(services))
 	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
 			srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},
@@ -3439,7 +3483,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, []string{srvFile2}, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
 			srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},

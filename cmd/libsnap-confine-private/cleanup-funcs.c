@@ -28,6 +28,14 @@ void sc_cleanup_string(char **ptr)
 	}
 }
 
+void sc_cleanup_shallow_strv(const char ***ptr)
+{
+	if (ptr != NULL && *ptr != NULL) {
+		free(*ptr);
+		*ptr = NULL;
+	}
+}
+
 void sc_cleanup_file(FILE ** ptr)
 {
 	if (ptr != NULL && *ptr != NULL) {

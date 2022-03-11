@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"fmt"
-	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -133,6 +132,7 @@ func storeFrom(d *Daemon) snapstate.StoreService {
 var (
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
+	snapstateInstallPathMany   = snapstate.InstallPathMany
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
@@ -143,7 +143,8 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
 
-	assertstateRefreshSnapAssertions = assertstate.RefreshSnapAssertions
+	assertstateRefreshSnapAssertions         = assertstate.RefreshSnapAssertions
+	assertstateRestoreValidationSetsTracking = assertstate.RestoreValidationSetsTracking
 )
 
 func ensureStateSoonImpl(st *state.State) {
@@ -163,12 +164,12 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 	return chg
 }
 
-func isTrue(form *multipart.Form, key string) bool {
-	value := form.Value[key]
-	if len(value) == 0 {
+func isTrue(form *Form, key string) bool {
+	values := form.Values[key]
+	if len(values) == 0 {
 		return false
 	}
-	b, err := strconv.ParseBool(value[0])
+	b, err := strconv.ParseBool(values[0])
 	if err != nil {
 		return false
 	}

@@ -9,10 +9,9 @@ environment:
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    # no need to remove the pkgs in restore, restore_suite_each()
+    # will handle this
     apt install -y gdbserver gdb
-
-restore: |
-    apt autoremove -y gdbserver gdb
 
 execute: |
     echo "Test snap run --gdbserver works"
@@ -34,5 +33,5 @@ execute: |
     echo c | eval $gdb_cmd
 
     # ensure the program ran and was running as a user
-    MATCH hello-hello-hello < stdout
+    retry --wait 1 -n 5 sh -c 'MATCH hello-hello-hello < stdout'
     MATCH "uid:$(id -u test)" < stdout

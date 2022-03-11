@@ -92,6 +92,9 @@ var (
 	needsNoSuidDiskMountOpts = &main.SystemdMountOptions{
 		NoSuid: true,
 	}
+	snapMountOpts = &main.SystemdMountOptions{
+		ReadOnly: true,
+	}
 
 	seedPart = disks.Partition{
 		FilesystemLabel: "ubuntu-seed",
@@ -501,6 +504,7 @@ func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMo
 	}
 	mnt.what = filepath.Join(s.seedDir, "snaps", name+"_1.snap")
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
+	mnt.opts = snapMountOpts
 
 	return mnt
 }
@@ -519,6 +523,7 @@ func (s *initramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn snap.Pl
 
 	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
+	mnt.opts = snapMountOpts
 
 	return mnt
 }
@@ -1208,10 +1213,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1223,8 +1225,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 		}
 	}
@@ -1240,6 +1241,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1247,6 +1250,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1254,6 +1260,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1261,6 +1270,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1270,6 +1282,8 @@ After=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 }
@@ -1375,10 +1389,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1391,8 +1402,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 		}
 	}
@@ -1408,6 +1418,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1415,6 +1427,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1422,6 +1437,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1429,6 +1447,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1438,6 +1459,8 @@ After=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
@@ -1445,6 +1468,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1453,6 +1478,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 
@@ -1521,18 +1548,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
 		fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 		unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 		c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 	}
 
@@ -1554,6 +1577,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1561,6 +1586,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1568,6 +1596,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1575,6 +1606,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1584,6 +1618,8 @@ After=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
@@ -1591,6 +1627,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1599,6 +1637,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
@@ -1606,6 +1646,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 
@@ -1692,10 +1734,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuBootDir),
@@ -1707,8 +1746,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 		}
 	}
@@ -1724,6 +1762,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
@@ -1731,6 +1771,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1739,6 +1781,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
@@ -1746,6 +1790,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
@@ -1753,6 +1800,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 }
@@ -1810,18 +1860,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
 		fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 		unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 		c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 	}
 
@@ -1841,6 +1887,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
@@ -1848,6 +1896,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1856,6 +1906,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
@@ -1863,6 +1915,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
@@ -1870,6 +1924,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
@@ -1877,6 +1934,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 }

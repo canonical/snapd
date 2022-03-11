@@ -125,6 +125,7 @@ repack_snapd_deb_into_snap() {
             # have in the snapd deb
             snap download core --basename=core --edge
             unsquashfs -d ./core-unpacked core.snap
+            rm core.snap
 
             # extract all the files from the snapd deb
             dpkg-deb -x "$deb_file" ./core-unpacked
@@ -140,6 +141,7 @@ repack_snapd_deb_into_snap() {
             # have in the snapd deb
             snap download snapd --basename=snapd --edge
             unsquashfs -d ./snapd-unpacked snapd.snap
+            rm snapd.snap
 
             # extract all the files from the snapd deb
             dpkg-deb -x "$deb_file" ./snapd-unpacked
@@ -188,6 +190,7 @@ repack_core_snap_into_snapd_snap() {
 
     snap download snapd --basename=snapd-upstream --edge
     unsquashfs -d ./snapd-upstream snapd-upstream.snap
+    rm snapd-upstream.snap
     (
     cd snapd-upstream || exit 1
     # find all files and symlinks - not directories because when unsquashfs

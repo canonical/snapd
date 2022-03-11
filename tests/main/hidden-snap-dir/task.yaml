@@ -1,0 +1,102 @@
+summary: Check that the experimental hidden dir feature migrates the dir
+
+# this test is flaky on CentOS and openSUSE due to an issue w/ 'snap remove'
+# https://bugs.launchpad.net/snapd/+bug/1959036
+systems: [-centos-*, -opensuse-*]
+
+environment:
+    NAME: test-snapd-tools
+
+prepare: |
+    snap pack "$TESTSLIB"/snaps/"$NAME"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+restore: |
+    snap unset system experimental.hidden-snap-folder
+
+execute: |
+    echo "Set experimental hidden snap folder feature"
+    snap set system experimental.hidden-snap-folder=true
+
+    echo "Check that nothing has been migrated yet"
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=/root/snap/$NAME/x1"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$NAME/common"
+
+    test -d "$HOME"/snap
+    not test -d "$HOME"/.snap/data
+
+    echo "Take a snapshot"
+    "$NAME".cmd echo "prev_data" > "$HOME"/snap/"$NAME"/current/data
+    # get the snapshot number from the 2nd line (the 1st line is the header)
+    snapshot=$(snap save "$NAME" | awk 'FNR == 2 {print $1}')
+
+    echo "Write data to user data dirs"
+    "$NAME".echo "data" > "$HOME"/snap/"$NAME"/current/data
+    "$NAME".echo "common" > "$HOME"/snap/"$NAME"/common/common
+
+    echo "Refresh the snap"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+    echo "Check snap directory was migrated"
+    test -d "$HOME"/.snap/data/"$NAME"
+    test -d "$HOME"/.snap/data/"$NAME"/common
+    test -d "$HOME"/.snap/data/"$NAME"/x2
+    not test -d "$HOME"/snap/"$NAME"
+
+    echo "Check the env vars point to ~/.snap/data"
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x2"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
+
+    # 'current' symlink is created just before the snap runs, so this check
+    # must come after a snap run
+    if [ "$(readlink "$HOME"/.snap/data/"$NAME"/current)" != "x2" ]; then
+      echo "expected 'current' to point to new revision after refresh"
+      exit 1
+    fi
+
+    echo "Check that the written data is in the new dir"
+    MATCH "common" < "$HOME"/.snap/data/"$NAME"/common/common
+    MATCH "data" < "$HOME"/.snap/data/"$NAME"/x2/data
+
+    echo "Check the snap can write to the new dirs"
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/new_data'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "new_common" > "$SNAP_USER_COMMON"/new_common'
+    MATCH "new_common" < "$HOME"/.snap/data/"$NAME"/common/new_common
+    MATCH "new_data" < "$HOME"/.snap/data/"$NAME"/x2/new_data
+
+    echo "Restore snapshot and check data was restored"
+    snap restore "$snapshot"
+    MATCH "prev_data" < "$HOME"/.snap/data/"$NAME"/x2/data
+
+    echo "Check that snap starts off hidden after a fresh install"
+    snap remove --purge "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+    test -d "$HOME"/.snap/data/"$NAME"
+    not test -d "$HOME"/snap/"$NAME"
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/x1"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
+
+    "$NAME".echo "data" > "$HOME"/.snap/data/"$NAME"/x1/data
+    "$NAME".echo "common" > "$HOME"/.snap/data/"$NAME"/common/common
+
+    echo "Revert migration (unset flag and refresh)"
+    snap unset system experimental.hidden-snap-folder
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+    echo "Check snap user data was moved back"
+    not test -d "$HOME"/.snap/data
+    test -d "$HOME"/snap/"$NAME"
+
+    MATCH "common" < "$HOME"/snap/"$NAME"/common/common
+    MATCH "data" < "$HOME"/snap/"$NAME"/x2/data
+
+    echo "Check environment variables were restored"
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/snap/$NAME/x2"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/snap/$NAME/common"

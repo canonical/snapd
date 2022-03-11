@@ -67,7 +67,39 @@ func (m *InterfaceManager) addInterfaces(extra []interfaces.Interface) error {
 }
 
 func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error {
-	opts := interfaces.SecurityBackendOptions{Preseed: m.preseed}
+	// get the snapd snap info if it is installed
+	var snapdSnap snapstate.SnapState
+	var snapdSnapInfo *snap.Info
+	err := snapstate.Get(m.state, "snapd", &snapdSnap)
+	if err != nil && err != state.ErrNoState {
+		return fmt.Errorf("cannot access snapd snap state: %v", err)
+	}
+	if err == nil {
+		snapdSnapInfo, err = snapdSnap.CurrentInfo()
+		if err != nil && err != snapstate.ErrNoCurrent {
+			return fmt.Errorf("cannot access snapd snap info: %v", err)
+		}
+	}
+
+	// get the core snap info if it is installed
+	var coreSnap snapstate.SnapState
+	var coreSnapInfo *snap.Info
+	err = snapstate.Get(m.state, "core", &coreSnap)
+	if err != nil && err != state.ErrNoState {
+		return fmt.Errorf("cannot access core snap state: %v", err)
+	}
+	if err == nil {
+		coreSnapInfo, err = coreSnap.CurrentInfo()
+		if err != nil && err != snapstate.ErrNoCurrent {
+			return fmt.Errorf("cannot access core snap info: %v", err)
+		}
+	}
+
+	opts := interfaces.SecurityBackendOptions{
+		Preseed:       m.preseed,
+		CoreSnapInfo:  coreSnapInfo,
+		SnapdSnapInfo: snapdSnapInfo,
+	}
 	for _, backend := range backends.All {
 		if err := backend.Initialize(&opts); err != nil {
 			return err

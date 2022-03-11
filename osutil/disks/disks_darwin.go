@@ -28,12 +28,30 @@ func DiskFromDeviceName(deviceName string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
-var diskFromDeviceName = func(mountpoint string) (Disk, error) {
+var diskFromDeviceName = func(deviceName string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+// DiskFromPartitionDeviceNode is not implemented on darwin
+func DiskFromPartitionDeviceNode(node string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+// DiskFromDevicePath is not implemented on darwin
+func DiskFromDevicePath(devicePath string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromDevicePath = func(devicePath string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
 // DiskFromMountPoint is not implemented on darwin
 func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+func AllPhysicalDisks() ([]Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 

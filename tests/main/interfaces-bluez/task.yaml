@@ -8,11 +8,8 @@ details: |
     we can connect its slot and plug.
 
 execute: |
-    if ! snap list --unicode=never bluez &> /dev/null ; then
-        echo "Installing bluez snap from the store ..."
-        expected="(?s)bluez .* from Canonical\\* installed\\n"
-        snap install bluez | grep -Pzq "$expected"
-    fi
+    echo "Installing bluez snap from the store ..."
+    snap install --channel=latest/stable bluez
 
     echo "Connecting bluez snap plugs/slots ..."
     snap connect bluez:client bluez:service

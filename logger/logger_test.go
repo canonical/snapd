@@ -41,11 +41,13 @@ func Test(t *testing.T) { TestingT(t) }
 var _ = Suite(&LogSuite{})
 
 type LogSuite struct {
+	testutil.BaseTest
 	logbuf        *bytes.Buffer
 	restoreLogger func()
 }
 
 func (s *LogSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	s.logbuf, s.restoreLogger = logger.MockLogger()
 }
 

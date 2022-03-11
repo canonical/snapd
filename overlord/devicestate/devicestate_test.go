@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -134,7 +136,7 @@ var (
 	brandPrivKey3, _ = assertstest.GenerateKey(752)
 )
 
-func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
+func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
 	dirs.SetRootDir(c.MkDir())
@@ -155,7 +157,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	s.AddCleanup(release.MockOnClassic(false))
+	s.AddCleanup(release.MockOnClassic(classic))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
 	s.restartObserve = nil
@@ -347,6 +349,11 @@ func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *s
 
 func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) *asserts.Serial {
 	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
+}
+
+func (s *deviceMgrSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSetTimeOnce(c *C) {
@@ -1870,5 +1877,25 @@ func (s *deviceMgrSuite) TestNTPSyncedOrWaitedNoTimedate1(c *C) {
 	syncedOrWaited = devicestate.DeviceManagerNTPSyncedOrWaitedLongerThan(s.mgr, 12*time.Hour)
 	c.Check(syncedOrWaited, Equals, true)
 	c.Check(n, Equals, 1)
+}
 
+func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
+	// create /var/lib/snapd/void with the wrong permissions
+	err := os.MkdirAll(dirs.SnapVoidDir, 0755)
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	st, err := os.Stat(dirs.SnapVoidDir)
+	c.Assert(err, IsNil)
+	c.Check(int(st.Mode().Perm()), Equals, 0111)
+	msgs := strings.TrimSpace(logbuf.String())
+	c.Check(msgs, Matches, "(?sm).*fixing permissions of .*/var/lib/snapd/void to 0111")
+	c.Check(strings.Split(msgs, "\n"), HasLen, 1)
 }

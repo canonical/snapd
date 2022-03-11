@@ -29,6 +29,7 @@ var (
 		"snapd":  "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
 		"core18": "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6",
 		"core20": "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q",
+		"core22": "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT",
 	}
 
 	stagingWellKnownSnapIDs = map[string]string{

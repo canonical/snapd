@@ -72,16 +72,21 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 				activeState = "inactive"
 				unitState = "disabled"
 			}
-			if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") {
+			if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") || strings.HasSuffix(unit, ".target") {
+				// Units using the baseProperties query
 				return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
 ActiveState=%s
 UnitFileState=%s
 `, args[2], activeState, unitState)), nil
 			} else {
+				// Units using the extendedProperties query
 				return []byte(fmt.Sprintf(`Id=%s
+Names=%[1]s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
+NeedDaemonReload=no
 `, args[2], activeState, unitState)), nil
 			}
 		case "--user":
@@ -308,7 +313,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	defer st.Unlock()
 
 	// make a quota group
-	grp, err := quota.NewGroup("foogroup", quantity.SizeGiB)
+	grp, err := quota.NewGroup("foogroup", quota.NewResources(quantity.SizeGiB))
 	c.Assert(err, IsNil)
 
 	grp.Snaps = []string{"foosnap"}

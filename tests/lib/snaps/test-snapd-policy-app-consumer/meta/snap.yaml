@@ -83,6 +83,9 @@ apps:
   cups-control:
     command: bin/run
     plugs: [ cups-control ]
+  custom-device:
+    command: bin/run
+    plugs: [ custom-device ]
   dbus-session:
     command: bin/run
     plugs: [ dbus-session ]
@@ -212,6 +215,9 @@ apps:
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
+  kernel-module-load:
+    command: bin/run
+    plugs: [ kernel-module-load ]
   kernel-module-observe:
     command: bin/run
     plugs: [ kernel-module-observe ]
@@ -266,6 +272,9 @@ apps:
   modem-manager:
     command: bin/run
     plugs: [ modem-manager ]
+  mount-control:
+    command: bin/run
+    plugs: [ mount-control ]
   mount-observe:
     command: bin/run
     plugs: [ mount-observe ]
@@ -338,6 +347,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  polkit:
+    command: bin/run
+    plugs: [ polkit ]
   power-control:
     command: bin/run
     plugs: [ power-control ]
@@ -374,6 +386,9 @@ apps:
   screencast-legacy:
     command: bin/run
     plugs: [ screencast-legacy ]
+  scsi-generic:
+    command: bin/run
+    plugs: [ scsi-generic ]
   shutdown:
     command: bin/run
     plugs: [ shutdown ]
@@ -395,6 +410,9 @@ apps:
   sd-control:
     command: bin/run
     plugs: [ sd-control ]
+  shared-memory:
+    command: bin/run
+    plugs: [ shared-memory ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
@@ -476,6 +494,9 @@ apps:
   x11:
     command: bin/run
     plugs: [ x11 ]
+  xilinx-dma:
+    command: bin/run
+    plugs: [ xilinx-dma ]
 
 plugs:
   browser-sandbox:
@@ -485,6 +506,9 @@ plugs:
     interface: content
     content: test-content
     target: $SNAP/content
+  custom-device:
+    interface: custom-device
+    custom-device: mydevice
   dbus-session:
     interface: dbus
     bus: session
@@ -493,6 +517,20 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  kernel-module-load:
+    interface: kernel-module-load
+    modules:
+      - name: mymodule
+        load: denied
+  mount-control:
+    interface: mount-control
+    mount:
+      - what: /dev/sda1
+        where: /media/myfiles
+        options: [rw]
+  polkit:
+    interface: polkit
+    action-prefix: io.snapcraft.example
   system-files:
     interface: system-files
     read: [/file1]

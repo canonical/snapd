@@ -44,7 +44,7 @@ execute: |
       if mountpoint /run/mnt/snapd >/dev/null; then
         umount /run/mnt/snapd
       fi
-      umount /var/lib/snapd/seed
+      retry -n 20 --wait 2 sh -c 'umount /var/lib/snapd/seed'
       umount /run/mnt/ubuntu-seed
 
       # Refer to the core 20 gadgets for details:

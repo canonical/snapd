@@ -198,6 +198,7 @@ type snapInstruction struct {
 	Unaliased              bool     `json:"unaliased"`
 	Purge                  bool     `json:"purge,omitempty"`
 	SystemRestartImmediate bool     `json:"system-restart-immediate"`
+	Transactional          bool     `json:"transactional"`
 	Snaps                  []string `json:"snaps"`
 	Users                  []string `json:"users"`
 
@@ -568,7 +569,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID)
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, &snapstate.Flags{Transactional: inst.Transactional})
 	if err != nil {
 		return nil, err
 	}
@@ -605,8 +606,13 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	}
 
 	// TODO: use a per-request context
-	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, nil)
+	updated, tasksets, err := snapstateUpdateMany(context.TODO(), st, inst.Snaps, inst.userID, &snapstate.Flags{Transactional: inst.Transactional})
 	if err != nil {
+		if opts.IsRefreshOfAllSnaps {
+			if err := assertstateRestoreValidationSetsTracking(st); err != nil && !errors.Is(err, state.ErrNoState) {
+				return nil, err
+			}
+		}
 		return nil, err
 	}
 

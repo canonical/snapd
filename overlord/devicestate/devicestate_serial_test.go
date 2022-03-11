@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -64,6 +65,11 @@ type deviceMgrSerialSuite struct {
 }
 
 var _ = Suite(&deviceMgrSerialSuite{})
+
+func (s *deviceMgrSerialSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
+}
 
 func (s *deviceMgrSerialSuite) signSerial(c *C, bhv *devicestatetest.DeviceServiceBehavior, headers map[string]interface{}, body []byte) (serial asserts.Assertion, ancillary []asserts.Assertion, err error) {
 	brandID := headers["brand-id"].(string)
@@ -198,6 +204,9 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 
 	// check that keypair manager is under device
 	c.Check(osutil.IsDirectory(filepath.Join(dirs.SnapDeviceDir, "private-keys-v1")), Equals, true)
+
+	// cannot unregister
+	c.Check(s.mgr.Unregister(nil), ErrorMatches, `cannot currently unregister device if not classic or model brand is not generic or canonical`)
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
@@ -2016,4 +2025,185 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationUC20Happy(c *C) {
 		"serial":   "9999",
 	})
 	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSerialSuite) TestFullDeviceUnregisterReregisterClassicGeneric(c *C) {
+	s.testFullDeviceUnregisterReregisterClassicGeneric(c, nil)
+}
+
+func (s *deviceMgrSerialSuite) TestFullDeviceUnregisterBlockReregisterUntilRebootClassicGeneric(c *C) {
+	s.testFullDeviceUnregisterReregisterClassicGeneric(c, &devicestate.UnregisterOptions{
+		NoRegistrationUntilReboot: true,
+	})
+}
+
+func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(c *C, opts *devicestate.UnregisterOptions) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-1", nil)
+	defer mockServer.Close()
+
+	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer r2()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// in this case is just marked seeded without snaps
+	s.state.Set("seeded", true)
+
+	// not started without some installation happening or happened
+	// have an in-progress installation
+	inst := s.state.NewChange("install", "...")
+	task := s.state.NewTask("mount-snap", "...")
+	inst.AddTask(task)
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+	becomeOperational1 := becomeOperational.ID()
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "generic")
+	c.Check(device.Model, Equals, "generic-classic")
+	c.Check(device.Serial, Equals, "9999")
+
+	// serial is there
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "generic",
+		"model":    "generic-classic",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+	keyID1 := device.KeyID
+
+	// mock having a store session
+	device.SessionMacaroon = "session-macaroon"
+	devicestatetest.SetDevice(s.state, device)
+
+	err = s.mgr.Unregister(opts)
+	c.Assert(err, IsNil)
+
+	device, err = devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "generic")
+	c.Check(device.Model, Equals, "generic-classic")
+	// unregistered
+	c.Check(device.Serial, Equals, "")
+	// forgot key
+	c.Check(device.KeyID, Equals, "")
+	// and session
+	c.Check(device.SessionMacaroon, Equals, "")
+	// key was deleted
+	_, err = devicestate.KeypairManager(s.mgr).Get(keyID1)
+	c.Check(err, ErrorMatches, "cannot find key pair")
+
+	noRegistrationUntilReboot := opts != nil && opts.NoRegistrationUntilReboot
+	noregister := filepath.Join(dirs.SnapRunDir, "noregister")
+	if noRegistrationUntilReboot {
+		c.Check(noregister, testutil.FilePresent)
+		c.Assert(os.Remove(noregister), IsNil)
+	} else {
+		c.Check(noregister, testutil.FileAbsent)
+	}
+
+	// runs the whole device registration process again
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational = s.findBecomeOperationalChange(becomeOperational1)
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err = devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "generic")
+	c.Check(device.Model, Equals, "generic-classic")
+	c.Check(device.Serial, Equals, "10000")
+
+	// serial is there
+	a, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "generic",
+		"model":    "generic-classic",
+		"serial":   "10000",
+	})
+	c.Assert(err, IsNil)
+	serial = a.(*asserts.Serial)
+
+	privKey, err = devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+	// different from previous key
+	c.Check(device.KeyID, Not(Equals), keyID1)
+}
+
+func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-1", nil)
+	defer mockServer.Close()
+
+	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer r2()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// in this case is just marked seeded without snaps
+	s.state.Set("seeded", true)
+
+	// not started without some installation happening or happened
+	// have a in-progress installation
+	inst := s.state.NewChange("install", "...")
+	task := s.state.NewTask("mount-snap", "...")
+	inst.AddTask(task)
+
+	// create /run/snapd/noregister
+	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644), IsNil)
+
+	// attempt to run the whole device registration process
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// noregister blocked it
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, IsNil)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.state.Lock()
+
+	// same, noregister blocked it
+	becomeOperational = s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, IsNil)
 }

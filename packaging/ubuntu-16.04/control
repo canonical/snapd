@@ -23,7 +23,7 @@ Build-Depends: autoconf,
                init-system-helpers,
                libapparmor-dev,
                libcap-dev,
-               libfuse-dev | libfuse3-dev,
+               libfuse3-dev (>= 3.10.5-1) | libfuse-dev,
                libglib2.0-dev,
                liblzma-dev,
                liblzo2-dev,
@@ -70,7 +70,8 @@ Depends: adduser,
          systemd,
          udev,
          ${misc:Depends},
-         ${shlibs:Depends}
+         ${shlibs:Depends},
+         ${dbussession:Depends}
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0), ${snapd:Breaks}
 Recommends: gnupg

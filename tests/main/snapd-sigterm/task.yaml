@@ -10,6 +10,12 @@ restore: |
     systemctl start snapd.service
 
 execute: |
+    # The time used for arm devices is higher because those are slow devices
+    MAX_TIME=5
+    if [ "$SPREAD_BACKEND" = "external" ] && os.query is-arm; then
+        MAX_TIME=12
+    fi
+
     echo "Make a request, keep the connection open"
     python3 - << EOF > stamp &
     import socket, time
@@ -38,7 +44,7 @@ execute: |
 
     TEST_TIME1="$(date +'%s')"
 
-    if ((TEST_TIME1 > TEST_TIME0 + 5)); then
-        echo "Stopping snapd took more than 5 seconds!"
+    if ((TEST_TIME1 > TEST_TIME0 + MAX_TIME)); then
+        echo "Stopping snapd took more than $MAX_TIME seconds!"
         exit 1
     fi
