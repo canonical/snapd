@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # This file contains all the cursors used for the different tests
-JOURNALCTL_CURSOR_FILE="$SPREAD_PATH"/tests/runtime-state/journalctl_cursor
+JOURNALCTL_CURSOR_FILE="$TESTSTMP"/runtime-state/journalctl_cursor
 
 show_help() {
     echo "usage: journal-state start-new-log"
     echo "       journal-state check-log-started"
     echo "       journal-state get-last-cursor"
+    echo "       journal-state get-test-cursor"
     echo "       journal-state match-log <EXPRESSION> [--attempts|-n PARAM] [--wait PARAM] [--unit|-u PARAM] [-b]"
     echo "       journal-state get-log"
     echo "       journal-state get-log-from-cursor"
@@ -27,6 +28,15 @@ start_new_log(){
         echo "$SPREAD_JOB " >> "$JOURNALCTL_CURSOR_FILE"
         echo "$cursor" >> "$JOURNALCTL_CURSOR_FILE"
     fi
+}
+
+get_test_cursor(){
+    cursor="$(tail -n 1 "$JOURNALCTL_CURSOR_FILE")"
+    if [ -z "$cursor" ]; then
+        echo "Cursor for test not found"
+        exit 1
+    fi
+    echo "$cursor"
 }
 
 check_log_started(){

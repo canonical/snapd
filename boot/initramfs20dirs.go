@@ -72,6 +72,10 @@ var (
 	// use dirs.SnapSaveFDEDirUnder().
 	InstallHostFDESaveDir string
 
+	// InstallHostSaveDir is the directory of device data on ubuntu-save during
+	// install mode. For other modes use dirs.SnapDeviceSaveDir
+	InstallHostDeviceSaveDir string
+
 	// InitramfsSeedEncryptionKeyDir is the location of the encrypted partition
 	// keys during the initramfs on ubuntu-seed.
 	InitramfsSeedEncryptionKeyDir string
@@ -94,8 +98,9 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsUbuntuSeedDir = filepath.Join(InitramfsRunMntDir, "ubuntu-seed")
 	InitramfsUbuntuSaveDir = filepath.Join(InitramfsRunMntDir, "ubuntu-save")
 	InstallHostWritableDir = filepath.Join(InitramfsRunMntDir, "ubuntu-data", "system-data")
+	InstallHostDeviceSaveDir = filepath.Join(InitramfsUbuntuSaveDir, "device")
 	InstallHostFDEDataDir = dirs.SnapFDEDirUnder(InstallHostWritableDir)
-	InstallHostFDESaveDir = filepath.Join(InitramfsUbuntuSaveDir, "device/fde")
+	InstallHostFDESaveDir = filepath.Join(InstallHostDeviceSaveDir, "fde")
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 	InitramfsSeedEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 	InitramfsBootEncryptionKeyDir = filepath.Join(InitramfsUbuntuBootDir, "device/fde")

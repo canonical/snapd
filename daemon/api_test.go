@@ -21,7 +21,6 @@ package daemon_test
 
 import (
 	"fmt"
-	"mime/multipart"
 	"net/http"
 
 	"gopkg.in/check.v1"
@@ -115,14 +114,14 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 }
 
 func (s *apiSuite) TestIsTrue(c *check.C) {
-	form := &multipart.Form{}
+	form := &daemon.Form{}
 	c.Check(daemon.IsTrue(form, "foo"), check.Equals, false)
 	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
-		form.Value = map[string][]string{"foo": {f}}
+		form.Values = map[string][]string{"foo": {f}}
 		c.Check(daemon.IsTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
 	}
 	for _, t := range []string{"true", "1", "True", "t"} {
-		form.Value = map[string][]string{"foo": {t}}
+		form.Values = map[string][]string{"foo": {t}}
 		c.Check(daemon.IsTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
 }

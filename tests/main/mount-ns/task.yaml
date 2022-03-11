@@ -56,11 +56,29 @@ systems: [ubuntu-18.04-64]
 # side-effects now. The test should be _eventually_ enabled on
 # ubuntu-core-16-64 and ubuntu-core-18-64.
 
+# We have seen this test to fail when executed after another test that uses LXD
+# (eg. tests/main/snap-snap). It is also documented in
+# https://bugs.launchpad.net/snapd/+bug/1949710 that LXD modifies the mounts in
+# the host system thus making the state of the system different from what is
+# expected and checked for in this test. Since we cannot really skip the test,
+# cannot set a constraint that the test should not run on the same node as some
+# other test, and we cannot fix LXD test to reboot in restore due to
+# https://github.com/snapcore/spread/pull/85, we employ a workaround which is to
+# bump the priority of this test such that is runs before any other tests that
+# may use LXD.
+priority: 1001
+
 environment:
     MACHINE_STATE/inherit: inherit
     MACHINE_STATE/reboot: reboot
 
 prepare: |
+    # The package qemu-utils creates a tmpfs on /run/qemu on Ubuntu 18.04
+    # (though not always). This causes failures in this test, as the
+    # mount-point list is not consistent with what we expect. Therefore,
+    # unmount it.
+    umount /run/qemu || true
+
     case "$MACHINE_STATE" in
         inherit)
             # The test will run with whatever the machine state was originally.

@@ -37,6 +37,8 @@ var (
 
 	DistroLibExecDir string
 
+	HiddenSnapDataHomeGlob string
+
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -49,6 +51,7 @@ var (
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
 	SnapKModModulesDir        string
+	SnapKModModprobeDir       string
 	LocaleDir                 string
 	SnapMetaDir               string
 	SnapdSocket               string
@@ -57,6 +60,7 @@ var (
 	SnapRunNsDir              string
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
+	SnapVoidDir               string
 
 	SnapdMaintenanceFile string
 
@@ -72,6 +76,7 @@ var (
 	SnapSeqDir            string
 
 	SnapStateFile     string
+	SnapStateLockFile string
 	SnapSystemKeyFile string
 
 	SnapRepairDir        string
@@ -95,6 +100,7 @@ var (
 	SnapSystemdConfDir     string
 	SnapDesktopFilesDir    string
 	SnapDesktopIconsDir    string
+	SnapPolkitPolicyDir    string
 
 	SnapDBusSessionPolicyDir   string
 	SnapDBusSystemPolicyDir    string
@@ -139,8 +145,15 @@ const (
 	CoreLibExecDir   = "/usr/lib/snapd"
 	CoreSnapMountDir = "/snap"
 
-	// Directory with snap data inside user's home
+	// UserHomeSnapDir is the directory with snap data inside user's home
 	UserHomeSnapDir = "snap"
+
+	// HiddenSnapDataHomeDir is an experimental hidden directory for snap data
+	HiddenSnapDataHomeDir = ".snap/data"
+
+	// ExposedSnapHomeDir is the directory where snaps should place user-facing
+	// data after ~/snap has been migrated to ~/.snap
+	ExposedSnapHomeDir = "Snap"
 
 	// LocalInstallBlobTempPrefix is used by local install code:
 	// * in daemon to spool the snap file to <SnapBlobDir>/<LocalInstallBlobTempPrefix>*
@@ -154,6 +167,17 @@ var (
 
 	callbacks = []func(string){}
 )
+
+type SnapDirOptions struct {
+	// HiddenSnapDataDir determines if the snaps' data is in ~/.snap/data instead
+	// of ~/snap
+	HiddenSnapDataDir bool
+
+	// MigratedToExposedHome determines if the snap's directory in ~/Snap has been
+	// initialized with the contents of the snap's previous home (i.e., the
+	// revisioned data directory).
+	MigratedToExposedHome bool
+}
 
 func init() {
 	// init the global directories at startup
@@ -239,6 +263,11 @@ func SnapStateFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "state.json")
 }
 
+// SnapStateLockFileUnder returns the path to snapd state lock file under rootdir.
+func SnapStateLockFileUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "state.lock")
+}
+
 // SnapModeenvFileUnder returns the path to the modeenv file under rootdir.
 func SnapModeenvFileUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "modeenv")
@@ -253,6 +282,12 @@ func FeaturesDirUnder(rootdir string) string {
 // rootdir.
 func SnapSystemdConfDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, "/etc/systemd/system.conf.d")
+}
+
+// SnapSystemdConfDirUnder returns the path to the systemd conf dir under
+// rootdir.
+func SnapServicesDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, "/etc/systemd/system")
 }
 
 // SnapBootAssetsDirUnder returns the path to boot assets directory under a
@@ -299,6 +334,7 @@ func SetRootDir(rootdir string) {
 	GlobalRootDir = rootdir
 
 	altDirDistros := []string{
+		"altlinux",
 		"antergos",
 		"arch",
 		"archlinux",
@@ -317,6 +353,7 @@ func SetRootDir(rootdir string) {
 
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", UserHomeSnapDir)
+	HiddenSnapDataHomeGlob = filepath.Join(rootdir, "/home/*/", HiddenSnapDataHomeDir)
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	SnapConfineAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "snap-confine")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
@@ -327,6 +364,7 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
+	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
 	// freedesktop.org specifications
@@ -350,6 +388,7 @@ func SetRootDir(rootdir string) {
 	SnapSeqDir = filepath.Join(rootdir, snappyDir, "sequence")
 
 	SnapStateFile = SnapStateFileUnder(rootdir)
+	SnapStateLockFile = SnapStateLockFileUnder(rootdir)
 	SnapSystemKeyFile = filepath.Join(rootdir, snappyDir, "system-key")
 
 	SnapCacheDir = filepath.Join(rootdir, "/var/cache/snapd")
@@ -388,11 +427,14 @@ func SetRootDir(rootdir string) {
 	SnapDBusSessionServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "services")
 	SnapDBusSystemServicesDir = filepath.Join(rootdir, snappyDir, "dbus-1", "system-services")
 
+	SnapPolkitPolicyDir = filepath.Join(rootdir, "/usr/share/polkit-1/actions")
+
 	CloudInstanceDataFile = filepath.Join(rootdir, "/run/cloud-init/instance-data.json")
 
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
 
 	SnapKModModulesDir = filepath.Join(rootdir, "/etc/modules-load.d/")
+	SnapKModModprobeDir = filepath.Join(rootdir, "/etc/modprobe.d/")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")

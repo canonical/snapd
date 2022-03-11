@@ -21,7 +21,6 @@ package main_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -102,12 +101,16 @@ type fakeQuotaGroupPostHandlerOpts struct {
 	maxMemory  int64
 }
 
+type quotasEnsureBodyConstraints struct {
+	Memory int64 `json:"memory,omitempty"`
+}
+
 type quotasEnsureBody struct {
-	Action      string                 `json:"action"`
-	GroupName   string                 `json:"group-name,omitempty"`
-	ParentName  string                 `json:"parent,omitempty"`
-	Snaps       []string               `json:"snaps,omitempty"`
-	Constraints map[string]interface{} `json:"constraints,omitempty"`
+	Action      string                      `json:"action"`
+	GroupName   string                      `json:"group-name,omitempty"`
+	ParentName  string                      `json:"parent,omitempty"`
+	Snaps       []string                    `json:"snaps,omitempty"`
+	Constraints quotasEnsureBodyConstraints `json:"constraints,omitempty"`
 }
 
 func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) func(w http.ResponseWriter, r *http.Request) {
@@ -132,10 +135,10 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 				GroupName:   opts.groupName,
 				ParentName:  opts.parentName,
 				Snaps:       opts.snaps,
-				Constraints: map[string]interface{}{},
+				Constraints: quotasEnsureBodyConstraints{},
 			}
 			if opts.maxMemory != 0 {
-				exp.Constraints["memory"] = json.Number(fmt.Sprintf("%d", opts.maxMemory))
+				exp.Constraints.Memory = opts.maxMemory
 			}
 
 			postJSON := quotasEnsureBody{}

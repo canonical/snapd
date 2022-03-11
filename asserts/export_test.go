@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,11 @@ import (
 
 // expose test-only things here
 
-var NumAssertionType = len(typeRegistry)
+var NumAssertionType int
+
+func init() {
+	NumAssertionType = len(typeRegistry)
+}
 
 // v1FixedTimestamp exposed for tests
 var V1FixedTimestamp = v1FixedTimestamp
@@ -74,8 +78,10 @@ func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since ti
 				"public-key-sha3-384": openPGPPubKey.ID(),
 			},
 		},
-		since:  since.UTC(),
-		until:  since.UTC().AddDate(validYears, 0, 0),
+		sinceUntil: sinceUntil{
+			since: since.UTC(),
+			until: since.UTC().AddDate(validYears, 0, 0),
+		},
 		pubKey: openPGPPubKey,
 	}
 }
@@ -251,12 +257,16 @@ func init() {
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
-	return ak.isKeyValidAt(when)
+	return ak.isValidAt(when)
 }
 
-// AccountKeyIsKeyValidAssumingCurTimeWithin exposes isKeyValidAssumingCurTimeWithin on AccountKey for tests
-func AccountKeyIsKeyValidAssumingCurTimeWithin(ak *AccountKey, earliest, latest time.Time) bool {
-	return ak.isKeyValidAssumingCurTimeWithin(earliest, latest)
+type sinceUntilLike interface {
+	isValidAssumingCurTimeWithin(earliest, latest time.Time) bool
+}
+
+// IsValidAssumingCurTimeWithin exposes sinceUntil.isValidAssumingCurTimeWithin
+func IsValidAssumingCurTimeWithin(su sinceUntilLike, earliest, latest time.Time) bool {
+	return su.isValidAssumingCurTimeWithin(earliest, latest)
 }
 
 type GPGRunner func(input []byte, args ...string) ([]byte, error)
@@ -271,6 +281,13 @@ func MockRunGPG(mock func(prev GPGRunner, input []byte, args ...string) ([]byte,
 	}
 }
 
+func GPGBatchYes() (restore func()) {
+	gpgBatchYes = true
+	return func() {
+		gpgBatchYes = false
+	}
+}
+
 // Headers helpers to test
 var (
 	ParseHeaders = parseHeaders
@@ -281,6 +298,32 @@ var (
 func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
 	return gkm.parametersForGenerate(passphrase, name)
 }
+
+// constraint tests
+
+func CompileAttrMatcher(constraints interface{}, allowedOperations []string) (func(attrs map[string]interface{}, helper AttrMatchContext) error, error) {
+	// XXX adjust
+	cc := compileContext{
+		opts: &compileAttrMatcherOptions{
+			allowedOperations: allowedOperations,
+		},
+	}
+	matcher, err := compileAttrMatcher(cc, constraints)
+	if err != nil {
+		return nil, err
+	}
+	domatch := func(attrs map[string]interface{}, helper AttrMatchContext) error {
+		return matcher.match("", attrs, &attrMatchingContext{
+			attrWord: "field",
+			helper:   helper,
+		})
+	}
+	return domatch, nil
+}
+
+var (
+	CompileDeviceScopeConstraint = compileDeviceScopeConstraint
+)
 
 // ifacedecls tests
 var (

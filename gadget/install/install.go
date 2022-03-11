@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -25,26 +26,37 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
 
-func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
+// diskWithSystemSeed will locate a disk that has the partition corresponding
+// to a structure with SystemSeed role of the specified gadget volume and return
+// the device node.
+func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a
 		// method on gadget.*Volume
-		if vs.Role == role {
+		if vs.Role == gadget.SystemSeed {
 			device, err = gadget.FindDeviceForStructure(&vs)
 			if err != nil {
-				return "", fmt.Errorf("cannot find device for role %q: %v", role, err)
+				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
 			}
-			return gadget.ParentDiskFromMountSource(device)
+
+			disk, err := disks.DiskFromPartitionDeviceNode(device)
+			if err != nil {
+				return "", err
+			}
+			return disk.KernelDeviceNode(), nil
 		}
 	}
-	return "", fmt.Errorf("cannot find role %s in gadget", role)
+	return "", fmt.Errorf("cannot find role system-seed in gadget")
 }
 
 func roleOrLabelOrName(part gadget.OnDiskStructure) string {
@@ -62,7 +74,7 @@ func roleOrLabelOrName(part gadget.OnDiskStructure) string {
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
+func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
@@ -70,9 +82,13 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, _, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
+	if model.Grade() == asserts.ModelGradeUnset {
+		return nil, fmt.Errorf("cannot run install mode on non-UC20+ system")
+	}
+
+	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
-		return nil, fmt.Errorf("cannot layout the volume: %v", err)
+		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
 	// TODO: resolve content paths from gadget here
 
@@ -80,26 +96,26 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	//      in (spread) testing - consider to remove forcing a device
 	//
 	// auto-detect device if no device is forced
-	if device == "" {
-		device, err = deviceFromRole(lv, gadget.SystemSeed)
+	if bootDevice == "" {
+		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
 	}
 
-	diskLayout, err := gadget.OnDiskVolumeFromDevice(device)
+	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read %v partitions: %v", device, err)
+		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureLayoutCompatibility(lv, diskLayout); err != nil {
-		return nil, fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
+	if err := gadget.EnsureLayoutCompatibility(laidOutBootVol, diskLayout, nil); err != nil {
+		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(lv, diskLayout); err != nil {
+	if err := removeCreatedPartitions(gadgetRoot, laidOutBootVol, diskLayout); err != nil {
 		return nil, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -114,7 +130,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 
 	var created []gadget.OnDiskStructure
 	timings.Run(perfTimings, "create-partitions", "Create partitions", func(timings.Measurer) {
-		created, err = createMissingPartitions(diskLayout, lv)
+		created, err = createMissingPartitions(gadgetRoot, diskLayout, laidOutBootVol)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
@@ -140,6 +156,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	}
 	var keysForRoles map[string]*EncryptionKeySet
 
+	partsEncrypted := map[string]gadget.StructureEncryptionParameters{}
+
+	hasSavePartition := false
+
 	for _, part := range created {
 		roleFmt := ""
 		if part.Role != "" {
@@ -148,6 +168,11 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		logger.Noticef("created new partition %v for structure %v (size %v) %s",
 			part.Node, part, part.Size.IECString(), roleFmt)
 		encrypt := (options.EncryptionType != secboot.EncryptionTypeNone)
+
+		if part.Role == gadget.SystemSave {
+			hasSavePartition = true
+		}
+
 		if encrypt && roleNeedsEncryption(part.Role) {
 			var keys *EncryptionKeySet
 			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
@@ -157,9 +182,9 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 				return nil, err
 			}
 			logger.Noticef("encrypting partition device %v", part.Node)
-			var dataPart *encryptedDevice
+			var dataPart encryptedDevice
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				dataPart, err = newEncryptedDevice(&part, keys.Key, part.Label)
+				dataPart, err = newEncryptedDeviceLUKS(&part, keys.Key, part.Label)
 			})
 			if err != nil {
 				return nil, err
@@ -173,12 +198,18 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 			}
 
 			// update the encrypted device node
-			part.Node = dataPart.Node
+			part.Node = dataPart.Node()
 			if keysForRoles == nil {
 				keysForRoles = map[string]*EncryptionKeySet{}
 			}
 			keysForRoles[part.Role] = keys
 			logger.Noticef("encrypted device %v", part.Node)
+
+			// TODO: how to determine if this will be a LUKS or an ICE encrypted
+			// partition?
+			partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
+				Method: gadget.EncryptionLUKS,
+			}
 		}
 
 		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
@@ -194,7 +225,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 
 		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-			err = writeContent(&part, gadgetRoot, observer)
+			err = writeContent(&part, observer)
 		})
 		if err != nil {
 			return nil, err
@@ -204,6 +235,32 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 			if err := mountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	// after we have created all partitions, build up the mapping of volumes
+	// to disk device traits and save it to disk for later usage
+	optsPerVol := map[string]*gadget.DiskVolumeValidationOptions{
+		// this assumes that the encrypted partitions above are always only on the
+		// system-boot volume, this assumption may change
+		laidOutBootVol.Name: {
+			ExpectedStructureEncryption: partsEncrypted,
+		},
+	}
+	allVolTraits, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsPerVol)
+	if err != nil {
+		return nil, err
+	}
+
+	// save the traits to ubuntu-data host
+	if err := gadget.SaveDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), allVolTraits); err != nil {
+		return nil, fmt.Errorf("cannot save disk to volume device traits: %v", err)
+	}
+
+	// and also to ubuntu-save if it exists
+	if hasSavePartition {
+		if err := gadget.SaveDiskVolumesDeviceTraits(boot.InstallHostDeviceSaveDir, allVolTraits); err != nil {
+			return nil, fmt.Errorf("cannot save disk to volume device traits: %v", err)
 		}
 	}
 

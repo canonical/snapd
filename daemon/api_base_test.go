@@ -294,6 +294,9 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 }
 
 func (s *apiBaseSuite) resetDaemon() {
+	if s.d != nil {
+		s.d.Overlord().Stop()
+	}
 	s.d = nil
 }
 
@@ -625,7 +628,7 @@ func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState)
 
 func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
 	rsp := s.jsonReq(c, req, u)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v", rsp))
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v, result %v", rsp, rsp.Result))
 	return rsp
 }
 

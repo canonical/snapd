@@ -56,7 +56,8 @@ To install multiple instances of the same snap, append an underscore and a
 unique identifier (for each instance) to a snap's name.
 
 With no further options, the snaps are installed tracking the stable channel,
-with strict security confinement.
+with strict security confinement. All available channels of a snap are listed in
+its 'snap info' output.
 
 Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
@@ -85,7 +86,8 @@ The refresh command updates the specified snaps, or all snaps in the system if
 none are specified.
 
 With no further options, the snaps are refreshed to the current revision of the
-channel they're tracking, preserving their confinement options.
+channel they're tracking, preserving their confinement options. All available
+channels of a snap are listed in its 'snap info' output.
 
 Revision choice via the --revision override requires the user to
 have developer access to the snap, either directly or through the
@@ -474,10 +476,12 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
-	Cohort        string `long:"cohort"`
-	IgnoreRunning bool   `long:"ignore-running" hidden:"yes"`
-	Positional    struct {
-		Snaps []remoteSnapName `positional-arg-name:"<snap>"`
+	Cohort           string `long:"cohort"`
+	IgnoreValidation bool   `long:"ignore-validation"`
+	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
+	Transactional    bool   `long:"transactional"`
+	Positional       struct {
+		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -487,7 +491,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var snapName string
 	var path string
 
-	if strings.Contains(nameOrPath, "/") || strings.HasSuffix(nameOrPath, ".snap") || strings.Contains(nameOrPath, ".snap.") {
+	if isLocalSnap(nameOrPath) {
 		path = nameOrPath
 		changeID, err = x.client.InstallPath(path, x.Name, opts)
 	} else {
@@ -525,15 +529,31 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	return showDone(x.client, []string{snapName}, "install", opts, x.getEscapes())
 }
 
+func isLocalSnap(name string) bool {
+	return strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.")
+}
+
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
-	// sanity check
+	isLocal := isLocalSnap(names[0])
 	for _, name := range names {
-		if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-			return fmt.Errorf("only one snap file can be installed at a time")
+		if isLocalSnap(name) != isLocal {
+			return fmt.Errorf(i18n.G("cannot install local and store snaps at the same time"))
 		}
 	}
 
-	changeID, err := x.client.InstallMany(names, opts)
+	var changeID string
+	var err error
+
+	if isLocal {
+		changeID, err = x.client.InstallPathMany(names, opts)
+	} else {
+		if x.asksForMode() {
+			return errors.New(i18n.G("cannot specify mode for multiple store snaps (only for one store snap or several local ones)"))
+		}
+
+		changeID, err = x.client.InstallMany(names, opts)
+	}
+
 	if err != nil {
 		var snapName string
 		if err, ok := err.(*client.Error); ok {
@@ -566,6 +586,11 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		}
 	}
 
+	// local installs aren't skipped if the snap is installed
+	if isLocal {
+		return nil
+	}
+
 	// show skipped
 	seen := make(map[string]bool)
 	for _, name := range installed {
@@ -592,19 +617,18 @@ func (x *cmdInstall) Execute([]string) error {
 
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
-		Channel:       x.Channel,
-		Revision:      x.Revision,
-		Dangerous:     dangerous,
-		Unaliased:     x.Unaliased,
-		CohortKey:     x.Cohort,
-		IgnoreRunning: x.IgnoreRunning,
+		Channel:          x.Channel,
+		Revision:         x.Revision,
+		Dangerous:        dangerous,
+		Unaliased:        x.Unaliased,
+		CohortKey:        x.Cohort,
+		IgnoreValidation: x.IgnoreValidation,
+		IgnoreRunning:    x.IgnoreRunning,
+		Transactional:    x.Transactional,
 	}
 	x.setModes(opts)
 
 	names := remoteSnapNames(x.Positional.Snaps)
-	if len(names) == 0 {
-		return errors.New(i18n.G("cannot install zero snaps"))
-	}
 	for _, name := range names {
 		if len(name) == 0 {
 			return errors.New(i18n.G("cannot install snap with empty name"))
@@ -615,14 +639,17 @@ func (x *cmdInstall) Execute([]string) error {
 		return x.installOne(names[0], x.Name, opts)
 	}
 
-	if x.asksForMode() || x.asksForChannel() {
-		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	if x.asksForChannel() {
+		return errors.New(i18n.G("a single snap name is needed to specify channel flags"))
+	}
+	if x.IgnoreValidation {
+		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
 
 	if x.Name != "" {
 		return errors.New(i18n.G("cannot use instance name when installing multiple snaps"))
 	}
-	return x.installMany(names, nil)
+	return x.installMany(names, opts)
 }
 
 type cmdRefresh struct {
@@ -640,6 +667,7 @@ type cmdRefresh struct {
 	Time             bool   `long:"time"`
 	IgnoreValidation bool   `long:"ignore-validation"`
 	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
+	Transactional    bool   `long:"transactional"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -809,9 +837,15 @@ func (x *cmdRefresh) Execute([]string) error {
 			Revision:         x.Revision,
 			CohortKey:        x.Cohort,
 			LeaveCohort:      x.LeaveCohort,
+			Transactional:    x.Transactional,
 		}
 		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
+	}
+	// transactional flag is the only one with meaning when
+	// refreshing many snaps
+	opts := &client.SnapOptions{
+		Transactional: x.Transactional,
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
@@ -825,7 +859,7 @@ func (x *cmdRefresh) Execute([]string) error {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring running apps and hooks"))
 	}
 
-	return x.refreshMany(names, nil)
+	return x.refreshMany(names, opts)
 }
 
 type cmdTry struct {
@@ -1027,7 +1061,8 @@ func (x *cmdRevert) Execute(args []string) error {
 var shortSwitchHelp = i18n.G("Switches snap to a different channel")
 var longSwitchHelp = i18n.G(`
 The switch command switches the given snap to a different channel without
-doing a refresh.
+doing a refresh. All available channels of a snap are listed in
+its 'snap info' output.
 `)
 
 type cmdSwitch struct {
@@ -1107,7 +1142,11 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"cohort": i18n.G("Install the snap in the given cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
+			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the installation"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"transactional": i18n.G("Install a set of snaps transactionally."),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1127,6 +1166,8 @@ func init() {
 			"cohort": i18n.G("Refresh the snap into the given cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"transactional": i18n.G("Refresh a set of snaps transactionally."),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

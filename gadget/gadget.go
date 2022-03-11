@@ -22,6 +22,7 @@ package gadget
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -147,7 +149,8 @@ type VolumeStructure struct {
 	// 'system-boot-select' or 'system-recovery-select'. Structures of type 'mbr', must have a
 	// size of 446 bytes and must start at 0 offset.
 	Role string `yaml:"role"`
-	// ID is the GPT partition ID
+	// ID is the GPT partition ID, this should always be made upper case for
+	// comparison purposes.
 	ID string `yaml:"id"`
 	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
 	// structures of type 'bare'
@@ -204,6 +207,239 @@ func (vc VolumeContent) String() string {
 type VolumeUpdate struct {
 	Edition  edition.Number `yaml:"edition"`
 	Preserve []string       `yaml:"preserve"`
+}
+
+// DiskVolumeDeviceTraits is a set of traits about a disk that were measured at
+// a previous point in time on the same device, and is used primarily to try and
+// map a volume in the gadget.yaml to a physical device on the system after the
+// initial installation is done. We don't have a steadfast and predictable way
+// to always find the device again, so we need to do a search, trying to find a
+// device which matches each trait in turn, and verify it matches the  physical
+// structure layout and if not move on to using the next trait.
+type DiskVolumeDeviceTraits struct {
+	// each member here is presented in descending order of certainty about the
+	// likelihood of being compatible if a candidate physical device matches the
+	// member. I.e. OriginalDevicePath is more trusted than OriginalKernelPath is
+	// more trusted than DiskID is more trusted than using the MappedStructures
+
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path
+	// the volume was measured and observed at during UC20+ install mode.
+	OriginalDevicePath string `json:"device-path"`
+
+	// OriginalKernelPath is the device path like /dev/vda the volume was
+	// measured and observed at during UC20+ install mode.
+	OriginalKernelPath string `json:"kernel-path"`
+
+	// DiskID is the disk's identifier, it is a UUID for GPT disks or an
+	// unsigned integer for DOS disks encoded as a string in hexadecimal as in
+	// "0x1212e868".
+	DiskID string `json:"disk-id"`
+
+	// Size is the physical size of the disk, regardless of usable space
+	// considerations.
+	Size quantity.Size `json:"size"`
+
+	// SectorSize is the physical sector size of the disk, typically 512 or
+	// 4096.
+	SectorSize quantity.Size `json:"sector-size"`
+
+	// Schema is the disk schema, either dos or gpt in lowercase.
+	Schema string `json:"schema"`
+
+	// Structure contains trait information about each individual structure in
+	// the volume that may be useful in identifying whether a disk matches a
+	// volume or not.
+	Structure []DiskStructureDeviceTraits `json:"structure"`
+
+	// StructureEncryption is the set of partitions that are encrypted on the
+	// volume - this should only ever have ubuntu-data or ubuntu-save keys for
+	// now in the map. The value indicates parameters of the encryption present
+	// that enable matching/identifying encrypted structures with their laid out
+	// counterparts in the gadget.yaml.
+	StructureEncryption map[string]StructureEncryptionParameters `json:"structure-encryption"`
+}
+
+// StructureEncryptionParameters contains information about an encrypted
+// structure, used to match encrypted structures on disk with their abstract,
+// laid out counterparts in the gadget.yaml.
+type StructureEncryptionParameters struct {
+	// Method is the method of encryption used, currently only EncryptionLUKS is
+	// recognized.
+	Method DiskEncryptionMethod `json:"method"`
+
+	// unknownKeys is used to log messages about unknown, unrecognized keys that
+	// we may encounter and may be used in the future
+	unknownKeys map[string]string
+}
+
+func (s *StructureEncryptionParameters) UnmarshalJSON(b []byte) error {
+	m := map[string]string{}
+
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+
+	for key, val := range m {
+		if key == "method" {
+			s.Method = DiskEncryptionMethod(val)
+		} else {
+			if s.unknownKeys == nil {
+				s.unknownKeys = make(map[string]string)
+			}
+			s.unknownKeys[key] = val
+		}
+	}
+
+	return nil
+}
+
+// DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
+// set of traits for a specific structure on a disk rather than the full disk
+// itself. Structures can be full partitions or just raw slices on a disk like
+// the "BIOS Boot" structure on default amd64 grub Ubuntu Core systems.
+type DiskStructureDeviceTraits struct {
+	// OriginalDevicePath is the device path in sysfs and in /dev/disk/by-path the
+	// partition was measured and observed at during UC20+ install mode.
+	OriginalDevicePath string `json:"device-path"`
+	// OriginalKernelPath is the device path like /dev/vda1 the partition was
+	// measured and observed at during UC20+ install mode.
+	OriginalKernelPath string `json:"kernel-path"`
+	// PartitionUUID is the partuuid as defined by i.e. /dev/disk/by-partuuid
+	PartitionUUID string `json:"partition-uuid"`
+	// PartitionLabel is the label of the partition for GPT disks, i.e.
+	// /dev/disk/by-partlabel
+	PartitionLabel string `json:"partition-label"`
+	// PartitionType is the type of the partition i.e. 0x83 for a
+	// Linux native partition on DOS, or
+	// 0FC63DAF-8483-4772-8E79-3D69D8477DE4 for a Linux filesystem
+	// data partition on GPT.
+	PartitionType string `json:"partition-type"`
+	// FilesystemUUID is the UUID of the filesystem on the partition, i.e.
+	// /dev/disk/by-uuid
+	FilesystemUUID string `json:"filesystem-uuid"`
+	// FilesystemLabel is the label of the filesystem for structures that have
+	// filesystems, i.e. /dev/disk/by-label
+	FilesystemLabel string `json:"filesystem-label"`
+	// FilesystemType is the type of the filesystem, i.e. vfat or ext4, etc.
+	FilesystemType string `json:"filesystem-type"`
+	// Offset is the offset of the structure
+	Offset quantity.Offset `json:"offset"`
+	// Size is the size of the structure
+	Size quantity.Size `json:"size"`
+}
+
+// SaveDiskVolumesDeviceTraits saves the mapping of volume names to volume /
+// device traits to a file inside the provided directory on disk for
+// later loading and verification.
+func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDeviceTraits) error {
+	b, err := json.Marshal(mapping)
+	if err != nil {
+		return err
+	}
+
+	filename := filepath.Join(dir, "disk-mapping.json")
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(filename, b, 0644, 0)
+}
+
+// LoadDiskVolumesDeviceTraits loads the mapping of volumes to disk traits if
+// there is any. If there is no file with the mapping available, nil is
+// returned.
+func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits, error) {
+	var mapping map[string]DiskVolumeDeviceTraits
+
+	filename := filepath.Join(dir, "disk-mapping.json")
+	if !osutil.FileExists(filename) {
+		return nil, nil
+	}
+
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(b, &mapping); err != nil {
+		return nil, err
+	}
+
+	return mapping, nil
+}
+
+// AllDiskVolumeDeviceTraits takes a mapping of volume name to LaidOutVolume and
+// produces a map of volume name to DiskVolumeDeviceTraits. Since doing so uses
+// DiskVolumeDeviceTraitsForDevice, it will also validate that disk devices
+// identified for the laid out volume are compatible and matching before
+// returning.
+func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
+	// build up the mapping of volumes to disk device traits
+
+	allVols := map[string]DiskVolumeDeviceTraits{}
+
+	// find all devices which map to volumes to save the current state of the
+	// system
+	for name, vol := range allLaidOutVols {
+		// try to find a device for a structure inside the volume, we have a
+		// loop to attempt to use all structures in the volume in case there are
+		// partitions we can't map to a device directly at first using the
+		// device symlinks that FindDeviceForStructure uses
+		dev := ""
+		for _, vs := range vol.LaidOutStructure {
+			// TODO: This code works for volumes that have at least one
+			// partition (i.e. not type: bare structure), but does not work for
+			// volumes which contain only type: bare structures with no other
+			// structures on them. It is entirely unclear how to identify such
+			// a volume, since there is no information on the disk about where
+			// such raw structures begin and end and thus no way to validate
+			// that a given disk "has" such raw structures at particular
+			// locations, aside from potentially reading and comparing the bytes
+			// at the expected locations, but that is probably fragile and very
+			// non-performant.
+
+			if !vs.IsPartition() {
+				// skip trying to find non-partitions on disk, it won't work
+				continue
+			}
+
+			structureDevice, err := FindDeviceForStructure(&vs)
+			if err != nil && err != ErrDeviceNotFound {
+				return nil, err
+			}
+			if structureDevice != "" {
+				// we found a device for this structure, get the parent disk
+				// and save that as the device for this volume
+				disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
+				if err != nil {
+					return nil, err
+				}
+
+				dev = disk.KernelDeviceNode()
+				break
+			}
+		}
+
+		if dev == "" {
+			return nil, fmt.Errorf("cannot find disk for volume %s from gadget", name)
+		}
+
+		// now that we have a candidate device for this disk, build up the
+		// traits for it, this will also validate concretely that the
+		// device we picked and the volume are compatible
+		opts := optsPerVolume[name]
+		if opts == nil {
+			opts = &DiskVolumeValidationOptions{}
+		}
+		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
+		if err != nil {
+			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
+		}
+
+		allVols[name] = traits
+	}
+
+	return allVols, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
@@ -342,7 +578,11 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	// basic validation
 	var bootloadersFound int
 	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
-	for name, v := range gi.Volumes {
+	for name := range gi.Volumes {
+		v := gi.Volumes[name]
+		if v == nil {
+			return nil, fmt.Errorf("volume %q stanza is empty", name)
+		}
 		// set the VolumeName for the volume
 		v.Name = name
 		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
@@ -558,7 +798,7 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 		ps := LaidOutStructure{
 			VolumeStructure: &vol.Structure[idx],
 			StartOffset:     start,
-			Index:           idx,
+			YamlIndex:       idx,
 		}
 		structures[idx] = ps
 		if s.Name != "" {
@@ -1056,6 +1296,7 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err
 	}
+	// TODO: should we enforce the maximum kernel command line for cmdline.full?
 	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err

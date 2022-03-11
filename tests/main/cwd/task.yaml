@@ -7,11 +7,16 @@ details: |
     to the view inside the mount namespace. If the directory does not exist the
     special fallback /var/lib/snapd/void is used.
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    tests.session -u test prepare
 
 restore: |
     rmdir /tmp/test || true
+    tests.session -u test restore
 
 debug: |
     # Much of what we do depends on permissions. If the permissions on those
@@ -39,7 +44,15 @@ execute: |
     # namespace but has permissions preventing the user to enter it (e.g.
     # via a symlink attack in /tmp) is remapped to a special directory.
     # FIXME: su doesn't have /snap/bin in PATH.
-    test "$(cd /root && su -c "snap run test-snapd-sh.sh -c pwd" test)" = "/var/lib/snapd/void"
+    case "$SPREAD_SYSTEM" in
+    fedora-*|opensuse-tumbleweed-*|arch-linux-*)
+        # nothiing, we have to go through tests.session which always starts in
+        # the $HOME directory
+        ;;
+    *)
+        test "$(cd /root && runuser -u test -- sh -c "snap run test-snapd-sh.sh -c pwd" )" = "/var/lib/snapd/void"
+        ;;
+    esac
 
     # Since the void directory is used when there are insufficient permissions
     # to enter the regular directory we must be able to go there in the first

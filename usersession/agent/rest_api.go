@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/usersession/client"
 )
 
 var restApi = []*Command{
@@ -64,6 +65,11 @@ var (
 	pendingRefreshNotificationCmd = &Command{
 		Path: "/v1/notifications/pending-refresh",
 		POST: postPendingRefreshNotification,
+	}
+
+	finishRefreshNotificationCmd = &Command{
+		Path: "/v1/notifications/finish-refresh",
+		POST: postRefreshFinishedNotification,
 	}
 )
 
@@ -95,7 +101,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	startErrors := make(map[string]string)
 	var started []string
 	for _, service := range inst.Services {
-		if err := sysd.Start(service); err != nil {
+		if err := sysd.Start([]string{service}); err != nil {
 			startErrors[service] = err.Error()
 			break
 		}
@@ -105,7 +111,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	stopErrors := make(map[string]string)
 	if len(startErrors) != 0 {
 		for _, service := range started {
-			if err := sysd.Stop(service, stopTimeout); err != nil {
+			if err := sysd.Stop([]string{service}, stopTimeout); err != nil {
 				stopErrors[service] = err.Error()
 			}
 		}
@@ -137,7 +143,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 
 	stopErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := sysd.Stop(service, stopTimeout); err != nil {
+		if err := sysd.Stop([]string{service}, stopTimeout); err != nil {
 			stopErrors[service] = err.Error()
 		}
 	}
@@ -249,10 +255,6 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	// TODO: should be instantiated once on startup as for fdoBackend it keeps
-	// notification mappings.
-	notifySrv := notification.NewNotificationManager(c.s.bus, "io.snapcraft.SessionAgent")
-
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
@@ -298,12 +300,47 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// TODO: silently ignore error returned when the notification server does not exist.
 	// TODO: track returned notification ID and respond to actions, if supported.
-	if err := notifySrv.SendNotification(notification.ID(fmt.Sprintf("refresh:%s", refreshInfo.InstanceName)), msg); err != nil {
+	if err := c.s.notificationMgr.SendNotification(notification.ID(refreshInfo.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
 				Message: fmt.Sprintf("cannot send notification message: %v", err),
+			},
+		})
+	}
+	return SyncResponse(nil)
+}
+
+func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var finishRefresh client.FinishedSnapRefreshInfo
+	if err := decoder.Decode(&finishRefresh); err != nil {
+		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
+	}
+
+	// Note that since the connection is shared, we are not closing it.
+	if c.s.bus == nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "cannot connect to the session bus",
+			},
+		})
+	}
+
+	if err := c.s.notificationMgr.CloseNotification(notification.ID(finishRefresh.InstanceName)); err != nil {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: fmt.Sprintf("cannot send close notification message: %v", err),
 			},
 		})
 	}

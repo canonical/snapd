@@ -76,6 +76,10 @@ type Disk interface {
 	// does not have partitions for example.
 	HasPartitions() bool
 
+	// DiskID returns the partition table ID, which is either a hexadecimal
+	// number for DOS disks, or a UUID for GPT disks.
+	DiskID() string
+
 	// Partitions returns all partitions found on a physical disk device. Note
 	// that this method, and all others that require discovering partitions on
 	// the disk, caches the partitions once first found and does not re-discover
@@ -89,6 +93,36 @@ type Disk interface {
 	// KernelDevicePath returns the full device path in /sys/devices for the
 	// disk such as /sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda/.
 	KernelDevicePath() string
+
+	// Schema returns the schema for the disk, either DOS or GPT in lowercase.
+	Schema() string
+
+	// SectorSize returns the sector size for the disk in bytes, usually 512,
+	// sometimes 4096, possibly even 8196 some day.
+	// TODO: make this return a quantity.Size when that is doable without
+	// importing gadget
+	SectorSize() (uint64, error)
+
+	// SizeInBytes returns the overall size of the disk in bytes. Not all of the
+	// bytes may be usable for partitions, as some space on disks is reserved
+	// for metadata such as the MBR on DOS disks or the GPT headers (and backup)
+	// on GPT disks.
+	// TODO: make this return a quantity.Size when that is doable without
+	// importing gadget
+	SizeInBytes() (uint64, error)
+
+	// UsableSectorsEnd returns the exclusive end of usable sectors on the disk
+	// where partitions may occupy and be created. Specifically, the end is not
+	// itself usable, it is the region immediately after usable space; this sort
+	// of measurement is used when partitioning disks to indicate where a given
+	// partition ends.
+	// The sector unit is the in the native size for the disk, either 512 or
+	// 4096 bytes typically.
+	// This measurement is distinct from the size of the disk, though for some
+	// disks, this measurement may be the size of the disk in sectors - this is
+	// the case for DOS disks, but not for GPT disks. GPT disks have a backup
+	// header section at the end of the disk that is not usable for partitions.
+	UsableSectorsEnd() (uint64, error)
 }
 
 // Partition represents a partition on a Disk device.
@@ -104,6 +138,10 @@ type Partition struct {
 	PartitionLabel string
 	// the partition UUID
 	PartitionUUID string
+
+	// TODO: Major and Minor should be uints, they are required to be uints by
+	// the kernel, so it makes sense to match that here
+
 	// Major is the major number for this partition.
 	Major int
 	// Minor is the minor number for this partition.
@@ -113,6 +151,20 @@ type Partition struct {
 	KernelDevicePath string
 	// KernelDeviceNode is the kernel device node in /dev.
 	KernelDeviceNode string
+	// PartitionType is the type of structure, for example 0C in the case of a
+	// vfat partition on a DOS disk, or 0FC63DAF-8483-4772-8E79-3D69D8477DE4,
+	// which is ext4 on a GPT disk. This is always upper case.
+	PartitionType string
+	// FilesystemType is the type of filesystem i.e. ext4 or vfat, etc.
+	FilesystemType string
+	// DiskIndex is the index of the structure on the disk, where the first
+	// partition/structure has index of 1.
+	DiskIndex uint64
+	// StartInBytes is the beginning of the partition/structure in bytes.
+	StartInBytes uint64
+	// SizeInBytes is the overall size of the partition/structure in bytes.
+	SizeInBytes uint64
+
 	// TODO: also include a Disk field for finding what Disk this partition came
 	// from?
 }
@@ -153,3 +205,24 @@ func (e PartitionNotFoundError) Error() string {
 var (
 	_ = error(PartitionNotFoundError{})
 )
+
+var deviceMapperBackResolvers = map[string]func(dmUUID, dmName []byte) (dev string, ok bool){}
+
+// RegisterDeviceMapperBackResolver takes a callback function which is used when
+// the disks package through some of it's various methods to locate/create a
+// disk needs to trace a device mapper node back to the original device node
+// location such as /dev/mapper/something -> /dev/sda1 -> /dev/sda. The
+// parameters the callback is provided are the device mapper UUID and name
+// parameters from the kernel. If and only if the device mapper handler matches
+// this device mapper node, the callback should return the source device node
+// for the mapper device and true. If the handler does not match a provided
+// device mapper, the function should return "ok" as false.
+// The name of the handler is currently only used in tests.
+func RegisterDeviceMapperBackResolver(name string, f func(dmUUID, dmName []byte) (dev string, ok bool)) {
+	deviceMapperBackResolvers[name] = f
+}
+
+// mainly for tests to un-register and re-register handlers
+func unregisterDeviceMapperBackResolver(name string) {
+	delete(deviceMapperBackResolvers, name)
+}

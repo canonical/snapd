@@ -83,10 +83,23 @@ execute: |
             continue
         fi
 
-        if [ "$plug_iface" = "$CONSUMER_SNAP:qualcomm-ipc-router" ] && ( os.query is-xenial || os.query is-core16) ; then
+        if [ "$plug_iface" = "$CONSUMER_SNAP:qualcomm-ipc-router" ] && ( os.query is-trusty || os.query is-xenial || os.query is-core16) ; then
             # the qualcomm-ipc-router interface is known not to work on xenial,
             # just check that it cannot be connected and move on
             snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "cannot connect plug on system without qipcrtr socket support"
+            continue
+        fi
+
+        if [ "$plug_iface" = "$CONSUMER_SNAP:mount-control" ] && os.query is-trusty ; then
+            # systemd version is too old, skipping
+            snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "systemd version 204 is too old \\(expected at least 209\\)"
+            continue
+        fi
+
+        # The netlink-audit interface adds the `audit_read` capability to the
+        # AppArmor profile, but that's not supported on some older systems
+        if [ "$plug_iface" = "$CONSUMER_SNAP:netlink-audit" ] && os.query is-trusty; then
+            snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "cannot connect plug on system without audit_read support"
             continue
         fi
 

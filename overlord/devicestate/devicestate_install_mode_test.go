@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -75,7 +76,8 @@ func (s *deviceMgrInstallModeSuite) findInstallSystem() *state.Change {
 }
 
 func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.ConfigureTargetSystemOptsPassed = nil
 	s.ConfigureTargetSystemErr = nil
@@ -105,7 +107,7 @@ const (
 	core20SnapID   = "core20ididididididididididididid"
 )
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, installDeviceHook string, gadgetDefaultsYaml string) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDeviceHook string, gadgetDefaultsYaml string) {
 	si := &snap.SideInfo{
 		RealName: "pc-kernel",
 		Revision: snap.R(1),
@@ -154,7 +156,9 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, insta
 		Active:   true,
 	})
 	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
+}
 
+func (s *deviceMgrInstallModeSuite) makeMockInstallModel(c *C, grade string) *asserts.Model {
 	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -260,7 +264,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, grade, "", "")
+	mockModel := s.makeMockInstallModel(c, grade)
+	s.makeMockInstalledPcGadget(c, "", "")
 	s.state.Unlock()
 
 	bypassEncryptionPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
@@ -363,7 +368,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -393,7 +399,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -449,7 +456,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "install-device-hook-content", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "install-device-hook-content", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -520,7 +528,8 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "install-device-hook-content", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "install-device-hook-content", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -568,7 +577,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhapp
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "install-device-hook-content", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "install-device-hook-content", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -623,7 +633,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallSetupRunSystemTaskNoRestarts(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 
 	// also set the system as installed so that the install-system change
@@ -819,7 +830,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -847,7 +859,8 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -897,7 +910,8 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, modelGrade, "", gadgetDefaultsYaml)
+	mockModel := s.makeMockInstallModel(c, modelGrade)
+	s.makeMockInstalledPcGadget(c, "", gadgetDefaultsYaml)
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
@@ -1148,7 +1162,8 @@ func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	info, err := snapstate.CurrentInfo(s.state, "pc")
 	c.Assert(err, IsNil)
 	// replace gadget yaml with one that has no ubuntu-save
@@ -1517,7 +1532,8 @@ echo "mock output of: $(basename "$0") $*"
 	// pretend we are seeding
 	chg := s.state.NewChange("seed", "just for testing")
 	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -1558,4 +1574,65 @@ mock output of: snap debug timings --ensure=install-system
 		{"snap", "debug", "timings", "--ensure=seed"},
 		{"snap", "debug", "timings", "--ensure=install-system"},
 	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockHappy(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+	// a month old timestamp file
+	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
+
+	s.mockInstallModeChange(c, "dangerous", "")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// installation was successful
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(installSystem.Status(), Equals, state.DoneStatus)
+
+	clockTsInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/clock")
+	fi, err := os.Stat(clockTsInDst)
+	c.Assert(err, IsNil)
+	c.Check(fi.ModTime().Round(time.Second), Equals, now.Round(time.Second))
+	c.Check(fi.Size(), Equals, int64(0))
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C) {
+	now := time.Now()
+	restore := devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+
+	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
+	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+
+	timesyncDirInDst := filepath.Join(boot.InstallHostWritableDir, "/var/lib/systemd/timesync/")
+	c.Assert(os.MkdirAll(timesyncDirInDst, 0755), IsNil)
+	c.Assert(os.Chmod(timesyncDirInDst, 0000), IsNil)
+	defer os.Chmod(timesyncDirInDst, 0755)
+
+	s.mockInstallModeChange(c, "dangerous", "")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem, NotNil)
+
+	// install failed copying the timestamp
+	c.Check(installSystem.Err(), ErrorMatches, `(?s).*\(cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
+	c.Check(installSystem.Status(), Equals, state.ErrorStatus)
 }

@@ -20,12 +20,16 @@
 package backend
 
 import (
+	"os"
 	"os/exec"
+
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 var (
 	AddMountUnit    = addMountUnit
 	RemoveMountUnit = removeMountUnit
+	RemoveIfEmpty   = removeIfEmpty
 )
 
 func MockUpdateFontconfigCaches(f func() error) (restore func()) {
@@ -41,5 +45,21 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	commandFromSystemSnap = f
 	return func() {
 		commandFromSystemSnap = old
+	}
+}
+
+func MockRemoveIfEmpty(f func(dir string) error) func() {
+	old := removeIfEmpty
+	removeIfEmpty = f
+	return func() {
+		removeIfEmpty = old
+	}
+}
+
+func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) error) func() {
+	old := mkdirAllChown
+	mkdirAllChown = f
+	return func() {
+		mkdirAllChown = old
 	}
 }

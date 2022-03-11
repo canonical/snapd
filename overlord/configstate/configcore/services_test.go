@@ -50,9 +50,9 @@ func (s *servicesSuite) SetUpTest(c *C) {
 				output = []byte("ActiveState=inactive")
 			} else {
 				if s.serviceInstalled {
-					output = []byte(fmt.Sprintf("Id=%s\nType=daemon\nActiveState=inactive\nUnitFileState=enabled\n", args[2]))
+					output = []byte(fmt.Sprintf("Id=%s\nType=daemon\nActiveState=inactive\nUnitFileState=enabled\nNames=%[1]s\nNeedDaemonReload=no\n", args[2]))
 				} else {
-					output = []byte(fmt.Sprintf("Id=%s\nType=\nActiveState=inactive\nUnitFileState=\n", args[2]))
+					output = []byte(fmt.Sprintf("Id=%s\nType=\nActiveState=inactive\nUnitFileState=\nNames=%[1]s\nNeedDaemonReload=no\n", args[2]))
 				}
 			}
 		}
@@ -79,7 +79,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", false, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "sshd.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "sshd.service"},
 		{"unmask", "sshd.service"},
 		{"enable", "sshd.service"},
 		{"start", "sshd.service"},
@@ -90,7 +90,7 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", true, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "sshd.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "sshd.service"},
 		{"disable", "sshd.service"},
 		{"mask", "sshd.service"},
 		{"stop", "sshd.service"},
@@ -136,7 +136,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 		default:
 			if service.installed {
 				c.Check(s.systemctlArgs, DeepEquals, [][]string{
-					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srv},
 					{"disable", srv},
 					{"mask", srv},
 					{"stop", srv},
@@ -144,7 +144,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 				})
 			} else {
 				c.Check(s.systemctlArgs, DeepEquals, [][]string{
-					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srv},
 				})
 			}
 		}
@@ -294,14 +294,14 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 		default:
 			if service.installed {
 				c.Check(s.systemctlArgs, DeepEquals, [][]string{
-					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srv},
 					{"unmask", srv},
 					{"enable", srv},
 					{"start", srv},
 				})
 			} else {
 				c.Check(s.systemctlArgs, DeepEquals, [][]string{
-					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srv},
 				})
 			}
 		}

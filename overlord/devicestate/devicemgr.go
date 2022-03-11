@@ -21,9 +21,9 @@ package devicestate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -58,6 +58,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -110,8 +111,12 @@ type DeviceManager struct {
 	becomeOperationalBackoff     time.Duration
 	registered                   bool
 	reg                          chan struct{}
+	noRegister                   bool
 
-	preseed bool
+	preseed            bool
+	preseedSystemLabel string
+
+	ntpSyncedOrTimedOut bool
 }
 
 // Manager returns a new device manager.
@@ -126,12 +131,26 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:  snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
-	if modeEnv != nil {
-		m.sysMode = modeEnv.Mode
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, err
+		}
+		if modeEnv != nil {
+			m.sysMode = modeEnv.Mode
+		}
+	} else {
+		// cache system label for preseeding of core20; note, this will fail on
+		// core16/core18 (they are not supported by preseeding) as core20 system
+		// label is expected.
+		if !release.OnClassic {
+			var err error
+			m.preseedSystemLabel, err = systemForPreseeding()
+			if err != nil {
+				return nil, err
+			}
+			m.sysMode = "run"
+		}
 	}
 
 	s.Lock()
@@ -181,6 +200,20 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
+}
+
+func ensureFileDirPermissions() error {
+	// Ensure the /var/lib/snapd/void dir has correct permissions, we
+	// do this in the postinst for classic systems already but it's
+	// needed here for Core systems.
+	st, err := os.Stat(dirs.SnapVoidDir)
+	if err == nil && st.Mode().Perm() != 0111 {
+		logger.Noticef("fixing permissions of %v to 0111", dirs.SnapVoidDir)
+		if err := os.Chmod(dirs.SnapVoidDir, 0111); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type genericHook struct{}
@@ -248,6 +281,11 @@ func (m *DeviceManager) StartUp() error {
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
+	}
+
+	// ensure /var/lib/snapd/void permissions are ok
+	if err := ensureFileDirPermissions(); err != nil {
+		logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
 	}
 
 	// TODO: setup proper timings measurements for this
@@ -461,6 +499,11 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
+	if m.noRegister {
+		return nil
+	}
+	// noregister marker file is checked below after mostly in-memory checks
+
 	if m.changeInFlight("become-operational") {
 		return nil
 	}
@@ -488,6 +531,12 @@ func (m *DeviceManager) ensureOperational() error {
 		if n == 0 && !snapstate.Installing(m.state) {
 			return nil
 		}
+	}
+
+	// registration is blocked until reboot
+	if osutil.FileExists(filepath.Join(dirs.SnapRunDir, "noregister")) {
+		m.noRegister = true
+		return nil
 	}
 
 	var hasPrepareDeviceHook bool
@@ -592,14 +641,27 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 	return perfTimings, nil
 }
 
+func (m *DeviceManager) systemForPreseeding() string {
+	if m.preseedSystemLabel == "" {
+		panic("no system to preseed")
+	}
+	return m.preseedSystemLabel
+}
+
 func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, nil, err
+	if m.preseed && !release.OnClassic {
+		sysLabel = m.systemForPreseeding()
 	}
-	if modeEnv != nil {
-		sysLabel = modeEnv.RecoverySystem
+
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, nil, err
+		}
+		if modeEnv != nil {
+			sysLabel = modeEnv.RecoverySystem
+		}
 	}
 
 	// we time preloadGadget + first ensureSeeded together
@@ -697,6 +759,10 @@ func (m *DeviceManager) ensureSeeded() error {
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
+		if !release.OnClassic {
+			opts.Mode = "run"
+			opts.Label = m.systemForPreseeding()
+		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
@@ -1361,6 +1427,56 @@ func (m *DeviceManager) Registered() <-chan struct{} {
 	return m.reg
 }
 
+type UnregisterOptions struct {
+	NoRegistrationUntilReboot bool
+}
+
+// Unregister unregisters the device forgetting its serial
+// plus the additional behavior described by the UnregisterOptions
+func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+	if !release.OnClassic || (device.Brand != "generic" && device.Brand != "canonical") {
+		return fmt.Errorf("cannot currently unregister device if not classic or model brand is not generic or canonical")
+	}
+
+	if opts == nil {
+		opts = &UnregisterOptions{}
+	}
+	if opts.NoRegistrationUntilReboot {
+		if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
+			return err
+		}
+	}
+	oldKeyID := device.KeyID
+	device.Serial = ""
+	device.KeyID = ""
+	device.SessionMacaroon = ""
+	if err := m.setDevice(device); err != nil {
+		return err
+	}
+	// commit forgetting serial and key
+	m.state.Unlock()
+	m.state.Lock()
+	// delete the device key
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+		err := keypairMgr.Delete(oldKeyID)
+		if err != nil {
+			return fmt.Errorf("cannot delete device key pair: %v", err)
+		}
+		return nil
+	})
+
+	m.lastBecomeOperationalAttempt = time.Time{}
+	m.becomeOperationalBackoff = 0
+	return err
+}
+
 // device returns current device state.
 func (m *DeviceManager) device() (*auth.DeviceState, error) {
 	return internal.Device(m.state)
@@ -1452,10 +1568,12 @@ var defaultSystemActions = []SystemAction{
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 var recoverSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 
@@ -1507,7 +1625,7 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	rebootCurrent := func() {
 		logger.Noticef("rebooting system")
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 
 	// most simple case: just reboot
@@ -1531,7 +1649,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
@@ -1550,7 +1668,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	nop := func() {}
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// we do nothing (nop) if the mode and system are the same
 	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)
@@ -1608,8 +1726,9 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 			sameSystemAndMode()
 			return nil
 		}
-	case "install":
-		// requesting system actions in install mode does not make sense atm
+	case "install", "factory-reset":
+		// requesting system actions in install or factory-reset modes
+		// does not make sense atm
 		//
 		// TODO:UC20: maybe factory hooks will be able to something like
 		// this?
@@ -1687,6 +1806,32 @@ func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
 }
 
+var timeutilIsNTPSynchronized = timeutil.IsNTPSynchronized
+
+func (m *DeviceManager) ntpSyncedOrWaitedLongerThan(maxWait time.Duration) bool {
+	if m.ntpSyncedOrTimedOut {
+		return true
+	}
+	if time.Now().After(startTime.Add(maxWait)) {
+		logger.Noticef("no NTP sync after %v, trying auto-refresh anyway", maxWait)
+		m.ntpSyncedOrTimedOut = true
+		return true
+	}
+
+	var err error
+	m.ntpSyncedOrTimedOut, err = timeutilIsNTPSynchronized()
+	if errors.As(err, &timeutil.NoTimedate1Error{}) {
+		// no timedate1 dbus service, no need to wait for it
+		m.ntpSyncedOrTimedOut = true
+		return true
+	}
+	if err != nil {
+		logger.Debugf("cannot check if ntp is syncronized: %v", err)
+	}
+
+	return m.ntpSyncedOrTimedOut
+}
+
 func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	// state must be locked
 	st := m.state
@@ -1748,32 +1893,15 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 }
 
 func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error) {
-	// TODO: move most of this to kernel/fde.Features
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	req := &fde.SetupRequest{
-		Op: "features",
-	}
-	output, err := m.runFDESetupHook(req)
+	features, err := fde.CheckFeatures(m.runFDESetupHook)
 	if err != nil {
 		return et, err
 	}
-	var res struct {
-		Features []string `json:"features"`
-		Error    string   `json:"error"`
-	}
-	if err := json.Unmarshal(output, &res); err != nil {
-		return et, fmt.Errorf("cannot parse hook output %q: %v", output, err)
-	}
-	if res.Features == nil && res.Error == "" {
-		return et, fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
-	}
-	if res.Error != "" {
-		return et, fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
-	}
-	if strutil.ListContains(res.Features, "device-setup") {
+	if strutil.ListContains(features, "device-setup") {
 		et = secboot.EncryptionTypeDeviceSetupHook
 	} else {
 		et = secboot.EncryptionTypeLUKS

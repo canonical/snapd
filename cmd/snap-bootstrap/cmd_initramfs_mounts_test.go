@@ -92,35 +92,68 @@ var (
 	needsNoSuidDiskMountOpts = &main.SystemdMountOptions{
 		NoSuid: true,
 	}
+	snapMountOpts = &main.SystemdMountOptions{
+		ReadOnly: true,
+	}
+
+	seedPart = disks.Partition{
+		FilesystemLabel: "ubuntu-seed",
+		PartitionUUID:   "ubuntu-seed-partuuid",
+	}
+
+	bootPart = disks.Partition{
+		FilesystemLabel: "ubuntu-boot",
+		PartitionUUID:   "ubuntu-boot-partuuid",
+	}
+
+	savePart = disks.Partition{
+		FilesystemLabel: "ubuntu-save",
+		PartitionUUID:   "ubuntu-save-partuuid",
+	}
+
+	dataPart = disks.Partition{
+		FilesystemLabel: "ubuntu-data",
+		PartitionUUID:   "ubuntu-data-partuuid",
+	}
+
+	saveEncPart = disks.Partition{
+		FilesystemLabel: "ubuntu-save-enc",
+		PartitionUUID:   "ubuntu-save-enc-partuuid",
+	}
+
+	dataEncPart = disks.Partition{
+		FilesystemLabel: "ubuntu-data-enc",
+		PartitionUUID:   "ubuntu-data-enc-partuuid",
+	}
 
 	// a boot disk without ubuntu-save
 	defaultBootDisk = &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot": "ubuntu-boot-partuuid",
-			"ubuntu-seed": "ubuntu-seed-partuuid",
-			"ubuntu-data": "ubuntu-data-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
+			dataPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "default",
 	}
 
 	defaultBootWithSaveDisk = &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot": "ubuntu-boot-partuuid",
-			"ubuntu-seed": "ubuntu-seed-partuuid",
-			"ubuntu-data": "ubuntu-data-partuuid",
-			"ubuntu-save": "ubuntu-save-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
+			dataPart,
+			savePart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "default-with-save",
 	}
 
 	defaultEncBootDisk = &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot":     "ubuntu-boot-partuuid",
-			"ubuntu-seed":     "ubuntu-seed-partuuid",
-			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+		Structure: []disks.Partition{
+			bootPart,
+			seedPart,
+			dataEncPart,
+			saveEncPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "defaultEncDev",
@@ -471,6 +504,7 @@ func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMo
 	}
 	mnt.what = filepath.Join(s.seedDir, "snaps", name+"_1.snap")
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
+	mnt.opts = snapMountOpts
 
 	return mnt
 }
@@ -489,6 +523,7 @@ func (s *initramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn snap.Pl
 
 	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), sn.Filename())
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
+	mnt.opts = snapMountOpts
 
 	return mnt
 }
@@ -1178,10 +1213,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1193,8 +1225,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 		}
 	}
@@ -1210,6 +1241,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1217,6 +1250,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1224,6 +1260,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1231,6 +1270,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1240,6 +1282,8 @@ After=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 }
@@ -1345,10 +1389,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1361,8 +1402,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 		}
 	}
@@ -1378,6 +1418,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1385,6 +1427,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1392,6 +1437,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1399,6 +1447,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1408,6 +1459,8 @@ After=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
@@ -1415,6 +1468,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1423,6 +1478,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 
@@ -1491,18 +1548,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
 		fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 		unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 		c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 	}
 
@@ -1524,6 +1577,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.snapd.Filename()),
@@ -1531,6 +1586,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.kernel.Filename()),
@@ -1538,6 +1596,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(s.seedDir, "snaps", s.core20.Filename()),
@@ -1545,6 +1606,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"tmpfs",
@@ -1554,6 +1618,8 @@ After=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
@@ -1561,6 +1627,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1569,6 +1637,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
@@ -1576,6 +1646,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 
@@ -1662,10 +1734,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuBootDir),
@@ -1677,8 +1746,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 			unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 			c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 		}
 	}
@@ -1694,6 +1762,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
@@ -1701,6 +1771,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1709,6 +1781,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
@@ -1716,6 +1790,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
@@ -1723,6 +1800,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 }
@@ -1780,18 +1860,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
-		"initrd.target",
 		"initrd-fs.target",
-		"initrd-switch-root.target",
-		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
 		fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
 		unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
 		c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
-Requires=%[1]s
-After=%[1]s
+Wants=%[1]s
 `, mountUnit+".mount"))
 	}
 
@@ -1811,6 +1887,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
@@ -1818,6 +1896,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
@@ -1826,6 +1906,8 @@ After=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
@@ -1833,6 +1915,8 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
@@ -1840,6 +1924,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
 			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
@@ -1847,6 +1934,9 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+			"--options=ro",
+			"--property=DefaultDependencies=no",
+			"--property=Before=initrd-fs.target",
 		},
 	})
 }
@@ -2086,10 +2176,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	defaultEncNoSaveBootDisk := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot":     "ubuntu-boot-partuuid",
-			"ubuntu-seed":     "ubuntu-seed-partuuid",
-			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
+			dataEncPart,
 			// missing ubuntu-save
 		},
 		DiskHasPartitions: true,
@@ -3542,10 +3632,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	defer bootloader.Force(nil)
 
 	defaultEncDiskNoBoot := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-seed":     "ubuntu-seed-partuuid",
-			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			// missing ubuntu-boot
+			dataEncPart,
+			saveEncPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "defaultEncDevNoBoot",
@@ -3698,10 +3789,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	defer bootloader.Force(nil)
 
 	defaultEncDiskNoBoot := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-seed":     "ubuntu-seed-partuuid",
-			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			// missing ubuntu-boot
+			dataEncPart,
+			saveEncPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "defaultEncDevNoBoot",
@@ -4059,10 +4151,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 
 	// no ubuntu-data on the disk at all
 	mockDiskNoData := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot": "ubuntu-boot-partuuid",
-			"ubuntu-seed": "ubuntu-seed-partuuid",
-			"ubuntu-save": "ubuntu-save-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
+			savePart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "noDataUnenc",
@@ -4239,12 +4331,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 
 	// no ubuntu-data on the disk at all
 	mockDiskDataUnencSaveEnc := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot": "ubuntu-boot-partuuid",
-			"ubuntu-seed": "ubuntu-seed-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
 			// ubuntu-data is unencrypted but ubuntu-save is encrypted
-			"ubuntu-data":     "ubuntu-data-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+			dataPart,
+			saveEncPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "dataUnencSaveEnc",
@@ -4372,12 +4464,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 	defer bootloader.Force(nil)
 
 	mockDiskDataUnencSaveEnc := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot":     "ubuntu-boot-partuuid",
-			"ubuntu-seed":     "ubuntu-seed-partuuid",
-			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
 			// ubuntu-data is encrypted but ubuntu-save is not
-			"ubuntu-save": "ubuntu-save-partuuid",
+			savePart,
+			dataEncPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "dataUnencSaveEnc",
@@ -4627,12 +4719,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
-	// no ubuntu-data on the disk at all
 	mockDiskNoData := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-boot":     "ubuntu-boot-partuuid",
-			"ubuntu-seed":     "ubuntu-seed-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
+			// no ubuntu-data on the disk at all
+			saveEncPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "defaultEncDev",
@@ -5193,21 +5285,33 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 	defer bootloader.Force(nil)
 
 	mockDisk := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-seed":     "ubuntu-seed-partuuid",
-			"ubuntu-boot":     "ubuntu-boot-partuuid",
-			"ubuntu-data-enc": "ubuntu-data-enc-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-partuuid",
+		Structure: []disks.Partition{
+			seedPart,
+			bootPart,
+			saveEncPart,
+			dataEncPart,
 		},
 		DiskHasPartitions: true,
 		DevNum:            "bootDev",
 	}
 	attackerDisk := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"ubuntu-seed":     "ubuntu-seed-attacker-partuuid",
-			"ubuntu-boot":     "ubuntu-boot-attacker-partuuid",
-			"ubuntu-data-enc": "ubuntu-data-enc-attacker-partuuid",
-			"ubuntu-save-enc": "ubuntu-save-enc-attacker-partuuid",
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "ubuntu-seed",
+				PartitionUUID:   "ubuntu-seed-attacker-partuuid",
+			},
+			{
+				FilesystemLabel: "ubuntu-boot",
+				PartitionUUID:   "ubuntu-boot-attacker-partuuid",
+			},
+			{
+				FilesystemLabel: "ubuntu-save-enc",
+				PartitionUUID:   "ubuntu-save-enc-attacker-partuuid",
+			},
+			{
+				FilesystemLabel: "ubuntu-data-enc",
+				PartitionUUID:   "ubuntu-data-enc-attacker-partuuid",
+			},
 		},
 		DiskHasPartitions: true,
 		DevNum:            "attackerDev",
@@ -5332,8 +5436,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 
 	mockDiskMapping := map[disks.Mountpoint]*disks.MockDiskMapping{
 		{Mountpoint: boot.InitramfsUbuntuSeedDir}: {
-			FilesystemLabelToPartUUID: map[string]string{
-				"ubuntu-seed": "ubuntu-seed-partuuid",
+			Structure: []disks.Partition{
+				seedPart,
 			},
 			DiskHasPartitions: true,
 		},
@@ -5366,9 +5470,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		// also add the ubuntu-data and ubuntu-save fs labels to the
 		// disk referenced by the ubuntu-seed partition
 		disk := mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsUbuntuSeedDir}]
-		disk.FilesystemLabelToPartUUID["ubuntu-boot"] = "ubuntu-boot-partuuid"
-		disk.FilesystemLabelToPartUUID["ubuntu-data"] = "ubuntu-data-partuuid"
-		disk.FilesystemLabelToPartUUID["ubuntu-save"] = "ubuntu-save-partuuid"
+		disk.Structure = append(disk.Structure, bootPart, savePart, dataPart)
 
 		// and also add the /run/mnt/host/ubuntu-{boot,data,save} mountpoints
 		// for cross-checking after mounting

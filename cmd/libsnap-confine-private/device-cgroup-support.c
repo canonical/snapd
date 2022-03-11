@@ -57,8 +57,8 @@ struct sc_device_cgroup {
             sc_cgroup_fds fds;
         } v1;
         struct {
-            int cgroup_fd;
             int devmap_fd;
+            int prog_fd;
             char *tag;
             struct rlimit old_limit;
         } v2;
@@ -73,20 +73,36 @@ static void sc_cleanup_cgroup_fds(sc_cgroup_fds *fds);
 static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
     self->v1.fds = sc_cgroup_fds_new();
 
+    /* are we creating the group or just using whatever there is? */
+    const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
     /* initialize to something sane */
     if (sc_udev_open_cgroup_v1(self->security_tag, flags, &self->v1.fds) < 0) {
-        if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
+        if (from_existing) {
             return -1;
         }
         die("cannot prepare cgroup v1 device hierarchy");
     }
-    /* Deny device access by default.
-     *
-     * Write 'a' to devices.deny to remove all existing devices that were added
-     * in previous launcher invocations, then add the static and assigned
-     * devices. This ensures that at application launch the cgroup only has
-     * what is currently assigned. */
-    sc_dprintf(self->v1.fds.devices_deny_fd, "a");
+    /* Only deny devices if we are not using an existing group -
+     * if we deny devices for an existing group that we just opened,
+     * we risk denying access to a device that a currently running process
+     * is about to access and should legitimately have access to.
+     * A concrete example of this is when this function is used by snap-device-helper
+     * when a new udev device event is triggered and we are adding that device
+     * to the snap's device cgroup. At this point, a running application may be
+     * accessing other devices which it should have access to (such as /dev/null
+     * or one of the other common, default devices) we would deny access to that
+     * existing device by re-creating the allow list of devices every time.
+     * */
+    if (!from_existing) {
+        /* starting a device cgroup from scratch, so deny device access by
+         * default.
+         *
+         * Write 'a' to devices.deny to remove all existing devices that were added
+         * in previous launcher invocations, then add the static and assigned
+         * devices. This ensures that at application launch the cgroup only has
+         * what is currently assigned. */
+        sc_dprintf(self->v1.fds.devices_deny_fd, "a");
+    }
     return 0;
 }
 
@@ -131,11 +147,6 @@ typedef struct sc_cgroup_v2_device_key sc_cgroup_v2_device_key;
  * map.
  */
 typedef uint8_t sc_cgroup_v2_device_value;
-
-static void _sc_cgroup_v2_attach_pid(sc_device_cgroup *self, pid_t pid) {
-    /* nothing to do here, the device controller is attached to the cgroup
-     * already, and we are part of it */
-}
 
 #ifdef ENABLE_BPF
 static int load_devcgroup_prog(int map_fd) {
@@ -284,27 +295,28 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     return old_limit;
 }
 
+static bool _sc_is_snap_cgroup(const char *group) {
+    /* make a copy as basename may modify its input */
+    char copy[PATH_MAX] = {0};
+    strncpy(copy, group, sizeof(copy) - 1);
+    char *leaf = basename(copy);
+    if (!sc_startswith(leaf, "snap.")) {
+        return false;
+    }
+    if (!sc_endswith(leaf, ".service") && !sc_endswith(leaf, ".scope")) {
+        return false;
+    }
+    return true;
+}
+
 static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     self->v2.devmap_fd = -1;
-    self->v2.cgroup_fd = -1;
-
-    char *own_group SC_CLEANUP(sc_cleanup_string) = sc_cgroup_v2_own_path_full();
-    if (own_group == NULL) {
-        die("cannot obtain own group path");
-    }
+    self->v2.prog_fd = -1;
 
     /* fix the memlock limit if needed, this affects creating maps */
     self->v2.old_limit = _sc_cgroup_v2_adjust_memlock_limit();
 
     const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
-
-    char own_group_full[PATH_MAX] = {0};
-    sc_must_snprintf(own_group_full, sizeof(own_group_full), "/sys/fs/cgroup/%s", own_group);
-    int cgroup_fd = open(own_group_full, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-    if (cgroup_fd < 0) {
-        die("cannot open own cgroup directory %s", own_group_full);
-    }
-    debug("cgroup %s opened at %d", own_group_full, cgroup_fd);
 
     self->v2.tag = sc_strdup(self->security_tag);
     /* bpffs is unhappy about dots in the name, replace all with underscores */
@@ -318,6 +330,18 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
     /* create /sys/fs/bpf/snap as root */
     sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
+    /* we expect bpffs to be mounted at /sys/fs/bpf, which should have been done
+     * by systemd, but some systems out there are a weird mix of older userland
+     * and new kernels, in which case the assumptions about the state of the
+     * system no longer hold and we may need to mount bpffs ourselves */
+    if (!bpf_path_is_bpffs("/sys/fs/bpf")) {
+        debug("/sys/fs/bpf is not a bpffs mount");
+        /* bpffs isn't mounted at the usual place, or die if that fails */
+        bpf_mount_bpffs("/sys/fs/bpf");
+        debug("bpffs mounted at /sys/fs/bpf");
+    }
+
     if (mkdir("/sys/fs/bpf/snap", 0700) < 0) {
         if (errno != EEXIST) {
             die("cannot create /sys/fs/bpf/snap directory");
@@ -325,14 +349,19 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
     /* and obtain a file descriptor to the map, also as root */
     int devmap_fd = bpf_get_by_path(path);
+    /* keep a copy of errno in case it gets clobbered */
+    int get_by_path_errno = errno;
     (void)sc_set_effective_identity(old);
     /* XXX: this should be more than enough keys */
     const size_t max_entries = 500;
     if (devmap_fd < 0) {
-        if (errno != ENOENT) {
+        if (get_by_path_errno != ENOENT) {
             die("cannot get existing device map");
         }
         if (from_existing) {
+            debug("device map not present, not creating one");
+            /* restore the errno so that the caller sees ENOENT */
+            errno = get_by_path_errno;
             /* there is no map, and we haven't been asked to setup a new cgroup */
             return -1;
         }
@@ -376,6 +405,9 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         /* first collect all keys in the map */
         sc_cgroup_v2_device_key *existing_keys SC_CLEANUP(_sc_cleanup_v2_device_key) =
             calloc(max_entries, sizeof(sc_cgroup_v2_device_key));
+        if (existing_keys == NULL) {
+            die("cannot allocate keys map");
+        }
         /* 'current' key is zeroed, such that no entry can match it and thus
          * we'll iterate over the keys from the beginning */
         sc_cgroup_v2_device_key key = {0};
@@ -426,15 +458,12 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         /* load and attach the BPF program as root */
         (void)sc_set_effective_identity(sc_root_group_identity());
         int prog_fd = load_devcgroup_prog(devmap_fd);
-        int attach = bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, prog_fd);
-        if (attach < 0) {
-            die("cannot attach cgroup program");
-        }
         (void)sc_set_effective_identity(old);
+        /* keep track of the program */
+        self->v2.prog_fd = prog_fd;
     }
 
     self->v2.devmap_fd = devmap_fd;
-    self->v2.cgroup_fd = cgroup_fd;
 
     return 0;
 }
@@ -447,7 +476,7 @@ static void _sc_cgroup_v2_close_bpf(sc_device_cgroup *self) {
     /* the map is pinned to a per-snap-application file and referenced by the
      * program */
     sc_cleanup_close(&self->v2.devmap_fd);
-    sc_cleanup_close(&self->v2.cgroup_fd);
+    sc_cleanup_close(&self->v2.prog_fd);
 }
 
 static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major, int minor) {
@@ -474,6 +503,48 @@ static void _sc_cgroup_v2_deny_bpf(sc_device_cgroup *self, int kind, int major, 
         die("cannot delete device map entry for key %c %u:%u", key.type, key.major, key.minor);
     }
 }
+
+static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
+    /* we are setting up device filtering for ourselves */
+    if (pid != getpid()) {
+        die("internal error: cannot attach device cgroup to other process than current");
+    }
+    if (self->v2.prog_fd == -1) {
+        die("internal error: BPF program not loaded");
+    }
+
+    char *own_group SC_CLEANUP(sc_cleanup_string) = sc_cgroup_v2_own_path_full();
+    if (own_group == NULL) {
+        die("cannot obtain own group path");
+    }
+    debug("process in cgroup %s", own_group);
+
+    if (!_sc_is_snap_cgroup(own_group)) {
+        /* we cannot proceed to install a device filtering program when the
+         * process is not in a snap specific cgroup, as we would effectively
+         * lock down the group that can be shared with other processes or even
+         * the whole desktop session */
+        die("%s is not a snap cgroup", own_group);
+    }
+
+    char own_group_full_path[PATH_MAX] = {0};
+    sc_must_snprintf(own_group_full_path, sizeof(own_group_full_path), "/sys/fs/cgroup/%s", own_group);
+
+    int cgroup_fd SC_CLEANUP(sc_cleanup_close) = -1;
+    cgroup_fd = open(own_group_full_path, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (cgroup_fd < 0) {
+        die("cannot open own cgroup directory %s", own_group_full_path);
+    }
+    debug("cgroup %s opened at %d", own_group_full_path, cgroup_fd);
+
+    /* attach the program to the cgroup */
+    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+    int attach = bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, self->v2.prog_fd);
+    (void)sc_set_effective_identity(old);
+    if (attach < 0) {
+        die("cannot attach cgroup program");
+    }
+}
 #endif /* ENABLE_BPF */
 
 static void _sc_cgroup_v2_close(sc_device_cgroup *self) {
@@ -493,6 +564,14 @@ static void _sc_cgroup_v2_allow(sc_device_cgroup *self, int kind, int major, int
 static void _sc_cgroup_v2_deny(sc_device_cgroup *self, int kind, int major, int minor) {
 #ifdef ENABLE_BPF
     _sc_cgroup_v2_deny_bpf(self, kind, major, minor);
+#else
+    die("device cgroup v2 is not enabled");
+#endif
+}
+
+static void _sc_cgroup_v2_attach_pid(sc_device_cgroup *self, pid_t pid) {
+#ifdef ENABLE_BPF
+    _sc_cgroup_v2_attach_pid_bpf(self, pid);
 #else
     die("device cgroup v2 is not enabled");
 #endif

@@ -45,7 +45,10 @@ purge() {
     # Undo any bind mounts to ${SNAP_MOUNT_DIR} or /var/snap done by parallel
     # installs or LP:#1668659
     for mp in "$SNAP_MOUNT_DIR" /var/snap; do
-        if grep -q " $mp $mp" /proc/self/mountinfo; then
+        # btrfs bind mounts actually include subvolume in the filesystem-path
+        # https://www.mail-archive.com/linux-btrfs@vger.kernel.org/msg51810.html
+        if grep -q " $mp $mp " /proc/self/mountinfo ||
+                grep -q -e "\(/.*\)$mp $mp .* btrfs .*\(subvol=\1\)\(,.*\)\?\$" /proc/self/mountinfo ; then
             umount -l "$mp" || true
         fi
     done
@@ -110,6 +113,7 @@ purge() {
                 fi
                 # modules
                 rm -f "/etc/modules-load.d/snap.${snap}.conf"
+                rm -f "/etc/modprobe.d/snap.${snap}.conf"
                 # timer and socket units
                 find /etc/systemd/system -name "snap.${snap}.*.timer" -o -name "snap.${snap}.*.socket" | while read -r f; do
                     systemctl_stop "$(basename "$f")"
@@ -128,6 +132,8 @@ purge() {
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
+    # Units may have been removed do a reload
+    systemctl -q daemon-reload || true
 
     # snapd session-agent
     rm -f /etc/systemd/user/snapd.session-agent.socket

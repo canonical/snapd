@@ -64,6 +64,11 @@ type deviceMgrRemodelSuite struct {
 
 var _ = Suite(&deviceMgrRemodelSuite{})
 
+func (s *deviceMgrRemodelSuite) SetUpTest(c *C) {
+	classic := false
+	s.setupBaseTest(c, classic)
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -259,12 +264,17 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		c.Check(fromChange, Equals, "99")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -278,12 +288,17 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		c.Check(opts.Channel, Equals, "18")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -354,12 +369,17 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 		}
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -412,12 +432,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -524,12 +549,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -546,7 +576,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -689,12 +719,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 		c.Check(deviceCtx.Store(), Equals, testStore)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -833,12 +868,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		})
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -904,12 +944,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		chg = st.NewChange("remodel", "other remodel")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1408,7 +1453,7 @@ volumes:
 		})
 		tGadgetUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1416,7 +1461,7 @@ volumes:
 	defer restore()
 
 	gadgetUpdateCalled := false
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore = devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		gadgetUpdateCalled = true
 		c.Check(policy, NotNil)
 		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
@@ -1558,7 +1603,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		})
 		tGadgetUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tGadgetUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1566,7 +1611,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	defer restore()
 
 	gadgetUpdateCalled := false
-	restore = devicestate.MockGadgetUpdate(func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
+	restore = devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, _ gadget.ContentUpdateObserver) error {
 		return errors.New("unexpected call")
 	})
 	defer restore()
@@ -1604,7 +1649,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1653,12 +1698,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -1874,12 +1924,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 		c.Check(deviceCtx, NotNil)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -2096,7 +2151,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 	})
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSnaps(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnaps(c *C) {
+	// remodel switches to a new set of kernel, base and gadget snaps, but
+	// those happen to be already installed and tracking the right channels,
+	// this scenario can happen when the system has gone through many
+	// remodels and the new gadget, kernel, base snaps were required by one
+	// of the prior models
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -2173,13 +2233,16 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		Active:          true,
 		TrackingChannel: "20/stable",
 	})
-	// new gadget and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new"} {
+	// new gadget, base and kernel which are already installed
+	for _, alreadyInstalledName := range []string{"pc-new", "pc-kernel-new", "core20-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "20/stable"
-		if alreadyInstalledName == "core20-new" {
+		switch alreadyInstalledName {
+		case "core20-new":
 			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
 			channel = "latest/stable"
+		case "pc-new":
+			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\n"
 		}
 		si := &snap.SideInfo{
 			RealName: alreadyInstalledName,
@@ -2212,8 +2275,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 				"default-channel": "20/stable",
 			},
 			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
+				"name":            "pc-new",
+				"id":              snaptest.AssertedSnapID("pc-new"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
@@ -2224,8 +2287,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
 	tl := chg.Tasks()
-	// 2 snaps (2 tasks for each) + recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 2*2+2+1)
+	// 2 snaps (2 tasks for each) + assets update from kernel + gadget (3 tasks) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 2*2+1+3+2+1)
 
 	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
@@ -2239,12 +2302,16 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 
 	// check the tasks
 	tPrepareKernel := tl[0]
-	tLinkKernel := tl[1]
-	tPrepareBase := tl[2]
-	tLinkBase := tl[3]
-	tCreateRecovery := tl[4]
-	tFinalizeRecovery := tl[5]
-	tSetModel := tl[6]
+	tUpdateAssetsKernel := tl[1]
+	tLinkKernel := tl[2]
+	tPrepareBase := tl[3]
+	tLinkBase := tl[4]
+	tPrepareGadget := tl[5]
+	tUpdateAssets := tl[6]
+	tUpdateCmdline := tl[7]
+	tCreateRecovery := tl[8]
+	tFinalizeRecovery := tl[9]
+	tSetModel := tl[10]
 
 	// check the tasks
 	c.Assert(tPrepareKernel.Kind(), Equals, "prepare-snap")
@@ -2252,11 +2319,22 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(tPrepareKernel.WaitTasks(), HasLen, 0)
 	c.Assert(tLinkKernel.Kind(), Equals, "link-snap")
 	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
+	c.Assert(tUpdateAssetsKernel.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateAssetsKernel.Summary(), Equals, `Update assets from kernel "pc-kernel-new" (222) for remodel`)
 	c.Assert(tPrepareBase.Kind(), Equals, "prepare-snap")
 	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core20-new" (222) for remodel`)
 	c.Assert(tPrepareBase.WaitTasks(), HasLen, 1)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
 	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (222) available to the system during remodel`)
+	c.Assert(tPrepareGadget.Kind(), Equals, "prepare-snap")
+	c.Assert(tPrepareGadget.Summary(), Equals, `Prepare snap "pc-new" (222) for remodel`)
+	c.Assert(tPrepareGadget.WaitTasks(), HasLen, 1)
+	c.Assert(tUpdateAssets.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateAssets.Summary(), Equals, `Update assets from gadget "pc-new" (222) for remodel`)
+	c.Assert(tUpdateAssets.WaitTasks(), HasLen, 2)
+	c.Assert(tUpdateCmdline.Kind(), Equals, "update-gadget-cmdline")
+	c.Assert(tUpdateCmdline.Summary(), Equals, `Update kernel command line from gadget "pc-new" (222) for remodel`)
+	c.Assert(tUpdateCmdline.WaitTasks(), HasLen, 1)
 	expectedLabel := now.Format("20060102")
 	c.Assert(tCreateRecovery.Kind(), Equals, "create-recovery-system")
 	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", expectedLabel))
@@ -2267,8 +2345,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	// check the ordering, prepare/link are part of download edge and come first
 	c.Assert(tPrepareKernel.WaitTasks(), HasLen, 0)
 	c.Assert(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tUpdateAssetsKernel,
+	})
+	c.Assert(tUpdateAssetsKernel.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel,
-		tPrepareBase,
+		tPrepareGadget,
 		tCreateRecovery,
 		tFinalizeRecovery,
 	})
@@ -2279,21 +2360,32 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		tPrepareBase,
 		tLinkKernel,
 	})
+	c.Assert(tPrepareGadget.WaitTasks(), DeepEquals, []*state.Task{
+		tPrepareBase,
+	})
+	c.Assert(tUpdateAssets.WaitTasks(), DeepEquals, []*state.Task{
+		tPrepareGadget,
+		tLinkBase,
+	})
+	c.Assert(tUpdateCmdline.WaitTasks(), DeepEquals, []*state.Task{
+		tUpdateAssets,
+	})
 	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
 		// last snap of the download chain (in this case prepare & link
 		// for existing snaps)
-		tPrepareBase,
+		tPrepareGadget,
 	})
 	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
 		// recovery system being created
 		tCreateRecovery,
 		// last snap of the download chain (see above)
-		tPrepareBase,
+		tPrepareGadget,
 	})
 	// setModel waits for everything in the change
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
-		tPrepareKernel, tLinkKernel,
+		tPrepareKernel, tUpdateAssetsKernel, tLinkKernel,
 		tPrepareBase, tLinkBase,
+		tPrepareGadget, tUpdateAssets, tUpdateCmdline,
 		tCreateRecovery, tFinalizeRecovery,
 	})
 	// verify recovery system setup data on appropriate tasks
@@ -2303,18 +2395,21 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []interface{}{tPrepareKernel.ID(), tPrepareBase.ID()},
+		"snap-setup-tasks": []interface{}{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID()},
 	})
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSnapsDifferentChannelThanNew(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstalledSnapsDifferentChannelThanNew(c *C) {
+	// kernel, base and gadget snaps that are used by the new model are
+	// already installed, but track a different channel from what is set in
+	// the new model
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new"}, name), Equals, true,
+		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
 			Commentf("unexpected snap %q", name))
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
@@ -2328,6 +2423,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		if name == "core20-new" {
 			typ = "base"
 			rev = snap.R(223)
+		} else if name == "pc-new" {
+			typ = "gadget"
+			rev = snap.R(224)
 		}
 		tSwitchChannel.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
@@ -2409,11 +2507,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		TrackingChannel: "20/stable",
 	})
 	// new gadget and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new"} {
+	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new", "pc-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "other/other"
 		if alreadyInstalledName == "core20-new" {
 			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
+		} else if alreadyInstalledName == "pc-new" {
+			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\n"
 		}
 		si := &snap.SideInfo{
 			RealName: alreadyInstalledName,
@@ -2447,8 +2547,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 				"default-channel": "20",
 			},
 			map[string]interface{}{
-				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
+				"name":            "pc-new",
+				"id":              snaptest.AssertedSnapID("pc-new"),
 				"type":            "gadget",
 				"default-channel": "20",
 			},
@@ -2466,8 +2566,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
 	tl := chg.Tasks()
-	// 2 snaps with (snap switch channel + link snap) + recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 2*2+2+1)
+	// 2 snaps with (snap switch channel + link snap) + gadget assets update
+	// for the kernel snap + gadget snap (switch channel, assets update, cmdline update) +
+	// recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 2*2+1+3+2+1)
 
 	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
@@ -2481,24 +2583,35 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 
 	// check the tasks
 	tSwitchChannelKernel := tl[0]
-	tLinkKernel := tl[1]
-	tSwitchChannelBase := tl[2]
-	tLinkBase := tl[3]
-	tCreateRecovery := tl[4]
-	tFinalizeRecovery := tl[5]
-	tSetModel := tl[6]
+	tUpdateAssetsFromKernel := tl[1]
+	tLinkKernel := tl[2]
+	tSwitchChannelBase := tl[3]
+	tLinkBase := tl[4]
+	tSwitchChannelGadget := tl[5]
+	tUpdateAssetsFromGadget := tl[6]
+	tUpdateCmdlineFromGadget := tl[7]
+	tCreateRecovery := tl[8]
+	tFinalizeRecovery := tl[9]
+	tSetModel := tl[10]
 
 	// check the tasks
 	c.Assert(tSwitchChannelKernel.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelKernel.Summary(), Equals, `Switch pc-kernel-new channel to 20/stable`)
 	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
+	c.Assert(tUpdateAssetsFromKernel.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateAssetsFromKernel.Summary(), Equals, `Update assets from kernel "pc-kernel-new" (222) for remodel`)
 	c.Assert(tLinkKernel.Kind(), Equals, "link-snap")
 	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
 	c.Assert(tSwitchChannelBase.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelBase.Summary(), Equals, `Switch core20-new channel to latest/stable`)
-	c.Assert(tSwitchChannelBase.WaitTasks(), HasLen, 0)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
 	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (223) available to the system during remodel`)
+	c.Assert(tSwitchChannelGadget.Kind(), Equals, "switch-snap-channel")
+	c.Assert(tSwitchChannelGadget.Summary(), Equals, `Switch pc-new channel to 20/stable`)
+	c.Assert(tUpdateAssetsFromGadget.Kind(), Equals, "update-gadget-assets")
+	c.Assert(tUpdateAssetsFromGadget.Summary(), Equals, `Update assets from gadget "pc-new" (224) for remodel`)
+	c.Assert(tUpdateCmdlineFromGadget.Kind(), Equals, "update-gadget-cmdline")
+	c.Assert(tUpdateCmdlineFromGadget.Summary(), Equals, `Update kernel command line from gadget "pc-new" (224) for remodel`)
 	expectedLabel := now.Format("20060102")
 	c.Assert(tCreateRecovery.Kind(), Equals, "create-recovery-system")
 	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", expectedLabel))
@@ -2508,21 +2621,35 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
 	// check the ordering, prepare/link are part of download edge and come first
 	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
-	c.Check(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
+	c.Assert(tSwitchChannelBase.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchChannelKernel,
 	})
-	c.Assert(tLinkBase.WaitTasks(), DeepEquals, []*state.Task{
+	c.Assert(tSwitchChannelGadget.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchChannelBase,
 	})
-	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{})
+	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelGadget,
+	})
 	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
 		// recovery system being created
 		tCreateRecovery,
+		tSwitchChannelGadget,
+	})
+	c.Check(tUpdateAssetsFromKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelKernel, tSwitchChannelGadget,
+		tCreateRecovery, tFinalizeRecovery,
+	})
+	c.Check(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tUpdateAssetsFromKernel,
+	})
+	c.Assert(tLinkBase.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelBase, tLinkKernel,
 	})
 	// setModel waits for everything in the change
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
-		tSwitchChannelKernel, tLinkKernel,
+		tSwitchChannelKernel, tUpdateAssetsFromKernel, tLinkKernel,
 		tSwitchChannelBase, tLinkBase,
+		tSwitchChannelGadget, tUpdateAssetsFromGadget, tUpdateCmdlineFromGadget,
 		tCreateRecovery, tFinalizeRecovery,
 	})
 	// verify recovery system setup data on appropriate tasks
@@ -2532,8 +2659,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
 		"label":     expectedLabel,
 		"directory": filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		// none of the tasks are downloads so they were not tracked
-		"snap-setup-tasks": nil,
+		// tasks carrying snap-setup are tracked
+		"snap-setup-tasks": []interface{}{
+			tSwitchChannelKernel.ID(),
+			tSwitchChannelBase.ID(),
+			tSwitchChannelGadget.ID(),
+		},
 	})
 }
 
@@ -2554,7 +2685,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -2771,6 +2902,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentChannelThanDefaultSameAsNew(c *C) {
+	// essential snaps from new model are already installed and track
+	// channels different than declared in the old model, but already the
+	// same as in the new one
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -2945,6 +3079,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAndLocal(c *C) {
+	// remodel when the essential snaps declared in new model are already
+	// installed, but have a local revision
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -3115,7 +3251,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 	})
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelUC20NoDownloadSimpleChannelSwitch(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch(c *C) {
+	// remodel when a channel declared in new model carries the same
+	// revision as already installed, so there is no full fledged, but a
+	// simple channel switch
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -3603,7 +3742,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -3882,7 +4021,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
 		tInstall.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, nil
 	})
 	defer restore()
@@ -3982,7 +4121,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			defer st.Unlock()
 			// not strictly needed, but underlines there's a reboot
 			// happening
-			restart.Request(st, restart.RestartSystemNow)
+			restart.Request(st, restart.RestartSystemNow, nil)
 		}
 		if fakeRebootCallsReady {
 			return nil
@@ -4092,4 +4231,430 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			Revision:  model.Revision(),
 		},
 	})
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *C, missingWhat []string, missingWhen string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	// set a model assertion we remodel from
+	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	snapsupTemplate := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo-missing-deps",
+			SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
+			Revision: snap.R("123"),
+		},
+		Type: "app",
+	}
+	if strutil.ListContains(missingWhat, "base") {
+		snapsupTemplate.Base = "foo-base"
+	}
+	if strutil.ListContains(missingWhat, "content") {
+		snapsupTemplate.Prereq = []string{"foo-content"}
+	}
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		if missingWhen != "install" {
+			c.Errorf("unexpected call to install for snap %q", name)
+			return nil, fmt.Errorf("unexpected call")
+		}
+		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(fromChange, Equals, "99")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", snapsupTemplate)
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		if missingWhen == "install" {
+			c.Errorf("unexpected call to update for snap %q", name)
+			return nil, fmt.Errorf("unexpected call")
+		}
+		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(fromChange, Equals, "99")
+		c.Check(opts.Channel, Equals, "latest/stable")
+
+		var ts *state.TaskSet
+		if missingWhen == "update" {
+			tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
+			tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+			tValidate.WaitFor(tDownload)
+			// set snap-setup on a different task now
+			tValidate.Set("snap-setup", snapsupTemplate)
+			tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
+			tUpdate.WaitFor(tValidate)
+			ts = state.NewTaskSet(tDownload, tValidate, tUpdate)
+			ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		} else {
+			// switch-channel
+			tSwitch := s.state.NewTask("fake-switch-channel", fmt.Sprintf("Switch snap %s channel to %s", name, opts.Channel))
+			ts = state.NewTaskSet(tSwitch)
+			// no edge
+		}
+		return ts, nil
+	})
+	defer restore()
+
+	if missingWhen != "install" {
+		fooYaml := `
+name: foo-missing-base
+version: 1
+@MISSING@
+`
+		contentPlug := `
+plugs:
+  foo-content-data:
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: foo-content
+`
+		missing := ""
+		if strutil.ListContains(missingWhat, "base") {
+			missing += "base: foo-base\n"
+		}
+		if strutil.ListContains(missingWhat, "content") {
+			missing += contentPlug
+		}
+		fooYaml = strings.Replace(fooYaml, "@MISSING@", missing, 1)
+		// the gadget needs to be mocked
+		info := snaptest.MakeSnapFileAndDir(c, fooYaml, nil, &snap.SideInfo{
+			SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
+			Revision: snap.R(1),
+			RealName: "foo-missing-deps",
+		})
+		snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+			SnapType: string(info.Type()),
+			Active:   true,
+			Sequence: []*snap.SideInfo{&info.SideInfo},
+			Current:  info.Revision,
+		})
+
+	}
+
+	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "foo-missing-deps",
+				"id":   snaptest.AssertedSnapID("foo-missing-deps"),
+			},
+		},
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	errMsg := `cannot remodel with incomplete model, the following snaps are required but not listed: "foo-base"`
+	switch {
+	case strutil.ListContains(missingWhat, "base") && strutil.ListContains(missingWhat, "content"):
+		errMsg = `cannot remodel with incomplete model, the following snaps are required but not listed: "foo-base", "foo-content"`
+	case strutil.ListContains(missingWhat, "content"):
+		errMsg = `cannot remodel with incomplete model, the following snaps are required but not listed: "foo-content"`
+	}
+	c.Assert(err, ErrorMatches, errMsg)
+	c.Assert(tss, IsNil)
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingBaseInstall(c *C) {
+	s.testRemodelTasksSelfContainedModelMissingDep(c, []string{"base"}, "install")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingBaseUpdate(c *C) {
+	s.testRemodelTasksSelfContainedModelMissingDep(c, []string{"base"}, "update")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingBaseSwitchChannel(c *C) {
+	// snap is installed in the system, the update is a simple switch
+	// channel operation hence no revision change; the model doesn't mention
+	// the snap's base
+	s.testRemodelTasksSelfContainedModelMissingDep(c, []string{"base"}, "switch-channel")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingBaseExisting(c *C) {
+	// a snap already exists in the system, has no updates but its base
+	// isn't mentioned in the model
+	s.testRemodelTasksSelfContainedModelMissingDep(c, []string{"base"}, "existing")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingContentInstall(c *C) {
+	s.testRemodelTasksSelfContainedModelMissingDep(c, []string{"content"}, "install")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingContentExisting(c *C) {
+	// a snap already exists in the system, has no updates but its default
+	// content provider isn't mentioned in the model
+	s.testRemodelTasksSelfContainedModelMissingDep(c, []string{"content"}, "existing")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingAllInstall(c *C) {
+	s.testRemodelTasksSelfContainedModelMissingDep(c, []string{"content", "base"}, "install")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfMultipleSnaps(c *C) {
+	// multiple new snaps that are missing their dependencies, some
+	// dependencies are shared between those snaps
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	// set a model assertion we remodel from
+	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		if name != "foo-missing-deps" {
+			c.Errorf("unexpected call to install for snap %q", name)
+			return nil, fmt.Errorf("unexpected call")
+		}
+		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(fromChange, Equals, "99")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		snapsupFoo := &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: "foo-missing-deps",
+				SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
+				Revision: snap.R("123"),
+			},
+			Type:   "app",
+			Base:   "foo-base",
+			Prereq: []string{"foo-content"},
+		}
+		tDownload.Set("snap-setup", snapsupFoo)
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		if name != "bar-missing-deps" {
+			c.Errorf("unexpected call to update for snap %q", name)
+			return nil, fmt.Errorf("unexpected call")
+		}
+		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(fromChange, Equals, "99")
+		c.Check(opts.Channel, Equals, "latest/stable")
+
+		return nil, nil
+	})
+	defer restore()
+
+	// bar is missing the base, and a shared content provider which is
+	// missed by foo as well
+	barYaml := `
+name: bar-missing-deps
+version: 1
+base: bar-base
+plugs:
+  bar-content-data:
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: foo-content
+`
+	// the gadget needs to be mocked
+	info := snaptest.MakeSnapFileAndDir(c, barYaml, nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("bar-missing-deps"),
+		Revision: snap.R(1),
+		RealName: "bar-missing-deps",
+	})
+	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+		SnapType: string(info.Type()),
+		Active:   true,
+		Sequence: []*snap.SideInfo{&info.SideInfo},
+		Current:  info.Revision,
+	})
+
+	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "foo-missing-deps",
+				"id":   snaptest.AssertedSnapID("foo-missing-deps"),
+			},
+			map[string]interface{}{
+				"name": "bar-missing-deps",
+				"id":   snaptest.AssertedSnapID("bar-missing-deps"),
+			},
+		},
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99")
+	errMsg := `cannot remodel with incomplete model, the following snaps are required but not listed: "bar-base", "foo-base", "foo-content"`
+	c.Assert(err, ErrorMatches, errMsg)
+	c.Assert(tss, IsNil)
 }

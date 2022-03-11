@@ -1,5 +1,8 @@
 summary: Checks for parallel installation of a local snap files
 
+# ubuntu-14.04: the test sets up a user session, which requires more recent systemd
+systems: [-ubuntu-14.04-*]
+
 prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap
@@ -7,22 +10,26 @@ prepare: |
 
     snap set system experimental.parallel-instances=true
 
+    tests.session -u test prepare
+
 restore: |
     snap set system experimental.parallel-instances=null
+
+    tests.session -u test restore
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
 
-    su -l -c '! test -d ~/snap/test-snapd-sh' test
-    su -l -c '! test -d ~/snap/test-snapd-sh_foo' test
+    tests.session -u test exec sh -c '! test -d ~/snap/test-snapd-sh'
+    tests.session -u test exec sh -c '! test -d ~/snap/test-snapd-sh_foo'
 
-    su -l -c 'test-snapd-sh_foo.sh -c "echo foo"' test | MATCH foo
-    su -l -c 'test -d ~/snap/test-snapd-sh' test
-    su -l -c 'test -d ~/snap/test-snapd-sh_foo' test
+    tests.session -u test exec sh -c 'snap run test-snapd-sh_foo.sh -c "echo foo"' | MATCH foo
+    tests.session -u test exec sh -c 'test -d ~/snap/test-snapd-sh'
+    tests.session -u test exec sh -c 'test -d ~/snap/test-snapd-sh_foo'
 
     # instance environment variables are correctly set up
-    su -l -c 'test-snapd-sh_foo.sh -c "env"' test > snap_foo-env.txt
+    tests.session -u test exec sh -c 'snap run test-snapd-sh_foo.sh -c "env"' test > snap_foo-env.txt
     MATCH 'SNAP_INSTANCE_NAME=test-snapd-sh_foo'                         < snap_foo-env.txt
     MATCH 'SNAP_NAME=test-snapd-sh'                                      < snap_foo-env.txt
     MATCH 'SNAP_INSTANCE_KEY=foo'                                        < snap_foo-env.txt
@@ -33,7 +40,7 @@ execute: |
     MATCH 'SNAP_USER_COMMON=/home/test/snap/test-snapd-sh_foo/common'    < snap_foo-env.txt
 
     # and non-instance one's are too
-    su -l -c 'test-snapd-sh.sh -c env' test > snap-env.txt
+    tests.session -u test exec sh -c 'test-snapd-sh.sh -c env' test > snap-env.txt
     MATCH 'SNAP_INSTANCE_NAME=test-snapd-sh'              < snap-env.txt
     MATCH 'SNAP_NAME=test-snapd-sh'                       < snap-env.txt
     MATCH 'SNAP_INSTANCE_KEY=$'                           < snap-env.txt
@@ -50,15 +57,15 @@ execute: |
     echo "Make sure snap data writes and reads work"
 
     # instance can access its data
-    su -l -c "test-snapd-sh_foo.sh -c 'cat \$SNAP_COMMON/foobar/data'" test | MATCH canary-instance
+    tests.session -u test exec sh -c "snap run test-snapd-sh_foo.sh -c 'cat \$SNAP_COMMON/foobar/data'" | MATCH canary-instance
     # non-instance sees its data
-    su -l -c "test-snapd-sh.sh -c 'cat \$SNAP_COMMON/foobar/data'" test | MATCH canary-regular
+    tests.session -u test exec sh -c "test-snapd-sh.sh -c 'cat \$SNAP_COMMON/foobar/data'" | MATCH canary-regular
 
     # instance can write data
-    su -l -c "test-snapd-sh_foo.sh -c 'echo hello from instance \$SNAP_INSTANCE_NAME > \$SNAP_COMMON/foobar/hello'" test
+    tests.session -u test exec sh -c "snap run test-snapd-sh_foo.sh -c 'echo hello from instance \$SNAP_INSTANCE_NAME > \$SNAP_COMMON/foobar/hello'"
     MATCH 'hello from instance test-snapd-sh_foo' < /var/snap/test-snapd-sh_foo/common/foobar/hello
     # and the file is not visible in non instance snap
-    su -l -c "test-snapd-sh.sh -c 'cat \$SNAP_COMMON/foobar/hello || true'" test 2>&1 | MATCH 'cat: /var/snap/test-snapd-sh/common/foobar/hello: No such file or directory'
+    tests.session -u test exec sh -c "test-snapd-sh.sh -c 'cat \$SNAP_COMMON/foobar/hello || true'" 2>&1 | MATCH 'cat: /var/snap/test-snapd-sh/common/foobar/hello: No such file or directory'
 
     echo "Make sure snap user data writes work"
     echo canary-instance-snap > /home/test/snap/test-snapd-sh_foo/x1/canary
@@ -67,16 +74,16 @@ execute: |
     chown test:test /home/test/snap/test-snapd-sh_foo/common/canary
 
     # instance snap can write to user data
-    su -l -c "test-snapd-sh_foo.sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'" test
+    tests.session -u test exec sh -c "snap run test-snapd-sh_foo.sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_DATA/data'"
     MATCH 'hello user data from test-snapd-sh_foo' < /home/test/snap/test-snapd-sh_foo/x1/data
     # the file not present in non-instance snap data
     not test -f /home/test/snap/test-snapd-sh/x1/data
 
     # instance snap can write to common user data
-    su -l -c "test-snapd-sh_foo.sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_COMMON/data'" test
+    tests.session -u test exec sh -c "snap run test-snapd-sh_foo.sh -c 'echo hello user data from \$SNAP_INSTANCE_NAME > \$SNAP_USER_COMMON/data'"
     MATCH 'hello user data from test-snapd-sh_foo' < /home/test/snap/test-snapd-sh_foo/common/data
     # the file not present in non-instance snap data
     not test -f /home/test/snap/test-snapd-sh/common/data
 
-    su -l -c "test-snapd-sh_foo.sh -c 'cat \$SNAP_USER_COMMON/canary'" test | MATCH canary-instance-common
-    su -l -c "test-snapd-sh_foo.sh -c 'cat \$SNAP_USER_DATA/canary'" test | MATCH canary-instance-snap
+    tests.session -u test exec sh -c "snap run test-snapd-sh_foo.sh -c 'cat \$SNAP_USER_COMMON/canary'" | MATCH canary-instance-common
+    tests.session -u test exec sh -c "snap run test-snapd-sh_foo.sh -c 'cat \$SNAP_USER_DATA/canary'" | MATCH canary-instance-snap

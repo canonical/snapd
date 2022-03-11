@@ -34,9 +34,12 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
+
+var SystemForPreseeding = systemForPreseeding
 
 func MockKeyLength(n int) (restore func()) {
 	if n < 1024 {
@@ -118,12 +121,24 @@ func SetSystemMode(m *DeviceManager, mode string) {
 	m.sysMode = mode
 }
 
+func GetSystemMode(m *DeviceManager) string {
+	return m.sysMode
+}
+
 func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
 func PreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
 	return m.preloadGadget()
+}
+
+func MockLoadDeviceSeed(f func(st *state.State, sysLabel string) (seed.Seed, error)) func() {
+	old := loadDeviceSeed
+	loadDeviceSeed = f
+	return func() {
+		loadDeviceSeed = old
+	}
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
@@ -249,7 +264,7 @@ var (
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
+func MockGadgetUpdate(mock func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
@@ -343,4 +358,24 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
 	return mgr.checkFDEFeatures()
+}
+
+func MockTimeutilIsNTPSynchronized(f func() (bool, error)) (restore func()) {
+	old := timeutilIsNTPSynchronized
+	timeutilIsNTPSynchronized = f
+	return func() {
+		timeutilIsNTPSynchronized = old
+	}
+}
+
+func DeviceManagerNTPSyncedOrWaitedLongerThan(mgr *DeviceManager, maxWait time.Duration) bool {
+	return mgr.ntpSyncedOrWaitedLongerThan(maxWait)
+}
+
+func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
+	old := systemForPreseeding
+	systemForPreseeding = f
+	return func() {
+		systemForPreseeding = old
+	}
 }

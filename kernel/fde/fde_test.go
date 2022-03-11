@@ -528,6 +528,52 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
+func (s *fdeSuite) TestDeviceSetupHappy(c *C) {
+	mockKey := []byte{1, 2, 3, 4}
+	mockDevice := "/dev/sda2"
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req, DeepEquals, &fde.SetupRequest{
+			Op:     "device-setup",
+			Key:    mockKey,
+			Device: mockDevice,
+		})
+		// empty reply: no error
+		mockJSON := `{}`
+		return []byte(mockJSON), nil
+	}
+
+	params := &fde.DeviceSetupParams{
+		Key:    mockKey,
+		Device: mockDevice,
+	}
+	err := fde.DeviceSetup(runSetupHook, params)
+	c.Assert(err, IsNil)
+}
+
+func (s *fdeSuite) TestDeviceSetupError(c *C) {
+	mockKey := []byte{1, 2, 3, 4}
+	mockDevice := "/dev/sda2"
+
+	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		c.Check(req, DeepEquals, &fde.SetupRequest{
+			Op:     "device-setup",
+			Key:    mockKey,
+			Device: mockDevice,
+		})
+		// empty reply: no error
+		mockJSON := `something failed badly`
+		return []byte(mockJSON), fmt.Errorf("exit status 1")
+	}
+
+	params := &fde.DeviceSetupParams{
+		Key:    mockKey,
+		Device: mockDevice,
+	}
+	err := fde.DeviceSetup(runSetupHook, params)
+	c.Check(err, ErrorMatches, "device setup failed with: something failed badly")
+}
+
 func (s *fdeSuite) TestDeviceUnlock(c *C) {
 	checkSystemdRunOrSkip(c)
 
@@ -606,4 +652,28 @@ func (s *fdeSuite) TestHasDeviceUnlock(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(fde.HasDeviceUnlock(), Equals, true)
+}
+
+func (s *fdeSuite) TestIsEncryptedDeviceMapperName(c *C) {
+	// matches
+	for _, t := range []string{
+		"something-device-locked",
+		"foo23-device-locked",
+		"device-device-locked",
+		"WE-DON'T-CARE-WHAT-THE-PREFIX-IS-AND-YOU-CAN'T-MAKE-US-device-locked",
+	} {
+		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, true)
+	}
+
+	// doesn't match
+	for _, t := range []string{
+		"",
+		"-device-locked",
+		"device-locked",
+		"-device-locked-foo",
+		"some-device",
+		"CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4",
+	} {
+		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, false)
+	}
 }
