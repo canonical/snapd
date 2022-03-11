@@ -24,6 +24,8 @@ import (
 	"compress/gzip"
 	"crypto"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +33,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -56,10 +59,12 @@ import (
 )
 
 var (
-	bootMakeRunnable            = boot.MakeRunnableSystem
-	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
-	installRun                  = install.Run
-	installFactoryReset         = install.FactoryReset
+	bootMakeRunnable                = boot.MakeRunnableSystem
+	bootMakeRunnableAfterDataReset  = boot.MakeRunnableSystemAfterDataReset
+	bootEnsureNextBootToRunMode     = boot.EnsureNextBootToRunMode
+	installRun                      = install.Run
+	installFactoryReset             = install.FactoryReset
+	secbootStageEncryptionKeyChange = secboot.StageEncryptionKeyChange
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -920,15 +925,82 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
+	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
+	// get a nice nil interface by default
+	var installObserver gadget.ContentObserver
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return fmt.Errorf("cannot setup asset install observer: %v", err)
+	}
+	if err == nil {
+		installObserver = trustedInstallObserver
+		if !useEncryption {
+			// there will be no key sealing, so past the
+			// installation pass no other methods need to be called
+			trustedInstallObserver = nil
+		}
+	}
+
+	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		_, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, nil, tm)
+		installedSystem, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot perform factory reset: %v", err)
+	}
+	logger.Noticef("devs: %+v", installedSystem.DeviceForRole)
+
+	if trustedInstallObserver != nil {
+		// at this point we removed boot and data. sealed keys are becoming
+		// useless
+		err := os.Remove(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot cleanup obsolete key file: %v", err)
+		}
+
+		// TODO: generate new encryption key for save
+		// TODO: generate new recovery key for save
+		key, err := keys.NewEncryptionKey()
+		if err != nil {
+			return fmt.Errorf("cannot create encryption key: %v", err)
+		}
+
+		saveNode := installedSystem.DeviceForRole[gadget.SystemSave]
+		if saveNode == "" {
+			return fmt.Errorf("internal error: no system-save device")
+		}
+
+		if err := secbootStageEncryptionKeyChange(saveNode, key); err != nil {
+			return fmt.Errorf("cannot change encryption keys: %v", err)
+		}
+
+		installedSystem.KeyForRole[gadget.SystemSave] = key
+
+		// sanity check
+		if len(installedSystem.KeyForRole) == 0 || installedSystem.KeyForRole[gadget.SystemData] == nil || installedSystem.KeyForRole[gadget.SystemSave] == nil {
+			return fmt.Errorf("internal error: system encryption keys are unset")
+		}
+		dataEncryptionKey := installedSystem.KeyForRole[gadget.SystemData]
+		saveEncryptionKey := installedSystem.KeyForRole[gadget.SystemSave]
+
+		// make note of the encryption keys
+		trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
+
+		// keep track of recovery assets
+		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
+			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
+		}
+		if err := saveKeys(installedSystem.KeyForRole); err != nil {
+			return err
+		}
+		// write markers containing a secret to pair data and save
+		if err := writeMarkers(); err != nil {
+			return err
+		}
 	}
 
 	// TODO: splice into a common install/reset helper?
@@ -989,10 +1061,16 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		UnpackedGadgetDir: gadgetDir,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnable(deviceCtx.Model(), bootWith, nil)
+		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+
+	// leave a marker that factory reset was performed
+	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir), "factory-reset")
+	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
+		return fmt.Errorf("cannot write the marker file: %v", err)
 	}
 	return nil
 }
@@ -1100,4 +1178,41 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 		return fmt.Errorf("cannot commit assertions: %v", err)
 	}
 	return nil
+}
+
+type factoryResetMarker struct {
+	FallbackSaveKeyHash string `json:"fallback-save-key-hash,omitempty"`
+}
+
+func fileDigest(p string) (string, error) {
+	digest, _, err := osutil.FileDigest(p, crypto.SHA3_384)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest), nil
+}
+
+func writeFactoryResetMarker(marker string, hasEncryption bool) error {
+	keyDigest := ""
+	if hasEncryption {
+		d, err := fileDigest(boot.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
+		if err != nil {
+			return err
+		}
+		keyDigest = d
+	}
+	var buf bytes.Buffer
+	err := json.NewEncoder(&buf).Encode(factoryResetMarker{
+		FallbackSaveKeyHash: keyDigest,
+	})
+	if err != nil {
+		return err
+	}
+
+	if hasEncryption {
+		logger.Noticef("writing factory-reset marker at %v with key digest %q", marker, keyDigest)
+	} else {
+		logger.Noticef("writing factory-reset marker at %v", marker)
+	}
+	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
 }
