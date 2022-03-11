@@ -26,10 +26,15 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// DeviceUnlockRequest carries the operation and parameters for the
+// fde-device-unlock hook that receives them serialized over stdin.
 type DeviceUnlockRequest struct {
 	Op string `json:"op"`
 
-	Key    []byte `json:"key,omitempty"`
+	Key []byte `json:"key,omitempty"`
+
+	// Device is the device to unlock in /dev/ somewhere such as
+	// /dev/disk/by-partuuid/foo.
 	Device string `json:"device,omitempty"`
 }
 
