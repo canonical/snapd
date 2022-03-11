@@ -163,6 +163,7 @@ var templateCommon = `
   /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
   /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
   /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
+  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
