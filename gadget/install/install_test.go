@@ -391,9 +391,20 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 				gadget.SystemData: dataEncryptionKey,
 				gadget.SystemSave: saveEncryptionKey,
 			},
+			DeviceForRole: map[string]string{
+				"system-boot": "/dev/mmcblk0p2",
+				"system-save": "/dev/mmcblk0p3",
+				"system-data": "/dev/mmcblk0p4",
+			},
 		})
 	} else {
-		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{})
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
+			DeviceForRole: map[string]string{
+				"system-boot": "/dev/mmcblk0p2",
+				"system-save": "/dev/mmcblk0p3",
+				"system-data": "/dev/mmcblk0p4",
+			},
+		})
 	}
 
 	expSfdiskCalls := [][]string{}
@@ -583,15 +594,12 @@ type factoryResetOpts struct {
 }
 
 func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
-	cleanups := []func(){}
-	defer func() {
-		for _, r := range cleanups {
-			r()
-		}
-	}()
-
 	uc20Mod := &gadgettest.ModelCharacteristics{
 		SystemSeed: true,
+	}
+
+	if opts.noSave && opts.encryption {
+		c.Fatalf("unsupported test scenario, cannot use encryption without ubuntu-save")
 	}
 
 	s.setupMockUdevSymlinks(c, "mmcblk0p1")
@@ -623,6 +631,9 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	dataDev := "/dev/mmcblk0p4"
 	if opts.noSave {
 		dataDev = "/dev/mmcblk0p3"
+	}
+	if opts.encryption {
+		dataDev = "/dev/mapper/ubuntu-data"
 	}
 	restore = install.MockEnsureNodesExist(func(dss []gadget.OnDiskStructure, timeout time.Duration) error {
 		c.Assert(timeout, Equals, 5*time.Second)
@@ -805,9 +816,25 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
 	c.Assert(err, IsNil)
 
+	var dataPrimaryKey keys.EncryptionKey
+	secbootFormatEncryptedDeviceCall := 0
 	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
-		c.Error("unexpected call to secboot.FormatEncryptedDevice")
-		return fmt.Errorf("unexpected call")
+		if !opts.encryption {
+			c.Error("unexpected call to secboot.FormatEncryptedDevice")
+			return fmt.Errorf("unexpected call")
+		}
+		secbootFormatEncryptedDeviceCall++
+		switch secbootFormatEncryptedDeviceCall {
+		case 1:
+			c.Assert(key, HasLen, 32)
+			c.Assert(label, Equals, "ubuntu-data-enc")
+			c.Assert(node, Equals, "/dev/mmcblk0p4")
+			dataPrimaryKey = key
+		default:
+			c.Errorf("unexpected call to secboot.FormatEncryptedDevice (%d)", secbootFormatEncryptedDeviceCall)
+			return fmt.Errorf("test broken")
+		}
+		return nil
 	})
 	defer restore()
 
@@ -824,7 +851,29 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 		return
 	}
 	c.Assert(err, IsNil)
-	c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{})
+	devsForRoles := map[string]string{
+		"system-boot": "/dev/mmcblk0p2",
+		"system-save": "/dev/mmcblk0p3",
+		"system-data": "/dev/mmcblk0p4",
+	}
+	if opts.noSave {
+		devsForRoles = map[string]string{
+			"system-boot": "/dev/mmcblk0p2",
+			"system-data": "/dev/mmcblk0p3",
+		}
+	}
+	if !opts.encryption {
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
+			DeviceForRole: devsForRoles,
+		})
+	} else {
+		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
+			KeyForRole: map[string]keys.EncryptionKey{
+				gadget.SystemData: dataPrimaryKey,
+			},
+			DeviceForRole: devsForRoles,
+		})
+	}
 
 	c.Assert(mockSfdisk.Calls(), HasLen, 0)
 	c.Assert(mockPartx.Calls(), HasLen, 0)
@@ -893,12 +942,12 @@ func (s *installSuite) TestFactoryResetHappyWithoutSave(c *C) {
 	})
 }
 
-func (s *installSuite) TestFactoryResetUnhappyEncrypted(c *C) {
+func (s *installSuite) TestFactoryResetHappyEncrypted(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
 		encryption: true,
-		disk:       gadgettest.ExpectedRaspiMockDiskMapping,
+		disk:       gadgettest.ExpectedLUKSEncryptedRaspiMockDiskMapping,
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
-		err:        "factory-reset on encrypted system is unsupported",
-		// partitions do not matter here really
+		traitsJSON: gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON,
+		traits:     gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraits,
 	})
 }
