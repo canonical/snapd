@@ -107,7 +107,7 @@ const (
 	core20SnapID   = "core20ididididididididididididid"
 )
 
-func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, installDeviceHook string, gadgetDefaultsYaml string) *asserts.Model {
+func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDeviceHook string, gadgetDefaultsYaml string) {
 	si := &snap.SideInfo{
 		RealName: "pc-kernel",
 		Revision: snap.R(1),
@@ -156,7 +156,9 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, grade, insta
 		Active:   true,
 	})
 	snaptest.MockSnapWithFiles(c, "name: core20\ntype: base", si, nil)
+}
 
+func (s *deviceMgrInstallModeSuite) makeMockInstallModel(c *C, grade string) *asserts.Model {
 	mockModel := s.makeModelAssertionInState(c, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
@@ -262,7 +264,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, grade, "", "")
+	mockModel := s.makeMockInstallModel(c, grade)
+	s.makeMockInstalledPcGadget(c, "", "")
 	s.state.Unlock()
 
 	bypassEncryptionPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
@@ -365,7 +368,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -395,7 +399,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -451,7 +456,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "install-device-hook-content", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "install-device-hook-content", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -522,7 +528,8 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "install-device-hook-content", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "install-device-hook-content", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -570,7 +577,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhapp
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "install-device-hook-content", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "install-device-hook-content", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -625,7 +633,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallSetupRunSystemTaskNoRestarts(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 
 	// also set the system as installed so that the install-system change
@@ -821,7 +830,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -849,7 +859,8 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -899,7 +910,8 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	defer restore()
 
 	s.state.Lock()
-	mockModel := s.makeMockInstalledPcGadget(c, modelGrade, "", gadgetDefaultsYaml)
+	mockModel := s.makeMockInstallModel(c, modelGrade)
+	s.makeMockInstalledPcGadget(c, "", gadgetDefaultsYaml)
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
@@ -1150,7 +1162,8 @@ func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	info, err := snapstate.CurrentInfo(s.state, "pc")
 	c.Assert(err, IsNil)
 	// replace gadget yaml with one that has no ubuntu-save
@@ -1519,7 +1532,8 @@ echo "mock output of: $(basename "$0") $*"
 	// pretend we are seeding
 	chg := s.state.NewChange("seed", "just for testing")
 	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
