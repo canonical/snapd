@@ -580,11 +580,11 @@ func (s *fdeSuite) TestDeviceUnlock(c *C) {
 	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	fdeDeviceUnlockStdin := filepath.Join(c.MkDir(), "stdin")
-	mockSystemdRun := testutil.MockCommand(c, "fde-device-unlock", fmt.Sprintf(`
+	mockDeviceUnlockHook := testutil.MockCommand(c, "fde-device-unlock", fmt.Sprintf(`
 cat - > %s
 printf "output-only-used-for-errors"
 `, fdeDeviceUnlockStdin))
-	defer mockSystemdRun.Restore()
+	defer mockDeviceUnlockHook.Restore()
 
 	mockKey := []byte("some-key")
 	p := fde.DeviceUnlockParams{
@@ -593,7 +593,7 @@ printf "output-only-used-for-errors"
 	}
 	err := fde.DeviceUnlock(&p)
 	c.Assert(err, IsNil)
-	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+	c.Check(mockDeviceUnlockHook.Calls(), DeepEquals, [][]string{
 		{"fde-device-unlock"},
 	})
 	c.Check(fdeDeviceUnlockStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/my-device"}`, base64.StdEncoding.EncodeToString(mockKey)))
@@ -607,11 +607,11 @@ func (s *fdeSuite) TestDeviceUnlockErr(c *C) {
 
 	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
-	mockSystemdRun := testutil.MockCommand(c, "fde-device-unlock", `
+	mockDeviceUnlockHook := testutil.MockCommand(c, "fde-device-unlock", `
 echo  "output-only-used-for-errors" 1>&2
 exit 1
 `)
-	defer mockSystemdRun.Restore()
+	defer mockDeviceUnlockHook.Restore()
 
 	mockKey := []byte("some-key")
 	p := fde.DeviceUnlockParams{
@@ -624,6 +624,10 @@ exit 1
 output-only-used-for-errors
 service result: exit-code
 -----`)
+
+	c.Assert(mockDeviceUnlockHook.Calls(), Equals, [][]string{
+		{"fde-device-unlock"},
+	})
 
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-device-unlock")), Equals, false)
