@@ -946,9 +946,6 @@ func buildVolumeStructureToLocation(mod Model,
 	}
 
 	volumeStructureToLocation := make(map[string]map[int]StructureLocation, len(old.Info.Volumes))
-	for volName := range old.Info.Volumes {
-		volumeStructureToLocation[volName] = make(map[int]StructureLocation)
-	}
 
 	// now for each volume, iterate over the structures, putting the
 	// necessary info into the map for that volume as we iterate
@@ -958,6 +955,7 @@ func buildVolumeStructureToLocation(mod Model,
 	// unsupported structure change is present in the new one, but we check that
 	// situation after we have built the mapping
 	for volName, diskDeviceTraits := range volToDeviceMapping {
+		volumeStructureToLocation[volName] = make(map[int]StructureLocation)
 		vol, ok := old.Info.Volumes[volName]
 		if !ok {
 			return nil, fmt.Errorf("internal error: volume %s not present in gadget.yaml but present in traits mapping", volName)

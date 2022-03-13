@@ -3237,9 +3237,9 @@ func (s *updateTestSuite) TestVolumeStructureToLocationMapMissingInitialTraitsMa
 			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
 			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
 		},
-		// empty foo volume since because the disk-mapping.json was not written
-		// initially, we only handle updates to the pc / system-boot volume
-		"foo": {},
+		// missing foo volume since because the disk-mapping.json was not
+		// written initially, we only handle updates to the pc / system-boot
+		// volume
 	}
 
 	// setup mountinfo for root mount points of the partitions with filesystems
