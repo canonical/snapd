@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -705,10 +706,28 @@ volumes:
 		{"content.img", "updated content"},
 	})
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"pc": {
+				0: {
+					Device: "/dev/foo",
+					Offset: quantity.OffsetMiB,
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
+
+		c.Assert(loc, Equals, gadget.StructureLocation{
+			Device:         "/dev/foo",
+			Offset:         quantity.OffsetMiB,
+			RootMountPoint: "",
+		})
 
 		c.Assert(ps.Name, Equals, "foo")
 		c.Assert(rootDir, Equals, updateInfo.MountDir())

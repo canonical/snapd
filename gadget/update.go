@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -1069,7 +1070,15 @@ func buildVolumeStructureToLocation(mod Model,
 	return volumeStructureToLocation, nil
 }
 
-// exposed for mocking later on
+func MockVolumeStructureToLocationMap(f func(_ GadgetData, _ Model, _ map[string]*LaidOutVolume) (map[string]map[int]StructureLocation, error)) (restore func()) {
+	old := volumeStructureToLocationMap
+	volumeStructureToLocationMap = f
+	return func() {
+		volumeStructureToLocationMap = old
+	}
+}
+
+// exposed for mocking
 var volumeStructureToLocationMap = volumeStructureToLocationMapImpl
 
 func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map[string]*LaidOutVolume) (map[string]map[int]StructureLocation, error) {
@@ -1172,74 +1181,160 @@ func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map
 // d. After step (c) is completed the kernel refresh will now also
 //    work (no more violation of rule 1)
 func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
-	// TODO: support multi-volume gadgets. But for now we simply
-	//       do not do any gadget updates on those. We cannot error
-	//       here because this would break refreshes of gadgets even
-	//       when they don't require any updates.
-	if len(new.Info.Volumes) != 1 || len(old.Info.Volumes) != 1 {
-		logger.Noticef("WARNING: gadget assests cannot be updated yet when multiple volumes are used")
-		return nil
+	// if the volumes from the old and the new gadgets do not match, then fail -
+	// we don't support adding or removing volumes from the gadget.yaml
+	newVolumes := make([]string, 0, len(new.Info.Volumes))
+	oldVolumes := make([]string, 0, len(old.Info.Volumes))
+	for newVol := range new.Info.Volumes {
+		newVolumes = append(newVolumes, newVol)
+	}
+	for oldVol := range old.Info.Volumes {
+		oldVolumes = append(oldVolumes, oldVol)
+	}
+	common := strutil.Intersection(newVolumes, oldVolumes)
+	// check dissimilar cases between common, new and old
+	switch {
+	case len(common) != len(newVolumes) && len(common) != len(oldVolumes):
+		// there are both volumes removed from old and volumes added to new
+		return fmt.Errorf("cannot update gadget assets: volumes were both added and removed")
+	case len(common) != len(newVolumes):
+		// then there are volumes in old that are not in new, i.e. a volume
+		// was removed
+		return fmt.Errorf("cannot update gadget assets: volumes were removed")
+	case len(common) != len(oldVolumes):
+		// then there are volumes in new that are not in old, i.e. a volume
+		// was added
+		return fmt.Errorf("cannot update gadget assets: volumes were added")
 	}
 
-	oldVol, newVol, err := resolveVolume(old.Info, new.Info)
-	if err != nil {
-		return err
+	// collect the updates and validate that they are doable from an abstract
+	// sense first
+
+	// note that this code is written such that before we perform any update, we
+	// validate that all updates are valid and that all volumes are compatible
+	// between the old and the new state, this is to prevent applying valid
+	// updates on one volume when another volume is invalid, if that's the case
+	// we treat the whole gadget as invalid and return an error blocking the
+	// refresh
+
+	// TODO: should we handle the updates on multiple volumes in a
+	// deterministic order? iterating over maps is not deterministic, but we
+	// perform all updates at the end together in one call
+	allUpdates := []updatePair{}
+	laidOutVols := map[string]*LaidOutVolume{}
+	for volName, oldVol := range old.Info.Volumes {
+		newVol := new.Info.Volumes[volName]
+
+		if oldVol.Schema == "" || newVol.Schema == "" {
+			return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema)
+		}
+
+		// layout old partially, without going deep into the layout of structure
+		// content
+		pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
+		if err != nil {
+			return fmt.Errorf("cannot lay out the old volume %s: %v", volName, err)
+		}
+
+		// Layout new volume, delay resolving of filesystem content
+		constraints := DefaultConstraints
+		constraints.SkipResolveContent = true
+		pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, constraints)
+		if err != nil {
+			return fmt.Errorf("cannot lay out the new volume %s: %v", volName, err)
+		}
+
+		laidOutVols[volName] = pNew
+
+		if err := canUpdateVolume(pOld, pNew); err != nil {
+			return fmt.Errorf("cannot apply update to volume %s: %v", volName, err)
+		}
+
+		if updatePolicy == nil {
+			updatePolicy = defaultPolicy
+		}
+
+		// ensure all required kernel assets are found in the gadget
+		kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
+		if err != nil {
+			return err
+		}
+		// TODO: is this still used appropriately when we have multiple volumes?
+		if err := gadgetVolumeConsumesOneKernelUpdateAsset(pNew.Volume, kernelInfo); err != nil {
+			return err
+		}
+
+		// now we know which structure is which, find which ones need an update
+		updates, err := resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo)
+		if err != nil {
+			return err
+		}
+
+		// can update old layout to new layout
+		for _, update := range updates {
+			if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
+				return fmt.Errorf("cannot update volume structure %v for volume %s: %v", update.to, volName, err)
+			}
+		}
+
+		// collect updates per volume into a single set of updates to perform
+		// at once
+		allUpdates = append(allUpdates, updates...)
 	}
 
-	if oldVol.Schema == "" || newVol.Schema == "" {
-		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", oldVol.Schema, newVol.Schema)
-	}
-
-	// layout old partially, without going deep into the layout of structure
-	// content
-	pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the old volume: %v", err)
-	}
-
-	// Layout new volume, delay resolving of filesystem content
-	constraints := DefaultConstraints
-	constraints.SkipResolveContent = true
-	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, constraints)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the new volume: %v", err)
-	}
-
-	if err := canUpdateVolume(pOld, pNew); err != nil {
-		return fmt.Errorf("cannot apply update to volume: %v", err)
-	}
-
-	if updatePolicy == nil {
-		updatePolicy = defaultPolicy
-	}
-
-	// ensure all required kernel assets are found in the gadget
-	kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
-	if err != nil {
-		return err
-	}
-	if err := gadgetVolumeConsumesOneKernelUpdateAsset(pNew.Volume, kernelInfo); err != nil {
-		return err
-	}
-
-	// now we know which structure is which, find which ones need an update
-	updates, err := resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo)
-	if err != nil {
-		return err
-	}
-	if len(updates) == 0 {
+	if len(allUpdates) == 0 {
 		// nothing to update
 		return ErrNoUpdate
 	}
 
-	// can update old layout to new layout
-	for _, update := range updates {
-		if err := canUpdateStructure(update.from, update.to, pNew.Schema); err != nil {
-			return fmt.Errorf("cannot update volume structure %v: %v", update.to, err)
+	// build the map of volume structure locations where the first key is the
+	// volume name, and the second key is the structure's index in the list of
+	// structures on that volume, and the final value is the StructureLocation
+	// hat can actually be used to perform the lookup/update in applyUpdates
+	structureLocations, err := volumeStructureToLocationMap(old, model, laidOutVols)
+	if err != nil {
+		if err == errSkipUpdateProceedRefresh {
+			// we couldn't successfully build a map for the structure locations,
+			// but for various reasons this isn't considered a fatal error for
+			// the gadget refresh, so just return nil instead, a message should
+			// already have been logged
+			return nil
+		}
+		return err
+	}
+
+	if len(new.Info.Volumes) != 1 {
+		logger.Debugf("gadget asset update routine for multiple volumes")
+
+		// check if the structure location map has only one volume in it - this
+		// is the case in legacy update operations where we only support updates
+		// to the system-boot / main volume
+		if len(structureLocations) == 1 {
+			// log a message and drop all updates to structures not in the
+			// volume we have
+			supportedVolume := ""
+			for volName := range structureLocations {
+				supportedVolume = volName
+			}
+			keepUpdates := make([]updatePair, 0, len(allUpdates))
+			for _, update := range allUpdates {
+				if update.volume.Name != supportedVolume {
+					// TODO: or should we error here instead?
+					logger.Noticef("skipping update on non-supported volume %s to structure %s", update.volume.Name, update.to.Name)
+				} else {
+					keepUpdates = append(keepUpdates, update)
+				}
+			}
+			allUpdates = keepUpdates
 		}
 	}
 
-	return applyUpdates(new, updates, rollbackDirPath, observer)
+	// apply all updates at once
+	if err := applyUpdates(structureLocations, new, allUpdates, rollbackDirPath, observer); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func resolveVolume(old *Info, new *Info) (oldVol, newVol *Volume, err error) {
@@ -1353,8 +1448,9 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 }
 
 type updatePair struct {
-	from *LaidOutStructure
-	to   *LaidOutStructure
+	from   *LaidOutStructure
+	to     *LaidOutStructure
+	volume *Volume
 }
 
 func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
@@ -1418,8 +1514,9 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 
 			// and add to updates
 			updates = append(updates, updatePair{
-				from: &oldVol.LaidOutStructure[j],
-				to:   &newVol.LaidOutStructure[j],
+				from:   &oldVol.LaidOutStructure[j],
+				to:     &newVol.LaidOutStructure[j],
+				volume: newVol.Volume,
 			})
 		}
 	}
@@ -1438,13 +1535,46 @@ type Updater interface {
 	Rollback() error
 }
 
-func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
+func updateLocationForStructure(structureLocations map[string]map[int]StructureLocation, ps *LaidOutStructure) (loc StructureLocation, err error) {
+	if !ps.HasFilesystem() {
+		loc, ok := structureLocations[ps.VolumeName][ps.YamlIndex]
+		if !ok {
+			return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeName)
+		}
+		if loc.Device == "" {
+			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeName)
+		}
+		return loc, nil
+	} else {
+		loc, ok := structureLocations[ps.VolumeName][ps.YamlIndex]
+		if !ok {
+			return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeName)
+		}
+		if loc.RootMountPoint == "" {
+			// then we can't update this structure because it has a filesystem
+			// specified in the gadget.yaml, but that partition is not mounted
+			// anywhere writable for us to update the filesystem content
+			// there is a TODO in buildVolumeStructureToLocation above about
+			// possibly mounting it, we could also mount it here instead and
+			// then proceed with the update, but we should also have a way to
+			// unmount it when we are done updating it
+			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.YamlIndex, ps.VolumeName)
+		}
+		return loc, nil
+	}
+}
+
+func applyUpdates(structureLocations map[string]map[int]StructureLocation, new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
 	updaters := make([]Updater, len(updates))
 
 	for i, one := range updates {
-		up, err := updaterForStructure(one.to, new.RootDir, rollbackDir, observer)
+		loc, err := updateLocationForStructure(structureLocations, one.to)
 		if err != nil {
-			return fmt.Errorf("cannot prepare update for volume structure %v: %v", one.to, err)
+			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
+		}
+		up, err := updaterForStructure(loc, one.to, new.RootDir, rollbackDir, observer)
+		if err != nil {
+			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
 		}
 		updaters[i] = up
 	}
@@ -1452,7 +1582,7 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, obse
 	var backupErr error
 	for i, one := range updaters {
 		if err := one.Backup(); err != nil {
-			backupErr = fmt.Errorf("cannot backup volume structure %v: %v", updates[i].to, err)
+			backupErr = fmt.Errorf("cannot backup volume structure %v on volume %s: %v", updates[i].to, updates[i].volume.Name, err)
 			break
 		}
 	}
@@ -1480,7 +1610,7 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, obse
 				skipped++
 				continue
 			}
-			updateErr = fmt.Errorf("cannot update volume structure %v: %v", updates[i].to, err)
+			updateErr = fmt.Errorf("cannot update volume structure %v on volume %s: %v", updates[i].to, updates[i].volume.Name, err)
 			break
 		}
 	}
@@ -1500,7 +1630,7 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, obse
 		one := updaters[i]
 		if err := one.Rollback(); err != nil {
 			// TODO: log errors to oplog
-			logger.Noticef("cannot rollback volume structure %v update: %v", updates[i].to, err)
+			logger.Noticef("cannot rollback volume structure %v update on volume %s: %v", updates[i].to, updates[i].volume.Name, err)
 		}
 	}
 
@@ -1515,19 +1645,24 @@ func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, obse
 
 var updaterForStructure = updaterForStructureImpl
 
-func updaterForStructureImpl(ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
-	var updater Updater
-	var err error
+func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
+	// TODO: this is sort of clunky, we already did the lookup, but doing the
+	// lookup out of band from this function makes for easier mocking
 	if !ps.HasFilesystem() {
-		updater, err = newRawStructureUpdater(newRootDir, ps, rollbackDir, findDeviceForStructureWithFallback)
+		lookup := func(ps *LaidOutStructure) (device string, offs quantity.Offset, err error) {
+			return loc.Device, loc.Offset, nil
+		}
+		return newRawStructureUpdater(newRootDir, ps, rollbackDir, lookup)
 	} else {
-		updater, err = newMountedFilesystemUpdater(ps, rollbackDir, findMountPointForStructure, observer)
+		lookup := func(ps *LaidOutStructure) (string, error) {
+			return loc.RootMountPoint, nil
+		}
+		return newMountedFilesystemUpdater(ps, rollbackDir, lookup, observer)
 	}
-	return updater, err
 }
 
 // MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
-func MockUpdaterForStructure(mock func(ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
+func MockUpdaterForStructure(mock func(loc StructureLocation, ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
 	old := updaterForStructure
 	updaterForStructure = mock
 	return func() {

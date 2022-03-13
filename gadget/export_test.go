@@ -47,9 +47,6 @@ var (
 	NewRawStructureUpdater      = newRawStructureUpdater
 	NewMountedFilesystemUpdater = newMountedFilesystemUpdater
 
-	FindDeviceForStructureWithFallback = findDeviceForStructureWithFallback
-	FindMountPointForStructure         = findMountPointForStructure
-
 	ParseRelativeOffset = parseRelativeOffset
 
 	SplitKernelRef = splitKernelRef
