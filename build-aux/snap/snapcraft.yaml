@@ -103,6 +103,13 @@ parts:
       - liblzma5
     stage:
       - lib/*
+  # Needed by squashfs-tools and fc-cache
+  zlib:
+    plugin: nil
+    stage-packages:
+      - zlib1g
+    stage:
+      - lib/*
   # libc6 is part of core but we need it in the snapd snap for
   # CommandFromSystemSnap
   libc6:
