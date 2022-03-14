@@ -14,7 +14,7 @@ details: |
     snap.
 
 # Default cups/cups-pdf configuration on these distributions isn't working yet without further tweaks.
-# -ubuntu-*-32: the snap test-snapd-cups-control-consumer is not available for i386
+# -ubuntu-*-32: the new version of snap test-snapd-cups-control-consumer is not available for i386
 # TODO: enable on debian-sid once https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1006853 is fixed
 systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*, -ubuntu-*-32]
 
