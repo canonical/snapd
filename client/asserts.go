@@ -96,7 +96,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 		return nil, parseError(response)
 	}
 
-	sanityCount, err := strconv.Atoi(response.Header.Get("X-Ubuntu-Assertions-Count"))
+	assertionsCount, err := strconv.Atoi(response.Header.Get("X-Ubuntu-Assertions-Count"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid assertions count")
 	}
@@ -117,7 +117,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 		asserts = append(asserts, a)
 	}
 
-	if len(asserts) != sanityCount {
+	if len(asserts) != assertionsCount {
 		return nil, fmt.Errorf("response did not have the expected number of assertions")
 	}
 

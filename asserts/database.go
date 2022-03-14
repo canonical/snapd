@@ -350,7 +350,7 @@ func (db *Database) ImportKey(privKey PrivateKey) error {
 }
 
 var (
-	// for sanity checking of base64 hash strings
+	// for validity checking of base64 hash strings
 	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 )
 

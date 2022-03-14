@@ -502,7 +502,7 @@ func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool
 			return err
 		}
 		if modelSnap.SnapType == "gadget" {
-			// sanity
+			// validity
 			info, err := readInfo(seedSnap.Path, seedSnap.SideInfo)
 			if err != nil {
 				return err

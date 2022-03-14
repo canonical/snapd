@@ -711,7 +711,7 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 
 	xdelta3Args := []string{"-d", "-s", snapPath, deltaPath, partialTargetPath}
 
-	// sanity check that deltas are available and that the path for the xdelta3
+	// validity check that deltas are available and that the path for the xdelta3
 	// command is set
 	if ok := s.useDeltas(); !ok {
 		return fmt.Errorf("internal error: applyDelta used when deltas are not available")

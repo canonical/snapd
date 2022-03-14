@@ -1053,7 +1053,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			w.Write([]byte(`{"nonce": "NONCE"}`))
 			return
 		case "auth:sessions":
-			// quick sanity check
+			// quick validity check
 			reqBody, err := ioutil.ReadAll(r.Body)
 			c.Check(err, IsNil)
 			c.Check(bytes.Contains(reqBody, []byte("nonce: NONCE")), Equals, true)
@@ -1396,7 +1396,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	info, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(info.Revision, Equals, snap.R(1))
@@ -1439,7 +1439,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithPostHocEpochBump(c *C) {
 	// computed.
 
 	// this is mostly checking the same as TestHappyRemoteInstallAndUpdateWithEpochBump
-	// but serves as a sanity check for the Without case that follows
+	// but serves as a validity check for the Without case that follows
 	// (these two together serve as a test for the refresh filtering)
 	s.testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c, true)
 }
@@ -1477,7 +1477,7 @@ func (s *mgrsSuite) testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c *C, doBu
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	info, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(info.Revision, Equals, snap.R(1))
@@ -1562,7 +1562,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
@@ -1646,7 +1646,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyFails(c *C) {
 	// confirm it failed
 	c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("install-snap change not failed"))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		_, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, DeepEquals,
@@ -1689,7 +1689,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
@@ -1775,7 +1775,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
@@ -1853,7 +1853,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFailin
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
