@@ -740,7 +740,8 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionCons
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
 		if assert.SignatoryID() != signingKey.AccountID() {
-			return nil, fmt.Errorf("assertion signatory %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
+			// XXX authority-delegation: s/signatory/authority/
+			return nil, fmt.Errorf("assertion authority %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
 		}
 		if assert.SignatoryID() != assert.AuthorityID() {
 			ad, err := roDB.Find(AuthorityDelegationType, map[string]string{
@@ -884,9 +885,10 @@ func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstra
 var DefaultCheckers = []Checker{
 	CheckSigningKeyIsNotExpired,
 	CheckSignature,
-	CheckDelegationIsNotExpired,
+	// XXX authority-delegation disabled
+	// CheckDelegationIsNotExpired,
 	CheckTimestampVsSigningKeyValidity,
-	CheckTimestampVsDelegationValidity,
-	CheckDelegation,
+	// CheckTimestampVsDelegationValidity,
+	// CheckDelegation,
 	CheckCrossConsistency,
 }
