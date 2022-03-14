@@ -91,8 +91,10 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/snapd.snap", "/a/base.snap", nil })
 	defer restoreSystemSnapFromSeed()
 
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
+
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{"--core20", tmpDir}), IsNil)
+	c.Assert(main.Run(parser, []string{tmpDir}), IsNil)
 
 	c.Check(mockChootCmd.Calls()[0], DeepEquals, []string{"chroot", preseedTmpDir, "/usr/lib/snapd/snapd"})
 
@@ -120,7 +122,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	})
 
 	c.Check(mockTar.Calls(), DeepEquals, [][]string{
-		{"tar", "-czf", filepath.Join(tmpDir, "system-seed/systems/preseed.tgz"), "-p", "-C",
+		{"tar", "-czf", filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
 			filepath.Join(writableTmpDir, "system-data"), "--exclude", "foo", "etc/bar/a", "etc/bar/b"},
 	})
 

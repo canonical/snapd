@@ -29,6 +29,7 @@ import (
 
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -44,8 +45,7 @@ first-boot startup time`
 )
 
 type options struct {
-	Core20 bool `long:"core20"`
-	Reset  bool `long:"reset"`
+	Reset bool `long:"reset"`
 }
 
 var (
@@ -69,6 +69,12 @@ func Parser() *flags.Parser {
 	parser.ShortDescription = shortHelp
 	parser.LongDescription = longHelp
 	return parser
+}
+
+func probeCore20ImageDir(dir string) bool {
+	sysDir := filepath.Join(dir, "system-seed")
+	_, isDir, _ := osutil.DirExists(sysDir)
+	return isDir
 }
 
 func main() {
@@ -112,7 +118,7 @@ func run(parser *flags.Parser, args []string) (err error) {
 	}
 
 	var cleanup func()
-	if opts.Core20 {
+	if probeCore20ImageDir(chrootDir) {
 		var popts *PreseedOpts
 		popts, cleanup, err = prepareCore20Chroot(chrootDir)
 		if err != nil {

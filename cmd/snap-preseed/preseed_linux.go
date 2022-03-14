@@ -344,6 +344,9 @@ var makeWritableTempDir = func() (string, error) {
 func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
 	sysDir := filepath.Join(prepareImageDir, "system-seed")
 	sysLabel, err := systemForPreseeding(sysDir)
+	if err != nil {
+		return nil, nil, err
+	}
 	snapdSnapPath, baseSnapPath, err := systemSnapFromSeed(sysDir, sysLabel)
 	if err != nil {
 		return nil, nil, err
