@@ -1069,6 +1069,13 @@ nested_start_core_vm_unit() {
         local OVMF_CODE OVMF_VARS
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
+
+        if nested_is_core_22_system; then
+            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
+            mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
+            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
+            mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
+        fi
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
         if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             OVMF_VARS="snakeoil"
@@ -1077,13 +1084,9 @@ nested_start_core_vm_unit() {
         if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
             PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
         fi
-        OVMF_SIZE=''
         if nested_is_secure_boot_enabled; then
-            if nested_is_core_22_system; then
-                OVMF_SIZE='_4M'
-            fi
-            cp -f "/usr/share/OVMF/OVMF_VARS${OVMF_SIZE}.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE${OVMF_SIZE}.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
+            cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
             PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
