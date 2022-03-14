@@ -120,9 +120,10 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 		fmt.Fprintf(Stdout, "ubuntu classic preseeding")
 	} else {
 		if model.Base() == "core20" {
-			fmt.Fprintf(Stdout, "ubuntu core20 preseeding")
+			fmt.Fprintf(Stdout, "UC20 preseeding")
 		} else {
-			return "", "", fmt.Errorf("preseeding of ubuntu core with base %s", model.Base())
+			// TODO: support uc20+
+			return "", "", fmt.Errorf("preseeding of ubuntu core with base %s is not supported", model.Base())
 		}
 	}
 
@@ -207,9 +208,9 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	return &targetSnapdInfo{path: snapdPath, version: whichVer}, nil
 }
 
-func prepareCore20Mountpoints(prepareImageDir, tmpPreseedDir, snapdSnapBlob, baseSnapBlob, writable string) (cleanupMounts func(), err error) {
+func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlob, baseSnapBlob, writable string) (cleanupMounts func(), err error) {
 	underPreseed := func(path string) string {
-		return filepath.Join(tmpPreseedDir, path)
+		return filepath.Join(tmpPreseedChrootDir, path)
 	}
 
 	if err := os.MkdirAll(filepath.Join(writable, "system-data", "etc"), 0755); err != nil {
@@ -238,7 +239,7 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedDir, snapdSnapBlob, bas
 		}
 		// cleanup after handle-writable-paths
 		for _, ent := range entries {
-			if strings.HasPrefix(ent.MountDir, tmpPreseedDir) {
+			if strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
 				cmd := exec.Command("umount", ent.MountDir)
 				if out, err := cmd.CombinedOutput(); err != nil {
 					fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, ent.MountDir, out)
@@ -259,7 +260,7 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedDir, snapdSnapBlob, bas
 	defer cleanupOnError()
 
 	mounts := [][]string{
-		{"-o", "loop", baseSnapBlob, tmpPreseedDir},
+		{"-o", "loop", baseSnapBlob, tmpPreseedChrootDir},
 		{"-o", "loop", snapdSnapBlob, snapdMountPath},
 		{"-t", "tmpfs", "tmpfs", underPreseed("run")},
 		{"-t", "tmpfs", "tmpfs", underPreseed("var/tmp")},
@@ -280,7 +281,7 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedDir, snapdSnapBlob, bas
 		mounted = append(mounted, mountArgs[len(mountArgs)-1])
 	}
 
-	cmd := exec.Command(underPreseed("/usr/lib/core/handle-writable-paths"), tmpPreseedDir)
+	cmd := exec.Command(underPreseed("/usr/lib/core/handle-writable-paths"), tmpPreseedChrootDir)
 	if out, err = cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("handle-writable-paths failed with: %v\n%s", err, out)
 	}
@@ -355,7 +356,7 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 		return nil, nil, fmt.Errorf("base snap not found")
 	}
 
-	tmpPreseedDir, err := makePreseedTempDir()
+	tmpPreseedChrootDir, err := makePreseedTempDir()
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot prepare uc20 chroot: %v", err)
 	}
@@ -364,14 +365,14 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 		return nil, nil, fmt.Errorf("cannot prepare uc20 chroot: %v", err)
 	}
 
-	cleanupMounts, err := prepareCore20Mountpoints(prepareImageDir, tmpPreseedDir, snapdSnapPath, baseSnapPath, writableTmpDir)
+	cleanupMounts, err := prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapPath, baseSnapPath, writableTmpDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot prepare uc20 mountpoints: %v", err)
 	}
 
 	cleanup = func() {
 		cleanupMounts()
-		if err := os.RemoveAll(tmpPreseedDir); err != nil {
+		if err := os.RemoveAll(tmpPreseedChrootDir); err != nil {
 			fmt.Fprintf(Stdout, "%v", err)
 		}
 		if err := os.RemoveAll(writableTmpDir); err != nil {
@@ -380,10 +381,10 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 	}
 
 	opts := &PreseedOpts{
-		PrepareImageDir: prepareImageDir,
-		PreseedDir:      tmpPreseedDir,
-		SystemLabel:     sysLabel,
-		WritableDir:     writableTmpDir,
+		PrepareImageDir:  prepareImageDir,
+		PreseedChrootDir: tmpPreseedChrootDir,
+		SystemLabel:      sysLabel,
+		WritableDir:      writableTmpDir,
 	}
 	return opts, cleanup, nil
 }
@@ -519,12 +520,12 @@ func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
 }
 
 func runUC20PreseedMode(opts *PreseedOpts) error {
-	cmd := exec.Command("chroot", opts.PreseedDir, "/usr/lib/snapd/snapd")
+	cmd := exec.Command("chroot", opts.PreseedChrootDir, "/usr/lib/snapd/snapd")
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
-	fmt.Fprintf(Stdout, "starting to preseed uc20 system: %s", opts.PreseedDir)
+	fmt.Fprintf(Stdout, "starting to preseed UC20 system: %s", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)

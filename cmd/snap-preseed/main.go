@@ -57,10 +57,10 @@ var (
 )
 
 type PreseedOpts struct {
-	PrepareImageDir string
-	PreseedDir      string
-	SystemLabel     string
-	WritableDir     string
+	PrepareImageDir  string
+	PreseedChrootDir string
+	SystemLabel      string
+	WritableDir      string
 }
 
 func Parser() *flags.Parser {
