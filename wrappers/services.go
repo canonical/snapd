@@ -117,7 +117,7 @@ func formatCpuGroupSlice(grp *quota.Group) string {
 			return ""
 		}
 
-		allowedCpusValue := strutil.IntsToCommaSeparatedString(grp.CPULimit.AllowedCPUs)
+		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
 		return fmt.Sprintf("AllowedCPUs=%s\n", allowedCpusValue)
 	}
 

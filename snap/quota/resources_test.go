@@ -37,11 +37,11 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 	}{
 		{quota.Resources{}, `quota group must have at least one resource limit set`},
 		{quota.Resources{Memory: &quota.ResourceMemory{}}, `memory quota must have a limit set`},
-		{quota.Resources{CPU: &quota.ResourceCPU{}}, `cannot validate quota limits with a cpu quota of 0 and no allowed cpus`},
-		{quota.Resources{Threads: &quota.ResourceThreads{}}, `cannot create quota group with a thread count of 0`},
+		{quota.Resources{CPU: &quota.ResourceCPU{}}, `invalid cpu quota with a cpu quota of 0 and no allowed cpus`},
+		{quota.Resources{Threads: &quota.ResourceThreads{}}, `invalid thread quota with a thread count of 0`},
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeKiB).Build(), `memory limit 1024 is too small: size must be larger than 4KB`},
-		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `cannot validate quota limits with count of >0 and percentage of 0`},
+		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `invalid cpu quota with count of >0 and percentage of 0`},
 	}
 
 	for _, t := range tests {

@@ -984,3 +984,26 @@ func (ts *quotaTestSuite) TestNestingOfLimitsWithExceedingSiblings(c *C) {
 	_, err = subgrp2.NewSubGroup("mem-sub2", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, ErrorMatches, `sub-group memory limit of 1 GiB is too large to fit inside group \"groot\" remaining quota space 0 B`)
 }
+
+func (ts *quotaTestSuite) TestChangingSubgroupLimits(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a memory limit of only half, then we try to adjust the value to another
+	// larger value. This must succeed.
+	memgrp, err := subgrp1.NewSubGroup("mem-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB/2).Build())
+	c.Assert(err, IsNil)
+
+	// Now we change it to fill the entire quota of our upper parent
+	err = memgrp.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Now we try to change the limits of the subgroup to a value that is too large to fit inside the parent,
+	// the error message should also correctly report that the remaining space is 1GiB, as it should not consider
+	// the current memory quota of the subgroup.
+	err = memgrp.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build())
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside group \"groot\" remaining quota space 1 GiB`)
+}

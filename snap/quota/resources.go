@@ -67,12 +67,12 @@ func (qr *Resources) validateMemoryQuota() error {
 func (qr *Resources) validateCpuQuota() error {
 	// if cpu count is non-zero, then percentage should be set
 	if qr.CPU.Count != 0 && qr.CPU.Percentage == 0 {
-		return fmt.Errorf("cannot validate quota limits with count of >0 and percentage of 0")
+		return fmt.Errorf("invalid cpu quota with count of >0 and percentage of 0")
 	}
 
 	// at least one cpu limit value must be set
 	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 && len(qr.CPU.AllowedCPUs) == 0 {
-		return fmt.Errorf("cannot validate quota limits with a cpu quota of 0 and no allowed cpus")
+		return fmt.Errorf("invalid cpu quota with a cpu quota of 0 and no allowed cpus")
 	}
 	return nil
 }
@@ -80,7 +80,7 @@ func (qr *Resources) validateCpuQuota() error {
 func (qr *Resources) validateThreadQuota() error {
 	// make sure the thread count is greater than 0
 	if qr.Threads.Limit <= 0 {
-		return fmt.Errorf("cannot create quota group with a thread count of %d", qr.Threads.Limit)
+		return fmt.Errorf("invalid thread quota with a thread count of %d", qr.Threads.Limit)
 	}
 	return nil
 }

@@ -39,8 +39,8 @@ func SizeToStr(size int64) string {
 	panic("SizeToStr got a size bigger than math.MaxInt64")
 }
 
-// IntsToCommaSeparatedString converts an int array to a comma-separated string
-func IntsToCommaSeparatedString(vals []int) string {
+// IntsToCommaSeparated converts an int array to a comma-separated string
+func IntsToCommaSeparated(vals []int) string {
 	b := &strings.Builder{}
 	last := len(vals) - 1
 	for i, v := range vals {
