@@ -592,9 +592,6 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 	chainsForModel := func(model secboot.ModelForSealing) error {
 		modelID := modelUniqueID(model)
 		for _, system := range systems {
-			if len(modesForSystems) == 0 {
-				return errors.New("internal error: cannot compute recovery boot chains without modes for systems")
-			}
 			// get kernel and gadget information from seed
 			perf := timings.New(nil)
 			seedSystemModel, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)

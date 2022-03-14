@@ -1251,12 +1251,6 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			err:             `cannot read system "0" seed: invalid system seed`,
 		},
 		{
-			desc:            "no modes at all",
-			recoverySystems: []string{"0"},
-			modesForSystems: nil,
-			err:             `internal error: cannot compute recovery boot chains without modes for systems`,
-		},
-		{
 			desc:            "missing modes for a system",
 			recoverySystems: []string{"20200825"},
 			modesForSystems: map[string][]string{"other": {boot.ModeRecover}},
