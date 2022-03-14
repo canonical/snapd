@@ -574,18 +574,14 @@ func modesForSystems(modeenv *Modeenv) map[string][]string {
 	// tried systems can only boot to recovery mode
 	modesForCandidateSystem := []string{ModeRecover}
 
-	// go through recovery systems that were tested
+	// go through current recovery systems which can contain both tried
+	// systems and candidate ones
+	for _, sys := range modeenv.CurrentRecoverySystems {
+		systemToModes[sys] = modesForCandidateSystem
+	}
+	// go through recovery systems that were tested and update their modes
 	for _, sys := range modeenv.GoodRecoverySystems {
 		systemToModes[sys] = modesForTestedSystem
-	}
-	// go through current recovery systems which can contain systems that
-	// are only being tried
-	for _, sys := range modeenv.CurrentRecoverySystems {
-		if _, ok := systemToModes[sys]; !ok {
-			// since we already went through tested system, this is
-			// a candidate system
-			systemToModes[sys] = modesForCandidateSystem
-		}
 	}
 	return systemToModes
 }
@@ -596,9 +592,6 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 	chainsForModel := func(model secboot.ModelForSealing) error {
 		modelID := modelUniqueID(model)
 		for _, system := range systems {
-			if len(modesForSystems) == 0 {
-				return errors.New("internal error: cannot compute recovery boot chains without modes for systems")
-			}
 			// get kernel and gadget information from seed
 			perf := timings.New(nil)
 			seedSystemModel, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
