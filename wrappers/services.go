@@ -206,7 +206,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}
 		if len(toEnableSystem) > 0 {
-			if e := systemSysd.Disable(toEnableSystem); e != nil {
+			if e := systemSysd.DisableNoReload(toEnableSystem); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
 			}
 			if e := systemSysd.DaemonReload(); e != nil {
@@ -214,11 +214,10 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}
 		if len(toEnableUser) > 0 {
-			if e := userSysd.Disable(toEnableUser); e != nil {
+			if e := userSysd.DisableNoReload(toEnableUser); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
 			}
 		}
-
 	}()
 	// process all services of the snap in the order specified by the
 	// caller; before batched calls were introduced, the sockets and timers
@@ -282,7 +281,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 
 	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {
 		if len(toEnableSystem) > 0 {
-			if err = systemSysd.Enable(toEnableSystem); err != nil {
+			if err = systemSysd.EnableNoReload(toEnableSystem); err != nil {
 				return
 			}
 			if err = systemSysd.DaemonReload(); err != nil {
@@ -290,7 +289,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}
 		if len(toEnableUser) > 0 {
-			err = userSysd.Enable(toEnableUser)
+			err = userSysd.EnableNoReload(toEnableUser)
 		}
 	})
 	if err != nil {
@@ -741,7 +740,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		}
 	}
 	if len(disableServices) > 0 {
-		if err := sysd.Disable(disableServices); err != nil {
+		if err := sysd.DisableNoReload(disableServices); err != nil {
 			return err
 		}
 		if err := sysd.DaemonReload(); err != nil {
@@ -871,12 +870,12 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	}
 
 	// disable all collected systemd units
-	if err := systemSysd.Disable(systemUnits); err != nil {
+	if err := systemSysd.DisableNoReload(systemUnits); err != nil {
 		return err
 	}
 
 	// disable all collected user units
-	if err := userSysd.Disable(userUnits); err != nil {
+	if err := userSysd.DisableNoReload(userUnits); err != nil {
 		return err
 	}
 

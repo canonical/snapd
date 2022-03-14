@@ -177,7 +177,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 
 	if disabled {
 		if opts == nil {
-			if err := sysd.Disable(units); err != nil {
+			if err := sysd.DisableNoReload(units); err != nil {
 				return err
 			}
 		}
@@ -193,7 +193,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 			return err
 		}
 		if opts == nil {
-			if err := sysd.Enable(units); err != nil {
+			if err := sysd.EnableNoReload(units); err != nil {
 				return err
 			}
 			// enable does not trigger reloads, so issue one now
