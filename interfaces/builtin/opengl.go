@@ -96,6 +96,9 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 # va-api
 /dev/dri/renderD[0-9]* rw,
 
+# intel
+@{PROC}/sys/dev/i915/perf_stream_paranoid r,
+
 # cuda
 @{PROC}/sys/vm/mmap_min_addr r,
 @{PROC}/devices r,
