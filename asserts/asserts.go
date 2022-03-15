@@ -562,7 +562,7 @@ func (ab *assertionBase) At() *AtRevision {
 	return &AtRevision{Ref: *ab.Ref(), Revision: ab.Revision()}
 }
 
-// sanity check
+// expected interface is implemented
 var _ Assertion = (*assertionBase)(nil)
 
 // Decode parses a serialized assertion.
