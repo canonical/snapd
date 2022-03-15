@@ -27,6 +27,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/image/preseed"
+
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
@@ -55,13 +57,6 @@ var (
 
 	opts options
 )
-
-type PreseedOpts struct {
-	PrepareImageDir  string
-	PreseedChrootDir string
-	SystemLabel      string
-	WritableDir      string
-}
 
 func Parser() *flags.Parser {
 	opts = options{}
@@ -114,37 +109,37 @@ func run(parser *flags.Parser, args []string) (err error) {
 	}
 
 	if opts.Reset {
-		return resetPreseededChroot(chrootDir)
+		return preseed.ResetPreseededChroot(chrootDir)
 	}
 
 	var cleanup func()
 	if probeCore20ImageDir(chrootDir) {
-		var popts *PreseedOpts
-		popts, cleanup, err = prepareCore20Chroot(chrootDir)
+		var popts *preseed.PreseedOpts
+		popts, cleanup, err = preseed.PrepareCore20Chroot(chrootDir)
 		if err != nil {
 			return err
 		}
 
-		err = runUC20PreseedMode(popts)
+		err = preseed.RunUC20PreseedMode(popts)
 	} else {
-		if err := checkChroot(chrootDir); err != nil {
+		if err := preseed.CheckChroot(chrootDir); err != nil {
 			return err
 		}
 
-		var targetSnapd *targetSnapdInfo
+		var targetSnapd *preseed.TargetSnapdInfo
 
 		// XXX: if prepareClassicChroot & runPreseedMode were refactored to
 		// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
 		// beginning of prepareClassicChroot), then we could have a single
 		// runPreseedMode/runUC20PreseedMode function that handles both classic
 		// and core20.
-		targetSnapd, cleanup, err = prepareClassicChroot(chrootDir)
+		targetSnapd, cleanup, err = preseed.PrepareClassicChroot(chrootDir)
 		if err != nil {
 			return err
 		}
 
 		// executing inside the chroot
-		err = runPreseedMode(chrootDir, targetSnapd)
+		err = preseed.RunPreseedMode(chrootDir, targetSnapd)
 	}
 
 	cleanup()

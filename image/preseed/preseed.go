@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,26 @@
  *
  */
 
-package main
+package preseed
 
-var (
-	Run = run
+import (
+	"io"
+	"os"
 )
 
-func MockOsGetuid(f func() int) (restore func()) {
-	oldOsGetuid := osGetuid
-	osGetuid = f
-	return func() { osGetuid = oldOsGetuid }
+var (
+	Stdout io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
+)
+
+type PreseedOpts struct {
+	PrepareImageDir  string
+	PreseedChrootDir string
+	SystemLabel      string
+	WritableDir      string
+}
+
+type TargetSnapdInfo struct {
+	path    string
+	version string
 }

@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -51,13 +52,13 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	defer mockUmountCmd.Restore()
 
 	preseedTmpDir := filepath.Join(tmpDir, "preseed-tmp")
-	restoreMakePreseedTmpDir := main.MockMakePreseedTempDir(func() (string, error) {
+	restoreMakePreseedTmpDir := preseed.MockMakePreseedTempDir(func() (string, error) {
 		return preseedTmpDir, nil
 	})
 	defer restoreMakePreseedTmpDir()
 
 	writableTmpDir := filepath.Join(tmpDir, "writable-tmp")
-	restoreMakeWritableTempDir := main.MockMakeWritableTempDir(func() (string, error) {
+	restoreMakeWritableTempDir := preseed.MockMakeWritableTempDir(func() (string, error) {
 		return writableTmpDir, nil
 	})
 	defer restoreMakeWritableTempDir()
@@ -85,10 +86,10 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	defer restore()
 
 	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
-	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
+	restoreMountPath := preseed.MockSnapdMountPath(targetSnapdRoot)
 	defer restoreMountPath()
 
-	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/snapd.snap", "/a/base.snap", nil })
+	restoreSystemSnapFromSeed := preseed.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/snapd.snap", "/a/base.snap", nil })
 	defer restoreSystemSnapFromSeed()
 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
@@ -153,42 +154,4 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 
 	// sanity check; -1 to account for handle-writable-paths mock which doesn’t trigger mount in the test
 	c.Check(len(mockMountCmd.Calls()), Equals, len(mockUmountCmd.Calls())-1)
-}
-
-func (s *startPreseedSuite) TestCreatePreseedArtifact(c *C) {
-	tmpDir := c.MkDir()
-	dirs.SetRootDir(tmpDir)
-
-	prepareDir := filepath.Join(tmpDir, "prepare-dir")
-	c.Assert(os.MkdirAll(filepath.Join(prepareDir, "system-seed/systems/20220203"), 0755), IsNil)
-
-	writableDir := filepath.Join(tmpDir, "writable")
-	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
-
-	mockTar := testutil.MockCommand(c, "tar", "")
-	defer mockTar.Restore()
-
-	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/etc/bar"), 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/baz"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableDir, "system-data/etc/bar/a"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableDir, "system-data/etc/bar/x"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableDir, "system-data/baz/b"), nil, 0644), IsNil)
-
-	const exportFileContents = `{
-"exclude": ["/etc/bar/x*"],
-"include": ["/etc/bar/a", "/baz/*"]
-}`
-	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/var/lib/snapd"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableDir, "system-data/var/lib/snapd/preseed-export.json"), []byte(exportFileContents), 0644), IsNil)
-
-	opts := &main.PreseedOpts{
-		PrepareImageDir: prepareDir,
-		WritableDir:     writableDir,
-		SystemLabel:     "20220203",
-	}
-	c.Assert(main.CreatePreseedArtifact(opts), Equals, nil)
-	c.Check(mockTar.Calls(), DeepEquals, [][]string{
-		{"tar", "-czf", filepath.Join(tmpDir, "prepare-dir/system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
-			filepath.Join(writableDir, "system-data"), "--exclude", "/etc/bar/x*", "etc/bar/a", "baz/b"},
-	})
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package preseed
 
 import (
 	"encoding/json"
@@ -45,12 +45,12 @@ var (
 	syscallChroot  = syscall.Chroot
 )
 
-// checkChroot does a basic sanity check of the target chroot environment, e.g. makes
+// CheckChroot does a basic sanity check of the target chroot environment, e.g. makes
 // sure critical virtual filesystems (such as proc) are mounted. This is not meant to
 // be exhaustive check, but one that prevents running the tool against a wrong directory
 // by an accident, which would lead to hard to understand errors from snapd in preseed
 // mode.
-func checkChroot(preseedChroot string) error {
+func CheckChroot(preseedChroot string) error {
 	exists, isDir, err := osutil.DirExists(preseedChroot)
 	if err != nil {
 		return fmt.Errorf("cannot verify %q: %v", preseedChroot, err)
@@ -153,18 +153,13 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 
 const snapdPreseedSupportVer = `2.43.3+`
 
-type targetSnapdInfo struct {
-	path    string
-	version string
-}
-
 // chooseTargetSnapdVersion checks if the version of snapd under chroot env
 // is good enough for preseeding. It checks both the snapd from the deb
 // and from the seeded snap mounted under snapdMountPath and returns the
 // information (path, version) about snapd to execute as part of preseeding
 // (it picks the newer version of the two).
 // The function must be called after syscall.Chroot(..).
-func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
+func chooseTargetSnapdVersion() (*TargetSnapdInfo, error) {
 	// read snapd version from the mounted core/snapd snap
 	snapdInfoDir := filepath.Join(snapdMountPath, dirs.CoreLibExecDir)
 	verFromSnap, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
@@ -205,7 +200,7 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 			whichVer, snapdPreseedSupportVer)
 	}
 
-	return &targetSnapdInfo{path: snapdPath, version: whichVer}, nil
+	return &TargetSnapdInfo{path: snapdPath, version: whichVer}, nil
 }
 
 func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlob, baseSnapBlob, writable string) (cleanupMounts func(), err error) {
@@ -341,7 +336,7 @@ var makeWritableTempDir = func() (string, error) {
 	return ioutil.TempDir("", "writable-")
 }
 
-func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
+func PrepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
 	sysDir := filepath.Join(prepareImageDir, "system-seed")
 	sysLabel, err := systemForPreseeding(sysDir)
 	if err != nil {
@@ -392,7 +387,7 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 	return opts, cleanup, nil
 }
 
-func prepareClassicChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
+func PrepareClassicChroot(preseedChroot string) (*TargetSnapdInfo, func(), error) {
 	if err := syscallChroot(preseedChroot); err != nil {
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
@@ -502,9 +497,9 @@ func createPreseedArtifact(opts *PreseedOpts) error {
 	return nil
 }
 
-// runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
+// RunPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
-func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
+func RunPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
 	// run snapd in preseed mode
 	cmd := exec.Command(targetSnapd.path)
 	cmd.Env = os.Environ()
@@ -522,7 +517,7 @@ func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
 	return nil
 }
 
-func runUC20PreseedMode(opts *PreseedOpts) error {
+func RunUC20PreseedMode(opts *PreseedOpts) error {
 	cmd := exec.Command("chroot", opts.PreseedChrootDir, "/usr/lib/snapd/snapd")
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
@@ -539,4 +534,48 @@ func runUC20PreseedMode(opts *PreseedOpts) error {
 	}
 
 	return nil
+}
+
+func MockSyscallChroot(f func(string) error) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	oldSyscallChroot := syscallChroot
+	syscallChroot = f
+	return func() { syscallChroot = oldSyscallChroot }
+}
+
+func MockSnapdMountPath(path string) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	oldMountPath := snapdMountPath
+	snapdMountPath = path
+	return func() { snapdMountPath = oldMountPath }
+}
+
+func MockSystemSnapFromSeed(f func(rootDir, sysLabel string) (string, string, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	oldSystemSnapFromSeed := systemSnapFromSeed
+	systemSnapFromSeed = f
+	return func() { systemSnapFromSeed = oldSystemSnapFromSeed }
+}
+
+func MockMakePreseedTempDir(f func() (string, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := makePreseedTempDir
+	makePreseedTempDir = f
+	return func() {
+		makePreseedTempDir = old
+	}
+}
+
+func MockMakeWritableTempDir(f func() (string, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := makeWritableTempDir
+	makeWritableTempDir = f
+	return func() {
+		makeWritableTempDir = old
+	}
 }

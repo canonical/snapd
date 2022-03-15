@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,26 @@
  *
  */
 
-package main
+package preseed
 
-var (
-	Run = run
+import (
+	"github.com/snapcore/snapd/seed"
 )
 
-func MockOsGetuid(f func() int) (restore func()) {
-	oldOsGetuid := osGetuid
-	osGetuid = f
-	return func() { osGetuid = oldOsGetuid }
+var (
+	SystemSnapFromSeed       = systemSnapFromSeed
+	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
+	CreatePreseedArtifact    = createPreseedArtifact
+)
+
+func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
+	oldSeedOpen := seedOpen
+	seedOpen = f
+	return func() {
+		seedOpen = oldSeedOpen
+	}
+}
+
+func SnapdPathAndVersion(targetSnapd *TargetSnapdInfo) (string, string) {
+	return targetSnapd.path, targetSnapd.version
 }

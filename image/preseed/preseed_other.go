@@ -3,7 +3,7 @@
 // +build !linux
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,7 +19,7 @@
  *
  */
 
-package main
+package preseed
 
 import (
 	"errors"
@@ -27,16 +27,22 @@ import (
 
 var preseedNotAvailableError = errors.New("preseed mode not available for systems other than linux")
 
-func checkChroot(preseedChroot string) error {
+func CheckChroot(preseedChroot string) error {
 	return preseedNotAvailableError
 }
 
-func prepareChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
-	return nil, preseedNotAvailableError
+func PrepareClassicChroot(preseedChroot string) (*TargetSnapdInfo, func(), error) {
+	return nil, nil, preseedNotAvailableError
 }
 
-func runPreseedMode(rootDir string) error {
+func PrepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
+	return nil, nil, preseedNotAvailableError
+}
+
+func RunPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
 	return preseedNotAvailableError
 }
 
-func cleanup() {}
+func RunUC20PreseedMode(opts *PreseedOpts) error {
+	return preseedNotAvailableError
+}
