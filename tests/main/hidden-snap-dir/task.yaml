@@ -15,11 +15,6 @@ restore: |
     snap unset system experimental.hidden-snap-folder
 
 execute: |
-    # core22 snap isn't available for x86
-    if os.query is-pc-i386; then
-      exit 0
-    fi
-
     # Checks that the env vars are as expected after the migration.
     check_env() {
       echo "Check the env vars were migrated"
@@ -174,7 +169,16 @@ execute: |
     "$NAME".echo "$data" > "$HOME/snap/$NAME/x2/file"
     "$NAME".echo "$data" > "$HOME/snap/$NAME/common/file"
 
+    # core22 snap isn't available for x86
+    if os.query is-pc-i386; then
+      exit 0
+    fi
+
     echo "Update snap to core22"
+    # write a file in a default XDG dir so we can check it's migrated
+    mkdir "$HOME/snap/$NAME/x2/.config"
+    echo "conf" > "$HOME/snap/$NAME/x2/.config/file"
+
     snap install --edge core22
     cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
     echo -e "\nbase: core22" >> "$PWD/$NAME/meta/snap.yaml"
@@ -184,3 +188,114 @@ execute: |
     check_env "--with-exposed-home" "x3"
     check_dirs "--with-exposed-home" "x3"
     check_data "--with-exposed-home" "x3" "$data"
+
+    # the XDG dirs shouldn't be copied to the new HOME (they stay under the rev dir)
+    not test -d "$HOME/Snap/$NAME/.config"
+
+    # check data in a default XDG dir was migrated
+    MATCH "conf" < "$HOME/.snap/data/$NAME/x3/xdg-config/file"
+
+    # write some new data so we can check it's still there after reverting back
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/file'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_COMMON"/file'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "x3" > "$HOME"/file'
+
+    echo "Check that revert moves ~/.snap back and disables HOME migration"
+    snap revert "$NAME"
+
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/snap/$NAME/x2"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/snap/$NAME/common"
+    echo "$snapEnv" | MATCH "HOME=$HOME/snap/$NAME/x2"
+
+    MATCH "$data" < "$HOME/snap/$NAME/x2/file"
+    test -d "$HOME/snap/$NAME/x2"
+    test -d "$HOME/snap/$NAME/common"
+    test -L "$HOME/snap/$NAME/current"
+    not test -d "$HOME/.snap/data/$NAME"
+
+    if [ "$(readlink "$HOME/snap/$NAME/current")" != "x2" ]; then
+      echo "expected 'current' to be symlink to x2"
+      exit 1
+    fi
+
+    # the revision x3 data is still there
+    test "$HOME/snap/$NAME/x3/file"
+    test "$HOME/snap/$NAME/common/file"
+    test "$HOME/Snap/$NAME/file"
+
+    echo "Revert forward"
+    snap revert "$NAME" --revision="x3"
+
+    # check everything is restored after reverting back to x3
+    check_env "--with-exposed-home" "x3"
+    check_dirs "--with-exposed-home" "x3"
+    check_data "--with-exposed-home" "x3" "x3"
+
+    # write something to the new XDG dirs so we can check that a refresh always
+    # re-initializes them from the default XDG (even if refreshing after a revert)
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-config/file'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-data/file'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "x3" > "$SNAP_USER_DATA"/xdg-cache/file'
+
+    echo "Check that revert w/ experimental flag set disable the ~/Snap migration"
+    snap set system experimental.hidden-snap-folder=true
+    snap revert "$NAME"
+
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/.snap/data/$NAME/x2"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/.snap/data/$NAME/common"
+    echo "$snapEnv" | MATCH "HOME=$HOME/.snap/data/$NAME/x2"
+
+    MATCH "$data" < "$HOME/.snap/data/$NAME/x2/file"
+    test -d "$HOME/.snap/data/$NAME/x2"
+    test -d "$HOME/.snap/data/$NAME/common"
+    test -L "$HOME/.snap/data/$NAME/current"
+
+    test  "$HOME/Snap/$NAME/file"
+    not test -d "$HOME/snap/$NAME"
+
+    if [ "$(readlink "$HOME/.snap/data/$NAME/current")" != "x2" ]; then
+      echo "expected 'current' to be symlink to x2"
+      exit 1
+    fi
+
+    # when we refresh again, the new XDG dirs should be initialized (again) with
+    # this instead what's currently there ("x3")
+    mkdir -p "$HOME/.snap/data/$NAME/x4/.config"
+    echo "x4" > "$HOME/.snap/data/$NAME/x4/.config/file"
+    mkdir -p "$HOME/.snap/data/$NAME/x4/.cache"
+    echo "x4" > "$HOME/.snap/data/$NAME/x4/.cache/file"
+    mkdir -p "$HOME/.snap/data/$NAME/x4/.local/share"
+    echo "x4" > "$HOME/.snap/data/$NAME/x4/.local/share/file"
+    rm -rf "$HOME/Snap/$NAME/*"
+    echo "already_there" > "$HOME/Snap/$NAME/file"
+
+    snap install --dangerous "$NAME"_1.0_all.snap
+
+    check_env "--with-exposed-home" "x4"
+    check_dirs "--with-exposed-home" "x4"
+
+    MATCH "$data" < "$HOME/.snap/data/$NAME/x4/file"
+    # data under ~/Snap isn't rewritten
+    MATCH "already_there" < "$HOME/Snap/$NAME/file"
+
+    # the config XDG dir was re-initialized w/ revision "x2"'s .config dir
+    MATCH "conf" < "$HOME/.snap/data/$NAME/x4/xdg-config/file"
+
+    # the other XDG dirs were re-created (x2 didn't have corresponding dirs)
+    if [[ -n "$(ls -A "$HOME/.snap/data/$NAME/x4/xdg-cache")" ]]; then
+       echo "expected xdg-cache dir to be empty but wasn't"
+       exit 1
+    fi
+
+    if [[ -n "$(ls -A "$HOME/.snap/data/$NAME/x4/xdg-data")" ]]; then
+       echo "expected xdg-data dir to be empty but wasn't"
+       exit 1
+    fi
