@@ -146,7 +146,7 @@ execute: |
         # seems we have to kick trusty along
         systemctl restart snapd
       fi
-      snap list | MATCH snapd
+      snap list snapd
       systemctl status snapd.service
       if ! os.query is-trusty && ! os.query is-xenial; then
         systemctl status snapd.apparmor.service
