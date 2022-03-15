@@ -678,7 +678,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 
 			Channel: stableChannel,
 		})
-		// sanity
+		// validity
 		if name == "core" {
 			c.Check(essSnaps[i].SideInfo.SnapID, Equals, s.AssertedSnapID("core"))
 		}
@@ -3201,7 +3201,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
-	// sanity checks
+	// validity checks
 	seeddir := filepath.Join(prepareDir, "system-seed")
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
 	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)

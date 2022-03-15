@@ -149,7 +149,7 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 	buf, err := json.Marshal(nil)
 	c.Assert(err, IsNil)
 	empty2 := (*json.RawMessage)(&buf)
-	// sanity check
+	// validity check
 	c.Check(bytes.Compare(*empty2, []byte(`null`)), Equals, 0)
 
 	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, empty2, {}} {

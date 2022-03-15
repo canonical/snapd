@@ -598,7 +598,7 @@ func (s *helpersSuite) TestAllocHotplugSeq(c *C) {
 
 	var stateSeq int
 
-	// sanity
+	// validity
 	c.Assert(s.st.Get("hotplug-seq", &stateSeq), Equals, state.ErrNoState)
 
 	seq, err := ifacestate.AllocHotplugSeq(s.st)

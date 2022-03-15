@@ -230,7 +230,7 @@ func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.
 
 	sysLabel := m.RecoverySystem
 	model = s.setupCore20Seed(c, sysLabel, modelGrade, extraGadgetYaml, extraSnaps...)
-	// sanity check that our returned model has the expected grade
+	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, modelGrade)
 
 	bloader = bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()

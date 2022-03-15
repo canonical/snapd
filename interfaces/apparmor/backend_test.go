@@ -1422,7 +1422,7 @@ func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	s.writeVanillaSnapConfineProfile(c, snapdInfo)
 	err := s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, s.perf)
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FilePresent)
 	// place a canary
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.111"), nil, 0644), IsNil)

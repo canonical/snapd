@@ -651,7 +651,7 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// validity check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -734,18 +734,18 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 3)
 
 	// task 0 (for "one-snap") will have been undone
-	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // sanity check: task 0 is one-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // validity check: task 0 is one-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.UndoneStatus)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `(?ms)\S+ ERROR cannot create archive:
 /bin/tar: common/common-too-snap: .* Permission denied
 /bin/tar: Exiting with failure status due to previous errors`)
 
 	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
-	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
+	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // validity check: task 2 is tri-snap's
 	c.Check(tasks[2].Status(), check.Equals, state.ErrorStatus, check.Commentf("if this ever fails, duplicate the fake tar sleeps please"))
 	// sometimes you'll get one, sometimes you'll get the other (depending on ordering of events)
 	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
@@ -761,7 +761,7 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// validity check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -834,7 +834,7 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 1)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[0].Log(), "\n"), check.Matches, expectedErr)
 
