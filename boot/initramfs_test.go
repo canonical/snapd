@@ -714,7 +714,7 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrOnGetBootVar
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
-	errMsg := "Cannot get boot environment"
+	errMsg := "cannot get boot environment"
 	bloader.GetErr = fmt.Errorf(errMsg)
 
 	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
