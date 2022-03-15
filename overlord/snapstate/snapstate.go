@@ -889,17 +889,15 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	}
 
 	if hasUserService {
+		flag, err := features.Flag(tr, features.UserDaemons)
+		if err != nil {
+			return err
+		}
 		// The snapd-desktop-integration snap is allowed to
 		// use user daemons, irrespective of the feature flag
 		// state.
-		if info.SnapID != snapdDesktopIntegrationSnapID {
-			flag, err := features.Flag(tr, features.UserDaemons)
-			if err != nil {
-				return err
-			}
-			if !flag {
-				return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
-			}
+		if !flag && info.SnapID != snapdDesktopIntegrationSnapID {
+			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
 		if !release.SystemctlSupportsUserUnits() {
 			return fmt.Errorf("user session daemons are not supported on this release")
