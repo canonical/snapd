@@ -625,7 +625,7 @@ output-only-used-for-errors
 service result: exit-code
 -----`)
 
-	c.Assert(mockDeviceUnlockHook.Calls(), Equals, [][]string{
+	c.Assert(mockDeviceUnlockHook.Calls(), DeepEquals, [][]string{
 		{"fde-device-unlock"},
 	})
 
