@@ -226,8 +226,8 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 	return p.applyConfig(env, cfgFile, prefix, cfgDir, dstDir)
 }
 
-// Sets os_prefix in RPi config.txt or tryboot.txt
-func (p *piboot) setRPiCfgOsPrefix(prefix, inFile, outFile string) error {
+// Writes os_prefix in RPi config.txt or tryboot.txt
+func (p *piboot) writeRPiCfgWithOsPrefix(prefix, inFile, outFile string) error {
 	buf, err := ioutil.ReadFile(inFile)
 	if err != nil {
 		return err
@@ -257,24 +257,17 @@ func (p *piboot) setRPiCfgOsPrefix(prefix, inFile, outFile string) error {
 	return osutil.AtomicWriteFile(outFile, []byte(output), 0644, 0)
 }
 
-func (p *piboot) createCmdline(env *ubootenv.Env, defaultsFile, outFile string) error {
-	var base string
-	fullCmdline := env.Get("snapd_full_cmdline_args")
-	if fullCmdline != "" {
-		base = fullCmdline
-	} else {
-		buf, err := ioutil.ReadFile(defaultsFile)
-		if err != nil {
-			return err
-		}
-
-		lines := strings.Split(string(buf), "\n")
-		base = lines[0]
-		base += " " + env.Get("snapd_extra_cmdline_args")
+func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) error {
+	buf, err := ioutil.ReadFile(defaultsFile)
+	if err != nil {
+		return err
 	}
 
+	lines := strings.Split(string(buf), "\n")
+	cmdline := lines[0]
+
 	mode := env.Get("snapd_recovery_mode")
-	cmdline := base + " snapd_recovery_mode=" + mode
+	cmdline += " snapd_recovery_mode=" + mode
 	if mode != "run" {
 		cmdline += " snapd_recovery_system=" + env.Get("snapd_recovery_system")
 	}
@@ -300,10 +293,10 @@ func (p *piboot) applyConfig(env *ubootenv.Env,
 	refCmdlineFile := filepath.Join(cfgDir, "cmdline.txt")
 	currentConfigFile := filepath.Join(cfgDir, "config.txt")
 
-	if err := p.createCmdline(env, refCmdlineFile, cmdlineFile); err != nil {
+	if err := p.writeCmdline(env, refCmdlineFile, cmdlineFile); err != nil {
 		return err
 	}
-	if err := p.setRPiCfgOsPrefix(prefix, currentConfigFile,
+	if err := p.writeRPiCfgWithOsPrefix(prefix, currentConfigFile,
 		filepath.Join(cfgDir, configFile)); err != nil {
 		return err
 	}
