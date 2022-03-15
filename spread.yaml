@@ -758,6 +758,7 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
+        backends: [google, qemu]
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |

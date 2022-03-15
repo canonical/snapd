@@ -27,6 +27,7 @@ var (
 	Run                      = run
 	SystemSnapFromSeed       = systemSnapFromSeed
 	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
+	CreatePreseedArtifact    = createPreseedArtifact
 )
 
 func MockOsGetuid(f func() int) (restore func()) {
@@ -47,10 +48,26 @@ func MockSnapdMountPath(path string) (restore func()) {
 	return func() { snapdMountPath = oldMountPath }
 }
 
-func MockSystemSnapFromSeed(f func(rootDir string) (string, error)) (restore func()) {
+func MockSystemSnapFromSeed(f func(rootDir, sysLabel string) (string, string, error)) (restore func()) {
 	oldSystemSnapFromSeed := systemSnapFromSeed
 	systemSnapFromSeed = f
 	return func() { systemSnapFromSeed = oldSystemSnapFromSeed }
+}
+
+func MockMakePreseedTempDir(f func() (string, error)) (restore func()) {
+	old := makePreseedTempDir
+	makePreseedTempDir = f
+	return func() {
+		makePreseedTempDir = old
+	}
+}
+
+func MockMakeWritableTempDir(f func() (string, error)) (restore func()) {
+	old := makeWritableTempDir
+	makeWritableTempDir = f
+	return func() {
+		makeWritableTempDir = old
+	}
 }
 
 func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
