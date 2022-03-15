@@ -29,6 +29,7 @@ import (
 
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -55,12 +56,25 @@ var (
 	opts options
 )
 
+type PreseedOpts struct {
+	PrepareImageDir  string
+	PreseedChrootDir string
+	SystemLabel      string
+	WritableDir      string
+}
+
 func Parser() *flags.Parser {
 	opts = options{}
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = shortHelp
 	parser.LongDescription = longHelp
 	return parser
+}
+
+func probeCore20ImageDir(dir string) bool {
+	sysDir := filepath.Join(dir, "system-seed")
+	_, isDir, _ := osutil.DirExists(sysDir)
+	return isDir
 }
 
 func main() {
@@ -71,7 +85,7 @@ func main() {
 	}
 }
 
-func run(parser *flags.Parser, args []string) error {
+func run(parser *flags.Parser, args []string) (err error) {
 	// real validation of plugs and slots; needs to be set
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
@@ -103,17 +117,36 @@ func run(parser *flags.Parser, args []string) error {
 		return resetPreseededChroot(chrootDir)
 	}
 
-	if err := checkChroot(chrootDir); err != nil {
-		return err
+	var cleanup func()
+	if probeCore20ImageDir(chrootDir) {
+		var popts *PreseedOpts
+		popts, cleanup, err = prepareCore20Chroot(chrootDir)
+		if err != nil {
+			return err
+		}
+
+		err = runUC20PreseedMode(popts)
+	} else {
+		if err := checkChroot(chrootDir); err != nil {
+			return err
+		}
+
+		var targetSnapd *targetSnapdInfo
+
+		// XXX: if prepareClassicChroot & runPreseedMode were refactored to
+		// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
+		// beginning of prepareClassicChroot), then we could have a single
+		// runPreseedMode/runUC20PreseedMode function that handles both classic
+		// and core20.
+		targetSnapd, cleanup, err = prepareClassicChroot(chrootDir)
+		if err != nil {
+			return err
+		}
+
+		// executing inside the chroot
+		err = runPreseedMode(chrootDir, targetSnapd)
 	}
 
-	targetSnapd, cleanup, err := prepareChroot(chrootDir)
-	if err != nil {
-		return err
-	}
-
-	// executing inside the chroot
-	err = runPreseedMode(chrootDir, targetSnapd)
 	cleanup()
 	return err
 }
