@@ -188,13 +188,6 @@ execute: |
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
-    cat >> snapd-cleanup.sh <<EOF
-    #!/bin/sh
-    if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then
-      snap revert snapd
-    fi
-    EOF
-    chmod +x snapd-cleanup.sh
     tests.cleanup defer sh -c "$PWD/snapd-cleanup.sh"
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
