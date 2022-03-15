@@ -221,6 +221,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+	snapID := spec.Name + "-id"
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
@@ -238,6 +239,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		confinement = "classic"
 	case "some-epoch-snap":
 		epoch = snap.E("42")
+	case "snapd-desktop-integration":
+		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -249,7 +252,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		SideInfo: snap.SideInfo{
 			RealName: spec.Name,
 			Channel:  spec.Channel,
-			SnapID:   spec.Name + "-id",
+			SnapID:   snapID,
 			Revision: spec.Revision,
 		},
 		Version: spec.Name,
