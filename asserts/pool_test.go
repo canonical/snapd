@@ -785,7 +785,7 @@ func (s *poolSuite) TestUnknownGroup(c *C) {
 
 	_, err := pool.Singleton("suggestion")
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	c.Check(pool.Err("suggestion"), IsNil)
 
 	c.Check(pool.Err("foo"), Equals, asserts.ErrUnknownPoolGroup)

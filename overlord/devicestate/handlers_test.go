@@ -420,7 +420,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	// 1 "set-model" task at the end
 	c.Assert(tl, HasLen, 1+2*3+1)
 
-	// sanity
+	// validity
 	c.Check(tl[1].Kind(), Equals, "fake-download")
 	c.Check(tl[1+2*3].Kind(), Equals, "set-model")
 
@@ -714,7 +714,7 @@ volumes:
 }
 
 func (s *preseedingUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
-	// sanity
+	// validity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
 
@@ -745,7 +745,7 @@ func (s *preseedingUC20Suite) TestPreloadGadgetPicksSystemOnCore20(c *C) {
 }
 
 func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
-	// sanity
+	// validity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
 
@@ -770,7 +770,7 @@ func (s *preseedingUC20Suite) TestEnsureSeededPicksSystemOnCore20(c *C) {
 }
 
 func (s *preseedingUC20Suite) TestSysModeIsRunWhenPreseeding(c *C) {
-	// sanity
+	// validity
 	c.Assert(snapdenv.Preseeding(), Equals, true)
 	c.Assert(release.OnClassic, Equals, false)
 
