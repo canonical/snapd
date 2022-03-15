@@ -51,7 +51,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"account",
 		"account-key",
 		"account-key-request",
-		"authority-delegation",
+		// XXX "authority-delegation",
 		"base-declaration",
 		"device-session-request",
 		"model",
@@ -995,7 +995,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	withAuthority := []string{
 		"account",
 		"account-key",
-		"authority-delegation",
+		// XXX "authority-delegation",
 		"base-declaration",
 		"store",
 		"snap-declaration",

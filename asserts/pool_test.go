@@ -300,6 +300,8 @@ func (s *poolSuite) TestFetch(c *C) {
 }
 
 func (s *poolSuite) TestFetchDelegation(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	pool := asserts.NewPool(s.db, 64)
 
 	at5555 := &asserts.AtRevision{
