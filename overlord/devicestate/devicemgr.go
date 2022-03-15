@@ -558,17 +558,18 @@ func (m *DeviceManager) ensureOperational() error {
 	}
 	if device.KeyID == "" && model.Grade() != "" {
 		// UC20+ devices support factory reset
-		keyID, serial, err := m.maybeRestoreAfterReset(device)
+		serial, err := m.maybeRestoreAfterReset(device)
 		if err != nil {
 			return err
 		}
-		if keyID != "" && serial != "" {
-			logger.Debugf("restored device key %v and serial %v", keyID, serial)
-			device.KeyID = keyID
-			device.Serial = serial
+		if serial != nil {
+			device.KeyID = serial.DeviceKey().ID()
+			device.Serial = serial.Serial()
 			if err := m.setDevice(device); err != nil {
-				return fmt.Errorf("cannot set device: %v", err)
+				return fmt.Errorf("cannot set device for restored serial and key: %v", err)
 			}
+			logger.Noticef("restored serial %v for %v/%v signed with key %v",
+				device.Serial, device.Brand, device.Model, device.KeyID)
 			return nil
 		}
 	}
@@ -619,21 +620,21 @@ func (m *DeviceManager) ensureOperational() error {
 // matching key in a post-factory reset scenario. It is possible that it is
 // called when the device was unregistered, but when doing so, the device key is
 // removed.
-func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (keyID, serial string, err error) {
+func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asserts.Serial, error) {
 	// there should be a serial assertion for the current model
 	serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
 		"brand-id": device.Brand,
 		"model":    device.Model,
 	})
-	if (err != nil && asserts.IsNotFound(err)) || len(serials) == 0 {
-		// no serial assertion
-		return "", "", nil
+	if err != nil {
+		if asserts.IsNotFound(err) {
+			// no serial assertion
+			return nil, nil
+		}
+		return nil, err
 	}
 	for _, serial := range serials {
-		serialAs, ok := serial.(*asserts.Serial)
-		if !ok {
-			return "", "", fmt.Errorf("cannot use an invalid serial assertion")
-		}
+		serialAs := serial.(*asserts.Serial)
 		deviceKeyID := serialAs.DeviceKey().ID()
 		logger.Debugf("processing candidate serial assertion for %v/%v signed with key %v",
 			device.Brand, device.Model, deviceKeyID)
@@ -653,12 +654,12 @@ func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (keyID,
 				// perhaps device was unregistered at some point
 				continue
 			}
-			return "", "", err
+			return nil, nil
 		}
-		return deviceKeyID, serialAs.Serial(), nil
+		return serialAs, nil
 	}
 	// none of the assertions has a matching key
-	return "", "", nil
+	return nil, nil
 }
 
 var startTime time.Time

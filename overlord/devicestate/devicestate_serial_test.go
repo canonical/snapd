@@ -2212,6 +2212,9 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	log, restore := logger.MockLogger()
+	defer restore()
+
 	// setup state as will be done by first-boot
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2313,4 +2316,7 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	c.Check(err, IsNil)
 	// no session yet
 	c.Check(device.SessionMacaroon, Equals, "")
+	// and something was logged
+	c.Check(log.String(), testutil.Contains,
+		fmt.Sprintf("restored serial serial-1234 for my-brand/pc-20 signed with key %v", devKey.PublicKey().ID()))
 }
