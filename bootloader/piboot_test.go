@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -92,7 +93,7 @@ func (s *pibootTestSuite) TestGetBootloaderWithPiboot(c *C) {
 	c.Assert(bootloader.Name(), Equals, "piboot")
 }
 
-func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
+func (s *pibootTestSuite) testPibootSetEnvWriteOnlyIfChanged(c *C, fromInitramfs bool) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
@@ -113,12 +114,26 @@ func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 	time.Sleep(100 * time.Millisecond)
 
 	// note that we set to the same var to the same value as above
-	err = p.SetBootVars(map[string]string{"snap_ab": "b"})
+	if fromInitramfs {
+		nsbl, ok := p.(bootloader.NotScriptableBootloader)
+		c.Assert(ok, Equals, true)
+		err = nsbl.SetBootVarsFromInitramfs(map[string]string{"snap_ab": "b"})
+	} else {
+		err = p.SetBootVars(map[string]string{"snap_ab": "b"})
+	}
 	c.Assert(err, IsNil)
 
 	st2, err := os.Stat(envFile)
 	c.Assert(err, IsNil)
 	c.Assert(st.ModTime(), Equals, st2.ModTime())
+}
+
+func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
+	// Run test from rootfs and from initramfs
+	fromInitramfs := false
+	s.testPibootSetEnvWriteOnlyIfChanged(c, fromInitramfs)
+	fromInitramfs = true
+	s.testPibootSetEnvWriteOnlyIfChanged(c, fromInitramfs)
 }
 
 func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
@@ -282,7 +297,7 @@ func (s *pibootTestSuite) TestCreateConfig(c *C) {
 		},
 		{
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_1/cmdline.txt"),
-			data: "  snapd_recovery_mode=run\n",
+			data: " snapd_recovery_mode=run\n",
 		},
 	}
 	for _, fInfo := range files {
@@ -316,7 +331,7 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		},
 		{
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_2/cmdline.txt"),
-			data: "  snapd_recovery_mode=run kernel_status=trying\n",
+			data: " snapd_recovery_mode=run kernel_status=trying\n",
 		},
 	}
 	for _, fInfo := range files {
@@ -345,7 +360,7 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		},
 		{
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_2/cmdline.txt"),
-			data: "  snapd_recovery_mode=run\n",
+			data: " snapd_recovery_mode=run\n",
 		},
 	}
 	for _, fInfo := range files {
@@ -387,7 +402,7 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		},
 		{
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_1/cmdline.txt"),
-			data: "opt1=foo bar  snapd_recovery_mode=run\n",
+			data: "opt1=foo bar snapd_recovery_mode=run\n",
 		},
 	}
 	for _, fInfo := range files {
@@ -418,7 +433,7 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		},
 		{
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_2/cmdline.txt"),
-			data: "opt1=foo bar  snapd_recovery_mode=run kernel_status=trying\n",
+			data: "opt1=foo bar snapd_recovery_mode=run kernel_status=trying\n",
 		},
 	}
 	for _, fInfo := range files {
@@ -456,7 +471,7 @@ func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
 		},
 		{
 			path: filepath.Join(s.rootdir, "piboot/ubuntu/pi-kernel_1/cmdline.txt"),
-			data: "  snapd_recovery_mode=run\n",
+			data: " snapd_recovery_mode=run\n",
 		},
 	}
 	for _, fInfo := range files {
@@ -501,4 +516,79 @@ func (s *pibootTestSuite) TestGetRebootArgumentsNoEnv(c *C) {
 	args, err := rbl.GetRebootArguments()
 	c.Assert(err, ErrorMatches, "open .*/piboot.conf: no such file or directory")
 	c.Assert(args, Equals, "")
+}
+
+func (s *pibootTestSuite) TestSetBootVarsFromInitramfs(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+	c.Assert(p, NotNil)
+	nsbl, ok := p.(bootloader.NotScriptableBootloader)
+	c.Assert(ok, Equals, true)
+
+	err := nsbl.SetBootVarsFromInitramfs(map[string]string{"kernel_status": "trying"})
+	c.Assert(err, IsNil)
+
+	m, err := p.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(m, DeepEquals, map[string]string{
+		"kernel_status": "trying",
+	})
+}
+
+func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+	c.Assert(p, NotNil)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = p.ExtractKernelAssets(info, snapf)
+	c.Assert(err, IsNil)
+
+	// this is where the kernel/initrd is unpacked
+	kernelAssetsDir := filepath.Join(s.rootdir, "piboot", "ubuntu", "ubuntu-kernel_42.snap")
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		destPath := def[0]
+		if strings.HasPrefix(destPath, "dtbs/broadcom/") {
+			destPath = strings.TrimPrefix(destPath, "dtbs/broadcom/")
+		} else if strings.HasPrefix(destPath, "dtbs/") {
+			destPath = strings.TrimPrefix(destPath, "dtbs/")
+		}
+		fullFn := filepath.Join(kernelAssetsDir, destPath)
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
+
+	// remove
+	err = p.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+
+	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
