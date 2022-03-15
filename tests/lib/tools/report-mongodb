@@ -17,7 +17,7 @@ def _make_parser():
                         **environ_or_required('MONGO_PORT'))
     parser.add_argument('--db-name', help="Name for the database used to insert", required=True)
     parser.add_argument('--db-collection', help="Name for the collection used to insert", required=True)
-    parser.add_argument('--metadata', help="Matedata to be included in the insert")
+    parser.add_argument('--metadata', help="Metadata to be included in the insert")
     parser.add_argument("value", help="value to insert in the mongodb")
 
     return parser

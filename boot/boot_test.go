@@ -501,7 +501,7 @@ func (s *bootenvSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	_, err = boot.GetCurrentBoot(snap.TypeApp, coreDev)
 	c.Check(err, ErrorMatches, `internal error: no boot state handling for snap type "app"`)
 
-	// sanity check
+	// validity check
 	s.bootloader.BootVars["snap_kernel"] = "kernel_41.snap"
 	current, err := boot.GetCurrentBoot(snap.TypeKernel, coreDev)
 	c.Check(err, IsNil)
