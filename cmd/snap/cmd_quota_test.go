@@ -93,16 +93,27 @@ func dispatchFakeHandlers(c *check.C, routes map[string]http.HandlerFunc) func(w
 }
 
 type fakeQuotaGroupPostHandlerOpts struct {
-	action     string
-	body       string
-	groupName  string
-	parentName string
-	snaps      []string
-	maxMemory  int64
+	action        string
+	body          string
+	groupName     string
+	parentName    string
+	snaps         []string
+	maxMemory     int64
+	maxThreads    int
+	cpuCount      int
+	cpuPercentage int
+}
+
+type quotasEnsureBodyConstraintsCpu struct {
+	Count       int   `json:"count,omitempty"`
+	Percentage  int   `json:"percentage,omitempty"`
+	AllowedCpus []int `json:"allowed-cpus,omitempty"`
 }
 
 type quotasEnsureBodyConstraints struct {
-	Memory int64 `json:"memory,omitempty"`
+	Memory  int64                          `json:"memory,omitempty"`
+	Threads int                            `json:"threads,omitempty"`
+	Cpu     quotasEnsureBodyConstraintsCpu `json:"cpu,omitempty"`
 }
 
 type quotasEnsureBody struct {
@@ -139,6 +150,15 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 			}
 			if opts.maxMemory != 0 {
 				exp.Constraints.Memory = opts.maxMemory
+			}
+			if opts.maxThreads != 0 {
+				exp.Constraints.Threads = opts.maxThreads
+			}
+			if opts.cpuCount != 0 {
+				exp.Constraints.Cpu.Count = opts.cpuCount
+			}
+			if opts.cpuPercentage != 0 {
+				exp.Constraints.Cpu.Percentage = opts.cpuPercentage
 			}
 
 			postJSON := quotasEnsureBody{}
@@ -181,15 +201,88 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		{[]string{"set-quota", "--memory=99B"}, "the required argument `<group-name>` was not provided"},
 		{[]string{"set-quota", "--memory=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
 		{[]string{"set-quota", "--memory=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
+		{[]string{"set-quota", "--cpu=0", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=0x100", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=200", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=20D", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=ASD", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu-set=x", "foo"}, `cannot parse value for --cpu-set at position 0`},
+		{[]string{"set-quota", "--cpu-set=1:2", "foo"}, `cannot parse value for --cpu-set at position 0`},
+		{[]string{"set-quota", "--cpu-set=0,-2", "foo"}, `cannot use a negative CPU number in --cpu-set`},
 		// remove-quota command
 		{[]string{"remove-quota"}, "the required argument `<group-name>` was not provided"},
 	} {
 		s.stdout.Reset()
 		s.stderr.Reset()
 
+		// Mock the CGroup version here to test the --cpu-set command
+		restore := main.MockGetCGroupVersion(func() (int, error) {
+			return 2, nil
+		})
+
 		_, err := main.Parser(main.Client()).ParseArgs(args.args)
 		c.Assert(err, check.ErrorMatches, args.err)
+
+		// Restore the cgroup version callback
+		restore()
 	}
+}
+
+func (s *quotaSuite) TestSetQuotaCpuSetFails(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	const postJSON = `{"type": "async", "status-code": 202,"change":"42", "result": []}`
+	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
+		action:        "ensure",
+		body:          postJSON,
+		groupName:     "foo",
+		cpuCount:      2,
+		cpuPercentage: 50,
+	}
+
+	const getJsonTemplate = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name":"foo",
+			"constraints": { "memory": %d },
+			"current": { "memory": 500 }
+		}
+	}`
+
+	cpuSetArgs := []string{"set-quota", "--cpu-set=0,-2", "foo"}
+	cpuArgs := []string{"set-quota", "--cpu=2x50%", "foo"}
+
+	// Mock the CGroup version here to test the --cpu-set and --cpu command
+	restoreCGroup := main.MockGetCGroupVersion(func() (int, error) {
+		return 1, nil
+	})
+
+	// ensure that --cpu-set does not work with cgroup version 1
+	_, err := main.Parser(main.Client()).ParseArgs(cpuSetArgs)
+	c.Assert(err, check.ErrorMatches, `cannot use --cpu-set with cgroup version 1`)
+
+	s.stdout.Reset()
+	s.stderr.Reset()
+
+	routes := map[string]http.HandlerFunc{
+		"/v2/quotas": makeFakeQuotaPostHandler(
+			c,
+			fakeHandlerOpts,
+		),
+		"/v2/quotas/foo": makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 1000)),
+		"/v2/changes/42": makeChangesHandler(c),
+	}
+
+	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
+
+	// ensure that --cpu still works with cgroup version 1
+	_, err = main.Parser(main.Client()).ParseArgs(cpuArgs)
+	c.Assert(err, check.IsNil)
+
+	// Restore the cgroup version callback
+	restoreCGroup()
 }
 
 func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
@@ -230,7 +323,7 @@ snaps:
 `[1:])
 }
 
-func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
+func (s *quotaSuite) TestGetMemoryQuotaGroupSimple(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
@@ -259,6 +352,51 @@ current:
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 0))
+
+	s.stdout.Reset()
+	s.stderr.Reset()
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 500)))
+
+	rest, err = main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 500))
+}
+
+func (s *quotaSuite) TestGetCpuQuotaGroupSimple(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	const jsonTemplate = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name": "foo",
+			"constraints": {"cpu":{"count":1,"percentage":50,"allowed-cpus":[0,1]},"threads":32},
+			"current": {"threads": %d}
+		}
+	}`
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 16)))
+
+	outputTemplate := `
+name:  foo
+constraints:
+  cpu-count:       1
+  cpu-percentage:  50
+  allowed-cpus:    0,1
+  threads:         32
+current:
+  threads:  %d
+`[1:]
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 16))
 
 	s.stdout.Reset()
 	s.stderr.Reset()
@@ -310,12 +448,12 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExistingUnhappy(c *check.C) {
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappy(c *check.C) {
 	const exists = false
-	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without memory limit", exists)
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without any limit", exists)
 }
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappyWithParent(c *check.C) {
 	const exists = false
-	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without memory limit", exists, "--parent=bar")
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without any limits", exists, "--parent=bar")
 }
 
 func (s *quotaSuite) TestSetQuotaGroupUpdateExistingUnhappyWithParent(c *check.C) {
@@ -455,7 +593,12 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
 			{"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
 			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
-			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
+			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}},
+			{"group-name":"cp0","constraints":{"memory":9900, "cpu":{"percentage":90}},"current":{"memory":10000}},
+			{"group-name":"cp1","subgroups":["cps0"],"constraints":{"cpu":{"count":2, "percentage":90}}},
+			{"group-name":"cps0","parent":"cp1","constraints":{"cpu":{"percentage":40}}},
+			{"group-name":"cp2","subgroups":["cps1"],"constraints":{"cpu":{"count":2,"percentage":100,"allowed-cpus":[0,1]}}},
+			{"group-name":"cps1","parent":"cp2","constraints":{"memory":9900,"cpu":{"percentage":50,"allowed-cpus":[1]}},"current":{"memory":10000}}
 			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
@@ -463,15 +606,20 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, `
-Quota    Parent  Constraints   Current
-xxx              memory=9.9kB  memory=10.0kB
-yyyyyyy          memory=1000B  
-zzz              memory=5000B  
-aaa      zzz     memory=1000B  
-ccc      aaa     memory=400B   
-ddd      aaa     memory=400B   
-fff      aaa     memory=1000B  
-bbb      zzz     memory=1000B  memory=400B
+Quota    Parent  Constraints                          Current
+cp0              memory=9.9kB,cpu=90%                 memory=10.0kB
+cp1              cpu=2x,cpu=90%                       
+cps0     cp1     cpu=40%                              
+cp2              cpu=2x,cpu=100%,allowed-cpus=0,1     
+cps1     cp2     memory=9.9kB,cpu=50%,allowed-cpus=1  memory=10.0kB
+xxx              memory=9.9kB                         memory=10.0kB
+yyyyyyy          memory=1000B                         
+zzz              memory=5000B                         
+aaa      zzz     memory=1000B                         
+ccc      aaa     memory=400B                          
+ddd      aaa     memory=400B                          
+fff      aaa     memory=1000B                         
+bbb      zzz     memory=1000B                         memory=400B
 `[1:])
 }
 

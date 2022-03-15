@@ -44,7 +44,17 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"change": "42"
 	}`
 
-	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, &client.QuotaValues{Memory: quantity.Size(1001)})
+	quotaValues := &client.QuotaValues{
+		Memory: quantity.Size(1001),
+		CPU: &client.QuotaCPUValues{
+			Count:       1,
+			Percentage:  50,
+			AllowedCPUs: []int{0},
+		},
+		Threads: 32,
+	}
+
+	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, quotaValues)
 	c.Assert(err, check.IsNil)
 	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
@@ -61,6 +71,12 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"snaps":      []interface{}{"snap-a", "snap-b"},
 		"constraints": map[string]interface{}{
 			"memory": json.Number("1001"),
+			"cpu": map[string]interface{}{
+				"count":        json.Number("1"),
+				"percentage":   json.Number("50"),
+				"allowed-cpus": []interface{}{json.Number("0")},
+			},
+			"threads": json.Number("32"),
 		},
 	})
 }

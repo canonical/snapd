@@ -460,3 +460,11 @@ func MockAutostartSessionApps(f func(string) error) func() {
 		autostartSessionApps = old
 	}
 }
+
+func MockGetCGroupVersion(f func() (int, error)) (restore func()) {
+	old := getCGroupVersion
+	getCGroupVersion = f
+	return func() {
+		getCGroupVersion = old
+	}
+}
