@@ -603,7 +603,8 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var newDesiredEntries []osutil.MountEntry
 	// Indexed by mount point path.
 	addedDesiredEntries := make(map[string]bool)
-	ensureDesiredEntry := func(entry osutil.MountEntry) {
+	// This function is idempotent, it won't add the same entry twice
+	addDesiredEntry := func(entry osutil.MountEntry) {
 		if !addedDesiredEntries[entry.Dir] {
 			newDesiredEntries = append(newDesiredEntries, entry)
 			addedDesiredEntries[entry.Dir] = true
@@ -615,7 +616,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
 	for _, entry := range desiredNotReused {
 		if entry.XSnapdOrigin() == "overname" {
-			ensureDesiredEntry(entry)
+			addDesiredEntry(entry)
 		}
 
 		parentTargetDir := filepath.Dir(entry.Dir)
@@ -657,7 +658,8 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 
 		// sort the mimic creation dirs to get the correct ordering of mimics to
-		// create dirs in
+		// create dirs in: the sorting algorithm places parent directories
+		// before children.
 		allMimicCreationDirs := []string{}
 		for mimicDir := range entriesForMimicDir {
 			allMimicCreationDirs = append(allMimicCreationDirs, mimicDir)
@@ -672,13 +674,13 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			sort.Sort(byOriginAndMagicDir(entries))
 
 			for _, entry := range entries {
-				ensureDesiredEntry(entry)
+				addDesiredEntry(entry)
 			}
 		}
 	}
 
 	for _, entry := range desiredNotReused {
-		ensureDesiredEntry(entry)
+		addDesiredEntry(entry)
 	}
 
 	for _, entry := range newDesiredEntries {
