@@ -1536,20 +1536,16 @@ type Updater interface {
 }
 
 func updateLocationForStructure(structureLocations map[string]map[int]StructureLocation, ps *LaidOutStructure) (loc StructureLocation, err error) {
+	loc, ok := structureLocations[ps.VolumeName][ps.YamlIndex]
+	if !ok {
+		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeName)
+	}
 	if !ps.HasFilesystem() {
-		loc, ok := structureLocations[ps.VolumeName][ps.YamlIndex]
-		if !ok {
-			return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeName)
-		}
 		if loc.Device == "" {
 			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.YamlIndex, ps.VolumeName)
 		}
 		return loc, nil
 	} else {
-		loc, ok := structureLocations[ps.VolumeName][ps.YamlIndex]
-		if !ok {
-			return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.YamlIndex, ps.VolumeName)
-		}
 		if loc.RootMountPoint == "" {
 			// then we can't update this structure because it has a filesystem
 			// specified in the gadget.yaml, but that partition is not mounted
