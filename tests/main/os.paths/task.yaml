@@ -1,5 +1,7 @@
 summary: smoke test for the os.paths tool
 
+backends: [google, qemu]
+
 execute: |
     # Check help
     os.paths | MATCH "usage: snap-mount-dir, media-dir, libexec-dir"
