@@ -2737,8 +2737,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 	}
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
-	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run kernel_status=trying")
+func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
+	c *C, cmdLine string, finalKernel *snap.PlaceInfo, finalStatus string) {
+	s.mockProcCmdlineContent(c, cmdLine)
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -2755,7 +2756,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c 
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
-		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, *finalKernel),
 	}, nil)
 	defer restore()
 
@@ -2786,7 +2787,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c 
 	c.Assert(err, IsNil)
 	vars, err := bloader.GetBootVars("kernel_status")
 	c.Assert(err, IsNil)
-	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": boot.TryingStatus})
+	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": finalStatus})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
+	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
+		"snapd_recovery_mode=run kernel_status=trying",
+		&s.kernelr2, boot.TryingStatus)
+	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
+		"snapd_recovery_mode=run",
+		&s.kernel, boot.DefaultStatus)
 }
 
 func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
