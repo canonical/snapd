@@ -21,7 +21,6 @@ package boot
 
 import (
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/bootloader"
@@ -142,22 +141,18 @@ func updateNotScriptableBootloaderStatus(bl bootloader.NotScriptableBootloader) 
 		return nil
 	}
 
-	cmdLine, err := osutil.KernelCommandLine()
+	kVals, err := osutil.KernelCommandLineKeyValues("kernel_status")
 	if err != nil {
 		return err
 	}
-	args := strings.Split(cmdLine, " ")
 	// "" would be the value for the error case, which at this point is any
 	// case different to kernel_status=trying in kernel command line and
 	// kernel_status=try in configuration file. Note that kernel_status in
 	// the file should be only "try" or empty, and for the latter we should
 	// have returned a few lines up.
 	newStatus := ""
-	for _, arg := range args {
-		if arg == "kernel_status=trying" && curKernStatus == "try" {
-			newStatus = "trying"
-			break
-		}
+	if kVals["kernel_status"] == "trying" && curKernStatus == "try" {
+		newStatus = "trying"
 	}
 
 	logger.Debugf("setting %s kernel_status from %s to %s",
