@@ -45,12 +45,12 @@ var (
 	syscallChroot  = syscall.Chroot
 )
 
-// CheckChroot does a basic sanity check of the target chroot environment, e.g. makes
+// checkChroot does a basic sanity check of the target chroot environment, e.g. makes
 // sure critical virtual filesystems (such as proc) are mounted. This is not meant to
 // be exhaustive check, but one that prevents running the tool against a wrong directory
 // by an accident, which would lead to hard to understand errors from snapd in preseed
 // mode.
-func CheckChroot(preseedChroot string) error {
+func checkChroot(preseedChroot string) error {
 	exists, isDir, err := osutil.DirExists(preseedChroot)
 	if err != nil {
 		return fmt.Errorf("cannot verify %q: %v", preseedChroot, err)
@@ -336,7 +336,7 @@ var makeWritableTempDir = func() (string, error) {
 	return ioutil.TempDir("", "writable-")
 }
 
-func PrepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
+func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
 	sysDir := filepath.Join(prepareImageDir, "system-seed")
 	sysLabel, err := systemForPreseeding(sysDir)
 	if err != nil {
@@ -387,7 +387,7 @@ func PrepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 	return opts, cleanup, nil
 }
 
-func PrepareClassicChroot(preseedChroot string) (*TargetSnapdInfo, func(), error) {
+func prepareClassicChroot(preseedChroot string) (*TargetSnapdInfo, func(), error) {
 	if err := syscallChroot(preseedChroot); err != nil {
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
@@ -497,9 +497,9 @@ func createPreseedArtifact(opts *PreseedOpts) error {
 	return nil
 }
 
-// RunPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
+// runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
-func RunPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
+func runPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
 	// run snapd in preseed mode
 	cmd := exec.Command(targetSnapd.path)
 	cmd.Env = os.Environ()
@@ -517,7 +517,7 @@ func RunPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
 	return nil
 }
 
-func RunUC20PreseedMode(opts *PreseedOpts) error {
+func runUC20PreseedMode(opts *PreseedOpts) error {
 	cmd := exec.Command("chroot", opts.PreseedChrootDir, "/usr/lib/snapd/snapd")
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
@@ -537,16 +537,16 @@ func RunUC20PreseedMode(opts *PreseedOpts) error {
 }
 
 func Core20(chrootDir string) error {
-	popts, cleanup, err := PrepareCore20Chroot(chrootDir)
+	popts, cleanup, err := prepareCore20Chroot(chrootDir)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
-	return RunUC20PreseedMode(popts)
+	return runUC20PreseedMode(popts)
 }
 
 func Classic(chrootDir string) error {
-	if err := CheckChroot(chrootDir); err != nil {
+	if err := checkChroot(chrootDir); err != nil {
 		return err
 	}
 
@@ -557,14 +557,14 @@ func Classic(chrootDir string) error {
 	// beginning of prepareClassicChroot), then we could have a single
 	// runPreseedMode/runUC20PreseedMode function that handles both classic
 	// and core20.
-	targetSnapd, cleanup, err := PrepareClassicChroot(chrootDir)
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
 	// executing inside the chroot
-	return RunPreseedMode(chrootDir, targetSnapd)
+	return runPreseedMode(chrootDir, targetSnapd)
 }
 
 func MockSyscallChroot(f func(string) error) (restore func()) {

@@ -34,23 +34,3 @@ func Classic(chrootDir string) error {
 func Core20(chrootDir string) error {
 	return preseedNotAvailableError
 }
-
-func CheckChroot(preseedChroot string) error {
-	return preseedNotAvailableError
-}
-
-func PrepareClassicChroot(preseedChroot string) (*TargetSnapdInfo, func(), error) {
-	return nil, nil, preseedNotAvailableError
-}
-
-func PrepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
-	return nil, nil, preseedNotAvailableError
-}
-
-func RunPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
-	return preseedNotAvailableError
-}
-
-func RunUC20PreseedMode(opts *PreseedOpts) error {
-	return preseedNotAvailableError
-}
