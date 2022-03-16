@@ -133,7 +133,7 @@ func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 
 	n := 0
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // basic check for request
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
@@ -180,7 +180,7 @@ func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
 
 	n := 0
 	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // sanity check request
+		c.Assert(r.URL.Path, check.Matches, ".*/assertions/.*") // basic check for request
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")

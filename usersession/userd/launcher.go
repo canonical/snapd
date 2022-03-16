@@ -244,7 +244,7 @@ func fdToFilename(fd int) (string, error) {
 		return "", err
 	}
 
-	// Sanity check to ensure we've got the right file
+	// check to ensure we've got the right file
 	if fdStat.Dev != fileStat.Dev || fdStat.Ino != fileStat.Ino {
 		return "", fmt.Errorf("cannot determine file name")
 	}

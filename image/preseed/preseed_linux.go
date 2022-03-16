@@ -45,7 +45,7 @@ var (
 	syscallChroot  = syscall.Chroot
 )
 
-// checkChroot does a basic sanity check of the target chroot environment, e.g. makes
+// checkChroot does a basic validity check of the target chroot environment, e.g. makes
 // sure critical virtual filesystems (such as proc) are mounted. This is not meant to
 // be exhaustive check, but one that prevents running the tool against a wrong directory
 // by an accident, which would lead to hard to understand errors from snapd in preseed
@@ -63,7 +63,7 @@ func checkChroot(preseedChroot string) error {
 		return fmt.Errorf("the system at %q appears to be preseeded, pass --reset flag to clean it up", preseedChroot)
 	}
 
-	// sanity checks of the critical mountpoints inside chroot directory.
+	// validity checks of the critical mountpoints inside chroot directory.
 	required := map[string]bool{}
 	// required mountpoints are relative to the preseed chroot
 	for _, p := range []string{"/sys/kernel/security", "/proc", "/dev"} {

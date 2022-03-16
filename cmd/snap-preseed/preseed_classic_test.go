@@ -436,7 +436,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 			}
 		}
 
-		// sanity
+		// validity
 		checkArtifacts(true)
 
 		snapdDir := filepath.Dir(dirs.SnapStateFile)
@@ -471,7 +471,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 
 }
 
-func (s *startPreseedSuite) TestReadInfoSanity(c *C) {
+func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 	var called bool
 	inf := &snap.Info{
 		BadInterfaces: make(map[string]string),

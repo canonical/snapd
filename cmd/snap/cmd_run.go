@@ -792,7 +792,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return err
 	}
 
-	// Sanity check to make sure the document portal is exposed
+	// Quick check to make sure the document portal is exposed
 	// where we think it is.
 	if actualMountPoint != expectedMountPoint {
 		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)

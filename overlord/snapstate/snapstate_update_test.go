@@ -459,7 +459,7 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 		terr.WaitFor(last)
 		if len(last.Lanes()) > 0 {
 			lanes := last.Lanes()
-			// sanity
+			// validity
 			c.Assert(lanes, HasLen, 1)
 			terr.JoinLane(lanes[0])
 		}
@@ -1169,7 +1169,7 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	// pretend that the snap was held during last auto-refresh
 	_, err := snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap")
 	c.Assert(err, IsNil)
-	// sanity check
+	// validity check
 	held, err := snapstate.HeldSnaps(s.state)
 	c.Assert(err, IsNil)
 	c.Check(held, DeepEquals, map[string]bool{
@@ -3693,7 +3693,7 @@ func (s *snapmgrTestSuite) TestUpdateManyPartialFailureCheckRerefreshDone(c *C) 
 	c.Check(checkRerefresh.Kind(), Equals, "check-rerefresh")
 	c.Check(checkRerefresh.Status(), Equals, state.DoneStatus)
 
-	// sanity
+	// validity
 	c.Check(someSnapValidation, Equals, true)
 }
 

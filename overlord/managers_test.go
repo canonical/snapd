@@ -1053,7 +1053,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			w.Write([]byte(`{"nonce": "NONCE"}`))
 			return
 		case "auth:sessions":
-			// quick sanity check
+			// quick validity check
 			reqBody, err := ioutil.ReadAll(r.Body)
 			c.Check(err, IsNil)
 			c.Check(bytes.Contains(reqBody, []byte("nonce: NONCE")), Equals, true)
@@ -1396,7 +1396,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	info, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(info.Revision, Equals, snap.R(1))
@@ -1439,7 +1439,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithPostHocEpochBump(c *C) {
 	// computed.
 
 	// this is mostly checking the same as TestHappyRemoteInstallAndUpdateWithEpochBump
-	// but serves as a sanity check for the Without case that follows
+	// but serves as a validity check for the Without case that follows
 	// (these two together serve as a test for the refresh filtering)
 	s.testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c, true)
 }
@@ -1477,7 +1477,7 @@ func (s *mgrsSuite) testHappyRemoteInstallAndUpdateWithMaybeEpochBump(c *C, doBu
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	info, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(info.Revision, Equals, snap.R(1))
@@ -1562,7 +1562,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBump(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
@@ -1646,7 +1646,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyFails(c *C) {
 	// confirm it failed
 	c.Assert(chg.Status(), Equals, state.ErrorStatus, Commentf("install-snap change not failed"))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		_, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, DeepEquals,
@@ -1689,7 +1689,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
@@ -1775,7 +1775,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
@@ -1853,7 +1853,7 @@ func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateManyWithEpochBumpAndOneFailin
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	// sanity checks
+	// validity checks
 	for _, name := range snapNames {
 		info, err := snapstate.CurrentInfo(st, name)
 		c.Assert(err, IsNil)
@@ -9809,6 +9809,11 @@ func (s *mgrsSuite) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.RunBo
 	snaptest.MockSnap(c, pcKernelYaml, siKernel)
 	siBase := &snap.SideInfo{RealName: "core20", SnapID: fakeSnapID("core20"), Revision: snap.R(1)}
 	snaptest.MockSnap(c, baseYaml, siBase)
+	snapYamlContent := "name: some-snap\nversion: 1.0\nbase: core20"
+	siSnap := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snaptest.MockSnap(c, snapYamlContent, siSnap)
+	siSnapd := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", siSnapd, nil)
 
 	// test setup adds core, get rid of it
 	snapstate.Set(st, "core", nil)
@@ -9824,15 +9829,29 @@ func (s *mgrsSuite) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.RunBo
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siSnap},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siSnapd},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
 
 	p, _ := s.makeStoreTestSnap(c, pcKernelYaml, "2")
 	s.serveSnap(p, "2")
 	p, _ = s.makeStoreTestSnap(c, baseYaml, "2")
 	s.serveSnap(p, "2")
+	p, _ = s.makeStoreTestSnap(c, snapYamlContent, "2")
+	s.serveSnap(p, "2")
 
-	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20"}, 0, nil)
+	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "some-snap"}, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel"})
+	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel", "some-snap"})
 	chg := st.NewChange("update-many", "...")
 	for _, ts := range tss {
 		// skip the taskset of UpdateMany that does the
@@ -9877,8 +9896,8 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootHappy(c *C) {
 			autoConnects++
 		}
 	}
-	// one for kernel, one for base
-	c.Check(autoConnects, Equals, 2)
+	// one for kernel, one for base, one for some-snap
+	c.Check(autoConnects, Equals, 3)
 
 	// try snaps are set
 	currentTryKernel, err := bloader.TryKernel()
@@ -9941,8 +9960,8 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 			autoConnects++
 		}
 	}
-	// one for kernel, one for base
-	c.Check(autoConnects, Equals, 2)
+	// one for kernel, one for base, one for some-snap
+	c.Check(autoConnects, Equals, 3)
 
 	// try snaps are set
 	currentTryKernel, err := bloader.TryKernel()
@@ -9983,8 +10002,19 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 
 	for _, tsk := range chg.Tasks() {
 		if tsk.Kind() == "link-snap" {
-			c.Assert(tsk.Status(), Equals, state.UndoneStatus,
-				Commentf("%q has status other than undone", tsk.Summary()))
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.SnapName() == "some-snap" {
+				// some-snap is only installed after base and
+				// kernel, since we aborted at that stage, it
+				// will be in the held status
+				c.Assert(tsk.Status(), Equals, state.HoldStatus,
+					Commentf("%q has status other than held", tsk.Summary()))
+			} else {
+				// link-snap of kernel and base are undone
+				c.Assert(tsk.Status(), Equals, state.UndoneStatus,
+					Commentf("%q has status other than undone", tsk.Summary()))
+			}
 		}
 	}
 }
