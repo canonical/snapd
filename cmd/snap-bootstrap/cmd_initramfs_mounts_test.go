@@ -437,6 +437,7 @@ type systemdMount struct {
 	what  string
 	where string
 	opts  *main.SystemdMountOptions
+	err   error
 }
 
 // this is a function so we evaluate InitramfsUbuntuBootDir, etc at the time of
@@ -548,7 +549,7 @@ func (s *initramfsMountsSuite) mockSystemdMountSequence(c *C, mounts []systemdMo
 		c.Assert(what, Equals, mnt.what, comment)
 		c.Assert(where, Equals, mnt.where, comment)
 		c.Assert(opts, DeepEquals, mnt.opts, Commentf("what is %s, where is %s, comment is %s", what, where, comment))
-		return nil
+		return mnt.err
 	})
 }
 
@@ -571,6 +572,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -626,6 +628,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 				"tmpfs",
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
+				nil,
 			},
 		}, nil)
 		defer restore()
@@ -762,6 +765,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 				"tmpfs",
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
+				nil,
 			},
 		}, nil)
 		cleanups = append(cleanups, restore)
@@ -805,6 +809,7 @@ defaults:
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -853,6 +858,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -861,6 +867,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -2012,6 +2019,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
@@ -2070,11 +2078,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
@@ -2201,6 +2211,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -2279,6 +2290,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -2876,20 +2888,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -2960,20 +2976,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 				"tmpfs",
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
+				nil,
 			},
 			{
 				"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 				boot.InitramfsUbuntuBootDir,
 				needsFsckDiskMountOpts,
+				nil,
 			},
 			{
 				"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 				boot.InitramfsHostUbuntuDataDir,
 				needsNoSuidDiskMountOpts,
+				nil,
 			},
 			{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
+				nil,
 				nil,
 			},
 		}, nil)
@@ -3039,20 +3059,24 @@ defaults:
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3110,6 +3134,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -3118,20 +3143,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3233,20 +3262,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3387,20 +3420,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3560,20 +3597,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3725,16 +3766,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		// no ubuntu-boot
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3884,16 +3928,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		// no ubuntu-boot
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4049,15 +4096,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4234,15 +4284,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4420,16 +4473,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -4562,11 +4618,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -4676,20 +4734,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4817,15 +4879,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5018,11 +5083,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -5183,20 +5250,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5389,20 +5460,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5431,6 +5506,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}
 
@@ -5455,15 +5531,18 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 				"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 				boot.InitramfsUbuntuBootDir,
 				needsFsckDiskMountOpts,
+				nil,
 			},
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 				boot.InitramfsHostUbuntuDataDir,
 				needsNoSuidDiskMountOpts,
+				nil,
 			},
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
+				nil,
 				nil,
 			})
 
@@ -5568,20 +5647,24 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5665,6 +5748,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) 
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -5820,11 +5904,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 	}
 	if !unlockDataFails {
@@ -5838,6 +5924,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		})
 	}
 	if !missingSaveKey {
