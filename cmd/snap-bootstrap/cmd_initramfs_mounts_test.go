@@ -437,6 +437,7 @@ type systemdMount struct {
 	what  string
 	where string
 	opts  *main.SystemdMountOptions
+	err   error
 }
 
 // this is a function so we evaluate InitramfsUbuntuBootDir, etc at the time of
@@ -548,7 +549,7 @@ func (s *initramfsMountsSuite) mockSystemdMountSequence(c *C, mounts []systemdMo
 		c.Assert(what, Equals, mnt.what, comment)
 		c.Assert(where, Equals, mnt.where, comment)
 		c.Assert(opts, DeepEquals, mnt.opts, Commentf("what is %s, where is %s, comment is %s", what, where, comment))
-		return nil
+		return mnt.err
 	})
 }
 
@@ -571,6 +572,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -626,6 +628,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 				"tmpfs",
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
+				nil,
 			},
 		}, nil)
 		defer restore()
@@ -762,6 +765,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 				"tmpfs",
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
+				nil,
 			},
 		}, nil)
 		cleanups = append(cleanups, restore)
@@ -805,6 +809,7 @@ defaults:
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -853,6 +858,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -861,6 +867,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -2012,6 +2019,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
@@ -2070,11 +2078,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
@@ -2201,6 +2211,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyNoS
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -2279,6 +2290,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataUnhappyUnl
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsDataDir,
 			needsFsckAndNoSuidDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -2876,20 +2888,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -2960,20 +2976,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 				"tmpfs",
 				boot.InitramfsDataDir,
 				tmpfsMountOpts,
+				nil,
 			},
 			{
 				"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 				boot.InitramfsUbuntuBootDir,
 				needsFsckDiskMountOpts,
+				nil,
 			},
 			{
 				"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 				boot.InitramfsHostUbuntuDataDir,
 				needsNoSuidDiskMountOpts,
+				nil,
 			},
 			{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
+				nil,
 				nil,
 			},
 		}, nil)
@@ -3039,20 +3059,24 @@ defaults:
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3110,6 +3134,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			"/dev/disk/by-partuuid/specific-ubuntu-seed-partuuid",
 			boot.InitramfsUbuntuSeedDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -3118,20 +3143,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3233,20 +3262,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3387,20 +3420,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3560,20 +3597,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3725,16 +3766,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		// no ubuntu-boot
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -3884,16 +3928,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		// no ubuntu-boot
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4049,15 +4096,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4234,15 +4284,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4420,16 +4473,19 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -4562,11 +4618,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -4676,20 +4734,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -4817,15 +4879,18 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5018,11 +5083,13 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -5183,20 +5250,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5389,20 +5460,24 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5431,6 +5506,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}
 
@@ -5455,15 +5531,18 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 				"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 				boot.InitramfsUbuntuBootDir,
 				needsFsckDiskMountOpts,
+				nil,
 			},
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 				boot.InitramfsHostUbuntuDataDir,
 				needsNoSuidDiskMountOpts,
+				nil,
 			},
 			systemdMount{
 				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 				boot.InitramfsUbuntuSaveDir,
+				nil,
 				nil,
 			})
 
@@ -5568,20 +5647,24 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
+			nil,
 			nil,
 		},
 	}, nil)
@@ -5665,6 +5748,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryInconsistent(c *C) 
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 	}, nil)
 	defer restore()
@@ -5820,11 +5904,13 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 			"tmpfs",
 			boot.InitramfsDataDir,
 			tmpfsMountOpts,
+			nil,
 		},
 		{
 			"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			boot.InitramfsUbuntuBootDir,
 			needsFsckDiskMountOpts,
+			nil,
 		},
 	}
 	if !unlockDataFails {
@@ -5838,6 +5924,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 			"/dev/mapper/ubuntu-data-random",
 			boot.InitramfsHostUbuntuDataDir,
 			needsNoSuidDiskMountOpts,
+			nil,
 		})
 	}
 	if !missingSaveKey {
@@ -6125,4 +6212,505 @@ func (s *initramfsMountsSuite) TestWaitFileWorksWithFilesAppearingLate(c *C) {
 
 	err := main.WaitFile(eventuallyExists, 5*time.Millisecond, 1000)
 	c.Check(err, IsNil)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=factory-reset snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+		},
+	)
+	defer restore()
+
+	saveActivated := false
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Assert(name, Equals, "ubuntu-save")
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+
+		encDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+		c.Assert(err, IsNil)
+		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
+		c.Assert(opts.AllowRecoveryKey, Equals, true)
+		c.Assert(opts.WhichModel, NotNil)
+		mod, err := opts.WhichModel()
+		c.Assert(err, IsNil)
+		c.Check(mod.Model(), Equals, "my-model")
+
+		saveActivated = true
+		return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
+	})
+	defer restore()
+
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+		c.Errorf("unexpected call")
+		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		measureEpochCalls++
+		return nil
+	})
+	defer restore()
+
+	var measuredModel *asserts.Model
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		measureModelCalls++
+		var err error
+		measuredModel, err = findModel()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+			nil,
+		},
+		{
+			"/dev/mapper/ubuntu-save-random",
+			boot.InitramfsUbuntuSaveDir,
+			nil,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	restore = main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})
+	defer restore()
+
+	// ubuntu-data in ephemeral system
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	// we always need to lock access to sealed keys
+	c.Check(sealedKeysLocked, Equals, true)
+
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
+	c.Check(saveActivated, Equals, true)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
+	c.Check(measuredModel, DeepEquals, s.model)
+
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypted(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=factory-reset snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Errorf("unexpected call")
+		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+		c.Errorf("unexpected call")
+		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error { return nil })
+	defer restore()
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		return nil
+	})
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+			nil,
+		},
+		{
+			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			boot.InitramfsUbuntuSaveDir,
+			nil,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	// ubuntu-data in ephemeral system
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	// we should not have written a degraded.json
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencryptedNoSave(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=factory-reset snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootDisk,
+		},
+	)
+	defer restore()
+
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Errorf("unexpected call")
+		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+		c.Errorf("unexpected call")
+		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error { return nil })
+	defer restore()
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		return nil
+	})
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	// ubuntu-data in ephemeral system
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+	// we should not have written a degraded.json
+	// we should not have written a degraded.json
+	checkDegradedJSON(c, map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{},
+		"ubuntu-save": map[string]interface{}{
+			"find-state": "absent-but-optional",
+		},
+		"error-log": []interface{}{
+			"cannot find ubuntu-save: filesystem label \"ubuntu-save\" not found",
+		},
+	})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockEncrypted(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=factory-reset snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+		},
+	)
+	defer restore()
+
+	saveActivated := false
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Assert(name, Equals, "ubuntu-save")
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+
+		encDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+		c.Assert(err, IsNil)
+		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
+		saveActivated = true
+		return foundEncrypted("ubuntu-save"), fmt.Errorf("ubuntu-save unlock fail")
+	})
+	defer restore()
+
+	restore = main.MockSecbootUnlockEncryptedVolumeUsingKey(func(disk disks.Disk, name string, key []byte) (secboot.UnlockResult, error) {
+		c.Errorf("unexpected call")
+		return secboot.UnlockResult{}, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	measureEpochCalls := 0
+	measureModelCalls := 0
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error {
+		measureEpochCalls++
+		return nil
+	})
+	defer restore()
+
+	var measuredModel *asserts.Model
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		measureModelCalls++
+		var err error
+		measuredModel, err = findModel()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+			nil,
+		},
+	}, nil)
+	defer restore()
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	restore = main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})
+	defer restore()
+
+	// ubuntu-data in ephemeral system
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	// we always need to lock access to sealed keys
+	c.Check(sealedKeysLocked, Equals, true)
+
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+
+	// we should not have written a degraded.json
+	checkDegradedJSON(c, map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{},
+		"ubuntu-save": map[string]interface{}{
+			"device":       "/dev/disk/by-partuuid/ubuntu-save-enc-partuuid",
+			"unlock-state": "error-unlocking",
+			"find-state":   "found",
+		},
+		"error-log": []interface{}{
+			"cannot unlock encrypted ubuntu-save (device /dev/disk/by-partuuid/ubuntu-save-enc-partuuid) with sealed fallback key: ubuntu-save unlock fail",
+		},
+	})
+
+	c.Check(saveActivated, Equals, true)
+	c.Check(measureEpochCalls, Equals, 1)
+	c.Check(measureModelCalls, Equals, 1)
+	c.Check(measuredModel, DeepEquals, s.model)
+
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEncrypted(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=factory-reset snapd_recovery_system="+s.sysLabel)
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	// setup a bootloader for setting the bootenv after we are done
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	restore = disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+		},
+	)
+	defer restore()
+
+	saveActivated := false
+	restore = main.MockSecbootUnlockVolumeUsingSealedKeyIfEncrypted(func(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error) {
+		c.Assert(name, Equals, "ubuntu-save")
+		c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
+
+		encDevPartUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
+		c.Assert(err, IsNil)
+		c.Assert(encDevPartUUID, Equals, "ubuntu-save-enc-partuuid")
+		saveActivated = true
+		// all went good here
+		return happyUnlocked("ubuntu-save", secboot.UnlockedWithSealedKey), nil
+	})
+	defer restore()
+
+	restore = main.MockSecbootMeasureSnapSystemEpochWhenPossible(func() error { return nil })
+	defer restore()
+	restore = main.MockSecbootMeasureSnapModelWhenPossible(func(findModel func() (*asserts.Model, error)) error {
+		return nil
+	})
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-seed", "recover"),
+		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		s.makeSeedSnapSystemdMount(snap.TypeBase),
+		{
+			"tmpfs",
+			boot.InitramfsDataDir,
+			tmpfsMountOpts,
+			nil,
+		},
+		{
+			"/dev/mapper/ubuntu-save-random",
+			boot.InitramfsUbuntuSaveDir,
+			nil,
+			fmt.Errorf("mount failed"),
+		},
+	}, nil)
+	defer restore()
+
+	// ensure that we check that access to sealed keys were locked
+	sealedKeysLocked := false
+	restore = main.MockSecbootLockSealedKeys(func() error {
+		sealedKeysLocked = true
+		return nil
+	})
+	defer restore()
+
+	// ubuntu-data in ephemeral system
+	ephemeralUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "data/")
+	err := os.MkdirAll(ephemeralUbuntuData, 0755)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+
+	// we always need to lock access to sealed keys
+	c.Check(sealedKeysLocked, Equals, true)
+
+	modeEnv := filepath.Join(ephemeralUbuntuData, "/system-data/var/lib/snapd/modeenv")
+	c.Check(modeEnv, testutil.FileEquals, `mode=factory-reset
+recovery_system=20191118
+base=core20_1.snap
+model=my-brand/my-model
+grade=signed
+`)
+
+	// we should not have written a degraded.json
+	checkDegradedJSON(c, map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{},
+		"ubuntu-save": map[string]interface{}{
+			"device":       "/dev/mapper/ubuntu-save-random",
+			"unlock-state": "unlocked",
+			"unlock-key":   "fallback",
+			"find-state":   "found",
+		},
+		"error-log": []interface{}{
+			"cannot mount ubuntu-save (device /dev/mapper/ubuntu-save-random): mount failed",
+		},
+	})
+
+	c.Check(saveActivated, Equals, true)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
