@@ -19,17 +19,22 @@
 package devicestate
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
@@ -80,6 +85,12 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 			// do not mark this task done as this makes it racy against taskrunner tear down (the next task
 			// could start). Let this task finish after snapd restart when preseed mode is off.
 			restart.Request(st, restart.StopDaemon, nil)
+		}
+
+		if !release.OnClassic {
+			if err := dumpPreseedFilePatterns(); err != nil {
+				return err
+			}
 		}
 
 		return &state.Retry{Reason: "mark-preseeded will be marked done when snapd is executed in normal mode"}
@@ -187,5 +198,49 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	// make sure we setup a fallback model/consider the next phase
 	// (registration) timely
 	st.EnsureBefore(0)
+	return nil
+}
+
+// preseedFilePatterns contains files/globs that should be excluded/included in the
+// preseeding artifact created by snap-preseed command for uc20 system.
+var preseedFilePatterns = struct {
+	Exclude []string `json:"exclude"`
+	Include []string `json:"include"`
+}{
+	Exclude: []string{
+		"var/lib/snapd/snaps/*.snap",
+		"var/lib/seed/*",
+	},
+	Include: []string{
+		"etc/udev/rules.d",
+		"etc/systemd",
+		"etc/dbus-1",
+		"snap",
+		"var/lib/snapd/state.json",
+		"var/lib/snapd/apparmor",
+		"var/lib/snapd/system-key",
+		"var/lib/snapd/assertions",
+		"var/lib/snapd/seccomp",
+		"var/lib/snapd/desktop",
+		"var/lib/snapd/sequence",
+		"var/lib/snapd/cookie",
+		"var/lib/snapd/dbus-1",
+		"var/snap",
+		"var/cache/snapd/aux",
+		"var/cache/apparmor",
+	},
+}
+
+// dumpPreseedFilePatterns stores preseedFilePatterns in /var/lib/snapd/preseed-export.json file;
+// the file is consumed by snap-preseed command when creating preseed.tgz artifact for UC20.
+func dumpPreseedFilePatterns() error {
+	data, err := json.Marshal(preseedFilePatterns)
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "preseed-export.json"), data, 0644); err != nil {
+		return err
+	}
 	return nil
 }
