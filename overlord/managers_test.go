@@ -10009,7 +10009,7 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 				// kernel, since we aborted at that stage, it
 				// will be in the held status
 				c.Assert(tsk.Status(), Equals, state.HoldStatus,
-					Commentf("%q has status other than undone", tsk.Summary()))
+					Commentf("%q has status other than held", tsk.Summary()))
 			} else {
 				// link-snap of kernel and base are undone
 				c.Assert(tsk.Status(), Equals, state.UndoneStatus,
