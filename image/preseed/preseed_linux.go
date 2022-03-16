@@ -536,8 +536,11 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 	return nil
 }
 
-func Core20(chrootDir string) error {
-	popts, cleanup, err := prepareCore20Chroot(chrootDir)
+// Core20 runs preseeding of UC20 system prepared by prepare-image in prepareImageDir
+// and stores the resulting preseed artifact.tgz file in system-seed/systems/<systemlabel>/artifact.tgz.
+// Expects single systemlabel under systems directory.
+func Core20(prepareImageDir string) error {
+	popts, cleanup, err := prepareCore20Chroot(prepareImageDir)
 	if err != nil {
 		return err
 	}
@@ -545,6 +548,7 @@ func Core20(chrootDir string) error {
 	return runUC20PreseedMode(popts)
 }
 
+// Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
 func Classic(chrootDir string) error {
 	if err := checkChroot(chrootDir); err != nil {
 		return err

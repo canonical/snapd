@@ -17,6 +17,11 @@
  *
  */
 
+// Package preseed provides functions for preseeding of classic and UC20
+// systems. Preseeding runs snapd in special mode that executes significant
+// portion of initial seeding in a chroot environment and stores the resulting
+// modifications in the image so that they can be reused and skipped on first boot,
+// speeding it up.
 package preseed
 
 import (

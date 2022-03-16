@@ -31,6 +31,8 @@ import (
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 )
 
+// ResetPreseededChroot removes all preseeding artifacts from preseedChroot
+// (classic Ubuntu only).
 func ResetPreseededChroot(preseedChroot string) error {
 	exists, isDir, err := osutil.DirExists(preseedChroot)
 	if err != nil {
