@@ -1078,7 +1078,7 @@ func MockVolumeStructureToLocationMap(f func(_ GadgetData, _ Model, _ map[string
 	}
 }
 
-// exposed for mocking
+// use indirection to allow mocking
 var volumeStructureToLocationMap = volumeStructureToLocationMapImpl
 
 func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map[string]*LaidOutVolume) (map[string]map[int]StructureLocation, error) {
@@ -1207,6 +1207,10 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 		return fmt.Errorf("cannot update gadget assets: volumes were added")
 	}
 
+	if updatePolicy == nil {
+		updatePolicy = defaultPolicy
+	}
+
 	// collect the updates and validate that they are doable from an abstract
 	// sense first
 
@@ -1248,10 +1252,6 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 
 		if err := canUpdateVolume(pOld, pNew); err != nil {
 			return fmt.Errorf("cannot apply update to volume %s: %v", volName, err)
-		}
-
-		if updatePolicy == nil {
-			updatePolicy = defaultPolicy
 		}
 
 		// ensure all required kernel assets are found in the gadget
