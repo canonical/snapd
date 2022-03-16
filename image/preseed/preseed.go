@@ -29,14 +29,14 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
-type PreseedOpts struct {
+type preseedOpts struct {
 	PrepareImageDir  string
 	PreseedChrootDir string
 	SystemLabel      string
 	WritableDir      string
 }
 
-type TargetSnapdInfo struct {
+type targetSnapdInfo struct {
 	path    string
 	version string
 }

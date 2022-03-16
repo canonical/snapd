@@ -159,7 +159,7 @@ const snapdPreseedSupportVer = `2.43.3+`
 // information (path, version) about snapd to execute as part of preseeding
 // (it picks the newer version of the two).
 // The function must be called after syscall.Chroot(..).
-func chooseTargetSnapdVersion() (*TargetSnapdInfo, error) {
+func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	// read snapd version from the mounted core/snapd snap
 	snapdInfoDir := filepath.Join(snapdMountPath, dirs.CoreLibExecDir)
 	verFromSnap, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
@@ -200,7 +200,7 @@ func chooseTargetSnapdVersion() (*TargetSnapdInfo, error) {
 			whichVer, snapdPreseedSupportVer)
 	}
 
-	return &TargetSnapdInfo{path: snapdPath, version: whichVer}, nil
+	return &targetSnapdInfo{path: snapdPath, version: whichVer}, nil
 }
 
 func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlob, baseSnapBlob, writable string) (cleanupMounts func(), err error) {
@@ -336,7 +336,7 @@ var makeWritableTempDir = func() (string, error) {
 	return ioutil.TempDir("", "writable-")
 }
 
-func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
+func prepareCore20Chroot(prepareImageDir string) (preseed *preseedOpts, cleanup func(), err error) {
 	sysDir := filepath.Join(prepareImageDir, "system-seed")
 	sysLabel, err := systemForPreseeding(sysDir)
 	if err != nil {
@@ -378,7 +378,7 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 		}
 	}
 
-	opts := &PreseedOpts{
+	opts := &preseedOpts{
 		PrepareImageDir:  prepareImageDir,
 		PreseedChrootDir: tmpPreseedChrootDir,
 		SystemLabel:      sysLabel,
@@ -387,7 +387,7 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 	return opts, cleanup, nil
 }
 
-func prepareClassicChroot(preseedChroot string) (*TargetSnapdInfo, func(), error) {
+func prepareClassicChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
 	if err := syscallChroot(preseedChroot); err != nil {
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
@@ -454,7 +454,7 @@ type preseedFilePatterns struct {
 	Include []string `json:"include"`
 }
 
-func createPreseedArtifact(opts *PreseedOpts) error {
+func createPreseedArtifact(opts *preseedOpts) error {
 	artifactPath := filepath.Join(opts.PrepareImageDir, "system-seed", "systems", opts.SystemLabel, "preseed.tgz")
 	systemData := filepath.Join(opts.WritableDir, "system-data")
 
@@ -499,7 +499,7 @@ func createPreseedArtifact(opts *PreseedOpts) error {
 
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
-func runPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
+func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
 	// run snapd in preseed mode
 	cmd := exec.Command(targetSnapd.path)
 	cmd.Env = os.Environ()
@@ -517,7 +517,7 @@ func runPreseedMode(preseedChroot string, targetSnapd *TargetSnapdInfo) error {
 	return nil
 }
 
-func runUC20PreseedMode(opts *PreseedOpts) error {
+func runUC20PreseedMode(opts *preseedOpts) error {
 	cmd := exec.Command("chroot", opts.PreseedChrootDir, "/usr/lib/snapd/snapd")
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
@@ -550,7 +550,7 @@ func Classic(chrootDir string) error {
 		return err
 	}
 
-	var targetSnapd *TargetSnapdInfo
+	var targetSnapd *targetSnapdInfo
 
 	// XXX: if prepareClassicChroot & runPreseedMode were refactored to
 	// use "chroot" inside runPreseedMode (and not syscall.Chroot at the

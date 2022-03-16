@@ -29,6 +29,8 @@ var (
 	CreatePreseedArtifact    = createPreseedArtifact
 )
 
+type PreseedOpts = preseedOpts
+
 func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
 	oldSeedOpen := seedOpen
 	seedOpen = f
@@ -37,6 +39,6 @@ func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore fun
 	}
 }
 
-func SnapdPathAndVersion(targetSnapd *TargetSnapdInfo) (string, string) {
+func SnapdPathAndVersion(targetSnapd *targetSnapdInfo) (string, string) {
 	return targetSnapd.path, targetSnapd.version
 }
