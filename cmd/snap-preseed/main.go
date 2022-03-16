@@ -114,9 +114,6 @@ func run(parser *flags.Parser, args []string) (err error) {
 
 	if probeCore20ImageDir(chrootDir) {
 		return preseed.Core20(chrootDir)
-	} else {
-		return preseed.Classic(chrootDir)
 	}
-
-	return err
+	return preseed.Classic(chrootDir)
 }
