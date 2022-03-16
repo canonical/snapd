@@ -9809,6 +9809,11 @@ func (s *mgrsSuite) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.RunBo
 	snaptest.MockSnap(c, pcKernelYaml, siKernel)
 	siBase := &snap.SideInfo{RealName: "core20", SnapID: fakeSnapID("core20"), Revision: snap.R(1)}
 	snaptest.MockSnap(c, baseYaml, siBase)
+	snapYamlContent := "name: some-snap\nversion: 1.0\nbase: core20"
+	siSnap := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snaptest.MockSnap(c, snapYamlContent, siSnap)
+	siSnapd := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", siSnapd, nil)
 
 	// test setup adds core, get rid of it
 	snapstate.Set(st, "core", nil)
@@ -9824,15 +9829,29 @@ func (s *mgrsSuite) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.RunBo
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siSnap},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siSnapd},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
 
 	p, _ := s.makeStoreTestSnap(c, pcKernelYaml, "2")
 	s.serveSnap(p, "2")
 	p, _ = s.makeStoreTestSnap(c, baseYaml, "2")
 	s.serveSnap(p, "2")
+	p, _ = s.makeStoreTestSnap(c, snapYamlContent, "2")
+	s.serveSnap(p, "2")
 
-	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20"}, 0, nil)
+	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "some-snap"}, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel"})
+	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel", "some-snap"})
 	chg := st.NewChange("update-many", "...")
 	for _, ts := range tss {
 		// skip the taskset of UpdateMany that does the
@@ -9877,8 +9896,8 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootHappy(c *C) {
 			autoConnects++
 		}
 	}
-	// one for kernel, one for base
-	c.Check(autoConnects, Equals, 2)
+	// one for kernel, one for base, one for some-snap
+	c.Check(autoConnects, Equals, 3)
 
 	// try snaps are set
 	currentTryKernel, err := bloader.TryKernel()
@@ -9941,8 +9960,8 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 			autoConnects++
 		}
 	}
-	// one for kernel, one for base
-	c.Check(autoConnects, Equals, 2)
+	// one for kernel, one for base, one for some-snap
+	c.Check(autoConnects, Equals, 3)
 
 	// try snaps are set
 	currentTryKernel, err := bloader.TryKernel()
@@ -9983,8 +10002,19 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 
 	for _, tsk := range chg.Tasks() {
 		if tsk.Kind() == "link-snap" {
-			c.Assert(tsk.Status(), Equals, state.UndoneStatus,
-				Commentf("%q has status other than undone", tsk.Summary()))
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.SnapName() == "some-snap" {
+				// some-snap is only installed after base and
+				// kernel, since we aborted at that stage, it
+				// will be in the held status
+				c.Assert(tsk.Status(), Equals, state.HoldStatus,
+					Commentf("%q has status other than held", tsk.Summary()))
+			} else {
+				// link-snap of kernel and base are undone
+				c.Assert(tsk.Status(), Equals, state.UndoneStatus,
+					Commentf("%q has status other than undone", tsk.Summary()))
+			}
 		}
 	}
 }
