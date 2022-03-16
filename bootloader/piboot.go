@@ -319,33 +319,19 @@ func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 }
 
 func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
-	gadgetFile := filepath.Join(gadgetDir, pibootCfgFilename)
-	st, err := os.Stat(gadgetFile)
+	// We create an empty env file
+	err := os.MkdirAll(filepath.Dir(p.envFile()), 0755)
 	if err != nil {
 		return err
 	}
-	if st.Size() == 0 {
-		// We create a valid env file if the one from gadget is empty
-		err := os.MkdirAll(filepath.Dir(p.envFile()), 0755)
-		if err != nil {
-			return err
-		}
 
-		// TODO: what's a reasonable size for this file?
-		env, err := ubootenv.Create(p.envFile(), 4096)
-		if err != nil {
-			return err
-		}
-
-		if err := env.Save(); err != nil {
-			return nil
-		}
-
-		return nil
+	// TODO: what's a reasonable size for this file?
+	env, err := ubootenv.Create(p.envFile(), 4096)
+	if err != nil {
+		return err
 	}
 
-	systemFile := p.envFile()
-	return genericInstallBootConfig(gadgetFile, systemFile)
+	return env.Save()
 }
 
 func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) error {
