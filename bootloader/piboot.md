@@ -2,7 +2,7 @@
 
 ## Introduction
 
-In this document we describe the support for piboot on Raspberrypi Pi
+In this document we describe the support for piboot on Raspberry Pi
 devices when running Ubuntu Core. When we talk about "piboot", we mean
 the different closed-source firmware bits that are run on RPi devices
 before the Linux kernel or alternative bootloaders like U-Boot are
@@ -70,10 +70,11 @@ To keep state we have environment files that, differently to grub or
 U-Boot, are not directly read or written by the bootloader, but are
 instead translated to bootloader configuration files when kernel
 updates happen. These environment files are named `piboot.conf` and
-live in the `piboot/ubuntu/` folder inside ubuntu-seed partition. In
-run mode, the folder from the boot partition would be mounted in the
-`/boot/piboot/` directory. This is analogous to what is done by UC for
-grub and U-Boot environment files.
+live in the `piboot/ubuntu/` folder inside ubuntu-seed partition, and
+for robustness they use the same format as the `uboot.env` files, with
+a CRC header. In run mode, the folder from the boot partition would be
+mounted in the `/boot/piboot/` directory. This is analogous to what is
+done by UC for grub and U-Boot environment files.
 
 ### Snapd
 
