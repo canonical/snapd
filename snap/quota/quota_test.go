@@ -873,17 +873,18 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the root group
 	c.Check(allReservations["groot"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryLimit:      quantity.SizeGiB,
-		MemoryReserved:   quantity.SizeMiB * 512,
-		CpuReserved:      100,
-		ThreadsReserved:  32,
-		AllowedCPUsLimit: []int{},
+		MemoryLimit:         quantity.SizeGiB,
+		MemoryReserved:      quantity.SizeMiB * 512,
+		CPUReserved:         100,
+		ThreadsReserved:     32,
+		AllowedCPUsLimit:    []int{},
+		AllowedCPUsReserved: []int{0, 1},
 	})
 
 	// Verify the subgroup cpu-q0
 	c.Check(allReservations["cpu-q0"], DeepEquals, &quota.GroupQuotaAllocations{
-		CpuLimit:         100,
-		CpuReserved:      50,
+		CPULimit:         100,
+		CPUReserved:      50,
 		MemoryReserved:   quantity.SizeMiB * 256,
 		AllowedCPUsLimit: []int{},
 	})
@@ -898,7 +899,8 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the subgroup cpus-q0
 	c.Check(allReservations["cpus-q0"], DeepEquals, &quota.GroupQuotaAllocations{
-		AllowedCPUsLimit: []int{0, 1},
+		AllowedCPUsLimit:    []int{0, 1},
+		AllowedCPUsReserved: []int{0},
 	})
 
 	// Verify the subgroup cpus-q1
@@ -909,7 +911,7 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 	// Verify the subgroup mem-q1
 	c.Check(allReservations["mem-q1"], DeepEquals, &quota.GroupQuotaAllocations{
 		MemoryLimit:      quantity.SizeMiB * 256,
-		CpuReserved:      50,
+		CPUReserved:      50,
 		AllowedCPUsLimit: []int{},
 	})
 
@@ -923,7 +925,7 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the subgroup cpu-q1
 	c.Check(allReservations["cpu-q1"], DeepEquals, &quota.GroupQuotaAllocations{
-		CpuLimit:         50,
+		CPULimit:         50,
 		AllowedCPUsLimit: []int{},
 	})
 
@@ -1009,4 +1011,95 @@ func (ts *quotaTestSuite) TestChangingSubgroupLimits(c *C) {
 	// the current memory quota of the subgroup.
 	err = memgrp.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build())
 	c.Check(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside group \"groot\" remaining quota space 1 GiB`)
+}
+
+func (ts *quotaTestSuite) TestChangingParentMemoryLimits(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a memory limit that takes up the entire quota of the parent
+	_, err = subgrp1.NewSubGroup("mem-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Now the test is to change the upper most parent limit so that it would be less
+	// than the current usage, which we should not be able to do
+	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build())
+	c.Check(err, ErrorMatches, `group memory limit of 512 MiB is too small to fit current subgroup usage of 1 GiB`)
+}
+
+func (ts *quotaTestSuite) TestChangingParentCpuPercentageLimits(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("mem-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a cpu limit that takes up the entire quota of the parent
+	_, err = subgrp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Now the test is to change the upper most parent limit so that it would be less
+	// than the current usage, which we should not be able to do
+	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build())
+	c.Check(err, ErrorMatches, `group cpu limit of 50% is less than current subgroup usage of 100%`)
+}
+
+func (ts *quotaTestSuite) TestChangingParentCpuSetLimits(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a cpu limit that uses both of allowed cpus
+	_, err = subgrp1.NewSubGroup("cpuset-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	// Now the test is to change the upper most parent limit so that it would be more
+	// restrictive then the previous limit
+	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build())
+	c.Check(err, ErrorMatches, `group cpu-set limit of \[0\] is not a superset of current subgroup usage of \[0 1\]`)
+}
+
+func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a thread limit that takes up the entire quota of the parent
+	_, err = subgrp1.NewSubGroup("thread-sub", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
+	c.Assert(err, IsNil)
+
+	// Now the test is to change the upper most parent limit so that it would be less
+	// than the current usage, which we should not be able to do
+	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(16).Build())
+	c.Check(err, ErrorMatches, `group memory limit of 16 is too small to fit current subgroup usage of 32`)
+}
+
+func (ts *quotaTestSuite) TestChangingMiddleParentLimits(c *C) {
+	// Catch any algorithmic mistakes made in regards to not catching parents
+	// that are also children of other parents.
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a memory limit that takes up the entire quota of the upper parent
+	subgrp2, err := subgrp1.NewSubGroup("mem-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a cpu limit that takes up the entire quota of the middle parent
+	_, err = subgrp2.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Now the test is to change the middle parent limit so that it would be less
+	// than the current usage, which we should not be able to do
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build())
+	c.Check(err, ErrorMatches, `group cpu limit of 50% is less than current subgroup usage of 100%`)
 }
