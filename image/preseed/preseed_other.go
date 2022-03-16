@@ -27,6 +27,14 @@ import (
 
 var preseedNotAvailableError = errors.New("preseed mode not available for systems other than linux")
 
+func Classic(chrootDir string) error {
+	return preseedNotAvailableError
+}
+
+func Core20(chrootDir string) error {
+	return preseedNotAvailableError
+}
+
 func CheckChroot(preseedChroot string) error {
 	return preseedNotAvailableError
 }

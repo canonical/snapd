@@ -536,6 +536,37 @@ func RunUC20PreseedMode(opts *PreseedOpts) error {
 	return nil
 }
 
+func Core20(chrootDir string) error {
+	popts, cleanup, err := PrepareCore20Chroot(chrootDir)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	return RunUC20PreseedMode(popts)
+}
+
+func Classic(chrootDir string) error {
+	if err := CheckChroot(chrootDir); err != nil {
+		return err
+	}
+
+	var targetSnapd *TargetSnapdInfo
+
+	// XXX: if prepareClassicChroot & runPreseedMode were refactored to
+	// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
+	// beginning of prepareClassicChroot), then we could have a single
+	// runPreseedMode/runUC20PreseedMode function that handles both classic
+	// and core20.
+	targetSnapd, cleanup, err := PrepareClassicChroot(chrootDir)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	// executing inside the chroot
+	return RunPreseedMode(chrootDir, targetSnapd)
+}
+
 func MockSyscallChroot(f func(string) error) (restore func()) {
 	osutil.MustBeTestBinary("mocking can be done only in tests")
 

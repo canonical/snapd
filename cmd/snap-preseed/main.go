@@ -112,36 +112,11 @@ func run(parser *flags.Parser, args []string) (err error) {
 		return preseed.ResetPreseededChroot(chrootDir)
 	}
 
-	var cleanup func()
 	if probeCore20ImageDir(chrootDir) {
-		var popts *preseed.PreseedOpts
-		popts, cleanup, err = preseed.PrepareCore20Chroot(chrootDir)
-		if err != nil {
-			return err
-		}
-
-		err = preseed.RunUC20PreseedMode(popts)
+		return preseed.Core20(chrootDir)
 	} else {
-		if err := preseed.CheckChroot(chrootDir); err != nil {
-			return err
-		}
-
-		var targetSnapd *preseed.TargetSnapdInfo
-
-		// XXX: if prepareClassicChroot & runPreseedMode were refactored to
-		// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
-		// beginning of prepareClassicChroot), then we could have a single
-		// runPreseedMode/runUC20PreseedMode function that handles both classic
-		// and core20.
-		targetSnapd, cleanup, err = preseed.PrepareClassicChroot(chrootDir)
-		if err != nil {
-			return err
-		}
-
-		// executing inside the chroot
-		err = preseed.RunPreseedMode(chrootDir, targetSnapd)
+		return preseed.Classic(chrootDir)
 	}
 
-	cleanup()
 	return err
 }
