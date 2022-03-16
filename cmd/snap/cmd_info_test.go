@@ -399,7 +399,7 @@ func (s *infoSuite) TestMaybePrintPath(c *check.C) {
 }
 
 func (s *infoSuite) TestClientSnapFromPath(c *check.C) {
-	// minimal sanity check
+	// minimal validity check
 	fn := snaptest.MakeTestSnapWithFiles(c, `
 name: some-snap
 version: 9

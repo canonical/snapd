@@ -168,7 +168,7 @@ func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
 		return err
 	}
 
-	// TODO: trigger w. caller a global sanity check if something is revoked
+	// TODO: trigger w. caller a global validity check if something is revoked
 	// (but try to save as much possible still),
 	// or err is a check error
 

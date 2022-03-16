@@ -2235,7 +2235,7 @@ func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
 }
 
 func (s *servicesTestSuite) TestAddSnapMultiServicesFailCreateCleanup(c *C) {
-	// sanity check: there are no service files
+	// validity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
@@ -2268,7 +2268,7 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 	svc2Name := "snap.hello-snap.svc2.service"
 	numEnables := 0
 
-	// sanity check: there are no service files
+	// validity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
@@ -2322,7 +2322,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	// this test might be overdoing it (it's mostly covering the same ground as the previous one), but ... :-)
 	var sysdLog [][]string
 
-	// sanity check: there are no service files
+	// validity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
@@ -2358,7 +2358,7 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) {
 	var sysdLog [][]string
 
-	// sanity check: there are no service files
+	// validity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
@@ -2412,7 +2412,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
 
-	// sanity check: there are no service files
+	// validity check: there are no service files
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
