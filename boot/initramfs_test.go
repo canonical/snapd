@@ -663,6 +663,11 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVars(c *C) {
 			finalStatus:   "",
 		},
 		{
+			cmdline:       "",
+			initialStatus: "trying",
+			finalStatus:   "",
+		},
+		{
 			cmdline:       "quiet splash",
 			initialStatus: "try",
 			finalStatus:   "",
@@ -738,7 +743,7 @@ func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrNoCmdline(c 
 	c.Assert(err, ErrorMatches, ".*cmdline: no such file or directory")
 }
 
-func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsErrNoBootloader(c *C) {
+func (s *initramfsSuite) TestInitramfsRunModeUpdateBootloaderVarsNoBootloaderHappy(c *C) {
 	err := boot.InitramfsRunModeUpdateBootloaderVars()
 	c.Assert(err, IsNil)
 }
