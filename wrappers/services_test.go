@@ -388,6 +388,9 @@ Before=slices.target
 X-Snappy=yes
 
 [Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=%[2]s
@@ -486,6 +489,9 @@ Before=slices.target
 X-Snappy=yes
 
 [Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=%[2]s
@@ -582,6 +588,9 @@ Before=slices.target
 X-Snappy=yes
 
 [Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=1024

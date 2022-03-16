@@ -39,7 +39,7 @@ func SizeToStr(size int64) string {
 	panic("SizeToStr got a size bigger than math.MaxInt64")
 }
 
-// IntsToCommaSeparated converts an int array to a comma-separated string
+// IntsToCommaSeparated converts an int array to a comma-separated string without whitespace
 func IntsToCommaSeparated(vals []int) string {
 	b := &strings.Builder{}
 	last := len(vals) - 1

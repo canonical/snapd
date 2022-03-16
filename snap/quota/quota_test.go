@@ -781,7 +781,7 @@ func (ts *quotaTestSuite) TestCurrentTaskUsage(c *C) {
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
 			return []byte("active"), nil
 		case 3:
-			// and the memory count can be non-zero like
+			// and the task count can be non-zero like
 			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
 			return []byte("TasksCurrent=32"), nil
 
@@ -795,7 +795,7 @@ func (ts *quotaTestSuite) TestCurrentTaskUsage(c *C) {
 			return []byte("TasksCurrent=0"), nil
 
 		default:
-			c.Errorf("too many systemctl calls (%d) (current call is %+v)", systemctlCalls, args)
+			c.Errorf("unexpected number of systemctl calls (%d) (current call is %+v)", systemctlCalls, args)
 			return []byte("broken test"), fmt.Errorf("broken test")
 		}
 	})
@@ -804,20 +804,23 @@ func (ts *quotaTestSuite) TestCurrentTaskUsage(c *C) {
 	grp1, err := quota.NewGroup("group", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
 	c.Assert(err, IsNil)
 
-	// group initially is inactive, so it has no current memory usage
+	// group initially is inactive, so it has no current task usage
 	currentTasks, err := grp1.CurrentTaskUsage()
 	c.Check(err, IsNil)
 	c.Check(currentTasks, Equals, 0)
+	c.Check(systemctlCalls, Equals, 1)
 
 	// now with the slice mocked as active it has real usage
 	currentTasks, err = grp1.CurrentTaskUsage()
 	c.Check(err, IsNil)
 	c.Check(currentTasks, Equals, 32)
+	c.Check(systemctlCalls, Equals, 3)
 
 	// but it can also have 0 usage
 	currentTasks, err = grp1.CurrentTaskUsage()
 	c.Check(err, IsNil)
 	c.Check(currentTasks, Equals, 0)
+	c.Check(systemctlCalls, Equals, 5)
 }
 
 func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {

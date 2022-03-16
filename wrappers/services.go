@@ -93,70 +93,55 @@ func min(a, b int) int {
 }
 
 func formatCpuGroupSlice(grp *quota.Group) string {
-	if grp.CPULimit == nil {
-		return ""
-	}
-
-	// calculateSystemdCPULimit calculates the number of cpus and the allowed percentage
-	// to the systemd specific format. The CPUQuota setting is only available since systemd 213
-	calculateSystemdCPULimit := func() string {
-		if grp.CPULimit.Count == 0 && grp.CPULimit.Percentage == 0 {
-			return ""
-		}
-
-		cpuQuotaSnap := max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
-		cpuQuotaMax := runtime.NumCPU() * 100
-		return fmt.Sprintf("CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
-	}
-
-	// getAllowedCpusValue converts allowed CPUs array to a comma-delimited
-	// string that systemd expects it to be in. If the array is empty then
-	// an empty string is returned
-	getAllowedCpusValue := func() string {
-		if len(grp.CPULimit.AllowedCPUs) == 0 {
-			return ""
-		}
-
-		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
-		return fmt.Sprintf("AllowedCPUs=%s\n", allowedCpusValue)
-	}
-
 	header := `# Always enable cpu accounting, so the following cpu quota options have an effect
 CPUAccounting=true
 `
-	return fmt.Sprint(header, calculateSystemdCPULimit(), getAllowedCpusValue(), "\n")
+	buf := bytes.NewBufferString(header)
+
+	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
+		// convert the number of cores and the allowed percentage
+		// to the systemd specific format.
+		cpuQuotaSnap := max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
+		cpuQuotaMax := runtime.NumCPU() * 100
+
+		// The CPUQuota setting is only available since systemd 213
+		fmt.Fprintf(buf, "CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
+	}
+
+	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
+		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
+		fmt.Fprintf(buf, "AllowedCPUs=%s\n", allowedCpusValue)
+	}
+
+	buf.WriteString("\n")
+	return buf.String()
 }
 
 func formatMemoryGroupSlice(grp *quota.Group) string {
-	buf := bytes.Buffer{}
 	header := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 `
-	fmt.Fprint(&buf, header)
-
+	buf := bytes.NewBufferString(header)
 	if grp.MemoryLimit != 0 {
 		valuesTemplate := `MemoryMax=%[1]d
 # for compatibility with older versions of systemd
 MemoryLimit=%[1]d
 
 `
-		memoryValues := fmt.Sprintf(valuesTemplate, grp.MemoryLimit)
-		fmt.Fprint(&buf, memoryValues)
+		fmt.Fprintf(buf, valuesTemplate, grp.MemoryLimit)
 	}
 	return buf.String()
 }
 
 func formatTaskGroupSlice(grp *quota.Group) string {
-	buf := bytes.Buffer{}
 	header := `# Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
 TasksAccounting=true
 `
-	fmt.Fprint(&buf, header)
+	buf := bytes.NewBufferString(header)
 
 	if grp.TaskLimit != 0 {
-		taskValue := fmt.Sprintf("TasksMax=%d\n", grp.TaskLimit)
-		fmt.Fprint(&buf, taskValue)
+		fmt.Fprintf(buf, "TasksMax=%d\n", grp.TaskLimit)
 	}
 	return buf.String()
 }

@@ -296,6 +296,8 @@ func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocation
 			continue
 		}
 
+		// cyclic checks are made by visitTree so we make the assumption here
+		// that no cyclic dependencies exists.
 		subGroupLimits := subGroup.getQuotaAllocations(allQuotas, skipGrp)
 
 		// As we count up the usage of quotas across our sub-groups we must either use the actual
