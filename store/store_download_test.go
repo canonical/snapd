@@ -996,7 +996,7 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	ok, speed := store.IsTransferSpeedError(err)
 	c.Assert(ok, Equals, true)
-	// in reality speed can be 0, but here it's an extra sanity check.
+	// in reality speed can be 0, but here it's an extra quick check.
 	c.Check(speed > 1, Equals, true)
 	c.Check(speed < 32768, Equals, true)
 	close(quit)

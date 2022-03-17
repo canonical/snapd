@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -254,6 +255,48 @@ func optedIntoSnapdSnap(st *state.State) (bool, error) {
 		return false, err
 	}
 	return experimentalAllowSnapd, nil
+}
+
+// refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
+// It deals with potentially wrong type due to lax validation.
+func refreshRetain(st *state.State) int {
+	var val interface{}
+	// due to lax validation of refresh.retain on set we might end up having a string representing a number here; handle it gracefully
+	// for backwards compatibility.
+	err := config.NewTransaction(st).Get("core", "refresh.retain", &val)
+	var retain int
+	if err == nil {
+		switch v := val.(type) {
+		// this is the expected value; confusingly, since we pass interface{} to Get(), we get json.Number type; if int reference was passed,
+		// we would get an int instead of json.Number.
+		case json.Number:
+			retain, err = strconv.Atoi(string(v))
+		// not really expected when requesting interface{}.
+		case int:
+			retain = v
+		// we can get string here due to lax validation of refresh.retain on Set in older releases.
+		case string:
+			retain, err = strconv.Atoi(v)
+		default:
+			logger.Noticef("internal error: refresh.retain system option has unexpected type: %T", v)
+		}
+	}
+
+	// this covers error from Get() and strconv above.
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("internal error: refresh.retain system option is not valid: %v", err)
+	}
+
+	// not set, use default value
+	if retain == 0 {
+		// on classic we only keep 2 copies by default
+		if release.OnClassic {
+			retain = 2
+		} else {
+			retain = 3
+		}
+	}
+	return retain
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
@@ -486,15 +529,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		var retain int
-		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
-			// on classic we only keep 2 copies by default
-			if release.OnClassic {
-				retain = 2
-			} else {
-				retain = 3
-			}
-		}
+		retain := refreshRetain(st)
 
 		// if we're not using an already present revision, account for the one being added
 		if snapst.LastIndex(targetRevision) == -1 {
@@ -744,7 +779,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // It considers how the Change the task belongs to is configured
 // (system-restart-immediate) to choose whether request an immediate
 // restart or not.
-func RestartSystem(task *state.Task) {
+func RestartSystem(task *state.Task, rebootInfo *boot.RebootInfo) {
 	chg := task.Change()
 	var immediate bool
 	if chg != nil {
@@ -758,7 +793,7 @@ func RestartSystem(task *state.Task) {
 	if immediate {
 		rst = restart.RestartSystemNow
 	}
-	restart.Request(task.State(), rst)
+	restart.Request(task.State(), rst, rebootInfo)
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -1098,7 +1133,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-// TODO implement support for Flags.Transaction
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -1169,9 +1203,10 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
-// TODO implement support for Flags.Transaction
 func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
-	// TODO add check for flags == nil when we start to use it
+	if flags == nil {
+		flags = &Flags{}
+	}
 
 	// need to have a model set before trying to talk the store
 	deviceCtx, err := DevicePastSeeding(st, nil)
@@ -1218,13 +1253,16 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		return nil, nil, err
 	}
 
+	var transactionLane int
+	if flags.Transactional {
+		transactionLane = st.NewLane()
+	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
 		var snapst SnapState
-		var flags Flags
 
-		flags, err := ensureInstallPreconditions(st, info, flags, &snapst)
+		validatedFlags, err := ensureInstallPreconditions(st, info, *flags, &snapst)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1241,7 +1279,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 			Prereq:             getKeys(providerContentAttrs),
 			PrereqContentAttrs: providerContentAttrs,
 			UserID:             userID,
-			Flags:              flags.ForSnapSetup(),
+			Flags:              validatedFlags.ForSnapSetup(),
 			DownloadInfo:       &info.DownloadInfo,
 			SideInfo:           &info.SideInfo,
 			Type:               info.Type(),
@@ -1253,7 +1291,15 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		if err != nil {
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
+		if flags.Transactional {
+			ts.JoinLane(transactionLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 		tasksets = append(tasksets, ts)
 	}
 
@@ -1273,7 +1319,6 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-// TODO implement support for Flags.Transaction
 func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
 }
@@ -1487,6 +1532,10 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
+	var transactionLane int
+	if globalFlags.Transactional {
+		transactionLane = st.NewLane()
+	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
 		if err != nil {
@@ -1506,7 +1555,15 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
+		if globalFlags.Transactional {
+			ts.JoinLane(transactionLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup

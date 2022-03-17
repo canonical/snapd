@@ -544,3 +544,279 @@ foo: [{p: "zzz"}, {p: "/foo/y"}]
 `), nil)
 	c.Check(err, ErrorMatches, `field "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
 }
+
+type deviceScopeConstraintSuite struct {
+	testutil.BaseTest
+}
+
+var _ = Suite(&deviceScopeConstraintSuite{})
+
+func (s *deviceScopeConstraintSuite) TestCompile(c *C) {
+	tests := []struct {
+		m   map[string]interface{}
+		exp *asserts.DeviceScopeConstraint
+		err string
+	}{
+		{m: nil, exp: nil},
+		{m: map[string]interface{}{"on-store": []interface{}{"foo", "bar"}}, exp: &asserts.DeviceScopeConstraint{Store: []string{"foo", "bar"}}},
+		{m: map[string]interface{}{"on-brand": []interface{}{"foo", "bar"}}, exp: &asserts.DeviceScopeConstraint{Brand: []string{"foo", "bar"}}},
+		{m: map[string]interface{}{"on-model": []interface{}{"foo/model1", "bar/model-2"}}, exp: &asserts.DeviceScopeConstraint{Model: []string{"foo/model1", "bar/model-2"}}},
+		{
+			m: map[string]interface{}{
+				"on-brand": []interface{}{"foo", "bar"},
+				"on-model": []interface{}{"foo/model1", "bar/model-2"},
+				"on-store": []interface{}{"foo", "bar"},
+			},
+			exp: &asserts.DeviceScopeConstraint{
+				Store: []string{"foo", "bar"},
+				Brand: []string{"foo", "bar"},
+				Model: []string{"foo/model1", "bar/model-2"},
+			},
+		},
+		{m: map[string]interface{}{"on-store": ""}, err: `on-store in constraint must be a list of strings`},
+		{m: map[string]interface{}{"on-brand": "foo"}, err: `on-brand in constraint must be a list of strings`},
+		{m: map[string]interface{}{"on-model": map[string]interface{}{"brand": "x"}}, err: `on-model in constraint must be a list of strings`},
+	}
+
+	for _, t := range tests {
+		dsc, err := asserts.CompileDeviceScopeConstraint(t.m, "constraint")
+		if t.err == "" {
+			c.Check(err, IsNil)
+			c.Check(dsc, DeepEquals, t.exp)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+			c.Check(dsc, IsNil)
+		}
+	}
+}
+
+func (s *deviceScopeConstraintSuite) TestValidOnStoreBrandModel(c *C) {
+	tests := []struct {
+		constr string
+		value  string
+		valid  bool
+	}{
+		{"on-store", "", false},
+		{"on-store", "foo", true},
+		{"on-store", "F_o-O88", true},
+		{"on-store", "foo!", false},
+		{"on-store", "foo.", false},
+		{"on-store", "foo/", false},
+		{"on-brand", "", false},
+		// custom set brands (length 2-28)
+		{"on-brand", "dwell", true},
+		{"on-brand", "Dwell", false},
+		{"on-brand", "dwell-88", true},
+		{"on-brand", "dwell_88", false},
+		{"on-brand", "dwell.88", false},
+		{"on-brand", "dwell:88", false},
+		{"on-brand", "dwell!88", false},
+		{"on-brand", "a", false},
+		{"on-brand", "ab", true},
+		{"on-brand", "0123456789012345678901234567", true},
+		// snappy id brands (fixed length 32)
+		{"on-brand", "01234567890123456789012345678", false},
+		{"on-brand", "012345678901234567890123456789", false},
+		{"on-brand", "0123456789012345678901234567890", false},
+		{"on-brand", "01234567890123456789012345678901", true},
+		{"on-brand", "abcdefghijklmnopqrstuvwxyz678901", true},
+		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901", true},
+		{"on-brand", "ABCDEFGHIJKLMNOPQRSTUVWCYZ678901X", false},
+		{"on-brand", "ABCDEFGHIJKLMNOPQ!STUVWCYZ678901", false},
+		{"on-brand", "ABCDEFGHIJKLMNOPQ_STUVWCYZ678901", false},
+		{"on-brand", "ABCDEFGHIJKLMNOPQ-STUVWCYZ678901", false},
+		{"on-model", "", false},
+		{"on-model", "/", false},
+		{"on-model", "dwell/dwell1", true},
+		{"on-model", "dwell", false},
+		{"on-model", "dwell/", false},
+		{"on-model", "dwell//dwell1", false},
+		{"on-model", "dwell/-dwell1", false},
+		{"on-model", "dwell/dwell1-", false},
+		{"on-model", "dwell/dwell1-23", true},
+		{"on-model", "dwell/dwell1!", false},
+		{"on-model", "dwell/dwe_ll1", false},
+		{"on-model", "dwell/dwe.ll1", false},
+	}
+
+	check := func(constr, value string, valid bool) {
+		cMap := map[string]interface{}{
+			constr: []interface{}{value},
+		}
+
+		_, err := asserts.CompileDeviceScopeConstraint(cMap, "constraint")
+		if valid {
+			c.Check(err, IsNil, Commentf("%v", cMap))
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`%s in constraint contains an invalid element: %q`, constr, value), Commentf("%v", cMap))
+		}
+	}
+
+	for _, t := range tests {
+		check(t.constr, t.value, t.valid)
+
+		if t.constr == "on-brand" {
+			// reuse and double check all brands also in the context of on-model!
+
+			check("on-model", t.value+"/foo", t.valid)
+		}
+	}
+}
+
+func (s *deviceScopeConstraintSuite) TestCheck(c *C) {
+	a, err := asserts.Decode([]byte(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model1
+store: store1
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	myModel1 := a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: model
+authority-id: my-brand-subbrand
+series: 16
+brand-id: my-brand-subbrand
+model: my-model2
+store: store2
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	myModel2 := a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: model
+authority-id: my-brand
+series: 16
+brand-id: my-brand
+model: my-model3
+store: substore1
+architecture: armhf
+kernel: krnl
+gadget: gadget
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	myModel3 := a.(*asserts.Model)
+
+	a, err = asserts.Decode([]byte(`type: store
+store: substore1
+authority-id: canonical
+operator-id: canonical
+friendly-stores:
+  - a-store
+  - store1
+  - store2
+timestamp: 2018-09-12T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	substore1 := a.(*asserts.Store)
+
+	tests := []struct {
+		m                 map[string]interface{}
+		model             *asserts.Model
+		store             *asserts.Store
+		useFriendlyStores bool
+		err               string
+	}{
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel1},
+		{m: map[string]interface{}{"on-store": []interface{}{"a-store", "store1"}}, model: myModel1},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel2, err: "on-store mismatch"},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel3, store: substore1, useFriendlyStores: true},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel3, store: substore1, useFriendlyStores: false, err: "on-store mismatch"},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: nil, err: `cannot match on-store/on-brand/on-model without model`},
+		{m: map[string]interface{}{"on-store": []interface{}{"store1"}}, model: myModel2, store: substore1, err: `store assertion and model store must match`, useFriendlyStores: true},
+		{m: map[string]interface{}{"on-store": []interface{}{"other-store"}}, model: myModel3, store: substore1, err: "on-store mismatch"},
+		{m: map[string]interface{}{"on-brand": []interface{}{"my-brand"}}, model: myModel1},
+		{m: map[string]interface{}{"on-brand": []interface{}{"my-brand", "my-brand-subbrand"}}, model: myModel2},
+		{m: map[string]interface{}{"on-brand": []interface{}{"other-brand"}}, model: myModel2, err: "on-brand mismatch"},
+		{m: map[string]interface{}{"on-model": []interface{}{"my-brand/my-model1"}}, model: myModel1},
+		{m: map[string]interface{}{"on-model": []interface{}{"my-brand/other-model"}}, model: myModel1, err: "on-model mismatch"},
+		{m: map[string]interface{}{"on-model": []interface{}{"my-brand/my-model", "my-brand-subbrand/my-model2", "other-brand/other-model"}}, model: myModel2},
+		{
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel2,
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"other-store"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+			err:               "on-store mismatch",
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"other-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model3", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+			err:               "on-brand mismatch",
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model1", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: true,
+			err:               "on-model mismatch",
+		}, {
+			m: map[string]interface{}{
+				"on-store": []interface{}{"store2"},
+				"on-brand": []interface{}{"my-brand", "my-brand-subbrand"},
+				"on-model": []interface{}{"my-brand/my-model1", "my-brand-subbrand/my-model2"},
+			},
+			model: myModel3, store: substore1,
+			useFriendlyStores: false,
+			err:               "on-store mismatch",
+		},
+	}
+
+	for _, t := range tests {
+		constr, err := asserts.CompileDeviceScopeConstraint(t.m, "constraint")
+		c.Assert(err, IsNil)
+
+		var opts *asserts.DeviceScopeConstraintCheckOptions
+		if t.useFriendlyStores {
+			opts = &asserts.DeviceScopeConstraintCheckOptions{
+				UseFriendlyStores: true,
+			}
+		}
+		err = constr.Check(t.model, t.store, opts)
+		if t.err == "" {
+			c.Check(err, IsNil, Commentf("%v", t.m))
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}

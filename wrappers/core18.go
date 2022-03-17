@@ -64,7 +64,7 @@ func snapdUnitSkipStart(unitPath string) (skip bool, err error) {
 	return snapdSkipStart(content), nil
 }
 
-func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
+func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string, opts *AddSnapdSnapServicesOptions) error {
 
 	// TODO: the following comment is wrong, we don't need RequiredBy=snapd here?
 
@@ -98,9 +98,11 @@ WantedBy=snapd.service
 	if err != nil {
 		return err
 	}
+
 	if err := sysd.DaemonReload(); err != nil {
 		return err
 	}
+
 	units := []string{SnapdToolingMountUnit}
 	if err := sysd.Enable(units); err != nil {
 		return err
@@ -136,9 +138,16 @@ func undoSnapdToolingMountUnit(sysd systemd.Systemd) error {
 	return os.Remove(mountUnitPath)
 }
 
+type AddSnapdSnapServicesOptions struct {
+	// Preseeding is whether the system is currently being preseeded, in which
+	// case there is not a running systemd for EnsureSnapServicesOptions to
+	// issue commands like systemctl daemon-reload to.
+	Preseeding bool
+}
+
 // AddSnapdSnapServices sets up the services based on a given snapd snap in the
 // system.
-func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
+func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter interacter) error {
 	if snapType := s.Type(); snapType != snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
 	}
@@ -148,9 +157,18 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		return nil
 	}
 
-	sysd := systemd.New(systemd.SystemMode, inter)
+	if opts == nil {
+		opts = &AddSnapdSnapServicesOptions{}
+	}
 
-	if err := writeSnapdToolingMountUnit(sysd, s.MountDir()); err != nil {
+	var sysd systemd.Systemd
+	if !opts.Preseeding {
+		sysd = systemd.New(systemd.SystemMode, inter)
+	} else {
+		sysd = systemd.NewEmulationMode("")
+	}
+
+	if err := writeSnapdToolingMountUnit(sysd, s.MountDir(), opts); err != nil {
 		return err
 	}
 
@@ -202,6 +220,7 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		// nothing to do
 		return nil
 	}
+
 	// stop all removed units first
 	for _, unit := range removed {
 		serviceUnits := []string{unit}
@@ -231,48 +250,53 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		// systemd version, where older versions (eg 229 in 16.04) would
 		// error out unless --force is passed, while new ones remove the
 		// symlink and create a new one.
-		enabled, err := sysd.IsEnabled(unit)
-		if err != nil {
-			return err
-		}
-		if enabled {
-			continue
+		if !opts.Preseeding {
+			enabled, err := sysd.IsEnabled(unit)
+			if err != nil {
+				return err
+			}
+			if enabled {
+				continue
+			}
 		}
 		if err := sysd.Enable([]string{unit}); err != nil {
 			return err
 		}
 	}
 
-	for _, unit := range changed {
-		// Some units (like the snapd.system-shutdown.service) cannot
-		// be started. Others like "snapd.seeded.service" are started
-		// as dependencies of snapd.service.
-		if snapdSkipStart(snapdUnits[unit].(*osutil.MemoryFileState).Content) {
-			continue
-		}
-		// Ensure to only restart if the unit was previously
-		// active. This ensures we DTRT on firstboot and do
-		// not stop e.g. snapd.socket because doing that
-		// would mean that the snapd.seeded.service is also
-		// stopped (independently of snapd.socket being
-		// active) which confuses the boot order (the unit
-		// exists before we are fully seeded).
-		isActive, err := sysd.IsActive(unit)
-		if err != nil {
-			return err
-		}
-		serviceUnits := []string{unit}
-		if isActive {
-			// we can never restart the snapd.socket because
-			// this will also bring down snapd itself
-			if unit != "snapd.socket" {
-				if err := sysd.Restart(serviceUnits, 5*time.Second); err != nil {
+	if !opts.Preseeding {
+		for _, unit := range changed {
+			// Some units (like the snapd.system-shutdown.service) cannot
+			// be started. Others like "snapd.seeded.service" are started
+			// as dependencies of snapd.service.
+			if snapdSkipStart(snapdUnits[unit].(*osutil.MemoryFileState).Content) {
+				continue
+			}
+			// Ensure to only restart if the unit was previously
+			// active. This ensures we DTRT on firstboot and do
+			// not stop e.g. snapd.socket because doing that
+			// would mean that the snapd.seeded.service is also
+			// stopped (independently of snapd.socket being
+			// active) which confuses the boot order (the unit
+			// exists before we are fully seeded).
+			isActive, err := sysd.IsActive(unit)
+			if err != nil {
+				return err
+			}
+
+			serviceUnits := []string{unit}
+			if isActive {
+				// we can never restart the snapd.socket because
+				// this will also bring down snapd itself
+				if unit != "snapd.socket" {
+					if err := sysd.Restart(serviceUnits, 5*time.Second); err != nil {
+						return err
+					}
+				}
+			} else {
+				if err := sysd.Start(serviceUnits); err != nil {
 					return err
 				}
-			}
-		} else {
-			if err := sysd.Start(serviceUnits); err != nil {
-				return err
 			}
 		}
 	}
@@ -407,6 +431,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 
+	// TODO: use EmulationMode when preseeding (teach EmulationMode about user services)?
 	sysd := systemd.New(systemd.GlobalUserMode, inter)
 
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))

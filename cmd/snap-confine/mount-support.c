@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -51,6 +52,91 @@
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
+static int must_mkdir_and_open_with_perms(const char *dir, uid_t uid, gid_t gid,
+					  mode_t mode)
+{
+	int retries = 10;
+	int fd;
+
+ mkdir:
+	if (--retries == 0) {
+		die("lost race to create dir %s too many times", dir);
+	}
+	// Ignore EEXIST since we want to reuse and we will open with
+	// O_NOFOLLOW, below.
+	if (mkdir(dir, 0700) < 0 && errno != EEXIST) {
+		die("cannot create directory %s", dir);
+	}
+	fd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+	if (fd < 0) {
+		// if is not a directory then remove it and try again
+		if (errno == ENOTDIR && unlink(dir) == 0) {
+			goto mkdir;
+		}
+		die("cannot open directory %s", dir);
+	}
+	// ensure base_dir has the expected permissions since it may have
+	// already existed
+	struct stat st;
+	if (fstat(fd, &st) < 0) {
+		die("cannot stat base directory %s", dir);
+	}
+	if (st.st_uid != uid || st.st_gid != gid
+	    || st.st_mode != (S_IFDIR | mode)) {
+		unsigned char random[10] = { 0 };
+		char random_dir[MAX_BUF] = { 0 };
+		int offset;
+		size_t i;
+
+		// base_dir isn't what we expect - create a random
+		// directory name and rename the existing erroneous
+		// base_dir to this then try recreating it again - NOTE we
+		// don't use mkdtemp() here since we don't want to actually
+		// create the directory yet as we want rename() to do that
+		// for us
+#ifdef SYS_getrandom
+		// use syscall(SYS_getrandom) since getrandom() is
+		// not available on older glibc
+		if (syscall(SYS_getrandom, random, sizeof(random), 0) !=
+		    sizeof(random)) {
+			die("cannot get random bytes");
+		}
+#else
+		// use /dev/urandom on older systems which don't support
+		// SYS_getrandom
+		int rfd = open("/dev/urandom", O_RDONLY);
+		if (rfd < 0) {
+			die("cannot open /dev/urandom");
+		}
+		if (read(rfd, random, sizeof(random)) != sizeof(random)) {
+			die("cannot get random bytes");
+		}
+		close(rfd);
+#endif
+		offset =
+		    sc_must_snprintf(random_dir, sizeof(random_dir), "%s.",
+				     dir);
+		for (i = 0; i < sizeof(random); i++) {
+			offset +=
+			    sc_must_snprintf(random_dir + offset,
+					     sizeof(random_dir) - offset,
+					     "%02x", (unsigned int)random[i]);
+		}
+		// try and get dir which we own by renaming it to something
+		// else then creating it again
+
+		// TODO - change this to use renameat2(RENAME_EXCHANGE)
+		// once we can use a newer version of glibc for snapd
+		if (rename(dir, random_dir) < 0) {
+			die("cannot rename base_dir to random_dir '%s'",
+			    random_dir);
+		}
+		close(fd);
+		goto mkdir;
+	}
+	return fd;
+}
+
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
 static void setup_private_mount(const char *snap_name)
@@ -86,29 +172,8 @@ static void setup_private_mount(const char *snap_name)
 	/* Switch to root group so that mkdir and open calls below create filesystem
 	 * elements that are not owned by the user calling into snap-confine. */
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root. Ignore EEXIST since we want
-	// to reuse and we will open with O_NOFOLLOW, below.
-	if (mkdir(base_dir, 0700) < 0 && errno != EEXIST) {
-		die("cannot create base directory %s", base_dir);
-	}
-	base_dir_fd = open(base_dir,
-			   O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (base_dir_fd < 0) {
-		die("cannot open base directory %s", base_dir);
-	}
-	/* This seems redundant on first read but it has the non-obvious
-	 * property of changing existing directories  that have already existed
-	 * but had incorrect ownership or permission. This is possible due to
-	 * earlier bugs in snap-confine and due to the fact that some systems
-	 * use persistent /tmp directory and may not clean up leftover files
-	 * for arbitrarily long. This comment applies the following two pairs
-	 * of fchmod and fchown. */
-	if (fchmod(base_dir_fd, 0700) < 0) {
-		die("cannot chmod base directory %s to 0700", base_dir);
-	}
-	if (fchown(base_dir_fd, 0, 0) < 0) {
-		die("cannot chown base directory %s to root.root", base_dir);
-	}
+	// Create /tmp/snap.$SNAP_NAME/ 0700 root.root.
+	base_dir_fd = must_mkdir_and_open_with_perms(base_dir, 0, 0, 0700);
 	// Create /tmp/snap.$SNAP_NAME/tmp 01777 root.root Ignore EEXIST since we
 	// want to reuse and we will open with O_NOFOLLOW, below.
 	if (mkdirat(base_dir_fd, "tmp", 01777) < 0 && errno != EEXIST) {
@@ -120,12 +185,12 @@ static void setup_private_mount(const char *snap_name)
 	if (tmp_dir_fd < 0) {
 		die("cannot open private tmp directory %s/tmp", base_dir);
 	}
-	if (fchmod(tmp_dir_fd, 01777) < 0) {
-		die("cannot chmod private tmp directory %s/tmp to 01777",
-		    base_dir);
-	}
 	if (fchown(tmp_dir_fd, 0, 0) < 0) {
 		die("cannot chown private tmp directory %s/tmp to root.root",
+		    base_dir);
+	}
+	if (fchmod(tmp_dir_fd, 01777) < 0) {
+		die("cannot chmod private tmp directory %s/tmp to 01777",
 		    base_dir);
 	}
 	sc_do_mount(tmp_dir, "/tmp", NULL, MS_BIND, NULL);
@@ -147,8 +212,8 @@ static void setup_private_pts(void)
 
 	struct stat st;
 
-	// Make sure /dev/pts/ptmx exists, otherwise we are in legacy mode
-	// which doesn't provide the isolation we require.
+	// Make sure /dev/pts/ptmx exists, otherwise the system doesn't provide the
+	// isolation we require.
 	if (stat("/dev/pts/ptmx", &st) != 0) {
 		die("cannot stat /dev/pts/ptmx");
 	}
@@ -321,7 +386,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// Fixes the following bugs:
 		//  - https://bugs.launchpad.net/snap-confine/+bug/1580018
 		//  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
-		const char *dirs_from_core[] = {
+		static const char *dirs_from_core[] = {
 			"/etc/alternatives", "/etc/nsswitch.conf",
 			// Some specific and privileged interfaces (e.g docker-support) give
 			// access to apparmor_parser from the base snap which at a minimum
@@ -464,7 +529,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
 		if (errno != EEXIST) {
-			die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
+			die("cannot perform operation: mkdir %s",
+			    SC_HOSTFS_DIR);
 		}
 	}
 	(void)sc_set_effective_identity(old);
@@ -659,7 +725,7 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	// Check which mode we should run in, normal or legacy.
 	if (inv->is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
-		const struct sc_mount mounts[] = {
+		static const struct sc_mount mounts[] = {
 			{"/dev"},	// because it contains devices on host OS
 			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
 			{"/home"},	// to support /home/*/snap and home interface
@@ -697,9 +763,9 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		};
 		sc_bootstrap_mount_namespace(&normal_config);
 	} else {
-		// In legacy mode we don't pivot and instead just arrange bi-
-		// directional mount propagation for two directories.
-		const struct sc_mount mounts[] = {
+		// In legacy mode we don't pivot to a base snap's rootfs and instead
+		// just arrange bi-directional mount propagation for two directories.
+		static const struct sc_mount mounts[] = {
 			{"/media", true},
 			{"/run/netns", true},
 			{},

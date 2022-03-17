@@ -35,12 +35,8 @@ import (
 // gadget.yaml's. An empty directory to use to create a gadget.yaml file should
 // be provided, such as c.MkDir() in tests.
 func LayoutMultiVolumeFromYaml(newDir, gadgetYaml string, model gadget.Model) (map[string]*gadget.LaidOutVolume, error) {
-	gadgetRoot := filepath.Join(newDir, "gadget")
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
-		return nil, err
-	}
-
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644); err != nil {
+	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
+	if err != nil {
 		return nil, err
 	}
 
@@ -52,19 +48,29 @@ func LayoutMultiVolumeFromYaml(newDir, gadgetYaml string, model gadget.Model) (m
 	return allVolumes, nil
 }
 
+func WriteGadgetYaml(newDir, gadgetYaml string) (string, error) {
+	gadgetRoot := filepath.Join(newDir, "gadget")
+	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
+		return "", err
+	}
+
+	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644); err != nil {
+		return "", err
+	}
+
+	return gadgetRoot, nil
+}
+
 // LayoutFromYaml returns a LaidOutVolume for the given gadget.yaml string. It
 // currently only supports gadget.yaml's with a single volume in them. An empty
 // directory to use to create a gadget.yaml file should be provided, such as
 // c.MkDir() in tests.
 func LayoutFromYaml(newDir, gadgetYaml string, model gadget.Model) (*gadget.LaidOutVolume, error) {
-	gadgetRoot := filepath.Join(newDir, "gadget")
-	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
+	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644); err != nil {
-		return nil, err
-	}
 	return MustLayOutSingleVolumeFromGadget(gadgetRoot, "", model)
 }
 

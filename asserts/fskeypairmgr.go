@@ -71,7 +71,7 @@ func (fskm *filesystemKeypairManager) Put(privKey PrivateKey) error {
 	return nil
 }
 
-var errKeypairNotFound = errors.New("cannot find key pair")
+var errKeypairNotFound = &keyNotFoundError{msg: "cannot find key pair"}
 
 func (fskm *filesystemKeypairManager) Get(keyID string) (PrivateKey, error) {
 	fskm.mu.RLock()

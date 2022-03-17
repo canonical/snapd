@@ -122,7 +122,7 @@ restore_snapd_lib() {
     # Synchronize snaps, seed and cache directories. The this is done separately in order to avoid copying
     # the snap files due to it is a heavy task and take most of the time of the restore phase.
     rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/snaps /var/lib/snapd
-    if os.query is-core20 ; then
+    if os.query is-core20 || os.query is-core22; then
         # TODO:UC20: /var/lib/snapd/seed is a read only bind mount, use the rw
         # mount or later mount seed as needed
         rsync -av --delete "$SNAPD_STATE_PATH"/snapd-lib/seed/ /run/mnt/ubuntu-seed/

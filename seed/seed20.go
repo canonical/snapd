@@ -502,7 +502,7 @@ func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool
 			return err
 		}
 		if modelSnap.SnapType == "gadget" {
-			// sanity
+			// validity
 			info, err := readInfo(seedSnap.Path, seedSnap.SideInfo)
 			if err != nil {
 				return err
@@ -558,4 +558,17 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 		res = append(res, snap)
 	}
 	return res, nil
+}
+
+func (s *seed20) NumSnaps() int {
+	return len(s.snaps)
+}
+
+func (s *seed20) Iter(f func(sn *Snap) error) error {
+	for _, sn := range s.snaps {
+		if err := f(sn); err != nil {
+			return err
+		}
+	}
+	return nil
 }

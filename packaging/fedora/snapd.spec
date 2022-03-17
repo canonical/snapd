@@ -70,22 +70,22 @@
 # Until we have a way to add more extldflags to gobuild macro...
 # Always use external linking when building static binaries.
 %if 0%{?fedora} || 0%{?rhel} >= 8
-%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
 # no pass PIE flags due to https://bugzilla.redhat.com/show_bug.cgi?id=1634486
-%define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
+%define gobuild_static(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 
 # These macros are missing BUILDTAGS in RHEL 8, see RHBZ#1825138
 %if 0%{?rhel} == 8
-%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
 # These macros are not defined in RHEL 7
 %if 0%{?rhel} == 7
-%define gobuild(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
-%define gotest() go test -compiler gc -ldflags "${LDFLAGS:-}" %{?**};
+%define gobuild(o:) go build -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
+%define gotest() go test -compiler gc %{?**};
 %endif
 
 # Compat path macros
@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.54.2
+Version:        2.54.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -232,16 +232,7 @@ the started snap applications.
 Summary:        SELinux module for snapd
 License:        GPLv2+
 BuildArch:      noarch
-BuildRequires:  selinux-policy, selinux-policy-devel
-Requires(post): selinux-policy-base >= %{_selinux_policy_version}
-Requires(post): policycoreutils
-%if 0%{?rhel} == 7
-Requires(post): policycoreutils-python
-%else
-Requires(post): policycoreutils-python-utils
-%endif
-Requires(pre):  libselinux-utils
-Requires(post): libselinux-utils
+%{?selinux_requires}
 
 %description selinux
 This package provides the SELinux policy module to ensure snapd
@@ -989,6 +980,57 @@ fi
 
 
 %changelog
+* Thu Mar 03 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.54.4
+ - t/m/interfaces-network-manager: use different channel depending on
+   system
+ - many: backport attrer interface changes to 2.54
+ - tests: skip version check on lp-1871652 for sru validation
+ - i/builtin: allow modem-manager interface to access some files in
+   sysfs
+ - snapstate: make "remove vulnerable version" message more
+   friendly
+ - tests: fix "undo purging" step in snap-run-devmode-classic
+ - o/snapstate: deal with potentially invalid type of refresh.retain
+   value due to lax validation
+ - interfaces: custom-device
+ - packaging/ubuntu-16.04/control: adjust libfuse3 dependency
+ - data/env: fix fish env for all versions of fish
+ - packaging/ubuntu-16.04/snapd.postinst: start socket and service
+   first
+ - interfaces/u2f-devices: add U2F-TOKEN
+ - interfaces/seccomp: Add rseq to base seccomp template
+ - tests: remove disabled snaps before calling save_snapd_state
+ - overlord: skip manager tests on riscv for now
+ - interfaces/opengl: add support for ARM Mali
+ - devicestate: ensure permissions of /var/lib/snapd/void are
+   correct
+ - cmd/snap-update-ns: convert some unexpected decimal file mode
+   constants to octal.
+ - interfaces/shared-memory: support single wild-cards in the
+   read/write paths
+ - packaging: fix running autopkgtest
+ - i/builtin/xilinx-dma-host: add interface for Xilinx DMA driver
+ - tests: fix `tests/core/create-user` on testflinger pi3
+ - tests: fix parallel-install-basic on external UC16 devices
+ - tests: re-enable kernel-module-load tests on arm
+ - tests: do not run k8s smoke test on 32 bit systems
+
+* Tue Feb 15 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.54.3
+ - SECURITY UPDATE: Local privilege escalation
+  - snap-confine: Add validations of the location of the snap-confine
+    binary within snapd.
+  - snap-confine: Fix race condition in snap-confine when preparing a
+    private mount namespace for a snap.
+  - CVE-2021-44730
+  - CVE-2021-44731
+ - SECURITY UPDATE: Data injection from malicious snaps
+  - interfaces: Add validations of snap content interface and layout
+    paths in snapd.
+  - CVE-2021-4120
+  - LP: #1949368
+
 * Thu Jan 06 2022 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.54.2
  - tests: exclude interfaces-kernel-module load on arm

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -126,6 +126,86 @@ func (s *fetcherSuite) TestFetch(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName(), Equals, "foo")
+}
+
+func (s *fetcherSuite) TestFetchDelegation(c *C) {
+	c.Skip("authority-delegation disabled")
+
+	s.prereqSnapAssertions(c)
+
+	localDB := setup3rdPartySigning(c, "local", s.storeSigning, s.storeSigning.SigningDB.Database)
+
+	// add delegation
+	headers := map[string]interface{}{
+		"authority-id": "can0nical",
+		"account-id":   "can0nical",
+		"delegate-id":  "local",
+		"assertions": []interface{}{
+			map[string]interface{}{
+				"type": "snap-revision",
+				"headers": map[string]interface{}{
+					"snap-id": "snap-id-1",
+				},
+				"since": time.Now().Format(time.RFC3339),
+			},
+		},
+	}
+	ad, err := s.storeSigning.Sign(asserts.AuthorityDelegationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Check(s.storeSigning.Add(ad), IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id":  "can0nical",
+		"signatory-id":  "local",
+		"series":        "16",
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": makeDigest(10),
+		"snap-size":     "1000",
+		"snap-revision": "10",
+		"developer-id":  "local",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := localDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{makeDigest(10)},
+	}
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(s.storeSigning.Find)
+	}
+
+	f := asserts.NewFetcher(db, retrieve, db.Add)
+
+	err = f.Fetch(ref)
+	c.Assert(err, IsNil)
+
+	snapRev, err = ref.Resolve(db.Find)
+	c.Assert(err, IsNil)
+	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
+
+	snapDecl, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "snap-id-1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName(), Equals, "foo")
+
+	_, err = db.Find(asserts.AuthorityDelegationType, map[string]string{
+		"account-id":  "can0nical",
+		"delegate-id": "local",
+	})
+	c.Check(err, IsNil)
 }
 
 func (s *fetcherSuite) TestSave(c *C) {

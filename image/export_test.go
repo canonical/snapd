@@ -20,6 +20,7 @@
 package image
 
 import (
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
@@ -60,5 +61,13 @@ func MockWriteResolvedContent(f func(prepareImageDir string, info *gadget.Info, 
 	writeResolvedContent = f
 	return func() {
 		writeResolvedContent = oldWriteResolvedContent
+	}
+}
+
+func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitecture string) (*ToolingStore, error)) (restore func()) {
+	old := newToolingStoreFromModel
+	newToolingStoreFromModel = f
+	return func() {
+		newToolingStoreFromModel = old
 	}
 }

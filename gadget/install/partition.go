@@ -169,7 +169,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 			Size:             quantity.Size(newSizeInSectors * sectorSize),
 		}
 
-		// format sfdisk output for creating this partition
+		// format sfdisk input for creating this partition
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			startInSectors, newSizeInSectors, ptype, s.Name)
 
