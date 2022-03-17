@@ -6,13 +6,13 @@ summary: Check that package remove and purge works inside LXD containers
 # ubuntu-18.04-32: i386 is not supported by lxd
 systems: [ubuntu-18.04-64, ubuntu-20.04-*]
 
+manual: true
+
 # start early
 priority: 1000
 
 # lxd downloads can be quite slow
 kill-timeout: 25m
-
-manual: true
 
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
