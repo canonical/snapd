@@ -7453,6 +7453,10 @@ func (s *snapmgrTestSuite) TestUpdateAfterCore22Migration(c *C) {
 	assertMigrationState(c, s.state, "some-snap", expected)
 }
 
+// takes in some test parameters to prepare the failure and return the root
+// error that will cause the failure.
+type prepFailFunc func(*overlord.Overlord, *state.Change) error
+
 func (s *snapmgrTestSuite) TestUndoRevertMigrationIfRevertFails(c *C) {
 	s.testUndoRevertMigrationIfRevertFails(c, func(_ *overlord.Overlord, chg *state.Change) error {
 		err := errors.New("boom")
@@ -7641,18 +7645,18 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigrationOnCore22(c *C) {
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
 		SnapID:   "snap-for-core22-id",
-		RealName: "snap-for-core22",
+		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, "snap-for-core22", snapst)
-	c.Assert(snapstate.WriteSeqFile("snap-for-core22", snapst), IsNil)
+	snapstate.Set(s.state, "snap-core18-to-core22", snapst)
+	c.Assert(snapstate.WriteSeqFile("snap-core18-to-core22", snapst), IsNil)
 
 	chg := s.state.NewChange("update", "update a snap")
-	ts, err := snapstate.Update(s.state, "snap-for-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "snap-core18-to-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7662,13 +7666,13 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigrationOnCore22(c *C) {
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{macaroon: s.user.StoreMacaroon, name: "core22", target: filepath.Join(dirs.SnapBlobDir, "core22_11.snap")},
-		{macaroon: s.user.StoreMacaroon, name: "snap-for-core22", target: filepath.Join(dirs.SnapBlobDir, "snap-for-core22_2.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "snap-core18-to-core22", target: filepath.Join(dirs.SnapBlobDir, "snap-core18-to-core22_2.snap")},
 	})
 
 	containsInOrder(c, s.fakeBackend.ops, []string{"hide-snap-data", "init-exposed-snap-home"})
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
-	assertMigrationState(c, s.state, "snap-for-core22", expected)
+	assertMigrationState(c, s.state, "snap-core18-to-core22", expected)
 }
 
 func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateToCore22FailsAfterWritingState(c *C) {
@@ -7697,18 +7701,18 @@ func (s *snapmgrTestSuite) testUndoMigrationIfUpdateToCore22Fails(c *C, prepFail
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
 		SnapID:   "snap-for-core22-id",
-		RealName: "snap-for-core22",
+		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, "snap-for-core22", snapst)
-	c.Assert(snapstate.WriteSeqFile("snap-for-core22", snapst), IsNil)
+	snapstate.Set(s.state, "snap-core18-to-core22", snapst)
+	c.Assert(snapstate.WriteSeqFile("snap-core18-to-core22", snapst), IsNil)
 
 	chg := s.state.NewChange("update", "update a snap")
-	ts, err := snapstate.Update(s.state, "snap-for-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "snap-core18-to-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7723,7 +7727,7 @@ func (s *snapmgrTestSuite) testUndoMigrationIfUpdateToCore22Fails(c *C, prepFail
 	expectedOps := []string{"hide-snap-data", "init-exposed-snap-home", "rm-exposed-snap-home", "undo-hide-snap-data"}
 	containsInOrder(c, s.fakeBackend.ops, expectedOps)
 
-	assertMigrationState(c, s.state, "snap-for-core22", nil)
+	assertMigrationState(c, s.state, "snap-core18-to-core22", nil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) {
@@ -7733,7 +7737,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) 
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
 		SnapID:   "snap-for-core22-id",
-		RealName: "snap-for-core22",
+		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
 		Sequence:       []*snap.SideInfo{si},
@@ -7743,11 +7747,11 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) 
 	}
 	// state is hidden but flag is off; was turned off just before refresh to
 	// core22 base
-	snapstate.Set(s.state, "snap-for-core22", snapst)
-	c.Assert(snapstate.WriteSeqFile("snap-for-core22", snapst), IsNil)
+	snapstate.Set(s.state, "snap-core18-to-core22", snapst)
+	c.Assert(snapstate.WriteSeqFile("snap-core18-to-core22", snapst), IsNil)
 
 	chg := s.state.NewChange("update", "update a snap")
-	ts, err := snapstate.Update(s.state, "snap-for-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "snap-core18-to-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7757,14 +7761,14 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) 
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{macaroon: s.user.StoreMacaroon, name: "core22", target: filepath.Join(dirs.SnapBlobDir, "core22_11.snap")},
-		{macaroon: s.user.StoreMacaroon, name: "snap-for-core22", target: filepath.Join(dirs.SnapBlobDir, "snap-for-core22_2.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "snap-core18-to-core22", target: filepath.Join(dirs.SnapBlobDir, "snap-core18-to-core22_2.snap")},
 	})
 
 	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
 	s.fakeBackend.ops.MustFindOp(c, "init-exposed-snap-home")
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
-	assertMigrationState(c, s.state, "snap-for-core22", expected)
+	assertMigrationState(c, s.state, "snap-core18-to-core22", expected)
 }
 
 func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22ButFail(c *C) {
@@ -7774,7 +7778,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22ButFail
 	si := &snap.SideInfo{
 		Revision: snap.R(1),
 		SnapID:   "snap-for-core22-id",
-		RealName: "snap-for-core22",
+		RealName: "snap-core18-to-core22",
 	}
 	snapst := &snapstate.SnapState{
 		Sequence:       []*snap.SideInfo{si},
@@ -7784,11 +7788,11 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22ButFail
 	}
 	// state is hidden but flag is off; was turned off just before refresh to
 	// core22 base
-	snapstate.Set(s.state, "snap-for-core22", snapst)
-	c.Assert(snapstate.WriteSeqFile("snap-for-core22", snapst), IsNil)
+	snapstate.Set(s.state, "snap-core18-to-core22", snapst)
+	c.Assert(snapstate.WriteSeqFile("snap-core18-to-core22", snapst), IsNil)
 
 	chg := s.state.NewChange("update", "update a snap")
-	ts, err := snapstate.Update(s.state, "snap-for-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
+	ts, err := snapstate.Update(s.state, "snap-core18-to-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -7809,7 +7813,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22ButFail
 	containsInOrder(c, s.fakeBackend.ops, []string{"init-exposed-snap-home", "rm-exposed-snap-home"})
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	assertMigrationState(c, s.state, "snap-for-core22", expected)
+	assertMigrationState(c, s.state, "snap-core18-to-core22", expected)
 }
 
 func mustMatch(c *C, haystack []string, needle string) {
@@ -8431,7 +8435,3 @@ func failAfterLinkSnap(ol *overlord.Overlord, chg *state.Change) error {
 
 	return err
 }
-
-// takes in some test parameters to prepare the failure and return the root
-// error that will cause the failure.
-type prepFailFunc func(*overlord.Overlord, *state.Change) error

@@ -1091,6 +1091,8 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			err = nil
 		}
 
+		// try to undo the migration action if any error happens. The helpers don't
+		// undo because the handler has to be able to anyway (errors can occur after)
 		defer func() {
 			if err != nil && undo != nil {
 				undo()
@@ -1137,9 +1139,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapsup.UndidHomeMigration = false
 		snapst.MigratedToExposedHome = true
 
-		st.Unlock()
 		err := writeMigrationStatus(t, snapst, snapsup)
-		st.Lock()
 		if err != nil {
 			return err
 		}
@@ -1153,9 +1153,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapsup.UndidHiddenMigration = false
 		snapst.MigratedHidden = true
 
-		st.Unlock()
 		err := writeMigrationStatus(t, snapst, snapsup)
-		st.Lock()
 		if err != nil {
 			return err
 		}
@@ -1255,12 +1253,14 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		undo, err = m.doHomeMigration(t, st, snapsup, newInfo.Revision)
 	case full:
 		undo, err = m.doFullMigration(t, st, snapsup, newInfo)
-	default:
-		// for now, don't support reverting the ~/Snap migration in a refresh
-		err = nil
+	case revertFull:
+		fallthrough
+	case revertHome:
+		t.Logf("Reverting the ~/Snap migration when downgrading from core22 through an install is currently unsupported. Use 'snap revert' instead.")
 	}
 
-	// if task fails, undo any migration actions taken
+	// try to undo the migration action if any error happens. The helpers don't
+	// undo because the handler has to be able to anyway (errors can occur after)
 	defer func() {
 		if err != nil && undo != nil {
 			undo()
@@ -1440,7 +1440,7 @@ func (m *SnapManager) revertHomeMigration(t *state.Task, st *state.State, snapsu
 			dir := filepath.Join("~", dirs.ExposedSnapHomeDir, snapsup.InstanceName())
 			st.Lock()
 			defer st.Unlock()
-			st.Warnf("cannot undo removal of %q snap dir exposing: %v", dir, err)
+			st.Warnf("cannot undo removal of %q: %v", dir, err)
 		}
 	}
 
@@ -1500,7 +1500,11 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 		snapsup.MigratedToExposedHome = false
 		snapst.MigratedToExposedHome = false
-		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
+
+		st.Lock()
+		err = writeMigrationStatus(t, snapst, snapsup)
+		st.Unlock()
+		if err != nil {
 			return err
 		}
 	}
@@ -1522,7 +1526,10 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			snapst.MigratedHidden = true
 		}
 
-		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
+		st.Lock()
+		err = writeMigrationStatus(t, snapst, snapsup)
+		st.Unlock()
+		if err != nil {
 			return err
 		}
 	}
@@ -1563,11 +1570,10 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 // writeMigrationStatus writes the SnapSetup, state and sequence file (if they
 // exist). This must be called after the migration undo procedure is done since
-// only then do we know the actual final state of the migration.
+// only then do we know the actual final state of the migration. State must be
+// locked by caller.
 func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) error {
 	st := t.State()
-	st.Lock()
-	defer st.Unlock()
 
 	if err := SetTaskSnapSetup(t, snapsup); err != nil {
 		return err

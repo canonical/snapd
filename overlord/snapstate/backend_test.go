@@ -365,7 +365,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "core22"
 		typ = snap.TypeBase
 	case "snap-for-core22-id":
-		name = "snap-for-core22"
+		name = "snap-core18-to-core22"
 	case "snap-for-core24-id":
 		name = "snap-for-core24"
 	case "snap-with-snapd-control-id":
@@ -909,7 +909,7 @@ apps:
 			panic(err)
 		}
 		info.SideInfo = *si
-	case "snap-for-core22":
+	case "snap-core18-to-core22":
 		info.Base = "core18"
 		if info.Revision.N > 1 {
 			info.Base = "core22"
