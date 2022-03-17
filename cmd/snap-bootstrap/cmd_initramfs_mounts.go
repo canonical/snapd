@@ -1228,7 +1228,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	part := degradedState.partition("ubuntu-save")
 	degraded := false
 	isEncrypted := false
-	_, findErr := disk.FindMatchingPartitionUUIDWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save"))
+	_, findErr := disk.FindMatchingPartitionWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save"))
 	if findErr == nil {
 		// found it and it's encrypted
 		isEncrypted = true
@@ -1262,12 +1262,11 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 				degraded = true
 			}
 		}
-	} else if partUUID, findErr := disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save"); findErr == nil {
+	} else if found, findErr := disk.FindMatchingPartitionWithFsLabel("ubuntu-save"); findErr == nil {
 		// found it and it's unencrypted
 		part.FindState = partitionFound
-		dev := fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID)
-		part.partDevice = dev
-		part.fsDevice = dev
+		part.partDevice = found.KernelDeviceNode
+		part.fsDevice = found.KernelDeviceNode
 	} else {
 		degradedState.LogErrorf("cannot find ubuntu-save: %v", findErr)
 		part.FindState = partitionAbsentOptional
@@ -1322,7 +1321,6 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	// done, no output, no error indicates to initramfs we are done with
 	// mounting stuff
 	return nil
-
 }
 
 // checkDataAndSavePairing make sure that ubuntu-data and ubuntu-save

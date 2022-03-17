@@ -97,33 +97,39 @@ var (
 	}
 
 	seedPart = disks.Partition{
-		FilesystemLabel: "ubuntu-seed",
-		PartitionUUID:   "ubuntu-seed-partuuid",
+		FilesystemLabel:  "ubuntu-seed",
+		PartitionUUID:    "ubuntu-seed-partuuid",
+		KernelDeviceNode: "/dev/sda2",
 	}
 
 	bootPart = disks.Partition{
-		FilesystemLabel: "ubuntu-boot",
-		PartitionUUID:   "ubuntu-boot-partuuid",
+		FilesystemLabel:  "ubuntu-boot",
+		PartitionUUID:    "ubuntu-boot-partuuid",
+		KernelDeviceNode: "/dev/sda3",
 	}
 
 	savePart = disks.Partition{
-		FilesystemLabel: "ubuntu-save",
-		PartitionUUID:   "ubuntu-save-partuuid",
+		FilesystemLabel:  "ubuntu-save",
+		PartitionUUID:    "ubuntu-save-partuuid",
+		KernelDeviceNode: "/dev/sda4",
 	}
 
 	dataPart = disks.Partition{
-		FilesystemLabel: "ubuntu-data",
-		PartitionUUID:   "ubuntu-data-partuuid",
+		FilesystemLabel:  "ubuntu-data",
+		PartitionUUID:    "ubuntu-data-partuuid",
+		KernelDeviceNode: "/dev/sda5",
 	}
 
 	saveEncPart = disks.Partition{
-		FilesystemLabel: "ubuntu-save-enc",
-		PartitionUUID:   "ubuntu-save-enc-partuuid",
+		FilesystemLabel:  "ubuntu-save-enc",
+		PartitionUUID:    "ubuntu-save-enc-partuuid",
+		KernelDeviceNode: "/dev/sda4",
 	}
 
 	dataEncPart = disks.Partition{
-		FilesystemLabel: "ubuntu-data-enc",
-		PartitionUUID:   "ubuntu-data-enc-partuuid",
+		FilesystemLabel:  "ubuntu-data-enc",
+		PartitionUUID:    "ubuntu-data-enc-partuuid",
+		KernelDeviceNode: "/dev/sda5",
 	}
 
 	// a boot disk without ubuntu-save
@@ -6383,7 +6389,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 			nil,
 		},
 		{
-			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			"/dev/sda4",
 			boot.InitramfsUbuntuSaveDir,
 			nil,
 			nil,
@@ -6474,8 +6480,7 @@ base=core20_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	// we should not have written a degraded.json
-	// we should not have written a degraded.json
+	// we should have written a degraded.json with save marked as absent-but-optional
 	checkDegradedJSON(c, map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
@@ -6586,7 +6591,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should not have written a degraded.json
+	// we should have written a degraded.json
 	checkDegradedJSON(c, map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
@@ -6695,7 +6700,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should not have written a degraded.json
+	// we should have written a degraded.json
 	checkDegradedJSON(c, map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
