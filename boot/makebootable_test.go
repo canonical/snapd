@@ -605,6 +605,7 @@ version: 5.0
 				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
@@ -613,6 +614,7 @@ version: 5.0
 				secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(kernel))),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			})
 		default:
@@ -944,6 +946,7 @@ version: 5.0
 			secboot.NewLoadChain(shim, secboot.NewLoadChain(grub, secboot.NewLoadChain(runGrub, secboot.NewLoadChain(runKernel)))),
 		})
 		c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			"snapd_recovery_mode=factory-reset snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		})
@@ -957,7 +960,10 @@ version: 5.0
 	c.Assert(err, ErrorMatches, "cannot seal the encryption keys: seal error")
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C, whichFile, content, errMsg, cmdlineRun, cmdlineRecovery string) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C, whichFile, content, errMsg string, cmdlines map[string]string) {
+	if cmdlines == nil {
+		cmdlines = map[string]string{}
+	}
 	bootloader.Force(nil)
 
 	model := boottest.MakeMockUC20Model()
@@ -1087,11 +1093,12 @@ version: 5.0
 
 		switch sealKeysCalls {
 		case 1:
-			c.Assert(params.ModelParams[0].KernelCmdlines, HasLen, 2)
-			c.Assert(params.ModelParams[0].KernelCmdlines, testutil.Contains, cmdlineRecovery)
-			c.Assert(params.ModelParams[0].KernelCmdlines, testutil.Contains, cmdlineRun)
+			c.Assert(params.ModelParams[0].KernelCmdlines, HasLen, 3)
+			c.Assert(params.ModelParams[0].KernelCmdlines, testutil.Contains, cmdlines["recover"])
+			c.Assert(params.ModelParams[0].KernelCmdlines, testutil.Contains, cmdlines["factory-reset"])
+			c.Assert(params.ModelParams[0].KernelCmdlines, testutil.Contains, cmdlines["run"])
 		case 2:
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{cmdlineRecovery})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{cmdlines["factory-reset"], cmdlines["recover"]})
 		default:
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
@@ -1148,7 +1155,7 @@ model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQu
 current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 current_kernel_command_lines=["%v"]
-`, cmdlineRun))
+`, cmdlines["run"]))
 	// make sure SealKey was called for the run object and the fallback object
 	c.Check(sealKeysCalls, Equals, 2)
 
@@ -1160,20 +1167,26 @@ current_kernel_command_lines=["%v"]
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelExtraArgs(c *C) {
-	cmdlineRun := "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz"
-	cmdlineRecovery := "snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1 foo bar baz"
-	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar baz", "", cmdlineRun, cmdlineRecovery)
+	cmdlines := map[string]string{
+		"run":           "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz",
+		"recover":       "snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1 foo bar baz",
+		"factory-reset": "snapd_recovery_mode=factory-reset snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1 foo bar baz",
+	}
+	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar baz", "", cmdlines)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelFullArgs(c *C) {
-	cmdlineRun := "snapd_recovery_mode=run foo bar baz"
-	cmdlineRecovery := "snapd_recovery_mode=recover snapd_recovery_system=20191216 foo bar baz"
-	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.full", "foo bar baz", "", cmdlineRun, cmdlineRecovery)
+	cmdlines := map[string]string{
+		"run":           "snapd_recovery_mode=run foo bar baz",
+		"recover":       "snapd_recovery_mode=recover snapd_recovery_system=20191216 foo bar baz",
+		"factory-reset": "snapd_recovery_mode=factory-reset snapd_recovery_system=20191216 foo bar baz",
+	}
+	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.full", "foo bar baz", "", cmdlines)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelInvalidArgs(c *C) {
 	errMsg := `cannot compose the candidate command line: cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: disallowed kernel argument "snapd=unhappy"`
-	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar snapd=unhappy", errMsg, "", "")
+	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar snapd=unhappy", errMsg, nil)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable(c *C) {

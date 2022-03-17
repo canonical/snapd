@@ -224,7 +224,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 // assumes --proceed.
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRuninhibit(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
-		// sanity, refresh is inhibited for snap-a.
+		// validity, refresh is inhibited for snap-a.
 		hint, err := runinhibit.IsLocked("snap-a")
 		c.Assert(err, IsNil)
 		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
@@ -244,7 +244,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 	// pretend that snap-a is initially held by itself.
 	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-a")
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// enable refresh-app-awareness
@@ -295,7 +295,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	// pretend that snap-b is initially held by snap-a.
 	_, err := snapstate.HoldRefresh(st, "snap-a", 0, "snap-b")
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	checkIsHeld(c, st, "snap-b", "snap-a")
 
 	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")

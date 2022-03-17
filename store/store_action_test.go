@@ -2234,7 +2234,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 		case authNoncesPath:
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
-			// sanity of request
+			// validity of request
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
