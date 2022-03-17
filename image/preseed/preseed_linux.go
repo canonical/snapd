@@ -537,7 +537,7 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 }
 
 // Core20 runs preseeding of UC20 system prepared by prepare-image in prepareImageDir
-// and stores the resulting preseed artifact.tgz file in system-seed/systems/<systemlabel>/artifact.tgz.
+// and stores the resulting preseed preseed.tgz file in system-seed/systems/<systemlabel>/preseed.tgz.
 // Expects single systemlabel under systems directory.
 func Core20(prepareImageDir string) error {
 	popts, cleanup, err := prepareCore20Chroot(prepareImageDir)
