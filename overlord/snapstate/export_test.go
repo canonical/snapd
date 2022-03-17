@@ -293,7 +293,7 @@ func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID 
 	}
 }
 
-func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info) error) func() {
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, preseed bool) error) func() {
 	old := generateSnapdWrappers
 	generateSnapdWrappers = f
 	return func() {

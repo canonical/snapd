@@ -710,7 +710,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			}
 			// TODO: if future changes to wrappers need one more snapd restart,
 			// then it should be handled here as well.
-			if err := generateSnapdWrappers(snapdInfo); err != nil {
+			if err := generateSnapdWrappers(snapdInfo, false); err != nil {
 				return err
 			}
 		}

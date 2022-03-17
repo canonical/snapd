@@ -147,7 +147,7 @@ type AddSnapdSnapServicesOptions struct {
 
 // AddSnapdSnapServices sets up the services based on a given snapd snap in the
 // system.
-func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter interacter) error {
+func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter Interacter) error {
 	if snapType := s.Type(); snapType != snap.TypeSnapd {
 		return fmt.Errorf("internal error: adding explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
 	}
@@ -425,7 +425,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 	return nil
 }
 
-func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
+func writeSnapdUserServicesOnCore(s *snap.Info, inter Interacter) error {
 	// Ensure /etc/systemd/user exists
 	if err := os.MkdirAll(dirs.SnapUserServicesDir, 0755); err != nil {
 		return err
@@ -500,7 +500,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 // undoSnapdUserServicesOnCore attempts to remove user services that were
 // deployed in the filesystem as part of snapd snap installation. This should
 // only be executed as part of a controlled undo path.
-func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
+func undoSnapdUserServicesOnCore(s *snap.Info, inter Interacter) error {
 	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	// list user service and socket units present in the snapd snap
@@ -650,7 +650,7 @@ func undoSnapdDbusActivationOnCore() error {
 // call to AddSnapdSnapServices. The core snap is used as the reference for
 // restoring the system state, making this undo helper suitable for use when
 // reverting the first installation of the snapd snap on a core device.
-func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter interacter) error {
+func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter Interacter) error {
 	if snapType := s.Type(); snapType != snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit snapd services for snap %q type %q is unexpected", s.InstanceName(), snapType)
 	}

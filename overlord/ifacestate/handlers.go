@@ -39,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var snapstateFinishRestart = snapstate.FinishRestart
+
 // confinementOptions returns interfaces.ConfinementOptions from snapstate.Flags.
 func confinementOptions(flags snapstate.Flags) interfaces.ConfinementOptions {
 	return interfaces.ConfinementOptions{
@@ -1120,8 +1122,10 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
-	if err := snapstate.FinishRestart(task, snapsup); err != nil {
-		return err
+	if !m.preseed {
+		if err := snapstateFinishRestart(task, snapsup); err != nil {
+			return err
+		}
 	}
 
 	snapName := snapsup.InstanceName()
