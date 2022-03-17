@@ -264,23 +264,6 @@ func maxq(a, b quantity.Size) quantity.Size {
 	return b
 }
 
-// mergeUnique merges two lists, and return a list of unique elements
-func mergeUnique(a, b []int) []int {
-	m := map[int]bool{}
-	for _, v := range a {
-		m[v] = true
-	}
-	for _, v := range b {
-		m[v] = true
-	}
-	result := []int{}
-	for k := range m {
-		result = append(result, k)
-	}
-	sort.Ints(result)
-	return result
-}
-
 func (grp *Group) getAllowedCPUs() []int {
 	if grp.CPULimit == nil || len(grp.CPULimit.AllowedCPUs) == 0 {
 		return []int{}
@@ -306,6 +289,20 @@ func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocation
 		AllowedCPUsLimit: grp.getAllowedCPUs(),
 	}
 
+	// sliceUniqueAndSort sorts an array of ints in ascending order and removes duplicates
+	sliceUniqueAndSort := func(input []int) []int {
+		m := map[int]bool{}
+		for _, v := range input {
+			m[v] = true
+		}
+		result := []int{}
+		for k := range m {
+			result = append(result, k)
+		}
+		sort.Ints(result)
+		return result
+	}
+
 	for _, subGroup := range grp.subGroups {
 		// cyclic checks are made by visitTree so we make the assumption here
 		// that no cyclic dependencies exists.
@@ -319,12 +316,18 @@ func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocation
 		limits.CPUReserved += max(subGroupLimits.CPULimit, subGroupLimits.CPUReserved)
 		limits.ThreadsReserved += max(subGroupLimits.ThreadsLimit, subGroupLimits.ThreadsReserved)
 
-		// We need to merge the allowed CPUs lists, but we need to make sure that the list is unique
+		// We need to merge the allowed CPUs lists, but we need to make sure that the list is unique, since cpu cores
+		// can be reused between sub-groups.
 		if len(subGroupLimits.AllowedCPUsLimit) > 0 {
-			limits.AllowedCPUsReserved = mergeUnique(limits.AllowedCPUsReserved, subGroupLimits.AllowedCPUsLimit)
+			limits.AllowedCPUsReserved = append(limits.AllowedCPUsReserved, subGroupLimits.AllowedCPUsLimit...)
 		} else if len(subGroupLimits.AllowedCPUsReserved) > 0 {
-			limits.AllowedCPUsReserved = mergeUnique(limits.AllowedCPUsReserved, subGroupLimits.AllowedCPUsReserved)
+			limits.AllowedCPUsReserved = append(limits.AllowedCPUsReserved, subGroupLimits.AllowedCPUsReserved...)
 		}
+	}
+
+	// Sort the allowed CPUs list, and remove duplicates.
+	if len(limits.AllowedCPUsReserved) > 0 {
+		limits.AllowedCPUsReserved = sliceUniqueAndSort(limits.AllowedCPUsReserved)
 	}
 
 	// Store the retrieved limits for the group
@@ -332,7 +335,7 @@ func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocation
 	return limits
 }
 
-// validateMemoryResourceFit verifies that the new memory limit doesn't conflict with the current memory
+// validateMemoryResourceFit verifies that the new memory limit doesn't conflict with the current reserved memory
 // limit of the group, and if not locates the nearest parent group that has a memory quota, and then verifies
 // if that group has any space available by checking its 'memoryReserved'. The 'memoryReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
@@ -340,8 +343,9 @@ func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllo
 
 	// make sure current usage does not exceed the new limit, we can avoid any
 	// recursive descent as we already have counted up the usage of our children.
-	if grp.MemoryLimit != 0 {
-		currentLimits := allQuotas[grp.Name]
+	currentLimits := allQuotas[grp.Name]
+	memoryReserved := grp.MemoryLimit
+	if currentLimits != nil {
 		if currentLimits.MemoryReserved > memoryLimit {
 			return fmt.Errorf("group memory limit of %s is too small to fit current subgroup usage of %s",
 				memoryLimit.IECString(), currentLimits.MemoryReserved.IECString())
@@ -352,6 +356,8 @@ func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllo
 		if memoryLimit < grp.MemoryLimit {
 			return nil
 		}
+
+		memoryReserved = maxq(memoryReserved, currentLimits.MemoryReserved)
 	}
 
 	// now we check parents up the tree to make sure we also fit with any
@@ -362,7 +368,7 @@ func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllo
 		if limits != nil && limits.MemoryLimit != 0 {
 			// We need to take into account that we might have a matching limit in this group, and thus we account
 			// for some of the reserved memory. So subtract that.
-			memoryAvailable := limits.MemoryLimit - (limits.MemoryReserved - grp.MemoryLimit)
+			memoryAvailable := limits.MemoryLimit - (limits.MemoryReserved - memoryReserved)
 			if memoryLimit > memoryAvailable {
 				return fmt.Errorf("sub-group memory limit of %s is too large to fit inside group %q remaining quota space %s",
 					memoryLimit.IECString(), parent.Name, memoryAvailable.IECString())
@@ -374,28 +380,30 @@ func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllo
 	return nil
 }
 
-// validateCPUResourceFit locates the nearest parent group that has a cpu quota, and then verifies
+// validateCPUResourceFit verifies that the new cpu limit doesn't conflict with the current reserved cpu
+// limit of the group, and if not locates the nearest parent group that has a cpu quota, and then verifies
 // if that group has any space available by checking its 'cpuReserved'. The 'cpuReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
 func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocations, cpuCount, cpuPercentage int) error {
-	cpuRequested := max(cpuCount, 1) * cpuPercentage
-	cpuCurrent := 0
 
 	// make sure current usage does not exceed the new limit, we can avoid any
 	// recursive descent as we already have counted up the usage of our children.
-	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
-		currentLimits := allQuotas[grp.Name]
-		cpuCurrent = currentLimits.CPUReserved
-		if cpuCurrent > cpuRequested {
+	currentLimits := allQuotas[grp.Name]
+	cpuRequested := max(cpuCount, 1) * cpuPercentage
+	cpuReserved := grp.getTotalCPUPercentage()
+	if currentLimits != nil {
+		if currentLimits.CPUReserved > cpuRequested {
 			return fmt.Errorf("group cpu limit of %d%% is less than current subgroup usage of %d%%",
-				cpuRequested, cpuCurrent)
+				cpuRequested, currentLimits.CPUReserved)
 		}
 
 		// if we are reducing the limit, then we don't need to check upper parents,
 		// as we can assume it will fit by this point
-		if cpuRequested < max(grp.CPULimit.Count, 1)*grp.CPULimit.Percentage {
+		if cpuRequested < cpuReserved {
 			return nil
 		}
+
+		cpuReserved = max(cpuReserved, currentLimits.CPUReserved)
 	}
 
 	// now we check parents up the tree to make sure we also fit with any
@@ -406,7 +414,7 @@ func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocat
 		if limits != nil && limits.CPULimit != 0 {
 			// We need to take into account that we might have a matching limit in this group, and thus we account
 			// for some of the reserved amount of cpu time. So subtract that.
-			cpuAvailable := limits.CPULimit - (limits.CPUReserved - cpuCurrent)
+			cpuAvailable := limits.CPULimit - (limits.CPUReserved - cpuReserved)
 			if cpuRequested > cpuAvailable {
 				return fmt.Errorf("sub-group cpu limit of %d%% is too large to fit inside group %q remaining quota space %d%%",
 					cpuRequested, parent.Name, cpuAvailable)
@@ -427,14 +435,15 @@ func contains(s []int, e int) bool {
 	return false
 }
 
-// validateCPUsAllowedResourceFit locates the nearest parent group that has a cpu-set quota, and then verifies
+// validateCPUsAllowedResourceFit verifies that the new cpu-set doesn't conflict with the current reserved cpu-set
+// of the group, and if not locates the nearest parent group that has a cpu-set quota, and then verifies
 // that the requested cpu cores match a subset of the previously set allowance.
 func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuotaAllocations, cpusAllowed []int) error {
 
 	// make sure current cpu sets don't conflict, we can avoid any
 	// recursive descent as we already have counted up the usage of our children.
-	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
-		currentLimits := allQuotas[grp.Name]
+	currentLimits := allQuotas[grp.Name]
+	if currentLimits != nil {
 		for _, cpu := range currentLimits.AllowedCPUsReserved {
 			if !contains(cpusAllowed, cpu) {
 				return fmt.Errorf("group cpu-set limit of %v is not a superset of current subgroup usage of %v",
@@ -446,8 +455,9 @@ func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuot
 		// and we got past the previous check then we don't need to check upper parents,
 		// we can assume by this point it will be ok
 		isSubset := true
+		currentCPUs := grp.getAllowedCPUs()
 		for _, cpu := range cpusAllowed {
-			if !contains(grp.CPULimit.AllowedCPUs, cpu) {
+			if !contains(currentCPUs, cpu) {
 				isSubset = false
 				break
 			}
@@ -476,17 +486,19 @@ func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuot
 	return nil
 }
 
-// validateThreadResourceFit locates the nearest parent group that has a thread quota, and then verifies
+// validateThreadResourceFit verifies that the new thread limit doesn't conflict with the current reserved thread
+// limit of the group, and if not locates the nearest parent group that has a thread quota, and then verifies
 // if that group has any space available by checking its 'threadsReserved'. The 'threadsReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
 func (grp *Group) validateThreadResourceFit(allQuotas map[string]*groupQuotaAllocations, threadLimit int) error {
 
 	// make sure current usage does not exceed the new limit, we can avoid any
 	// recursive descent as we already have counted up the usage of our children.
-	if grp.TaskLimit != 0 {
-		currentLimits := allQuotas[grp.Name]
+	currentLimits := allQuotas[grp.Name]
+	threadsReserved := grp.TaskLimit
+	if currentLimits != nil {
 		if currentLimits.ThreadsReserved > threadLimit {
-			return fmt.Errorf("group memory limit of %d is too small to fit current subgroup usage of %d",
+			return fmt.Errorf("group thread limit of %d is too small to fit current subgroup usage of %d",
 				threadLimit, currentLimits.ThreadsReserved)
 		}
 
@@ -495,6 +507,8 @@ func (grp *Group) validateThreadResourceFit(allQuotas map[string]*groupQuotaAllo
 		if threadLimit < grp.TaskLimit {
 			return nil
 		}
+
+		threadsReserved = max(threadsReserved, currentLimits.ThreadsReserved)
 	}
 
 	// now we check parents up the tree to make sure we also fit with any
@@ -505,7 +519,7 @@ func (grp *Group) validateThreadResourceFit(allQuotas map[string]*groupQuotaAllo
 		if limits != nil && limits.ThreadsLimit != 0 {
 			// We need to take into account that we might have a matching limit in this group, and thus we account
 			// for some of the reserved threads. So subtract that.
-			threadsAvailable := limits.ThreadsLimit - (limits.ThreadsReserved - grp.TaskLimit)
+			threadsAvailable := limits.ThreadsLimit - (limits.ThreadsReserved - threadsReserved)
 			if threadLimit > threadsAvailable {
 				return fmt.Errorf("sub-group thread limit of %d is too large to fit inside group %q remaining quota space %d",
 					threadLimit, parent.Name, threadsAvailable)

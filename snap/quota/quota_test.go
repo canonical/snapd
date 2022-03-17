@@ -1014,6 +1014,9 @@ func (ts *quotaTestSuite) TestChangingSubgroupLimits(c *C) {
 }
 
 func (ts *quotaTestSuite) TestChangingParentMemoryLimits(c *C) {
+	// The purpose here is to make sure we can't change the limits of the parent group
+	// that would otherwise conflict with the current usage of limits by children of the
+	// parent.
 	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, IsNil)
 
@@ -1031,6 +1034,9 @@ func (ts *quotaTestSuite) TestChangingParentMemoryLimits(c *C) {
 }
 
 func (ts *quotaTestSuite) TestChangingParentCpuPercentageLimits(c *C) {
+	// The purpose here is to make sure we can't change the limits of the parent group
+	// that would otherwise conflict with the current usage of limits by children of the
+	// parent.
 	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
 	c.Assert(err, IsNil)
 
@@ -1048,6 +1054,9 @@ func (ts *quotaTestSuite) TestChangingParentCpuPercentageLimits(c *C) {
 }
 
 func (ts *quotaTestSuite) TestChangingParentCpuSetLimits(c *C) {
+	// The purpose here is to make sure we can't change the limits of the parent group
+	// that would otherwise conflict with the current usage of limits by children of the
+	// parent.
 	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
 	c.Assert(err, IsNil)
 
@@ -1065,6 +1074,9 @@ func (ts *quotaTestSuite) TestChangingParentCpuSetLimits(c *C) {
 }
 
 func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
+	// The purpose here is to make sure we can't change the limits of the parent group
+	// that would otherwise conflict with the current usage of limits by children of the
+	// parent.
 	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithThreadLimit(32).Build())
 	c.Assert(err, IsNil)
 
@@ -1078,7 +1090,7 @@ func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
 	// Now the test is to change the upper most parent limit so that it would be less
 	// than the current usage, which we should not be able to do
 	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(16).Build())
-	c.Check(err, ErrorMatches, `group memory limit of 16 is too small to fit current subgroup usage of 32`)
+	c.Check(err, ErrorMatches, `group thread limit of 16 is too small to fit current subgroup usage of 32`)
 }
 
 func (ts *quotaTestSuite) TestChangingMiddleParentLimits(c *C) {
@@ -1102,4 +1114,108 @@ func (ts *quotaTestSuite) TestChangingMiddleParentLimits(c *C) {
 	// than the current usage, which we should not be able to do
 	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build())
 	c.Check(err, ErrorMatches, `group cpu limit of 50% is less than current subgroup usage of 100%`)
+}
+
+func (ts *quotaTestSuite) TestAddingNewMiddleParentMemoryLimits(c *C) {
+	// The purpose here is to make sure we catch any new limits inserted into
+	// the tree, which would conflict with the current usage.
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB*2).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a memory limit that takes half of the quota of the upper parent
+	subgrp2, err := subgrp1.NewSubGroup("mem-sub", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a cpu limit that takes up the entire quota of the middle parent
+	_, err = subgrp2.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Now lets inject a memory quota that is less than currently used by children
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB * 512).Build())
+	c.Check(err, ErrorMatches, `group memory limit of 512 MiB is too small to fit current subgroup usage of 1 GiB`)
+
+	// Now lets inject one that is larger, that should be possible
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build())
+	c.Check(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestAddingNewMiddleParentCpuLimits(c *C) {
+	// The purpose here is to make sure we catch any new limits inserted into
+	// the tree, which would conflict with the current usage.
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("mem-sub1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a cpu limit that takes half of the quota of the upper parent
+	subgrp2, err := subgrp1.NewSubGroup("cpu-sub", quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a memory limit that takes up the entire quota of the middle parent
+	_, err = subgrp2.NewSubGroup("mem-sub2", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+
+	// Now lets inject a cpu quota that is less than currently used by children
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(25).Build())
+	c.Check(err, ErrorMatches, `group cpu limit of 25% is less than current subgroup usage of 50%`)
+
+	// Now lets inject one that is larger, that should be possible
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Check(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestAddingNewMiddleParentCpuSetLimits(c *C) {
+	// The purpose here is to make sure we catch any new limits inserted into
+	// the tree, which would conflict with the current usage.
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1, 2, 3}).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a more restrictive cpu-set of the upper parent
+	subgrp2, err := subgrp1.NewSubGroup("cpuset-sub", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a cpu limit that takes up the entire quota of the middle parent
+	_, err = subgrp2.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Now lets inject a cpu-set that does not match whats currently used by children
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{2, 3}).Build())
+	c.Check(err, ErrorMatches, `group cpu-set limit of \[2 3\] is not a superset of current subgroup usage of \[0 1\]`)
+
+	// Now lets inject one that is larger, that should be possible
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1, 2}).Build())
+	c.Check(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestAddingNewMiddleParentThreadLimits(c *C) {
+	// The purpose here is to make sure we catch any new limits inserted into
+	// the tree, which would conflict with the current usage.
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithThreadLimit(1024).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a thread limit that takes half of the quota of the upper parent
+	subgrp2, err := subgrp1.NewSubGroup("thread-sub", quota.NewResourcesBuilder().WithThreadLimit(512).Build())
+	c.Assert(err, IsNil)
+
+	// Create a nested subgroup with a cpu limit that takes up the entire quota of the middle parent
+	_, err = subgrp2.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Now lets inject a thread quota that is less than currently used by children
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(256).Build())
+	c.Check(err, ErrorMatches, `group thread limit of 256 is too small to fit current subgroup usage of 512`)
+
+	// Now lets inject one that is larger, that should be possible
+	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(1024).Build())
+	c.Check(err, IsNil)
 }
