@@ -896,6 +896,9 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		// The snapd-desktop-integration snap is allowed to
 		// use user daemons, irrespective of the feature flag
 		// state.
+		//
+		// TODO: remove the special case once
+		// experimental.user-daemons is the default
 		if !flag && info.SnapID != snapdDesktopIntegrationSnapID {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
