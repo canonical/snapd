@@ -8305,6 +8305,98 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 	}
 }
 
+func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithGadget(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var restartRequested []restart.RestartType
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+
+	restore = snapstatetest.MockDeviceModel(MakeModel(map[string]interface{}{
+		"kernel": "kernel",
+		"base":   "core18",
+	}))
+	defer restore()
+
+	siKernel := snap.SideInfo{
+		RealName: "kernel",
+		Revision: snap.R(7),
+		SnapID:   "kernel-id",
+	}
+	siBase := snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(7),
+		SnapID:   "core18-snap-id",
+	}
+	siGadget := snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(7),
+		SnapID:   "gadget-core18-id",
+	}
+	for _, si := range []*snap.SideInfo{&siKernel, &siBase, &siGadget} {
+		snaptest.MockSnap(c, fmt.Sprintf(`name: %s`, si.RealName), si)
+		typ := "kernel"
+		if si.RealName == "core18" {
+			typ = "base"
+		} else if si.RealName == "gadget" {
+			typ = "gadget"
+		}
+		snapstate.Set(s.state, si.RealName, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        []*snap.SideInfo{si},
+			Current:         si.Revision,
+			TrackingChannel: "latest/stable",
+			SnapType:        typ,
+		})
+	}
+
+	chg := s.state.NewChange("refresh", "refresh kernel and base")
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"kernel", "core18", "gadget"}, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"core18", "gadget", "kernel"})
+	var kernelTsk, baseTsk, gadgetTsk *state.Task
+	for _, ts := range tss {
+		chg.AddAll(ts)
+		for _, tsk := range ts.Tasks() {
+			switch tsk.Kind() {
+			// setup-profiles should appear right before link-snap,
+			// while set-auto-aliase appears right after
+			// auto-connect
+			case "link-snap":
+				snapsup, err := snapstate.TaskSnapSetup(tsk)
+				c.Assert(err, IsNil)
+				switch snapsup.InstanceName() {
+				case "kernel":
+					kernelTsk = tsk
+				case "gadget":
+					gadgetTsk = tsk
+				case "core18":
+					baseTsk = tsk
+				}
+				var dummy bool
+				// the flag isn't set for any of link-snap tasks
+				c.Assert(tsk.Get("cannot-reboot", &dummy), Equals, state.ErrNoState)
+			}
+		}
+	}
+
+	c.Assert(kernelTsk, NotNil)
+	c.Assert(baseTsk, NotNil)
+	c.Assert(gadgetTsk, NotNil)
+
+	c.Assert(kernelTsk.WaitTasks(), testutil.Contains, gadgetTsk)
+	c.Assert(kernelTsk.WaitTasks(), Not(testutil.Contains), baseTsk)
+	c.Assert(baseTsk.WaitTasks(), Not(testutil.Contains), kernelTsk)
+}
+
 func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
