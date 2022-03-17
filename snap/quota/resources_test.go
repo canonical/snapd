@@ -37,7 +37,8 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 	}{
 		{quota.Resources{}, `quota group must have at least one resource limit set`},
 		{quota.Resources{Memory: &quota.ResourceMemory{}}, `memory quota must have a limit set`},
-		{quota.Resources{CPU: &quota.ResourceCPU{}}, `invalid cpu quota with a cpu quota of 0 and no allowed cpus`},
+		{quota.Resources{CPU: &quota.ResourceCPU{}}, `invalid cpu quota with a cpu quota of 0`},
+		{quota.Resources{CPUSet: &quota.ResourceCPUSet{}}, `cpu-set quota must not be empty`},
 		{quota.Resources{Threads: &quota.ResourceThreads{}}, `invalid thread quota with a thread count of 0`},
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeKiB).Build(), `memory limit 1024 is too small: size must be larger than 4KB`},
@@ -82,6 +83,26 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 			quota.NewResourcesBuilder().WithMemoryLimit(5 * quantity.SizeKiB).Build(),
 			`cannot decrease memory limit, remove and re-create it to decrease the limit`,
 		},
+		{
+			quota.NewResourcesBuilder().WithThreadLimit(64).Build(),
+			quota.NewResourcesBuilder().WithThreadLimit(0).Build(),
+			`cannot remove thread limit from quota group`,
+		},
+		{
+			quota.NewResourcesBuilder().WithThreadLimit(64).Build(),
+			quota.NewResourcesBuilder().WithThreadLimit(32).Build(),
+			`cannot decrease thread limit, remove and re-create it to decrease the limit`,
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(75).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(0).WithCPUPercentage(0).Build(),
+			`cannot remove cpu limit from quota group`,
+		},
+		{
+			quota.NewResourcesBuilder().WithThreadLimit(16).WithAllowedCPUs([]int{0, 1}).Build(),
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{}).Build(),
+			`cannot remove all allowed cpus from quota group`,
+		},
 	}
 
 	for _, t := range tests {
@@ -124,6 +145,21 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(100).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).WithThreadLimit(32).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).WithCPUCount(1).WithCPUPercentage(100).WithThreadLimit(32).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0, 1, 2}).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0, 1, 2}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0, 1, 2}).Build(),
 		},
 	}
 

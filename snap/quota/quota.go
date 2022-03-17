@@ -434,8 +434,10 @@ func (grp *Group) validateQuotasFit(resourceLimits Resources) error {
 				return err
 			}
 		}
-		if len(resourceLimits.CPU.AllowedCPUs) != 0 {
-			if err := grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPU.AllowedCPUs); err != nil {
+	}
+	if resourceLimits.CPUSet != nil {
+		if len(resourceLimits.CPUSet.CPUs) != 0 {
+			if err := grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPUSet.CPUs); err != nil {
 				return err
 			}
 		}
@@ -466,10 +468,15 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
 	}
 	if resourceLimits.CPU != nil {
 		grp.CPULimit = &GroupQuotaCPU{
-			Count:       resourceLimits.CPU.Count,
-			Percentage:  resourceLimits.CPU.Percentage,
-			AllowedCPUs: resourceLimits.CPU.AllowedCPUs,
+			Count:      resourceLimits.CPU.Count,
+			Percentage: resourceLimits.CPU.Percentage,
 		}
+	}
+	if resourceLimits.CPUSet != nil {
+		if grp.CPULimit == nil {
+			grp.CPULimit = &GroupQuotaCPU{}
+		}
+		grp.CPULimit.AllowedCPUs = resourceLimits.CPUSet.CPUs
 	}
 	if resourceLimits.Threads != nil {
 		grp.TaskLimit = resourceLimits.Threads.Limit

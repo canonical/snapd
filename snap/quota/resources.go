@@ -30,9 +30,12 @@ type ResourceMemory struct {
 }
 
 type ResourceCPU struct {
-	Count       int   `json:"count"`
-	Percentage  int   `json:"percentage"`
-	AllowedCPUs []int `json:"allowed-cpus"`
+	Count      int `json:"count"`
+	Percentage int `json:"percentage"`
+}
+
+type ResourceCPUSet struct {
+	CPUs []int `json:"cpus"`
 }
 
 type ResourceThreads struct {
@@ -45,6 +48,7 @@ type ResourceThreads struct {
 type Resources struct {
 	Memory  *ResourceMemory  `json:"memory,omitempty"`
 	CPU     *ResourceCPU     `json:"cpu,omitempty"`
+	CPUSet  *ResourceCPUSet  `json:"cpu-set,omitempty"`
 	Threads *ResourceThreads `json:"thread,omitempty"`
 }
 
@@ -64,15 +68,22 @@ func (qr *Resources) validateMemoryQuota() error {
 	return nil
 }
 
-func (qr *Resources) validateCpuQuota() error {
+func (qr *Resources) validateCPUQuota() error {
 	// if cpu count is non-zero, then percentage should be set
 	if qr.CPU.Count != 0 && qr.CPU.Percentage == 0 {
 		return fmt.Errorf("invalid cpu quota with count of >0 and percentage of 0")
 	}
 
 	// at least one cpu limit value must be set
-	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 && len(qr.CPU.AllowedCPUs) == 0 {
-		return fmt.Errorf("invalid cpu quota with a cpu quota of 0 and no allowed cpus")
+	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 {
+		return fmt.Errorf("invalid cpu quota with a cpu quota of 0")
+	}
+	return nil
+}
+
+func (qr *Resources) validateCPUSetQuota() error {
+	if len(qr.CPUSet.CPUs) == 0 {
+		return fmt.Errorf("cpu-set quota must not be empty")
 	}
 	return nil
 }
@@ -89,9 +100,10 @@ func (qr *Resources) validateThreadQuota() error {
 // The restrictions imposed are that at least one limit should be set.
 // If memory limit is provided, it must be above 4KB.
 // If cpu percentage is provided, it must be between 1 and 100.
+// If cpu set is provided, it must not be empty.
 // If thread count is provided, it must be above 0.
 func (qr *Resources) Validate() error {
-	if qr.Memory == nil && qr.CPU == nil && qr.Threads == nil {
+	if qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil {
 		return fmt.Errorf("quota group must have at least one resource limit set")
 	}
 
@@ -102,7 +114,13 @@ func (qr *Resources) Validate() error {
 	}
 
 	if qr.CPU != nil {
-		if err := qr.validateCpuQuota(); err != nil {
+		if err := qr.validateCPUQuota(); err != nil {
+			return err
+		}
+	}
+
+	if qr.CPUSet != nil {
+		if err := qr.validateCPUSetQuota(); err != nil {
 			return err
 		}
 	}
@@ -119,8 +137,7 @@ func (qr *Resources) Validate() error {
 // This is to catch issues where we want to guard against lowering limits where not supported
 // or to make sure that certain/all limits are not removed.
 func (qr *Resources) ValidateChange(newLimits Resources) error {
-
-	// Check that the memory limit is not being decreased, but we allow it to be removed
+	// Check that the memory limit is not being decreased
 	if newLimits.Memory != nil {
 		if newLimits.Memory.Limit == 0 {
 			return fmt.Errorf("cannot remove memory limit from quota group")
@@ -135,6 +152,37 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		}
 	}
 
+	// Check that the cpu limit is not being removed, we do not support setting these
+	// two settings individually. Count/Percentage must be updated in unison.
+	if newLimits.CPU != nil && qr.CPU != nil {
+		if newLimits.CPU.Count == 0 && qr.CPU.Count != 0 {
+			return fmt.Errorf("cannot remove cpu limit from quota group")
+		}
+		if newLimits.CPU.Percentage == 0 && qr.CPU.Percentage != 0 {
+			return fmt.Errorf("cannot remove cpu limit from quota group")
+		}
+	}
+
+	// Check that we are not removing the entire cpu set
+	if newLimits.CPUSet != nil && qr.CPUSet != nil {
+		if len(newLimits.CPUSet.CPUs) == 0 {
+			return fmt.Errorf("cannot remove all allowed cpus from quota group")
+		}
+	}
+
+	// Check that the thread limit is not being decreased
+	if newLimits.Threads != nil {
+		if newLimits.Threads.Limit == 0 {
+			return fmt.Errorf("cannot remove thread limit from quota group")
+		}
+
+		// we disallow decreasing the thread limit initially until we understand
+		// the full consequences of doing so.
+		if qr.Threads != nil && newLimits.Threads.Limit < qr.Threads.Limit {
+			return fmt.Errorf("cannot decrease thread limit, remove and re-create it to decrease the limit")
+		}
+	}
+
 	return nil
 }
 
@@ -146,27 +194,27 @@ func (qr *Resources) Change(newLimits Resources) error {
 		return err
 	}
 
+	// perform the changes initially on a dry-run so we can validate
+	// the resulting quotas combined.
+	resultingLimits := *qr
 	if newLimits.Memory != nil {
-		qr.Memory = newLimits.Memory
+		resultingLimits.Memory = newLimits.Memory
 	}
 	if newLimits.CPU != nil {
-		if qr.CPU == nil {
-			qr.CPU = newLimits.CPU
-		} else {
-			// update count/percentage as one unit
-			if newLimits.CPU.Count != 0 || newLimits.CPU.Percentage != 0 {
-				qr.CPU.Count = newLimits.CPU.Count
-				qr.CPU.Percentage = newLimits.CPU.Percentage
-			}
-
-			// update allowed cpus as one unit
-			if len(newLimits.CPU.AllowedCPUs) != 0 {
-				qr.CPU.AllowedCPUs = newLimits.CPU.AllowedCPUs
-			}
-		}
+		resultingLimits.CPU = newLimits.CPU
+	}
+	if newLimits.CPUSet != nil {
+		resultingLimits.CPUSet = newLimits.CPUSet
 	}
 	if newLimits.Threads != nil {
-		qr.Threads = newLimits.Threads
+		resultingLimits.Threads = newLimits.Threads
 	}
+
+	// now perform validation on the dry run
+	if err := resultingLimits.Validate(); err != nil {
+		return err
+	}
+
+	*qr = resultingLimits
 	return nil
 }
