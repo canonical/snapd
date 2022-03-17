@@ -103,10 +103,6 @@ install:: $(builddir)/snap | $(DESTDIR)$(bindir)
 install:: $(addprefix $(builddir)/,snapctl snapd snap-exec snap-update-ns snap-seccomp) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
-# Install preseed.json file into /usr/lib/snapd
-install:: $(addprefix data/preseed.json) | $(DESTDIR)$(libexecdir)/snapd
-	install -m 755 $^ $|
-
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
 install:: | $(DESTDIR)$(bindir)
 	ln -s $(libexecdir)/snapd/snapctl $|/snapctl
