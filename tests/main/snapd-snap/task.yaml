@@ -193,10 +193,6 @@ execute: |
     echo "Unsquash the snapd snap"
     unsquashfs snapd_spread-test.snap
 
-    echo "Ensure we have the fc-cache binaries"
-    test -f squashfs-root/bin/fc-cache-v6
-    test -f squashfs-root/bin/fc-cache-v7
-
     echo "Ensure we have xdelta3"
     test -f squashfs-root/usr/bin/xdelta3
 
