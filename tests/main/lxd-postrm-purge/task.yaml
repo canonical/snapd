@@ -12,8 +12,6 @@ priority: 1000
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
-manual: true
-
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
