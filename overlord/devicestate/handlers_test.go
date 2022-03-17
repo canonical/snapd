@@ -21,7 +21,6 @@ package devicestate_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -565,31 +563,6 @@ func (s *preseedingClassicSuite) TestDoMarkPreseeded(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 }
 
-func (s *preseedingClassicSuite) TestDoMarkPreseededNoPreseedExportOnClassic(c *C) {
-	// preconditions sheck
-	c.Assert(snapdenv.Preseeding(), Equals, true)
-	c.Assert(release.OnClassic, Equals, true)
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	task := st.NewTask("mark-preseeded", "...")
-	chg := st.NewChange("device init", "...")
-	chg.AddTask(task)
-
-	st.Unlock()
-	s.se.Ensure()
-	s.se.Wait()
-	st.Lock()
-
-	var preseeded bool
-	c.Assert(st.Get("preseeded", &preseeded), IsNil)
-	c.Check(preseeded, Equals, true)
-
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "preseed-export.json")), Equals, false)
-}
-
 func (s *preseedingClassicSuite) TestEnsureSeededPreseedFlag(c *C) {
 	now := time.Now()
 	restoreTimeNow := devicestate.MockTimeNow(func() time.Time {
@@ -821,51 +794,4 @@ func (s *preseedingUC20Suite) TestSystemForPreseeding(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "systems", "20210201"), 0755), IsNil)
 	_, err = devicestate.SystemForPreseeding()
 	c.Assert(err, ErrorMatches, `expected a single system for preseeding, found 2`)
-}
-
-func (s *preseedingUC20Suite) TestDumpPreseedFilePatterns(c *C) {
-	c.Assert(devicestate.DumpPreseedFilePatterns(), IsNil)
-
-	f, err := os.Open(filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "preseed-export.json"))
-	c.Assert(err, IsNil)
-	defer f.Close()
-	dec := json.NewDecoder(f)
-	var data interface{}
-	c.Assert(dec.Decode(&data), IsNil)
-	c.Check(data, DeepEquals, map[string]interface{}{
-		"exclude": []interface{}{"var/lib/snapd/snaps/*.snap", "var/lib/seed/*"},
-		"include": []interface{}{"etc/udev/rules.d", "etc/systemd",
-			"etc/dbus-1", "snap", "var/lib/snapd/state.json",
-			"var/lib/snapd/apparmor", "var/lib/snapd/system-key",
-			"var/lib/snapd/assertions", "var/lib/snapd/seccomp",
-			"var/lib/snapd/desktop", "var/lib/snapd/sequence",
-			"var/lib/snapd/cookie", "var/lib/snapd/dbus-1",
-			"var/snap", "var/cache/snapd/aux",
-			"var/cache/apparmor"},
-	})
-}
-
-func (s *preseedingUC20Suite) TestDoMarkPreseededWritesFilePatterns(c *C) {
-	// preconditions sheck
-	c.Assert(snapdenv.Preseeding(), Equals, true)
-	c.Assert(release.OnClassic, Equals, false)
-
-	restore := devicestate.MockPopulateStateFromSeed(func(st *state.State, opts *devicestate.PopulateStateFromSeedOptions, tm timings.Measurer) ([]*state.TaskSet, error) {
-		return nil, nil
-	})
-	defer restore()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	task := st.NewTask("mark-preseeded", "...")
-	chg := st.NewChange("device init", "...")
-	chg.AddTask(task)
-
-	st.Unlock()
-	defer st.Lock()
-	s.settle(c)
-
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "preseed-export.json")), Equals, true)
 }
