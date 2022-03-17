@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	"github.com/snapcore/snapd/image/preseed"
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -50,6 +51,8 @@ import (
 var (
 	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
+
+	preseedCore20 = preseed.Core20
 )
 
 func (custo *Customizations) validate(model *asserts.Model) error {
@@ -144,7 +147,23 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	return setupSeed(tsto, model, opts)
+	if err := setupSeed(tsto, model, opts); err != nil {
+		return err
+	}
+
+	if opts.Preseed {
+		// TODO: support core22
+		if model.Classic() {
+			return fmt.Errorf("cannot preseed the image for a classic model")
+		}
+		if model.Base() != "core20" {
+			return fmt.Errorf("cannot preseed the image for a model other than core20")
+		}
+		// TODO: support signing key
+		return preseedCore20(opts.PrepareDir)
+	}
+
+	return nil
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -245,7 +264,7 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
-func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
+var setupSeed = func(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}

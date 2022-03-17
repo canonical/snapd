@@ -71,3 +71,19 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 		newToolingStoreFromModel = old
 	}
 }
+
+func MockPreseedCore20(f func(dir string) error) (restore func()) {
+	old := preseedCore20
+	preseedCore20 = f
+	return func() {
+		preseedCore20 = old
+	}
+}
+
+func MockSetupSeed(f func(tsto *ToolingStore, model *asserts.Model, opts *Options) error) (restore func()) {
+	old := setupSeed
+	setupSeed = f
+	return func() {
+		setupSeed = old
+	}
+}
