@@ -202,7 +202,7 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			rootlimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).WithCPUCount(1).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).WithThreadLimit(32).Build(),
 			subname:    "sub",
 			sublimits:  quota.NewResourcesBuilder().WithAllowedCPUs([]int{1}).Build(),
-			err:        "sub-group allowed cpu id of 1 is not allowed by group \"myroot\"",
+			err:        "sub-group cpu-set \\[1\\] is not a subset of group \"myroot\" cpu-set \\[0\\]",
 			comment:    "sub group with different cpu allowance quota than parent unhappy",
 		},
 		{
@@ -873,34 +873,34 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the root group
 	c.Check(allReservations["groot"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryLimit:         quantity.SizeGiB,
-		MemoryReserved:      quantity.SizeMiB * 512,
-		CPUReserved:         100,
-		ThreadsReserved:     32,
-		AllowedCPUsLimit:    []int{},
-		AllowedCPUsReserved: []int{0, 1},
+		MemoryLimit:                   quantity.SizeGiB,
+		MemoryReservedByChildren:      quantity.SizeMiB * 512,
+		CPUReservedByChildren:         100,
+		ThreadsReservedByChildren:     32,
+		AllowedCPUsLimit:              []int{},
+		AllowedCPUsReservedByChildren: []int{0, 1},
 	})
 
 	// Verify the subgroup cpu-q0
 	c.Check(allReservations["cpu-q0"], DeepEquals, &quota.GroupQuotaAllocations{
-		CPULimit:         100,
-		CPUReserved:      50,
-		MemoryReserved:   quantity.SizeMiB * 256,
-		AllowedCPUsLimit: []int{},
+		CPULimit:                 100,
+		CPUReservedByChildren:    50,
+		MemoryReservedByChildren: quantity.SizeMiB * 256,
+		AllowedCPUsLimit:         []int{},
 	})
 
 	// Verify the subgroup thread-q0
 	c.Check(allReservations["thread-q0"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryReserved:   quantity.SizeMiB * 256,
-		ThreadsLimit:     32,
-		ThreadsReserved:  16,
-		AllowedCPUsLimit: []int{},
+		MemoryReservedByChildren:  quantity.SizeMiB * 256,
+		ThreadsLimit:              32,
+		ThreadsReservedByChildren: 16,
+		AllowedCPUsLimit:          []int{},
 	})
 
 	// Verify the subgroup cpus-q0
 	c.Check(allReservations["cpus-q0"], DeepEquals, &quota.GroupQuotaAllocations{
-		AllowedCPUsLimit:    []int{0, 1},
-		AllowedCPUsReserved: []int{0},
+		AllowedCPUsLimit:              []int{0, 1},
+		AllowedCPUsReservedByChildren: []int{0},
 	})
 
 	// Verify the subgroup cpus-q1
@@ -910,17 +910,17 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the subgroup mem-q1
 	c.Check(allReservations["mem-q1"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryLimit:      quantity.SizeMiB * 256,
-		CPUReserved:      50,
-		AllowedCPUsLimit: []int{},
+		MemoryLimit:           quantity.SizeMiB * 256,
+		CPUReservedByChildren: 50,
+		AllowedCPUsLimit:      []int{},
 	})
 
 	// Verify the subgroup mem-q2
 	c.Check(allReservations["mem-q2"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryLimit:      quantity.SizeMiB * 256,
-		MemoryReserved:   quantity.SizeMiB * 128,
-		ThreadsReserved:  16,
-		AllowedCPUsLimit: []int{},
+		MemoryLimit:               quantity.SizeMiB * 256,
+		MemoryReservedByChildren:  quantity.SizeMiB * 128,
+		ThreadsReservedByChildren: 16,
+		AllowedCPUsLimit:          []int{},
 	})
 
 	// Verify the subgroup cpu-q1
@@ -931,9 +931,9 @@ func (ts *quotaTestSuite) TestGetGroupQuotaAllocations(c *C) {
 
 	// Verify the subgroup thread-q1
 	c.Check(allReservations["thread-q1"], DeepEquals, &quota.GroupQuotaAllocations{
-		MemoryReserved:   quantity.SizeMiB * 128,
-		ThreadsLimit:     16,
-		AllowedCPUsLimit: []int{},
+		MemoryReservedByChildren: quantity.SizeMiB * 128,
+		ThreadsLimit:             16,
+		AllowedCPUsLimit:         []int{},
 	})
 
 	// Verify the subgroup mem-q3
@@ -1070,7 +1070,7 @@ func (ts *quotaTestSuite) TestChangingParentCpuSetLimits(c *C) {
 	// Now the test is to change the upper most parent limit so that it would be more
 	// restrictive then the previous limit
 	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{0}).Build())
-	c.Check(err, ErrorMatches, `group cpu-set limit of \[0\] is not a superset of current subgroup usage of \[0 1\]`)
+	c.Check(err, ErrorMatches, `group cpu-set \[0\] is not a superset of current subgroup usage of \[0 1\]`)
 }
 
 func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
@@ -1187,7 +1187,7 @@ func (ts *quotaTestSuite) TestAddingNewMiddleParentCpuSetLimits(c *C) {
 
 	// Now lets inject a cpu-set that does not match whats currently used by children
 	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{2, 3}).Build())
-	c.Check(err, ErrorMatches, `group cpu-set limit of \[2 3\] is not a superset of current subgroup usage of \[0 1\]`)
+	c.Check(err, ErrorMatches, `group cpu-set \[2 3\] is not a superset of current subgroup usage of \[0 1\]`)
 
 	// Now lets inject one that is larger, that should be possible
 	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1, 2}).Build())
