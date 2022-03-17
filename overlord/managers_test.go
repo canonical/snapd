@@ -10076,7 +10076,7 @@ func (s *mgrsSuite) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, snapYa
 	snaptest.MockSnap(c, pcKernelYaml, siKernel)
 	siBase := &snap.SideInfo{RealName: "core20", SnapID: fakeSnapID("core20"), Revision: snap.R(1)}
 	snaptest.MockSnap(c, baseYaml, siBase)
-	siSnapd := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	siSnapd := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1), SnapID: fakeSnapID("snapd")}
 	snaptest.MockSnap(c, "name: snapd\ntype: snapd\nversion: 123", siSnapd)
 	siGadget := &snap.SideInfo{RealName: "pc", Revision: snap.R(1), SnapID: fakeSnapID("pc")}
 	snaptest.MockSnapWithFiles(c, snapYamlGadget, siGadget, [][]string{
@@ -10114,14 +10114,16 @@ func (s *mgrsSuite) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, snapYa
 	s.serveSnap(p, "2")
 	p, _ = s.makeStoreTestSnap(c, baseYaml, "2")
 	s.serveSnap(p, "2")
+	p, _ = s.makeStoreTestSnap(c, "name: snapd\ntype: snapd\nversion: 123", "2")
+	s.serveSnap(p, "2")
 	p, _ = s.makeStoreTestSnapWithFiles(c, snapYamlGadget, "2", [][]string{
 		{"meta/gadget.yaml", pcGadgetYaml},
 	})
 	s.serveSnap(p, "2")
 
-	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "pc"}, 0, nil)
+	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "pc", "snapd"}, 0, nil)
 	c.Assert(err, IsNil)
-	c.Assert(affected, DeepEquals, []string{"core20", "pc", "pc-kernel"})
+	c.Assert(affected, DeepEquals, []string{"core20", "pc", "pc-kernel", "snapd"})
 	chg := st.NewChange("update-many", "...")
 	for _, ts := range tss {
 		// skip the taskset of UpdateMany that does the
@@ -10153,14 +10155,13 @@ base: core20
 	st.Lock()
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 	c.Logf(s.logbuf.String())
-	dumpTasks(c, "after run", chg.Tasks())
 
-	// final steps will are postponed until we are in the restarted snapd
+	// snapd is updated first (as it's a prerequisite for the base)
 	ok, rst := restart.Pending(st)
 	c.Assert(ok, Equals, true)
-	c.Assert(rst, Equals, restart.RestartSystem)
+	c.Assert(rst, Equals, restart.RestartDaemon)
+	restart.MockPending(st, restart.RestartUnset)
 
-	autoConnects := 0
 	autoConnectStatus := func(inDoing string, done []string) {
 		for _, tsk := range chg.Tasks() {
 			if tsk.Kind() == "auto-connect" {
@@ -10174,14 +10175,22 @@ base: core20
 				}
 				c.Check(tsk.Status(), Equals, expectedStatus,
 					Commentf("%q has status other than %s", tsk.Summary(), expectedStatus))
-				autoConnects++
 			}
 		}
 	}
+	autoConnectStatus("snapd", nil)
 
-	autoConnectStatus("core20", nil)
-	// one for kernel, one for base, one for some-snap
-	c.Check(autoConnects, Equals, 3)
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartSystem)
+
+	autoConnectStatus("core20", []string{"snapd"})
 
 	// we are trying out a new base
 	restart.MockPending(st, restart.RestartUnset)
@@ -10208,7 +10217,7 @@ base: core20
 	c.Logf(s.logbuf.String())
 	dumpTasks(c, "after run", chg.Tasks())
 
-	autoConnectStatus("pc-kernel", []string{"core20", "pc"})
+	autoConnectStatus("pc-kernel", []string{"core20", "pc", "snapd"})
 
 	// try snaps are set
 	currentTryKernel, err := bloader.TryKernel()
@@ -10237,6 +10246,95 @@ base: core20
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("change failed with: %v", chg.Err()))
+}
+
+func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBaseBuggy(c *C) {
+	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
+	defer restore()
+	const pcGadget = `
+name: pc
+version: 1.0
+type: gadget
+base: core20
+`
+	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(1))
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// first comes the snapd restart
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartDaemon)
+	restart.MockPending(st, restart.RestartUnset)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// final steps will are postponed until we are in the restarted snapd
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, false)
+	c.Assert(rst, Equals, restart.RestartUnset)
+
+	// settle has exited as there are no more tasks that can be run due to
+	// the circular dependency, we expect all tasks to be in either Do or
+	// Done states
+	for _, tsk := range chg.Tasks() {
+		if tsk.Status() != state.DoneStatus && tsk.Status() != state.DoStatus {
+			c.Errorf("unexpected status %s of task %s %s", tsk.Status(), tsk.ID(), tsk.Summary())
+			c.FailNow()
+		}
+	}
+
+	chg.AbortUnreadyLanes()
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after abort", chg.Tasks())
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Status(), Equals, state.UndoneStatus)
+	// snapd should have been hept
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.InstanceName() == "snapd" {
+				c.Assert(tsk.Status(), Equals, state.DoneStatus)
+			}
+		}
+	}
+
+	// snapd update is kept
+	err = snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+
+	for _, name := range []string{"pc-kernel", "pc", "core20"} {
+		err = snapstate.Get(st, name, &snapst)
+		c.Assert(err, IsNil)
+		// the current is the old revision
+		c.Assert(snapst.Current, Equals, snap.R(1))
+	}
 }
 
 type gadgetUpdatesSuite struct {

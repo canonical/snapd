@@ -1636,7 +1636,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		kernelTs.WaitAll(gadgetTs)
 	}
 
-	if deviceCtx.Model().Base() != "" && gadgetTs == nil {
+	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
 		// reordering of kernel and base tasks is supported only on
 		// UC18+ devices
 		// this can only be done safely when the gadget is not a part of
@@ -3591,4 +3591,18 @@ func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.Validation
 	return func() {
 		EnforcedValidationSets = old
 	}
+}
+
+// only useful for procuring a buggy behavior in the tests
+var enforcedSingleRebootForGadgetKernelBase = false
+
+func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := enforcedSingleRebootForGadgetKernelBase
+	enforcedSingleRebootForGadgetKernelBase = val
+	return func() {
+		enforcedSingleRebootForGadgetKernelBase = old
+	}
+
 }
