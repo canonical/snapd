@@ -298,7 +298,7 @@ dbus (receive, send)
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # nmcli uses this in newer versions
-dbus (receive, send)
+dbus (send)
    bus=system
    path=/org/freedesktop/DBus
    interface=org.freedesktop.DBus
