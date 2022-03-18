@@ -8430,3 +8430,88 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	// those run unordered
 	c.Assert(ops[5:], testutil.DeepUnsortedMatches, []string{"core18/7", "kernel/7"})
 }
+
+func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
+	// verify that when snapd and a base are updated in one go, the base is
+	// set up to have snapd as a prerequisite
+
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var restartRequested []restart.RestartType
+	restart.Init(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+		restartRequested = append(restartRequested, t)
+	}))
+
+	restore = snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restore()
+
+	siSnapd := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1), SnapID: "snapd-snap-id"}
+	snaptest.MockSnap(c, "name: snapd\nversion: 1.2.3\ntype: snapd", siSnapd)
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{siSnapd},
+		Current:         siSnapd.Revision,
+		TrackingChannel: "latest/stable",
+		SnapType:        "snapd",
+	})
+	siBase := &snap.SideInfo{RealName: "core18", Revision: snap.R(1), SnapID: "core18-snap-id"}
+	snaptest.MockSnap(c, "name: core18\nversion: 1.2.3\ntype: base", siBase)
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{siBase},
+		Current:         siBase.Revision,
+		TrackingChannel: "latest/stable",
+		SnapType:        "base",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh snapd and base")
+	affected, tss, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"core18", "snapd"}, s.user.ID, &snapstate.Flags{NoReRefresh: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Assert(affected, DeepEquals, []string{"core18", "snapd"})
+
+	// grab the task sets of snapd and the base
+	var snapdTs, baseTs *state.TaskSet
+	for _, ts := range tss {
+		chg.AddAll(ts)
+		for _, tsk := range ts.Tasks() {
+			if tsk.Kind() == "link-snap" {
+				snapsup, err := snapstate.TaskSnapSetup(tsk)
+				c.Assert(err, IsNil)
+				if snapsup.InstanceName() == "snapd" {
+					snapdTs = ts
+				} else {
+					baseTs = ts
+				}
+			}
+		}
+	}
+
+	// verify that the base tasks depend on the last task of snapd
+	snapdts := snapdTs.Tasks()
+	for _, bts := range baseTs.Tasks() {
+		c.Check(bts.WaitTasks(), testutil.Contains, snapdts[len(snapdts)-1])
+	}
+
+	s.fakeBackend.linkSnapMaybeReboot = true
+	s.fakeBackend.linkSnapRebootFor = map[string]bool{
+		"core18": true,
+	}
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(restartRequested, DeepEquals, []restart.RestartType{
+		restart.RestartDaemon,
+		restart.RestartSystem,
+	})
+}
