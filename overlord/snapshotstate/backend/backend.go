@@ -388,7 +388,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 var isTesting = snapdenv.Testing()
 
 type addDirToZipOptions struct {
-	ExcludePaths []string `yaml:"exclude,omitempty"`
+	ExcludePaths []string `yaml:"exclude"`
 }
 
 func readSnapshotYaml(si *snap.Info, opts *addDirToZipOptions) error {
