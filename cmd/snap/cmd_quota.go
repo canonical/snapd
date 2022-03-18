@@ -61,11 +61,10 @@ var longSetQuotaHelp = i18n.G(`
 The set-quota command updates or creates a quota group with the specified set of
 snaps.
 
-A quota group sets resource limits on the set of snaps it contains. Only maximum
-memory is currently supported. Snaps can be at most in one quota group but quota
-groups can be nested. Nested quota groups are subject to the restriction that 
-the total sum of maximum memory in sub-groups cannot exceed that of the parent
-group the nested groups are part of.
+A quota group sets resource limits on the set of snaps it contains. Snaps can 
+be at most in one quota group but quota groups can be nested. Nested quota 
+groups are subject to the restriction that the total sum of each existing quota
+in sub-groups cannot exceed that of the parent group the nested groups are part of.
 
 All provided snaps are appended to the group; to remove a snap from a
 quota group, the entire group must be removed with remove-quota and recreated 
@@ -77,6 +76,19 @@ decrease the memory limit for a quota group, the entire group must be removed
 with the remove-quota command and recreated with a lower limit. Increasing the
 memory limit for a quota group does not restart any services associated with 
 snaps in the quota group.
+
+The CPU limit for a quota group can be both increased and decreased after being
+set on a quota group.
+
+The CPU set limit for a quota group can be modified to include new cpus, or to remove
+existing cpus from the quota already set.
+
+The thread limit for a quota group can increased but not decreased. To
+decrease the thread limit for a quota group, the entire group must be removed
+with the remove-quota command and recreated with a lower limit.
+
+New quotas can be set on existing quota groups, but existing quotas cannot be removed
+from a quota group, without removing and recreating the entire group.
 
 Adding new snaps to a quota group will result in all non-disabled services in 
 that snap being restarted.
