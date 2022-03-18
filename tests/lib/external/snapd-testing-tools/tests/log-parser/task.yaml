@@ -18,7 +18,13 @@ execute: |
     TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .number' spread-results.json)
     test "$TESTS_SUCCESSFUL" = "434"
     test "$TESTS_FAILED" = "1"
-    
+
+    # Check info when the log contains failed tests
+    jq -r '.[] | select( .type == "info") | select( .info_type == "Error") | .verb' spread-results.json | MATCH 'executing'
+    jq -r '.[] | select( .type == "info") | select( .info_type == "Error") | .task' spread-results.json | MATCH 'google:centos-8-64:tests/lib/tools/suite/tests.pkgs'
+    jq -r '.[] | select( .type == "info") | select( .info_type == "Debug") | .verb' spread-results.json | MATCH 'null'
+    jq -r '.[] | select( .type == "info") | select( .info_type == "Debug") | .task' spread-results.json | MATCH 'google:centos-8-64:tests/lib/tools/suite/tests.pkgs'
+
     # Check results when the log contains failed tests
     log-parser all-aborted.log.spread
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)

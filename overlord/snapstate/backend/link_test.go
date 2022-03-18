@@ -444,7 +444,7 @@ Icon=${SNAP}/bin.png
 Exec=bin
 `), 0644), IsNil)
 
-	// sanity checks
+	// validity checks
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapDBusSystemServicesDir, dirs.SnapDBusSessionServicesDir} {
 		os.MkdirAll(d, 0755)
 		l, err := filepath.Glob(filepath.Join(d, "*"))
@@ -513,7 +513,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 }
 
 func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C) {
-	// sanity check
+	// validity check
 	c.Assert(s.info.DataDir(), testutil.FileAbsent)
 
 	// the mountdir symlink is currently the last thing in LinkSnap that can
@@ -701,7 +701,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
-	// sanity checks
+	// validity checks
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
 		fmt.Sprintf("[Service]\nExecStart=%s/usr/lib/snapd/snapd\n", info.MountDir()))
 	// expecting all generated untis to be present
@@ -811,7 +811,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(quantity.SizeMiB))
+	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	linkCtxWithGroup := backend.LinkContext{

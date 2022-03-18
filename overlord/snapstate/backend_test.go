@@ -224,7 +224,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core22":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
@@ -361,6 +361,13 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "core18-snap-id":
 		name = "core18"
 		typ = snap.TypeBase
+	case "core22-id":
+		name = "core22"
+		typ = snap.TypeBase
+	case "snap-for-core22-id":
+		name = "snap-for-core22"
+	case "snap-for-core24-id":
+		name = "snap-for-core24"
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
 	case "producer-id":
@@ -464,6 +471,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		}
 	case "channel-for-base/stable":
 		info.Base = "some-base"
+	case "channel-for-core22/stable":
+		info.Base = "core22"
+		info.Revision = snap.R(2)
 	}
 
 	var hit snap.Revision
@@ -899,6 +909,12 @@ apps:
 			panic(err)
 		}
 		info.SideInfo = *si
+	case "snap-for-core22":
+		if info.Revision.N > 1 {
+			info.Base = "core22"
+		}
+	case "snap-for-core24":
+		info.Base = "core24"
 	}
 
 	info.InstanceKey = instanceKey

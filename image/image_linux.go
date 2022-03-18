@@ -266,7 +266,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		}
 		seedDir = dirs.SnapSeedDirUnder(rootDir)
 
-		// sanity check target
+		// validity check target
 		if osutil.FileExists(dirs.SnapStateFileUnder(rootDir)) {
 			return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(rootDir))
 		}
@@ -280,7 +280,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		label = makeLabel(time.Now())
 		bootRootDir = seedDir
 
-		// sanity check target
+		// validity check target
 		if systems, _ := filepath.Glob(filepath.Join(seedDir, "systems", "*")); len(systems) > 0 {
 			return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
 		}
