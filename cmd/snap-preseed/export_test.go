@@ -28,3 +28,27 @@ func MockOsGetuid(f func() int) (restore func()) {
 	osGetuid = f
 	return func() { osGetuid = oldOsGetuid }
 }
+
+func MockPreseedCore20(f func(dir string) error) (restore func()) {
+	old := preseedCore20
+	preseedCore20 = f
+	return func() {
+		preseedCore20 = old
+	}
+}
+
+func MockPreseedClassic(f func(dir string) error) (restore func()) {
+	old := preseedClassic
+	preseedClassic = f
+	return func() {
+		preseedClassic = old
+	}
+}
+
+func MockResetPreseededChroot(f func(dir string) error) (restore func()) {
+	old := preseedResetPreseededChroot
+	preseedResetPreseededChroot = f
+	return func() {
+		preseedResetPreseededChroot = old
+	}
+}
