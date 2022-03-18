@@ -874,7 +874,7 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 			item := items[i]
 			parts := strings.Split(item, ":")
 			if parts[0] == "*" {
-				c.Assert(i, Equals, len(items)-1, Commentf(":* can only be used as the last entry"))
+				c.Assert(i, Equals, len(items)-1, Commentf("*: can only be used as the last entry"))
 				for _, name := range names {
 					if !seen[name] {
 						parts[0] = name
@@ -909,7 +909,7 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 			item := expected[i]
 			parts := strings.Split(item, ":")
 			if parts[0] == "*" {
-				c.Assert(i, Equals, len(expected)-1, Commentf(":* can only be used as the last entry"))
+				c.Assert(i, Equals, len(expected)-1, Commentf("*: can only be used as the last entry"))
 				var expanded []string
 				for _, name := range names {
 					if !seen[name] {

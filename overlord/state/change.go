@@ -528,14 +528,12 @@ func (c *Change) AbortUnreadyLanes() {
 }
 
 func (c *Change) abortUnreadyLanes() {
-	lanes := map[int]bool{}
 	lanesWithLiveTasks := map[int]bool{}
 
 	for _, tid := range c.taskIDs {
 		t := c.state.tasks[tid]
 		ready := t.Status().Ready()
 		for _, tlane := range t.Lanes() {
-			lanes[tlane] = true
 			if !ready {
 				lanesWithLiveTasks[tlane] = true
 			}
