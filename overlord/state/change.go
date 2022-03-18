@@ -543,10 +543,8 @@ func (c *Change) abortUnreadyLanes() {
 	}
 
 	abortLanes := []int{}
-	for lane := range lanes {
-		if lanesWithLiveTasks[lane] {
-			abortLanes = append(abortLanes, lane)
-		}
+	for lane := range lanesWithLiveTasks {
+		abortLanes = append(abortLanes, lane)
 	}
 	c.abortLanes(abortLanes, make(map[int]bool), make(map[string]bool))
 }

@@ -775,7 +775,7 @@ var abortUnreadyLanesTests = []struct {
 	}, {
 		setup: "t11:done:2,3 t12:done:2,3 t21:done:2 t22:done:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
 		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
-		// XXX should whole lane 2 be undone as well?
+		// lane 2 is fully complete so it does not get aborted
 		result: "t11:done t12:done t21:done t22:done t31:abort t32:hold t41:hold t42:hold *:undo",
 	}, {
 		setup:  "t11:done:2,3 t12:done:2,3 t21:doing:2 t22:do:2 t31:doing:3 t32:do:3 t41:do:4 t42:do:4",
@@ -874,6 +874,7 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 			item := items[i]
 			parts := strings.Split(item, ":")
 			if parts[0] == "*" {
+				c.Assert(i, Equals, len(items)-1, Commentf(":* can only be used as the last entry"))
 				for _, name := range names {
 					if !seen[name] {
 						parts[0] = name
@@ -908,6 +909,7 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 			item := expected[i]
 			parts := strings.Split(item, ":")
 			if parts[0] == "*" {
+				c.Assert(i, Equals, len(expected)-1, Commentf(":* can only be used as the last entry"))
 				var expanded []string
 				for _, name := range names {
 					if !seen[name] {
