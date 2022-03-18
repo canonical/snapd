@@ -83,7 +83,7 @@ execute: |
     # check that the change was successful
     tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
 
-    current_boot_id="$( nested_get_boot_id )"
+    current_boot_id="$( tests.nested boot-id )"
     if [ "$variant" = "20" ]; then
         # we should have rebooted a couple of times (at least twice for the recovery
         # system and the base), so boot-id should be different
