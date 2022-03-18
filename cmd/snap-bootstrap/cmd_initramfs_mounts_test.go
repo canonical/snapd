@@ -6234,6 +6234,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{
+				Mountpoint:        boot.InitramfsUbuntuSaveDir,
+				IsDecryptedDevice: true,
+			}: defaultEncBootDisk,
 		},
 	)
 	defer restore()
@@ -6330,8 +6334,20 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should not have written a degraded.json
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+	// we should have written a degraded.json
+	checkDegradedJSON(c, map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/mapper/ubuntu-save-random",
+			"find-state":     "found",
+			"unlock-state":   "unlocked",
+			"unlock-key":     "fallback",
+			"mount-state":    "mounted",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
+		"error-log": []interface{}{},
+	})
 
 	c.Check(saveActivated, Equals, true)
 	c.Check(measureEpochCalls, Equals, 1)
@@ -6356,6 +6372,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
 		},
 	)
 	defer restore()
@@ -6389,7 +6406,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 			nil,
 		},
 		{
-			"/dev/sda4",
+			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
 			nil,
 			nil,
@@ -6412,8 +6429,18 @@ base=core20_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	// we should not have written a degraded.json
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+	// we should have written a degraded.json
+	checkDegradedJSON(c, map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			"find-state":     "found",
+			"mount-state":    "mounted",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
+		"error-log": []interface{}{},
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencryptedNoSave(c *C) {
@@ -6485,11 +6512,10 @@ grade=signed
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
-			"find-state": "absent-but-optional",
+			"find-state":  "not-found",
+			"mount-state": "absent-but-optional",
 		},
-		"error-log": []interface{}{
-			"cannot find ubuntu-save: filesystem label \"ubuntu-save\" not found",
-		},
+		"error-log": []interface{}{},
 	})
 }
 
@@ -6601,7 +6627,7 @@ grade=signed
 			"find-state":   "found",
 		},
 		"error-log": []interface{}{
-			"cannot unlock encrypted ubuntu-save (device /dev/disk/by-partuuid/ubuntu-save-enc-partuuid) with sealed fallback key: ubuntu-save unlock fail",
+			"cannot unlock encrypted ubuntu-save partition with sealed fallback key: ubuntu-save unlock fail",
 		},
 	})
 
@@ -6709,9 +6735,10 @@ grade=signed
 			"unlock-state": "unlocked",
 			"unlock-key":   "fallback",
 			"find-state":   "found",
+			"mount-state":  "error-mounting",
 		},
 		"error-log": []interface{}{
-			"cannot mount ubuntu-save (device /dev/mapper/ubuntu-save-random): mount failed",
+			"cannot mount ubuntu-save: mount failed",
 		},
 	})
 
