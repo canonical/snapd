@@ -47,9 +47,11 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 	quotaValues := &client.QuotaValues{
 		Memory: quantity.Size(1001),
 		CPU: &client.QuotaCPUValues{
-			Count:       1,
-			Percentage:  50,
-			AllowedCPUs: []int{0},
+			Count:      1,
+			Percentage: 50,
+		},
+		CPUSet: &client.QuotaCPUSetValues{
+			CPUs: []int{0},
 		},
 		Threads: 32,
 	}
@@ -72,9 +74,11 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"constraints": map[string]interface{}{
 			"memory": json.Number("1001"),
 			"cpu": map[string]interface{}{
-				"count":        json.Number("1"),
-				"percentage":   json.Number("50"),
-				"allowed-cpus": []interface{}{json.Number("0")},
+				"count":      json.Number("1"),
+				"percentage": json.Number("50"),
+			},
+			"cpu-set": map[string]interface{}{
+				"cpus": []interface{}{json.Number("0")},
 			},
 			"threads": json.Number("32"),
 		},

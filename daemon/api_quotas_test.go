@@ -310,9 +310,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateCpu2Happy(c *check.C) {
 		Snaps:     []string{"some-snap"},
 		Constraints: client.QuotaValues{
 			CPU: &client.QuotaCPUValues{
-				Count:       1,
-				Percentage:  100,
-				AllowedCPUs: []int{0, 1},
+				Count:      1,
+				Percentage: 100,
+			},
+			CPUSet: &client.QuotaCPUSetValues{
+				CPUs: []int{0, 1},
 			},
 		},
 	})

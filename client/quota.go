@@ -45,15 +45,19 @@ type QuotaGroupResult struct {
 }
 
 type QuotaCPUValues struct {
-	Count       int   `json:"count,omitempty"`
-	Percentage  int   `json:"percentage,omitempty"`
-	AllowedCPUs []int `json:"allowed-cpus,omitempty"`
+	Count      int `json:"count,omitempty"`
+	Percentage int `json:"percentage,omitempty"`
+}
+
+type QuotaCPUSetValues struct {
+	CPUs []int `json:"cpus,omitempty"`
 }
 
 type QuotaValues struct {
-	Memory  quantity.Size   `json:"memory,omitempty"`
-	CPU     *QuotaCPUValues `json:"cpu,omitempty"`
-	Threads int             `json:"threads,omitempty"`
+	Memory  quantity.Size      `json:"memory,omitempty"`
+	CPU     *QuotaCPUValues    `json:"cpu,omitempty"`
+	CPUSet  *QuotaCPUSetValues `json:"cpu-set,omitempty"`
+	Threads int                `json:"threads,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.

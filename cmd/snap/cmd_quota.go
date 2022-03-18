@@ -154,7 +154,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 	var mem int64
 	var cpuCount int
 	var cpuPercentage int
-	var allowedCpus []int
+	var cpus []int
 	var thread int
 
 	if maxMemory != "" {
@@ -187,7 +187,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 			return nil, fmt.Errorf("cannot use --cpu-set with cgroup version %d", cgv)
 		}
 
-		cpuTokens := strings.Split(cpuSet, ",")
+		cpuTokens := strutil.CommaSeparatedList(cpuSet)
 		for i, cpuToken := range cpuTokens {
 			cpu, err := strconv.Atoi(cpuToken)
 			if err != nil {
@@ -196,7 +196,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 			if cpu < 0 {
 				return nil, fmt.Errorf("cannot use a negative CPU number in --cpu-set")
 			}
-			allowedCpus = append(allowedCpus, cpu)
+			cpus = append(cpus, cpu)
 		}
 	}
 
@@ -211,9 +211,11 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 	return &client.QuotaValues{
 		Memory: quantity.Size(mem),
 		CPU: &client.QuotaCPUValues{
-			Count:       cpuCount,
-			Percentage:  cpuPercentage,
-			AllowedCPUs: allowedCpus,
+			Count:      cpuCount,
+			Percentage: cpuPercentage,
+		},
+		CPUSet: &client.QuotaCPUSetValues{
+			CPUs: cpus,
 		},
 		Threads: thread,
 	}, nil
@@ -345,11 +347,10 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	if group.Constraints.CPU != nil {
 		fmt.Fprintf(w, "  cpu-count:\t%d\n", group.Constraints.CPU.Count)
 		fmt.Fprintf(w, "  cpu-percentage:\t%d\n", group.Constraints.CPU.Percentage)
-
-		if len(group.Constraints.CPU.AllowedCPUs) > 0 {
-			allowedCpus := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(group.Constraints.CPU.AllowedCPUs)), ","), "[]")
-			fmt.Fprintf(w, "  allowed-cpus:\t%s\n", allowedCpus)
-		}
+	}
+	if group.Constraints.CPUSet != nil && len(group.Constraints.CPUSet.CPUs) > 0 {
+		cpus := strutil.IntsToCommaSeparated(group.Constraints.CPUSet.CPUs)
+		fmt.Fprintf(w, "  cpu-set:\t%s\n", cpus)
 	}
 	if group.Constraints.Threads != 0 {
 		fmt.Fprintf(w, "  threads:\t%d\n", group.Constraints.Threads)
@@ -438,7 +439,7 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 			grpConstraints = append(grpConstraints, "memory="+strings.TrimSpace(fmtSize(int64(q.Constraints.Memory))))
 		}
 
-		// format cpu constraint as cpu=NxM%,allowed-cpus=x,y,z
+		// format cpu constraint as cpu=NxM%,cpu-set=x,y,z
 		if q.Constraints.CPU != nil {
 			if q.Constraints.CPU.Count != 0 || q.Constraints.CPU.Percentage != 0 {
 				if q.Constraints.CPU.Count != 0 {
@@ -448,11 +449,11 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 					grpConstraints = append(grpConstraints, fmt.Sprintf("cpu=%d%%", q.Constraints.CPU.Percentage))
 				}
 			}
+		}
 
-			if len(q.Constraints.CPU.AllowedCPUs) > 0 {
-				allowedCpus := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(q.Constraints.CPU.AllowedCPUs)), ","), "[]")
-				grpConstraints = append(grpConstraints, "allowed-cpus="+allowedCpus)
-			}
+		if q.Constraints.CPUSet != nil && len(q.Constraints.CPUSet.CPUs) > 0 {
+			cpus := strutil.IntsToCommaSeparated(q.Constraints.CPUSet.CPUs)
+			grpConstraints = append(grpConstraints, "cpu-set="+cpus)
 		}
 
 		// format threads constraint as thread=N

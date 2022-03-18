@@ -91,9 +91,11 @@ func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 
 	if grp.CPULimit != nil {
 		constraints.CPU = &client.QuotaCPUValues{
-			Count:       grp.CPULimit.Count,
-			Percentage:  grp.CPULimit.Percentage,
-			AllowedCPUs: grp.CPULimit.AllowedCPUs,
+			Count:      grp.CPULimit.Count,
+			Percentage: grp.CPULimit.Percentage,
+		}
+		constraints.CPUSet = &client.QuotaCPUSetValues{
+			CPUs: grp.CPULimit.AllowedCPUs,
 		}
 	}
 	return &constraints
@@ -187,9 +189,9 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 		if values.CPU.Percentage != 0 {
 			resourcesBuilder.WithCPUPercentage(values.CPU.Percentage)
 		}
-		if len(values.CPU.AllowedCPUs) != 0 {
-			resourcesBuilder.WithAllowedCPUs(values.CPU.AllowedCPUs)
-		}
+	}
+	if values.CPUSet != nil && len(values.CPUSet.CPUs) != 0 {
+		resourcesBuilder.WithAllowedCPUs(values.CPUSet.CPUs)
 	}
 	if values.Threads != 0 {
 		resourcesBuilder.WithThreadLimit(values.Threads)
