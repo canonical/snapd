@@ -1752,7 +1752,7 @@ func (s *RunSuite) TestSnapRunHookKernelImplicitBase(c *check.C) {
 			case 0:
 				c.Check(r.Method, check.Equals, "GET")
 				c.Check(r.URL.RawQuery, check.Equals, "")
-				fmt.Fprintln(w, happyUC20ModelAssertionResponse)
+				fmt.Fprint(w, happyUC20ModelAssertionResponse)
 			default:
 				c.Fatalf("expected to get 1 request for /v2/model, now on %d", nModel+1)
 			}
