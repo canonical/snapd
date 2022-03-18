@@ -1,0 +1,14 @@
+name: test-snapd-desktop-with-content
+version: 0.1
+
+apps:
+  cmd:
+    cmd: bin.sh
+
+plugs:
+  desktop: {}
+  shared-content-plug:
+    interface: content
+    target: import
+    content: mylib
+    default-provider: test-snapd-content-slot
