@@ -33,6 +33,26 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+// GroupQuotaCPU contains the different knobs that can be tuned
+// for cpu quota limits. The allowed CPU percentage to use is split across two limits
+// to better support a inituitive way of setting the limits.
+type GroupQuotaCPU struct {
+	// Count is the multiplier that is used in combination with the
+	// percentage parameter to determine the final CPU resource constraint value.
+	// The value is a positive integer or 0. A value of 0 will be treated as 1.
+	Count int `json:"count,omitempty"`
+
+	// Percentage is a positive integer between 0 and 100. It is used to together with
+	// the Count parameter to determine the final CPU resource constraint value. The value
+	// written to the systemd slice will be Count*Percentage. A value of 0 means that the limit
+	// in Percentage and Count is ignored.
+	Percentage int `json:"percentage,omitempty"`
+
+	// AllowedCPUs is a list of CPU core indices that are allowed to be used by the group. Each value
+	// in the list refers to the CPU core number. If the list is empty, all CPU cores are allowed.
+	AllowedCPUs []int `json:"allowed-cpus,omitempty"`
+}
+
 // Group is a quota group of snaps, services or sub-groups that are all subject
 // to specific resource quotas. The only quota resource types currently
 // supported is memory, but this can be expanded in the future.
@@ -59,6 +79,16 @@ type Group struct {
 	// ExhaustionBehavior. MemoryLimit is expressed in bytes.
 	MemoryLimit quantity.Size `json:"memory-limit,omitempty"`
 
+	// CPULimit is the quotas for the cpu and consists of a couple of nubs.
+	// It is possible to control the percentage of the cpu available for the group
+	// and which cores (requires cgroupsv2) are allowed to be used.
+	CPULimit *GroupQuotaCPU `json:"cpu-limit,omitempty"`
+
+	// TaskLimit is the limit of threads/processes that can be active at once in
+	// the group. Once the limit is reached, further forks() or clones() will be blocked
+	// for processes in the group.
+	TaskLimit int `json:"task-limit,omitempty"`
+
 	// ParentGroup is the the parent group that this group is a child of. If it
 	// is empty, then this is a "root" quota group.
 	ParentGroup string `json:"parent-group,omitempty"`
@@ -77,7 +107,10 @@ func NewGroup(name string, resourceLimits Resources) (*Group, error) {
 	grp := &Group{
 		Name: name,
 	}
-	grp.UpdateQuotaLimits(resourceLimits)
+
+	if err := grp.UpdateQuotaLimits(resourceLimits); err != nil {
+		return nil, err
+	}
 
 	if err := grp.validate(); err != nil {
 		return nil, err
@@ -86,16 +119,26 @@ func NewGroup(name string, resourceLimits Resources) (*Group, error) {
 	return grp, nil
 }
 
-// UpdateQuotaLimits updates all the quota limits set for the group to the new limits
-// given. The limits must be validated prior to calling this function.
-func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) {
-	if resourceLimits.Memory != nil {
-		grp.MemoryLimit = resourceLimits.Memory.Limit
-	}
-}
-
 func (grp *Group) GetQuotaResources() Resources {
-	return NewResources(grp.MemoryLimit)
+	resourcesBuilder := NewResourcesBuilder()
+	if grp.MemoryLimit != 0 {
+		resourcesBuilder.WithMemoryLimit(grp.MemoryLimit)
+	}
+	if grp.CPULimit != nil {
+		if grp.CPULimit.Count != 0 {
+			resourcesBuilder.WithCPUCount(grp.CPULimit.Count)
+		}
+		if grp.CPULimit.Percentage != 0 {
+			resourcesBuilder.WithCPUPercentage(grp.CPULimit.Percentage)
+		}
+		if len(grp.CPULimit.AllowedCPUs) != 0 {
+			resourcesBuilder.WithAllowedCPUs(grp.CPULimit.AllowedCPUs)
+		}
+	}
+	if grp.TaskLimit != 0 {
+		resourcesBuilder.WithThreadLimit(grp.TaskLimit)
+	}
+	return resourcesBuilder.Build()
 }
 
 // CurrentMemoryUsage returns the current memory usage of the quota group. For
@@ -121,6 +164,30 @@ func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
 	}
 
 	return mem, nil
+}
+
+// CurrentTaskUsage returns the current task (processes, threads) usage of the quota group.
+// For quota groups which do not yet have a backing systemd slice on the system (
+// i.e. quota groups without any snaps in them), the task usage is reported
+// as 0
+func (grp *Group) CurrentTaskUsage() (int, error) {
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	// check if this group is actually active, it could not physically exist yet
+	// since it has no snaps in it
+	isActive, err := sysd.IsActive(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+	if !isActive {
+		return 0, nil
+	}
+
+	count, err := sysd.CurrentTasksCount(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 // SliceFileName returns the name of the slice file that should be used for this
@@ -153,6 +220,263 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
+// groupQuotaAllocations contains information about current quotas of a group
+// and is used by getQuotaAllocations to contain this information.
+// There are two types of values for each quota - the quota limit set by this group,
+// and the quota reserved by children of this group. Examples:
+// Group that has a non-memory quota, but has a child group that has a memory quota of 512mb:
+// memoryLimit = 0
+// memoryReserved = 512 mb
+// Group that has a memory quota of 512mb, but has only children groups with non-memory quota:
+// memoryLimit = 512 mb
+// memoryReserved = 0
+// Group that has a memory quota of 512mb, and has a child group that has a memory quota of 256mb:
+// memoryLimit = 512 mb
+// memoryReserved = 256 mb
+// If the limit value is non-zero, then the reserved value can never be greater than the limit, however
+// if the limit is zero, then the reserved value must be below the nearest non-zero limit as you traverse
+// up the tree.
+type groupQuotaAllocations struct {
+	MemoryLimit    quantity.Size
+	MemoryReserved quantity.Size
+
+	CpuLimit    int
+	CpuReserved int
+
+	ThreadsLimit    int
+	ThreadsReserved int
+
+	AllowedCPUsLimit []int
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func maxq(a, b quantity.Size) quantity.Size {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func (grp *Group) getAllowedCPUs() []int {
+	if grp.CPULimit == nil || len(grp.CPULimit.AllowedCPUs) == 0 {
+		return []int{}
+	}
+	return grp.CPULimit.AllowedCPUs
+}
+
+func (grp *Group) getTotalCPUPercentage() int {
+	if grp.CPULimit == nil || grp.CPULimit.Percentage == 0 {
+		return 0
+	}
+	return max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
+}
+
+// getQuotaAllocations Recursively retrieve current group quotas statistics, this should just
+// be invoked on the upper parent of a group tree, and then it will gather active quotas for the
+// tree and store them in the allQuotas paramater
+func (grp *Group) getQuotaAllocations(allQuotas map[string]*groupQuotaAllocations, skipGrp *Group) *groupQuotaAllocations {
+	limits := &groupQuotaAllocations{
+		MemoryLimit:      grp.MemoryLimit,
+		CpuLimit:         grp.getTotalCPUPercentage(),
+		ThreadsLimit:     grp.TaskLimit,
+		AllowedCPUsLimit: grp.getAllowedCPUs(),
+	}
+
+	for _, subGroup := range grp.subGroups {
+		// Skip the group that has requested the count, as this is called when creating subgroups
+		// and when updating quotas. And we don't want to include the current quotas for the subgroup
+		// that actually wants to update its quotas.
+		if subGroup == skipGrp {
+			continue
+		}
+
+		// cyclic checks are made by visitTree so we make the assumption here
+		// that no cyclic dependencies exists.
+		subGroupLimits := subGroup.getQuotaAllocations(allQuotas, skipGrp)
+
+		// As we count up the usage of quotas across our sub-groups we must either use the actual
+		// limits of the below sub-group, or the actual usage of the sub-group. The reason we must do this
+		// is because if the sub-group doesn't have any limit set for a quota, but the sub-group has sub-groups
+		// itself that do have limits, then we must use that value instead. Hence the max* functions.
+		limits.MemoryReserved += maxq(subGroupLimits.MemoryLimit, subGroupLimits.MemoryReserved)
+		limits.CpuReserved += max(subGroupLimits.CpuLimit, subGroupLimits.CpuReserved)
+		limits.ThreadsReserved += max(subGroupLimits.ThreadsLimit, subGroupLimits.ThreadsReserved)
+	}
+
+	// Store the retrieved limits for the group
+	allQuotas[grp.Name] = limits
+	return limits
+}
+
+// validateMemoryResourceFit locates the nearest parent group that has a memory quota, and then verifies
+// if that group has any space available by checking its 'memoryReserved'. The 'memoryReserved' tells us how much
+// of the group quotas limit has been used already by its subgroups (excluding the one querying).
+func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllocations, memoryLimit quantity.Size) error {
+	parent := grp.parentGroup
+	for parent != nil {
+		limits := allQuotas[parent.Name]
+		if limits != nil && limits.MemoryLimit != 0 {
+			memoryAvailable := limits.MemoryLimit - limits.MemoryReserved
+			if memoryLimit > memoryAvailable {
+				return fmt.Errorf("sub-group memory limit of %s is too large to fit inside group %q remaining quota space %s",
+					memoryLimit.IECString(), parent.Name, memoryAvailable.IECString())
+			}
+			break
+		}
+		parent = parent.parentGroup
+	}
+	return nil
+}
+
+// validateCPUResourceFit locates the nearest parent group that has a cpu quota, and then verifies
+// if that group has any space available by checking its 'cpuReserved'. The 'cpuReserved' tells us how much
+// of the group quotas limit has been used already by its subgroups (excluding the one querying).
+func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocations, cpuCount, cpuPercentage int) error {
+	parent := grp.parentGroup
+	for parent != nil {
+		limits := allQuotas[parent.Name]
+		if limits != nil && limits.CpuLimit != 0 {
+			cpuRequested := max(cpuCount, 1) * cpuPercentage
+			cpuAvailable := limits.CpuLimit - limits.CpuReserved
+			if cpuRequested > cpuAvailable {
+				return fmt.Errorf("sub-group cpu limit of %d%% is too large to fit inside group %q remaining quota space %d%%",
+					cpuRequested, parent.Name, cpuAvailable)
+			}
+			break
+		}
+		parent = parent.parentGroup
+	}
+	return nil
+}
+
+func contains(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+// validateCPUsAllowedResourceFit locates the nearest parent group that has a cpu-set quota, and then verifies
+// that the requested cpu cores match a subset of the previously set allowance.
+func (grp *Group) validateCPUsAllowedResourceFit(allQuotas map[string]*groupQuotaAllocations, cpusAllowed []int) error {
+	parent := grp.parentGroup
+	for parent != nil {
+		limits := allQuotas[parent.Name]
+		if limits != nil && len(limits.AllowedCPUsLimit) != 0 {
+			for _, cpu := range cpusAllowed {
+				if !contains(limits.AllowedCPUsLimit, cpu) {
+					return fmt.Errorf("sub-group allowed cpu id of %d is not allowed by group %q", cpu, parent.Name)
+				}
+			}
+			break
+		}
+		parent = parent.parentGroup
+	}
+	return nil
+}
+
+// validateThreadResourceFit locates the nearest parent group that has a thread quota, and then verifies
+// if that group has any space available by checking its 'threadsReserved'. The 'threadsReserved' tells us how much
+// of the group quotas limit has been used already by its subgroups (excluding the one querying).
+func (grp *Group) validateThreadResourceFit(allQuotas map[string]*groupQuotaAllocations, threadLimit int) error {
+	parent := grp.parentGroup
+	for parent != nil {
+		limits := allQuotas[parent.Name]
+		if limits != nil && limits.ThreadsLimit != 0 {
+			threadsAvailable := limits.ThreadsLimit - limits.ThreadsReserved
+			if threadLimit > threadsAvailable {
+				return fmt.Errorf("sub-group thread limit of %d is too large to fit inside group %q remaining quota space %d",
+					threadLimit, parent.Name, threadsAvailable)
+			}
+			break
+		}
+		parent = parent.parentGroup
+	}
+	return nil
+}
+
+// validateQuotasFit verifies that the given group's current limits fits correctly
+// into the group's parent group's limits. This is done in multiple steps, where the first
+// one is to get a statistics for the upper-most parent group, to get a combined overview
+// of all quotas currently set and their usage. The next step is, for each quota we want to
+// set/change, verify that it does not exceed any previously set quota of matching type.
+func (grp *Group) validateQuotasFit(resourceLimits Resources) error {
+	if grp.parentGroup == nil {
+		return nil
+	}
+
+	upperParent := grp
+	for upperParent.parentGroup != nil {
+		upperParent = upperParent.parentGroup
+	}
+
+	allQuotas := make(map[string]*groupQuotaAllocations)
+	upperParent.getQuotaAllocations(allQuotas, grp)
+
+	// for each limit we want to set, we need to find the closes parent
+	// limit that matches it, and then verify against it's usage if we have room
+	if resourceLimits.Memory != nil {
+		if err := grp.validateMemoryResourceFit(allQuotas, resourceLimits.Memory.Limit); err != nil {
+			return err
+		}
+	}
+	if resourceLimits.CPU != nil {
+		if resourceLimits.CPU.Percentage != 0 {
+			if err := grp.validateCPUResourceFit(allQuotas, resourceLimits.CPU.Count, resourceLimits.CPU.Percentage); err != nil {
+				return err
+			}
+		}
+		if len(resourceLimits.CPU.AllowedCPUs) != 0 {
+			if err := grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPU.AllowedCPUs); err != nil {
+				return err
+			}
+		}
+	}
+	if resourceLimits.Threads != nil {
+		if err := grp.validateThreadResourceFit(allQuotas, resourceLimits.Threads.Limit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// UpdateQuotaLimits updates all the quota limits set for the group to the new limits
+// given. The limits will be validated against the group's parent group's limits, to verify
+// that they fit. For instance, if the parent group has a memory limit of 1GB, and the new limit
+// given here is 2GB, then the new limit will be rejected.
+func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
+	if err := resourceLimits.Validate(); err != nil {
+		return err
+	}
+
+	if err := grp.validateQuotasFit(resourceLimits); err != nil {
+		return err
+	}
+
+	if resourceLimits.Memory != nil {
+		grp.MemoryLimit = resourceLimits.Memory.Limit
+	}
+	if resourceLimits.CPU != nil {
+		grp.CPULimit = &GroupQuotaCPU{
+			Count:       resourceLimits.CPU.Count,
+			Percentage:  resourceLimits.CPU.Percentage,
+			AllowedCPUs: resourceLimits.CPU.AllowedCPUs,
+		}
+	}
+	if resourceLimits.Threads != nil {
+		grp.TaskLimit = resourceLimits.Threads.Limit
+	}
+	return nil
+}
+
 func (grp *Group) validate() error {
 	if err := naming.ValidateQuotaGroup(grp.Name); err != nil {
 		return err
@@ -181,26 +505,6 @@ func (grp *Group) validate() error {
 			}
 		}
 	}
-
-	// check that if this is a sub-group, then the parent group has enough space
-	// to accommodate this new group (we assume that other existing sub-groups
-	// in the parent group have already been validated)
-	if grp.parentGroup != nil {
-		alreadyUsed := quantity.Size(0)
-		for _, child := range grp.parentGroup.subGroups {
-			if child.Name == grp.Name {
-				continue
-			}
-			alreadyUsed += child.MemoryLimit
-		}
-		// careful arithmetic here in case we somehow overflow the max size of
-		// quantity.Size
-		if grp.parentGroup.MemoryLimit-alreadyUsed < grp.MemoryLimit {
-			remaining := grp.parentGroup.MemoryLimit - alreadyUsed
-			return fmt.Errorf("sub-group memory limit of %s is too large to fit inside remaining quota space %s for parent group %s", grp.MemoryLimit.IECString(), remaining.IECString(), grp.parentGroup.Name)
-		}
-	}
-
 	return nil
 }
 
@@ -213,7 +517,10 @@ func (grp *Group) NewSubGroup(name string, resourceLimits Resources) (*Group, er
 		ParentGroup: grp.Name,
 		parentGroup: grp,
 	}
-	subGrp.UpdateQuotaLimits(resourceLimits)
+
+	if err := subGrp.UpdateQuotaLimits(resourceLimits); err != nil {
+		return nil, err
+	}
 
 	// check early that the sub group name is not the same as that of the
 	// parent, this is fine in systemd world, but in snapd we want unique quota

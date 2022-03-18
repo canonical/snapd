@@ -811,7 +811,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(quantity.SizeMiB))
+	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	linkCtxWithGroup := backend.LinkContext{
