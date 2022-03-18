@@ -1568,11 +1568,15 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+		typ := update.Type()
+		if typ == snap.TypeOS || typ == snap.TypeBase || typ == snap.TypeSnapd {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
 			prereqs[update.InstanceName()] = ts
+			if typ == snap.TypeBase {
+				waitPrereq(ts, "snapd")
+			}
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
@@ -1594,7 +1598,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 		}
 		// keep track of kernel/gadget/base updates
-		switch update.Type() {
+		switch typ {
 		case snap.TypeKernel:
 			kernelTs = ts
 		case snap.TypeGadget:
