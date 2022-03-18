@@ -626,33 +626,33 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	if len(affectedTargetCreationDirs) != 0 {
 		entriesForMimicDir := map[string][]osutil.MountEntry{}
 		for parentTargetDir, entriesNeedingDir := range affectedTargetCreationDirs {
-			// first check if any of the mount entries for the changes will require
-			// creating a mimic
-			// we do this by checking if the file / dir that is to be mounted exists
-			// already in the form we need to to bind mount on top of it, if it
+			// First check if any of the mount entries for the changes will potentially
+			// result in creating a mimic. Note that to actually know if a given mount
+			// entry will require a mimic when the mount target doesn't exist, we would
+			// have to try and create a file/directory/symlink at the desired target,
+			// however that would be a destructive change which is not appropriate here
+			// (that is done in ChangePerform() instead), but for our purposes of sorting
+			// mount entries it is sufficient to use this assumption.
+			// We check if a mount entry would result in a potential mimic by just
+			// checking if the file/dir/symlink that is the target of the mount exists
+			// already in the form we need to to bind mount on top of it. If it
 			// doesn't then we need to create a mimic and so we then go looking for
-			// where to create the mimic
+			// where to create the mimic.
 			for _, entry := range entriesNeedingDir {
+				exists := true
 				switch entry.XSnapdKind() {
 				case "":
-					// implicit dir creation, if the dir doesn't exist then we need
-					// a mimic
-					if !osutilIsDirectory(entry.Dir) {
-						neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
-						entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
-					}
+					exists = osutilIsDirectory(entry.Dir)
 				case "file":
-					// if the file doesn't exist then we need a mimic
-					if !osutil.FileExists(entry.Dir) {
-						neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
-						entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
-					}
+					exists = osutil.FileExists(entry.Dir)
 				case "symlink":
-					// if the symlink doesn't exist then we need a mimic
-					if !osutil.IsSymlink(entry.Dir) {
-						neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
-						entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
-					}
+					exists = osutil.IsSymlink(entry.Dir)
+				}
+
+				// if it doesn't exist we may need a mimic
+				if !exists {
+					neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
+					entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
 				}
 			}
 		}
