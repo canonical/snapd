@@ -123,7 +123,6 @@ type Change struct {
 	clean   bool
 	data    customData
 	taskIDs []string
-	lanes   int
 	ready   chan struct{}
 
 	spawnTime time.Time
@@ -157,7 +156,6 @@ type marshalledChange struct {
 	Clean   bool                        `json:"clean,omitempty"`
 	Data    map[string]*json.RawMessage `json:"data,omitempty"`
 	TaskIDs []string                    `json:"task-ids,omitempty"`
-	Lanes   int                         `json:"lanes,omitempty"`
 
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
@@ -178,7 +176,6 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		Clean:   c.clean,
 		Data:    c.data,
 		TaskIDs: c.taskIDs,
-		Lanes:   c.lanes,
 
 		SpawnTime: c.spawnTime,
 		ReadyTime: readyTime,
@@ -206,7 +203,6 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	}
 	c.data = custData
 	c.taskIDs = unmarshalled.TaskIDs
-	c.lanes = unmarshalled.Lanes
 	c.ready = make(chan struct{})
 	c.spawnTime = unmarshalled.SpawnTime
 	if unmarshalled.ReadyTime != nil {
