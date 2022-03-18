@@ -186,6 +186,40 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 	return nil
 }
 
+// clone returns a deep copy of the resources.
+func (qr *Resources) clone() Resources {
+	var resourcesCopy Resources
+	if qr.Memory != nil {
+		resourcesCopy.Memory = &ResourceMemory{Limit: qr.Memory.Limit}
+	}
+	if qr.CPU != nil {
+		resourcesCopy.CPU = &ResourceCPU{Count: qr.CPU.Count, Percentage: qr.CPU.Percentage}
+	}
+	if qr.CPUSet != nil {
+		resourcesCopy.CPUSet = &ResourceCPUSet{CPUs: qr.CPUSet.CPUs}
+	}
+	if qr.Threads != nil {
+		resourcesCopy.Threads = &ResourceThreads{Limit: qr.Threads.Limit}
+	}
+	return resourcesCopy
+}
+
+// changeInternal applies each new limit provided
+func (qr *Resources) changeInternal(newLimits Resources) {
+	if newLimits.Memory != nil {
+		qr.Memory = newLimits.Memory
+	}
+	if newLimits.CPU != nil {
+		qr.CPU = newLimits.CPU
+	}
+	if newLimits.CPUSet != nil {
+		qr.CPUSet = newLimits.CPUSet
+	}
+	if newLimits.Threads != nil {
+		qr.Threads = newLimits.Threads
+	}
+}
+
 // Change updates the current quota limits with the new limits. Additional verification
 // logic exists for this operation compared to when setting initial limits. Some changes
 // of limits are not allowed.
@@ -196,25 +230,15 @@ func (qr *Resources) Change(newLimits Resources) error {
 
 	// perform the changes initially on a dry-run so we can validate
 	// the resulting quotas combined.
-	resultingLimits := *qr
-	if newLimits.Memory != nil {
-		resultingLimits.Memory = newLimits.Memory
-	}
-	if newLimits.CPU != nil {
-		resultingLimits.CPU = newLimits.CPU
-	}
-	if newLimits.CPUSet != nil {
-		resultingLimits.CPUSet = newLimits.CPUSet
-	}
-	if newLimits.Threads != nil {
-		resultingLimits.Threads = newLimits.Threads
-	}
+	resultingLimits := qr.clone()
+	resultingLimits.changeInternal(newLimits)
 
 	// now perform validation on the dry run
 	if err := resultingLimits.Validate(); err != nil {
 		return err
 	}
 
-	*qr = resultingLimits
+	// if we get here, we can perform the actual changes
+	qr.changeInternal(newLimits)
 	return nil
 }
