@@ -10337,6 +10337,125 @@ base: core20
 	}
 }
 
+func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootWithGadgetWithBuggySelfHeal(c *C) {
+	// pretend it's a buggy snapd version that generates the change, then
+	// snapd gets updated as part of the auto-refresh, during which we
+	// restart to the new snapd which uses a new prune interval that
+	// effectively aborts unready lanes and thus the buggy change completes,
+	// while the new version of snaps remains
+
+	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
+	defer restore()
+	const pcGadget = `
+name: pc
+version: 1.0
+type: gadget
+base: core20
+`
+	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(1))
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// first comes the snapd restart
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartDaemon)
+	restart.MockPending(st, restart.RestartUnset)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// final steps will are postponed until we are in the restarted snapd
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, false)
+	c.Assert(rst, Equals, restart.RestartUnset)
+
+	// settle has exited as there are no more tasks that can be run due to
+	// the circular dependency, we expect all tasks to be in either Do or
+	// Done states
+	for _, tsk := range chg.Tasks() {
+		if tsk.Status() != state.DoneStatus && tsk.Status() != state.DoStatus {
+			c.Errorf("unexpected status %s of task %s %s", tsk.Status(), tsk.ID(), tsk.Summary())
+			c.FailNow()
+		}
+	}
+
+	// start settle and wait for prune to kick in
+	restoreIntv := overlord.MockPruneInterval(200*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
+	defer restoreIntv()
+
+	st.Unlock()
+	s.o.Loop()
+
+	checkTicker := time.NewTicker(time.Second)
+	timeout := time.After(5 * time.Second)
+waitLoop:
+	for {
+		select {
+		case <-checkTicker.C:
+			st.Lock()
+			rdy := chg.IsReady()
+			st.Unlock()
+			if rdy {
+				break waitLoop
+			}
+		case <-timeout:
+			c.Errorf("timeout waiting for prune to complete")
+			c.FailNow()
+		}
+	}
+
+	err = s.o.Stop()
+	c.Assert(err, IsNil)
+
+	st.Lock()
+
+	c.Assert(chg.IsReady(), Equals, true)
+
+	dumpTasks(c, "after prune", chg.Tasks())
+
+	// snapd should have been hept
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.InstanceName() == "snapd" {
+				c.Assert(tsk.Status(), Equals, state.DoneStatus)
+			}
+		}
+	}
+
+	// snapd update is kept
+	err = snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+
+	for _, name := range []string{"pc-kernel", "pc", "core20"} {
+		err = snapstate.Get(st, name, &snapst)
+		c.Assert(err, IsNil)
+		// the current is the old revision
+		c.Assert(snapst.Current, Equals, snap.R(1))
+	}
+}
+
 type gadgetUpdatesSuite struct {
 	baseMgrsSuite
 
