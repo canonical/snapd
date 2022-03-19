@@ -611,7 +611,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 
 	// new assets are appended to the list
 	expectedOldHash := hashList[0]
-	// sanity check, make sure that the current file is what we expect
+	// validity check, make sure that the current file is what we expect
 	newlyAdded := false
 	ondiskHash, err := o.cache.fileHash(filepath.Join(root, relativeTarget))
 	if err != nil {

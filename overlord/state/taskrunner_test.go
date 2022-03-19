@@ -1124,7 +1124,7 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	terr.WaitFor(prev)
 	chg.AddTask(terr)
 
-	c.Check(chg.Tasks(), HasLen, 9) // sanity check
+	c.Check(chg.Tasks(), HasLen, 9) // validity check
 
 	st.Unlock()
 
