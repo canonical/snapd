@@ -11,6 +11,7 @@ details: |
 
 systems:
   - -ubuntu-14.04-* # no support for tests.session
+  - -ubuntu-core-* # can't modify rootfs to add a fonts dir
 
 prepare: |
   # make a font directory and restart snapd so it will see it when it goes to
