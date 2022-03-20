@@ -22,12 +22,15 @@
 package install
 
 import (
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
 )
 
 var (
-	DiskWithSystemSeed     = diskWithSystemSeed
-	NewEncryptedDeviceLUKS = newEncryptedDeviceLUKS
+	DiskWithSystemSeed              = diskWithSystemSeed
+	NewEncryptedDeviceLUKS          = newEncryptedDeviceLUKS
+	NewEncryptedDeviceWithSetupHook = newEncryptedDeviceWithSetupHook
 )
 
 func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, node string) error) (restore func()) {
@@ -43,5 +46,13 @@ func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.Re
 	secbootAddRecoveryKey = f
 	return func() {
 		secbootAddRecoveryKey = old
+	}
+}
+
+func MockBootRunFDESetupHook(f func(req *fde.SetupRequest) ([]byte, error)) (restore func()) {
+	old := boot.RunFDESetupHook
+	boot.RunFDESetupHook = f
+	return func() {
+		boot.RunFDESetupHook = old
 	}
 }
