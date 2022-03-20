@@ -9,6 +9,8 @@ details: |
   the firefox snap). See launchpad bug https://bugs.launchpad.net/snapd/+bug/1945697 for
   full details.
 
+kill-timeout: 10m
+
 systems:
   - -ubuntu-14.04-* # no support for tests.session
   - -ubuntu-core-* # can't modify rootfs to add a fonts dir
@@ -32,26 +34,14 @@ prepare: |
   tests.session -u test prepare
   tests.cleanup defer tests.session -u test restore
 
-restore: |
-  # kill all the processes
-  if [ -f children.txt ]; then
-    children.txt | while IFS= read -r childpid; do
-      kill -9 "$childpid" || true
-    done
-  fi
-
 execute: |
+  touch /run/keep-running
   # read a file continuously in the background until it fails - note that the
   # while loop here has to be inside the snap run shell, since the process must
   # persist during the refresh, if it is on the outside the mount namespace will
   # be rebuilt and the crash will not be reproduced
-  tests.session -u test exec snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'while test -d /usr/share/fonts/foo-font; do true; done' &
+  tests.session -u test exec snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'while test -f /run/keep-running && test -d /usr/share/fonts/foo-font; do true; done' &
   pid=$!
-
-  # get the child process of the tests.session, since tests.session does some 
-  # tricky detachment stuff such that killing it is insufficient to exit
-  ps -o pid= --ppid "$pid" > children.txt
-  echo "$pid" >> children.txt
 
   # refresh the content slot snap
   # TODO: when refresh app awareness is enabled, this will need to ignore running processes to
@@ -63,3 +53,8 @@ execute: |
     echo "process died, test failed"
     exit 1
   fi
+
+  # signal to kill the loop
+  rm /run/keep-running
+
+  kill -9 "$pid" || true
