@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -48,6 +50,10 @@ type Pkcs11InterfaceSuite struct {
 	testBadSlot2     *interfaces.ConnectedSlot
 	testBadSlot3Info *snap.SlotInfo
 	testBadSlot3     *interfaces.ConnectedSlot
+	testBadSlot4Info *snap.SlotInfo
+	testBadSlot4     *interfaces.ConnectedSlot
+	testBadSlot5Info *snap.SlotInfo
+	testBadSlot5     *interfaces.ConnectedSlot
 
 	testPlug0Info *snap.PlugInfo
 	testPlug0     *interfaces.ConnectedPlug
@@ -89,6 +95,12 @@ slots:
   pkcs11-bad-optee-slot-3:
     interface: pkcs11
     pkcs11-socket: 22
+  pkcs11-bad-optee-slot-4:
+    interface: pkcs11
+    pkcs11-socket: /run/p11-kit/pkcs11-optee-slot-*
+  pkcs11-bad-optee-slot-5:
+    interface: pkcs11
+    pkcs11-socket: /run/p11-kit/../pkcs11-optee-slot-0
 
 apps:
   p11-server:
@@ -110,6 +122,10 @@ apps:
 	s.testBadSlot2 = interfaces.NewConnectedSlot(s.testBadSlot2Info, nil, nil)
 	s.testBadSlot3Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-3"]
 	s.testBadSlot3 = interfaces.NewConnectedSlot(s.testBadSlot3Info, nil, nil)
+	s.testBadSlot4Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-4"]
+	s.testBadSlot4 = interfaces.NewConnectedSlot(s.testBadSlot4Info, nil, nil)
+	s.testBadSlot5Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-5"]
+	s.testBadSlot5 = interfaces.NewConnectedSlot(s.testBadSlot5Info, nil, nil)
 
 	consumingSnapInfo := snaptest.MockInfo(c, `name: consumer
 version: 0
@@ -196,29 +212,29 @@ func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), testutil.Contains,
 		`/usr/bin/pkcs11-tool ixr,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), testutil.Contains,
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-0 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-0" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), Not(testutil.Contains),
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-1 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), Not(testutil.Contains),
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-2 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
 
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-2-slots"), testutil.Contains,
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-0 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-0" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-2-slots"), testutil.Contains,
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-1 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-2-slots"), Not(testutil.Contains),
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-2 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
 
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug2, s.testSlot2)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app-accessing-1-slot", "snap.consumer.app-accessing-2-slots", "snap.consumer.app-accessing-3rd-slot"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-3rd-slot"), Not(testutil.Contains),
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-0 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-0" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-3rd-slot"), Not(testutil.Contains),
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-1 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-3rd-slot"), testutil.Contains,
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-2 rw,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
@@ -232,6 +248,9 @@ func (s *Pkcs11InterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot1Info), ErrorMatches, "slot \"pkcs11-bad-optee-slot-1\", a unix socket name has to start with 'pkcs11-'")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot2Info), ErrorMatches, "slot \"pkcs11-bad-optee-slot-2\", a unix socket name has to start with 'pkcs11-'")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot3Info), ErrorMatches, "pkcs11: \"pkcs11-socket\" attribute must be a string, not 22")
+	err := errors.New("pkcs11 interface socket path is invalid: \"/run/p11-kit/pkcs11-optee-slot-*\" contains a reserved apparmor char from ?*[]{}^\"\x00")
+	c.Assert(err, ErrorMatches, `pkcs11 interface socket path is invalid: "/run/p11-kit/pkcs11-optee-slot-\*" contains a reserved apparmor char .*`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot5Info), ErrorMatches, "slot \"pkcs11-bad-optee-slot-5\", a unix socket has to be in /run/p11-kit directory")
 }
 
 func (s *Pkcs11InterfaceSuite) TestStaticInfo(c *C) {

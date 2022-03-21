@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -76,6 +77,16 @@ accept
 accept4
 `
 
+func (iface *pkcs11Interface) validateSocketPath(path string) error {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
+		return fmt.Errorf("pkcs11 interface socket path is invalid: %v", err)
+	}
+	if ok := cleanSubPath(path); !ok {
+		return fmt.Errorf("pkcs11 interface socket path is not clean: %q", path)
+	}
+	return nil
+}
+
 func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error) {
 	socketAttr, isSet := slot.Attrs["pkcs11-socket"]
 	if !isSet {
@@ -89,7 +100,7 @@ func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error)
 	}
 
 	// separate socket name and check socket path to start with /run/p11-kit/pkcs11-
-	if "/run/p11-kit" != filepath.Dir(socketPath) {
+	if filepath.Dir(socketPath) != "/run/p11-kit" {
 		return "", fmt.Errorf("slot %q, a unix socket has to be in /run/p11-kit directory", slot.Name)
 	}
 
@@ -101,7 +112,14 @@ func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error)
 }
 
 func (iface *pkcs11Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := iface.getSocketPath(slot)
+	socketPath, err := iface.getSocketPath(slot)
+	if err != nil {
+		return err
+	}
+
+	if err = iface.validateSocketPath(socketPath); err != nil {
+		return err
+	}
 	return err
 }
 
