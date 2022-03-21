@@ -54,8 +54,6 @@ var (
 // Hook functions setup by devicestate to support device-specific full
 // disk encryption implementations. The state must be locked when these
 // functions are called.
-//
-// XXX: move to "kernel/fde/fde.go" ?
 var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
