@@ -3631,8 +3631,9 @@ func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
 	defer r()
 
 	var generateWrappersCalled bool
-	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, preseed bool) error {
+	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error {
 		c.Assert(snapInfo.SnapName(), Equals, "snapd")
+		c.Assert(opts, IsNil)
 		generateWrappersCalled = true
 		return nil
 	})

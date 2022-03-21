@@ -191,7 +191,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 
 	if s.Type() == snap.TypeSnapd {
 		// snapd services are handled separately
-		return GenerateSnapdWrappers(s, b.preseed)
+		return GenerateSnapdWrappers(s, &GenerateSnapdWrappersOptions{b.preseed})
 	}
 
 	// add the CLI apps from the snap.yaml
@@ -275,10 +275,18 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 	return firstErr(err1, err2, err3, err4, err5)
 }
 
-func GenerateSnapdWrappers(s *snap.Info, preseed bool) error {
+// GenerateSnapdWrappersOptions carries options for GenerateSnapdWrappers.
+type GenerateSnapdWrappersOptions struct {
+	Preseeding bool
+}
+
+func GenerateSnapdWrappers(s *snap.Info, opts *GenerateSnapdWrappersOptions) error {
+	wrappersOpts := &wrappers.AddSnapdSnapServicesOptions{}
+	if opts != nil {
+		wrappersOpts.Preseeding = opts.Preseeding
+	}
 	// snapd services are handled separately via an explicit helper
-	opts := &wrappers.AddSnapdSnapServicesOptions{Preseeding: preseed}
-	return wrappersAddSnapdSnapServices(s, opts, progress.Null)
+	return wrappersAddSnapdSnapServices(s, wrappersOpts, progress.Null)
 }
 
 func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progress.Meter) error {
