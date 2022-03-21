@@ -1259,7 +1259,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 		if err != nil {
 			return err
 		}
-		// TODO: is this still used appropriately when we have multiple volumes?
+
 		if err := gadgetVolumeConsumesOneKernelUpdateAsset(pNew.Volume, kernelInfo); err != nil {
 			return err
 		}
