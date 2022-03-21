@@ -88,6 +88,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
@@ -10018,6 +10019,455 @@ func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 					Commentf("%q has status other than undone", tsk.Summary()))
 			}
 		}
+	}
+}
+
+func (s *mgrsSuite) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, snapYamlGadget string) (*boottest.RunBootenv20, *state.Change) {
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+
+	// a revision which is assumed to be installed
+	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
+	c.Assert(err, IsNil)
+	restore := bloader.SetEnabledKernel(kernel)
+	s.AddCleanup(restore)
+
+	restore = release.MockOnClassic(false)
+	s.AddCleanup(restore)
+
+	mockServer := s.mockStore(c)
+	s.AddCleanup(func() { mockServer.Close() })
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	model := s.brands.Model("can0nical", "my-model", uc20ModelDefaults)
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	// mock the modeenv file
+	m := &boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_1.snap",
+		CurrentKernels:         []string{"pc-kernel_1.snap"},
+		CurrentRecoverySystems: []string{"1234"},
+		GoodRecoverySystems:    []string{"1234"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
+
+	pcKernelYaml := "name: pc-kernel\nversion: 1.0\ntype: kernel"
+	baseYaml := "name: core20\nversion: 1.0\ntype: base"
+	siKernel := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
+	snaptest.MockSnap(c, pcKernelYaml, siKernel)
+	siBase := &snap.SideInfo{RealName: "core20", SnapID: fakeSnapID("core20"), Revision: snap.R(1)}
+	snaptest.MockSnap(c, baseYaml, siBase)
+	siSnapd := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1), SnapID: fakeSnapID("snapd")}
+	snaptest.MockSnap(c, "name: snapd\ntype: snapd\nversion: 123", siSnapd)
+	siGadget := &snap.SideInfo{RealName: "pc", Revision: snap.R(1), SnapID: fakeSnapID("pc")}
+	snaptest.MockSnapWithFiles(c, snapYamlGadget, siGadget, [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+	})
+
+	// test setup adds core, get rid of it
+	snapstate.Set(st, "core", nil)
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siKernel},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+	snapstate.Set(st, "core20", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siBase},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siSnapd},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{siGadget},
+		Current:  snap.R(1),
+		SnapType: "gadget",
+	})
+
+	p, _ := s.makeStoreTestSnap(c, pcKernelYaml, "2")
+	s.serveSnap(p, "2")
+	p, _ = s.makeStoreTestSnap(c, baseYaml, "2")
+	s.serveSnap(p, "2")
+	p, _ = s.makeStoreTestSnap(c, "name: snapd\ntype: snapd\nversion: 123", "2")
+	s.serveSnap(p, "2")
+	p, _ = s.makeStoreTestSnapWithFiles(c, snapYamlGadget, "2", [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+	})
+	s.serveSnap(p, "2")
+
+	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "pc", "snapd"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"core20", "pc", "pc-kernel", "snapd"})
+	chg := st.NewChange("update-many", "...")
+	for _, ts := range tss {
+		// skip the taskset of UpdateMany that does the
+		// check-rerefresh, see tsWithoutReRefresh for details
+		if ts.Tasks()[0].Kind() == "check-rerefresh" {
+			c.Logf("skipping rerefresh")
+			continue
+		}
+		chg.AddAll(ts)
+	}
+	return bloader, chg
+}
+
+func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBase(c *C) {
+	// verify a scenario when the update contains snapd, kernel, base and
+	// the gadget, in which case we revert to having at least 2 reboots due
+	// to the kernel depending on the gadget and the gadget depending on the
+	// base
+
+	const pcGadget = `
+name: pc
+version: 1.0
+type: gadget
+base: core20
+`
+	bloader, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	err := s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+
+	// snapd is updated first (as it's a prerequisite for the base)
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartDaemon)
+	restart.MockPending(st, restart.RestartUnset)
+
+	autoConnectStatus := func(inDoing string, done []string) {
+		autoConnectCount := 0
+		for _, tsk := range chg.Tasks() {
+			if tsk.Kind() == "auto-connect" {
+				autoConnectCount++
+				expectedStatus := state.DoStatus
+				snapsup, err := snapstate.TaskSnapSetup(tsk)
+				c.Assert(err, IsNil)
+				if snapsup.InstanceName() == inDoing {
+					expectedStatus = state.DoingStatus
+				} else if strutil.ListContains(done, snapsup.InstanceName()) {
+					expectedStatus = state.DoneStatus
+				}
+				c.Check(tsk.Status(), Equals, expectedStatus,
+					Commentf("%q has status other than %s", tsk.Summary(), expectedStatus))
+			}
+		}
+		// one for snapd, one for kernel, one for gadget, one for base
+		c.Check(autoConnectCount, Equals, 4)
+	}
+	autoConnectStatus("snapd", nil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartSystem)
+
+	autoConnectStatus("core20", []string{"snapd"})
+
+	// we are trying out a new base
+	restart.MockPending(st, restart.RestartUnset)
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.BaseStatus, Equals, boot.TryStatus)
+	c.Check(m.TryBase, Equals, "core20_2.snap")
+
+	// pretend it boots
+	m.BaseStatus = boot.TryingStatus
+	c.Assert(m.Write(), IsNil)
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	autoConnectStatus("pc-kernel", []string{"core20", "pc", "snapd"})
+
+	// try snaps are set
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, "pc-kernel_2.snap")
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.BaseStatus, Equals, "")
+
+	// simulate successful restart happened
+	restart.MockPending(st, restart.RestartUnset)
+	err = bloader.SetTryingDuringReboot([]snap.Type{snap.TypeKernel})
+	c.Assert(err, IsNil)
+	m.BaseStatus = boot.TryingStatus
+	c.Assert(m.Write(), IsNil)
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// go on
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("change failed with: %v", chg.Err()))
+}
+
+func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBaseBuggy(c *C) {
+	// verify a buggy scenario when the update contains snapd, kernel, base
+	// and the gadget, in which case the buggy behavior will cause a cyclic
+	// dependency between kernel, gadget and base, which then gets fixed by
+	// calling AbortUnreadyLanes()
+
+	// enable buggy behavior
+	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
+	defer restore()
+	const pcGadget = `
+name: pc
+version: 1.0
+type: gadget
+base: core20
+`
+	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(1))
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// first comes the snapd restart
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartDaemon)
+	restart.MockPending(st, restart.RestartUnset)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// final steps will are postponed until we are in the restarted snapd
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, false)
+	c.Assert(rst, Equals, restart.RestartUnset)
+
+	// settle has exited as there are no more tasks that can be run due to
+	// the circular dependency, we expect all tasks to be in either Do or
+	// Done states
+	for _, tsk := range chg.Tasks() {
+		if tsk.Status() != state.DoneStatus && tsk.Status() != state.DoStatus {
+			c.Errorf("unexpected status %s of task %s %s", tsk.Status(), tsk.ID(), tsk.Summary())
+			c.FailNow()
+		}
+	}
+
+	chg.AbortUnreadyLanes()
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after abort", chg.Tasks())
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Status(), Equals, state.UndoneStatus)
+	// snapd should have been hept
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.InstanceName() == "snapd" {
+				c.Assert(tsk.Status(), Equals, state.DoneStatus)
+			}
+		}
+	}
+
+	// snapd update is kept
+	err = snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+
+	for _, name := range []string{"pc-kernel", "pc", "core20"} {
+		err = snapstate.Get(st, name, &snapst)
+		c.Assert(err, IsNil)
+		// the current is the old revision
+		c.Assert(snapst.Current, Equals, snap.R(1))
+	}
+}
+
+func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootWithGadgetWithBuggySelfHeal(c *C) {
+	// pretend it's a buggy snapd version that generates the change, then
+	// snapd gets updated as part of the auto-refresh, during which we
+	// restart to the new snapd which uses a new prune interval that
+	// effectively aborts unready lanes and thus the buggy change completes,
+	// while the new version of snaps remains
+
+	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
+	defer restore()
+	const pcGadget = `
+name: pc
+version: 1.0
+type: gadget
+base: core20
+`
+	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(1))
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// first comes the snapd restart
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartDaemon)
+	restart.MockPending(st, restart.RestartUnset)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// final steps will are postponed until we are in the restarted snapd
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, false)
+	c.Assert(rst, Equals, restart.RestartUnset)
+
+	// settle has exited as there are no more tasks that can be run due to
+	// the circular dependency, we expect all tasks to be in either Do or
+	// Done states
+	for _, tsk := range chg.Tasks() {
+		if tsk.Status() != state.DoneStatus && tsk.Status() != state.DoStatus {
+			c.Errorf("unexpected status %s of task %s %s", tsk.Status(), tsk.ID(), tsk.Summary())
+			c.FailNow()
+		}
+	}
+
+	// start settle and wait for prune to kick in
+	restoreIntv := overlord.MockPruneInterval(200*time.Millisecond, 1000*time.Millisecond, 1000*time.Millisecond)
+	defer restoreIntv()
+
+	st.Unlock()
+	s.o.Loop()
+
+	checkTicker := time.NewTicker(time.Second)
+	timeout := time.After(settleTimeout)
+waitLoop:
+	for {
+		select {
+		case <-checkTicker.C:
+			st.Lock()
+			rdy := chg.IsReady()
+			st.Unlock()
+			if rdy {
+				break waitLoop
+			}
+		case <-timeout:
+			c.Errorf("timeout waiting for prune to complete")
+			c.FailNow()
+		}
+	}
+
+	err = s.o.Stop()
+	c.Assert(err, IsNil)
+
+	st.Lock()
+
+	c.Assert(chg.IsReady(), Equals, true)
+
+	dumpTasks(c, "after prune", chg.Tasks())
+
+	// snapd should have been hept
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(tsk)
+			c.Assert(err, IsNil)
+			if snapsup.InstanceName() == "snapd" {
+				c.Assert(tsk.Status(), Equals, state.DoneStatus)
+			}
+		}
+	}
+
+	// snapd update is kept
+	err = snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+
+	for _, name := range []string{"pc-kernel", "pc", "core20"} {
+		err = snapstate.Get(st, name, &snapst)
+		c.Assert(err, IsNil)
+		// the current is the old revision
+		c.Assert(snapst.Current, Equals, snap.R(1))
 	}
 }
 
