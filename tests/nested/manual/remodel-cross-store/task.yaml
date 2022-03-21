@@ -26,7 +26,7 @@ environment:
 
 prepare: |
     variant=18
-    if os.query is-focal; then
+    if tests.nested is-nested uc20; then
         variant=20
     fi
 
@@ -40,6 +40,10 @@ prepare: |
     REMODEL_SNAP=$(ls test-snapd-remodel-pc_*.snap)
     mv "$REMODEL_SNAP" "$(tests.nested get extra-snaps-path)"
 
+    # Use the gadget snap from the store to avoid signin it with snakeoil key
+    snap download --basename=pc_x1 --channel="$variant/$GADGET_CHANNEL" pc
+    mv "pc_x1.snap" "$(tests.nested get extra-snaps-path)"
+
     export UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth"
     export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-pc-$variant.model"
     tests.nested build-image core
@@ -47,7 +51,7 @@ prepare: |
 
 execute: |
     variant=18
-    if os.query is-focal; then
+    if tests.nested is-nested uc20; then
         variant=20
     fi
 

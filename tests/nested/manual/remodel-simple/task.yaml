@@ -8,7 +8,6 @@ systems: [ubuntu-18.04-64, ubuntu-20.04-64]
 
 environment:
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
-  NESTED_CUSTOM_MODEL: 
   NESTED_IMAGE_ID: uc20-remodel-testing
   NESTED_ENABLE_TPM: false
   NESTED_ENABLE_SECURE_BOOT: false
@@ -22,9 +21,10 @@ environment:
 
 prepare: |
     variant=18
-    if os.query is-focal; then
+    if tests.nested is-nested uc20; then
         variant=20
     fi
+
     # TODO: once the gadget snap is published, this will download it from the
     # store
     cp -av "$TESTSLIB/snaps/test-snapd-remodel-pc-$variant" test-snapd-remodel-pc
@@ -35,17 +35,18 @@ prepare: |
     REMODEL_SNAP=$(ls test-snapd-remodel-pc_*.snap)
     mv "$REMODEL_SNAP" "$(tests.nested get extra-snaps-path)"
 
+    # Use the gadget snap from the store to avoid signin it with snakeoil key
+    snap download --basename=pc_x1 --channel="$variant/$GADGET_CHANNEL" pc
+    mv "pc_x1.snap" "$(tests.nested get extra-snaps-path)"
+
     export UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth"
     export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-pc-$variant.model"
     tests.nested build-image core
     tests.nested create-vm core
 
 execute: |
-    snap list
-    snap changes
-
     variant=18
-    if os.query is-focal; then
+    if tests.nested is-nested uc20; then
         variant=20
     fi
 
@@ -53,9 +54,6 @@ execute: |
 
     # wait until device is initialized and has a serial
     tests.nested wait-for device-initialized
-
-    snap list
-    snap changes
 
     tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
     tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
