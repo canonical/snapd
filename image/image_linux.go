@@ -152,7 +152,7 @@ func Prepare(opts *Options) error {
 	}
 
 	if opts.Preseed {
-		// TODO: support core22
+		// TODO: support UC22
 		if model.Classic() {
 			return fmt.Errorf("cannot preseed the image for a classic model")
 		}

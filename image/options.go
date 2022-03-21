@@ -23,7 +23,7 @@ type Options struct {
 	ModelFile string
 	Classic   bool
 
-	// Preseeds requests the image to be preseeded (only for UC20)
+	// Preseed requests the image to be preseeded (only for UC20)
 	Preseed bool
 
 	Channel string
