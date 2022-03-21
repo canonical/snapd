@@ -416,7 +416,11 @@ ConsiderTasks:
 			// above too since follow up tasks may have handlers again.
 			// Cannot undo. Revert to done status.
 			t.SetStatus(DoneStatus)
-			if len(t.WaitTasks()) > 0 {
+			chg := t.Change()
+			if len(t.WaitTasks()) > 0 ||
+				// We also want to trigger one Ensure iteration if the change
+				// is ready but not yet clean, in order to perform the cleanup
+				(chg != nil && chg.IsReady() && !chg.IsClean()) {
 				r.state.EnsureBefore(0)
 			}
 			continue
