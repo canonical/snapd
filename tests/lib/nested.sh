@@ -635,7 +635,7 @@ nested_create_core_vm() {
                     fi
 
                 elif nested_is_core_20_system; then
-                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                    snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
 
                     # set the unix bump time if the NESTED_* var is set, 
                     # otherwise leave it empty
@@ -672,7 +672,7 @@ nested_create_core_vm() {
                         SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
                         SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-                        snap download --basename=pc --channel="20/edge" pc
+                        snap download --basename=pc --channel="20/$GADGET_CHANNEL" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                         case "${NESTED_UBUNTU_SAVE:-}" in
