@@ -34,16 +34,15 @@ const pkcs11Summary = `allows use of pkcs11 framework and access to exposed toke
 
 const pkcs11BaseDeclarationSlots = `
   pkcs11:
-    allow-installation:
-      slot-snap-type:
-        - core
-        - gadget
+    allow-installation: false
+    deny-connection: true
     deny-auto-connection: true
 `
+
 const pkcs11BaseDeclarationPlugs = `
   pkcs11:
-    allow-installation: false
-    deny-auto-connection: true
+    allow-installation: true
+    deny-auto-connection: false
 `
 
 type pkcs11Interface struct{}

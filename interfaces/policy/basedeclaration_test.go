@@ -147,6 +147,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"microstack-support": true,
 		"multipass-support":  true,
 		"packagekit-control": true,
+		"pkcs11":             true,
 		"snapd-control":      true,
 		"dummy":              true,
 	}
@@ -645,7 +646,6 @@ var (
 		"network-status":            {"core"},
 		"ofono":                     {"app", "core"},
 		"online-accounts-service":   {"app"},
-		"pkcs11":                    {"core", "gadget"},
 		"power-control":             {"core"},
 		"ppp":                       {"core"},
 		"pulseaudio":                {"app", "core"},
@@ -673,6 +673,7 @@ var (
 		"custom-device":   nil,
 		"docker":          nil,
 		"lxd":             nil,
+		"pkcs11":          nil,
 		"shared-memory":   nil,
 	}
 
@@ -748,7 +749,6 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
-		"pkcs11":                true,
 		"polkit":                true,
 		"sd-control":            true,
 		"snap-refresh-control":  true,
