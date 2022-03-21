@@ -60,7 +60,7 @@ var (
 	ensureInterval = 5 * time.Minute
 	pruneInterval  = 10 * time.Minute
 	pruneWait      = 24 * time.Hour * 1
-	abortWait      = 24 * time.Hour * 7
+	abortWait      = 24 * time.Hour * 3
 
 	pruneMaxChanges = 500
 

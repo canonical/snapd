@@ -334,6 +334,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+	base := ""
 
 	switch cand.snapID {
 	case "":
@@ -380,6 +381,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "kernel-id":
 		name = "kernel"
 		typ = snap.TypeKernel
+	case "gadget-core18-id":
+		name = "gadget"
+		typ = snap.TypeGadget
+		base = "core18"
 	case "brand-kernel-id":
 		name = "brand-kernel"
 		typ = snap.TypeKernel
@@ -430,6 +435,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Confinement:   confinement,
 		Architectures: []string{"all"},
 		Epoch:         epoch,
+		Base:          base,
 	}
 
 	if name == "outdated-consumer" {
