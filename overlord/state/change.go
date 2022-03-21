@@ -516,6 +516,32 @@ func (c *Change) AbortLanes(lanes []int) {
 	c.abortLanes(lanes, make(map[int]bool), make(map[string]bool))
 }
 
+// AbortUnreadyLanes aborts the tasks from lanes that aren't fully ready, where
+// a ready lane is one in which all tasks are ready.
+func (c *Change) AbortUnreadyLanes() {
+	c.state.writing()
+	c.abortUnreadyLanes()
+}
+
+func (c *Change) abortUnreadyLanes() {
+	lanesWithLiveTasks := map[int]bool{}
+
+	for _, tid := range c.taskIDs {
+		t := c.state.tasks[tid]
+		if !t.Status().Ready() {
+			for _, tlane := range t.Lanes() {
+				lanesWithLiveTasks[tlane] = true
+			}
+		}
+	}
+
+	abortLanes := []int{}
+	for lane := range lanesWithLiveTasks {
+		abortLanes = append(abortLanes, lane)
+	}
+	c.abortLanes(abortLanes, make(map[int]bool), make(map[string]bool))
+}
+
 func (c *Change) abortLanes(lanes []int, abortedLanes map[int]bool, seenTasks map[string]bool) {
 	var hasLive = make(map[int]bool)
 	var hasDead = make(map[int]bool)
