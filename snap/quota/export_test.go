@@ -30,3 +30,7 @@ func (grp *Group) InspectInternalQuotaAllocations() map[string]*GroupQuotaAlloca
 	grp.getQuotaAllocations(allQuotas, nil)
 	return allQuotas
 }
+
+func ResourcesClone(r *Resources) Resources {
+	return r.clone()
+}
