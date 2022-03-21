@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/snapdenv"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -3591,6 +3592,36 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 
 	// restarting ... we always wait
 	restart.MockPending(st, restart.RestartDaemon)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, FitsTypeOf, &state.Retry{})
+}
+
+func (s *snapmgrTestSuite) TestFinishRestartNoopWhenPreseeding(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	restorePreseeding := snapdenv.MockPreseeding(true)
+	defer restorePreseeding()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	// not restarting
+	si := &snap.SideInfo{RealName: "some-app"}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
+	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	err := snapstate.FinishRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	restart.MockPending(st, restart.RestartDaemon)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	// verification: retry when not preseeding
+	snapdenv.MockPreseeding(false)
 	err = snapstate.FinishRestart(task, snapsup)
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }

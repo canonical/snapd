@@ -8493,29 +8493,6 @@ func (s *interfaceManagerSuite) TestPreseedAutoConnectWithInterfaceHooks(c *C) {
 	c.Check(installHook, Equals, 1)
 }
 
-func (s *interfaceManagerSuite) TestPreseedAutoConnectNoFinishRestart(c *C) {
-	restore := snapdenv.MockPreseeding(true)
-	defer restore()
-
-	autoConnectTask, markPreseededTask := s.autoconnectChangeForPreseeding(c, false)
-
-	var called bool
-	restoreFinishRestart := ifacestate.MockSnapstateFinishRestart(func(*state.Task, *snapstate.SnapSetup) error {
-		called = true
-		return nil
-	})
-	defer restoreFinishRestart()
-
-	st := s.state
-	s.settle(c)
-	st.Lock()
-	defer st.Unlock()
-
-	c.Check(autoConnectTask.Status(), Equals, state.DoneStatus)
-	c.Check(markPreseededTask.Status(), Equals, state.DoStatus)
-	c.Check(called, Equals, false)
-}
-
 func (s *interfaceManagerSuite) TestPreseedAutoConnectInternalErrorOnMarkPreseededState(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
