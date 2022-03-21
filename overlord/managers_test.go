@@ -10138,6 +10138,11 @@ func (s *mgrsSuite) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, snapYa
 }
 
 func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBase(c *C) {
+	// verify a scenario when the update contains snapd, kernel, base and
+	// the gadget, in which case we revert to having at least 2 reboots due
+	// to the kernel depending on the gadget and the gadget depending on the
+	// base
+
 	const pcGadget = `
 name: pc
 version: 1.0
@@ -10163,8 +10168,10 @@ base: core20
 	restart.MockPending(st, restart.RestartUnset)
 
 	autoConnectStatus := func(inDoing string, done []string) {
+		autoConnectCount := 0
 		for _, tsk := range chg.Tasks() {
 			if tsk.Kind() == "auto-connect" {
+				autoConnectCount++
 				expectedStatus := state.DoStatus
 				snapsup, err := snapstate.TaskSnapSetup(tsk)
 				c.Assert(err, IsNil)
@@ -10177,6 +10184,8 @@ base: core20
 					Commentf("%q has status other than %s", tsk.Summary(), expectedStatus))
 			}
 		}
+		// one for snapd, one for kernel, one for gadget, one for base
+		c.Check(autoConnectCount, Equals, 4)
 	}
 	autoConnectStatus("snapd", nil)
 
@@ -10249,6 +10258,12 @@ base: core20
 }
 
 func (s *mgrsSuite) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBaseBuggy(c *C) {
+	// verify a buggy scenario when the update contains snapd, kernel, base
+	// and the gadget, in which case the buggy behavior will cause a cyclic
+	// dependency between kernel, gadget and base, which then gets fixed by
+	// calling AbortUnreadyLanes()
+
+	// enable buggy behavior
 	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
 	defer restore()
 	const pcGadget = `
@@ -10406,7 +10421,7 @@ base: core20
 	s.o.Loop()
 
 	checkTicker := time.NewTicker(time.Second)
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(settleTimeout)
 waitLoop:
 	for {
 		select {
