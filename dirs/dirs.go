@@ -53,7 +53,6 @@ var (
 	SnapKModModulesDir        string
 	SnapKModModprobeDir       string
 	LocaleDir                 string
-	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
 	SnapRunDir                string
@@ -361,7 +360,6 @@ func SetRootDir(rootdir string) {
 	SnapSeccompBase = filepath.Join(rootdir, snappyDir, "seccomp")
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
-	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")

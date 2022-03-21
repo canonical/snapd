@@ -715,7 +715,7 @@ type DeltaInfo struct {
 	Sha3_384        string `json:"sha3-384,omitempty"`
 }
 
-// sanity check that Info is a PlaceInfo
+// check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
 
 type AttributeNotFoundError struct{ Err error }

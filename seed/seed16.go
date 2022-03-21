@@ -317,7 +317,7 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 			if gadgetBase == "" {
 				gadgetBase = "core"
 			}
-			// Sanity check
+			// Validity check
 			// TODO: do we want to relax this? the new logic would allow
 			// but it might just be confusing for now
 			if baseSnap != "" && gadgetBase != baseSnap {

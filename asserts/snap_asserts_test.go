@@ -1007,6 +1007,8 @@ func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeclaration(c *C) {
 }
 
 func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	prereqDevAccount(c, storeDB, db)
@@ -1047,6 +1049,8 @@ func (srs *snapRevSuite) TestSnapRevisionDelegation(c *C) {
 }
 
 func (srs *snapRevSuite) TestSnapRevisionDelegationInconsistentTimestamp(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	prereqDevAccount(c, storeDB, db)

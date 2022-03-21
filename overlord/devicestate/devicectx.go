@@ -98,7 +98,7 @@ func (dc groundDeviceContext) HasModeenv() bool {
 	return dc.model.Grade() != asserts.ModelGradeUnset
 }
 
-// sanity
+// expected interface is implemented
 var _ snapstate.DeviceContext = &groundDeviceContext{}
 
 type modelDeviceContext struct {
@@ -116,7 +116,7 @@ func (dc *modelDeviceContext) Store() snapstate.StoreService {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ snapstate.DeviceContext = &modelDeviceContext{}
 
 // SystemModeInfoFromState returns details about the system mode the device is in.
