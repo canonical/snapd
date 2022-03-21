@@ -13,6 +13,9 @@ environment:
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_USE_CLOUD_INIT: false
+    NESTED_REPACK_KERNEL_SNAP: false
+    NESTED_REPACK_GADGET_SNAP: false
+    NESTED_REPACK_BASE_SNAP: false
     SNAPD_TEST_BRAND: test-snapd
     # store we are remodeling from
     SNAPD_STORE_WHITEBOX: CQvkdMjgbapk821Po2cF
@@ -39,10 +42,6 @@ prepare: |
 
     REMODEL_SNAP=$(ls test-snapd-remodel-pc_*.snap)
     mv "$REMODEL_SNAP" "$(tests.nested get extra-snaps-path)"
-
-    # Use the gadget snap from the store to avoid signin it with snakeoil key
-    snap download --basename=pc_x1 --channel="$variant/$GADGET_CHANNEL" pc
-    mv "pc_x1.snap" "$(tests.nested get extra-snaps-path)"
 
     export UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth"
     export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-pc-$variant.model"
