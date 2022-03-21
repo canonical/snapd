@@ -841,7 +841,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	// put the same volumes into both the old and the new data so they are
@@ -1013,7 +1013,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	// put the same volumes into both the old and the new data so they are
@@ -1259,7 +1259,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	// put the same volumes into both the old and the new data so they are
@@ -1510,7 +1510,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
@@ -3053,6 +3053,7 @@ func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C
 
 	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
+		"",
 		gadgettest.MultiVolumeUC20GadgetYaml,
 		uc20Model,
 	)
@@ -3277,7 +3278,7 @@ func (s *updateTestSuite) TestSearchForVolumeWithTraitsFails(c *C) {
 	})
 	defer r()
 
-	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	laidOutVol := allVolumes["pc"]
@@ -3347,7 +3348,7 @@ func testSearchForVolumeWithTraits(c *C,
 	})
 	defer r()
 
-	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgetYaml, model)
+	allVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgetYaml, model)
 	c.Assert(err, IsNil)
 
 	laidOutVol := allVolumes[volName]
@@ -3451,7 +3452,7 @@ volumes:
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC16(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -3621,7 +3622,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootMul
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -3646,7 +3647,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -3689,7 +3690,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.RaspiSimplifiedYaml, uc20Model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{
@@ -4038,7 +4039,7 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 	volMappings map[string]*disks.MockDiskMapping,
 	expMapping map[string]map[int]gadget.StructureLocation,
 ) (gadget.GadgetData, map[string]*gadget.LaidOutVolume) {
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), yaml, model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", yaml, model)
 	c.Assert(err, IsNil)
 
 	old := gadget.GadgetData{

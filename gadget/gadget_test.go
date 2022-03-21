@@ -3528,6 +3528,7 @@ func (s *gadgetYamlTestSuite) TestAllDiskVolumeDeviceTraitsMultipleGPTVolumes(c 
 	}
 	vols, err := gadgettest.LayoutMultiVolumeFromYaml(
 		c.MkDir(),
+		"",
 		gadgettest.MultiVolumeUC20GadgetYaml,
 		mod,
 	)
