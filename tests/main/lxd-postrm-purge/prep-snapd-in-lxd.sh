@@ -4,7 +4,7 @@ set -ex
 
 # TODO: Remove the refresh once the issue https://github.com/lxc/lxd/issues/10079 is release to 4.0/candidate
 # Make sure the lxd snap is updated before removing it
-snap refresh lxd --channel=latest
+snap refresh lxd --channel=latest/stable
 snap remove lxd
 
 # XXX: remove once the "umount /snap" change in postrm has propagated all
