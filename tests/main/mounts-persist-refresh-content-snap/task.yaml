@@ -49,7 +49,7 @@ execute: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
 
   # ensure the process is still running
-  if not ps "$pid"; then
+  if not ps -p "$pid"; then
     echo "process died, test failed"
     exit 1
   fi
@@ -57,4 +57,4 @@ execute: |
   # signal to kill the loop
   rm /run/keep-running
 
-  kill -9 "$pid" || true
+  wait "$pid" || true
