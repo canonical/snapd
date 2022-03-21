@@ -55,8 +55,6 @@ func (iface *pkcs11Interface) Name() string {
 func (iface *pkcs11Interface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              pkcs11Summary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: pkcs11BaseDeclarationSlots,
 		BaseDeclarationPlugs: pkcs11BaseDeclarationPlugs,
 	}
@@ -120,27 +118,26 @@ func (iface *pkcs11Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 		return fmt.Errorf("slot %q must have a unix socket 'pkcs11-socket' attribute", slot.Ref())
 	}
 
+	socketRule := fmt.Sprintf(`"/{,var/}%s" rw,`, socketPath[1:])
 	// pkcs11 server unix socket
-	spec.AddSnippet(fmt.Sprintf(`# pkcs11 socket and socker env
-/{,var/}%s rw,
+	spec.AddSnippet(fmt.Sprintf(`# pkcs11 socket
+%s
 # pkcs11 config for p11-proxy
 /etc/pkcs11/{,**} r,
 # pkcs11 tools
 /usr/bin/p11tool ixr,
 /usr/bin/pkcs11-tool ixr,`,
-		socketPath[1:]))
+		socketRule))
 	return nil
 }
 
 func (iface *pkcs11Interface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	// Only apply slot snippet when running as application snap
-	// on classic, slot side can be system or application
-	if !implicitSystemPermanentSlot(slot) {
-		socketPath, err := iface.getSocketPath(slot)
-		if err != nil {
-			return err
-		}
-		spec.AddSnippet(fmt.Sprintf(`# pkcs11 socket dir
+	socketPath, err := iface.getSocketPath(slot)
+	if err != nil {
+		return err
+	}
+
+	spec.AddSnippet(fmt.Sprintf(`# pkcs11 socket dir
 /{,var/}run/p11-kit/  rw,
 /{,var/}%s rwk,
 # pkcs11 config
@@ -150,8 +147,8 @@ func (iface *pkcs11Interface) AppArmorPermanentSlot(spec *apparmor.Specification
 /usr/bin/pkcs11-tool ixr,
 /usr/libexec/p11-kit/p11-kit-server ixr,
 /usr/libexec/p11-kit/p11-kit-remote ixr,`,
-			socketPath[1:]))
-	}
+		socketPath[1:]))
+
 	return nil
 }
 

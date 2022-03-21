@@ -236,8 +236,8 @@ func (s *Pkcs11InterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 
 func (s *Pkcs11InterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, true)
-	c.Check(si.ImplicitOnClassic, Equals, true)
+	c.Check(si.ImplicitOnCore, Equals, false)
+	c.Check(si.ImplicitOnClassic, Equals, false)
 	c.Check(si.Summary, Equals, `allows use of pkcs11 framework and access to exposed tokens`)
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "pkcs11")
 }
