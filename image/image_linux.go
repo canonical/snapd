@@ -34,10 +34,10 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/osutil"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
 	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/osutil"
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
