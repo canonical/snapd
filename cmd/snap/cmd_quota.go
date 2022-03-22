@@ -127,6 +127,7 @@ type cmdSetQuota struct {
 
 var cgroupVersion = cgroup.Version
 
+// example cpu quota string: "2x50%", "90%"
 var cpuValueMatcher = regexp.MustCompile(`([0-9]+x)?([0-9]+)%`)
 
 func parseCpuQuota(cpuMax string) (int, int, error) {
