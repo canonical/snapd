@@ -4,7 +4,7 @@ set -ex
 
 # TODO: Remove the refresh once the issue https://github.com/lxc/lxd/issues/10079 is release to 4.0/candidate
 # Make sure the lxd snap is updated before removing it
-for i in $(seq 30); do
+for _ in $(seq 30); do
     if snap changes | grep -qE "Done.*Initialize device"; then
         break
     fi
