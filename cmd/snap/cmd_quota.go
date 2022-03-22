@@ -130,27 +130,22 @@ var cgroupVersion = cgroup.Version
 // example cpu quota string: "2x50%", "90%"
 var cpuValueMatcher = regexp.MustCompile(`([0-9]+x)?([0-9]+)%`)
 
-func parseCpuQuota(cpuMax string) (int, int, error) {
+func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 	match := cpuValueMatcher.FindStringSubmatch(cpuMax)
 	if match == nil {
 		return 0, 0, fmt.Errorf("cannot parse cpu quota string %q", cpuMax)
 	}
 
 	// Detect whether format was NxM% or M%
-	if len(match[1]) == 0 {
-		percentage, err := strconv.Atoi(match[2])
-		if err != nil || percentage == 0 {
-			return 0, 0, fmt.Errorf("invalid cpu quota value specified for --cpu")
+	if len(match[1]) == 2 {
+		// Assume format was NxM%
+		count, err = strconv.Atoi(match[1][:len(match[1])-1])
+		if err != nil || count == 0 {
+			return 0, 0, fmt.Errorf("invalid left hand value specified for --cpu")
 		}
-		return 0, percentage, nil
 	}
 
-	// Assume format was NxM%
-	count, err := strconv.Atoi(match[1][:len(match[1])-1])
-	if err != nil || count == 0 {
-		return 0, 0, fmt.Errorf("invalid left hand value specified for --cpu")
-	}
-	percentage, err := strconv.Atoi(match[2])
+	percentage, err = strconv.Atoi(match[2])
 	if err != nil || percentage == 0 {
 		return 0, 0, fmt.Errorf("invalid right hand value specified for --cpu")
 	}
