@@ -54,6 +54,8 @@ type Pkcs11InterfaceSuite struct {
 	testBadSlot4     *interfaces.ConnectedSlot
 	testBadSlot5Info *snap.SlotInfo
 	testBadSlot5     *interfaces.ConnectedSlot
+	testBadSlot6Info *snap.SlotInfo
+	testBadSlot6     *interfaces.ConnectedSlot
 
 	testPlug0Info *snap.PlugInfo
 	testPlug0     *interfaces.ConnectedPlug
@@ -101,6 +103,8 @@ slots:
   pkcs11-bad-optee-slot-5:
     interface: pkcs11
     pkcs11-socket: /run/p11-kit/../pkcs11-optee-slot-0
+  pkcs11-bad-optee-slot-6:
+    interface: pkcs11
 
 apps:
   p11-server:
@@ -126,6 +130,8 @@ apps:
 	s.testBadSlot4 = interfaces.NewConnectedSlot(s.testBadSlot4Info, nil, nil)
 	s.testBadSlot5Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-5"]
 	s.testBadSlot5 = interfaces.NewConnectedSlot(s.testBadSlot5Info, nil, nil)
+	s.testBadSlot6Info = gadgetSnapInfo.Slots["pkcs11-bad-optee-slot-6"]
+	s.testBadSlot6 = interfaces.NewConnectedSlot(s.testBadSlot6Info, nil, nil)
 
 	consumingSnapInfo := snaptest.MockInfo(c, `name: consumer
 version: 0
@@ -251,6 +257,7 @@ func (s *Pkcs11InterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	err := errors.New("pkcs11 interface socket path is invalid: \"/run/p11-kit/pkcs11-optee-slot-*\" contains a reserved apparmor char from ?*[]{}^\"\x00")
 	c.Assert(err, ErrorMatches, `pkcs11 interface socket path is invalid: "/run/p11-kit/pkcs11-optee-slot-\*" contains a reserved apparmor char .*`)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot5Info), ErrorMatches, "slot \"pkcs11-bad-optee-slot-5\", a unix socket has to be in /run/p11-kit directory")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot6Info), ErrorMatches, "cannot use pkcs11 slot pkcs11-bad-optee-slot-6 without \"pkcs11-socket\" attribute")
 }
 
 func (s *Pkcs11InterfaceSuite) TestStaticInfo(c *C) {
