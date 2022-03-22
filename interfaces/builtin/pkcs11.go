@@ -89,7 +89,7 @@ func (iface *pkcs11Interface) validateSocketPath(path string) error {
 func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error) {
 	socketAttr, isSet := slot.Attrs["pkcs11-socket"]
 	if !isSet {
-		return "", fmt.Errorf(`pkcs11 slot %s has missing "pkcs11-socket" attribute`, slot.Name)
+		return "", fmt.Errorf(`cannot use pkcs11 slot %s without "pkcs11-socket" attribute`, slot.Name)
 	}
 
 	socketPath, ok := socketAttr.(string)
