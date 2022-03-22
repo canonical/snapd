@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.55
+Version:        2.55.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -980,6 +980,11 @@ fi
 
 
 %changelog
+* Mon Mar 21 2022 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.55.1
+ - cmd/snap-update-ns/change_test.go: use non-exist name foo-runtime
+   instead
+
 * Mon Mar 21 2022 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.55
  - kernel/fde: add PartitionName to various structs
