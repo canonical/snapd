@@ -305,10 +305,10 @@ WantedBy=snapd.service
 		{"--root", s.tempdir, "enable", "snapd.snap-repair.timer"},
 		{"--root", s.tempdir, "enable", "snapd.socket"},
 		{"--root", s.tempdir, "enable", "snapd.system-shutdown.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.service"},
-		{"--user", "--global", "enable", "snapd.session-agent.service"},
-		{"--user", "--global", "disable", "snapd.session-agent.socket"},
-		{"--user", "--global", "enable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.service"},
+		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.service"},
+		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
+		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 	})
 }
 
