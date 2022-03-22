@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -629,4 +630,76 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks 
 	if len(lanes) > 0 {
 		c.abortLanes(lanes, abortedLanes, seenTasks)
 	}
+}
+
+// VerifyTaskDependencies checks the tasks in the change for cyclic dependencies
+// and returns in error in such case.
+func (c *Change) VerifyTaskDependencies() error {
+	tasks := c.Tasks()
+	// list of successors of a task (their IDs)
+	successors := make(map[string][]string, len(tasks))
+	// count incoming edges to a task (how many tasks precede a given task)
+	predecessors := make(map[string]int, len(tasks))
+
+	idToTask := map[string]*Task{}
+	for _, t := range tasks {
+		idToTask[t.id] = t
+		for _, waitTaskID := range t.waitTasks {
+			predecessors[t.id]++
+			// edge: waitTask -> task
+			successors[waitTaskID] = append(successors[waitTaskID], t.id)
+		}
+	}
+
+	// Kahn topological sort: make our way starting with tasks that are
+	// independent (their predecessors count is 0), then visit their direct
+	// successors, and for each reduce their predecessors count, once the
+	// count drops to 0, all direct dependencies of a given task have been
+	// accounted for and the task becomes independent.
+
+	// queue of tasks to check
+	queue := make([]string, 0, len(tasks))
+	// identify all independent tasks
+	for _, t := range tasks {
+		if predecessors[t.id] == 0 {
+			queue = append(queue, t.id)
+		}
+	}
+
+	for len(queue) > 0 {
+		// take the first independent task
+		id := queue[0]
+		queue = queue[1:]
+		// reduce the incoming edge of its successors
+		for _, successor := range successors[id] {
+			predecessors[successor]--
+			if predecessors[successor] == 0 {
+				// a task that was a successor has become
+				// independent
+				delete(predecessors, successor)
+				queue = append(queue, successor)
+			}
+		}
+	}
+
+	if len(predecessors) != 0 {
+		// tasks that are left cannot have their dependencies satisfied
+		var unsatisfiedTasks []string
+		for id := range predecessors {
+			unsatisfiedTasks = append(unsatisfiedTasks, id)
+		}
+		sort.Strings(unsatisfiedTasks)
+		msg := bytes.Buffer{}
+		msg.WriteString("[")
+		for i, id := range unsatisfiedTasks {
+			t := idToTask[id]
+			msg.WriteString(fmt.Sprintf("%v(%v)", t.kind, t.id))
+			if i < len(unsatisfiedTasks)-1 {
+				msg.WriteRune(' ')
+			}
+		}
+		msg.WriteString("]")
+		return fmt.Errorf("dependency cycle involving tasks %s", msg.String())
+	}
+	return nil
 }
