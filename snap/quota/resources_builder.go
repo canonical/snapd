@@ -77,11 +77,15 @@ func (rb *ResourcesBuilder) Build() Resources {
 			Limit: rb.MemoryLimit,
 		}
 	}
-	if rb.CPUCountSet || rb.CPUPercentageSet || rb.AllowedCPUsSet {
+	if rb.CPUCountSet || rb.CPUPercentageSet {
 		quotaResources.CPU = &ResourceCPU{
-			Count:       rb.CPUCount,
-			Percentage:  rb.CPUPercentage,
-			AllowedCPUs: rb.AllowedCPUs,
+			Count:      rb.CPUCount,
+			Percentage: rb.CPUPercentage,
+		}
+	}
+	if rb.AllowedCPUsSet {
+		quotaResources.CPUSet = &ResourceCPUSet{
+			CPUs: rb.AllowedCPUs,
 		}
 	}
 	if rb.ThreadLimitSet {
