@@ -1,3 +1,10 @@
+snapd (2.55.2-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1965808
+    - cmd/snap-update-ns: actually use entirely non-existent dirs
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Mon, 21 Mar 2022 22:16:54 -0500
+
 snapd (2.55.1-1) unstable; urgency=medium
 
   * New upstream release, LP: #1965808

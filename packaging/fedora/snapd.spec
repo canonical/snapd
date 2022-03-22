@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.55.1
+Version:        2.55.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -980,6 +980,10 @@ fi
 
 
 %changelog
+* Mon Mar 21 2022 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.55.2
+ - cmd/snap-update-ns: actually use entirely non-existent dirs
+
 * Mon Mar 21 2022 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.55.1
  - cmd/snap-update-ns/change_test.go: use non-exist name foo-runtime
