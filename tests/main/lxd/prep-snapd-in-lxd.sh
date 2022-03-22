@@ -10,6 +10,7 @@ for i in $(seq 30); do
     fi
     sleep 1
 done
+snap wait system seed.loaded
 snap refresh lxd --channel=latest/stable
 snap remove lxd
 
