@@ -100,7 +100,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	}
 	if len(changed) > 0 {
 		// Ensure the services are running right now and on reboots
-		if err := systemd.Enable(changed); err != nil {
+		if err := systemd.EnableNoReload(changed); err != nil {
 			logger.Noticef("cannot enable services %q: %s", changed, err)
 		}
 		if !b.preseed {
@@ -109,6 +109,11 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 			if err := systemd.Restart(changed); err != nil {
 				logger.Noticef("cannot restart services %q: %s", changed, err)
 			}
+		}
+	}
+	if !b.preseed && len(changed) > 0 {
+		if err := systemd.DaemonReload(); err != nil {
+			logger.Noticef("cannot reload systemd state after enabling the services: %s", err)
 		}
 	}
 	return errEnsure
@@ -130,7 +135,7 @@ func (b *Backend) Remove(snapName string) error {
 
 	if len(removed) > 0 {
 		logger.Noticef("systemd-backend: Disable: removed services: %q", removed)
-		if err := systemd.Disable(removed); err != nil {
+		if err := systemd.DisableNoReload(removed); err != nil {
 			logger.Noticef("cannot disable services %q: %s", removed, err)
 		}
 		if !b.preseed {
@@ -194,7 +199,7 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 		}
 	}
 	if len(disableUnits) > 0 {
-		if err := systemd.Disable(disableUnits); err != nil {
+		if err := systemd.DisableNoReload(disableUnits); err != nil {
 			logger.Noticef("cannot disable services %q: %s", disableUnits, err)
 		}
 	}
