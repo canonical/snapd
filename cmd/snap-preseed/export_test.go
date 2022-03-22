@@ -19,65 +19,12 @@
 
 package main
 
-import (
-	"github.com/snapcore/snapd/seed"
-)
-
 var (
-	Run                      = run
-	SystemSnapFromSeed       = systemSnapFromSeed
-	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
-	CreatePreseedArtifact    = createPreseedArtifact
+	Run = run
 )
 
 func MockOsGetuid(f func() int) (restore func()) {
 	oldOsGetuid := osGetuid
 	osGetuid = f
 	return func() { osGetuid = oldOsGetuid }
-}
-
-func MockSyscallChroot(f func(string) error) (restore func()) {
-	oldSyscallChroot := syscallChroot
-	syscallChroot = f
-	return func() { syscallChroot = oldSyscallChroot }
-}
-
-func MockSnapdMountPath(path string) (restore func()) {
-	oldMountPath := snapdMountPath
-	snapdMountPath = path
-	return func() { snapdMountPath = oldMountPath }
-}
-
-func MockSystemSnapFromSeed(f func(rootDir, sysLabel string) (string, string, error)) (restore func()) {
-	oldSystemSnapFromSeed := systemSnapFromSeed
-	systemSnapFromSeed = f
-	return func() { systemSnapFromSeed = oldSystemSnapFromSeed }
-}
-
-func MockMakePreseedTempDir(f func() (string, error)) (restore func()) {
-	old := makePreseedTempDir
-	makePreseedTempDir = f
-	return func() {
-		makePreseedTempDir = old
-	}
-}
-
-func MockMakeWritableTempDir(f func() (string, error)) (restore func()) {
-	old := makeWritableTempDir
-	makeWritableTempDir = f
-	return func() {
-		makeWritableTempDir = old
-	}
-}
-
-func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
-	oldSeedOpen := seedOpen
-	seedOpen = f
-	return func() {
-		seedOpen = oldSeedOpen
-	}
-}
-
-func SnapdPathAndVersion(targetSnapd *targetSnapdInfo) (string, string) {
-	return targetSnapd.path, targetSnapd.version
 }
