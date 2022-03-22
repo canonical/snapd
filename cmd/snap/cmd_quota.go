@@ -196,7 +196,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 				return nil, fmt.Errorf("cannot parse value for --cpu-set at position %d", i)
 			}
 			if cpu < 0 {
-				return nil, fmt.Errorf("cannot use a negative CPU number in --cpu-set")
+				return nil, fmt.Errorf("cannot use a negative CPU number in CPU set %q", cpuSet)
 			}
 			cpus = append(cpus, cpu)
 		}
