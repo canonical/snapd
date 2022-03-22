@@ -176,8 +176,9 @@ execute: |
 
     echo "Update snap to core22"
     snap install --edge core22
-    echo -e "\nbase: core22" >> "$TESTSLIB/snaps/$NAME/meta/snap.yaml"
-    snap pack "$TESTSLIB/snaps/$NAME"
+    cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
+    echo -e "\nbase: core22" >> "$PWD/$NAME/meta/snap.yaml"
+    snap pack "$PWD/$NAME"
     snap install --dangerous "$NAME"_1.0_all.snap
 
     check_env "--with-exposed-home" "x3"

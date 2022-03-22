@@ -777,7 +777,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot or lk")
+	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot, piboot or lk")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptyBootloader(c *C) {

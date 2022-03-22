@@ -122,6 +122,11 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
+    peer=(label=unconfined),
 
 # Allow accessing logind services to properly shutdown devices on suspend
 dbus (receive)
@@ -155,6 +160,15 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.*
     peer=(label=###PLUG_SECURITY_TAGS###),
 
+# Later versions of ModemManager implement org.freedesktop.DBus.ObjectManager
+# for clients to easily obtain all (and be alerted to added/removed) objects
+# from the service.
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
+    peer=(label=###PLUG_SECURITY_TAGS###),
+
 # allow communicating with the mbim and qmi proxy servers, which provide
 # support for talking to WWAN modems and devices which speak the Mobile
 # Interface Broadband Model (MBIM) and Qualcomm MSM Interface (QMI)
@@ -178,6 +192,11 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow to determine whether a tty device is a serial port or not.
