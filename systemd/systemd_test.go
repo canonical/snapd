@@ -29,7 +29,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -73,8 +72,6 @@ type SystemdTestSuite struct {
 	stopArgses [][]string
 	stopErrors []error
 	stopIter   int
-	// Synchronize between go routines
-	mutex sync.Mutex
 
 	j        int
 	jns      []string
@@ -132,14 +129,9 @@ func (s *SystemdTestSuite) TearDownTest(c *C) {
 	s.restoreSELinux()
 }
 
-func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
+func (s *SystemdTestSuite) myRun(args ...string) (out []byte, delay time.Duration, err error) {
 	// Default completion time for 'systemctl' operations
-	delay := time.Duration(0)
-
-	// 'systemctl stop' and progress tracking ('systemctl show') happens
-	// from different threads. The mock implementation must be protected
-	// to avoid corruption during concurrent modifications.
-	s.mutex.Lock()
+	delayReq := time.Duration(0)
 
 	// We deal with 'systemctl stop' separately because this is a
 	// blocking call running inside a go routine (separate thread)
@@ -150,7 +142,7 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 			err = s.stopErrors[s.stopIter]
 		}
 		if s.stopIter < len(s.stopDelays) {
-			delay = s.stopDelays[s.stopIter]
+			delayReq = s.stopDelays[s.stopIter]
 		}
 		s.stopIter++
 	} else {
@@ -165,12 +157,7 @@ func (s *SystemdTestSuite) myRun(args ...string) (out []byte, err error) {
 		s.i++
 	}
 
-	s.mutex.Unlock()
-
-	// Simulate the time 'systemctl stop' takes to complete. The other
-	// 'systemctl' calls mocks with zero delays (instant returns)
-	time.Sleep(delay)
-	return out, err
+	return out, delayReq, err
 }
 
 func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadCloser, error) {
@@ -281,9 +268,9 @@ func (s *SystemdTestSuite) TestStopSystemCtlStopError(c *C) {
 	// Poll rate = 2ms, Silence timeout = 4ms
 	restore := MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	defer restore()
-	s.stopErrors = []error{errors.New("Mock Error")}
+	s.stopErrors = []error{errors.New("mock error")}
 	err := New(SystemMode, s.rep).Stop([]string{"foo"})
-	c.Assert(err, ErrorMatches, "Mock Error")
+	c.Assert(err, ErrorMatches, "mock error")
 	c.Assert(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
 	// No notifications
@@ -305,10 +292,10 @@ func (s *SystemdTestSuite) TestSystemCtlShowError(c *C) {
 	}
 
 	// 'systemctl show'
-	s.errors = []error{errors.New("Mock Error")}
+	s.errors = []error{errors.New("mock error")}
 
 	err := New(SystemMode, s.rep).Stop([]string{"foo"})
-	c.Assert(err, ErrorMatches, "Mock Error")
+	c.Assert(err, ErrorMatches, "mock error")
 	c.Assert(s.stopArgses, HasLen, 1)
 	c.Check(s.stopArgses[0], DeepEquals, []string{"stop", "foo"})
 	c.Assert(s.argses, HasLen, 1)
@@ -331,13 +318,13 @@ func (s *SystemdTestSuite) TestStopBeforeNotify(c *C) {
 		// tries to stop the supplied services before returning.
 		50 * time.Millisecond,
 	}
-	s.stopErrors = []error{nil, errors.New("Mock Error")}
+	s.stopErrors = []error{nil, errors.New("mock error")}
 
 	// 'systemctl show'
 	s.outs = [][]byte{
 		[]byte("ActiveState=inactive\n"),
 	}
-	s.errors = []error{nil, errors.New("Mock Error")}
+	s.errors = []error{nil, errors.New("mock error")}
 
 	err := New(SystemMode, s.rep).Stop([]string{"foo"})
 	c.Assert(err, IsNil)
@@ -366,7 +353,7 @@ func (s *SystemdTestSuite) TestStopAfterNotify(c *C) {
 		// tries to stop the supplied services before returning.
 		50 * time.Millisecond,
 	}
-	s.stopErrors = []error{nil, errors.New("Mock Error")}
+	s.stopErrors = []error{nil, errors.New("mock error")}
 
 	// 'systemctl show'
 	s.outs = [][]byte{
@@ -378,7 +365,7 @@ func (s *SystemdTestSuite) TestStopAfterNotify(c *C) {
 	}
 	// The timeout error output should never by reached because the 's.outs'
 	// entry before this slot indicates the unit has stopped
-	s.errors = []error{nil, nil, nil, nil, nil, errors.New("Mock Error")}
+	s.errors = []error{nil, nil, nil, nil, nil, errors.New("mock error")}
 
 	err := New(SystemMode, s.rep).Stop([]string{"foo"})
 	c.Assert(err, IsNil)
@@ -411,7 +398,7 @@ func (s *SystemdTestSuite) TestStopMany(c *C) {
 		// tries to stop the supplied services before returning.
 		50 * time.Millisecond,
 	}
-	s.stopErrors = []error{nil, errors.New("Mock Error")}
+	s.stopErrors = []error{nil, errors.New("mock error")}
 
 	// 'systemctl show'
 	s.outs = [][]byte{
@@ -427,7 +414,7 @@ func (s *SystemdTestSuite) TestStopMany(c *C) {
 	}
 	// The timeout error output should never by reached because the 's.outs'
 	// entry before this slot indicates the unit has stopped
-	s.errors = []error{nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("Mock Error")}
+	s.errors = []error{nil, nil, nil, nil, nil, nil, nil, nil, nil, errors.New("mock error")}
 	err := New(SystemMode, s.rep).Stop([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
 	// 'systemctl stop'
@@ -966,7 +953,7 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 		[]byte("ActiveState=inactive\n"),
 		nil, // for the "start"
 	}
-	s.errors = []error{nil, nil, errors.New("Mock Error")}
+	s.errors = []error{nil, nil, errors.New("mock error")}
 	err := New(SystemMode, s.rep).Restart([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.stopArgses, HasLen, 1)
@@ -993,7 +980,7 @@ func (s *SystemdTestSuite) TestRestartMany(c *C) {
 		[]byte("ActiveState=inactive\n"), // bar
 		nil,                              // for the "start"
 	}
-	s.errors = []error{nil, nil, nil, errors.New("Mock Error")}
+	s.errors = []error{nil, nil, nil, errors.New("mock error")}
 	err := New(SystemMode, s.rep).Restart([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
 	c.Check(s.stopArgses, HasLen, 1)

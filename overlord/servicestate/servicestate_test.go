@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -62,7 +63,7 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 	c.Assert(err, IsNil)
 
 	disabled := false
-	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	r := systemd.MockSystemctl(func(args ...string) (buf []byte, delay time.Duration, err error) {
 		switch args[0] {
 		case "show":
 			c.Assert(args[0], Equals, "show")
@@ -78,7 +79,7 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 Names=%[1]s
 ActiveState=%s
 UnitFileState=%s
-`, args[2], activeState, unitState)), nil
+`, args[2], activeState, unitState)), 0, nil
 			} else {
 				// Units using the extendedProperties query
 				return []byte(fmt.Sprintf(`Id=%s
@@ -87,7 +88,7 @@ Type=simple
 ActiveState=%s
 UnitFileState=%s
 NeedDaemonReload=no
-`, args[2], activeState, unitState)), nil
+`, args[2], activeState, unitState)), 0, nil
 			}
 		case "--user":
 			c.Assert(args[1], Equals, "--global")
@@ -96,10 +97,10 @@ NeedDaemonReload=no
 			if disabled {
 				unitState = "disabled\n"
 			}
-			return bytes.Repeat([]byte(unitState), len(args)-3), nil
+			return bytes.Repeat([]byte(unitState), len(args)-3), 0, nil
 		default:
 			c.Errorf("unexpected systemctl command: %v", args)
-			return nil, fmt.Errorf("should not be reached")
+			return nil, 0, fmt.Errorf("should not be reached")
 		}
 	})
 	defer r()

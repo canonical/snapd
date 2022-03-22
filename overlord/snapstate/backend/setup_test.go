@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -62,8 +63,8 @@ func (s *setupSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
 	c.Assert(err, IsNil)
 
-	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		return []byte("ActiveState=inactive\n"), nil
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 
 	s.umount = testutil.MockCommand(c, "umount", "")
@@ -361,12 +362,12 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 		Revision: snap.R(14),
 	}
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		// mount unit start fails
 		if len(cmd) >= 2 && cmd[0] == "start" && strings.HasSuffix(cmd[1], ".mount") {
-			return nil, fmt.Errorf("failed")
+			return nil, 0, fmt.Errorf("failed")
 		}
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer r()
 

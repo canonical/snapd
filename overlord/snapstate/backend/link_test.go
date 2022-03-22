@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -64,8 +65,8 @@ func (s *linkSuiteCommon) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.perfTimings = timings.New(nil)
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		return []byte("ActiveState=inactive\n"), nil
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	s.AddCleanup(restore)
 }
@@ -497,8 +498,8 @@ func (s *linkCleanupSuite) TestLinkCleanupOnDBusSessionFail(c *C) {
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
-	r := systemd.MockSystemctl(func(...string) ([]byte, error) {
-		return nil, errors.New("ouchie")
+	r := systemd.MockSystemctl(func(...string) ([]byte, time.Duration, error) {
+		return nil, 0, errors.New("ouchie")
 	})
 	defer r()
 

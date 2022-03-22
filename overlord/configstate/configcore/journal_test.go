@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -45,10 +46,10 @@ func (s *journalSuite) SetUpTest(c *C) {
 
 	s.systemdVersion = "236"
 	// this overrides systemctl mock from the base configcoreSuite.
-	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, time.Duration, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
 		output := []byte("systemd " + s.systemdVersion + "\n+XYZ")
-		return output, nil
+		return output, 0, nil
 	}))
 	s.systemctlArgs = nil
 

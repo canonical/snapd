@@ -250,9 +250,9 @@ func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.
 
 func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) {
 	var sysdLog [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		sysdLog = append(sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer systemctlRestorer()
 

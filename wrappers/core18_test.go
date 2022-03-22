@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -100,20 +101,20 @@ func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCore(c *C) {
 	// reset root dir
 	dirs.SetRootDir(s.tempdir)
 
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
 			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
-			return []byte(s), nil
+			return []byte(s), 0, nil
 		}
 		if len(cmd) == 2 && cmd[0] == "is-enabled" {
 			// pretend snapd.socket is disabled
 			if cmd[1] == "snapd.socket" {
-				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+				return []byte("disabled"), 0, &mockSystemctlError{msg: "disabled", exitCode: 1}
 			}
-			return []byte("enabled"), nil
+			return []byte("enabled"), 0, nil
 		}
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer systemctlRestorer()
 
@@ -393,20 +394,20 @@ func (s *servicesTestSuite) TestRemoveSnapServicesForFirstInstallSnapdOnCore(c *
 	// reset root dir
 	dirs.SetRootDir(s.tempdir)
 
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
 			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
-			return []byte(s), nil
+			return []byte(s), 0, nil
 		}
 		if len(cmd) == 4 && cmd[2] == "is-enabled" {
 			// pretend snapd.socket is disabled
 			if cmd[3] == "snapd.socket" {
-				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+				return []byte("disabled"), 0, &mockSystemctlError{msg: "disabled", exitCode: 1}
 			}
-			return []byte("enabled"), nil
+			return []byte("enabled"), 0, nil
 		}
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer systemctlRestorer()
 

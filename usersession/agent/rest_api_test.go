@@ -27,7 +27,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/godbus/dbus"
@@ -46,7 +45,6 @@ type restSuite struct {
 	testutil.BaseTest
 	testutil.DBusTest
 	sysdLog [][]string
-	mutex   sync.Mutex
 	agent   *agent.SessionAgent
 	notify  *notificationtest.FdoServer
 }
@@ -61,14 +59,9 @@ func (s *restSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
 
 	s.sysdLog = nil
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		// systemctl stop and progress tracking happens from different
-		// threads. The mock implementation must be protected to avoid
-		// corrupting 'sysdLog' during concurrent appends.
-		s.mutex.Lock()
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		s.mutex.Unlock()
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	s.AddCleanup(restore)
 	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
@@ -207,12 +200,12 @@ func (s *restSuite) TestServicesStartNonSnap(c *C) {
 
 func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	var sysdLog [][]string
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		sysdLog = append(sysdLog, cmd)
 		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
-			return nil, fmt.Errorf("start failure")
+			return nil, 0, fmt.Errorf("start failure")
 		}
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer restore()
 
@@ -247,15 +240,15 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 
 func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	var sysdLog [][]string
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		sysdLog = append(sysdLog, cmd)
 		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
-			return nil, fmt.Errorf("start failure")
+			return nil, 0, fmt.Errorf("start failure")
 		}
 		if cmd[0] == "--user" && cmd[1] == "stop" && cmd[2] == "snap.foo.service" {
-			return nil, fmt.Errorf("stop failure")
+			return nil, 0, fmt.Errorf("stop failure")
 		}
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer restore()
 
@@ -332,15 +325,15 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 
 func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 	var sysdLog [][]string
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		// Ignore "show" spam
 		if cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
 		if cmd[len(cmd)-1] == "snap.bar.service" {
-			return []byte("ActiveState=active\n"), nil
+			return []byte("ActiveState=active\n"), 0, nil
 		}
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer restore()
 

@@ -1382,9 +1382,9 @@ base: core18
 
 func (s *firstBoot16Suite) TestPopulateFromSeedWithBaseHappy(c *C) {
 	var sysdLog [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		sysdLog = append(sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer systemctlRestorer()
 
@@ -1730,9 +1730,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithSnapdOnlyHappy(c *C)
 	defer restore()
 
 	var sysdLog [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		sysdLog = append(sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer systemctlRestorer()
 
@@ -1867,9 +1867,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicWithSnapdOnlyAndGadgetHa
 	defer restore()
 
 	var sysdLog [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
 		sysdLog = append(sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), nil
+		return []byte("ActiveState=inactive\n"), 0, nil
 	})
 	defer systemctlRestorer()
 

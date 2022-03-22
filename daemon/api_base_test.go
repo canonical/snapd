@@ -181,11 +181,11 @@ func (s *apiBaseSuite) TearDownSuite(c *check.C) {
 	s.restoreSanitize()
 }
 
-func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, err error) {
+func (s *apiBaseSuite) systemctl(args ...string) (buf []byte, delay time.Duration, err error) {
 	if len(s.SysctlBufs) > 0 {
 		buf, s.SysctlBufs = s.SysctlBufs[0], s.SysctlBufs[1:]
 	}
-	return buf, err
+	return buf, 0, err
 }
 
 var (

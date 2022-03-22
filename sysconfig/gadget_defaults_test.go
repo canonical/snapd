@@ -21,6 +21,7 @@ package sysconfig_test
 
 import (
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -107,9 +108,9 @@ defaults:
 	})
 
 	var sysctlArgs [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, delay time.Duration, err error) {
 		sysctlArgs = append(sysctlArgs, args)
-		return nil, nil
+		return nil, 0, nil
 	})
 	defer systemctlRestorer()
 
@@ -174,9 +175,9 @@ defaults:
 	snapContainer := squashfs.New(snapFile)
 
 	var sysctlArgs [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, delay time.Duration, err error) {
 		sysctlArgs = append(sysctlArgs, args)
-		return nil, nil
+		return nil, 0, nil
 	})
 	defer systemctlRestorer()
 

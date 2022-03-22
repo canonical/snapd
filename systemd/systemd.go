@@ -142,9 +142,18 @@ func MockSystemdVersion(version int, injectedError error) (restore func()) {
 
 // MockSystemctl is called from the commands to actually call out to
 // systemctl. It's exported so it can be overridden by testing.
-func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
+func MockSystemctl(f func(args ...string) ([]byte, time.Duration, error)) func() {
+	var mutex sync.Mutex
 	oldSystemctlCmd := systemctlCmd
-	systemctlCmd = f
+	systemctlCmd = func(args ...string) ([]byte, error) {
+		// Thread-safe wrapper to call the locked systemctl
+		mutex.Lock()
+		bs, delay, err := f(args...)
+		mutex.Unlock()
+		// Emulate the delay outside the lock
+		time.Sleep(delay)
+		return bs, err
+	}
 	return func() {
 		systemctlCmd = oldSystemctlCmd
 	}
