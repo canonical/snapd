@@ -186,7 +186,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 			return nil, err
 		}
 		if cgv < 2 {
-			return nil, fmt.Errorf("cannot use --cpu-set with cgroup version %d", cgv)
+			return nil, fmt.Errorf("cannot use CPU set with cgroup version %d", cgv)
 		}
 
 		cpuTokens := strutil.CommaSeparatedList(cpuSet)

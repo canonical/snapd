@@ -270,7 +270,7 @@ func (s *quotaSuite) TestSetQuotaCpuSetFails(c *check.C) {
 
 	// ensure that --cpu-set does not work with cgroup version 1
 	_, err := main.Parser(main.Client()).ParseArgs(cpuSetArgs)
-	c.Assert(err, check.ErrorMatches, `cannot use --cpu-set with cgroup version 1`)
+	c.Assert(err, check.ErrorMatches, `cannot use CPU set with cgroup version 1`)
 
 	s.stdout.Reset()
 	s.stderr.Reset()
