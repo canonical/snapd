@@ -651,7 +651,7 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// validity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -761,7 +761,7 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// validity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")

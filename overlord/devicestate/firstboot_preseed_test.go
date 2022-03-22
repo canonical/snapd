@@ -253,7 +253,7 @@ func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappy(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
-	// validity
+	// precondition
 	c.Assert(release.OnClassic, Equals, true)
 
 	coreFname, _, _ := s.makeCoreSnaps(c, "")
@@ -344,7 +344,7 @@ func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy
 	restorePreseedMode := snapdenv.MockPreseeding(true)
 	defer restorePreseedMode()
 
-	// validity
+	// precondition
 	c.Assert(release.OnClassic, Equals, true)
 
 	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{

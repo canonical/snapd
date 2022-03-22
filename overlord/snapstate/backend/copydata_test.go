@@ -492,7 +492,7 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
-	// validity check: the 20 dirs don't exist yet (but 10 do)
+	// precondition check: the 20 dirs don't exist yet (but 10 do)
 	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
 		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
 		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))

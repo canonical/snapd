@@ -678,7 +678,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 
 			Channel: stableChannel,
 		})
-		// validity
+		// precondition
 		if name == "core" {
 			c.Check(essSnaps[i].SideInfo.SnapID, Equals, s.AssertedSnapID("core"))
 		}

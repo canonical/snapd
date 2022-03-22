@@ -634,7 +634,7 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 			"interface":   "test-a",
 			"hotplug-key": "yet-another-device"}})
 
-	// validity
+	// precondition
 	slot, _ := repo.SlotForHotplugKey("test-a", "key-other-device")
 	c.Assert(slot, NotNil)
 
