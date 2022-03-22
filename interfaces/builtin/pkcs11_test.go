@@ -172,7 +172,7 @@ func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
 		`/{,var/}run/p11-kit/  rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-0 rwk,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-0" rwk,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
 		`# pkcs11 config`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
@@ -188,7 +188,7 @@ func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.testSlot1Info)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains,
-		`/{,var/}run/p11-kit/pkcs11-optee-slot-1 rwk,`)
+		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rwk,`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {

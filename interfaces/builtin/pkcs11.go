@@ -153,9 +153,10 @@ func (iface *pkcs11Interface) AppArmorPermanentSlot(spec *apparmor.Specification
 		return err
 	}
 
+	socketRule := fmt.Sprintf(`"/{,var/}%s" rwk,`, socketPath[1:])
 	spec.AddSnippet(fmt.Sprintf(`# pkcs11 socket dir
 /{,var/}run/p11-kit/  rw,
-/{,var/}%s rwk,
+%s
 # pkcs11 config
 /etc/pkcs11/{,**} r,
 /usr/bin/p11-kit ixr,
@@ -163,7 +164,7 @@ func (iface *pkcs11Interface) AppArmorPermanentSlot(spec *apparmor.Specification
 /usr/bin/pkcs11-tool ixr,
 /usr/libexec/p11-kit/p11-kit-server ixr,
 /usr/libexec/p11-kit/p11-kit-remote ixr,`,
-		socketPath[1:]))
+		socketRule))
 
 	return nil
 }
