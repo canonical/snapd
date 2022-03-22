@@ -335,7 +335,7 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	// Constraints should always be non-nil, since a quota group always needs to
-	// have atleast one limit set
+	// have at least one limit set
 	if group.Constraints == nil {
 		return fmt.Errorf("internal error: constraints is missing from daemon response")
 	}
@@ -358,8 +358,8 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		fmt.Fprintf(w, "  threads:\t%d\n", group.Constraints.Threads)
 	}
 
-	var memoryUsage string = "0B"
-	var currentThreads int = 0
+	memoryUsage := "0B"
+	currentThreads := 0
 	if group.Current != nil {
 		memoryUsage = strings.TrimSpace(fmtSize(int64(group.Current.Memory)))
 		currentThreads = group.Current.Threads
