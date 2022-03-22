@@ -24,7 +24,7 @@ setup_staging_store(){
 
 teardown_staging_store(){
     systemctl stop snapd.service snapd.socket
-    rm -rf "$STORE_CONFIG"
+    rm -f "$STORE_CONFIG"
     systemctl daemon-reload
     systemctl start snapd.socket
 }
