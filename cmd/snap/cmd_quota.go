@@ -133,7 +133,7 @@ var cpuValueMatcher = regexp.MustCompile(`([0-9]+x)?([0-9]+)%`)
 func parseCpuQuota(cpuMax string) (int, int, error) {
 	match := cpuValueMatcher.FindStringSubmatch(cpuMax)
 	if match == nil {
-		return 0, 0, fmt.Errorf("invalid cpu quota format specified for --cpu")
+		return 0, 0, fmt.Errorf("cannot parse cpu quota string %q", cpuMax)
 	}
 
 	// Detect whether format was NxM% or M%

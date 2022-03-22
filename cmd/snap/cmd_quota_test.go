@@ -209,11 +209,11 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		{[]string{"set-quota", "--memory=99B"}, "the required argument `<group-name>` was not provided"},
 		{[]string{"set-quota", "--memory=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
 		{[]string{"set-quota", "--memory=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
-		{[]string{"set-quota", "--cpu=0", "foo"}, `invalid cpu quota format specified for --cpu`},
-		{[]string{"set-quota", "--cpu=0x100", "foo"}, `invalid cpu quota format specified for --cpu`},
-		{[]string{"set-quota", "--cpu=200", "foo"}, `invalid cpu quota format specified for --cpu`},
-		{[]string{"set-quota", "--cpu=20D", "foo"}, `invalid cpu quota format specified for --cpu`},
-		{[]string{"set-quota", "--cpu=ASD", "foo"}, `invalid cpu quota format specified for --cpu`},
+		{[]string{"set-quota", "--cpu=0", "foo"}, `cannot parse cpu quota string "0"`},
+		{[]string{"set-quota", "--cpu=0x100", "foo"}, `cannot parse cpu quota string "0x100"`},
+		{[]string{"set-quota", "--cpu=200", "foo"}, `cannot parse cpu quota string "200"`},
+		{[]string{"set-quota", "--cpu=20D", "foo"}, `cannot parse cpu quota string "20D"`},
+		{[]string{"set-quota", "--cpu=ASD", "foo"}, `cannot parse cpu quota string "ASD"`},
 		{[]string{"set-quota", "--cpu-set=x", "foo"}, `cannot parse value for --cpu-set at position 0`},
 		{[]string{"set-quota", "--cpu-set=1:2", "foo"}, `cannot parse value for --cpu-set at position 0`},
 		{[]string{"set-quota", "--cpu-set=0,-2", "foo"}, `cannot use a negative CPU number in --cpu-set`},
@@ -229,7 +229,7 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		})
 
 		_, err := main.Parser(main.Client()).ParseArgs(args.args)
-		c.Assert(err, check.ErrorMatches, args.err)
+		c.Check(err, check.ErrorMatches, args.err)
 
 		// Restore the cgroup version callback
 		restore()
