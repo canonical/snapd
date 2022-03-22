@@ -124,9 +124,7 @@ func (iface *pkcs11Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *pkcs11Interface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
-	if !implicitSystemPermanentSlot(slot) {
-		spec.AddSnippet(pkcs11PermanentSlotSecComp)
-	}
+	spec.AddSnippet(pkcs11PermanentSlotSecComp)
 	return nil
 }
 
