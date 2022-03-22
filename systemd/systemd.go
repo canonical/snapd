@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -140,9 +140,30 @@ func MockSystemdVersion(version int, injectedError error) (restore func()) {
 	}
 }
 
-// MockSystemctl is called from the commands to actually call out to
-// systemctl. It's exported so it can be overridden by testing.
-func MockSystemctl(f func(args ...string) ([]byte, time.Duration, error)) func() {
+// MockSystemctl allows to mock the systemctl invocations.
+// The provided function will be called when systemctl would be invoked.
+// The function can return the output and an error.
+func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
+	var mutex sync.Mutex
+	oldSystemctlCmd := systemctlCmd
+	systemctlCmd = func(args ...string) ([]byte, error) {
+		// Thread-safe wrapper to call the locked systemctl
+		mutex.Lock()
+		bs, err := f(args...)
+		mutex.Unlock()
+		return bs, err
+	}
+	return func() {
+		systemctlCmd = oldSystemctlCmd
+	}
+}
+
+// MockSystemctlWithDelay allows to mock the systemctl invocations.
+// The provided function will be called when systemctl would be invoked.
+// The function can return the output and an error. Also the function
+// can return a delay that will be respected before completing the
+// mocked invocation.
+func MockSystemctlWithDelay(f func(args ...string) ([]byte, time.Duration, error)) func() {
 	var mutex sync.Mutex
 	oldSystemctlCmd := systemctlCmd
 	systemctlCmd = func(args ...string) ([]byte, error) {

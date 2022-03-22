@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"math"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -686,7 +685,7 @@ func (s systemctlInactiveServiceError) Error() string { return "inactive" }
 
 func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 	systemctlCalls := 0
-	r := systemd.MockSystemctl(func(args ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		systemctlCalls++
 		switch systemctlCalls {
 
@@ -694,7 +693,7 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 		case 1:
 			// first time pretend the service is inactive
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
-			return []byte("inactive"), 0, systemctlInactiveServiceError{}
+			return []byte("inactive"), systemctlInactiveServiceError{}
 
 		// active but no tasks, but we still return the memory usage because it
 		// can be valid on some systems to have non-zero memory usage for a
@@ -703,20 +702,20 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 		case 2:
 			// now pretend it is active
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
-			return []byte("active"), 0, nil
+			return []byte("active"), nil
 		case 3:
 			// and the memory count can be non-zero like
 			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
-			return []byte("MemoryCurrent=4096"), 0, nil
+			return []byte("MemoryCurrent=4096"), nil
 
 		case 4:
 			// now pretend it is active
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
-			return []byte("active"), 0, nil
+			return []byte("active"), nil
 		case 5:
 			// and the memory count can be zero too
 			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
-			return []byte("MemoryCurrent=0"), 0, nil
+			return []byte("MemoryCurrent=0"), nil
 
 		// bug case where 16 exb is erroneous - this is left in for posterity,
 		// but we don't handle this differently, previously we had a workaround
@@ -725,16 +724,16 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 		case 6:
 			// the cgroup is active, has no tasks and has 16 exb usage
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
-			return []byte("active"), 0, nil
+			return []byte("active"), nil
 		case 7:
 			// since it is active, we will query the current memory usage,
 			// this time return an obviously wrong number
 			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
-			return []byte("MemoryCurrent=18446744073709551615"), 0, nil
+			return []byte("MemoryCurrent=18446744073709551615"), nil
 
 		default:
 			c.Errorf("too many systemctl calls (%d) (current call is %+v)", systemctlCalls, args)
-			return []byte("broken test"), 0, fmt.Errorf("broken test")
+			return []byte("broken test"), fmt.Errorf("broken test")
 		}
 	})
 	defer r()
@@ -766,7 +765,7 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 
 func (ts *quotaTestSuite) TestCurrentTaskUsage(c *C) {
 	systemctlCalls := 0
-	r := systemd.MockSystemctl(func(args ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		systemctlCalls++
 		switch systemctlCalls {
 
@@ -774,30 +773,30 @@ func (ts *quotaTestSuite) TestCurrentTaskUsage(c *C) {
 		case 1:
 			// first time pretend the service is inactive
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
-			return []byte("inactive"), 0, systemctlInactiveServiceError{}
+			return []byte("inactive"), systemctlInactiveServiceError{}
 
 		// active cases
 		case 2:
 			// now pretend it is active
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
-			return []byte("active"), 0, nil
+			return []byte("active"), nil
 		case 3:
 			// and the task count can be non-zero like
 			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
-			return []byte("TasksCurrent=32"), 0, nil
+			return []byte("TasksCurrent=32"), nil
 
 		case 4:
 			// now pretend it is active
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
-			return []byte("active"), 0, nil
+			return []byte("active"), nil
 		case 5:
 			// and no tasks are active
 			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
-			return []byte("TasksCurrent=0"), 0, nil
+			return []byte("TasksCurrent=0"), nil
 
 		default:
 			c.Errorf("unexpected number of systemctl calls (%d) (current call is %+v)", systemctlCalls, args)
-			return []byte("broken test"), 0, fmt.Errorf("broken test")
+			return []byte("broken test"), fmt.Errorf("broken test")
 		}
 	})
 	defer r()

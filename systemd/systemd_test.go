@@ -100,7 +100,7 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	// force UTC timezone, for reproducible timestamps
 	os.Setenv("TZ", "")
 
-	s.restoreSystemctl = MockSystemctl(s.myRun)
+	s.restoreSystemctl = MockSystemctlWithDelay(s.myRun)
 	s.i = 0
 	s.argses = nil
 	s.errors = nil

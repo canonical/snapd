@@ -59,9 +59,9 @@ func (s *restSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
 
 	s.sysdLog = nil
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)
 	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
@@ -200,12 +200,12 @@ func (s *restSuite) TestServicesStartNonSnap(c *C) {
 
 func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	var sysdLog [][]string
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
-			return nil, 0, fmt.Errorf("start failure")
+			return nil, fmt.Errorf("start failure")
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
 
@@ -240,15 +240,15 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 
 func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	var sysdLog [][]string
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if cmd[0] == "--user" && cmd[1] == "start" && cmd[2] == "snap.bar.service" {
-			return nil, 0, fmt.Errorf("start failure")
+			return nil, fmt.Errorf("start failure")
 		}
 		if cmd[0] == "--user" && cmd[1] == "stop" && cmd[2] == "snap.foo.service" {
-			return nil, 0, fmt.Errorf("stop failure")
+			return nil, fmt.Errorf("stop failure")
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
 
@@ -325,15 +325,15 @@ func (s *restSuite) TestServicesStopNonSnap(c *C) {
 
 func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 	var sysdLog [][]string
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// Ignore "show" spam
 		if cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
 		if cmd[len(cmd)-1] == "snap.bar.service" {
-			return []byte("ActiveState=active\n"), 0, nil
+			return []byte("ActiveState=active\n"), nil
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer restore()
 

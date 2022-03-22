@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -595,7 +594,7 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 }
 
 func (s *servicectlSuite) TestTwoServices(c *C) {
-	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, delay time.Duration, err error) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		switch args[0] {
 		case "show":
 			c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
@@ -605,14 +604,14 @@ Type=simple
 ActiveState=active
 UnitFileState=enabled
 NeedDaemonReload=no
-`, args[2])), 0, nil
+`, args[2])), nil
 		case "--user":
 			c.Check(args[1], Equals, "--global")
 			c.Check(args[2], Equals, "is-enabled")
-			return []byte("enabled\n"), 0, nil
+			return []byte("enabled\n"), nil
 		default:
 			c.Errorf("unexpected systemctl command: %v", args)
-			return nil, 0, fmt.Errorf("should not be reached")
+			return nil, fmt.Errorf("should not be reached")
 		}
 	})
 	defer restore()
@@ -629,7 +628,7 @@ test-snap.user-service     enabled  -        user
 }
 
 func (s *servicectlSuite) TestServices(c *C) {
-	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, delay time.Duration, err error) {
+	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		c.Assert(args[0], Equals, "show")
 		c.Check(args[2], Equals, "snap.test-snap.test-service.service")
 		return []byte(`Id=snap.test-snap.test-service.service
@@ -638,7 +637,7 @@ Type=simple
 ActiveState=active
 UnitFileState=enabled
 NeedDaemonReload=no
-`), 0, nil
+`), nil
 	})
 	defer restore()
 

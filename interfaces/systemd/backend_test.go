@@ -22,7 +22,6 @@ package systemd_test
 import (
 	"os"
 	"path/filepath"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -55,9 +54,9 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &systemd.Backend{}
 	s.BackendSuite.SetUpTest(c)
 	c.Assert(s.Repo.AddBackend(s.Backend), IsNil)
-	s.systemctlRestorer = sysd.MockSystemctl(func(args ...string) ([]byte, time.Duration, error) {
+	s.systemctlRestorer = sysd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, append([]string{"systemctl"}, args...))
-		return []byte("ActiveState=inactive"), 0, nil
+		return []byte("ActiveState=inactive"), nil
 	})
 	s.systemctlArgs = nil
 }
@@ -74,12 +73,12 @@ func (s *backendSuite) TestName(c *C) {
 func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	var sysdLog [][]string
 
-	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if cmd[0] == "show" {
-			return []byte("ActiveState=inactive\n"), 0, nil
+			return []byte("ActiveState=inactive\n"), nil
 		}
-		return []byte{}, 0, nil
+		return []byte{}, nil
 	})
 	defer r()
 
@@ -177,9 +176,9 @@ func (s *backendSuite) TestInstallingSnapWhenPreseeding(c *C) {
 	s.Backend.Initialize(opts)
 
 	var sysdLog [][]string
-	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := sysd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		return []byte{}, 0, nil
+		return []byte{}, nil
 	})
 	defer r()
 

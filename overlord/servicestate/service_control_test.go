@@ -81,20 +81,20 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 	s.state = s.o.State()
 
 	s.sysctlArgs = nil
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, delay time.Duration, err error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
 		// When calling the "snap restart" command, the initial status will be
 		// retrieved first. Services which are not running will be
 		// ignored. Therefore, mock this "show" operation by pretending that
 		// all requested services are active:
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
-			return out, 0, nil
+			return out, nil
 		}
 
 		s.sysctlArgs = append(s.sysctlArgs, cmd)
 		if cmd[0] == "show" {
-			return []byte("ActiveState=inactive\n"), 0, nil
+			return []byte("ActiveState=inactive\n"), nil
 		}
-		return nil, 0, nil
+		return nil, nil
 	})
 	s.AddCleanup(systemctlRestorer)
 
@@ -830,21 +830,21 @@ func (s *serviceControlSuite) testRestartWithExplicitServicesCommon(c *C,
 	srvFoo := "snap.test-snap.foo.service"
 	srvBar := "snap.test-snap.bar.service"
 
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, delay time.Duration, err error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
 		states := map[string]systemdtest.ServiceState{
 			srvAbc: {ActiveState: "inactive", UnitFileState: "enabled"},
 			srvFoo: {ActiveState: "inactive", UnitFileState: "enabled"},
 			srvBar: {ActiveState: "active", UnitFileState: "enabled"},
 		}
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
-			return out, 0, nil
+			return out, nil
 		}
 
 		s.sysctlArgs = append(s.sysctlArgs, cmd)
 		if cmd[0] == "show" {
-			return []byte("ActiveState=inactive\n"), 0, nil
+			return []byte("ActiveState=inactive\n"), nil
 		}
-		return nil, 0, nil
+		return nil, nil
 	})
 	s.AddCleanup(systemctlRestorer)
 

@@ -812,9 +812,9 @@ defaults:
 	// we will call out to systemctl in the initramfs, but only using --root
 	// which doesn't talk to systemd, just manipulates files around
 	var sysctlArgs [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, delay time.Duration, err error) {
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		sysctlArgs = append(sysctlArgs, args)
-		return nil, 0, nil
+		return nil, nil
 	})
 	defer systemctlRestorer()
 
@@ -3097,9 +3097,9 @@ defaults:
 	// we will call out to systemctl in the initramfs, but only using --root
 	// which doesn't talk to systemd, just manipulates files around
 	var sysctlArgs [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, delay time.Duration, err error) {
+	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		sysctlArgs = append(sysctlArgs, args)
-		return nil, 0, nil
+		return nil, nil
 	})
 	defer systemctlRestorer()
 

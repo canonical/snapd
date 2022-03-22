@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -180,16 +179,16 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	})
 
 	// CreateQuota is calling "systemctl.Restart", which needs to be mocked
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, delay time.Duration, err error) {
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
 		s.systemctlArgs = append(s.systemctlArgs, cmd)
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
-			return out, 0, nil
+			return out, nil
 		}
 
 		if cmd[0] == "show" {
-			return []byte("ActiveState=inactive\n"), 0, nil
+			return []byte("ActiveState=inactive\n"), nil
 		}
-		return nil, 0, nil
+		return nil, nil
 	})
 	s.AddCleanup(systemctlRestorer)
 	tr := config.NewTransaction(s.state)

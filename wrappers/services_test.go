@@ -72,9 +72,9 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.sysdLog = nil
 	dirs.SetRootDir(s.tempdir)
 
-	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.perfTimings = timings.New(nil)
@@ -1385,7 +1385,7 @@ WantedBy=multi-user.target
 	// make systemctl fail the first time when we try to do a daemon-reload,
 	// then the next time don't return an error
 	systemctlCalls := 0
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		systemctlCalls++
 		switch systemctlCalls {
 		case 1:
@@ -1398,15 +1398,15 @@ WantedBy=multi-user.target
 			))
 
 			// now return an error to trigger a rollback
-			return nil, 0, fmt.Errorf("oops")
+			return nil, fmt.Errorf("oops")
 		case 2:
 			// check that the rollback happened to restore the original content
 			c.Assert(svcFile, testutil.FileEquals, origContent)
 
-			return nil, 0, nil
+			return nil, nil
 		default:
 			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
-			return nil, 0, fmt.Errorf("broken test")
+			return nil, fmt.Errorf("broken test")
 		}
 	})
 	defer r()
@@ -1458,7 +1458,7 @@ WantedBy=multi-user.target
 	// make systemctl fail the first time when we try to do a daemon-reload,
 	// then the next time don't return an error
 	systemctlCalls := 0
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		systemctlCalls++
 		switch systemctlCalls {
 		case 1:
@@ -1471,15 +1471,15 @@ WantedBy=multi-user.target
 			))
 
 			// now return an error to trigger a rollback
-			return nil, 0, fmt.Errorf("oops")
+			return nil, fmt.Errorf("oops")
 		case 2:
 			// after the rollback, check that the new file was deleted
 			c.Assert(svcFile, testutil.FileAbsent)
 
-			return nil, 0, nil
+			return nil, nil
 		default:
 			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
-			return nil, 0, fmt.Errorf("broken test")
+			return nil, fmt.Errorf("broken test")
 		}
 	})
 	defer r()
@@ -1555,7 +1555,7 @@ WantedBy=multi-user.target
 	// make systemctl fail the first time when we try to do a daemon-reload,
 	// then the next time don't return an error
 	systemctlCalls := 0
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		systemctlCalls++
 		switch systemctlCalls {
 		case 1:
@@ -1567,15 +1567,15 @@ WantedBy=multi-user.target
 			c.Assert(svc1File, testutil.FileEquals, svc1Content)
 
 			// now return error to trigger a rollback
-			return nil, 0, fmt.Errorf("oops")
+			return nil, fmt.Errorf("oops")
 		case 2:
 			// after the rollback, check that the new file was deleted
 			c.Assert(svc2File, testutil.FileAbsent)
 
-			return nil, 0, nil
+			return nil, nil
 		default:
 			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
-			return nil, 0, fmt.Errorf("broken test")
+			return nil, fmt.Errorf("broken test")
 		}
 	})
 	defer r()
@@ -1861,13 +1861,13 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 	defer restore()
 
 	var sysdLog [][]string
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl show" that
 		// StopServices generates
 		if cmd[0] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
-		return []byte("ActiveState=active\n"), 0, nil
+		return []byte("ActiveState=active\n"), nil
 	})
 	defer r()
 
@@ -1900,16 +1900,16 @@ apps:
 
 func (s *servicesTestSuite) TestRemoveSnapPackageUserDaemonStopFailure(c *C) {
 	var sysdLog [][]string
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// filter out the "systemctl --user show" that
 		// StopServices generates
 		if cmd[0] == "--user" && cmd[1] != "show" {
 			sysdLog = append(sysdLog, cmd)
 		}
 		if cmd[0] == "--user" && cmd[1] == "stop" {
-			return nil, 0, fmt.Errorf("user unit stop failed")
+			return nil, fmt.Errorf("user unit stop failed")
 		}
-		return []byte("ActiveState=active\n"), 0, nil
+		return []byte("ActiveState=active\n"), nil
 	})
 	defer r()
 
@@ -2142,13 +2142,13 @@ func (s *servicesTestSuite) TestAddSnapServicesWithPreseed(c *C) {
 
 func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	var sysServices, userServices []string
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		if cmd[0] == "stop" {
 			sysServices = append(sysServices, cmd[1:]...)
 		} else if cmd[0] == "--user" && cmd[1] == "stop" {
 			userServices = append(userServices, cmd[2:]...)
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -2320,12 +2320,12 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		c.Logf("cmd: %q", cmd)
 		sysdLog = append(sysdLog, cmd)
 		sdcmd := cmd[0]
 		if sdcmd == "show" {
-			return []byte("ActiveState=inactive"), 0, nil
+			return []byte("ActiveState=inactive"), nil
 		}
 		switch sdcmd {
 		case "enable":
@@ -2334,9 +2334,9 @@ func (s *servicesTestSuite) TestMultiServicesFailEnableCleanup(c *C) {
 			if cmd[1] == svc2Name {
 				svc1Name, svc2Name = svc2Name, svc1Name
 			}
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		case "disable", "daemon-reload", "stop":
-			return nil, 0, nil
+			return nil, nil
 		default:
 			panic(fmt.Sprintf("unexpected systemctl command %q", cmd))
 		}
@@ -2374,13 +2374,13 @@ func (s *servicesTestSuite) TestAddSnapMultiServicesStartFailOnSystemdReloadClea
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if cmd[0] == "daemon-reload" {
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		}
 		c.Fatalf("unexpected systemctl call")
-		return nil, 0, nil
+		return nil, nil
 
 	})
 	defer r()
@@ -2410,7 +2410,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 	svcFiles, _ := filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
 	c.Check(svcFiles, HasLen, 0)
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) >= 1 && cmd[0] == "--user" {
 			cmd = cmd[1:]
@@ -2424,7 +2424,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 		}
 		switch sdcmd {
 		case "daemon-reload":
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		default:
 			panic("unexpected systemctl command " + sdcmd)
 		}
@@ -2465,10 +2465,10 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 	c.Check(svcFiles, HasLen, 0)
 
 	first := true
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) < 3 {
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		}
 		if first {
 			first = false
@@ -2477,7 +2477,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 				svc1Name, svc2Name = svc2Name, svc1Name
 			}
 		}
-		return nil, 0, nil
+		return nil, nil
 
 	})
 	defer r()
@@ -2611,15 +2611,15 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanup(c *C) {
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) >= 2 && cmd[0] == "start" {
 			name := cmd[len(cmd)-1]
 			if name == svc2Name {
-				return nil, 0, fmt.Errorf("failed")
+				return nil, fmt.Errorf("failed")
 			}
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -2659,14 +2659,14 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartCleanupWithSocket
 	svc3Name := "snap.hello-snap.svc3.service"
 	svc3SocketName := "snap.hello-snap.svc3.sock1.socket"
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		c.Logf("call: %v", cmd)
 		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc3SocketName {
 			// svc3 socket fails
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -2725,14 +2725,14 @@ func (s *servicesTestSuite) TestStartSnapMultiServicesFailStartNoEnableNoDisable
 	svc3Name := "snap.hello-snap.svc3.service"
 	svc3SocketName := "snap.hello-snap.svc3.sock1.socket"
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		c.Logf("call: %v", cmd)
 		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc1Name {
 			// svc1 fails
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -2786,15 +2786,15 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	svc1Name := "snap.hello-snap.svc1.service"
 	svc2Name := "snap.hello-snap.svc2.service"
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) >= 3 && cmd[0] == "--user" && cmd[1] == "start" {
 			name := cmd[len(cmd)-1]
 			if name == svc2Name {
-				return nil, 0, fmt.Errorf("failed")
+				return nil, fmt.Errorf("failed")
 			}
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -2840,9 +2840,9 @@ func (s *servicesTestSuite) TestStartSnapServicesKeepsOrder(c *C) {
 	svc2Name := "snap.services-snap.svc2.service"
 	svc3Name := "snap.services-snap.svc3.service"
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -3190,12 +3190,12 @@ func (s *servicesTestSuite) TestStartSnapTimerCleanup(c *C) {
 	svc2Name := "snap.hello-snap.svc2.service"
 	svc2Timer := "snap.hello-snap.svc2.timer"
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		sysdLog = append(sysdLog, cmd)
 		if len(cmd) >= 2 && cmd[0] == "start" && cmd[1] == svc2Timer {
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -3269,14 +3269,14 @@ func (s *servicesTestSuite) TestFailedAddSnapCleansUp(c *C) {
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	calls := 0
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		if len(cmd) == 1 && cmd[0] == "daemon-reload" && calls == 0 {
 			// only fail the first systemd daemon-reload call, the
 			// second one is at the end of cleanup
 			calls += 1
-			return nil, 0, fmt.Errorf("failed")
+			return nil, fmt.Errorf("failed")
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -3428,12 +3428,12 @@ apps:
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
 	srvFile := "snap.test-snap.foo.service"
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
-			return out, 0, nil
+			return out, nil
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 
@@ -3493,7 +3493,7 @@ apps:
 
 	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
 
-	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		states := map[string]systemdtest.ServiceState{
 			srvFile1: {ActiveState: "active", UnitFileState: "enabled"},
@@ -3502,9 +3502,9 @@ apps:
 			srvFile4: {ActiveState: "inactive", UnitFileState: "disabled"},
 		}
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
-			return out, 0, nil
+			return out, nil
 		}
-		return []byte("ActiveState=inactive\n"), 0, nil
+		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
 

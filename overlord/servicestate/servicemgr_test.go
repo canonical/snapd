@@ -224,16 +224,16 @@ var _ = Suite(&ensureSnapServiceSuite{})
 
 func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSystemctl) (restore func()) {
 	allSystemctlCalls := [][]string{}
-	r := systemd.MockSystemctl(func(args ...string) ([]byte, time.Duration, error) {
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		systemctlCalls := len(allSystemctlCalls)
 		allSystemctlCalls = append(allSystemctlCalls, args)
 		if systemctlCalls < len(expCalls) {
 			res := expCalls[systemctlCalls]
 			c.Check(args, DeepEquals, res.expArgs)
-			return []byte(res.output), 0, res.err
+			return []byte(res.output), res.err
 		}
 		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
-		return nil, 0, fmt.Errorf("broken test")
+		return nil, fmt.Errorf("broken test")
 	})
 
 	return func() {

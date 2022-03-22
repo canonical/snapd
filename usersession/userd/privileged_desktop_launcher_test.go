@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -77,8 +76,8 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 		filepath.Dir(dirs.SnapDesktopFilesDir),
 	}, ":"))
 
-	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, time.Duration, error) {
-		return []byte("systemd 246\n+PAM and more"), 0, nil
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		return []byte("systemd 246\n+PAM and more"), nil
 	})
 	s.AddCleanup(restore)
 }

@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -143,9 +142,9 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive")
 	}
 
-	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, time.Duration, error) {
+	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
-		return s.systemctlOutput(args...), 0, nil
+		return s.systemctlOutput(args...), nil
 	}))
 	s.systemctlArgs = nil
 	s.AddCleanup(systemd.MockSystemdSysctl(func(args ...string) error {
