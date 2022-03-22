@@ -36,7 +36,6 @@ const pkcs11Summary = `allows use of pkcs11 framework and access to exposed toke
 const pkcs11BaseDeclarationSlots = `
   pkcs11:
     allow-installation: false
-    deny-connection: true
     deny-auto-connection: true
 `
 
