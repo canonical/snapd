@@ -4,6 +4,12 @@ set -ex
 
 # TODO: Remove the refresh once the issue https://github.com/lxc/lxd/issues/10079 is release to 4.0/candidate
 # Make sure the lxd snap is updated before removing it
+for i in $(seq 30); do
+    if command -v snap; then
+        break
+    fi
+    sleep 1
+done
 snap refresh lxd --channel=latest/stable
 snap remove lxd
 
