@@ -436,51 +436,51 @@ func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	// application in version v1.
 	initial := &osutil.MountProfile{}
 	desiredV1 := &osutil.MountProfile{Entries: []osutil.MountEntry{
-		{Name: "none", Dir: "/opt/runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/runtime", "x-snapd.origin=layout"}},
-		{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x1/runtime", Type: "none", Options: []string{"bind", "ro"}},
+		{Name: "none", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/foo-runtime", "x-snapd.origin=layout"}},
+		{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x1/foo-runtime", Type: "none", Options: []string{"bind", "ro"}},
 	}}
 	// The changes we compute are trivial, simply perform each operation in order.
 	changes := update.NeededChanges(initial, desiredV1)
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Entry: osutil.MountEntry{Name: "none", Dir: "/opt/runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/runtime", "x-snapd.origin=layout"}}, Action: update.Mount},
-		{Entry: osutil.MountEntry{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x1/runtime", Type: "none", Options: []string{"bind", "ro"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/foo-runtime", "x-snapd.origin=layout"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x1/foo-runtime", Type: "none", Options: []string{"bind", "ro"}}, Action: update.Mount},
 	})
 	// After performing both changes we have a new synthesized entry. We get an
 	// extra writable mimic over /opt so that we can add our symlink. The
 	// content sharing into $SNAP is applied as expected since the snap ships
 	// the required mount point.
 	currentV1 := &osutil.MountProfile{Entries: []osutil.MountEntry{
-		{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x1/runtime", Type: "none", Options: []string{"bind", "ro"}},
-		{Name: "none", Dir: "/opt/runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/runtime", "x-snapd.origin=layout"}},
-		{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/runtime", "mode=0755", "uid=0", "gid=0"}},
+		{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x1/foo-runtime", Type: "none", Options: []string{"bind", "ro"}},
+		{Name: "none", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/foo-runtime", "x-snapd.origin=layout"}},
+		{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/foo-runtime", "mode=0755", "uid=0", "gid=0"}},
 	}}
 	// We now proceed to replace app v1 with v2 which uses a bind mount instead
 	// of a symlink. First, let's start with the updated desired profile:
 	desiredV2 := &osutil.MountProfile{Entries: []osutil.MountEntry{
-		{Name: "/snap/app/x2/runtime", Dir: "/opt/runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
-		{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x2/runtime", Type: "none", Options: []string{"bind", "ro"}},
+		{Name: "/snap/app/x2/foo-runtime", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+		{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x2/foo-runtime", Type: "none", Options: []string{"bind", "ro"}},
 	}}
 
 	// Let's see what the update algorithm thinks.
 	changes = update.NeededChanges(currentV1, desiredV2)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// We are dropping the content interface bind mount because app changed revision
-		{Entry: osutil.MountEntry{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x1/runtime", Type: "none", Options: []string{"bind", "ro", "x-snapd.detach"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x1/foo-runtime", Type: "none", Options: []string{"bind", "ro", "x-snapd.detach"}}, Action: update.Unmount},
 		// We are not keeping /opt, it's safer this way.
-		{Entry: osutil.MountEntry{Name: "none", Dir: "/opt/runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/runtime", "x-snapd.origin=layout"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/foo-runtime", "x-snapd.origin=layout"}}, Action: update.Unmount},
 		// We are re-creating /opt from scratch.
-		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/runtime", "mode=0755", "uid=0", "gid=0"}}, Action: update.Keep},
-		// We are adding a new bind mount for /opt/runtime
-		{Entry: osutil.MountEntry{Name: "/snap/app/x2/runtime", Dir: "/opt/runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/foo-runtime", "mode=0755", "uid=0", "gid=0"}}, Action: update.Keep},
+		// We are adding a new bind mount for /opt/foo-runtime
+		{Entry: osutil.MountEntry{Name: "/snap/app/x2/foo-runtime", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}, Action: update.Mount},
 		// We also adding the updated path of the content interface (for revision x2)
-		{Entry: osutil.MountEntry{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x2/runtime", Type: "none", Options: []string{"bind", "ro"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x2/foo-runtime", Type: "none", Options: []string{"bind", "ro"}}, Action: update.Mount},
 	})
 
 	// After performing all those changes this is the profile we observe.
 	currentV2 := &osutil.MountProfile{Entries: []osutil.MountEntry{
-		{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/runtime", "mode=0755", "uid=0", "gid=0", "x-snapd.detach"}},
-		{Name: "/snap/app/x2/runtime", Dir: "/opt/runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
-		{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x2/runtime", Type: "none", Options: []string{"bind", "ro"}},
+		{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/foo-runtime", "mode=0755", "uid=0", "gid=0", "x-snapd.detach"}},
+		{Name: "/snap/app/x2/foo-runtime", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+		{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x2/foo-runtime", Type: "none", Options: []string{"bind", "ro"}},
 	}}
 
 	// So far so good. To trigger the issue we now revert or refresh to v1
@@ -489,15 +489,15 @@ func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	changes = update.NeededChanges(currentV2, desiredV1)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		// We are, again, dropping the content interface bind mount because app changed revision
-		{Entry: osutil.MountEntry{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x2/runtime", Type: "none", Options: []string{"bind", "ro", "x-snapd.detach"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x2/foo-runtime", Type: "none", Options: []string{"bind", "ro", "x-snapd.detach"}}, Action: update.Unmount},
 		// We are also dropping the bind mount from /opt/runtime since we want a symlink instead
-		{Entry: osutil.MountEntry{Name: "/snap/app/x2/runtime", Dir: "/opt/runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/snap/app/x2/foo-runtime", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"}}, Action: update.Unmount},
 		// Again, recreate the tmpfs.
-		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/runtime", "mode=0755", "uid=0", "gid=0", "x-snapd.detach"}}, Action: update.Keep},
-		// We are providing a symlink /opt/runtime -> to $SNAP/runtime.
-		{Entry: osutil.MountEntry{Name: "none", Dir: "/opt/runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/runtime", "x-snapd.origin=layout"}}, Action: update.Mount},
-		// We are bind mounting the runtime from another snap into $SNAP/runtime
-		{Entry: osutil.MountEntry{Name: "/snap/runtime/x1/opt/runtime", Dir: "/snap/app/x1/runtime", Type: "none", Options: []string{"bind", "ro"}}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/opt", Type: "tmpfs", Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/opt/foo-runtime", "mode=0755", "uid=0", "gid=0", "x-snapd.detach"}}, Action: update.Keep},
+		// We are providing a symlink /opt/foo-runtime -> to $SNAP/foo-runtime.
+		{Entry: osutil.MountEntry{Name: "none", Dir: "/opt/foo-runtime", Type: "none", Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/app/x1/foo-runtime", "x-snapd.origin=layout"}}, Action: update.Mount},
+		// We are bind mounting the runtime from another snap into $SNAP/foo-runtime
+		{Entry: osutil.MountEntry{Name: "/snap/foo-runtime/x1/opt/foo-runtime", Dir: "/snap/app/x1/foo-runtime", Type: "none", Options: []string{"bind", "ro"}}, Action: update.Mount},
 	})
 
 	// The problem is that the tmpfs contains leftovers from the things we
