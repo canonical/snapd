@@ -582,21 +582,23 @@ func (s *fdeSuite) TestDeviceUnlock(c *C) {
 	fdeDeviceUnlockStdin := filepath.Join(c.MkDir(), "stdin")
 	mockDeviceUnlockHook := testutil.MockCommand(c, "fde-device-unlock", fmt.Sprintf(`
 cat - > %s
-printf "output-only-used-for-errors"
 `, fdeDeviceUnlockStdin))
 	defer mockDeviceUnlockHook.Restore()
 
-	mockKey := []byte("some-key")
-	p := fde.DeviceUnlockParams{
-		Key:    mockKey,
-		Device: "/dev/my-device",
-	}
-	err := fde.DeviceUnlock(&p)
+	// ensure we have a device-unlock hook
+	c.Assert(fde.HasDeviceUnlock(), Equals, true)
+	key := []byte{0, 1, 2, 3, 4, 5}
+	err := fde.DeviceUnlock(&fde.DeviceUnlockParams{
+		Key:           key,
+		Device:        "/dev/mapper/data-device-locked",
+		PartitionName: "data",
+	})
 	c.Assert(err, IsNil)
 	c.Check(mockDeviceUnlockHook.Calls(), DeepEquals, [][]string{
 		{"fde-device-unlock"},
 	})
-	c.Check(fdeDeviceUnlockStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/my-device"}`, base64.StdEncoding.EncodeToString(mockKey)))
+	exp := fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/mapper/data-device-locked","partition-name":"data"}`, base64.StdEncoding.EncodeToString(key))
+	c.Check(fdeDeviceUnlockStdin, testutil.FileEquals, exp)
 
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-device-unlock")), Equals, false)
@@ -613,10 +615,10 @@ exit 1
 `)
 	defer mockDeviceUnlockHook.Restore()
 
-	mockKey := []byte("some-key")
 	p := fde.DeviceUnlockParams{
-		Key:    mockKey,
-		Device: "/dev/my-device",
+		Key:           []byte{0, 1, 2, 3, 4, 5},
+		Device:        "/dev/mapper/data-device-locked",
+		PartitionName: "data",
 	}
 	err := fde.DeviceUnlock(&p)
 	c.Assert(err, ErrorMatches, `cannot run fde-device-unlock "device-unlock": 

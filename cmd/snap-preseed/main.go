@@ -51,9 +51,10 @@ type options struct {
 }
 
 var (
-	osGetuid           = os.Getuid
-	Stdout   io.Writer = os.Stdout
-	Stderr   io.Writer = os.Stderr
+	osGetuid = os.Getuid
+	// unused currently, left in place for consistency for when it is needed
+	// Stdout   io.Writer = os.Stdout
+	Stderr io.Writer = os.Stderr
 
 	opts options
 )
