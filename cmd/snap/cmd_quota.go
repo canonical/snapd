@@ -205,7 +205,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 	if threadMax != "" {
 		value, err := strconv.Atoi(threadMax)
 		if err != nil {
-			return nil, fmt.Errorf("invalid value specified for --thread")
+			return nil, fmt.Errorf("cannot use thread value %q", threadMax)
 		}
 		thread = value
 	}
