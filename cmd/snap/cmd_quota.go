@@ -125,13 +125,7 @@ type cmdSetQuota struct {
 	} `positional-args:"yes"`
 }
 
-var getCGroupVersion = func() (int, error) {
-	cgv, err := cgroup.Version()
-	if err != nil {
-		return 0, fmt.Errorf("cannot determine cgroup version: %v", err)
-	}
-	return cgv, nil
-}
+var cgroupVersion = cgroup.Version
 
 var cpuValueMatcher = regexp.MustCompile(`([0-9]+x)?([0-9]+)%`)
 
@@ -191,7 +185,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 	}
 
 	if cpuSet != "" {
-		cgv, err := getCGroupVersion()
+		cgv, err := cgroupVersion()
 		if err != nil {
 			return nil, err
 		}

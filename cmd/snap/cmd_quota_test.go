@@ -224,7 +224,7 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		s.stderr.Reset()
 
 		// Mock the CGroup version here to test the --cpu-set command
-		restore := main.MockGetCGroupVersion(func() (int, error) {
+		restore := main.MockCGroupVersion(func() (int, error) {
 			return 2, nil
 		})
 
@@ -263,7 +263,7 @@ func (s *quotaSuite) TestSetQuotaCpuSetFails(c *check.C) {
 	cpuArgs := []string{"set-quota", "--cpu=2x50%", "foo"}
 
 	// Mock the CGroup version here to test the --cpu-set and --cpu command
-	restoreCGroup := main.MockGetCGroupVersion(func() (int, error) {
+	restoreCGroup := main.MockCGroupVersion(func() (int, error) {
 		return 1, nil
 	})
 
