@@ -173,7 +173,7 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 			return nil, err
 		}
 		if percentageValue > 100 || percentageValue <= 0 {
-			return nil, fmt.Errorf("cpu quota percentage must be between 1 and 100")
+			return nil, fmt.Errorf("cannot use value %v: cpu quota percentage must be between 1 and 100", percentageValue)
 		}
 
 		cpuCount = countValue

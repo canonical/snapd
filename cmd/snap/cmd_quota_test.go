@@ -217,6 +217,7 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		{[]string{"set-quota", "--cpu-set=x", "foo"}, `cannot parse value for --cpu-set at position 0`},
 		{[]string{"set-quota", "--cpu-set=1:2", "foo"}, `cannot parse value for --cpu-set at position 0`},
 		{[]string{"set-quota", "--cpu-set=0,-2", "foo"}, `cannot use a negative CPU number in --cpu-set`},
+		{[]string{"set-quota", "--cpu=2x101%", "foo"}, `cannot use value 101: cpu quota percentage must be between 1 and 100`},
 		// remove-quota command
 		{[]string{"remove-quota"}, "the required argument `<group-name>` was not provided"},
 	} {
