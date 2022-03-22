@@ -3306,8 +3306,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-func checkDegradedJSON(c *C, exp map[string]interface{}) {
-	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"))
+func checkDegradedJSON(c *C, name string, exp map[string]interface{}) {
+	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, name))
 	c.Assert(err, IsNil)
 	degradedJSONObj := make(map[string]interface{})
 	err = json.Unmarshal(b, &degradedJSONObj)
@@ -3451,7 +3451,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state":     "found",
 			"mount-state":    "mounted",
@@ -3628,7 +3628,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state":     "found",
 			"mount-state":    "mounted",
@@ -3792,7 +3792,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state": "not-found",
 		},
@@ -3954,7 +3954,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state": "not-found",
 		},
@@ -4141,7 +4141,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -4329,7 +4329,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -4924,7 +4924,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -5122,7 +5122,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -5301,7 +5301,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -6334,8 +6334,8 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should have written a degraded.json
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6429,8 +6429,8 @@ base=core20_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	// we should have written a degraded.json
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6507,8 +6507,9 @@ base=core20_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	// we should have written a degraded.json with save marked as absent-but-optional
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file with save marked as
+	// absent-but-optional
+	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6617,8 +6618,8 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should have written a degraded.json
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6726,8 +6727,8 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should have written a degraded.json
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{

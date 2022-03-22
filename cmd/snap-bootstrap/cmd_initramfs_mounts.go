@@ -1138,17 +1138,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	// 3.1 write out degraded.json if we ended up falling back somewhere
 	if machine.degraded() {
-		b, err := json.Marshal(machine.degradedState)
-		if err != nil {
-			return err
-		}
-
-		if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
-			return err
-		}
-
-		// leave the information about degraded state at an ephemeral location
-		if err := ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644); err != nil {
+		if err := serializeDegradedState(machine.degradedState, "degraded.json"); err != nil {
 			return err
 		}
 	}
@@ -1246,18 +1236,8 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 		return err
 	}
 
-	if machine.degraded() {
-		b, err := json.Marshal(machine.degradedState)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
-			return err
-		}
-		// leave the information about degraded state at an ephemeral location
-		if err := ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644); err != nil {
-			return err
-		}
+	if err := serializeDegradedState(machine.degradedState, "factory-reset-boot.json"); err != nil {
+		return err
 	}
 
 	// disable console-conf as it won't be needed
@@ -1698,4 +1678,18 @@ func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (
 		return fmt.Errorf("cannot mark recovery system successful: %v", err)
 	}
 	return nil
+}
+
+func serializeDegradedState(what *recoverDegradedState, name string) error {
+	b, err := json.Marshal(what)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
+		return err
+	}
+
+	// leave the information about degraded state at an ephemeral location
+	return ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
 }
