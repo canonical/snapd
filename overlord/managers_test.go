@@ -10278,6 +10278,9 @@ base: core20
 	st.Lock()
 	defer st.Unlock()
 
+	// cyclic dependency check would detect the problem
+	c.Assert(chg.VerifyTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
+
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "snapd", &snapst)
 	c.Assert(err, IsNil)
@@ -10372,6 +10375,9 @@ base: core20
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// cyclic dependency check would detect the problem
+	c.Assert(chg.VerifyTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "snapd", &snapst)
