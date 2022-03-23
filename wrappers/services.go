@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,30 +76,94 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 	return genServiceFile(app, opts)
 }
 
+// max returns the maximum of two integers. Why is this
+// not provided by golang?
+func max(a, b int) int {
+	if a < b {
+		return b
+	}
+	return a
+}
+
+func min(a, b int) int {
+	if b < a {
+		return b
+	}
+	return a
+}
+
+func formatCpuGroupSlice(grp *quota.Group) string {
+	header := `# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+
+	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
+		// convert the number of cores and the allowed percentage
+		// to the systemd specific format.
+		cpuQuotaSnap := max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
+		cpuQuotaMax := runtime.NumCPU() * 100
+
+		// The CPUQuota setting is only available since systemd 213
+		fmt.Fprintf(buf, "CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
+	}
+
+	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
+		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
+		fmt.Fprintf(buf, "AllowedCPUs=%s\n", allowedCpusValue)
+	}
+
+	buf.WriteString("\n")
+	return buf.String()
+}
+
+func formatMemoryGroupSlice(grp *quota.Group) string {
+	header := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+	if grp.MemoryLimit != 0 {
+		valuesTemplate := `MemoryMax=%[1]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[1]d
+
+`
+		fmt.Fprintf(buf, valuesTemplate, grp.MemoryLimit)
+	}
+	return buf.String()
+}
+
+func formatTaskGroupSlice(grp *quota.Group) string {
+	header := `# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+
+	if grp.TaskLimit != 0 {
+		fmt.Fprintf(buf, "TasksMax=%d\n", grp.TaskLimit)
+	}
+	return buf.String()
+}
+
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) []byte {
 	buf := bytes.Buffer{}
 
+	cpuOptions := formatCpuGroupSlice(grp)
+	memoryOptions := formatMemoryGroupSlice(grp)
+	taskOptions := formatTaskGroupSlice(grp)
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
 X-Snappy=yes
 
 [Slice]
-# Always enable memory accounting otherwise the MemoryMax setting does nothing.
-MemoryAccounting=true
-MemoryMax=%[2]d
-# for compatibility with older versions of systemd
-MemoryLimit=%[2]d
-
-# Always enable task accounting in order to be able to count the processes/
-# threads, etc for a slice
-TasksAccounting=true
 `
 
-	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
-
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
 	return buf.Bytes()
 }
 
@@ -206,16 +271,18 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}
 		if len(toEnableSystem) > 0 {
-			if e := systemSysd.Disable(toEnableSystem); e != nil {
+			if e := systemSysd.DisableNoReload(toEnableSystem); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
+			}
+			if e := systemSysd.DaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to do daemon-reload: %v", e))
 			}
 		}
 		if len(toEnableUser) > 0 {
-			if e := userSysd.Disable(toEnableUser); e != nil {
+			if e := userSysd.DisableNoReload(toEnableUser); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
 			}
 		}
-
 	}()
 	// process all services of the snap in the order specified by the
 	// caller; before batched calls were introduced, the sockets and timers
@@ -279,12 +346,15 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 
 	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {
 		if len(toEnableSystem) > 0 {
-			if err = systemSysd.Enable(toEnableSystem); err != nil {
+			if err = systemSysd.EnableNoReload(toEnableSystem); err != nil {
+				return
+			}
+			if err = systemSysd.DaemonReload(); err != nil {
 				return
 			}
 		}
 		if len(toEnableUser) > 0 {
-			err = userSysd.Enable(toEnableUser)
+			err = userSysd.EnableNoReload(toEnableUser)
 		}
 	})
 	if err != nil {
@@ -734,8 +804,13 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
 	}
-	if err := sysd.Disable(disableServices); err != nil {
-		return err
+	if len(disableServices) > 0 {
+		if err := sysd.DisableNoReload(disableServices); err != nil {
+			return err
+		}
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -860,12 +935,12 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	}
 
 	// disable all collected systemd units
-	if err := systemSysd.Disable(systemUnits); err != nil {
+	if err := systemSysd.DisableNoReload(systemUnits); err != nil {
 		return err
 	}
 
 	// disable all collected user units
-	if err := userSysd.Disable(userUnits); err != nil {
+	if err := userSysd.DisableNoReload(userUnits); err != nil {
 		return err
 	}
 

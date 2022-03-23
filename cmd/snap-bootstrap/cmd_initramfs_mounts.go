@@ -433,6 +433,20 @@ func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 	logger.Noticef(msg)
 }
 
+func (r *recoverDegradedState) serializeTo(name string) error {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
+		return err
+	}
+
+	// leave the information about degraded state at an ephemeral location
+	return ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
+}
+
 // stateFunc is a function which executes a state action, returns the next
 // function (for the next) state or nil if it is the final state.
 type stateFunc func() (stateFunc, error)
@@ -1138,17 +1152,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	// 3.1 write out degraded.json if we ended up falling back somewhere
 	if machine.degraded() {
-		b, err := json.Marshal(machine.degradedState)
-		if err != nil {
-			return err
-		}
-
-		if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
-			return err
-		}
-
-		// leave the information about degraded state at an ephemeral location
-		if err := ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644); err != nil {
+		if err := machine.degradedState.serializeTo("degraded.json"); err != nil {
 			return err
 		}
 	}
@@ -1224,85 +1228,30 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 	// will be wiped anyway so we do not even bother looking up those
 	// partitions (which may be corrupted too, hence factory-reset was
 	// invoked)
-	degradedState := recoverDegradedState{}
-	part := degradedState.partition("ubuntu-save")
-	degraded := false
-	isEncrypted := false
-	_, findErr := disk.FindMatchingPartitionWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save"))
-	if findErr == nil {
-		// found it and it's encrypted
-		isEncrypted = true
-		unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
-			// we want to allow using the recovery key if the fallback key fails
-			AllowRecoveryKey: true,
-			WhichModel:       func() (*asserts.Model, error) { return model, nil },
-		}
-		saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
-		// TODO: this prompts again for a recover key, but really this is the
-		// reinstall key we will prompt for
-		// TODO: we should somehow customize the prompt to mention what key we need
-		// the user to enter, and what we are unlocking (as currently the prompt
-		// says "recovery key" and the partition UUID for what is being unlocked)
-		unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-save", saveFallbackKey, unlockOpts)
-		part.FindState = partitionFound
-		part.partDevice = unlockRes.PartDevice
-		part.fsDevice = unlockRes.FsDevice
-		if unlockErr != nil {
-			degradedState.LogErrorf("cannot unlock encrypted ubuntu-save (device %v) with sealed fallback key: %v", part.partDevice, unlockErr)
-			part.UnlockState = partitionErrUnlocking
-			degraded = true
-		} else {
-			// unlocked successfully
-			part.UnlockState = partitionUnlocked
-			switch unlockRes.UnlockMethod {
-			case secboot.UnlockedWithSealedKey:
-				part.UnlockKey = keyFallback
-			case secboot.UnlockedWithRecoveryKey:
-				part.UnlockKey = keyRecovery
-				degraded = true
+	machine, err := func() (machine *recoverModeStateMachine, err error) {
+		allowFallback := true
+		machine = newRecoverModeStateMachine(model, disk, allowFallback)
+		// start from looking up encrypted ubuntu-save and unlocking with the fallback key
+		machine.current = machine.unlockMaybeEncryptedAloneSaveFallbackKey
+		for {
+			finished, err := machine.execute()
+			// TODO: consider whether certain errors are fatal or not
+			if err != nil {
+				return nil, err
+			}
+			if finished {
+				break
 			}
 		}
-	} else if found, findErr := disk.FindMatchingPartitionWithFsLabel("ubuntu-save"); findErr == nil {
-		// found it and it's unencrypted
-		part.FindState = partitionFound
-		part.partDevice = found.KernelDeviceNode
-		part.fsDevice = found.KernelDeviceNode
-	} else {
-		degradedState.LogErrorf("cannot find ubuntu-save: %v", findErr)
-		part.FindState = partitionAbsentOptional
-		degraded = true
+		return machine, nil
+	}()
+
+	if err != nil {
+		return err
 	}
 
-	if (isEncrypted && part.UnlockState == partitionUnlocked) ||
-		(!isEncrypted && part.FindState == partitionFound) {
-		// TODO: should we fsck ubuntu-save ?
-		mountErr := doSystemdMount(part.fsDevice, boot.InitramfsUbuntuSaveDir, nil)
-		if mountErr != nil {
-			degradedState.LogErrorf("cannot mount ubuntu-save (device %v): %v", part.fsDevice, mountErr)
-			degraded = true
-		} else {
-			part.MountState = partitionMounted
-		}
-	}
-
-	if degraded {
-		// update the partition's device
-		part.Device = part.partDevice
-		if part.fsDevice != "" {
-			part.Device = part.fsDevice
-		}
-
-		b, err := json.Marshal(degradedState)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
-			return err
-		}
-		// leave the information about degraded state at an ephemeral location
-		if err := ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644); err != nil {
-			return err
-		}
+	if err := machine.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
+		return err
 	}
 
 	// disable console-conf as it won't be needed
@@ -1564,6 +1513,11 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		NeedsFsck: true,
 	}
 	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, fsckSystemdOpts); err != nil {
+		return err
+	}
+
+	// 2.1 Update bootloader variables now that boot/seed are mounted
+	if err := boot.InitramfsRunModeUpdateBootloaderVars(); err != nil {
 		return err
 	}
 

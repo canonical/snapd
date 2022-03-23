@@ -1227,6 +1227,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1254,7 +1255,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1264,7 +1264,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1274,7 +1273,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1284,7 +1282,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1295,7 +1292,6 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1403,6 +1399,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1431,7 +1428,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1441,7 +1437,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1451,7 +1446,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1461,7 +1455,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1472,7 +1465,6 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1481,7 +1473,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1491,7 +1482,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1562,6 +1552,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
@@ -1590,7 +1581,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1600,7 +1590,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1610,7 +1599,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1620,7 +1608,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1631,7 +1618,6 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1640,7 +1626,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1650,7 +1635,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1659,7 +1643,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1748,6 +1731,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuBootDir),
@@ -1775,7 +1759,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1784,7 +1767,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1794,7 +1776,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1804,7 +1785,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1814,7 +1794,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1874,6 +1853,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
@@ -1900,7 +1880,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1909,7 +1888,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1919,7 +1897,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1928,7 +1905,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1938,7 +1914,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1948,7 +1923,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -2755,6 +2729,68 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 	}
 }
 
+func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
+	c *C, cmdLine string, finalKernel *snap.PlaceInfo, finalStatus string) {
+	s.mockProcCmdlineContent(c, cmdLine)
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-boot", "run"),
+		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, *finalKernel),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenvNotScript(bootloadertest.Mock("mock", c.MkDir()))
+	bloader.SetBootVars(map[string]string{"kernel_status": boot.TryStatus})
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+	restore = bloader.SetEnabledTryKernel(s.kernelr2)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.core20, s.kernel, s.kernelr2)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	vars, err := bloader.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": finalStatus})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
+	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
+		"snapd_recovery_mode=run kernel_status=trying",
+		&s.kernelr2, boot.TryingStatus)
+	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
+		"snapd_recovery_mode=run",
+		&s.kernel, boot.DefaultStatus)
+}
+
 func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -3306,8 +3342,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-func checkDegradedJSON(c *C, exp map[string]interface{}) {
-	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"))
+func checkDegradedJSON(c *C, name string, exp map[string]interface{}) {
+	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, name))
 	c.Assert(err, IsNil)
 	degradedJSONObj := make(map[string]interface{})
 	err = json.Unmarshal(b, &degradedJSONObj)
@@ -3451,7 +3487,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state":     "found",
 			"mount-state":    "mounted",
@@ -3628,7 +3664,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state":     "found",
 			"mount-state":    "mounted",
@@ -3792,7 +3828,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state": "not-found",
 		},
@@ -3954,7 +3990,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 
 	s.testRecoverModeHappy(c)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"find-state": "not-found",
 		},
@@ -4141,7 +4177,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -4329,7 +4365,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -4924,7 +4960,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -5122,7 +5158,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -5301,7 +5337,7 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	checkDegradedJSON(c, map[string]interface{}{
+	checkDegradedJSON(c, "degraded.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{
 			"device":         "/dev/disk/by-partuuid/ubuntu-boot-partuuid",
 			"mount-state":    "mounted",
@@ -6234,6 +6270,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultEncBootDisk,
+			{
+				Mountpoint:        boot.InitramfsUbuntuSaveDir,
+				IsDecryptedDevice: true,
+			}: defaultEncBootDisk,
 		},
 	)
 	defer restore()
@@ -6330,8 +6370,20 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should not have written a degraded.json
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/mapper/ubuntu-save-random",
+			"find-state":     "found",
+			"unlock-state":   "unlocked",
+			"unlock-key":     "fallback",
+			"mount-state":    "mounted",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
+		"error-log": []interface{}{},
+	})
 
 	c.Check(saveActivated, Equals, true)
 	c.Check(measureEpochCalls, Equals, 1)
@@ -6356,6 +6408,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 	restore = disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
 			{Mountpoint: boot.InitramfsUbuntuSeedDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
 		},
 	)
 	defer restore()
@@ -6389,7 +6442,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 			nil,
 		},
 		{
-			"/dev/sda4",
+			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
 			boot.InitramfsUbuntuSaveDir,
 			nil,
 			nil,
@@ -6412,8 +6465,18 @@ base=core20_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	// we should not have written a degraded.json
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
+		"ubuntu-boot": map[string]interface{}{},
+		"ubuntu-data": map[string]interface{}{},
+		"ubuntu-save": map[string]interface{}{
+			"device":         "/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			"find-state":     "found",
+			"mount-state":    "mounted",
+			"mount-location": boot.InitramfsUbuntuSaveDir,
+		},
+		"error-log": []interface{}{},
+	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencryptedNoSave(c *C) {
@@ -6480,16 +6543,16 @@ base=core20_1.snap
 model=my-brand/my-model
 grade=signed
 `)
-	// we should have written a degraded.json with save marked as absent-but-optional
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file with save marked as
+	// absent-but-optional
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
-			"find-state": "absent-but-optional",
+			"find-state":  "not-found",
+			"mount-state": "absent-but-optional",
 		},
-		"error-log": []interface{}{
-			"cannot find ubuntu-save: filesystem label \"ubuntu-save\" not found",
-		},
+		"error-log": []interface{}{},
 	})
 }
 
@@ -6591,8 +6654,8 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should have written a degraded.json
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6601,7 +6664,7 @@ grade=signed
 			"find-state":   "found",
 		},
 		"error-log": []interface{}{
-			"cannot unlock encrypted ubuntu-save (device /dev/disk/by-partuuid/ubuntu-save-enc-partuuid) with sealed fallback key: ubuntu-save unlock fail",
+			"cannot unlock encrypted ubuntu-save partition with sealed fallback key: ubuntu-save unlock fail",
 		},
 	})
 
@@ -6700,8 +6763,8 @@ model=my-brand/my-model
 grade=signed
 `)
 
-	// we should have written a degraded.json
-	checkDegradedJSON(c, map[string]interface{}{
+	// we should have written a boot state file
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6709,9 +6772,10 @@ grade=signed
 			"unlock-state": "unlocked",
 			"unlock-key":   "fallback",
 			"find-state":   "found",
+			"mount-state":  "error-mounting",
 		},
 		"error-log": []interface{}{
-			"cannot mount ubuntu-save (device /dev/mapper/ubuntu-save-random): mount failed",
+			"cannot mount ubuntu-save: mount failed",
 		},
 	})
 

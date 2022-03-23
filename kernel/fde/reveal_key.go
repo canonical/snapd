@@ -59,6 +59,7 @@ func runFDERevealKeyCommand(req *RevealKeyRequest) (output []byte, err error) {
 var runFDERevealKey = runFDERevealKeyCommand
 
 func MockRunFDERevealKey(mock func(*RevealKeyRequest) ([]byte, error)) (restore func()) {
+	osutil.MustBeTestBinary("fde-reveal-key can only be mocked in tests")
 	oldRunFDERevealKey := runFDERevealKey
 	runFDERevealKey = mock
 	return func() {
