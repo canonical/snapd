@@ -374,7 +374,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// make it bootable
+	// make it bootable, which should be the final step in the process, as
+	// it effectively makes it possible to boot into run mode
 	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
