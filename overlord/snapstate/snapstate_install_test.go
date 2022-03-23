@@ -1971,6 +1971,11 @@ epoch: 1*
 			name: "mock",
 		},
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "mock",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
 		},
@@ -2089,6 +2094,11 @@ epoch: 1*
 		{
 			op:   "remove-snap-aliases",
 			name: "mock",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "mock",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",

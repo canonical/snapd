@@ -1,8 +1,7 @@
 summary: Ensure that foreground applications block app refresh.
 
 details: |
-    When the refresh-app-awareness feature is enabled running snap processes,
-    mainly foreground applications, will block the refresh of said snap.
+    Refresh-app-awareness blocks snap refreshes when it has a running app.
 
 # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
 systems: [-ubuntu-14.04-*]
@@ -12,8 +11,6 @@ environment:
     CONFINEMENT/strict: strict
 
 prepare: |
-    # This feature depends on the release-app-awareness feature
-    snap set core experimental.refresh-app-awareness=true
     sed -e "s/@CONFINEMENT@/$CONFINEMENT/g" <test-snapd-refresh.v1/meta/snap.yaml.in >test-snapd-refresh.v1/meta/snap.yaml
     sed -e "s/@CONFINEMENT@/$CONFINEMENT/g" <test-snapd-refresh.v2/meta/snap.yaml.in >test-snapd-refresh.v2/meta/snap.yaml
     snap pack test-snapd-refresh.v1
@@ -24,7 +21,6 @@ restore: |
     snap remove --purge test-snapd-refresh
     rm -f test-snapd-refresh-{1,2}_all.snap
     rm -f test-snapd-refresh.*/meta/snap.yaml
-    snap unset core experimental.refresh-app-awareness
 
     # Stop the dbus.service of the user session of the root user. This test
     # runs in several configurations, not all of which have this capability.
