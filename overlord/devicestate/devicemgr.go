@@ -1028,10 +1028,6 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.changeInFlight("install-system") {
-		return nil
-	}
-
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
