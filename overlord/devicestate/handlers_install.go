@@ -637,7 +637,6 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	st.Lock()
 	defer st.Unlock()
 
-	// are timings useful here?
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 	// get gadget dir
