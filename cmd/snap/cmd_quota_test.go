@@ -239,9 +239,24 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 	}
 }
 
-func (s *quotaSuite) TestSetQuotaCpuSetFails(c *check.C) {
-	restore := main.MockIsStdinTTY(true)
-	defer restore()
+func (s *quotaSuite) TestSetQuotaCpuSetFailsWithCgroupV1(c *check.C) {
+	// Mock the CGroup version here to test the --cpu-set command
+	restoreCGroup := main.MockCGroupVersion(func() (int, error) {
+		return 1, nil
+	})
+	defer restoreCGroup()
+
+	// ensure that --cpu-set does not work with cgroup version 1
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu-set=0,-2", "foo"})
+	c.Assert(err, check.ErrorMatches, `cannot use CPU set with cgroup version 1`)
+}
+
+func (s *quotaSuite) TestSetQuotaCpuWorksWithCgroupV1(c *check.C) {
+	// Mock the CGroup version here to test the --cpu command
+	restoreCGroup := main.MockCGroupVersion(func() (int, error) {
+		return 1, nil
+	})
+	defer restoreCGroup()
 
 	const postJSON = `{"type": "async", "status-code": 202,"change":"42", "result": []}`
 	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
@@ -251,7 +266,6 @@ func (s *quotaSuite) TestSetQuotaCpuSetFails(c *check.C) {
 		cpuCount:      2,
 		cpuPercentage: 50,
 	}
-
 	const getJsonTemplate = `{
 		"type": "sync",
 		"status-code": 200,
@@ -261,22 +275,6 @@ func (s *quotaSuite) TestSetQuotaCpuSetFails(c *check.C) {
 			"current": { "memory": 500 }
 		}
 	}`
-
-	cpuSetArgs := []string{"set-quota", "--cpu-set=0,-2", "foo"}
-	cpuArgs := []string{"set-quota", "--cpu=2x50%", "foo"}
-
-	// Mock the CGroup version here to test the --cpu-set and --cpu command
-	restoreCGroup := main.MockCGroupVersion(func() (int, error) {
-		return 1, nil
-	})
-
-	// ensure that --cpu-set does not work with cgroup version 1
-	_, err := main.Parser(main.Client()).ParseArgs(cpuSetArgs)
-	c.Assert(err, check.ErrorMatches, `cannot use CPU set with cgroup version 1`)
-
-	s.stdout.Reset()
-	s.stderr.Reset()
-
 	routes := map[string]http.HandlerFunc{
 		"/v2/quotas": makeFakeQuotaPostHandler(
 			c,
@@ -285,15 +283,11 @@ func (s *quotaSuite) TestSetQuotaCpuSetFails(c *check.C) {
 		"/v2/quotas/foo": makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 1000)),
 		"/v2/changes/42": makeChangesHandler(c),
 	}
-
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
 	// ensure that --cpu still works with cgroup version 1
-	_, err = main.Parser(main.Client()).ParseArgs(cpuArgs)
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo"})
 	c.Assert(err, check.IsNil)
-
-	// Restore the cgroup version callback
-	restoreCGroup()
 }
 
 func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
