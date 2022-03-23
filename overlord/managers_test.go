@@ -11236,3 +11236,146 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
 }
+
+func (s *mgrsSuite) TestUC18SnapdRefreshSnapdActive(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	// reload directories
+	dirs.SetRootDir(dirs.GlobalRootDir)
+	restore = release.MockOnClassic(false)
+	defer restore()
+	bl := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+	const snapdSnap = `
+name: snapd
+version: 1.0
+type: snapd`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapdSnap, nil)
+	si := &snap.SideInfo{RealName: "snapd"}
+
+	st := s.o.State()
+	st.Lock()
+
+	// we must be seeded
+	st.Set("seeded", true)
+
+	// we also need to setup the usr-lib-snapd.mount file too
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err := ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// to trigger a change and snapd service restart
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snapd.service"), nil, 0655), IsNil)
+
+	// the modification time of the usr-lib-snapd.mount file is the first
+	// timestamp we use, then the stop time of the snap svc, then the stop time
+	// of usr-lib-snapd.mount
+	t0 := time.Now()
+
+	err = os.Chtimes(usrLibSnapdMountFile, t0, t0)
+	c.Assert(err, IsNil)
+
+	var snapdStart bool
+
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+
+		c.Logf("call: %v", systemctlCalls)
+		switch systemctlCalls {
+		case 1:
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
+			return nil, nil
+		case 2:
+			c.Check(cmd, DeepEquals, []string{"enable", "snap-snapd-x1.mount"})
+			return nil, nil
+		case 3:
+			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			return nil, nil
+		case 4:
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
+			return nil, nil
+		case 5:
+			c.Check(cmd, DeepEquals, []string{"enable", "usr-lib-snapd.mount"})
+			return nil, nil
+		case 6:
+			c.Check(cmd, DeepEquals, []string{"stop", "usr-lib-snapd.mount"})
+			return nil, nil
+		case 7:
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "usr-lib-snapd.mount"})
+			return []byte("ActiveState=inactive"), nil
+		case 8:
+			c.Check(cmd, DeepEquals, []string{"start", "usr-lib-snapd.mount"})
+			return nil, nil
+		case 9:
+			c.Check(cmd, DeepEquals, []string{"stop", "snapd.service"})
+			return nil, nil
+		case 10:
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "snapd.service"})
+			return []byte("ActiveState=inactive"), nil
+		case 11:
+			c.Check(cmd, DeepEquals, []string{"disable", "snapd.service"})
+			return nil, nil
+		case 12:
+			c.Check(cmd, DeepEquals, []string{"start", "snapd.service"})
+			var snapdSt snapstate.SnapState
+			c.Check(snapstate.Get(st, "snapd", &snapdSt), IsNil)
+			c.Check(snapdSt.Active, Equals, true)
+			snapdStart = true
+			return nil, nil
+		}
+		return nil, nil
+	})
+	s.AddCleanup(r)
+
+	// also add the snapd snap to state which we will refresh
+	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		SnapType: "snapd",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", si1, nil)
+
+	// setup model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	// model := s.brands.Model("my-brand", "my-model", modelDefaults)
+	model := s.brands.Model("my-brand", "my-model", map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"base":         "core18",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	// make sure we don't try to ensure snap services before the restart
+	r = servicestate.MockEnsuredSnapServices(s.o.ServiceManager(), true)
+	defer r()
+
+	// run, this will trigger wait for restart
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(snapdStart, Equals, true)
+}
