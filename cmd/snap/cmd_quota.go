@@ -204,11 +204,11 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 	}
 
 	if threadMax != "" {
-		value, err := strconv.Atoi(threadMax)
+		value, err := strconv.ParseUint(threadMax, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("cannot use thread value %q", threadMax)
 		}
-		thread = value
+		thread = int(value)
 	}
 
 	return &client.QuotaValues{
