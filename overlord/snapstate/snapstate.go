@@ -77,6 +77,8 @@ const (
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 )
 
+const snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
+
 var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
@@ -891,7 +893,13 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if err != nil {
 			return err
 		}
-		if !flag {
+		// The snapd-desktop-integration snap is allowed to
+		// use user daemons, irrespective of the feature flag
+		// state.
+		//
+		// TODO: remove the special case once
+		// experimental.user-daemons is the default
+		if !flag && info.SnapID != snapdDesktopIntegrationSnapID {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
 		if !release.SystemctlSupportsUserUnits() {
@@ -1568,11 +1576,15 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+		typ := update.Type()
+		if typ == snap.TypeOS || typ == snap.TypeBase || typ == snap.TypeSnapd {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
 			prereqs[update.InstanceName()] = ts
+			if typ == snap.TypeBase {
+				waitPrereq(ts, "snapd")
+			}
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
@@ -1594,7 +1606,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 		}
 		// keep track of kernel/gadget/base updates
-		switch update.Type() {
+		switch typ {
 		case snap.TypeKernel:
 			kernelTs = ts
 		case snap.TypeGadget:
@@ -1624,9 +1636,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		kernelTs.WaitAll(gadgetTs)
 	}
 
-	if deviceCtx.Model().Base() != "" {
+	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
 		// reordering of kernel and base tasks is supported only on
 		// UC18+ devices
+		// this can only be done safely when the gadget is not a part of
+		// the same update, otherwise there will be a circular
+		// dependency, where gadget waits for base, kernel waits for
+		// gadget, but base waits for some of the kernel tasks
 		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
 			return nil, nil, err
 		}
@@ -3575,4 +3591,18 @@ func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.Validation
 	return func() {
 		EnforcedValidationSets = old
 	}
+}
+
+// only useful for procuring a buggy behavior in the tests
+var enforcedSingleRebootForGadgetKernelBase = false
+
+func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := enforcedSingleRebootForGadgetKernelBase
+	enforcedSingleRebootForGadgetKernelBase = val
+	return func() {
+		enforcedSingleRebootForGadgetKernelBase = old
+	}
+
 }

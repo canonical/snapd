@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package preseed
 
 import (
 	"encoding/json"
@@ -152,11 +152,6 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 }
 
 const snapdPreseedSupportVer = `2.43.3+`
-
-type targetSnapdInfo struct {
-	path    string
-	version string
-}
 
 // chooseTargetSnapdVersion checks if the version of snapd under chroot env
 // is good enough for preseeding. It checks both the snapd from the deb
@@ -341,7 +336,7 @@ var makeWritableTempDir = func() (string, error) {
 	return ioutil.TempDir("", "writable-")
 }
 
-func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup func(), err error) {
+func prepareCore20Chroot(prepareImageDir string) (preseed *preseedOpts, cleanup func(), err error) {
 	sysDir := filepath.Join(prepareImageDir, "system-seed")
 	sysLabel, err := systemForPreseeding(sysDir)
 	if err != nil {
@@ -383,7 +378,7 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *PreseedOpts, cleanup 
 		}
 	}
 
-	opts := &PreseedOpts{
+	opts := &preseedOpts{
 		PrepareImageDir:  prepareImageDir,
 		PreseedChrootDir: tmpPreseedChrootDir,
 		SystemLabel:      sysLabel,
@@ -459,7 +454,7 @@ type preseedFilePatterns struct {
 	Include []string `json:"include"`
 }
 
-func createPreseedArtifact(opts *PreseedOpts) error {
+func createPreseedArtifact(opts *preseedOpts) error {
 	artifactPath := filepath.Join(opts.PrepareImageDir, "system-seed", "systems", opts.SystemLabel, "preseed.tgz")
 	systemData := filepath.Join(opts.WritableDir, "system-data")
 
@@ -522,7 +517,7 @@ func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo) error {
 	return nil
 }
 
-func runUC20PreseedMode(opts *PreseedOpts) error {
+func runUC20PreseedMode(opts *preseedOpts) error {
 	cmd := exec.Command("chroot", opts.PreseedChrootDir, "/usr/lib/snapd/snapd")
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
@@ -539,4 +534,83 @@ func runUC20PreseedMode(opts *PreseedOpts) error {
 	}
 
 	return nil
+}
+
+// Core20 runs preseeding of UC20 system prepared by prepare-image in prepareImageDir
+// and stores the resulting preseed preseed.tgz file in system-seed/systems/<systemlabel>/preseed.tgz.
+// Expects single systemlabel under systems directory.
+func Core20(prepareImageDir string) error {
+	popts, cleanup, err := prepareCore20Chroot(prepareImageDir)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	return runUC20PreseedMode(popts)
+}
+
+// Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
+func Classic(chrootDir string) error {
+	if err := checkChroot(chrootDir); err != nil {
+		return err
+	}
+
+	var targetSnapd *targetSnapdInfo
+
+	// XXX: if prepareClassicChroot & runPreseedMode were refactored to
+	// use "chroot" inside runPreseedMode (and not syscall.Chroot at the
+	// beginning of prepareClassicChroot), then we could have a single
+	// runPreseedMode/runUC20PreseedMode function that handles both classic
+	// and core20.
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	// executing inside the chroot
+	return runPreseedMode(chrootDir, targetSnapd)
+}
+
+func MockSyscallChroot(f func(string) error) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	oldSyscallChroot := syscallChroot
+	syscallChroot = f
+	return func() { syscallChroot = oldSyscallChroot }
+}
+
+func MockSnapdMountPath(path string) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	oldMountPath := snapdMountPath
+	snapdMountPath = path
+	return func() { snapdMountPath = oldMountPath }
+}
+
+func MockSystemSnapFromSeed(f func(rootDir, sysLabel string) (string, string, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	oldSystemSnapFromSeed := systemSnapFromSeed
+	systemSnapFromSeed = f
+	return func() { systemSnapFromSeed = oldSystemSnapFromSeed }
+}
+
+func MockMakePreseedTempDir(f func() (string, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := makePreseedTempDir
+	makePreseedTempDir = f
+	return func() {
+		makePreseedTempDir = old
+	}
+}
+
+func MockMakeWritableTempDir(f func() (string, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := makeWritableTempDir
+	makeWritableTempDir = f
+	return func() {
+		makeWritableTempDir = old
+	}
 }
