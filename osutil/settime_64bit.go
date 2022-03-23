@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
-// +build !386
-// +build !arm
-// +build linux
+//go:build !386 && !arm && linux
+// +build !386,!arm,linux
 
 /*
  * Copyright (C) 2021 Canonical Ltd

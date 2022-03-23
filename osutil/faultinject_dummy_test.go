@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !faultinject
 // +build !faultinject
 
 /*
@@ -31,8 +32,6 @@ import (
 
 type testhelperDummyFaultInjectionSuite struct {
 	testutil.BaseTest
-
-	sysroot string
 }
 
 var _ = Suite(&testhelperDummyFaultInjectionSuite{})

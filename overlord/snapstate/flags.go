@@ -90,6 +90,10 @@ type Flags struct {
 	// This may eventually be set for specific snaps mentioned in the model
 	// assertion for non-dangerous grade models too.
 	ApplySnapDevMode bool `json:"apply-snap-devmode,omitempty"`
+
+	// Transactional is set to true to request that the set of
+	// snaps is transactionally installed/updated jointly.
+	Transactional bool `json:"transaction,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode

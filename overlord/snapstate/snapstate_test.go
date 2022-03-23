@@ -250,6 +250,21 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		SnapType: "os",
 	})
 
+	// commonly used revisions in tests
+	defaultInfoFile := `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+	for _, snapName := range []string{"snapd", "core"} {
+		for _, rev := range []string{"1", "11"} {
+			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
+			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
+			c.Assert(err, IsNil)
+			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			c.Assert(err, IsNil)
+		}
+	}
+
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 	s.state.Unlock()
@@ -271,7 +286,7 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 }
 
 type ForeignTaskTracker interface {
-	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup)
+	ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup) error
 }
 
 func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker) {
@@ -286,12 +301,10 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 			return err
 		}
 
-		tracker.ForeignTask(kind, status, snapsup)
-
-		return nil
+		return tracker.ForeignTask(kind, status, snapsup)
 	}
 	runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
-	runner.AddHandler("auto-connect", fakeHandler, nil)
+	runner.AddHandler("auto-connect", fakeHandler, fakeHandler)
 	runner.AddHandler("auto-disconnect", fakeHandler, nil)
 	runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
@@ -299,6 +312,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
 	runner.AddHandler("update-gadget-assets", fakeHandler, nil)
+	runner.AddHandler("update-managed-boot-config", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -432,6 +446,7 @@ const (
 	updatesGadgetAssets
 	updatesBootConfig
 	noConfigure
+	noLastBeforeModificationsEdge
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -2026,6 +2041,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "auto-connect:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
@@ -2775,6 +2795,228 @@ func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 	// no failure report was generated
 }
 
+func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableCoreSnap(c *C) {
+	s.testEnsureRemovesVulnerableSnap(c, "core")
+}
+
+func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableSnapdSnap(c *C) {
+	s.testEnsureRemovesVulnerableSnap(c, "snapd")
+}
+
+func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string) {
+	// make the currently installed snap info file fixed but an old version
+	// vulnerable
+	fixedInfoFile := `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+	vulnInfoFile := `
+VERSION=2.54.2+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`
+
+	// revision 1 vulnerable
+	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
+	err := os.MkdirAll(filepath.Dir(infoFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
+	c.Assert(err, IsNil)
+
+	// revision 2 fixed
+	infoFile2 := filepath.Join(dirs.SnapMountDir, snapName, "2", dirs.CoreLibExecDir, "info")
+	err = os.MkdirAll(filepath.Dir(infoFile2), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
+	c.Assert(err, IsNil)
+
+	// revision 11 fixed
+	infoFile11 := filepath.Join(dirs.SnapMountDir, snapName, "11", dirs.CoreLibExecDir, "info")
+	err = os.MkdirAll(filepath.Dir(infoFile11), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
+	c.Assert(err, IsNil)
+
+	// use generic classic model
+	r := snapstatetest.UseFallbackDeviceModel()
+	defer r()
+
+	st := s.state
+	st.Lock()
+	// ensure that only this specific snap is installed
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", nil)
+
+	snapSt := &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: snapName, Revision: snap.R(1)},
+			{RealName: snapName, Revision: snap.R(2)},
+			{RealName: snapName, Revision: snap.R(11)},
+		},
+		Current:  snap.R(11),
+		SnapType: "os",
+	}
+	if snapName == "snapd" {
+		snapSt.SnapType = "snapd"
+	}
+	snapstate.Set(s.state, snapName, snapSt)
+	st.Unlock()
+
+	// special policy only on classic
+	r = release.MockOnClassic(true)
+	defer r()
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
+
+	// we should have created a single remove change for revision 1, revision 2
+	// should have been left alone
+	st.Lock()
+	defer st.Unlock()
+
+	allChgs := st.Changes()
+	c.Assert(allChgs, HasLen, 1)
+	removeChg := allChgs[0]
+	c.Assert(removeChg.Status(), Equals, state.DoStatus)
+	c.Assert(removeChg.Kind(), Equals, "remove-snap")
+	c.Assert(removeChg.Summary(), Equals, fmt.Sprintf(`Remove inactive vulnerable %q snap (1)`, snapName))
+
+	c.Assert(removeChg.Tasks(), HasLen, 2)
+	clearSnap := removeChg.Tasks()[0]
+	discardSnap := removeChg.Tasks()[1]
+	c.Assert(clearSnap.Kind(), Equals, "clear-snap")
+	c.Assert(discardSnap.Kind(), Equals, "discard-snap")
+	var snapsup snapstate.SnapSetup
+	err = clearSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.SideInfo.Revision, Equals, snap.R(1))
+
+	// and we set the appropriate key in the state
+	var removeDone bool
+	st.Get(snapName+"-snap-cve-2021-44731-vuln-removed", &removeDone)
+	c.Assert(removeDone, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestEnsureChecksSnapdInfoFileOnClassicOnly(c *C) {
+	// delete the core/snapd snap info files - they should always exist in real
+	// devices, but deleting them here makes it so we can see the failure
+	// trying to read the files easily
+
+	infoFile := filepath.Join(dirs.SnapMountDir, "core", "1", dirs.CoreLibExecDir, "info")
+	err := os.Remove(infoFile)
+	c.Assert(err, IsNil)
+
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, "cannot open snapd info file.*")
+
+	// if we are not on classic nothing happens
+	r = release.MockOnClassic(false)
+	defer r()
+
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSkipsCheckingSnapdSnapInfoFileWhenStateSet(c *C) {
+	// we default from SetUp to having the core snap installed, remove it so we
+	// only have the snapd snap available
+	s.state.Lock()
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+	s.state.Unlock()
+
+	s.testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c, "snapd")
+}
+
+func (s *snapmgrTestSuite) TestEnsureSkipsCheckingCoreSnapInfoFileWhenStateSet(c *C) {
+	s.testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c, "core")
+}
+
+func (s *snapmgrTestSuite) TestEnsureSkipsCheckingBothCoreAndSnapdSnapsInfoFileWhenStateSet(c *C) {
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+
+	st := s.state
+	// also set snapd snapd as installed
+	st.Lock()
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+	st.Unlock()
+
+	infoFileFor := func(snapName string) string {
+		return filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
+	}
+
+	// delete both snapd and core snap info files
+	for _, snapName := range []string{"core", "snapd"} {
+		err := os.Remove(infoFileFor(snapName))
+		c.Assert(err, IsNil)
+	}
+
+	// make sure Ensure makes a whole hearted attempt to read both files - snapd
+	// is tried first
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, fmt.Sprintf(`cannot open snapd info file "%s".*`, infoFileFor("snapd")))
+
+	st.Lock()
+	st.Set("snapd-snap-cve-2021-44731-vuln-removed", true)
+	st.Unlock()
+
+	// still unhappy about core file missing
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, fmt.Sprintf(`cannot open snapd info file "%s".*`, infoFileFor("core")))
+
+	// but with core state flag set too, we are now happy
+	st.Lock()
+	st.Set("core-snap-cve-2021-44731-vuln-removed", true)
+	st.Unlock()
+
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
+}
+
+func (s *snapmgrTestSuite) testEnsureSkipsCheckingSnapdInfoFileWhenStateSet(c *C, snapName string) {
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+
+	// delete the snap info file for this snap - they should always exist in
+	// real devices, but deleting them here makes it so we can see the failure
+	// trying to read the files easily
+	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
+	err := os.Remove(infoFile)
+	c.Assert(err, IsNil)
+
+	// make sure it makes a whole hearted attempt to read it
+	ensureErr := s.snapmgr.Ensure()
+	c.Assert(ensureErr, ErrorMatches, "cannot open snapd info file.*")
+
+	// now it should stop trying to check if state says so
+	st := s.state
+	st.Lock()
+	st.Set(snapName+"-snap-cve-2021-44731-vuln-removed", true)
+	st.Unlock()
+
+	ensureErr = s.snapmgr.Ensure()
+	c.Assert(ensureErr, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	// special policy only on classic
 	r := release.MockOnClassic(true)
@@ -2807,7 +3049,7 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 
 	defer snapstate.MockLocalInstallCleanupWait(200 * time.Millisecond)()
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0700), IsNil)
-	// sanity check; note * in go glob matches .foo
+	// validity check; note * in go glob matches .foo
 	c.Assert(filenames(), HasLen, 0)
 
 	s0 := filepath.Join(dirs.SnapBlobDir, "some.snap")
@@ -4286,6 +4528,44 @@ func (s *snapmgrTestSuite) TestSeqRetainConf(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestRefreshRetain(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// default value for classic
+	c.Assert(snapstate.RefreshRetain(st), Equals, 2)
+
+	release.MockOnClassic(false)
+	// default value for core
+	c.Assert(snapstate.RefreshRetain(st), Equals, 3)
+
+	buf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	for i, val := range []struct {
+		input    interface{}
+		expected int
+		msg      string
+	}{
+		{1, 1, "^$"},
+		{json.Number("2"), 2, "^$"},
+		{"6", 6, "^$"},
+		// invalid => default value for core
+		{map[string]interface{}{"foo": "bar"}, 3, `.*internal error: refresh.retain system option has unexpected type: map\[string\]interface {}\n`},
+	} {
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.retain", val.input)
+		tr.Commit()
+		c.Assert(snapstate.RefreshRetain(st), Equals, val.expected, Commentf("#%d", i))
+		c.Assert(buf.String(), Matches, val.msg, Commentf("#%d", i))
+		buf.Reset()
+	}
+}
+
 func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
@@ -4727,7 +5007,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4748,7 +5028,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4769,7 +5049,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4801,7 +5081,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4881,7 +5161,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWhenNotEnabled(c *C)
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4898,7 +5178,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -4927,7 +5207,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "corecore", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
+		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
 		Current:  snap.R(1),
 		SnapType: "os",
 		// TrackingChannel
@@ -4947,7 +5227,9 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, HasLen, 1)
 	ts := state.NewTaskSet(chg.Tasks()...)
-	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
+	// task set was reconstituted from change tasks, so edges information is
+	// lost
+	verifyInstallTasks(c, snap.TypeSnapd, noConfigure|noLastBeforeModificationsEdge, 0, ts)
 
 	// ensure preferences from the core snap got transferred over
 	var snapst snapstate.SnapState
@@ -5085,7 +5367,7 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 	})
 
 	var snapst1 snapstate.SnapState
-	// sanity check
+	// validity check
 	snapstate.Get(s.state, name, &snapst1)
 	c.Assert(snapst1.DevMode, Equals, true)
 
@@ -5138,7 +5420,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
 	})
 
 	var snapst1 snapstate.SnapState
-	// sanity check
+	// validity check
 	snapstate.Get(s.state, "core", &snapst1)
 	c.Assert(snapst1.DevMode, Equals, true)
 
@@ -6151,7 +6433,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		ch, err := snapstate.ResolveChannel(s.state, tc.snap, tc.cur, tc.new, deviceCtx)
+		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx)
 		s.state.Unlock()
 		comment := Commentf("tc %d: %#v", i, tc)
 		if tc.err != "" {
@@ -7202,4 +7484,66 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
 	c.Assert(tsNew, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
+	testCases := []struct {
+		newBase  string
+		opts     snapstate.DirMigrationOptions
+		expected snapstate.Migration
+	}{
+		// refreshing to core22 or later
+		{
+			newBase:  "core22",
+			expected: snapstate.Full,
+		},
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, UseHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core24",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, UseHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core24",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.None,
+		},
+		// reverting to another core22
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.None,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true},
+			expected: snapstate.RevertHidden,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.RevertHidden,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true, UseHidden: true},
+			expected: snapstate.None,
+		},
+	}
+
+	for _, t := range testCases {
+		action := snapstate.TriggeredMigration(t.newBase, &t.opts)
+		if action != t.expected {
+			c.Errorf("expected install of %q w/ %+v to result in %q but got %q", t.newBase, t.opts, t.expected, action)
+		}
+	}
 }

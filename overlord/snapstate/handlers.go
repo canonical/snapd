@@ -34,6 +34,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -199,7 +200,7 @@ func defaultPrereqSnapsChannel() string {
 	return channel
 }
 
-func findLinkSnapTask(st *state.State, snapName string) (*state.Task, error) {
+func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -268,7 +269,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// if a previous version of snapd persisted Prereq only, fill the contentAttrs.
-	// There will be not content attrs, so it will not update an outdated default provider
+	// There will be no content attrs, so it will not update an outdated default provider
 	if len(snapsup.PrereqContentAttrs) == 0 && len(snapsup.Prereq) != 0 {
 		snapsup.PrereqContentAttrs = make(map[string][]string, len(snapsup.Prereq))
 
@@ -306,7 +307,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	}
 
 	// in progress?
-	if linkTask, err := findLinkSnapTask(st, snapName); err != nil {
+	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
 		return nil, err
 	} else if linkTask != nil {
 		return nil, onInFlight
@@ -387,7 +388,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 // Checks for conflicting tasks. Returns true if the operation should be skipped. The error
 // can be a state.Retry if the operation should be retried later.
 func shouldSkipToAvoidConflict(task *state.Task, snapName string) (bool, error) {
-	otherTask, err := findLinkSnapTask(task.State(), snapName)
+	otherTask, err := findLinkSnapTaskForSnap(task.State(), snapName)
 	if err != nil {
 		return false, err
 	}
@@ -502,16 +503,32 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 		}
 	}
 
+	// If transactional, use a single lane for all tasks, so when
+	// one fails the changes for all affected snaps will be
+	// undone. Otherwise, have different lanes per snap so
+	// failures only affect the culprit snap.
+	var joinLane func(ts *state.TaskSet)
+	if flags.Transactional {
+		lanes := t.Lanes()
+		if len(lanes) != 1 {
+			return fmt.Errorf("internal error: more than one lane (%d) on a transactional action", len(lanes))
+		}
+		transactionLane := lanes[0]
+		joinLane = func(ts *state.TaskSet) { ts.JoinLane(transactionLane) }
+	} else {
+		joinLane = func(ts *state.TaskSet) { ts.JoinLane(st.NewLane()) }
+	}
+
 	chg := t.Change()
 	// add all required snaps, no ordering, this will be done in the
 	// auto-connect task handler
 	for _, ts := range tss {
-		ts.JoinLane(st.NewLane())
+		joinLane(ts)
 		chg.AddAll(ts)
 	}
 	// add the base if needed, prereqs else must wait on this
 	if tsBase != nil {
-		tsBase.JoinLane(st.NewLane())
+		joinLane(tsBase)
 		for _, t := range chg.Tasks() {
 			t.WaitAll(tsBase)
 		}
@@ -519,7 +536,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	}
 	// add snapd if needed, everything must wait on this
 	if tsSnapd != nil {
-		tsSnapd.JoinLane(st.NewLane())
+		joinLane(tsSnapd)
 		for _, t := range chg.Tasks() {
 			t.WaitAll(tsSnapd)
 		}
@@ -1071,6 +1088,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
+
 	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
@@ -1096,7 +1114,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
@@ -1115,8 +1133,16 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, dirOpts); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1139,7 +1165,184 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		}
 		return copyDataErr
 	}
-	return nil
+
+	action := triggeredMigration(newInfo.Base, opts)
+	var undo func()
+
+	switch action {
+	case hidden:
+		undo, err = m.doHiddenMigration(t, st, snapsup, newInfo)
+	case revertHidden:
+		undo, err = m.revertHiddenMigration(t, st, snapsup)
+	case home:
+		undo, err = m.doHomeMigration(t, st, snapsup, newInfo.Revision)
+	case full:
+		undo, err = m.doFullMigration(t, st, snapsup, newInfo)
+	default:
+		// for now, don't support reverting the ~/Snap migration in a refresh
+		err = nil
+	}
+
+	// if task fails, undo any migration actions taken
+	defer func() {
+		if err != nil && undo != nil {
+			undo()
+		}
+	}()
+
+	return err
+}
+
+type migration string
+
+const (
+	// none states that no action should be taken
+	none migration = "none"
+	// hidden migrates ~/snap to ~/.snap
+	hidden migration = "hidden"
+	// revertHidden undoes the hidden migration (i.e., moves ~/.snap to ~/snap)
+	revertHidden migration = "revertHidden"
+	// home migrates the new home to ~/Snap
+	home migration = "home"
+	// full migrates ~/snap to ~/.snap and the new home to ~/Snap
+	full migration = "full"
+)
+
+func triggeredMigration(newBase string, opts *dirMigrationOptions) migration {
+	// we're refreshing to a core22 revision
+	if atLeastCore22(newBase) {
+		if opts.MigratedToHidden && !opts.MigratedToExposedHome {
+			// ~/.snap migration already happened so initialize ~/Snap only
+			return home
+		}
+
+		if !opts.MigratedToHidden {
+			//  nothing was migrated yet, so migrate to ~/.snap and ~/Snap
+			return full
+		}
+	} else {
+		if !opts.MigratedToHidden && opts.UseHidden {
+			// flag is set and not migrated yet
+			return hidden
+		}
+
+		if opts.MigratedToHidden && !opts.UseHidden {
+			// migration was done but flag was unset
+			return revertHidden
+		}
+	}
+
+	return none
+}
+
+func (m *SnapManager) doHiddenMigration(t *state.Task, st *state.State, snapsup *SnapSetup, newInfo *snap.Info) (undo func(), err error) {
+	undo = func() {
+		// unlike the copy data (which can just be discarded), the migration affects
+		// all revisions of a snap and must be reverted
+		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+			src := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+			dst := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
+
+			st.Lock()
+			st.Warnf("cannot undo snap dir hiding (move all user's %s to %s): %v",
+				src, dst, err)
+			st.Unlock()
+		}
+	}
+
+	if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+		return undo, err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup.MigratedHidden = true
+	if err = SetTaskSnapSetup(t, snapsup); err != nil {
+		return undo, fmt.Errorf("cannot set migration status to done: %w", err)
+	}
+
+	return undo, nil
+}
+
+func (m *SnapManager) revertHiddenMigration(t *state.Task, st *state.State, snapsup *SnapSetup) (undo func(), err error) {
+	undo = func() {
+		if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+			src := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
+			dst := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
+
+			st.Lock()
+			st.Warnf("cannot undo snap dir exposing (move all user's %s to %s): %v",
+				src, dst, err)
+			st.Unlock()
+		}
+	}
+
+	if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+		return undo, err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup.UndidHiddenMigration = true
+	if err = SetTaskSnapSetup(t, snapsup); err != nil {
+		return undo, fmt.Errorf("cannot set hidden migration status to undone: %w", err)
+	}
+
+	return undo, nil
+}
+
+// doHomeMigration creates and initializes ~/Snap to be the new HOME
+func (m *SnapManager) doHomeMigration(t *state.Task, st *state.State, snapsup *SnapSetup, newRev snap.Revision) (undo func(), err error) {
+	undo = func() {
+		if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+			st.Lock()
+			st.Warnf("cannot remove ~/Snap (must remove manually): %v", err)
+			st.Unlock()
+		}
+	}
+
+	if err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), newRev); err != nil {
+		return undo, err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup.MigratedToExposedHome = true
+	if err = SetTaskSnapSetup(t, snapsup); err != nil {
+		return undo, fmt.Errorf("cannot set migration status to done: %w", err)
+	}
+
+	return undo, nil
+}
+
+func (m *SnapManager) doFullMigration(t *state.Task, st *state.State, snapsup *SnapSetup, newInfo *snap.Info) (revert func(), err error) {
+	revertHidden, err := m.doHiddenMigration(t, st, snapsup, newInfo)
+	if err != nil {
+		return revertHidden, err
+	}
+
+	revertHome, err := m.doHomeMigration(t, st, snapsup, newInfo.Revision)
+	return func() {
+		revertHidden()
+		revertHome()
+	}, err
+}
+
+// atLeastCore22 returns true if 'base' is core22 or newer. Returns
+// false if it's older or it cannot be determined.
+func atLeastCore22(base string) bool {
+	if !strings.HasPrefix(base, "core") {
+		return false
+	}
+
+	if num, err := strconv.Atoi(base[4:]); err != nil || num < 22 {
+		return false
+	}
+
+	return true
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -1161,8 +1364,51 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// if any migration action was taken, try to undo it and rewrite state
+	if snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
+		if snapsup.MigratedHidden {
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.MigratedHidden = false
+			snapst.MigratedHidden = false
+		} else if snapsup.UndidHiddenMigration {
+			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.UndidHiddenMigration = false
+			snapst.MigratedHidden = true
+		}
+
+		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
+			return err
+		}
+	}
+
+	if snapsup.MigratedToExposedHome {
+		if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+			return err
+		}
+
+		snapsup.MigratedToExposedHome = false
+		snapst.MigratedToExposedHome = false
+		if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
+			return err
+		}
+	}
+
+	st.Lock()
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	st.Unlock()
+	if err != nil {
+		return fmt.Errorf("failed to get snap dir options: %w", err)
+	}
+
+	dirOpts := opts.getSnapDirOpts()
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, dirOpts); err != nil {
 		return err
 	}
 
@@ -1187,6 +1433,41 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// writeMigrationStatus writes the SnapSetup, state and sequence file (if they
+// exist). This must be called after the migration undo procedure is done since
+// only then do we know the actual final state of the migration.
+func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) error {
+	st := t.State()
+	snapName := snapsup.InstanceName()
+
+	st.Lock()
+	defer st.Unlock()
+
+	if err := SetTaskSnapSetup(t, snapsup); err != nil {
+		return err
+	}
+
+	err := Get(st, snapName, &SnapState{})
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	if err == nil {
+		// migration state might've been written in the change; update it after undo
+		Set(st, snapName, snapst)
+	}
+
+	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
+	if osutil.FileExists(seqFile) {
+		// might've written migration status to seq file in the change; update it
+		// after undo
+		return writeSeqFile(snapName, snapst)
+	}
+
+	// never got to write seq file; don't need to re-write migration status in it
+	return nil
+}
+
 func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -1207,6 +1488,7 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// try to remove trashed any data in ~/snap and ~/.snap/data
 	m.backend.ClearTrashedData(info)
 
 	return nil
@@ -1220,11 +1502,15 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	}
 
 	b, err := json.Marshal(&struct {
-		Sequence []*snap.SideInfo `json:"sequence"`
-		Current  string           `json:"current"`
+		Sequence              []*snap.SideInfo `json:"sequence"`
+		Current               string           `json:"current"`
+		MigratedHidden        bool             `json:"migrated-hidden"`
+		MigratedToExposedHome bool             `json:"migrated-exposed-home"`
 	}{
-		Sequence: snapst.Sequence,
-		Current:  snapst.Current.String(),
+		Sequence:              snapst.Sequence,
+		Current:               snapst.Current.String(),
+		MigratedHidden:        snapst.MigratedHidden,
+		MigratedToExposedHome: snapst.MigratedToExposedHome,
 	})
 	if err != nil {
 		return err
@@ -1394,6 +1680,18 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// keep instance key
 	snapst.InstanceKey = snapsup.InstanceKey
 
+	// don't keep the old state because, if we fail, we may or may not be able to
+	// revert the migration. We set the migration status after undoing any
+	// migration related ops
+	if snapsup.MigratedHidden {
+		snapst.MigratedHidden = true
+	} else if snapsup.UndidHiddenMigration {
+		snapst.MigratedHidden = false
+	}
+	if snapsup.MigratedToExposedHome {
+		snapst.MigratedToExposedHome = true
+	}
+
 	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
 	if err != nil {
 		return err
@@ -1424,7 +1722,13 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		linkCtx.RequireMountedSnapdSnap = true
 	}
-	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
+
+	// write sequence file for failover helpers
+	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
+		return err
+	}
+
+	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
@@ -1529,11 +1833,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 
-	// write sequence file for failover helpers
-	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
-		return err
-	}
-
 	// Compatibility with old snapd: check if we have auto-connect task and
 	// if not, inject it after self (link-snap) for snaps that are not core
 	if newInfo.Type() != snap.TypeOS {
@@ -1570,14 +1869,31 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
-	m.maybeRestart(t, newInfo, reboot)
+	var canReboot bool
+	if rebootInfo.RebootRequired {
+		var cannotReboot bool
+		// system reboot is required, but can this task request that?
+		if err := t.Get("cannot-reboot", &cannotReboot); err != nil && err != state.ErrNoState {
+			return err
+		}
+		if !cannotReboot {
+			// either the task was created before that variable was
+			// introduced or the task can request a reboot
+			canReboot = true
+		} else {
+			t.Logf("reboot postponed to later tasks")
+		}
+	}
+	if !rebootInfo.RebootRequired || canReboot {
+		m.maybeRestart(t, newInfo, rebootInfo)
+	}
 
 	return nil
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
-func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool) {
+func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootInfo boot.RebootInfo) {
 	// Don't restart when preseeding - we will switch to new snapd on
 	// first boot.
 	if m.preseed {
@@ -1586,19 +1902,22 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 
 	st := t.State()
 
-	if rebootRequired {
+	if rebootInfo.RebootRequired {
 		t.Logf("Requested system restart.")
-		RestartSystem(t)
+		RestartSystem(t, &rebootInfo)
 		return
 	}
 
 	typ := info.Type()
 
-	// if bp is non-trivial then either we're not on classic, or the snap is
-	// snapd. So daemonRestartReason will always return "" which is what we
-	// want. If that combination stops being true and there's a situation
-	// where a non-trivial bp could return a non-empty reason, use IsTrivial
-	// to check and bail before reaching this far.
+	// If the type of the snap requesting this start is non-trivial that either
+	// means we are on Ubuntu Core and the type is a base/kernel/gadget which
+	// requires a reboot of the system, or that the type is snapd in which case
+	// we just do a restart of snapd itself. In these cases restartReason will
+	// be non-empty and thus we will perform a restart.
+	// If restartReason is empty, then the snap requesting the restart was not
+	// a boot participant and thus we don't need to do any sort of restarts as
+	// a result of updating this snap.
 
 	restartReason := daemonRestartReason(st, typ)
 	if restartReason == "" {
@@ -1607,7 +1926,7 @@ func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequire
 	}
 
 	t.Logf(restartReason)
-	restart.Request(st, restart.RestartDaemon)
+	restart.Request(st, restart.RestartDaemon, nil)
 }
 
 func daemonRestartReason(st *state.State, typ snap.Type) string {
@@ -1685,14 +2004,14 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 		return err
 	}
 	bp := boot.Participant(info, info.Type(), groundDeviceCtx)
-	reboot, err := bp.SetNextBoot()
+	rebootInfo, err := bp.SetNextBoot()
 	if err != nil {
 		return err
 	}
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	m.maybeRestart(t, info, reboot)
+	m.maybeRestart(t, info, rebootInfo)
 
 	return nil
 }
@@ -1887,8 +2206,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// when reverting a subsequent snapd revision, the restart happens in
 	// undoLinkCurrentSnap() instead
 	if firstInstall && newInfo.Type() == snap.TypeSnapd {
-		const rebootRequired = false
-		m.maybeRestart(t, newInfo, rebootRequired)
+		m.maybeRestart(t, newInfo, boot.RebootInfo{RebootRequired: false})
 	}
 
 	// write sequence file for failover helpers
@@ -1911,7 +2229,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// core snap -> next core snap
 	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
-		restart.Request(st, restart.RestartDaemon)
+		restart.Request(st, restart.RestartDaemon, nil)
 	}
 	return nil
 }
@@ -2399,13 +2717,22 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err = m.backend.RemoveSnapData(info); err != nil {
+	st.Lock()
+	opts, err := getDirMigrationOpts(st, snapst, snapsup)
+	st.Unlock()
+
+	if err != nil {
+		return err
+	}
+
+	dirOpts := opts.getSnapDirOpts()
+	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err
 	}
 
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
-		if err = m.backend.RemoveSnapCommonData(info); err != nil {
+		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
 			return err
 		}
 
@@ -3105,13 +3432,14 @@ func changeReadyUpToTask(task *state.Task) bool {
 }
 
 // refreshedSnaps returns the instance names of the snaps successfully refreshed
-// in the last batch of refreshes before the given (re-refresh) task.
+// in the last batch of refreshes before the given (re-refresh) task; failed is
+// true if any of the snaps failed to refresh.
 //
 // It does this by advancing through the given task's change's tasks, keeping
 // track of the instance names from the first SnapSetup in every lane, stopping
 // when finding the given task, and resetting things when finding a different
 // re-refresh task (that indicates the end of a batch that isn't the given one).
-func refreshedSnaps(reTask *state.Task) []string {
+func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool) {
 	// NOTE nothing requires reTask to be a check-rerefresh task, nor even to be in
 	// a refresh-ish change, but it doesn't make much sense to call this otherwise.
 	tid := reTask.ID()
@@ -3153,15 +3481,16 @@ func refreshedSnaps(reTask *state.Task) []string {
 		laneSnaps[lane] = snapsup.InstanceName()
 	}
 
-	snapNames := make([]string, 0, len(laneSnaps))
+	snapNames = make([]string, 0, len(laneSnaps))
 	for _, name := range laneSnaps {
 		if name == "" {
 			// the lane was unsuccessful
+			failed = true
 			continue
 		}
 		snapNames = append(snapNames, name)
 	}
-	return snapNames
+	return snapNames, failed
 }
 
 // reRefreshSetup holds the necessary details to re-refresh snaps that need it
@@ -3197,14 +3526,50 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	if !changeReadyUpToTask(t) {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
-	snaps := refreshedSnaps(t)
+
+	snaps, failed := refreshedSnaps(t)
+	if len(snaps) > 0 {
+		if err := pruneRefreshCandidates(st, snaps...); err != nil {
+			return err
+		}
+	}
+
+	// if any snap failed to refresh, reconsider validation set tracking
+	if failed {
+		tasksets, err := maybeRestoreValidationSetsAndRevertSnaps(st, snaps)
+		if err != nil {
+			return err
+		}
+		if len(tasksets) > 0 {
+			chg := t.Change()
+			for _, taskset := range tasksets {
+				chg.AddAll(taskset)
+			}
+			st.EnsureBefore(0)
+			t.SetStatus(state.DoneStatus)
+			return nil
+		}
+		// else - validation sets tracking got restored or wasn't affected, carry on
+	}
+
 	if len(snaps) == 0 {
 		// nothing to do (maybe everything failed)
 		return nil
 	}
 
-	if err := pruneRefreshCandidates(st, snaps...); err != nil {
-		return err
+	// update validation sets stack: there are two possibilities
+	// - if maybeRestoreValidationSetsAndRevertSnaps restored previous tracking
+	// or refresh succeeded and it hasn't changed then this is a noop
+	// (AddCurrentTrackingToValidationSetsStack ignores tracking if identical
+	// to the topmost stack entry);
+	// - if maybeRestoreValidationSetsAndRevertSnaps kept new tracking
+	// because its constraints were met even after partial failure or
+	// refresh succeeded and tracking got updated, then
+	// this creates a new copy of validation-sets tracking data.
+	if AddCurrentTrackingToValidationSetsStack != nil {
+		if err := AddCurrentTrackingToValidationSetsStack(st); err != nil {
+			return err
+		}
 	}
 
 	var re reRefreshSetup
@@ -3273,6 +3638,86 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 	return nil
 }
 
+// maybeRestoreValidationSetsAndRevertSnaps restores validation-sets to their
+// previous state using validation sets stack if there are any enforced
+// validation sets and - if necessary - creates tasksets to revert some or all
+// of the refreshed snaps to their previous revisions to satisfy the restored
+// validation sets tracking.
+var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error) {
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	if enforcedSets == nil {
+		// no enforced validation sets, nothing to do
+		return nil, nil
+	}
+
+	installedSnaps, ignoreValidation, err := InstalledSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+	if err := enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation); err == nil {
+		// validation sets are still correct, nothing to do
+		return nil, nil
+	}
+
+	// restore previous validation sets tracking state
+	if err := RestoreValidationSetsTracking(st); err != nil {
+		return nil, fmt.Errorf("cannot restore validation sets: %v", err)
+	}
+
+	// no snaps were refreshed, after restoring validation sets tracking
+	// there is nothing else to do
+	if len(refreshedSnaps) == 0 {
+		return nil, nil
+	}
+
+	// check installed snaps again against restored validation-sets.
+	// this may fail which is fine, but it tells us which snaps are
+	// at invalid revisions and need reverting.
+	// note: we need to fetch enforced sets again because of RestoreValidationSetsTracking.
+	enforcedSets, err = EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	if enforcedSets == nil {
+		return nil, fmt.Errorf("internal error: no enforced validation sets after restoring from the stack")
+	}
+	err = enforcedSets.CheckInstalledSnaps(installedSnaps, ignoreValidation)
+	if err == nil {
+		// all fine after restoring validation sets: this can happen if previous
+		// validation sets only required a snap (regardless of its revision), then
+		// after update they require a specific snap revision, so after restoring
+		// we are back with the good state.
+		return nil, nil
+	}
+	verr, ok := err.(*snapasserts.ValidationSetsValidationError)
+	if !ok {
+		return nil, err
+	}
+	if len(verr.WrongRevisionSnaps) == 0 {
+		// if we hit ValidationSetsValidationError but it's not about wrong revisions,
+		// then something is really broken (we shouldn't have invalid or missing required
+		// snaps at this point).
+		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccesfull refresh: %v", verr)
+	}
+	// revert some or all snaps
+	var tss []*state.TaskSet
+	for _, snapName := range refreshedSnaps {
+		if verr.WrongRevisionSnaps[snapName] != nil {
+			// XXX: should we be extra paranoid and use RevertToRevision with
+			// the specific revision from verr.WrongRevisionSnaps?
+			ts, err := Revert(st, snapName, Flags{RevertStatus: NotBlocked})
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+		}
+	}
+	return tss, nil
+}
+
 // InjectTasks makes all the halt tasks of the mainTask wait for extraTasks;
 // extraTasks join the same lane and change as the mainTask.
 func InjectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
@@ -3307,4 +3752,72 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	autoConnect.Set("snap-setup", snapsup)
 	InjectTasks(mainTask, state.NewTaskSet(autoConnect))
 	mainTask.Logf("added auto-connect task")
+}
+
+type dirMigrationOptions struct {
+	// UseHidden states whether the user has requested that the hidden data dir be used
+	UseHidden bool
+
+	// MigratedToHidden states whether the data has been migrated to the hidden dir
+	MigratedToHidden bool
+
+	// MigratedToExposedHome states whether the ~/Snap migration has been done.
+	MigratedToExposedHome bool
+}
+
+// GetSnapDirOpts returns the snap dir options based on the current the migration status
+func (o *dirMigrationOptions) getSnapDirOpts() *dirs.SnapDirOptions {
+	return &dirs.SnapDirOptions{HiddenSnapDataDir: o.MigratedToHidden, MigratedToExposedHome: o.MigratedToExposedHome}
+}
+
+// GetSnapDirOpts returns the options required to get the correct snap dir.
+var GetSnapDirOpts = func(st *state.State, name string) (*dirs.SnapDirOptions, error) {
+	var snapst SnapState
+	if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	hiddenOpts, err := getDirMigrationOpts(st, &snapst, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return hiddenOpts.getSnapDirOpts(), nil
+}
+
+// getDirMigrationOpts checks if the feature flag is set and if the snap data
+// has been migrated, first checking the SnapSetup (if not nil) and then
+// the SnapState. The state must be locked by the caller.
+var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *SnapSetup) (*dirMigrationOptions, error) {
+	tr := config.NewTransaction(st)
+	hiddenDir, err := features.Flag(tr, features.HiddenSnapDataHomeDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read feature flag %q: %w", features.HiddenSnapDataHomeDir, err)
+	}
+
+	opts := &dirMigrationOptions{UseHidden: hiddenDir}
+
+	if snapst != nil {
+		opts.MigratedToHidden = snapst.MigratedHidden
+		opts.MigratedToExposedHome = snapst.MigratedToExposedHome
+	}
+
+	// it was migrated during this change (might not be in the state yet)
+	if snapsup != nil {
+		switch {
+		case snapsup.MigratedHidden && snapsup.UndidHiddenMigration:
+			// should never happen except for programmer error
+			return nil, fmt.Errorf("internal error: migration was done and reversed in same change without updating migration flags")
+		case snapsup.MigratedHidden:
+			opts.MigratedToHidden = true
+		case snapsup.UndidHiddenMigration:
+			opts.MigratedToHidden = false
+		}
+
+		if snapsup.MigratedToExposedHome {
+			opts.MigratedToExposedHome = snapsup.MigratedToExposedHome
+		}
+	}
+
+	return opts, nil
 }

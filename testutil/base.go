@@ -20,6 +20,9 @@
 package testutil
 
 import (
+	"os"
+	"reflect"
+
 	"gopkg.in/check.v1"
 )
 
@@ -29,11 +32,16 @@ type BaseTest struct {
 	cleanupHandlers []func()
 }
 
-// SetUpTest prepares the cleanup
+// SetUpTest prepares the cleanup.
 func (s *BaseTest) SetUpTest(c *check.C) {
 	if len(s.cleanupHandlers) != 0 {
 		panic("BaseTest cleanup handlers were not consumed before a new test start, missing BaseTest.TearDownTest call?")
 	}
+
+	// When unit tests are called with SNAPD_DEBUG=1, we tend to get some failures due to the
+	// mismatch in the expected output and actual output. Instead of doing an unset SNAPD_DEBUG
+	// in all those cases, adding it in here - a common test helper function to be called by inidividual unit tests.
+	os.Unsetenv("SNAPD_DEBUG")
 }
 
 // TearDownTest cleans up the channel.ini files in case they were changed by
@@ -49,7 +57,36 @@ func (s *BaseTest) TearDownTest(c *check.C) {
 	s.cleanupHandlers = nil
 }
 
-// AddCleanup adds a new cleanup function to the test
+// AddCleanup adds a new cleanup function to the test.
 func (s *BaseTest) AddCleanup(f func()) {
 	s.cleanupHandlers = append(s.cleanupHandlers, f)
+}
+
+// Backup the specified list of elements before further mocking.
+func Backup(mockablesByPtr ...interface{}) (restore func()) {
+	backup := backupMockables(mockablesByPtr)
+
+	return func() {
+		for i, ptr := range mockablesByPtr {
+			mockedPtr := reflect.ValueOf(ptr)
+			mockedPtr.Elem().Set(backup[i].Elem())
+		}
+	}
+}
+
+func backupMockables(mockablesByPtr []interface{}) (backup []*reflect.Value) {
+	backup = make([]*reflect.Value, len(mockablesByPtr))
+
+	for i, ptr := range mockablesByPtr {
+		mockedPtr := reflect.ValueOf(ptr)
+
+		if mockedPtr.Type().Kind() != reflect.Ptr {
+			panic("Backup: each mockable must be passed by pointer!")
+		}
+
+		saved := reflect.New(mockedPtr.Elem().Type())
+		saved.Elem().Set(mockedPtr.Elem())
+		backup[i] = &saved
+	}
+	return backup
 }

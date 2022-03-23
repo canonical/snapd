@@ -181,6 +181,41 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	// See also https://bugs.launchpad.net/snapd/+bug/1860369
 	c.Check(execEnv, Not(testutil.Contains), "TEST_PATH=/vanilla")
 	c.Check(execEnv, testutil.Contains, "TEST_PATH=/custom")
+
+	// ensure that CUPS_SERVER is absent since we didn't mock the /var/cups dir
+	c.Check(execEnv, Not(testutil.Contains), "CUPS_SERVER=/var/cups")
+}
+
+func (s *snapExecSuite) TestSnapExecAppIntegrationCupsServerWorkaround(c *C) {
+	dir := c.MkDir()
+	dirs.SetRootDir(dir)
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	// mock the /var/cups dir so that we observe CUPS_SERVER set
+	err := os.MkdirAll(filepath.Join(dir, "/var/cups"), 0755)
+	c.Assert(err, IsNil)
+
+	execArgv0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restore := snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		execEnv = env
+		return nil
+	})
+	defer restore()
+
+	// launch and verify its run the right way
+	err = snapExec.ExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
+	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
+
+	// ensure that CUPS_SERVER is now set since we did mock the /var/cups dir
+	c.Check(execEnv, testutil.Contains, "CUPS_SERVER=/var/cups/cups.sock")
 }
 
 func (s *snapExecSuite) TestSnapExecAppCommandChainIntegration(c *C) {

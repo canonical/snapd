@@ -1,0 +1,186 @@
+summary: Check that the experimental hidden dir feature migrates the dir
+
+# this test is flaky on CentOS and openSUSE due to an issue w/ 'snap remove'
+# https://bugs.launchpad.net/snapd/+bug/1959036
+systems: [-centos-*, -opensuse-*]
+
+environment:
+    NAME: test-snapd-tools
+
+prepare: |
+    snap pack "$TESTSLIB/snaps/$NAME"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+restore: |
+    snap unset system experimental.hidden-snap-folder
+
+execute: |
+    # core22 snap isn't available for x86
+    if os.query is-pc-i386; then
+      exit 0
+    fi
+
+    # Checks that the env vars are as expected after the migration.
+    check_env() {
+      echo "Check the env vars were migrated"
+
+      local CHECK_EXPOSED_HOME="no"
+      if [ "$1" = "--with-exposed-home" ]; then
+        CHECK_EXPOSED_HOME="yes"
+        shift
+      fi
+      local REV="$1"
+
+      snapEnv=$("$NAME".env)
+      echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/$REV"
+      echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/\.snap/data/$NAME/common"
+
+      if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
+        echo "Checking core22 migration related env vars"
+        echo "$snapEnv" | MATCH "HOME=$HOME/Snap"
+        echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap"
+        echo "$snapEnv" | MATCH "XDG_DATA_HOME=$HOME/\.snap/data/$NAME/$REV/data"
+        echo "$snapEnv" | MATCH "XDG_CACHE_HOME=$HOME/\.snap/data/$NAME/$REV/cache"
+        echo "$snapEnv" | MATCH "XDG_CONFIG_HOME=$HOME/\.snap/data/$NAME/$REV/config"
+      else
+        echo "$snapEnv" | MATCH "HOME=$HOME/\.snap/data/$NAME/$REV"
+      fi
+    }
+
+    # Checks that the snap dirs are as expected after the migration.
+    check_dirs() {
+      echo "Check directories were migrated"
+
+      local CHECK_EXPOSED_HOME="no"
+      if [ "$1" = "--with-exposed-home" ]; then
+        CHECK_EXPOSED_HOME="yes"
+        shift
+      fi
+      local REV="$1"
+
+      test -d "$HOME/.snap/data/$NAME"
+      test -d "$HOME/.snap/data/$NAME/common"
+      test -d "$HOME/.snap/data/$NAME/$REV"
+      if [ "$(readlink "$HOME/.snap/data/$NAME/current")" != "$REV" ]; then
+        echo "expected 'current' to point to new revision after refresh"
+        exit 1
+      fi
+
+      not test -d "$HOME/snap/$NAME"
+
+      if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
+        echo "Checking core22 migration related dirs"
+        test -d "$HOME/Snap/$NAME"
+        test -d "$HOME/.snap/data/$NAME/$REV/data"
+        test -d "$HOME/.snap/data/$NAME/$REV/config"
+        test -d "$HOME/.snap/data/$NAME/$REV/cache"
+      fi
+    }
+
+    # Checks that there is a file named 'file' in the new dirs containing the
+    # expected data
+    check_data() {
+      echo "Check that the written data was migrated"
+
+      local CHECK_EXPOSED_HOME="no"
+      if [ "$1" = "--with-exposed-home" ]; then
+        CHECK_EXPOSED_HOME="yes"
+        shift
+      fi
+      local REV="$1"
+      local EXPECTED_DATA="$2"
+
+      MATCH "$EXPECTED_DATA" < "$HOME/.snap/data/$NAME/common/file"
+      MATCH "$EXPECTED_DATA" < "$HOME/.snap/data/$NAME/$REV/file"
+
+      if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
+        MATCH "$EXPECTED_DATA" < "$HOME/Snap/$NAME/file"
+      fi
+    }
+
+    echo "Set experimental hidden snap folder feature"
+    snap set system experimental.hidden-snap-folder=true
+
+    echo "Check that nothing has been migrated yet"
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=/root/snap/$NAME/x1"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=/root/snap/$NAME/common"
+
+    test -d "$HOME"/snap
+    not test -d "$HOME"/.snap/data
+
+    echo "Take a snapshot"
+    "$NAME".cmd echo "prev_data" > "$HOME/snap/$NAME/current/file"
+    # get the snapshot number from the 2nd line (the 1st line is the header)
+    snapshot=$(snap save "$NAME" | awk 'FNR == 2 {print $1}')
+
+    echo "Write data to user data dirs"
+    data="old_data"
+    "$NAME".echo "$data" > "$HOME/snap/$NAME/current/file"
+    "$NAME".echo "$data" > "$HOME/snap/$NAME/common/file"
+
+    echo "Refresh the snap"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+    # Check env vars, dirs and data after the migration
+    check_env "x2"
+    # Note: some dirs are created just before the snap runs for the 1st time,
+    # so this check must come after a snap run
+    check_dirs "x2" ""
+    check_data "x2" "$data"
+
+    echo "Check the snap can write to the new dirs"
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_DATA"/file'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "new_data" > "$SNAP_USER_COMMON"/file'
+
+    check_data "x2" "new_data"
+
+    echo "Restore snapshot and check data was restored"
+    snap restore "$snapshot"
+    MATCH "prev_data" < "$HOME/.snap/data/$NAME/x2/file"
+
+    echo "Check that snap starts off hidden after a fresh install"
+    snap remove --purge "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+    check_env "x1"
+    check_dirs "x1"
+
+    data="new_data"
+    "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/x1/file"
+    "$NAME".echo "$data" > "$HOME/.snap/data/$NAME/common/file"
+    check_data "x1" "$data"
+
+    echo "Revert migration (unset flag and refresh)"
+    snap unset system experimental.hidden-snap-folder
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+
+    echo "Check snap user data was moved back"
+    not test -d "$HOME"/.snap/data
+    test -d "$HOME/snap/$NAME"
+
+    MATCH "$data" < "$HOME/snap/$NAME/common/file"
+    MATCH "$data" < "$HOME/snap/$NAME/x2/file"
+
+    echo "Check environment variables were restored"
+    snapEnv=$("$NAME".env)
+    echo "$snapEnv" | MATCH "SNAP_USER_DATA=$HOME/snap/$NAME/x2"
+    echo "$snapEnv" | MATCH "SNAP_USER_COMMON=$HOME/snap/$NAME/common"
+    echo "$snapEnv" | MATCH "HOME=$HOME/snap/$NAME/x2"
+
+    data="old_data"
+    "$NAME".echo "$data" > "$HOME/snap/$NAME/x2/file"
+    "$NAME".echo "$data" > "$HOME/snap/$NAME/common/file"
+
+    echo "Update snap to core22"
+    snap install --edge core22
+    cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
+    echo -e "\nbase: core22" >> "$PWD/$NAME/meta/snap.yaml"
+    snap pack "$PWD/$NAME"
+    snap install --dangerous "$NAME"_1.0_all.snap
+
+    check_env "--with-exposed-home" "x3"
+    check_dirs "--with-exposed-home" "x3"
+    check_data "--with-exposed-home" "x3" "$data"

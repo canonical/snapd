@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -149,6 +150,12 @@ func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) 
 	return func() {
 		changePerform = origChangePerform
 	}
+}
+
+func MockIsDirectory(fn func(string) bool) (restore func()) {
+	r := testutil.Backup(&osutilIsDirectory)
+	osutilIsDirectory = fn
+	return r
 }
 
 func MockNeededChanges(f func(old, new *osutil.MountProfile) []*Change) (restore func()) {

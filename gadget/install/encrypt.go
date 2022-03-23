@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 // +build !nosecboot
 
 /*
@@ -49,7 +50,7 @@ type encryptedDeviceLUKS struct {
 	node   string
 }
 
-// sanity
+// expected interface is implemented
 var _ = encryptedDevice(&encryptedDeviceLUKS{})
 
 // newEncryptedDeviceLUKS creates an encrypted device in the existing

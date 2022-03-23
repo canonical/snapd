@@ -2234,7 +2234,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 		case authNoncesPath:
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
-			// sanity of request
+			// validity of request
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
@@ -3224,5 +3224,5 @@ func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
 	close(quit)
 	// go 1.17 started quoting the failing URL, also context deadline
 	// exceeded may appear in place of request being canceled
-	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: (net/http: request canceled|context deadline exceeded) \(Client.Timeout exceeded while awaiting headers\).*`)
+	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: (net/http: request canceled|context deadline exceeded)( \(Client.Timeout exceeded while awaiting headers\))?.*`)
 }

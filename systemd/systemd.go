@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -294,20 +295,20 @@ type Systemd interface {
 	// only necessary to apply manager's configuration like
 	// watchdog.
 	DaemonReexec() error
-	// Enable the given service.
-	Enable(service string) error
-	// Disable the given service.
-	Disable(service string) error
+	// EnableNoReload the given services, do not reload systemd.
+	EnableNoReload(services []string) error
+	// DisableNoReload the given services, do not reload system.
+	DisableNoReload(services []string) error
 	// Start the given service or services.
-	Start(service ...string) error
+	Start(service []string) error
 	// StartNoBlock starts the given service or services non-blocking.
-	StartNoBlock(service ...string) error
+	StartNoBlock(service []string) error
 	// Stop the given service, and wait until it has stopped.
-	Stop(service string, timeout time.Duration) error
+	Stop(services []string, timeout time.Duration) error
 	// Kill all processes of the unit with the given signal.
 	Kill(service, signal, who string) error
 	// Restart the service, waiting for it to stop before starting it again.
-	Restart(service string, timeout time.Duration) error
+	Restart(services []string, timeout time.Duration) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(service string) error
 	// RestartAll restarts the given service using systemctl restart --all
@@ -315,7 +316,7 @@ type Systemd interface {
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
-	Status(units ...string) ([]*UnitStatus, error)
+	Status(units []string) ([]*UnitStatus, error)
 	// InactiveEnterTimestamp returns the time that the given unit entered the
 	// inactive state as defined by the systemd docs. Specifically, this time is
 	// the most recent time in which the unit transitioned from deactivating
@@ -500,13 +501,20 @@ func (s *systemd) DaemonReexec() error {
 	return err
 }
 
-func (s *systemd) Enable(serviceName string) error {
-	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
-	} else {
-		_, err = s.systemctl("enable", serviceName)
+func (s *systemd) EnableNoReload(serviceNames []string) error {
+	if 0 == len(serviceNames) {
+		return nil
 	}
+	var args []string
+	if s.rootDir != "" {
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
+	} else {
+		args = append(args, "--no-reload")
+	}
+	args = append(args, "enable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 
@@ -520,13 +528,20 @@ func (s *systemd) Unmask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Disable(serviceName string) error {
-	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
-	} else {
-		_, err = s.systemctl("disable", serviceName)
+func (s *systemd) DisableNoReload(serviceNames []string) error {
+	if 0 == len(serviceNames) {
+		return nil
 	}
+	var args []string
+	if s.rootDir != "" {
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
+	} else {
+		args = append(args, "--no-reload")
+	}
+	args = append(args, "disable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 
@@ -540,7 +555,7 @@ func (s *systemd) Mask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Start(serviceNames ...string) error {
+func (s *systemd) Start(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
@@ -548,7 +563,7 @@ func (s *systemd) Start(serviceNames ...string) error {
 	return err
 }
 
-func (s *systemd) StartNoBlock(serviceNames ...string) error {
+func (s *systemd) StartNoBlock(serviceNames []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call start with GlobalUserMode")
 	}
@@ -563,19 +578,33 @@ func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadClo
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
 type UnitStatus struct {
-	Daemon   string
-	UnitName string
-	Enabled  bool
-	Active   bool
+	Daemon string
+	// This is the real name ('Id') as returned by systemd.
+	Id string
+	// This is the name as used by the status requester (which could
+	// be a name alias). We always return the requester unit name as
+	// the actual unit name, in order to not confuse users.
+	Name string
+	// This is the actual list of unit names returned by systemd. This
+	// list always include the real name ('Id') as well as all the
+	// aliases for the unit.
+	Names   []string
+	Enabled bool
+	Active  bool
 	// Installed is false if the queried unit doesn't exist.
 	Installed bool
+	// NeedDaemonReload is true when systemd reports that the unit on disk
+	// has been modified and may differ from systemd's internal state, thus
+	// a daemon-reload is needed.
+	NeedDaemonReload bool
 }
 
-var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
-var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type"}
+var baseProperties = []string{"Id", "ActiveState", "UnitFileState", "Names"}
+var extendedProperties = []string{"Id", "ActiveState", "UnitFileState", "Type", "Names", "NeedDaemonReload"}
 var unitProperties = map[string][]string{
 	".timer":  baseProperties,
 	".socket": baseProperties,
+	".target": baseProperties,
 	// in service units, Type is the daemon type
 	".service": extendedProperties,
 	// in mount units, Type is the fs type
@@ -599,8 +628,26 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 
 	for _, bs := range statusregex.FindAllSubmatch(bs, -1) {
 		if len(bs[0]) == 0 {
+			if len(sts) >= len(unitNames) {
+				return nil, fmt.Errorf("cannot get unit status: got more results than expected")
+			}
+
+			// The 'systemctl' command can return the status parameters for a
+			// number of units at the same time. The status output between
+			// units are separated with an empty line. Every parsed status
+			// is appended to the 'sts' array, so the n'th entry matches the
+			// n'th request, as ordered in 'unitNames'. The 'sts' array can
+			// therefore be used as an index to the original request.
+			requestIndex := len(sts)
+
+			// Record which unit 'Name' request produced this status because
+			// if the request was made using an aliased name, we must be
+			// consistent and reply using the same alias. We will check the
+			// validity of the alias below.
+			cur.Name = unitNames[requestIndex]
+
 			// systemctl separates data pertaining to particular services by an empty line
-			unitType := filepath.Ext(cur.UnitName)
+			unitType := filepath.Ext(cur.Name)
 			expected := unitProperties[unitType]
 			if expected == nil {
 				expected = baseProperties
@@ -613,16 +660,22 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 				}
 			}
 			if len(missing) > 0 {
-				return nil, fmt.Errorf("cannot get unit %q status: missing %s in ‘systemctl show’ output", cur.UnitName, strings.Join(missing, ", "))
-			}
-			sts = append(sts, cur)
-			if len(sts) > len(unitNames) {
-				break // wut
-			}
-			if cur.UnitName != unitNames[len(sts)-1] {
-				return nil, fmt.Errorf("cannot get unit status: queried status of %q but got status of %q", unitNames[len(sts)-1], cur.UnitName)
+				return nil, fmt.Errorf("cannot get unit %q status: missing %s in ‘systemctl show’ output", cur.Name, strings.Join(missing, ", "))
 			}
 
+			// The 'Names' property from systemd exposes all the unit name aliases
+			// as well as the real name 'Id'. In order to verify if the request
+			// matches the reply, we should compare the request name 'Name' against
+			// the 'Names' list in case the request was made using a name alias
+			// (e.g. ctrl-alt-del.target). The 'Names' unit property exist for all
+			// derived 'Unit' types, including services, targets, sockets, mounts
+			// and timers. Do not assume 'Id' in 'Names' is first in the list from
+			// systemd.
+			if !(cur.Name == cur.Id || strutil.ListContains(cur.Names, cur.Name)) {
+				return nil, fmt.Errorf("cannot get unit status: queried status of %q but got status of %q", cur.Name, cur.Id)
+			}
+
+			sts = append(sts, cur)
 			cur = &UnitStatus{}
 			seen = map[string]bool{}
 			continue
@@ -639,7 +692,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 
 		switch k {
 		case "Id":
-			cur.UnitName = v
+			cur.Id = v
 		case "Type":
 			cur.Daemon = v
 		case "ActiveState":
@@ -649,6 +702,11 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
 			cur.Installed = v != ""
+		case "Names":
+			// This list can include Alias names for a unit (but also includes Id)
+			cur.Names = strings.Fields(v)
+		case "NeedDaemonReload":
+			cur.NeedDaemonReload = v == "yes"
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
@@ -690,8 +748,8 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	sts := make([]*UnitStatus, len(unitNames))
 	for i, line := range results {
 		sts[i] = &UnitStatus{
-			UnitName: unitNames[i],
-			Enabled:  bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
+			Name:    unitNames[i],
+			Enabled: bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
 		}
 	}
 	return sts, nil
@@ -781,7 +839,7 @@ func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
 	return inactiveEnterTime, nil
 }
 
-func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
+func (s *systemd) Status(unitNames []string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
 		return s.getGlobalUserStatus(unitNames...)
 	}
@@ -791,9 +849,13 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	var extendedUnits []string
 
 	for _, name := range unitNames {
-		if strings.HasSuffix(name, ".timer") || strings.HasSuffix(name, ".socket") {
+		// Group units with the same query string together to
+		// optimize the number of 'systemctl' invocations.
+		if strings.HasSuffix(name, ".timer") || strings.HasSuffix(name, ".socket") || strings.HasSuffix(name, ".target") {
+			// Units using the baseProperties query
 			limitedUnits = append(limitedUnits, name)
 		} else {
+			// Units using the extendedProperties query
 			extendedUnits = append(extendedUnits, name)
 		}
 	}
@@ -813,7 +875,7 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 			return nil, err
 		}
 		for _, status := range sts {
-			unitToStatus[status.UnitName] = status
+			unitToStatus[status.Name] = status
 		}
 	}
 
@@ -877,11 +939,11 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	return false, err
 }
 
-func (s *systemd) Stop(serviceName string, timeout time.Duration) error {
+func (s *systemd) Stop(serviceNames []string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call stop with GlobalUserMode")
 	}
-	if _, err := s.systemctl("stop", serviceName); err != nil {
+	if _, err := s.systemctl(append([]string{"stop"}, serviceNames...)...); err != nil {
 		return err
 	}
 
@@ -899,24 +961,35 @@ loop:
 		case <-giveup.C:
 			break loop
 		case <-check.C:
-			bs, err := s.systemctl("show", "--property=ActiveState", serviceName)
-			if err != nil {
-				return err
+			allStopped := true
+			stillRunningServices := []string{}
+			for _, service := range serviceNames {
+				bs, err := s.systemctl("show", "--property=ActiveState", service)
+				if err != nil {
+					return err
+				}
+				if !isStopDone(bs) {
+					stillRunningServices = append(stillRunningServices, service)
+					allStopped = false
+				}
 			}
-			if isStopDone(bs) {
+			if allStopped {
 				return nil
 			}
 			if !firstCheck {
+				// do not notify about services waiting on the
+				// first pass
 				continue loop
 			}
+			serviceNames = stillRunningServices
 			firstCheck = false
 		case <-notify.C:
 		}
 		// after notify delay or after a failed first check
-		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", serviceName))
+		s.reporter.Notify(fmt.Sprintf("Waiting for %s to stop.", strutil.Quoted(serviceNames)))
 	}
 
-	return &Timeout{action: "stop", service: serviceName}
+	return &Timeout{action: "stop", services: serviceNames}
 }
 
 func (s *systemd) Kill(serviceName, signal, who string) error {
@@ -930,14 +1003,14 @@ func (s *systemd) Kill(serviceName, signal, who string) error {
 	return err
 }
 
-func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
+func (s *systemd) Restart(serviceNames []string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	if err := s.Stop(serviceName, timeout); err != nil {
+	if err := s.Stop(serviceNames, timeout); err != nil {
 		return err
 	}
-	return s.Start(serviceName)
+	return s.Start(serviceNames)
 }
 
 func (s *systemd) RestartAll(serviceName string) error {
@@ -984,12 +1057,12 @@ func (e *Error) Error() string {
 // Timeout is returned if the systemd action failed to reach the
 // expected state in a reasonable amount of time
 type Timeout struct {
-	action  string
-	service string
+	action   string
+	services []string
 }
 
 func (e *Timeout) Error() string {
-	return fmt.Sprintf("%v failed to %v: timeout", e.service, e.action)
+	return fmt.Sprintf("%v failed to %v: timeout", strutil.Quoted(e.services), e.action)
 }
 
 // IsTimeout checks whether the given error is a Timeout
@@ -1287,10 +1360,11 @@ func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (st
 		return "", err
 	}
 
-	if err := s.Enable(mountUnitName); err != nil {
+	units := []string{mountUnitName}
+	if err := s.EnableNoReload(units); err != nil {
 		return "", err
 	}
-	if err := s.Start(mountUnitName); err != nil {
+	if err := s.Start(units); err != nil {
 		return "", err
 	}
 
@@ -1314,16 +1388,17 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	if err != nil {
 		return err
 	}
+	units := []string{filepath.Base(unit)}
 	if isMounted {
 		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 
-		if err := s.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+		if err := s.Stop(units, time.Duration(1*time.Second)); err != nil {
 			return err
 		}
 	}
-	if err := s.Disable(filepath.Base(unit)); err != nil {
+	if err := s.DisableNoReload(units); err != nil {
 		return err
 	}
 	if err := os.Remove(unit); err != nil {

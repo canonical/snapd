@@ -163,6 +163,7 @@ var templateCommon = `
   /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
   /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
   /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
+  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
@@ -336,6 +337,15 @@ var templateCommon = `
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/                  r,
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/**                mrkix,
 
+  # Experimental snap folder changes
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/                    r,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/**                  mrkix,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
+  owner @{HOME}/.snap/data/@{SNAP_INSTANCE_NAME}/common/**           wl,
+
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/                          r,
+  owner @{HOME}/Snap/@{SNAP_INSTANCE_NAME}/**                        mrkixwl,
+
   # Writable home area for this version.
   # bind mount *not* used here (see 'parallel installs', above)
   owner @{HOME}/snap/@{SNAP_INSTANCE_NAME}/@{SNAP_REVISION}/** wl,
@@ -457,6 +467,9 @@ var templateCommon = `
   /run/lock/ r,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/ rw,
   /run/lock/snap.@{SNAP_INSTANCE_NAME}/** mrwklix,
+
+
+  ###DEVMODE_SNAP_CONFINE###
 `
 
 var templateFooter = `
@@ -503,6 +516,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/base64 ixr,
   /{,usr/}bin/basename ixr,
   /{,usr/}bin/bunzip2 ixr,
+  /{,usr/}bin/busctl ixr,
   /{,usr/}bin/bzcat ixr,
   /{,usr/}bin/bzdiff ixr,
   /{,usr/}bin/bzgrep ixr,
@@ -547,7 +561,7 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}bin/kill ixr,
   /{,usr/}bin/ldd ixr,
   /{usr/,}lib{,32,64}/ld{,32,64}-*.so ix,
-  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so ix,
+  /{usr/,}lib/@{multiarch}/ld{,32,64}-*.so* ix,
   /{,usr/}bin/less{,file,pipe} ixr,
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,

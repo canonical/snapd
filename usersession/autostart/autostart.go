@@ -31,7 +31,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -237,17 +236,10 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 }
 
 // AutostartSessionApps starts applications which have placed their desktop
-// files in $SNAP_USER_DATA/.config/autostart
+// files in $SNAP_USER_DATA/.config/autostart. Takes a path to the user's snap dir.
 //
 // NOTE: By the spec, the actual path is $SNAP_USER_DATA/${XDG_CONFIG_DIR}/autostart
-func AutostartSessionApps() error {
-	usr, err := userCurrent()
-	if err != nil {
-		return err
-	}
-
-	usrSnapDir := filepath.Join(usr.HomeDir, dirs.UserHomeSnapDir)
-
+func AutostartSessionApps(usrSnapDir string) error {
 	glob := filepath.Join(usrSnapDir, "*/current/.config/autostart/*.desktop")
 	matches, err := filepath.Glob(glob)
 	if err != nil {
