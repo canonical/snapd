@@ -433,6 +433,20 @@ func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 	logger.Noticef(msg)
 }
 
+func (r *recoverDegradedState) serializeTo(name string) error {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
+		return err
+	}
+
+	// leave the information about degraded state at an ephemeral location
+	return ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
+}
+
 // stateFunc is a function which executes a state action, returns the next
 // function (for the next) state or nil if it is the final state.
 type stateFunc func() (stateFunc, error)
@@ -1138,7 +1152,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	// 3.1 write out degraded.json if we ended up falling back somewhere
 	if machine.degraded() {
-		if err := serializeDegradedState(machine.degradedState, "degraded.json"); err != nil {
+		if err := machine.degradedState.serializeTo("degraded.json"); err != nil {
 			return err
 		}
 	}
@@ -1236,7 +1250,7 @@ func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
 		return err
 	}
 
-	if err := serializeDegradedState(machine.degradedState, "factory-reset-boot.json"); err != nil {
+	if err := machine.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
 		return err
 	}
 
@@ -1683,18 +1697,4 @@ func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (
 		return fmt.Errorf("cannot mark recovery system successful: %v", err)
 	}
 	return nil
-}
-
-func serializeDegradedState(what *recoverDegradedState, name string) error {
-	b, err := json.Marshal(what)
-	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
-		return err
-	}
-
-	// leave the information about degraded state at an ephemeral location
-	return ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
 }

@@ -6371,7 +6371,7 @@ grade=signed
 `)
 
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6466,7 +6466,7 @@ model=my-brand/my-model
 grade=signed
 `)
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6545,7 +6545,7 @@ grade=signed
 `)
 	// we should have written a boot state file with save marked as
 	// absent-but-optional
-	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6655,7 +6655,7 @@ grade=signed
 `)
 
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
@@ -6764,7 +6764,7 @@ grade=signed
 `)
 
 	// we should have written a boot state file
-	checkDegradedJSON(c, "factory-reset-boot.json", map[string]interface{}{
+	checkDegradedJSON(c, "factory-reset-bootstrap.json", map[string]interface{}{
 		"ubuntu-boot": map[string]interface{}{},
 		"ubuntu-data": map[string]interface{}{},
 		"ubuntu-save": map[string]interface{}{
