@@ -137,7 +137,7 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 	}
 
 	// Detect whether format was NxM% or M%
-	if len(match[1]) == 2 {
+	if len(match[1]) > 0 {
 		// Assume format was NxM%
 		count, err = strconv.Atoi(match[1][:len(match[1])-1])
 		if err != nil || count == 0 {
