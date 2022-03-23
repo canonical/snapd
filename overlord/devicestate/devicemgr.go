@@ -654,7 +654,7 @@ func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asser
 				// perhaps device was unregistered at some point
 				continue
 			}
-			return nil, nil
+			return nil, err
 		}
 		return serialAs, nil
 	}
