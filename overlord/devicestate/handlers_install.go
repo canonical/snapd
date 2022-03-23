@@ -631,12 +631,11 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	return nil
 }
 
-func (m *DeviceManager) doFactoryReset(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
-	// are timings useful here?
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 	// get gadget dir
@@ -742,6 +741,19 @@ func (m *DeviceManager) doFactoryReset(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if err := restoreDeviceFromSave(model); err != nil {
+		return fmt.Errorf("cannot restore data from save: %v", err)
+	}
+
+	// on some specific devices, we need to create these directories in
+	// _writable_defaults in order to allow the install-device hook to install
+	// some files there, this eventually will go away when we introduce a proper
+	// mechanism not using system-files to install files onto the root
+	// filesystem from the install-device hook
+	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
+		return err
+	}
+
 	// make it bootable
 	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
@@ -763,25 +775,20 @@ func (m *DeviceManager) doFactoryReset(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
-
-	// TODO: see notes in install handler
-
-	// on some specific devices, we need to create these directories in
-	// _writable_defaults in order to allow the install-device hook to install
-	// some files there, this eventually will go away when we introduce a proper
-	// mechanism not using system-files to install files onto the root
-	// filesystem from the install-device hook
-	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
-		return err
-	}
-
-	if err := restoreDeviceFromSave(model); err != nil {
-		return fmt.Errorf("cannot restore data from save: %v", err)
-	}
 	return nil
 }
 
 func restoreDeviceFromSave(model *asserts.Model) error {
+	// we could also look at factory-reset-bootstrap.json left by
+	// snap-bootstrap, but the mount was already verified during boot
+	mounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-save mount state: %v", err)
+	}
+	if !mounted {
+		logger.Noticef("not restoring from save, ubuntu-save not mounted")
+		return nil
+	}
 	// TODO anything else we want to restore?
 	return restoreDeviceSerialFromSave(model)
 }
@@ -819,10 +826,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 
 	var serialAs *asserts.Serial
 	for _, serial := range serials {
-		maybeCurrentSerialAs, ok := serial.(*asserts.Serial)
-		if !ok {
-			return fmt.Errorf("cannot use an invalid serial assertion")
-		}
+		maybeCurrentSerialAs := serial.(*asserts.Serial)
 		// serial assertion is signed with the device key, its ID is in the
 		// header
 		deviceKeyID := maybeCurrentSerialAs.DeviceKey().ID()
