@@ -70,6 +70,7 @@ show_help() {
     echo "  no-ssh: is not possible to ssh to the vm"
     echo "  snap-command: snap command is available in the vm"
     echo "  reboot: reboot is done in the vm"
+    echo "  device-initialized: the device is initialized and has a serial"
     echo ""
 }
 
@@ -319,6 +320,10 @@ wait_for() {
             ;;
         reboot)
             action=nested_wait_for_reboot
+            shift
+            ;;
+        device-initialized)
+            action=nested_wait_for_device_initialized_change
             shift
             ;;
         *)
