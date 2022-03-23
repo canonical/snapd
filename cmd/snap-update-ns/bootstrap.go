@@ -34,7 +34,7 @@ package main
 // function to `init_array`, and having ours run second would defeat
 // the purpose of the C bootstrap code.
 //
-// The `used` attribute ensures that the compiler doesn't oprimise out
+// The `used` attribute ensures that the compiler doesn't optimise out
 // the variable on the mistaken belief that it isn't used.
 __attribute__((section(".preinit_array"), used)) static typeof(&bootstrap) init = &bootstrap;
 
@@ -101,7 +101,7 @@ func freeArgv(argv []*C.char) {
 // This also sets bootstrap_msg on failure.
 //
 // This function is here only to make the C.validate_instance_name
-// code testable from go.
+// code testable from go, as cgo is not directly importable from test packages.
 func validateInstanceName(instanceName string) int {
 	cStr := C.CString(instanceName)
 	defer C.free(unsafe.Pointer(cStr))
@@ -113,7 +113,7 @@ func validateInstanceName(instanceName string) int {
 // NUL bytes, separating particular arguments.
 //
 // This function is here only to make the C.validate_instance_name
-// code testable from go.
+// code testable from go, as cgo is not directly importable from test packages.
 func processArguments(args []string) (snapName string, shouldSetNs bool, processUserFstab bool, uid uint) {
 	argv := makeArgv(args)
 	defer freeArgv(argv)
