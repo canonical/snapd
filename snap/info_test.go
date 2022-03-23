@@ -361,7 +361,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	st, err := os.Lstat(cur)
 	c.Assert(err, IsNil)
 	instTime := st.ModTime()
-	// sanity
+	// validity
 	c.Check(instTime.IsZero(), Equals, false)
 
 	c.Check(info.InstallDate().Equal(instTime), Equals, true)

@@ -1229,7 +1229,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationErrorBackoff(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// sanity
+	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
 	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
@@ -1323,7 +1323,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMismatchedSerial(c *C) 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// sanity
+	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
 	devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil)
@@ -1776,7 +1776,7 @@ func (s *deviceMgrSerialSuite) testDoRequestSerialReregistration(c *C, setAncill
 	remodCtx.Init(chg)
 	chg.AddTask(t)
 
-	// sanity
+	// validity
 	regCtx, err := devicestate.RegistrationCtx(s.mgr, t)
 	c.Assert(err, IsNil)
 	c.Check(regCtx, Equals, remodCtx.(devicestate.RegistrationContext))

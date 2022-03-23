@@ -266,7 +266,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		}
 		seedDir = dirs.SnapSeedDirUnder(rootDir)
 
-		// sanity check target
+		// validity check target
 		if osutil.FileExists(dirs.SnapStateFileUnder(rootDir)) {
 			return fmt.Errorf("cannot prepare seed over existing system or an already booted image, detected state file %s", dirs.SnapStateFileUnder(rootDir))
 		}
@@ -280,7 +280,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		label = makeLabel(time.Now())
 		bootRootDir = seedDir
 
-		// sanity check target
+		// validity check target
 		if systems, _ := filepath.Glob(filepath.Join(seedDir, "systems", "*")); len(systems) > 0 {
 			return fmt.Errorf("expected empty systems dir in system-seed, got: %v", systems)
 		}
@@ -545,10 +545,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
-		return err
-	}
-
 	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {
 		return err
@@ -560,6 +556,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 
 	// write resolved content to structure root
 	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
 		return err
 	}
 

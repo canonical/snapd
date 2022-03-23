@@ -218,7 +218,7 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 	// cannot create bootloader subdirectory
 	_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("grubx64.efi-%s", dataHash)), testutil.FileEquals, string(data))
 
 	err = cache.Remove("grub", "no file", "some-hash")
@@ -1300,7 +1300,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	})
 }
 
-func (s *assetsSuite) TestUpdateObserverRollbackFileSanity(c *C) {
+func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	root := c.MkDir()
 
 	tab := s.bootloaderWithTrustedAssets([]string{"asset"})

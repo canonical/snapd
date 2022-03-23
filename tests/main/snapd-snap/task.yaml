@@ -190,6 +190,9 @@ execute: |
     unsquashfs -ll snapd_spread-test.snap | MATCH etc/ld.so.conf
     echo "Ensure we have libc"
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
+    echo "Ensure we have preseed.json"
+    unsquashfs -ll snapd_spread-test.snap | MATCH usr/lib/snapd/preseed.json
+
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
     tests.cleanup defer sh -c "$PWD/snapd-cleanup.sh"
