@@ -21,9 +21,11 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -200,6 +202,56 @@ func makeChangesHandler(c *check.C) func(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+func (s *quotaSuite) TestParseQuotas(c *check.C) {
+	for _, testData := range []struct {
+		maxMemory string
+		cpuMax    string
+		cpuSet    string
+		threadMax string
+
+		// Use the JSON representation of the quota, as it's easier to handle in the test data
+		quotas string
+		err    string
+	}{
+		{maxMemory: "12KB", quotas: `{"memory":12000,"cpu":{},"cpu-set":{}}`},
+		{cpuMax: "12x40%", quotas: `{"cpu":{"count":12,"percentage":40},"cpu-set":{}}`},
+		{cpuSet: "1,3", quotas: `{"cpu":{},"cpu-set":{"cpus":[1,3]}}`},
+		{threadMax: "2", quotas: `{"cpu":{},"cpu-set":{},"threads":2}`},
+		// Error cases
+		{cpuMax: "ASD", err: `cannot parse cpu quota string "ASD"`},
+		{cpuMax: "0x100%", err: `cannot parse cpu quota string "0x100%"`},
+		{cpuMax: "2x0%", err: `cannot parse cpu quota string "2x0%"`},
+		{cpuMax: "200", err: `cannot parse cpu quota string "200"`},
+		{cpuMax: "20D", err: `cannot parse cpu quota string "20D"`},
+		{cpuMax: "2x101%", err: `cannot use value 101: cpu quota percentage must be between 1 and 100`},
+		{cpuSet: "x", err: `cannot parse CPU set value "x"`},
+		{cpuSet: "1:2", err: `cannot parse CPU set value "1:2"`},
+		{cpuSet: "0,-2", err: `cannot parse CPU set value "-2"`},
+		{threadMax: "xxx", err: `cannot use thread value "xxx"`},
+		{threadMax: "-3", err: `cannot use thread value "-3"`},
+	} {
+		// Mock the CGroup version here to test the --cpu-set command
+		restore := main.MockCGroupVersion(func() (int, error) {
+			return 2, nil
+		})
+
+		quotas, err := main.ParseQuotas(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadMax)
+		testLabel := check.Commentf("%v", testData)
+		if testData.err == "" {
+			c.Check(err, check.IsNil, testLabel)
+			var jsonQuota bytes.Buffer
+			err := json.NewEncoder(&jsonQuota).Encode(quotas)
+			c.Assert(err, check.IsNil, testLabel)
+			c.Check(strings.TrimSpace(jsonQuota.String()), check.Equals, testData.quotas, testLabel)
+		} else {
+			c.Check(err, check.ErrorMatches, testData.err, testLabel)
+		}
+
+		// Restore the cgroup version callback
+		restore()
+	}
+}
+
 func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 	for _, args := range []struct {
 		args []string
@@ -210,16 +262,6 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		{[]string{"set-quota", "--memory=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
 		{[]string{"set-quota", "--memory=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
 		{[]string{"set-quota", "--cpu=0", "foo"}, `cannot parse cpu quota string "0"`},
-		{[]string{"set-quota", "--cpu=0x100%", "foo"}, `cannot parse cpu quota string "0x100%"`},
-		{[]string{"set-quota", "--cpu=2x0%", "foo"}, `cannot parse cpu quota string "2x0%"`},
-		{[]string{"set-quota", "--cpu=200", "foo"}, `cannot parse cpu quota string "200"`},
-		{[]string{"set-quota", "--cpu=20D", "foo"}, `cannot parse cpu quota string "20D"`},
-		{[]string{"set-quota", "--cpu=ASD", "foo"}, `cannot parse cpu quota string "ASD"`},
-		{[]string{"set-quota", "--cpu-set=x", "foo"}, `cannot parse CPU set value "x"`},
-		{[]string{"set-quota", "--cpu-set=1:2", "foo"}, `cannot parse CPU set value "1:2"`},
-		{[]string{"set-quota", "--cpu-set=0,-2", "foo"}, `cannot parse CPU set value "-2"`},
-		{[]string{"set-quota", "--cpu=2x101%", "foo"}, `cannot use value 101: cpu quota percentage must be between 1 and 100`},
-		{[]string{"set-quota", "--thread=xxx", "foo"}, `cannot use thread value "xxx"`},
 		// remove-quota command
 		{[]string{"remove-quota"}, "the required argument `<group-name>` was not provided"},
 	} {
