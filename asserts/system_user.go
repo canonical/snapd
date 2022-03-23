@@ -123,7 +123,7 @@ func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*SystemUser)(nil)
 
 type shadow struct {

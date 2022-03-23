@@ -110,6 +110,5 @@ func (f Flags) ForSnapSetup() Flags {
 	f.NoReRefresh = false
 	f.RequireTypeBase = false
 	f.ApplySnapDevMode = false
-	f.Transactional = false
 	return f
 }

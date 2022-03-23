@@ -578,6 +578,101 @@ func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 	ensureChange(c, r, sb, chg)
 }
 
+func (ts *taskRunnerSuite) TestUndoSingleLane(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	r.AddHandler("noop", func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	}, func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	})
+
+	r.AddHandler("noop-slow", func(t *state.Task, tb *tomb.Tomb) error {
+		time.Sleep(10 * time.Millisecond)
+		t.State().Lock()
+		defer t.State().Unlock()
+		// critical
+		t.SetStatus(state.DoneStatus)
+		return nil
+	}, func(t *state.Task, tb *tomb.Tomb) error {
+		return nil
+	})
+
+	r.AddHandler("fail", func(t *state.Task, tb *tomb.Tomb) error {
+		return fmt.Errorf("fail")
+	}, nil)
+
+	st.Lock()
+
+	lane := st.NewLane()
+	chg := st.NewChange("install", "...")
+
+	// first taskset
+	var prev *state.Task
+	for i := 0; i < 10; i++ {
+		t := st.NewTask("noop-slow", "...")
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		chg.AddTask(t)
+		t.JoinLane(lane)
+
+		prev = t
+	}
+
+	// second taskset with a failing task that triggers undo of the change
+	prev = nil
+	for i := 0; i < 10; i++ {
+		t := st.NewTask("noop", "...")
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		chg.AddTask(t)
+		t.JoinLane(lane)
+		prev = t
+	}
+
+	// error trigger
+	t := st.NewTask("fail", "...")
+	t.WaitFor(prev)
+	chg.AddTask(t)
+	t.JoinLane(lane)
+
+	st.Unlock()
+
+	var done bool
+	for !done {
+		c.Assert(r.Ensure(), Equals, nil)
+		st.Lock()
+		done = chg.IsReady() && chg.IsClean()
+		st.Unlock()
+	}
+
+	st.Lock()
+	defer st.Unlock()
+
+	// make sure all tasks are either undone or on hold (except for "fail" task which
+	// is in error).
+	for _, t := range st.Tasks() {
+		switch t.Kind() {
+		case "fail":
+			c.Assert(t.Status(), Equals, state.ErrorStatus)
+		case "noop", "noop-slow":
+			if t.Status() != state.UndoneStatus && t.Status() != state.HoldStatus {
+				for _, tsk := range st.Tasks() {
+					fmt.Printf("%s -> %s\n", tsk.Kind(), tsk.Status())
+				}
+				c.Fatalf("unexpected status: %s", t.Status())
+			}
+		default:
+			c.Fatalf("unexpected kind: %s", t.Kind())
+		}
+	}
+}
+
 func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
 	sb := &stateBackend{}
 	st := state.New(sb)
@@ -1029,7 +1124,7 @@ func (ts *taskRunnerSuite) TestUndoSequence(c *C) {
 	terr.WaitFor(prev)
 	chg.AddTask(terr)
 
-	c.Check(chg.Tasks(), HasLen, 9) // sanity check
+	c.Check(chg.Tasks(), HasLen, 9) // validity check
 
 	st.Unlock()
 

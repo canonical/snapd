@@ -63,6 +63,7 @@ func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 	got, err := mkms.keypairMgr.Get(keyID)
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 
 	err = mkms.keypairMgr.Put(pk1)
 	c.Assert(err, IsNil)
@@ -70,6 +71,7 @@ func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 	got, err = mkms.keypairMgr.Get(keyID + "x")
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
 func (mkms *memKeypairMgtSuite) TestDelete(c *C) {

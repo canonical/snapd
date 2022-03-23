@@ -312,6 +312,7 @@ func AddForeignTaskHandlers(runner *state.TaskRunner, tracker ForeignTaskTracker
 	runner.AddHandler("transition-ubuntu-core", fakeHandler, nil)
 	runner.AddHandler("transition-to-snapd-snap", fakeHandler, nil)
 	runner.AddHandler("update-gadget-assets", fakeHandler, nil)
+	runner.AddHandler("update-managed-boot-config", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {
@@ -3048,7 +3049,7 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 
 	defer snapstate.MockLocalInstallCleanupWait(200 * time.Millisecond)()
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0700), IsNil)
-	// sanity check; note * in go glob matches .foo
+	// validity check; note * in go glob matches .foo
 	c.Assert(filenames(), HasLen, 0)
 
 	s0 := filepath.Join(dirs.SnapBlobDir, "some.snap")
@@ -5366,7 +5367,7 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 	})
 
 	var snapst1 snapstate.SnapState
-	// sanity check
+	// validity check
 	snapstate.Get(s.state, name, &snapst1)
 	c.Assert(snapst1.DevMode, Equals, true)
 
@@ -5419,7 +5420,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
 	})
 
 	var snapst1 snapstate.SnapState
-	// sanity check
+	// validity check
 	snapstate.Get(s.state, "core", &snapst1)
 	c.Assert(snapst1.DevMode, Equals, true)
 
@@ -7483,4 +7484,66 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	tsNew, err = snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
 	c.Assert(tsNew, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
+	testCases := []struct {
+		newBase  string
+		opts     snapstate.DirMigrationOptions
+		expected snapstate.Migration
+	}{
+		// refreshing to core22 or later
+		{
+			newBase:  "core22",
+			expected: snapstate.Full,
+		},
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, UseHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core24",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, UseHidden: true},
+			expected: snapstate.Home,
+		},
+		{
+			newBase:  "core24",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.None,
+		},
+		// reverting to another core22
+		{
+			newBase:  "core22",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.None,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true},
+			expected: snapstate.RevertHidden,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true},
+			expected: snapstate.RevertHidden,
+		},
+		{
+			newBase:  "core20",
+			opts:     snapstate.DirMigrationOptions{MigratedToHidden: true, MigratedToExposedHome: true, UseHidden: true},
+			expected: snapstate.None,
+		},
+	}
+
+	for _, t := range testCases {
+		action := snapstate.TriggeredMigration(t.newBase, &t.opts)
+		if action != t.expected {
+			c.Errorf("expected install of %q w/ %+v to result in %q but got %q", t.newBase, t.opts, t.expected, action)
+		}
+	}
 }

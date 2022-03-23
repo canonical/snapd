@@ -338,8 +338,7 @@ func quotaUpdateGroupLimits(grp *quota.Group, limits quota.Resources) error {
 	if err := currentQuotas.Change(limits); err != nil {
 		return fmt.Errorf("cannot update limits for group %q: %v", grp.Name, err)
 	}
-	grp.UpdateQuotaLimits(currentQuotas)
-	return nil
+	return grp.UpdateQuotaLimits(currentQuotas)
 }
 
 func quotaUpdate(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {

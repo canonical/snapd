@@ -191,7 +191,7 @@ static int ensure_fusesquashfs_inside_container(const char *normal_dir)
 	char fname[PATH_MAX + 1] = { 0 };
 
 	struct dirent *ent;
-	while (ent = readdir(units_dir)) {
+	while ((ent = readdir(units_dir))) {
 		// find snap mount units, i.e:
 		// snap-somename.mount or var-lib-snapd-snap-somename.mount
 		if (!sc_endswith(ent->d_name, ".mount")) {

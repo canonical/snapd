@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
@@ -56,6 +57,8 @@ func (s *assetsSuite) SetUpTest(c *C) {
 
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error { return nil })
 	s.AddCleanup(restore)
+
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
 
 func checkContentGlob(c *C, glob string, expected []string) {
@@ -215,7 +218,7 @@ func (s *assetsSuite) TestAssetsCacheRemoveErr(c *C) {
 	// cannot create bootloader subdirectory
 	_, err = cache.Add(filepath.Join(d, "foobar"), "grub", "grubx64.efi")
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	c.Check(filepath.Join(cacheDir, "grub", fmt.Sprintf("grubx64.efi-%s", dataHash)), testutil.FileEquals, string(data))
 
 	err = cache.Remove("grub", "no file", "some-hash")
@@ -1297,7 +1300,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	})
 }
 
-func (s *assetsSuite) TestUpdateObserverRollbackFileSanity(c *C) {
+func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 	root := c.MkDir()
 
 	tab := s.bootloaderWithTrustedAssets([]string{"asset"})

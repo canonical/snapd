@@ -274,7 +274,7 @@ func (r *failureSuite) TestCallPrevSnapdFromSnapdWhenNoCore(c *C) {
 		{Revision: snap.R(123)},
 	})
 
-	// sanity
+	// validity
 	c.Assert(filepath.Join(dirs.SnapMountDir, "core", "current", "/usr/lib/snapd/snapd"), testutil.FileAbsent)
 	// mock snapd in the core snap
 	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "current", "/usr/lib/snapd/snapd"),
