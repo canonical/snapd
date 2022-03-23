@@ -131,9 +131,13 @@ var cgroupVersion = cgroup.Version
 var cpuValueMatcher = regexp.MustCompile(`([0-9]+x)?([0-9]+)%`)
 
 func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
+	parseError := func(input string) error {
+		return fmt.Errorf("cannot parse cpu quota string %q", input)
+	}
+
 	match := cpuValueMatcher.FindStringSubmatch(cpuMax)
 	if match == nil {
-		return 0, 0, fmt.Errorf("cannot parse cpu quota string %q", cpuMax)
+		return 0, 0, parseError(cpuMax)
 	}
 
 	// Detect whether format was NxM% or M%
@@ -141,13 +145,13 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 		// Assume format was NxM%
 		count, err = strconv.Atoi(match[1][:len(match[1])-1])
 		if err != nil || count == 0 {
-			return 0, 0, fmt.Errorf("invalid left hand value specified for --cpu")
+			return 0, 0, parseError(cpuMax)
 		}
 	}
 
 	percentage, err = strconv.Atoi(match[2])
 	if err != nil || percentage == 0 {
-		return 0, 0, fmt.Errorf("invalid right hand value specified for --cpu")
+		return 0, 0, parseError(cpuMax)
 	}
 	return count, percentage, nil
 }
@@ -190,15 +194,12 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 		}
 
 		cpuTokens := strutil.CommaSeparatedList(cpuSet)
-		for i, cpuToken := range cpuTokens {
-			cpu, err := strconv.Atoi(cpuToken)
+		for _, cpuToken := range cpuTokens {
+			cpu, err := strconv.ParseUint(cpuToken, 10, 32)
 			if err != nil {
-				return nil, fmt.Errorf("cannot parse value for --cpu-set at position %d", i)
+				return nil, fmt.Errorf("cannot parse CPU set value %q", cpuToken)
 			}
-			if cpu < 0 {
-				return nil, fmt.Errorf("cannot use a negative CPU number in CPU set %q", cpuSet)
-			}
-			cpus = append(cpus, cpu)
+			cpus = append(cpus, int(cpu))
 		}
 	}
 
