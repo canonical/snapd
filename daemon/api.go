@@ -72,7 +72,7 @@ var api = []*Command{
 	systemsCmd,
 	systemsActionCmd,
 	themesCmd,
-	themesChangeCmd,
+	accessoriesChangeCmd,
 	validationSetsListCmd,
 	validationSetsCmd,
 	routineConsoleConfStartCmd,

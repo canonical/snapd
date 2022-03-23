@@ -48,12 +48,6 @@ var (
 		ReadAccess:  themesOpenAccess{},
 		WriteAccess: themesAuthenticatedAccess{Polkit: polkitActionManage},
 	}
-
-	themesChangeCmd = &Command{
-		Path:       "/v2/accessories/changes/{id}",
-		GET:        getThemeChange,
-		ReadAccess: themesOpenAccess{},
-	}
 )
 
 type themeStatus string
@@ -256,19 +250,4 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	chg.Set("api-data", map[string]interface{}{"snap-names": installed})
 	return AsyncResponse(nil, chg.ID())
-}
-
-func getThemeChange(c *Command, r *http.Request, user *auth.UserState) Response {
-	chID := muxVars(r)["id"]
-	state := c.d.overlord.State()
-	state.Lock()
-	defer state.Unlock()
-	chg := state.Change(chID)
-
-	// Only return information about theme install changes
-	if chg == nil || chg.Kind() != "install-themes" {
-		return NotFound("cannot find change with id %q", chID)
-	}
-
-	return SyncResponse(change2changeInfo(chg))
 }
