@@ -783,6 +783,16 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 }
 
 func restoreDeviceFromSave(model *asserts.Model) error {
+	// we could also look at factory-reset-bootstrap.json left by
+	// snap-bootstrap, but the mount was already verified during boot
+	mounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-save mount state: %v", err)
+	}
+	if !mounted {
+		logger.Noticef("not restoring from save, ubuntu-save not mounted")
+		return nil
+	}
 	// TODO anything else we want to restore?
 	return restoreDeviceSerialFromSave(model)
 }

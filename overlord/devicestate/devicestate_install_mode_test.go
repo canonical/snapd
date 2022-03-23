@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -1640,7 +1641,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C)
 }
 
 type resetTestCase struct {
-	tpm bool
+	noSave bool
+	tpm    bool
 }
 
 func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts.Model, tc resetTestCase) error {
@@ -1696,6 +1698,11 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})
 	defer restore()
 
+	if !tc.noSave {
+		restore := osutil.MockMountInfo(fmt.Sprintf(mountRunMntUbuntuSaveFmt, dirs.GlobalRootDir))
+		defer restore()
+	}
+
 	modeenv := boot.Modeenv{
 		Mode:           "factory-reset",
 		RecoverySystem: "20191218",
@@ -1706,8 +1713,12 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	// normally done by snap-bootstrap when booting info factory-reset
 	err := os.MkdirAll(boot.InitramfsUbuntuBootDir, 0755)
 	c.Assert(err, IsNil)
-	err = os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
-	c.Assert(err, IsNil)
+	if !tc.noSave {
+		// since there is no save, there is no mount and no target
+		// directory created by systemd-mount
+		err = os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
+		c.Assert(err, IsNil)
+	}
 
 	s.settle(c)
 
@@ -1918,7 +1929,8 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSave(c *C) {
 	defer restore()
 
 	err := s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm: false,
+		tpm:    false,
+		noSave: true,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
@@ -1928,6 +1940,9 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSave(c *C) {
 	matches, err := filepath.Glob(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions/*/*"))
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 0)
+
+	// and we logged why nothing was restored from save
+	c.Check(logbuf.String(), testutil.Contains, "not restoring from save, ubuntu-save not mounted")
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyEncrypted(c *C) {
