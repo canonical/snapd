@@ -65,7 +65,7 @@ func (s *UASuite) TestUserAgent(c *C) {
 }
 
 func (s *UASuite) TestStripUnsafeRunes(c *C) {
-	// Sanity check, strings like that are not modified
+	// Validity check, strings like that are not modified
 	for _, unchanged := range []string{
 		"abc-xyz-ABC-XYZ-0-9",
 		".", "-", "_",

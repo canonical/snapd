@@ -1214,6 +1214,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1241,7 +1242,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1251,7 +1251,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1261,7 +1260,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1271,7 +1269,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1282,7 +1279,6 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1390,6 +1386,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSeedDir),
@@ -1418,7 +1415,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1428,7 +1424,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1438,7 +1433,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1448,7 +1442,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1459,7 +1452,6 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1468,7 +1460,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1478,7 +1469,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1549,6 +1539,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSy
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
@@ -1577,7 +1568,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1587,7 +1577,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1597,7 +1586,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1607,7 +1595,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1618,7 +1605,6 @@ Wants=%[1]s
 			"--type=tmpfs",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1627,7 +1613,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1637,7 +1622,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1646,7 +1630,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1735,6 +1718,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 		for _, mountUnit := range []string{
 			systemd.EscapeUnitNamePath(boot.InitramfsUbuntuBootDir),
@@ -1762,7 +1746,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1771,7 +1754,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1781,7 +1763,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1791,7 +1772,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1801,7 +1781,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -1861,6 +1840,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystem
 	// check that all of the override files are present
 	for _, initrdUnit := range []string{
 		"initrd-fs.target",
+		"local-fs.target",
 	} {
 
 		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
@@ -1887,7 +1867,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1896,7 +1875,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1906,7 +1884,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=yes",
 			"--options=nosuid",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1915,7 +1892,6 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1925,7 +1901,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -1935,7 +1910,6 @@ Wants=%[1]s
 			"--no-ask-password",
 			"--fsck=no",
 			"--options=ro",
-			"--property=DefaultDependencies=no",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -2735,6 +2709,68 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 			r()
 		}
 	}
+}
+
+func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
+	c *C, cmdLine string, finalKernel *snap.PlaceInfo, finalStatus string) {
+	s.mockProcCmdlineContent(c, cmdLine)
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		ubuntuLabelMount("ubuntu-boot", "run"),
+		ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, *finalKernel),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenvNotScript(bootloadertest.Mock("mock", c.MkDir()))
+	bloader.SetBootVars(map[string]string{"kernel_status": boot.TryStatus})
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+	restore = bloader.SetEnabledTryKernel(s.kernelr2)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.core20, s.kernel, s.kernelr2)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename(), s.kernelr2.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	vars, err := bloader.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{"kernel_status": finalStatus})
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpdateBootloaderVars(c *C) {
+	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
+		"snapd_recovery_mode=run kernel_status=trying",
+		&s.kernelr2, boot.TryingStatus)
+	s.testInitramfsMountsRunModeUpdateBootloaderVars(c,
+		"snapd_recovery_mode=run",
+		&s.kernel, boot.DefaultStatus)
 }
 
 func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
@@ -4183,7 +4219,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
-			// sanity check that we can't find a normal ubuntu-data either
+			// validity check that we can't find a normal ubuntu-data either
 			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			dataActivated = true
@@ -4367,7 +4403,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			c.Assert(opts.AllowRecoveryKey, Equals, false)
 			c.Assert(opts.WhichModel, NotNil)
-			// sanity check that we can't find a normal ubuntu-data either
+			// validity check that we can't find a normal ubuntu-data either
 			partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, IsNil)
 			c.Assert(partUUID, Equals, "ubuntu-data-partuuid")
@@ -4498,7 +4534,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 			c.Assert(err, IsNil)
-			// sanity check that we can't find a normal ubuntu-data either
+			// validity check that we can't find a normal ubuntu-data either
 			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with run object")
@@ -4513,7 +4549,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, IsNil)
 			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
-			// sanity
+			// validity
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			// but we find an unencrypted one instead
 			return foundUnencrypted("ubuntu-save"), nil
@@ -4631,7 +4667,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
 			c.Assert(err, IsNil)
-			// sanity check that we can't find encrypted ubuntu-data
+			// validity check that we can't find encrypted ubuntu-data
 			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
 			return foundUnencrypted("ubuntu-data"), nil

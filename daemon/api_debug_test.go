@@ -235,6 +235,6 @@ func (s *postDebugSuite) TestMinLane(c *check.C) {
 	t.JoinLane(lane2)
 	c.Check(daemon.MinLane(t), check.Equals, lane1)
 
-	// sanity
+	// validity
 	c.Check(t.Lanes(), check.DeepEquals, []int{lane1, lane2})
 }

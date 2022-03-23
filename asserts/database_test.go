@@ -335,7 +335,7 @@ func (chks *checkSuite) TestCheckMismatchedAccountIDandKey(c *C) {
 	c.Check(err, ErrorMatches, `error finding matching public key for signature: found public key ".*" from "canonical" but expected it from: random`)
 
 	_, err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), nil, db, time.Time{}, time.Time{})
-	c.Check(err, ErrorMatches, `assertion signatory "random" does not match public key from "canonical"`)
+	c.Check(err, ErrorMatches, `assertion authority "random" does not match public key from "canonical"`)
 }
 
 func (chks *checkSuite) TestCheckAndSetEarliestTime(c *C) {
@@ -610,6 +610,8 @@ func (safs *signAddFindSuite) TestSignInadequateFormat(c *C) {
 }
 
 func (safs *signAddFindSuite) TestSignDelegation(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	c.Assert(err, IsNil)
 	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
@@ -687,6 +689,8 @@ func (safs *signAddFindSuite) TestSignDelegation(c *C) {
 }
 
 func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	c.Assert(err, IsNil)
 	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
@@ -732,6 +736,8 @@ func (safs *signAddFindSuite) TestSignDelegationMismatchedAccountIDandKey(c *C) 
 }
 
 func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	c.Assert(err, IsNil)
 	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)
@@ -814,6 +820,8 @@ func (safs *signAddFindSuite) TestSignDelegationConstraintsMismatch(c *C) {
 }
 
 func (safs *signAddFindSuite) TestSignDelegationExpired(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	delegatedSigningDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	c.Assert(err, IsNil)
 	c.Assert(delegatedSigningDB.ImportKey(testPrivKey1), IsNil)

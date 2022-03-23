@@ -47,6 +47,10 @@ var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPointImpl(mountpoint, opts)
 }
 
+var abstractCalculateLastUsableLBA = func(device string) (uint64, error) {
+	return CalculateLastUsableLBA(device)
+}
+
 func parseDeviceMajorMinor(s string) (int, int, error) {
 	errMsg := fmt.Errorf("invalid device number format: (expected <int>:<int>)")
 	devNums := strings.SplitN(s, ":", 2)
@@ -357,29 +361,14 @@ func (d *disk) SizeInBytes() (uint64, error) {
 	return num512Sectors * 512, err
 }
 
-// okay to use in initrd for dos disks since it uses blockdev command, but for
-// gpt disks, we need to use sfdisk, which is not okay to use in the initrd
-func (d *disk) UsableSectorsEnd() (uint64, error) {
-	if d.schema == "dos" {
-		// for DOS disks, it is sufficient to just get the size in bytes and
-		// divide by the sector size
-		byteSz, err := d.SizeInBytes()
-		if err != nil {
-			return 0, err
-		}
-		sectorSz, err := d.SectorSize()
-		if err != nil {
-			return 0, err
-		}
-		return byteSz / sectorSz, nil
-	}
-
+// TODO: remove this code in favor of abstractCalculateLastUsableLBA()
+func lastLBAfromSFdisk(devname string) (uint64, error) {
 	// TODO: this could also be accomplished by reading from the GPT headers
 	// directly to get the last logical block address (LBA) instead of using
 	// sfdisk, in which case this function could then be used in the initrd
 
 	// otherwise for GPT, we need to use sfdisk on the device node
-	output, err := exec.Command("sfdisk", "--json", d.devname).Output()
+	output, err := exec.Command("sfdisk", "--json", devname).Output()
 	if err != nil {
 		return 0, err
 	}
@@ -401,6 +390,41 @@ func (d *disk) UsableSectorsEnd() (uint64, error) {
 	// sfdisk always returns the sectors in native sector size, so we don't need
 	// to do any conversion here
 	return (dump.PartitionTable.LastLBA + 1), nil
+}
+
+// okay to use in initrd for dos disks since it uses blockdev command, but for
+// gpt disks, we need to use sfdisk, which is not okay to use in the initrd
+func (d *disk) UsableSectorsEnd() (uint64, error) {
+	if d.schema == "dos" {
+		// for DOS disks, it is sufficient to just get the size in bytes and
+		// divide by the sector size
+		byteSz, err := d.SizeInBytes()
+		if err != nil {
+			return 0, err
+		}
+		sectorSz, err := d.SectorSize()
+		if err != nil {
+			return 0, err
+		}
+		return byteSz / sectorSz, nil
+	}
+
+	// on UC20 (sfdisk 2.34) we use fdisk to determine the last LBA
+	// to minimize the risk of moving to the new
+	// abstractCalculateLastUsableLBA()
+	//
+	// TODO: remove this and use the abstractCalculateLastUsableLBA()
+	//       everywhere (and also remove "lastLBAfromSFdisk" above)
+	if output, err := exec.Command("sfdisk", "--version").Output(); err == nil {
+		if strings.Contains(string(output), " 2.34") {
+			return lastLBAfromSFdisk(d.devname)
+		}
+	}
+
+	// calculated is last LBA
+	calculated, err := abstractCalculateLastUsableLBA(d.devname)
+	// end (or size) LBA is the last LBA + 1
+	return calculated + 1, err
 }
 
 func (d *disk) Schema() string {
