@@ -1122,10 +1122,6 @@ func (m *DeviceManager) ensureFactoryReset() error {
 		return nil
 	}
 
-	if m.changeInFlight("factory-reset") {
-		return nil
-	}
-
 	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
 
 	m.ensureFactoryResetRan = true
