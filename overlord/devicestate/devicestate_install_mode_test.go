@@ -2071,7 +2071,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	factoryResetTask := tasks[0]
 	restartSystemToRunModeTask := tasks[1]
 
-	c.Assert(factoryResetTask.Kind(), Equals, "factory-reset")
+	c.Assert(factoryResetTask.Kind(), Equals, "factory-reset-run-system")
 	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 
 	// factory-reset has no pre-reqs

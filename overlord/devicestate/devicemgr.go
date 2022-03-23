@@ -170,7 +170,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
-	runner.AddHandler("factory-reset", m.doFactoryReset, nil)
+	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
@@ -1130,7 +1130,7 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	m.ensureFactoryResetRan = true
 
-	factoryReset := m.state.NewTask("factory-reset", i18n.G("Perform factory reset of the system"))
+	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	restartSystem.WaitFor(factoryReset)
 

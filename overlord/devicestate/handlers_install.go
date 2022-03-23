@@ -632,7 +632,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	return nil
 }
 
-func (m *DeviceManager) doFactoryReset(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
