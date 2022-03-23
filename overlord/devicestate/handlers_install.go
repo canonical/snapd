@@ -827,10 +827,7 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 
 	var serialAs *asserts.Serial
 	for _, serial := range serials {
-		maybeCurrentSerialAs, ok := serial.(*asserts.Serial)
-		if !ok {
-			return fmt.Errorf("cannot use an invalid serial assertion")
-		}
+		maybeCurrentSerialAs := serial.(*asserts.Serial)
 		// serial assertion is signed with the device key, its ID is in the
 		// header
 		deviceKeyID := maybeCurrentSerialAs.DeviceKey().ID()
