@@ -61,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -3595,13 +3596,44 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
 
+func (s *snapmgrTestSuite) TestFinishRestartNoopWhenPreseeding(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	restorePreseeding := snapdenv.MockPreseeding(true)
+	defer restorePreseeding()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	// not restarting
+	si := &snap.SideInfo{RealName: "some-app"}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
+	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	err := snapstate.FinishRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	restart.MockPending(st, restart.RestartDaemon)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	// verification: retry when not preseeding
+	snapdenv.MockPreseeding(false)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, FitsTypeOf, &state.Retry{})
+}
+
 func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
 	var generateWrappersCalled bool
-	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info) error {
+	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error {
 		c.Assert(snapInfo.SnapName(), Equals, "snapd")
+		c.Assert(opts, IsNil)
 		generateWrappersCalled = true
 		return nil
 	})
