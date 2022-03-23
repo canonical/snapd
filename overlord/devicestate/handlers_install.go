@@ -743,6 +743,19 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return err
 	}
 
+	if err := restoreDeviceFromSave(model); err != nil {
+		return fmt.Errorf("cannot restore data from save: %v", err)
+	}
+
+	// on some specific devices, we need to create these directories in
+	// _writable_defaults in order to allow the install-device hook to install
+	// some files there, this eventually will go away when we introduce a proper
+	// mechanism not using system-files to install files onto the root
+	// filesystem from the install-device hook
+	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
+		return err
+	}
+
 	// make it bootable
 	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
@@ -763,21 +776,6 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	})
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
-	}
-
-	// TODO: see notes in install handler
-
-	// on some specific devices, we need to create these directories in
-	// _writable_defaults in order to allow the install-device hook to install
-	// some files there, this eventually will go away when we introduce a proper
-	// mechanism not using system-files to install files onto the root
-	// filesystem from the install-device hook
-	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
-		return err
-	}
-
-	if err := restoreDeviceFromSave(model); err != nil {
-		return fmt.Errorf("cannot restore data from save: %v", err)
 	}
 	return nil
 }
