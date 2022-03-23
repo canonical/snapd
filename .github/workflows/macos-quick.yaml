@@ -1,11 +1,11 @@
-name: MacOS sanity checks
+name: MacOS quick checks
 on:
   # Only run on pull requests: not pushes
   pull_request:
     branches: ["master", "release/**"]
 
 jobs:
-  macos-sanity:
+  macos-quick:
     runs-on: macos-latest
     steps:
       - uses: actions/setup-go@v2
@@ -19,12 +19,12 @@ jobs:
         run: |
           brew install squashfs
 
-      - name: Build sanity checks
+      - name: Build quick checks
         run: |
           ./mkversion.sh
           go build -tags nosecboot -o /tmp/snp ./cmd/snap
 
-      - name: Runtime sanity checks
+      - name: Runtime quick checks
         run: |
           /tmp/snp download hello
           /tmp/snp version

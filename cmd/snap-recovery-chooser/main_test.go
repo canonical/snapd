@@ -234,7 +234,7 @@ type apiResponse struct {
 func (s *mockedClientCmdSuite) TestMainChooserWithTool(c *C) {
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
-	// sanity
+	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	capturedStdinPath := filepath.Join(c.MkDir(), "stdin")
@@ -279,7 +279,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
-	// sanity
+	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	s.mockSuccessfulResponse(c, mockSystems, nil)
@@ -299,7 +299,7 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
-	// sanity
+	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	n := 0
@@ -336,7 +336,7 @@ func (s *mockedClientCmdSuite) TestMainChooserDefaultsToConsoleConf(c *C) {
 
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
-	// sanity
+	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	s.mockSuccessfulResponse(c, mockSystems, &mockSystemRequestResponse{
@@ -372,7 +372,7 @@ func (s *mockedClientCmdSuite) TestMainChooserNoConsoleConf(c *C) {
 
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
-	// sanity
+	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	// not expecting a POST request
@@ -392,7 +392,7 @@ func (s *mockedClientCmdSuite) TestMainChooserGarbageNoActionRequested(c *C) {
 
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
-	// sanity
+	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	// not expecting a POST request
@@ -437,7 +437,7 @@ exit 123
 func (s *mockedClientCmdSuite) TestMainChooserSnapdAPIBad(c *C) {
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
-	// sanity
+	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	mockCmd := testutil.MockCommand(c, "tool", `

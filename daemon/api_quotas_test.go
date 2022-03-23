@@ -73,11 +73,11 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quota.NewResources(11000))
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(11000).Build())
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, quota.NewResources(6000))
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, quota.NewResourcesBuilder().WithMemoryLimit(6000).Build())
 	c.Assert(err, check.IsNil)
-	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, quota.NewResources(5000))
+	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, quota.NewResourcesBuilder().WithMemoryLimit(5000).Build())
 	c.Assert(err, check.IsNil)
 }
 
@@ -108,7 +108,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
 		c.Check(snaps, check.DeepEquals, []string{"bar"})
-		c.Check(resourceLimits, check.DeepEquals, quota.NewResources(quantity.Size(1000)))
+		c.Check(resourceLimits, check.DeepEquals, quota.NewResourcesBuilder().WithMemoryLimit(quantity.Size(1000)).Build())
 		return nil, fmt.Errorf("boom")
 	})
 	defer r()
@@ -137,7 +137,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
 		c.Check(snaps, check.DeepEquals, []string{"some-snap"})
-		c.Check(resourceLimits, check.DeepEquals, quota.NewResources(quantity.Size(1000)))
+		c.Check(resourceLimits, check.DeepEquals, quota.NewResourcesBuilder().WithMemoryLimit(quantity.Size(1000)).Build())
 		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
 		return ts, nil
 	})
@@ -166,7 +166,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
 		c.Check(snaps, check.DeepEquals, []string{"some-snap"})
-		c.Check(resourceLimits, check.DeepEquals, quota.NewResources(quantity.Size(1000)))
+		c.Check(resourceLimits, check.DeepEquals, quota.NewResourcesBuilder().WithMemoryLimit(quantity.Size(1000)).Build())
 
 		createCalled++
 		switch createCalled {
@@ -221,7 +221,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, quota.NewResources(5000))
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(5000).Build())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -237,7 +237,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 		c.Assert(name, check.Equals, "ginger-ale")
 		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
 			AddSnaps:          []string{"some-snap"},
-			NewResourceLimits: quota.NewResources(quantity.Size(9000)),
+			NewResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.Size(9000)).Build(),
 		})
 		ts := state.NewTaskSet(st.NewTask("foo-quota", "..."))
 		return ts, nil
@@ -263,7 +263,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, quota.NewResources(5000))
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, quota.NewResourcesBuilder().WithMemoryLimit(5000).Build())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -279,7 +279,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 		c.Assert(name, check.Equals, "ginger-ale")
 		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
 			AddSnaps:          []string{"some-snap"},
-			NewResourceLimits: quota.NewResources(quantity.Size(9000)),
+			NewResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(quantity.Size(9000)).Build(),
 		})
 		switch updateCalled {
 		case 1:
@@ -359,7 +359,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", []string{"some-snap"}, quota.NewResources(5000))
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", []string{"some-snap"}, quota.NewResourcesBuilder().WithMemoryLimit(5000).Build())
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 

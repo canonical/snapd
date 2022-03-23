@@ -628,6 +628,7 @@ nested_create_core_vm() {
                         snap download --channel="$CORE_CHANNEL" --basename=core18 core18
                         repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+                        rm core18.snap
                     fi
 
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then

@@ -78,7 +78,7 @@ func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*Account)(nil)
 
 func assembleAccount(assert assertionBase) (Assertion, error) {
