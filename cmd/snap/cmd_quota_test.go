@@ -215,6 +215,7 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 	}{
 		{maxMemory: "12KB", quotas: `{"memory":12000,"cpu":{},"cpu-set":{}}`},
 		{cpuMax: "12x40%", quotas: `{"cpu":{"count":12,"percentage":40},"cpu-set":{}}`},
+		{cpuMax: "40%", quotas: `{"cpu":{"percentage":40},"cpu-set":{}}`},
 		{cpuSet: "1,3", quotas: `{"cpu":{},"cpu-set":{"cpus":[1,3]}}`},
 		{threadMax: "2", quotas: `{"cpu":{},"cpu-set":{},"threads":2}`},
 		// Error cases
