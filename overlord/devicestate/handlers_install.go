@@ -49,9 +49,7 @@ var (
 	bootMakeRunnable            = boot.MakeRunnableSystem
 	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
 	installRun                  = install.Run
-	installFactoryReset         = func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		return nil, fmt.Errorf("not implemented")
-	}
+	installFactoryReset         = install.FactoryReset
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
