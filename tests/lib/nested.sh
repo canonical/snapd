@@ -611,10 +611,12 @@ nested_create_core_vm() {
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if nested_is_core_16_system; then
+                    echo "Repacking core snap"
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
                 elif nested_is_core_18_system; then
+                    echo "Repacking snapd snap"
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
@@ -624,10 +626,12 @@ nested_create_core_vm() {
                     if [ -d "$(nested_get_extra_snaps_path)" ]; then
                         CORE18_SNAP=$(find extra-snaps -name 'core18*.snap')
                     fi
-                    if [ -z "$CORE18_SNAP" ]; then
+                    if [ -z "$CORE18_SNAP" ] && [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+                        echo "Repacking core18 snap"
                         snap download --channel="$CORE_CHANNEL" --basename=core18 core18
                         repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+                        rm core18.snap
                     fi
 
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -635,27 +639,30 @@ nested_create_core_vm() {
                     fi
 
                 elif nested_is_core_20_system; then
-                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        echo "Repacking kernel snap"
+                        snap download --basename=pc-kernel --channel="20/edge" pc-kernel
 
-                    # set the unix bump time if the NESTED_* var is set, 
-                    # otherwise leave it empty
-                    local epochBumpTime
-                    epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-                    if [ -n "$epochBumpTime" ]; then
-                        epochBumpTime="--epoch-bump-time=$epochBumpTime"
-                    fi
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                    rm -f "$PWD/pc-kernel.snap"
+                        # set the unix bump time if the NESTED_* var is set, 
+                        # otherwise leave it empty
+                        local epochBumpTime
+                        epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                        if [ -n "$epochBumpTime" ]; then
+                            epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                        fi
+                        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                        rm -f "$PWD/pc-kernel.snap"
 
-                    # Prepare the pc kernel snap
-                    KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
+                        # Prepare the pc kernel snap
+                        KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
 
-                    chmod 0600 "$KERNEL_SNAP"
-                    EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+                        chmod 0600 "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
 
-                    # sign the pc-kernel snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        # sign the pc-kernel snap with fakestore if requested
+                        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        fi
                     fi
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -665,7 +672,8 @@ nested_create_core_vm() {
                         GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
                     fi
                     # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
-                    if [ -z "$GADGET_SNAP" ]; then
+                    if [ -z "$GADGET_SNAP" ] && [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
+                        echo "Repacking pc snap"
                         # Get the snakeoil key and cert
                         local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
                         KEY_NAME=$(nested_get_snakeoil_key)
@@ -713,7 +721,7 @@ EOF
                         make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
                     fi
 
-                    # repack the snapd snap
+                    echo "Repacking snapd snap"
                     snap download --channel="latest/edge" snapd
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
@@ -723,10 +731,11 @@ EOF
                         make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
                     fi
 
-                    # which channel?
-                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+                    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+                        snap download --channel="$CORE_CHANNEL" --basename=core20 core20
+                        repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+                    fi
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then

@@ -24,6 +24,8 @@ import (
 	"os/exec"
 
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var (
@@ -31,6 +33,14 @@ var (
 	RemoveMountUnit = removeMountUnit
 	RemoveIfEmpty   = removeIfEmpty
 )
+
+func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error) (restore func()) {
+	old := wrappersAddSnapdSnapServices
+	wrappersAddSnapdSnapServices = f
+	return func() {
+		wrappersAddSnapdSnapServices = old
+	}
+}
 
 func MockUpdateFontconfigCaches(f func() error) (restore func()) {
 	oldUpdateFontconfigCaches := updateFontconfigCaches
