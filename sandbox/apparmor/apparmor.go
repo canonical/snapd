@@ -22,6 +22,7 @@ package apparmor
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -55,6 +56,401 @@ func ValidateNoAppArmorRegexp(s string) error {
 		return fmt.Errorf("%q contains a reserved apparmor char from %s", s, AARE)
 	}
 	return nil
+}
+
+func GenerateAAREExclusionPatternsSingle(excludePattern []rune, opts *AAREExclusionPatternsOptions) (string, error) {
+	// no error checking of input as that was already done in
+	// GenerateAAREExclusionPatterns
+
+	// TODO: this logic could be combined with some of the more complex logic in
+	// GenerateAAREExclusionPatternsGenericImpl but those loops are
+	// subtly more complex so that is left for another time
+	builder := &strings.Builder{}
+	for i := 1; i < len(excludePattern); i++ {
+		c := excludePattern[i]
+		switch c {
+		case '*':
+			// skip this element, this is the regular expression
+			continue
+		case '/':
+			// check if the previous element was a "*" in which case we
+			// skip this one too
+			if excludePattern[i-1] == '*' {
+				continue
+			}
+		}
+		res := fmt.Sprintf("%s%s[^%c]**%s\n", opts.Prefix, string(excludePattern[:i]), c, opts.Suffix)
+		builder.WriteString(res)
+	}
+	return builder.String(), nil
+}
+
+type AAREExclusionPatternsOptions struct {
+	// Prefix is a string to include on every line in the permutations before
+	// the exclusion permutation itself.
+	Prefix string
+	// Suffix is a string to include on every line in the permutations after
+	// the exclusion permutation itself.
+	Suffix string
+
+	// TODO: add options for generating non-filepaths like what we need for the
+	// unconfined profile transition exclusion in snap-confine's profile as well
+	// as an option for adding an extra character to the very first rule like we
+	// need in the home interface
+}
+
+// GenerateAAREExclusionPatterns generates a series of valid AppArmor
+// regular expression negation rules such that anything except the specific
+// excludePatterns will match with the specified prefix and suffix rules. For
+// example to allow reading any file except those matching /usr/*/foo, you would
+// call this function with "/usr/*/foo" as the first argument, "" as the prefix
+// and " r," as the suffix (the suffix being the main part of the read rule) and
+// this function would return the following multi-line string with the relevant
+// rules:
+//
+// /[^u]** r,
+// /u[^s]** r,
+// /us[^r]** r,
+// /usr[^/]** r,
+// /usr/*/[^f]** r,
+// /usr/*/f[^o]** r,
+// /usr/*/fo[^o]** r,
+//
+// This function only treats '*' specially in the string and does not handle any
+// other alternations etc. that AARE may more generally support, and all
+// patterns provided must be absolute filepaths that are at least 2 runes long.
+//
+// This function also works with multiple exclude patterns such as specifying to
+// exclude "/usr/lib/snapd" and "/var/lib/snapd" with suffix " r," would yield:
+//
+// /[^uv]** r,
+// /{u[^s],v[^a]}** r,
+// /{us[^r],va[^r]}** r,
+// /{usr[^/],var[^/]}** r,
+// /{usr/[^l],var/[^l]}** r,
+// /{usr/l[^i],var/l[^i]}** r,
+// /{usr/li[^b],var/li[^b]}** r,
+// /{usr/lib[^/],var/lib[^/]}** r,
+// /{usr/lib/[^s],var/lib/[^s]}** r,
+// /{usr/lib/s[^n],var/lib/s[^n]}** r,
+// /{usr/lib/sn[^a],var/lib/sn[^a]}** r,
+// /{usr/lib/sna[^p],var/lib/sna[^p]}** r,
+// /{usr/lib/snap[^d],var/lib/snap[^d]}** r,
+//
+func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
+	seen := map[string]bool{}
+	runeSlices := make([][]rune, 0, len(excludePatterns))
+	for _, patt := range excludePatterns {
+		// check for duplicates
+		if seen[patt] {
+			return "", errors.New("exclude patterns contain duplicates")
+		}
+		seen[patt] = true
+
+		// check if it is at least legnth 1
+		if len(patt) < 2 {
+			return "", errors.New("exclude patterns must be at least length 2")
+		}
+
+		// check that it starts as an absolute path
+		if patt[0] != '/' {
+			return "", errors.New("exclude patterns must be absolute filepaths")
+		}
+
+		// TODO: we use runes here because Go makes it easy but does AppArmor
+		// actually understand UTF-8/Unicode properly? perhaps we should
+		// validate that all runes in the pattern are supported by apparmor roo?
+
+		// TODO: should we also validate that the only character in the pattern
+		// from AARE is "*" ?
+
+		runeSlices = append(runeSlices, []rune(patt))
+	}
+	if opts == nil {
+		opts = &AAREExclusionPatternsOptions{}
+	}
+	return GenerateAAREExclusionPatternsGenericImpl(runeSlices, opts)
+}
+
+func GenerateAAREExclusionPatternsGenericImpl(excludePatterns [][]rune, opts *AAREExclusionPatternsOptions) (string, error) {
+	switch len(excludePatterns) {
+	case 0:
+		return "", fmt.Errorf("no patterns provided")
+	case 1:
+		// single pattern generation is simpler and doesn't need to consider
+		// generating alternatives like in /foo/{a[^b],c[^d]} etc. so we do that
+		// case separately for easier reasoning about the generic case
+		return GenerateAAREExclusionPatternsSingle(excludePatterns[0], opts)
+	}
+
+	// figure out the shortest and longest strings for setting loop ranges below
+	shortestStrLen := len(excludePatterns[0])
+	longestStrLen := len(excludePatterns[0])
+	for _, patt := range excludePatterns {
+		// save the shortest pattern length for computing the longest common substring below
+		if len(patt) < shortestStrLen {
+			shortestStrLen = len(patt)
+		}
+		if len(patt) > longestStrLen {
+			longestStrLen = len(patt)
+		}
+	}
+
+	builder := &strings.Builder{}
+
+	// find the longest common prefix in all the patterns
+	endCommonPrefix := 0
+
+commonSubStrLoop:
+	for i := 0; i < shortestStrLen; i++ {
+		// ok to use 0 index here since by definition the first exclude
+		// pattern's common prefix is common with all other patterns
+		pattChar := excludePatterns[0][i]
+		for _, patt := range excludePatterns[1:] {
+			if patt[i] != pattChar {
+				break commonSubStrLoop
+			}
+		}
+		endCommonPrefix = i + 1
+	}
+
+	// for keeping track of the last rule for the common case before we get to
+	// the overlapping cases
+	var lastCommonPrefix string
+
+	// iterate up to the longest string we have - saving the iteration variable
+	// for the case when we get past the common substrings and do a separate
+	// kind of loop below, mainly just for readability to avoid nesting things
+	// too deeply
+	var i int
+charLoop:
+	for i = 0; i < longestStrLen; i++ {
+		switch {
+		case i < endCommonPrefix:
+			// then generate common simple rules
+			c := excludePatterns[0][i]
+			switch c {
+			case '*':
+				// skip this element, this is the wildcard
+				continue
+			case '/':
+				// check if this is the first character or if the previous
+				// element was a "*" in which case we skip this one too
+				if i == 0 {
+					// this is for the case where the only common character is
+					// actually the first "/" character
+					lastCommonPrefix = string(c)
+					continue
+				}
+				if excludePatterns[0][i-1] == '*' {
+					// this is for the case where the last common characters are
+					// "*/" if there are other common characters after this, it
+					// will get overwritten on the next iteration
+					lastCommonPrefix = lastCommonPrefix + "*/"
+					continue
+				}
+			}
+			// snippet up to this character so far - again since this is the
+			// common prefix we can just use the first pattern
+			snippet := string(excludePatterns[0][:i])
+			res := fmt.Sprintf("%s%s[^%c]**%s\n", opts.Prefix, snippet, c, opts.Suffix)
+
+			builder.WriteString(res)
+
+			// save this as the most recent common sub string pattern
+			lastCommonPrefix = snippet + string(c)
+		case i == endCommonPrefix:
+			// this is the last bit of the common substring, so get all the
+			// characters for each pattern and just make a negative match for
+			// all of those characters
+
+			// note we use a map because there could be duplicate characters,
+			// for example we could have 3 strings like "abcd1", "abcd2", "abceee",
+			// where after the first common characters among the 3, there is
+			// another common character with first 2 exclude patterns not in the
+			// third
+			chars := map[rune]bool{}
+			for _, pattern := range excludePatterns {
+				if i >= len(pattern) {
+					continue
+				}
+				chars[pattern[i]] = true
+			}
+			if len(chars) == 0 {
+				// shouldn't happen in practice, we check for duplicates above
+				// but just be on the safe side
+				return "", fmt.Errorf("internal erorr: all excluded patterns are the same")
+			}
+
+			negGroup := []rune("[^")
+			for c := range chars {
+				negGroup = append(negGroup, c)
+			}
+			// make sure the runs are sorted for consistency
+			sort.Slice(negGroup, func(i, j int) bool {
+				return negGroup[i] < negGroup[j]
+			})
+			negGroup = append(negGroup, ']')
+
+			res := fmt.Sprintf("%s%s%s**%s\n", opts.Prefix, lastCommonPrefix, string(negGroup), opts.Suffix)
+			builder.WriteString(res)
+
+		case i > endCommonPrefix:
+			// we break and use a separate loop because here we now need to
+			// handle indexes per pattern because "*" could be in different
+			// locations in each of the exclude patterns and we can no longer
+			// use one index for all patterns
+			break charLoop
+		}
+	}
+
+	// each pattern starts at i
+	indexPerPattern := make([]int, len(excludePatterns))
+	for i2 := range excludePatterns {
+		indexPerPattern[i2] = i
+	}
+
+	// this loop iterates up until the longestStrLen is reached or until we
+	// reach only one pattern left which then collapses into a simpler special
+	// case
+	for j := i; j < longestStrLen; j++ {
+		// check what patterns still have characters left
+		stillPresentPatterns := map[int][]rune{}
+		for patternIndex, excludePattern := range excludePatterns {
+			charIndex := indexPerPattern[patternIndex]
+			if charIndex >= len(excludePattern) {
+				continue
+			}
+			stillPresentPatterns[patternIndex] = excludePattern
+		}
+
+		// maybe we only have one pattern left which means we can take a
+		// shortcut
+		if len(stillPresentPatterns) == 1 {
+			// there is only one group left from here and we can do the simple
+			// generation with this pattern for the rest of the rules
+
+			// we know it's of length one so this is a short cut to get the vars
+			var patternIndex int
+			var excludePattern []rune
+			for patternIndex, excludePattern = range stillPresentPatterns {
+				break
+			}
+
+			for k := indexPerPattern[patternIndex]; k < len(excludePattern); k++ {
+				c := excludePattern[k]
+				switch c {
+				case '*':
+					// skip this element, this is the wildcard
+					continue
+				case '/':
+					// check if the previous element was a "*" in which case we
+					// skip this one too
+					if excludePattern[k-1] == '*' {
+						continue
+					}
+				}
+				res := fmt.Sprintf("%s%s[^%c]**%s\n", opts.Prefix, string(excludePattern[:k]), c, opts.Suffix)
+				builder.WriteString(res)
+			}
+
+			// TODO: maybe a return here would be more readable?
+			// all rules have been generated we are done
+			break
+		}
+
+		// otherwise there are still multiple patterns left so collect the
+		// previous characters up to this alternation and this specific
+		// character for each of the exclude patterns
+		negCharsByAllowChars := map[string]*strutil.OrderedSet{}
+		// meh if Go had deterministic loop iteration we wouldn't need this var
+		allPrevs := strutil.OrderedSet{}
+		for patternIndex := range excludePatterns {
+			excludePattern, ok := stillPresentPatterns[patternIndex]
+			if !ok {
+				// not present
+				continue
+			}
+
+			charIndex := indexPerPattern[patternIndex]
+			c := excludePattern[charIndex]
+			// increment this character, regardless of whether it is a wildcard
+			// or not we consumed it this iteration
+			indexPerPattern[patternIndex]++
+
+			switch c {
+			case '*':
+				// skip this element, this is the wildcard
+				continue
+			case '/':
+				// check if the previous element was a "*" in which case we
+				// skip this one too
+				if excludePattern[charIndex-1] == '*' {
+					continue
+				}
+			}
+
+			// trim the common prefix from the exclude pattern since it is
+			// common and will be outside the alternation leaving us just with
+			// the unique previous characters for this exclude pattern
+			prev := strings.TrimPrefix(string(excludePattern[:charIndex]), lastCommonPrefix)
+
+			// append into a list of runes to be excluded since there could be
+			// multiple individual characters which are excluded which share the
+			// same previous character, this shows up for example with "/a/bc"
+			// and "/a/bd" - AppArmor does not like this pattern:
+			// /a/{b[^c],b[^d]}
+			// but finds this one acceptable:
+			// /a/b[^cd]
+			if negCharsByAllowChars[prev] == nil {
+				negCharsByAllowChars[prev] = &strutil.OrderedSet{}
+			}
+			negCharsByAllowChars[prev].Put(string(c))
+			allPrevs.Put(prev)
+		}
+
+		// now actually generate the sub rule either with a {<FOO>,<BAR>}
+		// or just with [FOO] or nothing if the previous characters were "*/"
+		var subPattern string
+		switch len(negCharsByAllowChars) {
+		case 0:
+			// no characters at all, meaning that the "*" likely just happened
+			// at the same spot for multiple patterns
+			continue
+		case 1:
+			// only one pattern meaning we don't use "{}"
+			var prevAllowChar string
+			var negCharsSet *strutil.OrderedSet
+			for prevAllowChar, negCharsSet = range negCharsByAllowChars {
+				break
+			}
+			allNegChars := ""
+			for _, negChar := range negCharsSet.Items() {
+				allNegChars += string(negChar)
+			}
+			subPattern = fmt.Sprintf("%s[^%s]", prevAllowChar, allNegChars)
+		default:
+			// join the various alternations together with {}
+			alternations := []string{}
+			// sort for a consistent order
+			allPrevsSlice := allPrevs.Items()
+			sort.Strings(allPrevsSlice)
+			for _, prev := range allPrevsSlice {
+				negCharsSet := negCharsByAllowChars[prev]
+				allNegChars := ""
+				for _, negChar := range negCharsSet.Items() {
+					allNegChars += string(negChar)
+				}
+				alternations = append(alternations, fmt.Sprintf("%s[^%s]", prev, allNegChars))
+			}
+			subPattern = fmt.Sprintf("{%s}", strings.Join(alternations, ","))
+		}
+
+		res := fmt.Sprintf("%s%s%s**%s\n", opts.Prefix, lastCommonPrefix, subPattern, opts.Suffix)
+		builder.WriteString(res)
+	}
+
+	return builder.String(), nil
 }
 
 // LevelType encodes the kind of support for apparmor

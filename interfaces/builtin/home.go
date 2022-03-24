@@ -56,6 +56,9 @@ owner @{HOME}/ r,
 
 # Allow read/write access to all files in @{HOME}, except snap application
 # data in @{HOME}/snap and toplevel hidden directories in @{HOME}.
+# TODO: use GenerateAAREExclusionPatterns for this - though the first
+# rule here complicates using it slightly from the inclusion of the "." to 
+# prevent reading dotfiles
 owner @{HOME}/[^s.]**             rwkl###HOME_IX###,
 owner @{HOME}/s[^n]**             rwkl###HOME_IX###,
 owner @{HOME}/sn[^a]**            rwkl###HOME_IX###,
@@ -84,6 +87,9 @@ audit deny @{HOME}/bin/{,**} wl,
 const homeConnectedPlugAppArmorWithAllRead = `
 # Allow non-owner read to non-hidden and non-snap files and directories
 capability dac_read_search,
+# TODO: use GenerateAAREExclusionPatterns for this - though the first
+# rule here complicates using it slightly from the inclusion of the "." to 
+# prevent reading dotfiles
 @{HOME}/               r,
 @{HOME}/[^s.]**        r,
 @{HOME}/s[^n]**        r,
