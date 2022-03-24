@@ -37,7 +37,7 @@ execute: |
     done
 
     echo "When it is re-installed"
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service --ignore-running
     retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     # note that sigterm{,-all} is tested separately

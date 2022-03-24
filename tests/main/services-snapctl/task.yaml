@@ -76,7 +76,7 @@ execute: |
 
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service --ignore-running
     # shellcheck disable=SC2119
     if "$TESTSTOOLS"/journal-state get-log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"
