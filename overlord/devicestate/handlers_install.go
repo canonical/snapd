@@ -387,7 +387,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// make it bootable
+	// make it bootable, which should be the final step in the process, as
+	// it effectively makes it possible to boot into run mode
 	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
@@ -673,14 +674,13 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	}
 	bopts.EncryptionType = encryptionType
 	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
-	hasMaker := osutil.FileExists(filepath.Join(boot.InstallHostFDESaveDir, "marker"))
+	hasMarker := osutil.FileExists(filepath.Join(boot.InstallHostFDESaveDir, "marker"))
 	// TODO verify that the same encryption mechanism is used
-	if hasMaker != useEncryption {
+	if hasMarker != useEncryption {
 		prevStatus := "encrypted"
-		if !hasMaker {
+		if !hasMarker {
 			prevStatus = "unencrypted"
 		}
-		// the original system was (un)encrypted
 		return fmt.Errorf("cannot perform factory reset using different encryption, the original system was %v", prevStatus)
 	}
 

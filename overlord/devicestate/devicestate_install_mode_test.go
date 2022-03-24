@@ -1799,7 +1799,6 @@ echo "mock output of: $(basename "$0") $*"
 	err := os.MkdirAll(boot.InitramfsUbuntuSaveDir, 0755)
 	c.Assert(err, IsNil)
 	// and it has some content
-
 	serial := makeDeviceSerialAssertionInDir(c, boot.InstallHostDeviceSaveDir, s.storeSigning, s.brands,
 		model, devKey, "serial-1234")
 
@@ -1836,7 +1835,7 @@ echo "mock output of: $(basename "$0") $*"
 	kp, err := asserts.OpenFSKeypairManager(assertsInResetSystem)
 	c.Assert(err, IsNil)
 	_, err = kp.Get(serial.DeviceKey().ID())
-	// the will not have been found, as this is a device with ubuntu-save
+	// the key will not have been found, as this is a device with ubuntu-save
 	// and key is stored on that partition
 	c.Assert(asserts.IsKeyNotFound(err), Equals, true)
 	// which we verify here
@@ -2055,7 +2054,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+	restore = devicestate.MockInstallFactoryReset(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, obs gadget.ContentObserver, pertTimings timings.Measurer) (*install.InstalledSystemSideData, error) {
 		return nil, nil
 	})
 	defer restore()
