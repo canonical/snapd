@@ -32,6 +32,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -1635,4 +1636,39 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeWritesTimesyncdClockErr(c *C)
 	// install failed copying the timestamp
 	c.Check(installSystem.Err(), ErrorMatches, `(?s).*\(cannot seed timesyncd clock: cannot copy clock:.*Permission denied.*`)
 	c.Check(installSystem.Status(), Equals, state.ErrorStatus)
+}
+
+func makeDeviceSerialAssertionInDir(c *C, where string, storeStack *assertstest.StoreStack, brands *assertstest.SigningAccounts, model *asserts.Model, key asserts.PrivateKey, serialN string) *asserts.Serial {
+	encDevKey, err := asserts.EncodePublicKey(key.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := brands.Signing(model.BrandID()).Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            model.BrandID(),
+		"model":               model.Model(),
+		"serial":              serialN,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": key.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	kp, err := asserts.OpenFSKeypairManager(where)
+	c.Assert(err, IsNil)
+	c.Assert(kp.Put(key), IsNil)
+	bs, err := asserts.OpenFSBackstore(where)
+	c.Assert(err, IsNil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         storeStack.Trusted,
+		OtherPredefined: storeStack.Generic,
+	})
+	c.Assert(err, IsNil)
+
+	b := asserts.NewBatch(nil)
+	c.Logf("root key ID: %v", storeStack.RootSigning.KeyID)
+	c.Assert(b.Add(storeStack.StoreAccountKey("")), IsNil)
+	c.Assert(b.Add(brands.AccountKey(model.BrandID())), IsNil)
+	c.Assert(b.Add(brands.Account(model.BrandID())), IsNil)
+	c.Assert(b.Add(serial), IsNil)
+	c.Assert(b.Add(model), IsNil)
+	c.Assert(b.CommitTo(db, nil), IsNil)
+	return serial.(*asserts.Serial)
 }

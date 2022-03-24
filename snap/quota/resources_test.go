@@ -103,6 +103,34 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 			quota.NewResourcesBuilder().WithAllowedCPUs([]int{}).Build(),
 			`cannot remove all allowed cpus from quota group`,
 		},
+		// ensure that changes will call "Validate" too
+		{
+			quota.NewResourcesBuilder().WithCPUCount(1).Build(),
+			quota.NewResourcesBuilder().WithMemoryLimit(1).Build(),
+			`memory limit 1 is too small: size must be larger than 4KB`,
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(0).Build(),
+			`invalid cpu quota with a cpu quota of 0`,
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(0).Build(),
+			`invalid cpu quota with count of >0 and percentage of 0`,
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{}).Build(),
+			`cpu-set quota must not be empty`,
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+
+			quota.NewResourcesBuilder().WithThreadLimit(-1).Build(),
+			`invalid thread quota with a thread count of -1`,
+		},
 	}
 
 	for _, t := range tests {

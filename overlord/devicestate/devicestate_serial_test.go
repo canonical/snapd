@@ -2207,3 +2207,116 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *
 	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, IsNil)
 }
+
+func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// in this case is just marked seeded without snaps
+	s.state.Set("seeded", true)
+
+	// save is available (where device keys are kept)
+	devicestate.SetSaveAvailable(s.mgr, true)
+
+	// this is the regular assertions DB
+	c.Assert(os.MkdirAll(dirs.SnapAssertsDBDir, 0755), IsNil)
+	// this is the ubuntu-save is bind mounted under /var/lib/snapd/save,
+	// there is a device directory under it
+	c.Assert(os.MkdirAll(dirs.SnapDeviceSaveDir, 0755), IsNil)
+
+	bs, err := asserts.OpenFSBackstore(dirs.SnapAssertsDBDir)
+	c.Assert(err, IsNil)
+
+	// the test suite uses a memory backstore DB, but we need to look at the
+	// filesystem
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       bs,
+		Trusted:         s.storeSigning.Trusted,
+		OtherPredefined: s.storeSigning.Generic,
+	})
+	c.Assert(err, IsNil)
+	// cleanup is done by the suite
+	assertstate.ReplaceDB(s.state, db)
+	err = db.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	model := s.makeModelAssertionInState(c, "my-brand", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"base": "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+
+	// the mock has written key under snap asserts dir, but when ubuntu-save
+	// exists, the key is written under ubuntu-save/device, thus
+	// factory-reset never restores is to the asserts dir
+	kp, err := asserts.OpenFSKeypairManager(dirs.SnapAssertsDBDir)
+	c.Assert(err, IsNil)
+
+	otherKey, _ := assertstest.GenerateKey(testKeyLength)
+	// an assertion for which there is no corresponding device key
+	makeDeviceSerialAssertionInDir(c, dirs.SnapAssertsDBDir, s.storeSigning, s.brands,
+		model, otherKey, "serial-other-key")
+	c.Assert(kp.Delete(otherKey.PublicKey().ID()), IsNil)
+	// an assertion which has a device key, which needs to be moved to the
+	// right location
+	makeDeviceSerialAssertionInDir(c, dirs.SnapAssertsDBDir, s.storeSigning, s.brands,
+		model, devKey, "serial-1234")
+	c.Assert(kp.Delete(devKey.PublicKey().ID()), IsNil)
+	// write the key under a location which corresponds to ubuntu-save/device
+	kp, err = asserts.OpenFSKeypairManager(dirs.SnapDeviceSaveDir)
+	c.Assert(err, IsNil)
+	c.Assert(kp.Put(devKey), IsNil)
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "pc-20",
+	})
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.state.Lock()
+
+	// no need for the operational change
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Check(becomeOperational, IsNil)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "my-brand")
+	c.Check(device.Model, Equals, "pc-20")
+	// serial was restored
+	c.Check(device.Serial, Equals, "serial-1234")
+	// key ID was restored
+	c.Check(device.KeyID, Equals, devKey.PublicKey().ID())
+	// key is present
+	_, err = devicestate.KeypairManager(s.mgr).Get(devKey.PublicKey().ID())
+	c.Check(err, IsNil)
+	// no session yet
+	c.Check(device.SessionMacaroon, Equals, "")
+	// and something was logged
+	c.Check(log.String(), testutil.Contains,
+		fmt.Sprintf("restored serial serial-1234 for my-brand/pc-20 signed with key %v", devKey.PublicKey().ID()))
+}
