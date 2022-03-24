@@ -1,0 +1,120 @@
+summary: Test that multi volume gadget asset updates work on UC20+
+
+systems:
+  # only on UC20+
+  - ubuntu-20.04-64
+  - ubuntu-22.04-64
+
+environment:
+  # both gpt
+  GADGET_SYSTEM_VOL_SCHEMA/all_gpt: gpt
+  GADGET_EXTRA_VOL_SCHEMA/all_gpt: gpt
+
+  # both mbr
+  GADGET_SYSTEM_VOL_SCHEMA/all_mbr: mbr
+  GADGET_EXTRA_VOL_SCHEMA/all_mbr: mbr
+
+  # system has GPT, extra has MBR
+  GADGET_SYSTEM_VOL_SCHEMA/sys_gpt_extra_mbr: gpt
+  GADGET_EXTRA_VOL_SCHEMA/sys_gpt_extra_mbr: mbr
+
+  # system has MBR, extra has GPT
+  GADGET_SYSTEM_VOL_SCHEMA/sys_mbr_extra_gpt: mbr
+  GADGET_EXTRA_VOL_SCHEMA/sys_mbr_extra_gpt: gpt
+
+  NESTED_IMAGE_ID: multi-volume-gadget-asset-updates
+
+  NESTED_EXTRA_VOLUME: foo.img
+
+prepare: |
+  if os.query is-focal; then
+    CHANNEL=20
+  elif os.query is-jammy; then
+    CHANNEL=22
+  fi
+
+  snap download pc --channel="$CHANNEL/stable" --basename=pc-gadget
+  unsquashfs -d pc-gadget pc-gadget.snap
+
+  # set the schema for the gadget
+  sed -i -e "s@bootloader: grub@schema: $GADGET_SYSTEM_VOL_SCHEMA\n    bootloader: grub@g" pc-gadget/meta/gadget.yaml
+
+  # if the gadget system volume is DOS, we must delete ubuntu-save
+  if [ "$GADGET_SYSTEM_VOL_SCHEMA" = "mbr" ]; then
+    sed -i "/name: ubuntu-save/,+4 d" pc-gadget/meta/gadget.yaml
+  fi
+
+  # save this updated gadget.yaml before adding the extra volume to build two 
+  # gadgets to do the update
+  cp pc-gadget/meta/gadget.yaml gadget-backup.yaml
+
+  # add the extra volume to the gadget
+  cat "${GADGET_EXTRA_VOL_SCHEMA}-gadget-vol.yaml" >> pc-gadget/meta/gadget.yaml
+
+  # add the extra volume assets ./tests/lib/tools/report-mongodb
+
+  # create a partition file we use as a binary content for a partition that is
+  # declared without a filesystem, but in reality the partition has a filesystem
+  truncate -s 100M foowithfs-v1.img
+  mkfs.ext4 foowithfs-v1.img
+  mkdir /tmp/foowithfs-v1 
+  mount foowithfs-v1.img /tmp/foowithfs-v1 
+  echo "file foo" > /tmp/foowithfs-v1/foo.txt
+  umount /tmp/foowithfs-v1 
+  cp foowithfs-v1.img pc-gadget
+
+  # no filesystem so these can just be bare text files
+  echo "type bare foo" > pc-gadget/foobare.img
+  echo "no fs foo" > pc-gadget/foowithoutfs.img
+
+  # used with a declared filesystem so we can layout this file with content in the
+  # gadget.yaml
+  echo "file foo DECLARED FS" > pc-gadget/foo.txt 
+
+  # pack the initial version
+  snap pack pc-gadget --filename=pc_initial.snap
+  cp pc_initial.snap "$(tests.nested get extra-snaps-path)"
+
+  # now build a new revision we can update to that does gadget asset updates
+  mv gadget-backup.yaml pc-gadget/meta/gadget.yaml
+
+  # change the assets
+
+  # change the file in the binary filesystem image file
+  mv foowithfs-v1.img foowithfs-v2.img
+  mkdir /tmp/foowithfs-v2
+  mount foowithfs-v2.img /tmp/foowithfs-v2
+  echo "file foo 2" > /tmp/foowithfs-v2/foo.txt
+  umount /tmp/foowithfs-v2
+  cp foowithfs-v2.img pc-gadget
+
+  echo "type bare foo 2" > pc-gadget/foobare.img
+  echo "no fs foo 2" > pc-gadget/foowithoutfs.img
+  echo "file foo DECLARED FS 2" > pc-gadget/foo.txt 
+
+  cat "${GADGET_EXTRA_VOL_SCHEMA}-gadget-vol-update.yaml" >> pc-gadget/meta/gadget.yaml
+  snap pack pc-gadget --filename=pc-gadget-update.snap
+
+  # build the image
+  tests.nested build-image core
+  tests.nested create-vm core
+
+  # copy the gadget snap with the updates
+  tests.nested copy pc-gadget-update.snap
+
+  # copy the checker scripts
+  tests.nested copy check-initial-gadget-assets.sh
+  tests.nested copy check-updated-gadget-assets.sh
+
+execute: |
+  # check that the initial install was successful
+  tests.nested exec sudo ./check-initial-gadget-assets.sh
+
+  # do the refresh
+  boot_id="$( tests.nested boot-id )"
+  REMOTE_CHG_ID=$(tests.nested exec sudo snap install --no-wait --dangerous pc-gadget-update.snap)
+  tests.nested wait-for reboot "${boot_id}"
+  tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
+
+  # check the updated assets
+  tests.nested exec sudo ./check-updated-gadget-assets.sh
