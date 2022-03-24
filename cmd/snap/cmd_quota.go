@@ -82,7 +82,7 @@ set on a quota group.
 The CPU set limit for a quota group can be modified to include new cpus, or to remove
 existing cpus from the quota already set.
 
-The thread limit for a quota group can increased but not decreased. To
+The thread limit for a quota group can be increased but not decreased. To
 decrease the thread limit for a quota group, the entire group must be removed
 with the remove-quota command and recreated with a lower limit.
 
