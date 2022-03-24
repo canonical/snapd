@@ -54,6 +54,7 @@ var (
 	ResolveVolumeContent = resolveVolumeContent
 
 	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
+	GadgetVolumeKernelUpdateAssetsConsumed   = gadgetVolumeKernelUpdateAssetsConsumed
 
 	BuildNewVolumeToDeviceMapping = buildNewVolumeToDeviceMapping
 	ErrSkipUpdateProceedRefresh   = errSkipUpdateProceedRefresh

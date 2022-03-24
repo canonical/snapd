@@ -1828,7 +1828,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	c.Assert(muo.canceledCalled, Equals, 0)
 }
 
-func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsWithInitialMapAllVolumesUpdatedFullLogic(c *C) {
+func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnAllVolumesWithInitialMapAllVolumesUpdatedFullLogic(c *C) {
 	u.restoreVolumeStructureToLocationMap()
 
 	oldKernelDir := c.MkDir()
@@ -2080,6 +2080,301 @@ volumes:
 						Target:           "/",
 					},
 				})
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
+				})
+			default:
+				c.Fatalf("unexpected call")
+			}
+			fooUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					fooBackupCalls[ps.Name] = true
+					return nil
+				},
+				updateCb: func() error {
+					fooUpdateCalls[ps.Name] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		}
+
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(pcUpdaterForStructureCalls, Equals, 1)
+	c.Assert(fooUpdaterForStructureCalls, Equals, 1)
+	c.Assert(pcBackupCalls, DeepEquals, map[string]bool{
+		"ubuntu-seed": true,
+	})
+	c.Assert(pcUpdateCalls, DeepEquals, map[string]bool{
+		"ubuntu-seed": true,
+	})
+
+	c.Assert(fooBackupCalls, DeepEquals, map[string]bool{
+		"some-filesystem": true,
+	})
+	c.Assert(fooUpdateCalls, DeepEquals, map[string]bool{
+		"some-filesystem": true,
+	})
+
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+	c.Assert(muo.canceledCalled, Equals, 0)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnSingleVolumeWithInitialMapAllVolumesUpdatedFullLogic(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+
+	oldKernelDir := c.MkDir()
+	newKernelDir := c.MkDir()
+
+	kernelYaml := []byte(`assets:
+  ref:
+    update: true
+    content:
+      - kernel-content
+      - kernel-content2`)
+	makeSizedFile(c, filepath.Join(newKernelDir, "meta/kernel.yaml"), 0, kernelYaml)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "meta/kernel.yaml"), 0, kernelYaml)
+
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content2"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content2"), quantity.SizeMiB, nil)
+
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir:       c.MkDir(),
+		KernelRootDir: oldKernelDir,
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir:       c.MkDir(),
+		KernelRootDir: newKernelDir,
+	}
+
+	rollbackDir := c.MkDir()
+
+	const multiVolWithKernel = `
+volumes:
+  pc:
+    schema: gpt
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        content:
+          - source: $kernel:ref/kernel-content
+            target: /
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        size: 750M
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+  foo:
+    schema: gpt
+    structure:
+      - name: barething
+        type: bare
+        size: 4096
+      - name: nofspart
+        type: A11D2A7C-D82A-4C2F-8A01-1805240E6626
+        size: 4096
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	// write out the provided traits JSON so we can at least load the traits for
+	// mocking via setupForVolumeStructureToLocation
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore := disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+		filepath.Join(dirs.GlobalRootDir, "/dev/vdb1"): gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+		"/dev/vdb": gadgettest.VMExtraVolumeDiskMapping,
+	})
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with filesystems
+	// note ubuntu-seed is mounted twice, but the impl always chooses the first
+	// mount point arbitrarily
+
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 525:3 / %[1]s/foo/some-filesystem rw,relatime shared:7 - vfat %[1]s/dev/vdb2 rw
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+27 27 600:3 / %[1]s/writable/system-data/var/lib/snapd/seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+28 27 600:4 / %[1]s/run/mnt/ubuntu-boot rw,relatime shared:7 - vfat %[1]s/dev/vda3 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	// update the kernel asset referencing structures
+
+	// ubuntu-seed
+	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+
+	// some filesystem
+	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
+
+	muo := &mockUpdateProcessObserver{}
+	pcUpdaterForStructureCalls := 0
+	fooUpdaterForStructureCalls := 0
+	pcUpdateCalls := make(map[string]bool)
+	pcBackupCalls := make(map[string]bool)
+	fooUpdateCalls := make(map[string]bool)
+	fooBackupCalls := make(map[string]bool)
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Assert(psRootDir, Equals, newData.RootDir)
+		c.Assert(psRollbackDir, Equals, rollbackDir)
+		c.Assert(observer, Equals, muo)
+		// TODO:UC20 verify observer
+
+		var mu *mockUpdater
+
+		switch ps.VolumeName {
+		case "pc":
+			switch pcUpdaterForStructureCalls {
+			case 0:
+				// ubuntu-seed
+				c.Check(ps.Name, Equals, "ubuntu-seed")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem, Equals, "vfat")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.Size, Equals, 1200*quantity.SizeMiB)
+				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.Content, DeepEquals, []gadget.VolumeContent{
+					{
+						UnresolvedSource: "$kernel:ref/kernel-content",
+						Target:           "/",
+					},
+				})
+				c.Assert(loc, Equals, gadget.StructureLocation{
+					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
+				})
+			}
+			pcUpdaterForStructureCalls++
+
+			mu = &mockUpdater{
+				backupCb: func() error {
+					pcBackupCalls[ps.Name] = true
+					return nil
+				},
+				updateCb: func() error {
+					pcUpdateCalls[ps.Name] = true
+					return nil
+				},
+				rollbackCb: func() error {
+					c.Fatalf("unexpected call")
+					return errors.New("not called")
+				},
+			}
+		case "foo":
+			switch fooUpdaterForStructureCalls {
+			case 0:
+				c.Check(ps.Name, Equals, "some-filesystem")
+				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.Filesystem, Equals, "ext4")
+				c.Check(ps.IsPartition(), Equals, true)
+				c.Check(ps.Size, Equals, quantity.SizeGiB)
+				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
+				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.Content, HasLen, 0)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
 				})

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -1224,6 +1225,23 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 	// TODO: should we handle the updates on multiple volumes in a
 	// deterministic order? iterating over maps is not deterministic, but we
 	// perform all updates at the end together in one call
+
+	// ensure all required kernel assets are found in the gadget
+	kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
+	if err != nil {
+		return err
+	}
+
+	allKernelAssets := []string{}
+	for assetName, asset := range kernelInfo.Assets {
+		if !asset.Update {
+			continue
+		}
+		allKernelAssets = append(allKernelAssets, assetName)
+	}
+
+	atLeastOneKernelAssetConsumed := false
+
 	allUpdates := []updatePair{}
 	laidOutVols := map[string]*LaidOutVolume{}
 	for volName, oldVol := range old.Info.Volumes {
@@ -1254,14 +1272,15 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			return fmt.Errorf("cannot apply update to volume %s: %v", volName, err)
 		}
 
-		// ensure all required kernel assets are found in the gadget
-		kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
-		if err != nil {
-			return err
-		}
-
-		if err := gadgetVolumeConsumesOneKernelUpdateAsset(pNew.Volume, kernelInfo); err != nil {
-			return err
+		// if we haven't consumed any kernel assets yet check if this volume
+		// consumes at least one - we require at least one asset to be consumed
+		// by some volume in the gadget
+		if !atLeastOneKernelAssetConsumed {
+			consumed, err := gadgetVolumeKernelUpdateAssetsConsumed(pNew.Volume, kernelInfo)
+			if err != nil {
+				return err
+			}
+			atLeastOneKernelAssetConsumed = consumed
 		}
 
 		// now we know which structure is which, find which ones need an update
@@ -1280,6 +1299,13 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 		// collect updates per volume into a single set of updates to perform
 		// at once
 		allUpdates = append(allUpdates, updates...)
+	}
+
+	// check if there were kernel assets that at least one was consumed across
+	// any of the volumes
+	if len(allKernelAssets) != 0 && !atLeastOneKernelAssetConsumed {
+		sort.Strings(allKernelAssets)
+		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced update %s", strutil.Quoted(allKernelAssets))
 	}
 
 	if len(allUpdates) == 0 {
