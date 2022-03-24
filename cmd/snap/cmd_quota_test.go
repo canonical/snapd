@@ -230,11 +230,6 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{threadMax: "xxx", err: `cannot use thread value "xxx"`},
 		{threadMax: "-3", err: `cannot use thread value "-3"`},
 	} {
-		// Mock the CGroup version here to test the --cpu-set command
-		restore := main.MockCGroupVersion(func() (int, error) {
-			return 2, nil
-		})
-
 		quotas, err := main.ParseQuotas(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadMax)
 		testLabel := check.Commentf("%v", testData)
 		if testData.err == "" {
@@ -246,9 +241,6 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		} else {
 			c.Check(err, check.ErrorMatches, testData.err, testLabel)
 		}
-
-		// Restore the cgroup version callback
-		restore()
 	}
 }
 
@@ -268,38 +260,12 @@ func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 		s.stdout.Reset()
 		s.stderr.Reset()
 
-		// Mock the CGroup version here to test the --cpu-set command
-		restore := main.MockCGroupVersion(func() (int, error) {
-			return 2, nil
-		})
-
 		_, err := main.Parser(main.Client()).ParseArgs(args.args)
 		c.Check(err, check.ErrorMatches, args.err, check.Commentf("%q", args.args))
-
-		// Restore the cgroup version callback
-		restore()
 	}
 }
 
-func (s *quotaSuite) TestSetQuotaCpuSetFailsWithCgroupV1(c *check.C) {
-	// Mock the CGroup version here to test the --cpu-set command
-	restoreCGroup := main.MockCGroupVersion(func() (int, error) {
-		return 1, nil
-	})
-	defer restoreCGroup()
-
-	// ensure that --cpu-set does not work with cgroup version 1
-	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu-set=0,-2", "foo"})
-	c.Assert(err, check.ErrorMatches, `cannot use CPU set with cgroup version 1`)
-}
-
-func (s *quotaSuite) TestSetQuotaCpuWorksWithCgroupV1(c *check.C) {
-	// Mock the CGroup version here to test the --cpu command
-	restoreCGroup := main.MockCGroupVersion(func() (int, error) {
-		return 1, nil
-	})
-	defer restoreCGroup()
-
+func (s *quotaSuite) TestSetQuotaCpuHappy(c *check.C) {
 	const postJSON = `{"type": "async", "status-code": 202,"change":"42", "result": []}`
 	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
 		action:        "ensure",

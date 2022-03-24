@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -125,8 +124,6 @@ type cmdSetQuota struct {
 	} `positional-args:"yes"`
 }
 
-var cgroupVersion = cgroup.Version
-
 // example cpu quota string: "2x50%", "90%"
 var cpuValueMatcher = regexp.MustCompile(`([0-9]+x)?([0-9]+)%`)
 
@@ -185,14 +182,6 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 	}
 
 	if cpuSet != "" {
-		cgv, err := cgroupVersion()
-		if err != nil {
-			return nil, err
-		}
-		if cgv < 2 {
-			return nil, fmt.Errorf("cannot use CPU set with cgroup version %d", cgv)
-		}
-
 		cpuTokens := strutil.CommaSeparatedList(cpuSet)
 		for _, cpuToken := range cpuTokens {
 			cpu, err := strconv.ParseUint(cpuToken, 10, 32)
