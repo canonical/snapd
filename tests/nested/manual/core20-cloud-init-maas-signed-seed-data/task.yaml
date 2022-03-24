@@ -50,6 +50,8 @@ prepare: |
   fi
 
   snap install remarshal jq
+  tests.cleanup defer snap remove remarshal
+  tests.cleanup defer snap remove jq
 
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
