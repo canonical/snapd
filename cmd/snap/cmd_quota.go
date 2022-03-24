@@ -116,7 +116,7 @@ type cmdSetQuota struct {
 	MemoryMax  string `long:"memory" optional:"true"`
 	CPUMax     string `long:"cpu" optional:"true"`
 	CPUSet     string `long:"cpu-set" optional:"true"`
-	ThreadMax  string `long:"thread" optional:"true"`
+	ThreadMax  string `long:"threads" optional:"true"`
 	Parent     string `long:"parent" optional:"true"`
 	Positional struct {
 		GroupName string              `positional-arg-name:"<group-name>" required:"true"`
