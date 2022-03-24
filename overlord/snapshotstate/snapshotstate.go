@@ -510,6 +510,13 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 		ts.AddTask(task)
 	}
 
+	if len(summaries) > 0 {
+		desc := fmt.Sprintf("Cleanup of restore snapshot set #%d", setID)
+		task := st.NewTask("cleanup-restore-snapshot", desc)
+		task.WaitAll(ts)
+		ts.AddTask(task)
+	}
+
 	return snapsFound, ts, nil
 }
 

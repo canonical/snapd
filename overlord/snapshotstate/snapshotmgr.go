@@ -73,7 +73,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *SnapshotManager {
 	runner.AddHandler("forget-snapshot", doForget, nil)
 	runner.AddHandler("check-snapshot", doCheck, nil)
 	runner.AddHandler("restore-snapshot", doRestore, undoRestore)
-	runner.AddCleanup("restore-snapshot", cleanupRestore)
+	runner.AddHandler("cleanup-restore-snapshot", doCleanup, nil)
 
 	manager := &SnapshotManager{
 		state: st,
@@ -368,6 +368,23 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 
 	backendRevert(&restoreState)
 
+	return nil
+}
+
+func doCleanup(task *state.Task, tomb *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	restoreTasks := task.WaitTasks()
+	st.Unlock()
+	for _, t := range restoreTasks {
+		if err := cleanupRestore(t, tomb); err != nil {
+			logger.Noticef("Cleanup for tag %s failed", task.ID())
+			// do not quit the loop: we must perform all cleanups anyway
+		}
+	}
+
+	// Also, do not return an error here: we don't want a failed cleanup to
+	// trigger an undo of the restore operation
 	return nil
 }
 
