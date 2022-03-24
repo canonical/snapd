@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func MockToolingStore(sto Store) *ToolingStore {
@@ -73,17 +74,13 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 }
 
 func MockPreseedCore20(f func(dir string) error) (restore func()) {
-	old := preseedCore20
+	r := testutil.Backup(&preseedCore20)
 	preseedCore20 = f
-	return func() {
-		preseedCore20 = old
-	}
+	return r
 }
 
 func MockSetupSeed(f func(tsto *ToolingStore, model *asserts.Model, opts *Options) error) (restore func()) {
-	old := setupSeed
+	r := testutil.Backup(&setupSeed)
 	setupSeed = f
-	return func() {
-		setupSeed = old
-	}
+	return r
 }
