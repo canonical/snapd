@@ -210,7 +210,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking spelling errors"
     if ! command -v misspell >/dev/null; then
-        go get -u github.com/client9/misspell/cmd/misspell
+        go install github.com/client9/misspell/cmd/misspell@latest
     fi
     # FIXME: auter is only misspelled in the changelog so we should fix there
     # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
@@ -222,7 +222,7 @@ if [ "$STATIC" = 1 ]; then
     if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
         echo "Checking for ineffective assignments"
         if ! command -v ineffassign >/dev/null; then
-            go get -u github.com/gordonklaus/ineffassign
+            go install github.com/gordonklaus/ineffassign@latest
         fi
         # ineffassign knows about ignoring vendor/ \o/
         ineffassign ./...
@@ -230,7 +230,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
-        go get -u github.com/alexkohler/nakedret
+        go install github.com/alexkohler/nakedret@latest
     fi
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
