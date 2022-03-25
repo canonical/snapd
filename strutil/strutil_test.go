@@ -20,6 +20,7 @@
 package strutil_test
 
 import (
+	"bytes"
 	"math"
 	"sort"
 	"testing"
@@ -277,5 +278,29 @@ func (strutilSuite) TestDeduplicate(c *check.C) {
 		{input: []string{}, output: []string{}},
 	} {
 		c.Assert(strutil.Deduplicate(t.input), check.DeepEquals, t.output)
+	}
+}
+
+func (strutilSuite) TestWordWrap(c *check.C) {
+	for _, t := range []struct {
+		input   string
+		width   int
+		indent  string
+		indent2 string
+		output  string
+	}{
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, indent: "", indent2: "", output: "Lorem ipsum dolor\nsit amet,\nconsectetur\nadipiscing elit, sed\ndo eiusmod tempor\nincididunt ut labore\net dolore magna\naliqua.\n"},
+		{input: "Lorem ips", width: 20, indent: "", indent2: "", output: "Lorem ips\n"},
+		{input: "", width: 5, indent: "", indent2: "", output: "\n"},
+		{input: "", width: 5, indent: "  ", indent2: "  ", output: "  \n"},
+		{input: "Lorem ipsum", width: 0, indent: "", indent2: "", output: "L\no\nr\ne\nm\ni\np\ns\nu\nm\n"},
+		{input: "Lorem ipsum", width: -10, indent: "", indent2: "", output: "L\no\nr\ne\nm\ni\np\ns\nu\nm\n"},
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, indent: "  ", indent2: "", output: "  Lorem ipsum dolor\nsit amet,\nconsectetur\nadipiscing elit, sed\ndo eiusmod tempor\nincididunt ut labore\net dolore magna\naliqua.\n"},
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, indent: "", indent2: "  ", output: "Lorem ipsum dolor\n  sit amet,\n  consectetur\n  adipiscing elit,\n  sed do eiusmod\n  tempor incididunt\n  ut labore et\n  dolore magna\n  aliqua.\n"},
+	} {
+		buf := new(bytes.Buffer)
+		err := strutil.WordWrap(buf, []rune(t.input), t.indent, t.indent2, t.width)
+		c.Assert(err, check.IsNil)
+		c.Check(buf.String(), check.Equals, t.output)
 	}
 }
