@@ -82,8 +82,8 @@ set on a quota group.
 The CPU set limit for a quota group can be modified to include new cpus, or to remove
 existing cpus from the quota already set.
 
-The thread limit for a quota group can be increased but not decreased. To
-decrease the thread limit for a quota group, the entire group must be removed
+The threads limit for a quota group can be increased but not decreased. To
+decrease the threads limit for a quota group, the entire group must be removed
 with the remove-quota command and recreated with a lower limit.
 
 New quotas can be set on existing quota groups, but existing quotas cannot be removed
@@ -116,7 +116,7 @@ type cmdSetQuota struct {
 	MemoryMax  string `long:"memory" optional:"true"`
 	CPUMax     string `long:"cpu" optional:"true"`
 	CPUSet     string `long:"cpu-set" optional:"true"`
-	ThreadMax  string `long:"threads" optional:"true"`
+	ThreadsMax string `long:"threads" optional:"true"`
 	Parent     string `long:"parent" optional:"true"`
 	Positional struct {
 		GroupName string              `positional-arg-name:"<group-name>" required:"true"`
@@ -153,12 +153,12 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 	return count, percentage, nil
 }
 
-func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax string) (*client.QuotaValues, error) {
+func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadsMax string) (*client.QuotaValues, error) {
 	var mem int64
 	var cpuCount int
 	var cpuPercentage int
 	var cpus []int
-	var thread int
+	var threads int
 
 	if maxMemory != "" {
 		value, err := strutil.ParseByteSize(maxMemory)
@@ -192,12 +192,12 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 		}
 	}
 
-	if threadMax != "" {
-		value, err := strconv.ParseUint(threadMax, 10, 32)
+	if threadsMax != "" {
+		value, err := strconv.ParseUint(threadsMax, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("cannot use thread value %q", threadMax)
+			return nil, fmt.Errorf("cannot use threads value %q", threadsMax)
 		}
-		thread = int(value)
+		threads = int(value)
 	}
 
 	return &client.QuotaValues{
@@ -209,12 +209,12 @@ func parseQuotas(maxMemory string, cpuMax string, cpuSet string, threadMax strin
 		CPUSet: &client.QuotaCPUSetValues{
 			CPUs: cpus,
 		},
-		Threads: thread,
+		Threads: threads,
 	}, nil
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {
-	quotaProvided := x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" || x.ThreadMax != ""
+	quotaProvided := x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" || x.ThreadsMax != ""
 
 	names := installedSnapNames(x.Positional.Snaps)
 
@@ -255,7 +255,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// we have a limits to set for this group, so specify that along
 		// with whatever snaps may have been provided and whatever parent may
 		// have been specified
-		quotaValues, err := parseQuotas(x.MemoryMax, x.CPUMax, x.CPUSet, x.ThreadMax)
+		quotaValues, err := parseQuotas(x.MemoryMax, x.CPUMax, x.CPUSet, x.ThreadsMax)
 		if err != nil {
 			return err
 		}
@@ -446,19 +446,19 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 			grpConstraints = append(grpConstraints, "cpu-set="+cpus)
 		}
 
-		// format threads constraint as thread=N
+		// format threads constraint as threads=N
 		if q.Constraints.Threads != 0 {
-			grpConstraints = append(grpConstraints, "thread="+strconv.Itoa(q.Constraints.Threads))
+			grpConstraints = append(grpConstraints, "threads="+strconv.Itoa(q.Constraints.Threads))
 		}
 
-		// format current resource values as memory=N,thread=N
+		// format current resource values as memory=N,threads=N
 		var grpCurrent []string
 		if q.Current != nil {
 			if q.Current.Memory != 0 {
 				grpCurrent = append(grpCurrent, "memory="+strings.TrimSpace(fmtSize(int64(q.Current.Memory))))
 			}
 			if q.Constraints.Threads != 0 && q.Current.Threads != 0 {
-				grpCurrent = append(grpCurrent, "thread="+fmt.Sprintf("%d", q.Current.Threads))
+				grpCurrent = append(grpCurrent, "threads="+fmt.Sprintf("%d", q.Current.Threads))
 			}
 		}
 

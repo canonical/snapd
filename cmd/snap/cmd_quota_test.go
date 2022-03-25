@@ -204,10 +204,10 @@ func makeChangesHandler(c *check.C) func(w http.ResponseWriter, r *http.Request)
 
 func (s *quotaSuite) TestParseQuotas(c *check.C) {
 	for _, testData := range []struct {
-		maxMemory string
-		cpuMax    string
-		cpuSet    string
-		threadMax string
+		maxMemory  string
+		cpuMax     string
+		cpuSet     string
+		threadsMax string
 
 		// Use the JSON representation of the quota, as it's easier to handle in the test data
 		quotas string
@@ -217,7 +217,7 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuMax: "12x40%", quotas: `{"cpu":{"count":12,"percentage":40},"cpu-set":{}}`},
 		{cpuMax: "40%", quotas: `{"cpu":{"percentage":40},"cpu-set":{}}`},
 		{cpuSet: "1,3", quotas: `{"cpu":{},"cpu-set":{"cpus":[1,3]}}`},
-		{threadMax: "2", quotas: `{"cpu":{},"cpu-set":{},"threads":2}`},
+		{threadsMax: "2", quotas: `{"cpu":{},"cpu-set":{},"threads":2}`},
 		// Error cases
 		{cpuMax: "ASD", err: `cannot parse cpu quota string "ASD"`},
 		{cpuMax: "0x100%", err: `cannot parse cpu quota string "0x100%"`},
@@ -228,10 +228,10 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuSet: "x", err: `cannot parse CPU set value "x"`},
 		{cpuSet: "1:2", err: `cannot parse CPU set value "1:2"`},
 		{cpuSet: "0,-2", err: `cannot parse CPU set value "-2"`},
-		{threadMax: "xxx", err: `cannot use thread value "xxx"`},
-		{threadMax: "-3", err: `cannot use thread value "-3"`},
+		{threadsMax: "xxx", err: `cannot use threads value "xxx"`},
+		{threadsMax: "-3", err: `cannot use threads value "-3"`},
 	} {
-		quotas, err := main.ParseQuotas(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadMax)
+		quotas, err := main.ParseQuotas(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadsMax)
 		testLabel := check.Commentf("%v", testData)
 		if testData.err == "" {
 			c.Check(err, check.IsNil, testLabel)
