@@ -130,6 +130,9 @@ func (qr *Resources) CheckFeatureRequirements() error {
 // If cpu percentage is provided, it must be between 1 and 100.
 // If cpu set is provided, it must not be empty.
 // If thread count is provided, it must be above 0.
+//
+// Note that before applying the quota to the system
+// CheckFeatureRequirements() should be called.
 func (qr *Resources) Validate() error {
 	if qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil {
 		return fmt.Errorf("quota group must have at least one resource limit set")
