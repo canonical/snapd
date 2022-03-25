@@ -457,7 +457,7 @@ serial:          serialserial
 architecture:    amd64
 base:            core20
 timestamp:       2018-09-11T22:00:00Z
-snaps:
+snaps:                
   - name:             pc
     id:               UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     type:             gadget
