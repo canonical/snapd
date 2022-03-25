@@ -1828,6 +1828,84 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	c.Assert(muo.canceledCalled, Equals, 0)
 }
 
+func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructureChangesOnMultiVolumeUpdate(c *C) {
+	u.restoreVolumeStructureToLocationMap()
+
+	oldData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	newData := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: map[string]*gadget.Volume{},
+		},
+		RootDir: c.MkDir(),
+	}
+
+	rollbackDir := c.MkDir()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(dirs.SnapDeviceDir, 0755)
+	c.Assert(err, IsNil)
+	// write out the provided traits JSON so we can at least load the traits for
+	// mocking via setupForVolumeStructureToLocation
+	err = ioutil.WriteFile(
+		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
+		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
+		0644,
+	)
+	c.Assert(err, IsNil)
+
+	// put the same volumes into both the old and the new data so they are
+	// identical to start
+	for volName, laidOutVol := range allLaidOutVolumes {
+		// need to make separate copies of the volume since laidOUutVol.Volume
+		// is a pointer
+		numStructures := len(laidOutVol.Volume.Structure)
+		newData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(newData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+
+		oldData.Info.Volumes[volName] = &gadget.Volume{
+			Schema:     laidOutVol.Volume.Schema,
+			Bootloader: laidOutVol.Volume.Bootloader,
+			ID:         laidOutVol.Volume.ID,
+			Structure:  make([]gadget.VolumeStructure, numStructures),
+			Name:       laidOutVol.Volume.Name,
+		}
+		copy(oldData.Info.Volumes[volName].Structure, laidOutVol.Volume.Structure)
+	}
+
+	// don't need to mock anything as we don't get that far
+
+	// change the new nofspart structure size which is an incompatible change
+
+	// ubuntu-save
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
+	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeMiB
+
+	muo := &mockUpdateProcessObserver{}
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		c.Fatalf("unexpected call")
+		return nil, errors.New("not called")
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, ErrorMatches, `cannot update volume structure #1 \("nofspart"\) for volume foo: cannot change structure size from 4096 to 1048576`)
+}
+
 func (u *updateTestSuite) TestUpdateApplyUC20KernelAssetsOnAllVolumesWithInitialMapAllVolumesUpdatedFullLogic(c *C) {
 	u.restoreVolumeStructureToLocationMap()
 
