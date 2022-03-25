@@ -23,7 +23,17 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
+
+var (
+	cgroupVer    int
+	cgroupVerErr error
+)
+
+func init() {
+	cgroupVer, cgroupVerErr = cgroup.Version()
+}
 
 type ResourceMemory struct {
 	Limit quantity.Size `json:"limit"`
@@ -85,6 +95,13 @@ func (qr *Resources) validateCPUSetQuota() error {
 	if len(qr.CPUSet.CPUs) == 0 {
 		return fmt.Errorf("cpu-set quota must not be empty")
 	}
+	if cgroupVerErr != nil {
+		return cgroupVerErr
+	}
+	if cgroupVer < 2 {
+		return fmt.Errorf("cannot use CPU set with cgroup version %d", cgroupVer)
+	}
+
 	return nil
 }
 

@@ -29,14 +29,24 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type quotaTestSuite struct{}
+type quotaTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&quotaTestSuite{})
+
+func (ts *quotaTestSuite) SetUpTest(c *C) {
+	ts.BaseTest.SetUpTest(c)
+
+	ts.AddCleanup(quota.MockCgroupVer(2))
+	ts.AddCleanup(quota.MockCgroupVerErr(nil))
+}
 
 func (ts *quotaTestSuite) TestNewGroup(c *C) {
 

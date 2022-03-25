@@ -20,15 +20,27 @@
 package quota_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type resourcesTestSuite struct{}
+type resourcesTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&resourcesTestSuite{})
+
+func (s *resourcesTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.AddCleanup(quota.MockCgroupVer(2))
+	s.AddCleanup(quota.MockCgroupVerErr(nil))
+}
 
 func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 	tests := []struct {
@@ -49,6 +61,32 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		err := t.limits.Validate()
 		c.Check(err, ErrorMatches, t.err)
 	}
+}
+
+func (s *resourcesTestSuite) TestQuotaValidationCgroupV1(c *C) {
+	r := quota.MockCgroupVer(1)
+	defer r()
+
+	// normal cpu resource is fine with cgroup v1
+	good := quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()
+	c.Check(good.Validate(), IsNil)
+
+	// cpu set with cgroup v1 is not supported
+	bad := quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()
+	c.Check(bad.Validate(), ErrorMatches, "cannot use CPU set with cgroup version 1")
+}
+
+func (s *resourcesTestSuite) TestQuotaValidationCgroupV1Err(c *C) {
+	r := quota.MockCgroupVerErr(fmt.Errorf("some cgroup detection error"))
+	defer r()
+
+	// normal cpu resource is fine
+	good := quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()
+	c.Check(good.Validate(), IsNil)
+
+	// cpu set without cgroup detection is not supported
+	bad := quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()
+	c.Check(bad.Validate(), ErrorMatches, "some cgroup detection error")
 }
 
 func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
