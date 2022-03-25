@@ -98,6 +98,8 @@ var (
 	GenerateKey       = generateKey
 
 	GetSnapDirOptions = getSnapDirOptions
+
+	ParseQuotas = parseQuotas
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
