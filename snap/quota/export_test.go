@@ -35,6 +35,10 @@ func (grp *Group) InspectInternalQuotaAllocations() map[string]*GroupQuotaAlloca
 	return allQuotas
 }
 
+func ResourcesClone(r *Resources) Resources {
+	return r.clone()
+}
+
 func MockCgroupVer(mockVer int) (restore func()) {
 	r := testutil.Backup(&cgroupVer)
 	cgroupVer = mockVer
