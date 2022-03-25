@@ -338,9 +338,6 @@ snaps:
 }
 
 func (s *quotaSuite) TestGetMemoryQuotaGroupSimple(c *check.C) {
-	restore := main.MockIsStdinTTY(true)
-	defer restore()
-
 	const jsonTemplate = `{
 		"type": "sync",
 		"status-code": 200,
@@ -380,9 +377,6 @@ current:
 }
 
 func (s *quotaSuite) TestGetCpuQuotaGroupSimple(c *check.C) {
-	restore := main.MockIsStdinTTY(true)
-	defer restore()
-
 	const jsonTemplate = `{
 		"type": "sync",
 		"status-code": 200,
@@ -629,7 +623,7 @@ cps0     cp1     cpu=40%
 cp2              cpu=2x,cpu=100%,cpu-set=0,1     
 cps1     cp2     memory=9.9kB,cpu=50%,cpu-set=1  memory=10.0kB
 ggg              memory=1000B,threads=100        memory=3000B
-hhh              threads=100                     memory=2000B
+hhh              threads=100                     
 xxx              memory=9.9kB                    memory=10.0kB
 yyyyyyy          memory=1000B                    
 zzz              memory=5000B                    

@@ -454,7 +454,7 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 		// format current resource values as memory=N,threads=N
 		var grpCurrent []string
 		if q.Current != nil {
-			if q.Current.Memory != 0 {
+			if q.Constraints.Memory != 0 && q.Current.Memory != 0 {
 				grpCurrent = append(grpCurrent, "memory="+strings.TrimSpace(fmtSize(int64(q.Current.Memory))))
 			}
 			if q.Constraints.Threads != 0 && q.Current.Threads != 0 {
