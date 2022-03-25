@@ -118,9 +118,9 @@ type encryptedDeviceWithSetupHook struct {
 // sanity
 var _ = encryptedDevice(&encryptedDeviceWithSetupHook{})
 
-// newEncryptedDeviceWithSetupHook creates an encrypted device in the
+// createEncryptedDeviceWithSetupHook creates an encrypted device in the
 // existing partition using the specified key using the fde-setup hook
-func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
+func createEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
 	// for roles requiring encryption, the filesystem label is always set to
 	// either the implicit value or a value that has been validated
 	if part.Name != name || part.Label != name {

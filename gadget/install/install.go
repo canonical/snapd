@@ -204,7 +204,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 				}
 			case secboot.EncryptionTypeDeviceSetupHook:
 				timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s using device-setup-hook", roleOrLabelOrName(part)), func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceWithSetupHook(&part, keys.Key, part.Name)
+					dataPart, err = createEncryptedDeviceWithSetupHook(&part, keys.Key, part.Name)
 				})
 				if err != nil {
 					return nil, err

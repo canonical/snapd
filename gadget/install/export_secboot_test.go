@@ -28,9 +28,9 @@ import (
 )
 
 var (
-	DiskWithSystemSeed              = diskWithSystemSeed
-	NewEncryptedDeviceLUKS          = newEncryptedDeviceLUKS
-	NewEncryptedDeviceWithSetupHook = newEncryptedDeviceWithSetupHook
+	DiskWithSystemSeed                 = diskWithSystemSeed
+	NewEncryptedDeviceLUKS             = newEncryptedDeviceLUKS
+	CreateEncryptedDeviceWithSetupHook = createEncryptedDeviceWithSetupHook
 )
 
 func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, node string) error) (restore func()) {
