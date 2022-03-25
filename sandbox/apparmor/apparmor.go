@@ -58,7 +58,7 @@ func ValidateNoAppArmorRegexp(s string) error {
 	return nil
 }
 
-func GenerateAAREExclusionPatternsSingle(excludePattern []rune, opts *AAREExclusionPatternsOptions) (string, error) {
+func generateAAREExclusionPatternsSingle(excludePattern []rune, opts *AAREExclusionPatternsOptions) (string, error) {
 	// no error checking of input as that was already done in
 	// GenerateAAREExclusionPatterns
 
@@ -169,10 +169,10 @@ func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusion
 	if opts == nil {
 		opts = &AAREExclusionPatternsOptions{}
 	}
-	return GenerateAAREExclusionPatternsGenericImpl(runeSlices, opts)
+	return generateAAREExclusionPatternsGenericImpl(runeSlices, opts)
 }
 
-func GenerateAAREExclusionPatternsGenericImpl(excludePatterns [][]rune, opts *AAREExclusionPatternsOptions) (string, error) {
+func generateAAREExclusionPatternsGenericImpl(excludePatterns [][]rune, opts *AAREExclusionPatternsOptions) (string, error) {
 	switch len(excludePatterns) {
 	case 0:
 		return "", fmt.Errorf("no patterns provided")
@@ -180,7 +180,7 @@ func GenerateAAREExclusionPatternsGenericImpl(excludePatterns [][]rune, opts *AA
 		// single pattern generation is simpler and doesn't need to consider
 		// generating alternatives like in /foo/{a[^b],c[^d]} etc. so we do that
 		// case separately for easier reasoning about the generic case
-		return GenerateAAREExclusionPatternsSingle(excludePatterns[0], opts)
+		return generateAAREExclusionPatternsSingle(excludePatterns[0], opts)
 	}
 
 	// figure out the shortest and longest strings for setting loop ranges below
