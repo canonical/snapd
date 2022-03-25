@@ -95,12 +95,6 @@ func (qr *Resources) validateCPUSetQuota() error {
 	if len(qr.CPUSet.CPUs) == 0 {
 		return fmt.Errorf("cpu-set quota must not be empty")
 	}
-	if cgroupVerErr != nil {
-		return cgroupVerErr
-	}
-	if cgroupVer < 2 {
-		return fmt.Errorf("cannot use CPU set with cgroup version %d", cgroupVer)
-	}
 
 	return nil
 }
@@ -110,6 +104,23 @@ func (qr *Resources) validateThreadQuota() error {
 	if qr.Threads.Limit <= 0 {
 		return fmt.Errorf("invalid thread quota with a thread count of %d", qr.Threads.Limit)
 	}
+	return nil
+}
+
+// CheckFeatureRequirements checks if the current system meets the
+// requirements for the given resource request.
+//
+// E.g. a CPUSet only only be set set on systems with cgroup v2.
+func (qr *Resources) CheckFeatureRequirements() error {
+	if qr.CPUSet != nil {
+		if cgroupVerErr != nil {
+			return cgroupVerErr
+		}
+		if cgroupVer < 2 {
+			return fmt.Errorf("cannot use CPU set with cgroup version %d", cgroupVer)
+		}
+	}
+
 	return nil
 }
 
