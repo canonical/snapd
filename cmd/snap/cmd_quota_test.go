@@ -602,6 +602,8 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 		`{"type": "sync", "status-code": 200, "result": [
 			{"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":1000}},
 			{"group-name":"ddd","parent":"aaa","constraints":{"memory":400}},
+			{"group-name":"ggg","constraints":{"memory":1000,"threads":100},"current":{"memory":3000}},
+			{"group-name":"hhh","constraints":{"threads":100},"current":{"memory":2000}},
 			{"group-name":"bbb","parent":"zzz","constraints":{"memory":1000},"current":{"memory":400}},
 			{"group-name":"yyyyyyy","constraints":{"memory":1000}},
 			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
@@ -626,6 +628,8 @@ cp1              cpu=2x,cpu=90%
 cps0     cp1     cpu=40%                         
 cp2              cpu=2x,cpu=100%,cpu-set=0,1     
 cps1     cp2     memory=9.9kB,cpu=50%,cpu-set=1  memory=10.0kB
+ggg              memory=1000B,threads=100        memory=3000B
+hhh              threads=100                     memory=2000B
 xxx              memory=9.9kB                    memory=10.0kB
 yyyyyyy          memory=1000B                    
 zzz              memory=5000B                    
