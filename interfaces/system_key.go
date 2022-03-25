@@ -299,7 +299,7 @@ func CurrentSystemKey() (interface{}, error) {
 
 // SystemKeysMatch returns whether the given system keys match.
 func SystemKeysMatch(systemKey1, systemKey2 interface{}) (bool, error) {
-	// sanity check
+	// precondition check
 	_, ok1 := systemKey1.(*systemKey)
 	_, ok2 := systemKey2.(*systemKey)
 	if !(ok1 && ok2) {

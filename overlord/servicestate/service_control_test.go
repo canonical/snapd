@@ -129,7 +129,7 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 
 func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string,
 	expectedServices []string, expectedExplicitServices []string) {
-	// sanity, ensures test checks below are hit
+	// precondition, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
 
 	splitServiceName := func(name string) (snapName, serviceName string) {
