@@ -683,6 +683,14 @@ pre /a[^b]** suf
 `[1:],
 		},
 		{
+			comment:         "same length overlap",
+			excludePatterns: []string{"/AB", "/AC"},
+			expRule: `
+/[^A]**
+/A[^BC]**
+`[1:],
+		},
+		{
 			comment:         "same length overlap with wildcard",
 			excludePatterns: []string{"/ab/*/c", "/ad/*/c"},
 			expRule: `

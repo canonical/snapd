@@ -282,7 +282,7 @@ charLoop:
 				return "", fmt.Errorf("internal erorr: all excluded patterns are the same")
 			}
 
-			negGroup := []rune("[^")
+			negGroup := []rune{}
 			for c := range chars {
 				negGroup = append(negGroup, c)
 			}
@@ -290,7 +290,7 @@ charLoop:
 			sort.Slice(negGroup, func(i, j int) bool {
 				return negGroup[i] < negGroup[j]
 			})
-			negGroup = append(negGroup, ']')
+			negGroup = append([]rune("[^"), append(negGroup, ']')...)
 
 			res := fmt.Sprintf("%s%s%s**%s\n", opts.Prefix, lastCommonPrefix, string(negGroup), opts.Suffix)
 			builder.WriteString(res)
@@ -336,6 +336,14 @@ charLoop:
 			for patternIndex, excludePattern = range stillPresentPatterns {
 				break
 			}
+
+			// TODO: when AAREExclusionPatternsOptions has an option for
+			// supporting non-absolute filepaths, use that option here to
+			// generate the rules with generateAAREExclusionPatternsSingle to
+			// reuse that loop by effectively dropping the part of
+			// excludePattern up to "k" we calculate below, and adding that to
+			// the prefix passed to generateAAREExclusionPatternsSingle and then
+			// this is the same exact case
 
 			for k := indexPerPattern[patternIndex]; k < len(excludePattern); k++ {
 				c := excludePattern[k]
