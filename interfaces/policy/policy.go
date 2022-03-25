@@ -41,6 +41,13 @@ type InstallCandidate struct {
 	Store *asserts.Store
 }
 
+func (ic *InstallCandidate) snapID() string {
+	if ic.SnapDeclaration != nil {
+		return ic.SnapDeclaration.SnapID()
+	}
+	return "" // never a valid snap-id
+}
+
 func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule, snapRule bool) error {
 	context := ""
 	if snapRule {
