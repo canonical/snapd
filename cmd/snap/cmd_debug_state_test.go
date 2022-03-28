@@ -31,34 +31,37 @@ import (
 var stateJSON = []byte(`
 {
 	"last-task-id": 31,
-	"last-change-id": 2,
+	"last-change-id": 10,
 
 	"data": {
 		"snaps": {},
 		"seeded": true
 	},
 	"changes": {
-		"1": {
-			"id": "1",
+		"9": {
+			"id": "9",
 			"kind": "install-snap",
 			"summary": "install a snap",
 			"status": 0,
 			"data": {"snap-names": ["a"]},
-			"task-ids": ["11","12"]
+			"task-ids": ["11","12"],
+                        "spawn-time": "2009-11-10T23:00:00Z"
 		},
-		"2": {
-			"id": "2",
+		"10": {
+			"id": "10",
 			"kind": "revert-snap",
 			"summary": "revert c snap",
 			"status": 0,
 			"data": {"snap-names": ["c"]},
-			"task-ids": ["21","31"]
+			"task-ids": ["21","31"],
+                        "spawn-time": "2009-11-10T23:00:10Z",
+                        "ready-time": "2009-11-10T23:00:30Z"
 		}
 	},
 	"tasks": {
 		"11": {
 				"id": "11",
-				"change": "1",
+				"change": "9",
 				"kind": "download-snap",
 				"summary": "Download snap a from channel edge",
 				"status": 4,
@@ -68,10 +71,10 @@ var stateJSON = []byte(`
 				}},
 				"halt-tasks": ["12"]
 		},
-		"12": {"id": "12", "change": "1", "kind": "some-other-task"},
+		"12": {"id": "12", "change": "9", "kind": "some-other-task"},
 		"21": {
 				"id": "21",
-				"change": "2",
+				"change": "10",
 				"kind": "download-snap",
 				"summary": "Download snap b from channel beta",
 				"status": 4,
@@ -83,7 +86,7 @@ var stateJSON = []byte(`
 		},
 		"31": {
 				"id": "31",
-				"change": "2",
+				"change": "10",
 				"kind": "prepare-snap",
 				"summary": "Prepare snap c",
 				"status": 4,
@@ -153,8 +156,8 @@ func (s *SnapSuite) TestDebugChanges(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
 		"ID   Status  Spawn                 Ready                 Label         Summary\n"+
-			"1    Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  install-snap  install a snap\n"+
-			"2    Done    0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  revert-snap   revert c snap\n")
+			"9    Do      2009-11-10T23:00:00Z  0001-01-01T00:00:00Z  install-snap  install a snap\n"+
+			"10   Done    2009-11-10T23:00:10Z  2009-11-10T23:00:30Z  revert-snap   revert c snap\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 
@@ -237,7 +240,7 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 	stateFile := filepath.Join(dir, "test-state.json")
 	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=1", stateFile})
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=9", stateFile})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,

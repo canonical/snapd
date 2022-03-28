@@ -131,12 +131,16 @@ network packet,
 #
 #   https://www.freedesktop.org/software/systemd/man/nss-resolve.html
 #
+# In the case of NM, the destination is not the well-known DBus name,
+# instead it tracks the name owner and sends the message to the
+# the owner's connection name, so we cannot have the name= restriction
+# in peer=...
 dbus send
      bus=system
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
      member="Resolve{Address,Hostname,Record,Service}"
-     peer=(name="org.freedesktop.resolve1", label=unconfined),
+     peer=(label=unconfined),
 
 dbus (send)
      bus=system
