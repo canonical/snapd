@@ -29,10 +29,13 @@ import (
 var (
 	cgroupVer    int
 	cgroupVerErr error
+
+	cgroupCheckMemoryCgroupErr error
 )
 
 func init() {
 	cgroupVer, cgroupVerErr = cgroup.Version()
+	cgroupCheckMemoryCgroupErr = cgroup.CheckMemoryCgroup()
 }
 
 type ResourceMemory struct {
@@ -118,6 +121,11 @@ func (qr *Resources) CheckFeatureRequirements() error {
 		}
 		if cgroupVer < 2 {
 			return fmt.Errorf("cannot use CPU set with cgroup version %d", cgroupVer)
+		}
+	}
+	if qr.Memory != nil {
+		if cgroupCheckMemoryCgroupErr != nil {
+			return fmt.Errorf("cannot use memory quota: %v", cgroupCheckMemoryCgroupErr)
 		}
 	}
 
