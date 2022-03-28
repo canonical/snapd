@@ -3,7 +3,7 @@
 INSTANCE="$1"
 
 if [ -z "$INSTANCE" ]; then
-    echo "first argument must be the GCE instance"
+    echo "first argument must be the GCE instance (for example, mar280632-365378)"
     exit 1
 fi
 
@@ -19,6 +19,19 @@ INSTANCE="$1"
 next=0
 truncate -s0 console-output.txt
 while true; do
+    # The get-serial-port-output command will print on the stdout the new lines
+    # that the machine emitted on the serial console since the last time it was
+    # queried. The bookmark is the number ("$next") that we pass with the
+    # --start parameter; this number is printed by gcloud to the stderr in this
+    # form:
+    #
+    #   Specify --start=130061 in the next get-serial-port-output invocation to get only the new output starting from here.
+    #
+    # In the subshell below we compute the value of the "$next" variable: we
+    # store the original stdout into the console-output-bits.txt file, then
+    # (via a third file descriptor, not to mess with the original stdout) we
+    # redirect the stderr into the stdout and use "grep" to extract the
+    # suggested value for the --start parameter.
     next=$(
         gcloud compute \
             --project=snapd-spread \
