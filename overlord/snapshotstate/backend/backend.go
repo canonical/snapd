@@ -323,8 +323,8 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		// Note: Auto is no longer set in the Snapshot.
 	}
 
-	archiveOptions := &addDirToZipOptions{}
-	if err := readSnapshotYaml(si, archiveOptions); err != nil {
+	archiveOptions, err := readSnapshotYaml(si)
+	if err != nil {
 		return nil, err
 	}
 
@@ -391,19 +391,19 @@ type addDirToZipOptions struct {
 	ExcludePaths []string `yaml:"exclude"`
 }
 
-func readSnapshotYaml(si *snap.Info, opts *addDirToZipOptions) error {
+func readSnapshotYaml(si *snap.Info) (*addDirToZipOptions, error) {
+	var opts addDirToZipOptions
 	file, err := osOpen(filepath.Join(si.MountDir(), "meta", "snapshots.yaml"))
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		} else {
-			return nil
+		if os.IsNotExist(err) {
+			return &opts, nil
 		}
+		return nil, err
 	}
 	defer file.Close()
 
 	if err := yaml.NewDecoder(file).Decode(opts); err != nil {
-		return fmt.Errorf("cannot read snapshot manifest: %v", err)
+		return nil, fmt.Errorf("cannot read snapshot manifest: %v", err)
 	}
 
 	// Validate the exclude list; note that this is an *exclusion* list, so
@@ -422,16 +422,16 @@ func readSnapshotYaml(si *snap.Info, opts *addDirToZipOptions) error {
 			firstComponent = excludePath[:firstSlash]
 		}
 		if !strutil.ListContains(validFirstComponents, firstComponent) {
-			return fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
+			return nil, fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
 		}
 
 		cleanPath := filepath.Clean(excludePath)
 		if cleanPath != excludePath {
-			return fmt.Errorf("snapshot exclude path not clean: %q", excludePath)
+			return nil, fmt.Errorf("snapshot exclude path not clean: %q", excludePath)
 		}
 	}
 
-	return nil
+	return &opts, nil
 }
 
 func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string, savingUserData bool, opts *addDirToZipOptions) error {
