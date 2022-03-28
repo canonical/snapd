@@ -14,10 +14,6 @@ backends: [-autopkgtest]
 #                 labels, labels can only be exported for NFSv4.2+ with security_label option
 systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*]
 
-debug: |
-    lsof | grep /home
-    fuser -mv /home
-
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
@@ -95,6 +91,10 @@ restore: |
             service nfs-kernel-server start
             ;;
     esac
+
+debug: |
+    lsof | grep /home
+    fuser -mv /home
 
 execute: |
     # only needed because we do it 11 times (!)
