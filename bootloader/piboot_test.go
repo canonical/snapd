@@ -28,6 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
@@ -43,6 +45,14 @@ type pibootTestSuite struct {
 }
 
 var _ = Suite(&pibootTestSuite{})
+
+func (s *pibootTestSuite) SetUpTest(c *C) {
+	s.baseBootenvTestSuite.SetUpTest(c)
+
+	// By default assume arm64 in the tests: there are specialized
+	// tests for other arches
+	s.AddCleanup(archtest.MockArchitecture("arm64"))
+}
 
 func (s *pibootTestSuite) TestNewPiboot(c *C) {
 	// no files means bl is not present, but we can still create the bl object
@@ -136,17 +146,23 @@ func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 	s.testPibootSetEnvWriteOnlyIfChanged(c, fromInitramfs)
 }
 
-func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
+func (s *pibootTestSuite) testExtractKernelAssetsForArch(c *C, arch arch.ArchitectureType) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
+	r = archtest.MockArchitecture(arch)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 
+	dtbDir := "dtbs"
+	if arch == "arm64" {
+		dtbDir = "dtbs/broadcom"
+	}
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -180,17 +196,28 @@ func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 	c.Check(readmeFn, testutil.FilePresent)
 }
 
-func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
+	s.testExtractKernelAssetsForArch(c, "armhf")
+	s.testExtractKernelAssetsForArch(c, "arm64")
+}
+
+func (s *pibootTestSuite) testExtractRecoveryKernelAssetsForArch(c *C, arch arch.ArchitectureType) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
+	r = archtest.MockArchitecture(arch)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 
+	dtbDir := "dtbs"
+	if arch == "arm64" {
+		dtbDir = "dtbs/broadcom"
+	}
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -227,6 +254,11 @@ func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	// Check that file required by piboot is created
 	readmeFn := filepath.Join(assetsDir, "overlays", "README")
 	c.Check(readmeFn, testutil.FilePresent)
+}
+
+func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+	s.testExtractRecoveryKernelAssetsForArch(c, "armhf")
+	s.testExtractRecoveryKernelAssetsForArch(c, "arm64")
 }
 
 func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
@@ -538,18 +570,24 @@ func (s *pibootTestSuite) TestSetBootVarsFromInitramfs(c *C) {
 	})
 }
 
-func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
+func (s *pibootTestSuite) testExtractKernelAssetsAndRemoveForArch(c *C, arch arch.ArchitectureType) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
 	defer r()
+	r = archtest.MockArchitecture(arch)
+	defer r()
 	p := bootloader.NewPiboot(s.rootdir, &opts)
 	c.Assert(p, NotNil)
 
+	dtbDir := "dtbs"
+	if arch == "arm64" {
+		dtbDir = "dtbs/broadcom"
+	}
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -591,4 +629,9 @@ func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+}
+
+func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
+	s.testExtractKernelAssetsAndRemoveForArch(c, "armhf")
+	s.testExtractKernelAssetsAndRemoveForArch(c, "arm64")
 }
