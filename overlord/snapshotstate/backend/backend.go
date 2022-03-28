@@ -414,13 +414,7 @@ func readSnapshotYaml(si *snap.Info) (*addDirToZipOptions, error) {
 		"$SNAP_DATA", "$SNAP_COMMON", "$SNAP_USER_DATA", "$SNAP_USER_COMMON",
 	}
 	for _, excludePath := range opts.ExcludePaths {
-		firstSlash := strings.IndexRune(excludePath, '/')
-		var firstComponent string
-		if firstSlash < 0 {
-			firstComponent = excludePath
-		} else {
-			firstComponent = excludePath[:firstSlash]
-		}
+		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
 		if !strutil.ListContains(validFirstComponents, firstComponent) {
 			return nil, fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
 		}
