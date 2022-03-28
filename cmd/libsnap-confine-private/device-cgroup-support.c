@@ -405,6 +405,9 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         /* first collect all keys in the map */
         sc_cgroup_v2_device_key *existing_keys SC_CLEANUP(_sc_cleanup_v2_device_key) =
             calloc(max_entries, sizeof(sc_cgroup_v2_device_key));
+        if (existing_keys == NULL) {
+            die("cannot allocate keys map");
+        }
         /* 'current' key is zeroed, such that no entry can match it and thus
          * we'll iterate over the keys from the beginning */
         sc_cgroup_v2_device_key key = {0};

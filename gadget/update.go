@@ -22,11 +22,15 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -124,6 +128,102 @@ type ContentUpdateObserver interface {
 	Canceled() error
 }
 
+func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDeviceTraits, validateOpts *DiskVolumeValidationOptions) (disks.Disk, error) {
+	if validateOpts == nil {
+		validateOpts = &DiskVolumeValidationOptions{}
+	}
+
+	vol := laidOutVol.Volume
+	// iterate over the different traits, validating whether the resulting disk
+	// actually exists and matches the volume we have in the gadget.yaml
+
+	isCandidateCompatible := func(candidate disks.Disk, method string, providedErr error) bool {
+		if providedErr != nil {
+			if candidate != nil {
+				logger.Debugf("candidate disk %s not appropriate for volume %s because err: %v", candidate.KernelDeviceNode(), vol.Name, providedErr)
+				return false
+			}
+			logger.Debugf("cannot locate disk for volume %s with method %s because err: %v", vol.Name, method, providedErr)
+
+			return false
+		}
+		diskLayout, onDiskErr := OnDiskVolumeFromDevice(candidate.KernelDeviceNode())
+		if onDiskErr != nil {
+			// unexpected in reality, we already called one of
+			// DiskFromDeviceName or DiskFromDevicePath to get this reference,
+			// so it's unclear how those methods could return a disk that
+			// OnDiskVolumeFromDevice is unhappy about
+			logger.Debugf("cannot find on disk volume from candidate disk %s: %v", candidate.KernelDeviceNode(), onDiskErr)
+			return false
+		}
+		// then try to validate it by laying out the volume
+		opts := &EnsureLayoutCompatibilityOptions{
+			AssumeCreatablePartitionsCreated: true,
+			AllowImplicitSystemData:          validateOpts.AllowImplicitSystemData,
+			ExpectedStructureEncryption:      validateOpts.ExpectedStructureEncryption,
+		}
+		ensureErr := EnsureLayoutCompatibility(laidOutVol, diskLayout, opts)
+		if ensureErr != nil {
+			logger.Debugf("candidate disk %s not appropriate for volume %s due to incompatibility: %v", candidate.KernelDeviceNode(), vol.Name, ensureErr)
+			return false
+		}
+
+		// success, we found it
+		return true
+	}
+
+	// first try the kernel device path if it is set
+	if traits.OriginalDevicePath != "" {
+		disk, err := disks.DiskFromDevicePath(traits.OriginalDevicePath)
+		if isCandidateCompatible(disk, "device path", err) {
+			return disk, nil
+		}
+	}
+
+	// next try the kernel device node name
+	if traits.OriginalKernelPath != "" {
+		disk, err := disks.DiskFromDeviceName(traits.OriginalKernelPath)
+		if isCandidateCompatible(disk, "device name", err) {
+			return disk, nil
+		}
+	}
+
+	// next try the disk ID from the partition table
+	if traits.DiskID != "" {
+		// there isn't a way to find a disk using the disk ID directly, so we
+		// instead have to get all the disks and then check them all to see if
+		// the disk ID's match
+		blockdevDisks, err := disks.AllPhysicalDisks()
+		if err == nil {
+			for _, blockDevDisk := range blockdevDisks {
+				if blockDevDisk.DiskID() == traits.DiskID {
+					// found the block device for this Disk ID, get the
+					// disks.Disk for it
+					if isCandidateCompatible(blockDevDisk, "disk ID", err) {
+						return blockDevDisk, nil
+					}
+
+					// otherwise if it didn't match we keep iterating over
+					// the block devices, since we could have a situation
+					// where an attacker has cloned the disk and put their own
+					// content on it to attack the device and so there are two
+					// block devices with the same ID but non-matching
+					// structures
+				}
+			}
+		} else {
+			logger.Noticef("error getting all physical disks: %v", err)
+		}
+	}
+
+	// TODO: implement this final last ditch effort
+	// finally, try doing an inverse search using the individual
+	// structures to match a structure we measured previously to find a on disk
+	// device and then find a disk from that device and see if it matches
+
+	return nil, fmt.Errorf("cannot find physical disk laid out to map with volume %s", vol.Name)
+}
+
 // IsCreatableAtInstall returns whether the gadget structure would be created at
 // install - currently that is only ubuntu-save, ubuntu-data, and ubuntu-boot
 func IsCreatableAtInstall(gv *VolumeStructure) bool {
@@ -214,6 +314,11 @@ type EnsureLayoutCompatibilityOptions struct {
 	// partition would be dynamically inserted into the image at image build
 	// time by ubuntu-image without being mentioned in the gadget.yaml.
 	AllowImplicitSystemData bool
+
+	// ExpectedStructureEncryption is a map of the structure name to information
+	// about the encrypted partitions that can be used to validate whether a
+	// given structure should be accepted as an encrypted partition.
+	ExpectedStructureEncryption map[string]StructureEncryptionParameters
 }
 
 func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, opts *EnsureLayoutCompatibilityOptions) error {
@@ -258,9 +363,48 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		// size and offset, so the last thing to check is that the filesystem
 		// matches (or that we don't care about the filesystem).
 
-		// TODO: here we need to handle in the strict case partitions which are
-		// to be created at install and are encrypted like ubuntu-data as they
-		// will not match filesystems exactly and need some massaging
+		// first handle the strict case where this partition was created at
+		// install in case it is an encrypted one
+		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
+			// only partitions that are creatable at install can be encrypted,
+			// check if this partition was encrypted
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name]; ok {
+				if encTypeParams.Method == "" {
+					return false, "encrypted structure parameter missing required parameter \"method\""
+				}
+				// for now we don't handle any other keys, but in case they show
+				// up in the wild for debugging purposes log off the key name
+				for k := range encTypeParams.unknownKeys {
+					if k != "method" {
+						logger.Noticef("ignoring unknown expected encryption structure parameter %q", k)
+					}
+				}
+
+				switch encTypeParams.Method {
+				case EncryptionICE:
+					return false, "Inline Crypto Engine encrypted partitions currently unsupported"
+				case EncryptionLUKS:
+					// then this partition is expected to have been encrypted, the
+					// filesystem label on disk will need "-enc" appended
+					if dv.Label != gv.Name+"-enc" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
+					}
+
+					// the filesystem should also be "crypto_LUKS"
+					if dv.Filesystem != "crypto_LUKS" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gv.Name)
+					}
+
+					// at this point the partition matches
+					return true, ""
+				default:
+					return false, fmt.Sprintf("unsupported encrypted partition type %q", encTypeParams.Method)
+				}
+			}
+
+			// for non-encrypted partitions that were created at install, the
+			// below logic still applies
+		}
 
 		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gv) {
 			// we assume that this partition has already been created
@@ -422,8 +566,37 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		return fmt.Errorf("cannot find gadget structure %s on disk", gs.String())
 	}
 
+	// finally ensure that all encrypted partitions mentioned in the options are
+	// present in the gadget.yaml (and thus will also need to have been present
+	// on the disk)
+	for gadgetLabel := range opts.ExpectedStructureEncryption {
+		found := false
+		for _, gs := range gadgetLayout.LaidOutStructure {
+			if gs.Name == gadgetLabel {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("expected encrypted structure %s not present in gadget", gadgetLabel)
+		}
+	}
+
 	return nil
 }
+
+type DiskEncryptionMethod string
+
+const (
+	// values for the "method" key of encrypted structure information
+
+	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
+	// 2.0 in UC20+
+	EncryptionLUKS DiskEncryptionMethod = "LUKS"
+	// ICE stands for Inline Crypto Engine, used on specific (usually embedded)
+	// devices
+	EncryptionICE DiskEncryptionMethod = "ICE"
+)
 
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to
 // volume mapping for a specific disk/volume pair. It is closely related to the
@@ -431,8 +604,12 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 // EnsureLayoutCompatibilityOptions.
 type DiskVolumeValidationOptions struct {
 	// AllowImplicitSystemData has the same meaning as the eponymously named
-	// filed in EnsureLayoutCompatibilityOptions.
+	// field in EnsureLayoutCompatibilityOptions.
 	AllowImplicitSystemData bool
+	// ExpectedEncryptedPartitions is a map of the names (gadget structure
+	// names) of partitions that are encrypted on the volume and information
+	// about that encryption.
+	ExpectedStructureEncryption map[string]StructureEncryptionParameters
 }
 
 // DiskTraitsFromDeviceAndValidate takes a laid out gadget volume and an
@@ -459,7 +636,8 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		AssumeCreatablePartitionsCreated: true,
 
 		// provide the other opts as we were provided
-		AllowImplicitSystemData: opts.AllowImplicitSystemData,
+		AllowImplicitSystemData:     opts.AllowImplicitSystemData,
+		ExpectedStructureEncryption: opts.ExpectedStructureEncryption,
 	}
 	if err := EnsureLayoutCompatibility(expLayout, diskLayout, ensureOpts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
@@ -576,14 +754,388 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 	}
 
 	return DiskVolumeDeviceTraits{
-		OriginalDevicePath: disk.KernelDevicePath(),
-		OriginalKernelPath: dev,
-		DiskID:             diskLayout.ID,
-		Structure:          mappedStructures,
-		Size:               diskLayout.Size,
-		SectorSize:         diskLayout.SectorSize,
-		Schema:             disk.Schema(),
+		OriginalDevicePath:  disk.KernelDevicePath(),
+		OriginalKernelPath:  dev,
+		DiskID:              diskLayout.ID,
+		Structure:           mappedStructures,
+		Size:                diskLayout.Size,
+		SectorSize:          diskLayout.SectorSize,
+		Schema:              disk.Schema(),
+		StructureEncryption: opts.ExpectedStructureEncryption,
 	}, nil
+}
+
+// unable to proceed with the gadget asset update, but not fatal to the refresh
+// operation itself
+var errSkipUpdateProceedRefresh = errors.New("cannot identify disk for gadget asset update")
+
+// buildNewVolumeToDeviceMapping builds a DiskVolumeDeviceTraits for only the
+// volume containing the system-boot role, when we cannot load an existing
+// traits object from disk-mapping.json. It is meant to be used only with all
+// UC16/UC18 installs as well as UC20 installs from before we started writing
+// disk-mapping.json during install mode.
+func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[string]*LaidOutVolume) (map[string]DiskVolumeDeviceTraits, error) {
+	var likelySystemBootVolume string
+
+	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
+
+	if len(old.Info.Volumes) == 1 {
+		// If we only have one volume, then that is the volume we are concerned
+		// with, we do not validate that it has a system-boot role on it like
+		// we do in the multi-volume case below, this is because we used to
+		// allow installation of gadgets that have no system-boot role on them
+		// at all
+
+		// then we only have one volume to be concerned with
+		for volName := range old.Info.Volumes {
+			likelySystemBootVolume = volName
+		}
+	} else {
+		// we need to pick the volume, since updates for this setup are best
+		// effort and mainly focused on the main volume with system-* roles
+		// on it, we need to pick the volume with that role
+	volumeLoop:
+		for volName, vol := range old.Info.Volumes {
+			for _, structure := range vol.Structure {
+				if structure.Role == SystemBoot {
+					// this is the volume
+					likelySystemBootVolume = volName
+					break volumeLoop
+				}
+			}
+		}
+	}
+
+	if likelySystemBootVolume == "" {
+		// this is only possible in the case where there is more than one volume
+		// and we didn't find system-boot anywhere, in this case for pre-UC20
+		// we use a non-fatal error and just don't perform any update - this was
+		// always the old behavior so we are not regressing here
+		if isPreUC20 {
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s: unable to find any volume with system-boot role on it", likelySystemBootVolume)
+			return nil, errSkipUpdateProceedRefresh
+		}
+
+		// on UC20 and later however this is a fatal error, we should never have
+		// allowed installation of a gadget which does not have the system-boot
+		// role on it
+		return nil, fmt.Errorf("cannot find any volume with system-boot, gadget is broken")
+	}
+
+	laidOutVol := laidOutVols[likelySystemBootVolume]
+
+	// search for matching devices that correspond to the volume we laid out
+	dev := ""
+	for _, vs := range laidOutVol.LaidOutStructure {
+		// here it is okay that we require there to be either a partition label
+		// or a filesystem label since we require there to be a system-boot role
+		// on this volume which by definition must have a filesystem
+		structureDevice, err := FindDeviceForStructure(&vs)
+		if err == ErrDeviceNotFound {
+			continue
+		}
+		if err != nil {
+			// TODO: should this be a fatal error?
+			return nil, err
+		}
+
+		// we found a device for this structure, get the parent disk
+		// and save that as the device for this volume
+		disk, err := disks.DiskFromPartitionDeviceNode(structureDevice)
+		if err != nil {
+			// TODO: should we keep looping instead and try again with
+			// another structure? it probably wouldn't work because we found
+			// something on disk with the same name as something from the
+			// gadget.yaml, but then we failed to make a disk from that
+			// partition which suggests something is inconsistent with the
+			// state of the disk/udev database
+			return nil, err
+		}
+
+		dev = disk.KernelDeviceNode()
+		break
+	}
+
+	if dev == "" {
+		// couldn't find a disk at all, pre-UC20 we just warn about this
+		// but let the update continue
+		if isPreUC20 {
+			logger.Noticef("WARNING: cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
+			return nil, errSkipUpdateProceedRefresh
+		}
+		// fatal error on UC20+
+		return nil, fmt.Errorf("cannot identify disk for gadget asset update of volume %s", likelySystemBootVolume)
+	}
+
+	// we found the device, construct the traits with validation options
+	validateOpts := &DiskVolumeValidationOptions{
+		// allow implicit system-data on pre-uc20 only
+		AllowImplicitSystemData: isPreUC20,
+	}
+
+	// setup encrypted structure information to perform validation if this
+	// device used encryption
+	if !isPreUC20 {
+		// TODO: this needs to check if the specified partitions are ICE when
+		// we support ICE too
+
+		// check if there is a marker file written, that will indicate if
+		// encryption was turned on
+		encryptionMarkerFile := filepath.Join(dirs.SnapFDEDir, "marker")
+		if osutil.FileExists(encryptionMarkerFile) {
+			// then we have the crypto marker file for encryption
+			// cross-validation between ubuntu-data and ubuntu-save stored from
+			// install mode, so mark ubuntu-save and data as expected to be
+			// encrypted
+			validateOpts.ExpectedStructureEncryption = map[string]StructureEncryptionParameters{
+				"ubuntu-data": {Method: EncryptionLUKS},
+				"ubuntu-save": {Method: EncryptionLUKS},
+			}
+		}
+	}
+
+	traits, err := DiskTraitsFromDeviceAndValidate(laidOutVol, dev, validateOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: should we save the traits here so they can be re-used in another
+	// future update routine?
+
+	return map[string]DiskVolumeDeviceTraits{
+		likelySystemBootVolume: traits,
+	}, nil
+}
+
+// StructureLocation represents the location of a structure for updating
+// purposes. Either Device + Offset must be set for a raw structure without a
+// filesystem, or RootMountPoint must be set for structures with a
+// filesystem.
+type StructureLocation struct {
+	// Device is the kernel device node path such as /dev/vda1 for the
+	// structure's backing physical disk.
+	Device string
+	// Offset is the offset from 0 for the physical disk that this structure
+	// starts at.
+	Offset quantity.Offset
+
+	// RootMountPoint is the directory where the root directory of the structure
+	// is mounted read/write. There may be other mount points for this structure
+	// on the system, but this one is guaranteed to be writable and thus
+	// suitable for gadget asset updates.
+	RootMountPoint string
+}
+
+func buildVolumeStructureToLocation(mod Model,
+	old GadgetData,
+	laidOutVols map[string]*LaidOutVolume,
+	volToDeviceMapping map[string]DiskVolumeDeviceTraits,
+	missingInitialMapping bool,
+) (map[string]map[int]StructureLocation, error) {
+
+	isPreUC20 := (mod.Grade() == asserts.ModelGradeUnset)
+
+	// helper function for handling non-fatal errors on pre-UC20
+	maybeFatalError := func(err error) error {
+		if missingInitialMapping && isPreUC20 {
+			// this is not a fatal error on pre-UC20
+			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error mapping volume to physical disk: %v", err)
+			return errSkipUpdateProceedRefresh
+		}
+		return err
+	}
+
+	volumeStructureToLocation := make(map[string]map[int]StructureLocation, len(old.Info.Volumes))
+	for volName := range old.Info.Volumes {
+		volumeStructureToLocation[volName] = make(map[int]StructureLocation)
+	}
+
+	// now for each volume, iterate over the structures, putting the
+	// necessary info into the map for that volume as we iterate
+
+	// this loop assumes that none of those things are different between the
+	// new and old volume, which may not be true in the case where an
+	// unsupported structure change is present in the new one, but we check that
+	// situation after we have built the mapping
+	for volName, diskDeviceTraits := range volToDeviceMapping {
+		vol, ok := old.Info.Volumes[volName]
+		if !ok {
+			return nil, fmt.Errorf("internal error: volume %s not present in gadget.yaml but present in traits mapping", volName)
+		}
+
+		laidOutVol := laidOutVols[volName]
+		if laidOutVol == nil {
+			return nil, fmt.Errorf("internal error: missing LaidOutVolume for volume %s", volName)
+		}
+
+		// find the disk associated with this volume using the traits we
+		// measured for this volume
+		validateOpts := &DiskVolumeValidationOptions{
+			// implicit system-data role only allowed on pre UC20 systems
+			AllowImplicitSystemData:     isPreUC20,
+			ExpectedStructureEncryption: diskDeviceTraits.StructureEncryption,
+		}
+
+		disk, err := searchForVolumeWithTraits(laidOutVol, diskDeviceTraits, validateOpts)
+		if err != nil {
+			dieErr := fmt.Errorf("could not map volume %s from gadget.yaml to any physical disk: %v", volName, err)
+			return nil, maybeFatalError(dieErr)
+		}
+
+		// the index here is 0-based and is equal to LaidOutStructure.YamlIndex
+		for volYamlIndex, volStruct := range vol.Structure {
+			// get the StartOffset using the laid out structure which will have
+			// all the math to find the correct start offset for structures that
+			// don't explicitly list their offset in the gadget.yaml (and thus
+			// would have a offset of 0 using the volStruct.Offset)
+			structStartOffset := laidOutVol.LaidOutStructure[volYamlIndex].StartOffset
+
+			loc := StructureLocation{}
+
+			if volStruct.HasFilesystem() {
+				// Here we know what disk is associated with this volume, so we
+				// just need to find what partition is associated with this
+				// structure to find it's root mount points. On GPT since
+				// partition labels/names are unique in the partition table, we
+				// could do a lookup by matching partition label, but this won't
+				// work on MBR which doesn't have such a concept, so instead we
+				// use the start offset to locate which disk partition this
+				// structure is equal to.
+
+				partitions, err := disk.Partitions()
+				if err != nil {
+					return nil, err
+				}
+
+				var foundP disks.Partition
+				found := false
+				for _, p := range partitions {
+					if p.StartInBytes == uint64(structStartOffset) {
+						foundP = p
+						found = true
+						break
+					}
+				}
+				if !found {
+					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: no matching start offset", volYamlIndex, volName)
+					return nil, maybeFatalError(dieErr)
+				}
+
+				// if this structure is an encrypted one, then we can't just
+				// get the root mount points for the device node, we would need
+				// to find the decrypted mapper device for the encrypted device
+				// node and then find the root mount point of the mapper device
+				if _, ok := diskDeviceTraits.StructureEncryption[volStruct.Name]; ok {
+					logger.Noticef("gadget asset update for assets on encrypted partition %s unsupported", volStruct.Name)
+
+					// leaving this structure as an empty location will
+					// mean when an update to this structure is actually
+					// performed it will fail, but we won't fail updates to
+					// other structures - it is treated like an unmounted
+					// partition
+					volumeStructureToLocation[volName][volYamlIndex] = loc
+					continue
+				}
+
+				// otherwise normal unencrypted filesystem, find the rw mount
+				// points
+				mountpts, err := disks.MountPointsForPartitionRoot(foundP, map[string]string{"rw": ""})
+				if err != nil {
+					dieErr := fmt.Errorf("cannot locate structure %d on volume %s: error searching for root mount points: %v", volYamlIndex, volName, err)
+					return nil, maybeFatalError(dieErr)
+				}
+				var mountpt string
+				if len(mountpts) == 0 {
+					// this filesystem is not already mounted, we probably
+					// should mount it in order to proceed with the update?
+
+					// TODO: do something better here?
+					logger.Noticef("structure %d on volume %s (%s) is not mounted read/write anywhere to be able to update it", volYamlIndex, volName, foundP.KernelDeviceNode)
+				} else {
+					// use the first one, it doesn't really matter to us
+					// which one is used to update the contents
+					mountpt = mountpts[0]
+				}
+				loc.RootMountPoint = mountpt
+			} else {
+				// no filesystem, the device for this one is just the device
+				// for the disk itself
+				loc.Device = disk.KernelDeviceNode()
+				loc.Offset = structStartOffset
+			}
+
+			volumeStructureToLocation[volName][volYamlIndex] = loc
+		}
+	}
+
+	return volumeStructureToLocation, nil
+}
+
+// exposed for mocking later on
+var volumeStructureToLocationMap = volumeStructureToLocationMapImpl
+
+func volumeStructureToLocationMapImpl(old GadgetData, mod Model, laidOutVols map[string]*LaidOutVolume) (map[string]map[int]StructureLocation, error) {
+	// first try to load the disk-mapping.json volume trait info
+	volToDeviceMapping, err := LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDir)
+	if err != nil {
+		return nil, err
+	}
+
+	missingInitialMapping := false
+
+	// check if we had no mapping, if so then we try our best to build a mapping
+	// for the system-boot volume only to perform gadget asset updates there
+	// but if we fail to build a mapping, then on UC18 we non-fatally return
+	// without doing any updates, but on UC20 we fail the refresh because we
+	// expect UC20's gadget.yaml validation to be robust
+	if len(volToDeviceMapping) == 0 {
+		// then there was no mapping provided, this is a system which never
+		// performed the initial saving of disk/volume mapping info during
+		// install, so we build up a mapping specifically just for the
+		// volume with the system-boot role on it
+
+		// TODO: after we calculate this the first time should we save a new
+		// disk-mapping.json with this information and some marker that this
+		// was not calculated at first boot but a later date?
+
+		// TODO: the rest of this function in this case is technically not as
+		// efficient as we could be, since we build up these heuristics here and
+		// then immediately below treat them as if they were from the initial
+		// install boot and thus could have changed, but there is no way for
+		// this mapping to have changed between when this code runs here and the
+		// code below, but in the interest of sharing the same codepath for all
+		// cases below, we treat this heuristic mapping data the same
+		missingInitialMapping = true
+		var err error
+		volToDeviceMapping, err = buildNewVolumeToDeviceMapping(mod, old, laidOutVols)
+		if err != nil {
+			return nil, err
+		}
+
+		// volToDeviceMapping should always be of length one
+		var volName string
+		for volName = range volToDeviceMapping {
+			break
+		}
+
+		// if there are multiple volumes leave a message that we are only
+		// performing updates for the volume with the system-boot role
+		if len(old.Info.Volumes) != 1 {
+			logger.Noticef("WARNING: gadget has multiple volumes but updates are only being performed for volume %s", volName)
+		}
+	}
+
+	// now that we have some traits about the volume -> disk mapping, either
+	// because we just constructed it or that we were provided it the .json file
+	// we have to build up a map for the updaters to use to find the structure
+	// location to update given the LaidOutStructure
+	return buildVolumeStructureToLocation(
+		mod,
+		old,
+		laidOutVols,
+		volToDeviceMapping,
+		missingInitialMapping,
+	)
 }
 
 // Update applies the gadget update given the gadget information and data from

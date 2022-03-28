@@ -93,9 +93,9 @@ func checkAssertType(assertType *AssertionType) error {
 	if assertType == nil {
 		return fmt.Errorf("internal error: assertion type cannot be nil")
 	}
-	// sanity check against known canonical
-	sanity := typeRegistry[assertType.Name]
-	switch sanity {
+	// validity check against known canonical
+	validity := typeRegistry[assertType.Name]
+	switch validity {
 	case assertType:
 		// fine, matches canonical
 		return nil
@@ -178,10 +178,6 @@ func checkRFC3339DateWhat(m map[string]interface{}, name, what string) (time.Tim
 		return time.Time{}, fmt.Errorf("%q %s is not a RFC3339 date: %v", name, what, err)
 	}
 	return date, nil
-}
-
-func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, defl time.Time) (time.Time, error) {
-	return checkRFC3339DateWithDefaultWhat(headers, name, "header", defl)
 }
 
 func checkRFC3339DateWithDefaultWhat(m map[string]interface{}, name, what string, defl time.Time) (time.Time, error) {

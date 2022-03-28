@@ -124,7 +124,7 @@ func getSeedingInfo(st *state.State) Response {
 		}
 	}
 
-	// XXX: consistency & sanity checks, e.g. if preseeded, then need to have
+	// XXX: consistency & validity checks, e.g. if preseeded, then need to have
 	// preseed-start-time, preseeded-time, preseed-system-key etc?
 
 	return SyncResponse(data)

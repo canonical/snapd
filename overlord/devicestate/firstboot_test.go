@@ -1336,7 +1336,14 @@ type: base`
 	snapdYaml := `name: snapd
 version: 1.0
 `
-	snapdFname, snapdDecl, snapdRev := s.MakeAssertedSnap(c, snapdYaml, nil, snap.R(2), "canonical")
+	// the info file is needed by the Ensure() loop of snapstate manager
+	snapdSnapFiles := [][]string{
+		{"usr/lib/snapd/info", `
+VERSION=2.54.3+git1.g479e745-dirty
+SNAPD_APPARMOR_REEXEC=0
+`},
+	}
+	snapdFname, snapdDecl, snapdRev := s.MakeAssertedSnap(c, snapdYaml, snapdSnapFiles, snap.R(2), "canonical")
 	s.WriteAssertions("snapd.asserts", snapdRev, snapdDecl)
 
 	var kernelFname string

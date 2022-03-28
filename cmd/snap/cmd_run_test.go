@@ -504,6 +504,14 @@ func (s *RunSuite) testSnapRunCreateDataDirs(c *check.C, snapDir string, opts *d
 	c.Assert(err, check.IsNil)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/42")), check.Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, snapDir, "snapname/common")), check.Equals, true)
+
+	// check we don't create the alternative dir
+	nonExistentDir := dirs.HiddenSnapDataHomeDir
+	if snapDir == dirs.HiddenSnapDataHomeDir {
+		nonExistentDir = dirs.UserHomeSnapDir
+	}
+
+	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, nonExistentDir)), check.Equals, false)
 }
 
 func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
@@ -1744,7 +1752,7 @@ func (s *RunSuite) TestSnapRunHookKernelImplicitBase(c *check.C) {
 			case 0:
 				c.Check(r.Method, check.Equals, "GET")
 				c.Check(r.URL.RawQuery, check.Equals, "")
-				fmt.Fprintln(w, happyUC20ModelAssertionResponse)
+				fmt.Fprint(w, happyUC20ModelAssertionResponse)
 			default:
 				c.Fatalf("expected to get 1 request for /v2/model, now on %d", nModel+1)
 			}
@@ -1994,9 +2002,11 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 	// write sequence file
 	seqFile := filepath.Join(dirs.SnapSeqDir, "somesnap.json")
 	str := struct {
-		Migrated bool `json:"migrated-hidden"`
+		MigratedHidden        bool `json:"migrated-hidden"`
+		MigratedToExposedHome bool `json:"migrated-exposed-home"`
 	}{
-		Migrated: true,
+		MigratedHidden:        true,
+		MigratedToExposedHome: true,
 	}
 	data, err := json.Marshal(&str)
 	c.Assert(err, check.IsNil)
@@ -2007,7 +2017,7 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 
 	opts, err := snaprun.GetSnapDirOptions("somesnap")
 	c.Assert(err, check.IsNil)
-	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	c.Assert(opts, check.DeepEquals, &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
 }
 
 func (s *RunSuite) TestRunDebugLog(c *check.C) {

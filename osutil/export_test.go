@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -194,12 +195,9 @@ func MockEtcFstab(text string) (restore func()) {
 
 // MockUname mocks syscall.Uname as used by MachineName and KernelVersion
 func MockUname(f func(*syscall.Utsname) error) (restore func()) {
-	old := syscallUname
+	r := testutil.Backup(&syscallUname)
 	syscallUname = f
-
-	return func() {
-		syscallUname = old
-	}
+	return r
 }
 
 var (

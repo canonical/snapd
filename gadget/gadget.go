@@ -250,6 +250,47 @@ type DiskVolumeDeviceTraits struct {
 	// the volume that may be useful in identifying whether a disk matches a
 	// volume or not.
 	Structure []DiskStructureDeviceTraits `json:"structure"`
+
+	// StructureEncryption is the set of partitions that are encrypted on the
+	// volume - this should only ever have ubuntu-data or ubuntu-save keys for
+	// now in the map. The value indicates parameters of the encryption present
+	// that enable matching/identifying encrypted structures with their laid out
+	// counterparts in the gadget.yaml.
+	StructureEncryption map[string]StructureEncryptionParameters `json:"structure-encryption"`
+}
+
+// StructureEncryptionParameters contains information about an encrypted
+// structure, used to match encrypted structures on disk with their abstract,
+// laid out counterparts in the gadget.yaml.
+type StructureEncryptionParameters struct {
+	// Method is the method of encryption used, currently only EncryptionLUKS is
+	// recognized.
+	Method DiskEncryptionMethod `json:"method"`
+
+	// unknownKeys is used to log messages about unknown, unrecognized keys that
+	// we may encounter and may be used in the future
+	unknownKeys map[string]string
+}
+
+func (s *StructureEncryptionParameters) UnmarshalJSON(b []byte) error {
+	m := map[string]string{}
+
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+
+	for key, val := range m {
+		if key == "method" {
+			s.Method = DiskEncryptionMethod(val)
+		} else {
+			if s.unknownKeys == nil {
+				s.unknownKeys = make(map[string]string)
+			}
+			s.unknownKeys[key] = val
+		}
+	}
+
+	return nil
 }
 
 // DiskStructureDeviceTraits is a similar to DiskVolumeDeviceTraits, but is a
@@ -387,6 +428,9 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 		// traits for it, this will also validate concretely that the
 		// device we picked and the volume are compatible
 		opts := optsPerVolume[name]
+		if opts == nil {
+			opts = &DiskVolumeValidationOptions{}
+		}
 		traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, opts)
 		if err != nil {
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
@@ -492,6 +536,10 @@ func wantsSystemSeed(m Model) bool {
 	return m != nil && m.Grade() != asserts.ModelGradeUnset
 }
 
+func compatWithPibootOrIndeterminate(m Model) bool {
+	return m == nil || m.Grade() != asserts.ModelGradeUnset
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -550,8 +598,13 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			// pass
 		case "grub", "u-boot", "android-boot", "lk":
 			bootloadersFound += 1
+		case "piboot":
+			if !compatWithPibootOrIndeterminate(model) {
+				return nil, errors.New("piboot bootloader valid only for UC20 onwards")
+			}
+			bootloadersFound += 1
 		default:
-			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot or lk")
+			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot, piboot or lk")
 		}
 	}
 	switch {

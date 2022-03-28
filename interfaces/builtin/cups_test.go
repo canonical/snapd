@@ -138,59 +138,59 @@ const expSnapUpdateNsSnippet = `  # Mount cupsd socket from cups snap to client 
   mount options=(rw bind) "/var/snap/provider/common/foo-subdir/" -> /var/cups/,
   umount /var/cups/,
   # Writable directory /var/snap/provider/common/foo-subdir
-  /var/snap/provider/common/foo-subdir/ rw,
-  /var/snap/provider/common/ rw,
-  /var/snap/provider/ rw,
+  "/var/snap/provider/common/foo-subdir/" rw,
+  "/var/snap/provider/common/" rw,
+  "/var/snap/provider/" rw,
   # Writable mimic /var
   # .. permissions for traversing the prefix that is assumed to exist
   # .. variant with mimic at /
   # Allow reading the mimic directory, it must exist in the first place.
-  / r,
+  "/" r,
   # Allow setting the read-only directory aside via a bind mount.
-  /tmp/.snap/ rw,
-  mount options=(rbind, rw) / -> /tmp/.snap/,
+  "/tmp/.snap/" rw,
+  mount options=(rbind, rw) "/" -> "/tmp/.snap/",
   # Allow mounting tmpfs over the read-only directory.
-  mount fstype=tmpfs options=(rw) tmpfs -> /,
+  mount fstype=tmpfs options=(rw) tmpfs -> "/",
   # Allow creating empty files and directories for bind mounting things
   # to reconstruct the now-writable parent directory.
-  /tmp/.snap/*/ rw,
-  /*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/*/ -> /*/,
-  /tmp/.snap/* rw,
-  /* rw,
-  mount options=(bind, rw) /tmp/.snap/* -> /*,
+  "/tmp/.snap/*/" rw,
+  "/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/*/" -> "/*/",
+  "/tmp/.snap/*" rw,
+  "/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/*" -> "/*",
   # Allow unmounting the auxiliary directory.
   # TODO: use fstype=tmpfs here for more strictness (LP: #1613403)
-  mount options=(rprivate) -> /tmp/.snap/,
-  umount /tmp/.snap/,
+  mount options=(rprivate) -> "/tmp/.snap/",
+  umount "/tmp/.snap/",
   # Allow unmounting the destination directory as well as anything
   # inside.  This lets us perform the undo plan in case the writable
   # mimic fails.
-  mount options=(rprivate) -> /,
-  mount options=(rprivate) -> /*,
-  mount options=(rprivate) -> /*/,
-  umount /,
-  umount /*,
-  umount /*/,
+  mount options=(rprivate) -> "/",
+  mount options=(rprivate) -> "/*",
+  mount options=(rprivate) -> "/*/",
+  umount "/",
+  umount "/*",
+  umount "/*/",
   # .. variant with mimic at /var/
-  /var/ r,
-  /tmp/.snap/var/ rw,
-  mount options=(rbind, rw) /var/ -> /tmp/.snap/var/,
-  mount fstype=tmpfs options=(rw) tmpfs -> /var/,
-  /tmp/.snap/var/*/ rw,
-  /var/*/ rw,
-  mount options=(rbind, rw) /tmp/.snap/var/*/ -> /var/*/,
-  /tmp/.snap/var/* rw,
-  /var/* rw,
-  mount options=(bind, rw) /tmp/.snap/var/* -> /var/*,
-  mount options=(rprivate) -> /tmp/.snap/var/,
-  umount /tmp/.snap/var/,
-  mount options=(rprivate) -> /var/,
-  mount options=(rprivate) -> /var/*,
-  mount options=(rprivate) -> /var/*/,
-  umount /var/,
-  umount /var/*,
-  umount /var/*/,
+  "/var/" r,
+  "/tmp/.snap/var/" rw,
+  mount options=(rbind, rw) "/var/" -> "/tmp/.snap/var/",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/var/",
+  "/tmp/.snap/var/*/" rw,
+  "/var/*/" rw,
+  mount options=(rbind, rw) "/tmp/.snap/var/*/" -> "/var/*/",
+  "/tmp/.snap/var/*" rw,
+  "/var/*" rw,
+  mount options=(bind, rw) "/tmp/.snap/var/*" -> "/var/*",
+  mount options=(rprivate) -> "/tmp/.snap/var/",
+  umount "/tmp/.snap/var/",
+  mount options=(rprivate) -> "/var/",
+  mount options=(rprivate) -> "/var/*",
+  mount options=(rprivate) -> "/var/*/",
+  umount "/var/",
+  umount "/var/*",
+  umount "/var/*/",
 `
 
 func (s *cupsSuite) TestAppArmorSpec(c *C) {

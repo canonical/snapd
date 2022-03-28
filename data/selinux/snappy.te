@@ -534,6 +534,10 @@ allow snappy_mount_t fonts_t:dir mounton;
 # WONTFIX, so carry the workaround for as long as we support EPEL7)
 allow snappy_mount_t lib_t:dir mounton;
 
+# when supporting interfaces such as appstream-metadata, snap-update-ns will
+# mount things labeled usr_t from the host
+allow snappy_mount_t usr_t:dir mounton;
+
 # mount and unmount on top of snaps
 allow snappy_mount_t snappy_snap_t:dir mounton;
 allow snappy_mount_t snappy_snap_t:file mounton;
@@ -571,6 +575,7 @@ fs_remount_xattr_fs(snappy_mount_t)
 ifndef(`distro_rhel7',`
 	optional_policy(`
 		fwupd_search_cache(snappy_mount_t)
+		allow snappy_mount_t fwupd_cache_t:dir mounton;
 	')
 ')
 
@@ -805,6 +810,8 @@ can_exec(snappy_cli_t, snappy_exec_t)
 fs_getattr_tmpfs(snappy_cli_t)
 fs_getattr_cgroup(snappy_cli_t)
 
+# execute systemctl is-system-running when system-key mismatch is detected
+systemd_exec_systemctl(snappy_cli_t)
 
 ########################################
 #

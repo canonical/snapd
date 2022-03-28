@@ -99,7 +99,8 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
-	ensureInstalledRan bool
+	ensureInstalledRan    bool
+	ensureFactoryResetRan bool
 
 	ensureTriedRecoverySystemRan bool
 
@@ -113,7 +114,9 @@ type DeviceManager struct {
 	reg                          chan struct{}
 	noRegister                   bool
 
-	preseed             bool
+	preseed            bool
+	preseedSystemLabel string
+
 	ntpSyncedOrTimedOut bool
 }
 
@@ -129,12 +132,26 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		preseed:  snapdenv.Preseeding(),
 	}
 
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, err
-	}
-	if modeEnv != nil {
-		m.sysMode = modeEnv.Mode
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, err
+		}
+		if modeEnv != nil {
+			m.sysMode = modeEnv.Mode
+		}
+	} else {
+		// cache system label for preseeding of core20; note, this will fail on
+		// core16/core18 (they are not supported by preseeding) as core20 system
+		// label is expected.
+		if !release.OnClassic {
+			var err error
+			m.preseedSystemLabel, err = systemForPreseeding()
+			if err != nil {
+				return nil, err
+			}
+			m.sysMode = "run"
+		}
 	}
 
 	s.Lock()
@@ -153,6 +170,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
@@ -540,6 +558,23 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
 	}
+	if device.KeyID == "" && model.Grade() != "" {
+		// UC20+ devices support factory reset
+		serial, err := m.maybeRestoreAfterReset(device)
+		if err != nil {
+			return err
+		}
+		if serial != nil {
+			device.KeyID = serial.DeviceKey().ID()
+			device.Serial = serial.Serial()
+			if err := m.setDevice(device); err != nil {
+				return fmt.Errorf("cannot set device for restored serial and key: %v", err)
+			}
+			logger.Noticef("restored serial %v for %v/%v signed with key %v",
+				device.Serial, device.Brand, device.Model, device.KeyID)
+			return nil
+		}
+	}
 
 	// have some backoff between full retries
 	if m.ensureOperationalShouldBackoff(time.Now()) {
@@ -581,6 +616,52 @@ func (m *DeviceManager) ensureOperational() error {
 	perfTimings.Save(m.state)
 
 	return nil
+}
+
+// maybeRestoreAfterReset attempts to restore the serial assertion with a
+// matching key in a post-factory reset scenario. It is possible that it is
+// called when the device was unregistered, but when doing so, the device key is
+// removed.
+func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asserts.Serial, error) {
+	// there should be a serial assertion for the current model
+	serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+		"brand-id": device.Brand,
+		"model":    device.Model,
+	})
+	if err != nil {
+		if asserts.IsNotFound(err) {
+			// no serial assertion
+			return nil, nil
+		}
+		return nil, err
+	}
+	for _, serial := range serials {
+		serialAs := serial.(*asserts.Serial)
+		deviceKeyID := serialAs.DeviceKey().ID()
+		logger.Debugf("processing candidate serial assertion for %v/%v signed with key %v",
+			device.Brand, device.Model, deviceKeyID)
+		// serial assertion is signed with the device key, its ID is in
+		// the header; factory-reset would have restored the serial
+		// assertion and a matching device key, OTOH when the device is
+		// unregistered we explicitly remove the key, hence should this
+		// code process such serial assertion, there will be no matching
+		// key for it
+		err = m.withKeypairMgr(func(kpmgr asserts.KeypairManager) error {
+			_, err := kpmgr.Get(deviceKeyID)
+			return err
+		})
+		if err != nil {
+			if asserts.IsKeyNotFound(err) {
+				// there is no key matching this serial assertion,
+				// perhaps device was unregistered at some point
+				continue
+			}
+			return nil, err
+		}
+		return serialAs, nil
+	}
+	// none of the assertions has a matching key
+	return nil, nil
 }
 
 var startTime time.Time
@@ -625,14 +706,27 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 	return perfTimings, nil
 }
 
+func (m *DeviceManager) systemForPreseeding() string {
+	if m.preseedSystemLabel == "" {
+		panic("no system to preseed")
+	}
+	return m.preseedSystemLabel
+}
+
 func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
-	modeEnv, err := maybeReadModeenv()
-	if err != nil {
-		return nil, nil, err
+	if m.preseed && !release.OnClassic {
+		sysLabel = m.systemForPreseeding()
 	}
-	if modeEnv != nil {
-		sysLabel = modeEnv.RecoverySystem
+
+	if !m.preseed {
+		modeEnv, err := maybeReadModeenv()
+		if err != nil {
+			return nil, nil, err
+		}
+		if modeEnv != nil {
+			sysLabel = modeEnv.RecoverySystem
+		}
 	}
 
 	// we time preloadGadget + first ensureSeeded together
@@ -730,6 +824,10 @@ func (m *DeviceManager) ensureSeeded() error {
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
 		opts = &populateStateFromSeedOptions{Preseed: true}
+		if !release.OnClassic {
+			opts.Mode = "run"
+			opts.Label = m.systemForPreseeding()
+		}
 	} else {
 		modeEnv, err := maybeReadModeenv()
 		if err != nil {
@@ -995,10 +1093,6 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.changeInFlight("install-system") {
-		return nil
-	}
-
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
@@ -1055,6 +1149,50 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
+
+	state.TagTimingsWithChange(perfTimings, chg)
+	perfTimings.Save(m.state)
+
+	return nil
+}
+
+func (m *DeviceManager) ensureFactoryReset() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureFactoryResetRan {
+		return nil
+	}
+
+	if m.SystemMode(SysHasModeenv) != "factory-reset" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
+
+	m.ensureFactoryResetRan = true
+
+	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	restartSystem.WaitFor(factoryReset)
+
+	// TODO: add factory-reset hooks?
+
+	chg := m.state.NewChange("factory-reset", i18n.G("Perform factory reset"))
+	chg.AddAll(state.NewTaskSet(factoryReset, restartSystem))
 
 	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
@@ -1259,6 +1397,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureTriedRecoverySystem(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureFactoryReset(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1535,10 +1677,12 @@ var defaultSystemActions = []SystemAction{
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 var recoverSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 	{Title: "Run normally", Mode: "run"},
 }
 
@@ -1590,7 +1734,7 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	rebootCurrent := func() {
 		logger.Noticef("rebooting system")
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 
 	// most simple case: just reboot
@@ -1614,7 +1758,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
@@ -1633,7 +1777,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	nop := func() {}
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-		restart.Request(m.state, restart.RestartSystemNow)
+		restart.Request(m.state, restart.RestartSystemNow, nil)
 	}
 	// we do nothing (nop) if the mode and system are the same
 	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)
@@ -1691,8 +1835,9 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 			sameSystemAndMode()
 			return nil
 		}
-	case "install":
-		// requesting system actions in install mode does not make sense atm
+	case "install", "factory-reset":
+		// requesting system actions in install or factory-reset modes
+		// does not make sense atm
 		//
 		// TODO:UC20: maybe factory hooks will be able to something like
 		// this?

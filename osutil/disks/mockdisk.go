@@ -401,7 +401,7 @@ func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*Moc
 		if mockedDisk, ok := mockedMountPoints[m]; ok {
 			return mockedDisk, nil
 		}
-		return nil, fmt.Errorf("mountpoint %s not mocked", mountpoint)
+		return nil, fmt.Errorf("mountpoint %+v not mocked", m)
 	}
 	return func() {
 		diskFromMountPoint = old

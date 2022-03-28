@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
@@ -57,6 +58,7 @@ func (s *sealSuite) SetUpTest(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
 }
 
 func mockKernelSeedSnap(rev snap.Revision) *seed.Snap {
@@ -202,6 +204,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 								secboot.NewLoadChain(runKernel)))),
 				})
 				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 				})
@@ -212,6 +215,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 							secboot.NewLoadChain(kernel))),
 				})
 				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				})
 			default:
@@ -261,6 +265,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				Kernel:         "pc-kernel",
 				KernelRevision: "1",
 				KernelCmdlines: []string{
+					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				},
 			},
@@ -319,6 +324,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				Kernel:         "pc-kernel",
 				KernelRevision: "1",
 				KernelCmdlines: []string{
+					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				},
 			},
@@ -754,6 +760,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
@@ -766,6 +773,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			})
 			// load chains
@@ -848,6 +856,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 			Kernel:         "pc-kernel",
 			KernelRevision: "1",
 			KernelCmdlines: []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			},
 		},
@@ -872,6 +881,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 			Kernel:         "pc-kernel",
 			KernelRevision: "999",
 			KernelCmdlines: []string{
+				// but only the recover mode
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 			},
 		},
@@ -930,6 +940,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 			Kernel:         "pc-kernel",
 			KernelRevision: "1",
 			KernelCmdlines: []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			},
 		},
@@ -1080,6 +1091,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		desc                    string
 		assetsMap               boot.BootAssetsMap
 		recoverySystems         []string
+		modesForSystems         map[string][]string
 		undefinedKernel         bool
 		gadgetFilesForSystem    map[string][][]string
 		expectedAssets          []boot.BootAsset
@@ -1092,6 +1104,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		{
 			desc:            "transition sequences",
 			recoverySystems: []string{"20200825"},
+			modesForSystems: map[string][]string{"20200825": {boot.ModeRecover, boot.ModeFactoryReset}},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
@@ -1101,13 +1114,18 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
 			},
 			expectedKernelRevs: []int{1},
-			expectedCmdlines: [][]string{
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
-			},
+			expectedCmdlines: [][]string{{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			}},
 		},
 		{
 			desc:            "two systems",
 			recoverySystems: []string{"20200825", "20200831"},
+			modesForSystems: map[string][]string{
+				"20200825": {boot.ModeRecover, boot.ModeFactoryReset},
+				"20200831": {boot.ModeRecover, boot.ModeFactoryReset},
+			},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
@@ -1117,14 +1135,18 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
 			},
 			expectedKernelRevs: []int{1, 3},
-			expectedCmdlines: [][]string{
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1"},
-			},
+			expectedCmdlines: [][]string{{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			}, {
+				"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1",
+			}},
 		},
 		{
 			desc:            "non transition sequence",
 			recoverySystems: []string{"20200825"},
+			modesForSystems: map[string][]string{"20200825": {boot.ModeRecover, boot.ModeFactoryReset}},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
@@ -1134,13 +1156,18 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1"}},
 			},
 			expectedKernelRevs: []int{1},
-			expectedCmdlines: [][]string{
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
-			},
+			expectedCmdlines: [][]string{{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			}},
 		},
 		{
 			desc:            "two systems with command lines",
 			recoverySystems: []string{"20200825", "20200831"},
+			modesForSystems: map[string][]string{
+				"20200825": {boot.ModeRecover, boot.ModeFactoryReset},
+				"20200831": {boot.ModeRecover, boot.ModeFactoryReset},
+			},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
@@ -1159,14 +1186,22 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				},
 			},
 			expectedKernelRevs: []int{1, 3},
-			expectedCmdlines: [][]string{
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1 extra for 20200825"},
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1 some-extra-for-20200831"},
-			},
+			expectedCmdlines: [][]string{{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1 extra for 20200825",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1 extra for 20200825",
+			}, {
+				"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1 some-extra-for-20200831",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1 some-extra-for-20200831",
+			}},
 		},
 		{
 			desc:            "three systems, one with different model",
 			recoverySystems: []string{"20200825", "20200831", "off-model"},
+			modesForSystems: map[string][]string{
+				"20200825":  {boot.ModeRecover, boot.ModeFactoryReset},
+				"20200831":  {boot.ModeRecover, boot.ModeFactoryReset},
+				"off-model": {boot.ModeRecover, boot.ModeFactoryReset},
+			},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
@@ -1176,16 +1211,50 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
 			},
 			expectedKernelRevs: []int{1, 3},
-			expectedCmdlines: [][]string{
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
-				{"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1"},
+			expectedCmdlines: [][]string{{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			}, {
+				"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1",
+			}},
+			expectedBootChainsCount: 2,
+		},
+		{
+			desc:            "two systems, one with different modes",
+			recoverySystems: []string{"20200825", "20200831"},
+			modesForSystems: map[string][]string{
+				"20200825": {boot.ModeRecover, boot.ModeFactoryReset},
+				"20200831": {boot.ModeRecover},
 			},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			expectedAssets: []boot.BootAsset{
+				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
+				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
+			},
+			expectedKernelRevs: []int{1, 3},
+			expectedCmdlines: [][]string{{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			}, {
+				"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1",
+			}},
 			expectedBootChainsCount: 2,
 		},
 		{
 			desc:            "invalid recovery system label",
 			recoverySystems: []string{"0"},
+			modesForSystems: map[string][]string{"0": {boot.ModeRecover}},
 			err:             `cannot read system "0" seed: invalid system seed`,
+		},
+		{
+			desc:            "missing modes for a system",
+			recoverySystems: []string{"20200825"},
+			modesForSystems: map[string][]string{"other": {boot.ModeRecover}},
+			err:             `internal error: no modes for system "20200825"`,
 		},
 	} {
 		c.Logf("tc: %q", tc.desc)
@@ -1234,7 +1303,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		}
 
 		includeTryModel := false
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tbl, modeenv, includeTryModel)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			if tc.expectedBootChainsCount == 0 {
@@ -1659,7 +1728,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 
 	modeenv := &boot.Modeenv{
 		// recovery system set up like during a remodel, right before a
-		// set-device is called
+		// set-device is called, the recovery system of the new model
+		// has been tested
 		CurrentRecoverySystems: []string{"20200825", "1234", "off-model"},
 		GoodRecoverySystems:    []string{"20200825", "1234"},
 
@@ -1742,6 +1812,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			// shared parameters
 			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
@@ -1750,6 +1821,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 
 			c.Assert(params.ModelParams[1].Model.Model(), Equals, "try-my-model-uc20")
 			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			})
@@ -1766,6 +1838,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 			for _, mp := range params.ModelParams {
 				c.Assert(mp.KernelCmdlines, DeepEquals, []string{
+					"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				})
 				// load chains
@@ -1877,6 +1950,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			Kernel:         "pc-kernel",
 			KernelRevision: "1",
 			KernelCmdlines: []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			},
 		},
@@ -1902,6 +1976,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			Kernel:         "pc-kernel",
 			KernelRevision: "999",
 			KernelCmdlines: []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 			},
 		},
@@ -1933,6 +2008,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			Kernel:         "pc-kernel",
 			KernelRevision: "1",
 			KernelCmdlines: []string{
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 			},
 		},

@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
@@ -677,7 +678,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 
 			Channel: stableChannel,
 		})
-		// sanity
+		// precondition
 		if name == "core" {
 			c.Check(essSnaps[i].SideInfo.SnapID, Equals, s.AssertedSnapID("core"))
 		}
@@ -2019,6 +2020,43 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 	c.Assert(err, ErrorMatches, "cannot have snaps for a classic image without an architecture in the model or from --arch")
 }
 
+func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
+	preparedir := c.MkDir()
+	s.setupSnaps(c, nil, "")
+
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+	restore = sysdb.MockGenericClassicModel(s.StoreSigning.GenericClassicModel)
+	defer restore()
+	restore = image.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*image.ToolingStore, error) {
+		return s.tsto, nil
+	})
+	defer restore()
+
+	// prepare an image with no model assertion but classic set to true
+	// to ensure the GenericClassicModel is used without error
+	err := image.Prepare(&image.Options{
+		Architecture: "amd64",
+		PrepareDir:   preparedir,
+		Classic:      true,
+		Snaps:        []string{"required-snap18", "core18"},
+	})
+	c.Assert(err, IsNil)
+
+	// ensure the prepareDir was preseeded
+	seeddir := filepath.Join(preparedir, "var/lib/snapd/seed")
+	seedsnapsdir := filepath.Join(seeddir, "snaps")
+	c.Check(filepath.Join(seeddir, "seed.yaml"), testutil.FilePresent)
+	m, err := filepath.Glob(filepath.Join(seedsnapsdir, "*"))
+	c.Assert(err, IsNil)
+	// generic classic model has no other snaps, so we expect only the snaps
+	// that were passed in options to be present
+	c.Check(m, DeepEquals, []string{
+		filepath.Join(seedsnapsdir, "core18_18.snap"),
+		filepath.Join(seedsnapsdir, "required-snap18_6.snap"),
+	})
+}
+
 func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -3163,7 +3201,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 
-	// sanity checks
+	// validity checks
 	seeddir := filepath.Join(prepareDir, "system-seed")
 	seedsnapsdir := filepath.Join(seeddir, "snaps")
 	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
@@ -3262,6 +3300,47 @@ assets:
 
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
+}
+
+func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *image.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	var preseedCalled bool
+	restorePreseedCore20 := image.MockPreseedCore20(func(dir string) error {
+		preseedCalled = true
+		c.Assert(dir, Equals, "/a/dir")
+		return nil
+	})
+	defer restorePreseedCore20()
+
+	model := s.makeUC20Model(nil)
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+
+	err := image.Prepare(&image.Options{
+		ModelFile:  fn,
+		Preseed:    true,
+		PrepareDir: "/a/dir",
+	})
+	c.Assert(err, IsNil)
+	c.Check(preseedCalled, Equals, true)
+}
+
+func (s *imageSuite) TestPrepareWithClassicPreseedError(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *image.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	err := image.Prepare(&image.Options{
+		Preseed:    true,
+		Classic:    true,
+		PrepareDir: "/a/dir",
+	})
+	c.Assert(err, ErrorMatches, `cannot preseed the image for a classic model`)
 }
 
 type toolingStoreContextSuite struct {

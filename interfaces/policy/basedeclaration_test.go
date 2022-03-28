@@ -669,6 +669,7 @@ var (
 		"x11":                       {"app", "core"},
 		// snowflakes
 		"classic-support": nil,
+		"custom-device":   nil,
 		"docker":          nil,
 		"lxd":             nil,
 		"shared-memory":   nil,
@@ -796,6 +797,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	noconnect := map[string]bool{
 		"content":                   true,
 		"cups":                      true,
+		"custom-device":             true,
 		"docker":                    true,
 		"fwupd":                     true,
 		"location-control":          true,
@@ -965,7 +967,7 @@ slots:
 	}
 }
 
-func (s *baseDeclSuite) TestSanity(c *C) {
+func (s *baseDeclSuite) TestValidity(c *C) {
 	all := builtin.Interfaces()
 
 	// these interfaces have rules both for the slots and plugs side
@@ -976,6 +978,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
+		"custom-device":         true,
 		"desktop-launch":        true,
 		"dm-crypt":              true,
 		"docker-support":        true,
