@@ -136,7 +136,7 @@ func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 	s.testPibootSetEnvWriteOnlyIfChanged(c, fromInitramfs)
 }
 
-func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
+func (s *pibootTestSuite) testExtractKernelAssets(c *C, dtbDir string) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
@@ -146,7 +146,7 @@ func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -180,7 +180,13 @@ func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 	c.Check(readmeFn, testutil.FilePresent)
 }
 
-func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
+	// armhf and arm64 kernel snaps store dtbs in different places
+	s.testExtractKernelAssets(c, "dtbs")
+	s.testExtractKernelAssets(c, "dtbs/broadcom")
+}
+
+func (s *pibootTestSuite) testExtractRecoveryKernelAssets(c *C, dtbDir string) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
@@ -190,7 +196,7 @@ func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -227,6 +233,12 @@ func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	// Check that file required by piboot is created
 	readmeFn := filepath.Join(assetsDir, "overlays", "README")
 	c.Check(readmeFn, testutil.FilePresent)
+}
+
+func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+	// armhf and arm64 kernel snaps store dtbs in different places
+	s.testExtractRecoveryKernelAssets(c, "dtbs")
+	s.testExtractRecoveryKernelAssets(c, "dtbs/broadcom")
 }
 
 func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
@@ -538,7 +550,7 @@ func (s *pibootTestSuite) TestSetBootVarsFromInitramfs(c *C) {
 	})
 }
 
-func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
+func (s *pibootTestSuite) testExtractKernelAssetsAndRemove(c *C, dtbDir string) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
@@ -549,7 +561,7 @@ func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -591,4 +603,10 @@ func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+}
+
+func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
+	// armhf and arm64 kernel snaps store dtbs in different places
+	s.testExtractKernelAssetsAndRemove(c, "dtbs")
+	s.testExtractKernelAssetsAndRemove(c, "dtbs/broadcom")
 }
