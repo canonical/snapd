@@ -724,6 +724,13 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
+
+	// test shared-memory specially
+	ic = s.installSlotCand(c, "shared-memory", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"shared-memory\" slot rule of interface \"shared-memory\"")
+
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {

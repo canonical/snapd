@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -88,9 +88,12 @@ const sharedMemoryBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
+        - gadget
         - core
-    deny-connection: false
-    deny-auto-connection: false
+      slot-snap-id:
+        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+        - 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    deny-auto-connection: true
 `
 
 const sharedMemoryPrivateConnectedPlugAppArmor = `
