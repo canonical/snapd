@@ -167,9 +167,24 @@ func (w *modelWriter) writeSeperator() {
 	}
 }
 
-func (w *modelWriter) startObject(name string) {
+func (w *modelWriter) StartObject(name string) {
+	w.writeSeperator()
+
+	// store this for later use with json arrays
+	inArray := w.currentState.inArray
+
 	if w.format == MODELWRITER_JSON_FORMAT {
-		fmt.Fprintf(w.w, "%s%s", w.indent(), "{\n")
+		if len(name) > 0 {
+			// named object, are we in an array?
+			if w.currentState.inArray {
+				fmt.Fprint(w.w, w.indent(), "{\n")
+			} else {
+				fmt.Fprint(w.w, w.indent(), `"`, name, `": {`, "\n")
+			}
+		} else {
+			// anonymous object
+			fmt.Fprint(w.w, w.indent(), `{`, "\n")
+		}
 	} else if w.format == MODELWRITER_YAML_FORMAT {
 		if w.currentState.inArray {
 			fmt.Fprintf(w.w, "%s- name:\t%s\n", w.indent(), name)
@@ -185,9 +200,16 @@ func (w *modelWriter) startObject(name string) {
 	if w.format != MODELWRITER_YAML_FORMAT || len(name) != 0 {
 		w.increaseIndent()
 	}
+
+	// For objects in arrays in json we need to write the name of
+	// the object seperately. We need to do this post state is pushed
+	// and after the indentation has increased
+	if w.format == MODELWRITER_JSON_FORMAT && inArray {
+		w.WriteStringPair("name", name)
+	}
 }
 
-func (w *modelWriter) endObject() {
+func (w *modelWriter) EndObject() {
 	w.popState()
 	if w.format == MODELWRITER_JSON_FORMAT {
 		fmt.Fprintf(w.w, "\n%s%s", w.indent(), "}")
@@ -206,7 +228,8 @@ func (w *modelWriter) endObject() {
 // - 1
 // - 2
 // - 3
-func (w *modelWriter) startArray(name string, inline bool) {
+func (w *modelWriter) StartArray(name string, inline bool) {
+	w.writeSeperator()
 	if w.format == MODELWRITER_JSON_FORMAT {
 		fmt.Fprintf(w.w, "%s%q: [\n", w.indent(), name)
 	} else {
@@ -223,24 +246,36 @@ func (w *modelWriter) startArray(name string, inline bool) {
 	w.currentState.inlineArray = inline
 }
 
-func (w *modelWriter) endArray() {
+func (w *modelWriter) EndArray() {
 	if w.format == MODELWRITER_JSON_FORMAT {
-		sep := fmt.Sprintf("%s,\n", w.indent())
-		strings.Join(w.currentState.arrayMembers, sep)
-		fmt.Fprint(w.w, strings.Repeat(" ", w.currentState.indent-2)+"],\n")
+		for i, member := range w.currentState.arrayMembers {
+			fmt.Fprintf(w.w, "%s%q", w.indent(), member)
+			if i < len(w.currentState.arrayMembers)-1 {
+				fmt.Fprint(w.w, ",\n")
+			}
+		}
+		fmt.Fprintf(w.w, "\n%s]", strings.Repeat(" ", w.currentState.indent-2))
 	} else if w.format == MODELWRITER_YAML_FORMAT {
 		if w.currentState.inlineArray {
 			fmt.Fprintf(w.w, "%s]", strings.Join(w.currentState.arrayMembers, ", "))
 		} else {
-			for _, member := range w.currentState.arrayMembers {
-				fmt.Fprintf(w.w, "%s- %s\n", w.indent(), member)
+			for i, member := range w.currentState.arrayMembers {
+				fmt.Fprintf(w.w, "%s- %s", w.indent(), member)
+				if i < len(w.currentState.arrayMembers)-1 {
+					fmt.Fprint(w.w, "\n")
+				}
 			}
 		}
 	}
 	w.popState()
 }
 
-func (w *modelWriter) writeStringPair(name, value string) {
+func (w *modelWriter) WriteStringPair(name, value string) {
+	if w.currentState.inArray {
+		// support for this we could do, but we wont as it's not required at this moment
+		return
+	}
+
 	w.writeSeperator()
 	if w.format == MODELWRITER_JSON_FORMAT {
 		fmt.Fprintf(w.w, "%s%q: %q", w.indent(), name, value)
@@ -251,7 +286,7 @@ func (w *modelWriter) writeStringPair(name, value string) {
 	}
 }
 
-func (w *modelWriter) writeWrappedStringPair(name, value string, lineWidth int) error {
+func (w *modelWriter) WriteWrappedStringPair(name, value string, lineWidth int) error {
 	w.writeSeperator()
 	if w.format == MODELWRITER_JSON_FORMAT {
 		fmt.Fprintf(w.w, "%s%q: %s", w.indent(), name, value)
@@ -264,7 +299,7 @@ func (w *modelWriter) writeWrappedStringPair(name, value string, lineWidth int) 
 	return nil
 }
 
-func (w *modelWriter) writeStringValue(value string) {
+func (w *modelWriter) WriteStringValue(value string) {
 	// this is only ever called for array members currently, if it was to be used
 	// for other cases, they need to be implemented here.
 	if w.currentState.inArray {
@@ -334,17 +369,17 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 		// brand-id), but if we didn't find the serial assertion then we still
 		// output the brand-id and model from the model assertion, but also
 		// return a devNotReady error
-		mw.startObject("")
-		mw.writeStringPair("brand-id", modelAssertion.HeaderString("brand-id"))
-		mw.writeStringPair("model", modelAssertion.HeaderString("model"))
-		mw.endObject()
+		mw.StartObject("")
+		mw.WriteStringPair("brand-id", modelAssertion.HeaderString("brand-id"))
+		mw.WriteStringPair("model", modelAssertion.HeaderString("model"))
+		mw.EndObject()
 		w.Flush()
 		return errNoSerial
 	}
 
 	// the rest of this function is the main flow for outputting either the
 	// model or serial assertion in normal or verbose mode
-	mw.startObject("")
+	mw.StartObject("")
 
 	// ordering of the primary keys for model: brand, model, serial
 	// ordering of primary keys for serial is brand-id, model, serial
@@ -371,18 +406,18 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 	// handle brand/brand-id and model/model + display-name differently on just
 	// `snap model` w/o opts
 	if verbose || useSerial {
-		mw.writeStringPair("brand-id", brandIDHeader)
-		mw.writeStringPair("model", modelHeader)
+		mw.WriteStringPair("brand-id", brandIDHeader)
+		mw.WriteStringPair("model", modelHeader)
 	} else {
 		publisher := modelFormatter.GetPublisher()
-		mw.writeStringPair("brand", publisher)
+		mw.WriteStringPair("brand", publisher)
 
 		// for model, if there's a display-name, we show that first with the
 		// real model in parenthesis
 		if displayName := modelAssertion.HeaderString("display-name"); displayName != "" {
 			modelHeader = fmt.Sprintf("%s (%s)", displayName, modelHeader)
 		}
-		mw.writeStringPair("model", modelHeader)
+		mw.WriteStringPair("model", modelHeader)
 	}
 
 	// only output the grade if it is non-empty, either it is not in the model
@@ -390,16 +425,16 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 	// required for uc20 model assertions
 	grade := modelAssertion.HeaderString("grade")
 	if grade != "" {
-		mw.writeStringPair("grade", grade)
+		mw.WriteStringPair("grade", grade)
 	}
 
 	storageSafety := modelAssertion.HeaderString("storage-safety")
 	if storageSafety != "" {
-		mw.writeStringPair("storage-safety", storageSafety)
+		mw.WriteStringPair("storage-safety", storageSafety)
 	}
 
 	// serial is same for all variants
-	mw.writeStringPair("serial", serial)
+	mw.WriteStringPair("serial", serial)
 
 	// verbose means output more information
 	if verbose {
@@ -426,7 +461,7 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 					continue
 				}
 
-				mw.startArray(headerName, false)
+				mw.StartArray(headerName, false)
 				for _, elem := range headerIfaceList {
 					headerStringElem, ok := elem.(string)
 					if !ok {
@@ -435,9 +470,9 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 					// note we don't wrap these, since for now this is
 					// specifically just required-snaps and so all of these
 					// will be snap names which are required to be short
-					mw.writeStringValue(headerStringElem)
+					mw.WriteStringValue(headerStringElem)
 				}
-				mw.endArray()
+				mw.EndArray()
 
 			//timestamp needs to be formatted with fmtTime from the timeMixin
 			case "timestamp":
@@ -452,7 +487,7 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 				if err != nil {
 					return err
 				}
-				mw.writeStringPair("timestamp", fmtTime(t, absTime))
+				mw.WriteStringPair("timestamp", fmtTime(t, absTime))
 
 			// long string key we don't want to rewrap but can safely handle
 			// on "reasonable" width terminals
@@ -467,9 +502,9 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 
 				switch {
 				case termWidth > 86:
-					mw.writeStringPair("device-key-sha3-384", headerString)
+					mw.WriteStringPair("device-key-sha3-384", headerString)
 				case termWidth <= 86 && termWidth > 66:
-					if err := mw.writeWrappedStringPair("device-key-sha3-384", headerString, termWidth); err != nil {
+					if err := mw.WriteWrappedStringPair("device-key-sha3-384", headerString, termWidth); err != nil {
 						return err
 					}
 				}
@@ -486,7 +521,7 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 					// now
 					continue
 				}
-				mw.startArray("snaps", false)
+				mw.StartArray("snaps", false)
 				for _, sn := range snapsHeader {
 					snMap, ok := sn.(map[string]interface{})
 					if !ok {
@@ -497,7 +532,7 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 					// first do snap name, which will always be present since we
 					// parsed a valid assertion
 					name := snMap["name"].(string)
-					mw.startObject(name)
+					mw.StartObject(name)
 
 					// the rest of these may be absent, but they are all still
 					// simple strings
@@ -511,14 +546,14 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 							return invalidTypeErr
 						}
 						if snStrValue != "" {
-							mw.writeStringPair(snKey, snStrValue)
+							mw.WriteStringPair(snKey, snStrValue)
 						}
 					}
 
 					// finally handle "modes" which is a list
 					modes, ok := snMap["modes"]
 					if !ok {
-						mw.endObject()
+						mw.EndObject()
 						continue
 					}
 					modesSlice, ok := modes.([]interface{})
@@ -526,22 +561,22 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 						return invalidTypeErr
 					}
 					if len(modesSlice) == 0 {
-						mw.endObject()
+						mw.EndObject()
 						continue
 					}
 
-					mw.startArray("modes", true)
+					mw.StartArray("modes", true)
 					for _, mode := range modesSlice {
 						modeStr, ok := mode.(string)
 						if !ok {
 							return invalidTypeErr
 						}
-						mw.writeStringValue(modeStr)
+						mw.WriteStringValue(modeStr)
 					}
-					mw.endArray()
-					mw.endObject()
+					mw.EndArray()
+					mw.EndObject()
 				}
-				mw.endArray()
+				mw.EndArray()
 
 			// long base64 key we can rewrap safely
 			case "device-key":
@@ -556,7 +591,7 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 				headerString = strings.Join(
 					strings.Split(headerString, "\n"),
 					"")
-				if err := mw.writeWrappedStringPair("device-key", headerString, termWidth); err != nil {
+				if err := mw.WriteWrappedStringPair("device-key", headerString, termWidth); err != nil {
 					return err
 				}
 
@@ -567,10 +602,10 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 				if !ok {
 					return invalidTypeErr
 				}
-				mw.writeStringPair(headerName, headerString)
+				mw.WriteStringPair(headerName, headerString)
 			}
 		}
 	}
-	mw.endObject()
+	mw.EndObject()
 	return w.Flush()
 }
