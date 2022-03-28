@@ -41,8 +41,6 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -323,7 +321,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		// Note: Auto is no longer set in the Snapshot.
 	}
 
-	archiveOptions, err := readSnapshotYaml(si)
+	snapshotOptions, err := snap.ReadSnapshotYaml(si)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +336,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	w := zip.NewWriter(aw)
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
 	savingUserData := false
-	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir(), savingUserData, archiveOptions); err != nil {
+	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir(), savingUserData, snapshotOptions.ExcludePaths); err != nil {
 		return nil, err
 	}
 
@@ -349,7 +347,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 	savingUserData = true
 	for _, usr := range users {
-		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir, opts), savingUserData, archiveOptions); err != nil {
+		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir, opts), savingUserData, snapshotOptions.ExcludePaths); err != nil {
 			return nil, err
 		}
 	}
@@ -391,44 +389,7 @@ type addDirToZipOptions struct {
 	ExcludePaths []string `yaml:"exclude"`
 }
 
-func readSnapshotYaml(si *snap.Info) (*addDirToZipOptions, error) {
-	var opts addDirToZipOptions
-	file, err := osOpen(filepath.Join(si.MountDir(), "meta", "snapshots.yaml"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return &opts, nil
-		}
-		return nil, err
-	}
-	defer file.Close()
-
-	if err := yaml.NewDecoder(file).Decode(opts); err != nil {
-		return nil, fmt.Errorf("cannot read snapshot manifest: %v", err)
-	}
-
-	// Validate the exclude list; note that this is an *exclusion* list, so
-	// even if the manifest specified paths starting with ../ this would not
-	// cause tar to navigate into those directories and pose a security risk.
-	// Still, let's have a minimal validation on them being sensible.
-	validFirstComponents := []string{
-		"$SNAP_DATA", "$SNAP_COMMON", "$SNAP_USER_DATA", "$SNAP_USER_COMMON",
-	}
-	for _, excludePath := range opts.ExcludePaths {
-		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
-		if !strutil.ListContains(validFirstComponents, firstComponent) {
-			return nil, fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
-		}
-
-		cleanPath := filepath.Clean(excludePath)
-		if cleanPath != excludePath {
-			return nil, fmt.Errorf("snapshot exclude path not clean: %q", excludePath)
-		}
-	}
-
-	return &opts, nil
-}
-
-func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string, savingUserData bool, opts *addDirToZipOptions) error {
+func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string, savingUserData bool, excludePaths []string) error {
 	parent, revdir := filepath.Split(dir)
 	exists, isDir, err := osutil.DirExists(parent)
 	if err != nil {
@@ -472,7 +433,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 		// order to do this, we return a "-" as a sentinel.
 		return "-"
 	}
-	for _, excludePath := range opts.ExcludePaths {
+	for _, excludePath := range excludePaths {
 		expandedPath := os.Expand(excludePath, expandSnapDataDirs)
 		// "-" is the sentinel returned by expandSnapDataDirs() if the
 		// exclusion path is not relevant for the type of data being considered

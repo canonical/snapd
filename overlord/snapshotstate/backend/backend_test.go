@@ -556,110 +556,17 @@ func (s *snapshotSuite) TestList(c *check.C) {
 	}
 }
 
-func (s *snapshotSuite) TestReadSnapshotYamlOpenFails(c *check.C) {
-	var returnedError error
-	defer backend.MockOsOpen(func(string) (*os.File, error) {
-		return nil, returnedError
-	})()
-
-	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}}
-
-	// Try a generic error, this is reported as such
-	returnedError = errors.New("Some error")
-	opts := &backend.AddDirToZipOptions{}
-	err := backend.ReadSnapshotYaml(info, opts)
-	c.Check(err, check.ErrorMatches, "Some error")
-
-	// But if the file is not found, that's just a nil error
-	returnedError = os.ErrNotExist
-	err = backend.ReadSnapshotYaml(info, opts)
-	c.Check(err, check.IsNil)
-}
-
-func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *check.C) {
-	var manifestFile *os.File
-	defer backend.MockOsOpen(func(string) (*os.File, error) {
-		manifestFile.Seek(0, os.SEEK_SET)
-		return manifestFile, nil
-	})()
-
-	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}}
-
-	for _, testData := range []struct {
-		contents      string
-		expectedError string
-	}{
-		{
-			"", "cannot read snapshot manifest: EOF",
-		},
-		{
-			"invalid", "cannot read snapshot manifest: yaml: unmarshal errors:\n.*",
-		},
-		{
-			"exclude:\n  - /home/ubuntu", "snapshot exclude path must start with one of.*",
-		},
-		{
-			"exclude:\n  - $SNAP_COMMON_STUFF", "snapshot exclude path must start with one of.*",
-		},
-		{
-			"exclude:\n  - $SNAP_DATA/../../meh", "snapshot exclude path not clean.*",
-		},
-	} {
-		var err error
-		manifestFile, err = ioutil.TempFile("", "snapshots.*.yaml")
-		c.Assert(err, check.IsNil)
-		defer os.Remove(manifestFile.Name())
-
-		manifestFile.WriteString(testData.contents)
-		opts := &backend.AddDirToZipOptions{}
-		err = backend.ReadSnapshotYaml(info, opts)
-		c.Check(err, check.ErrorMatches, testData.expectedError, check.Commentf("%s", testData.contents))
-	}
-}
-
-func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *check.C) {
-	manifestFile, err := ioutil.TempFile("", "snapshots.*.yaml")
-	c.Assert(err, check.IsNil)
-	defer os.Remove(manifestFile.Name())
-
-	var manifestFilePath string
-	defer backend.MockOsOpen(func(path string) (*os.File, error) {
-		manifestFilePath = path
-		_, err := manifestFile.WriteString(`exclude:
-  - $SNAP_DATA/one
-  - $SNAP_COMMON/two?
-  - $SNAP_USER_DATA/three*
-  - $SNAP_USER_COMMON/four[0-3]`)
-		manifestFile.Seek(0, os.SEEK_SET)
-		return manifestFile, err
-	})()
-
-	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}}
-
-	opts := &backend.AddDirToZipOptions{}
-	err = backend.ReadSnapshotYaml(info, opts)
-	c.Check(manifestFilePath, check.Matches, ".*/snap/hello-snap/42/meta/snapshots.yaml")
-	c.Check(err, check.IsNil)
-	c.Check(opts.ExcludePaths, check.DeepEquals, []string{
-		"$SNAP_DATA/one",
-		"$SNAP_COMMON/two?",
-		"$SNAP_USER_DATA/three*",
-		"$SNAP_USER_COMMON/four[0-3]",
-	})
-}
-
 func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
 	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap"}
 	buf, restore := logger.MockLogger()
 	defer restore()
-	opts := &backend.AddDirToZipOptions{}
 	savingUserData := false
 	// note as the zip is nil this would panic if it didn't bail
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, opts), check.IsNil)
+	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil), check.IsNil)
 	// no log for the non-existent case
 	c.Check(buf.String(), check.Equals, "")
 	buf.Reset()
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, opts), check.IsNil)
+	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, nil), check.IsNil)
 	c.Check(buf.String(), check.Matches, "(?m).* is not a directory.")
 }
 
@@ -673,9 +580,8 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
-	opts := &backend.AddDirToZipOptions{}
 	savingUserData := false
-	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d, savingUserData, opts), check.ErrorMatches, ".* context canceled")
+	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d, savingUserData, nil), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
@@ -689,9 +595,8 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	snapshot := &client.Snapshot{
 		SHA3_384: map[string]string{},
 	}
-	opts := &backend.AddDirToZipOptions{}
 	savingUserData := false
-	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, savingUserData, opts), check.IsNil)
+	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, savingUserData, nil), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(snapshot.SHA3_384, check.HasLen, 1)
@@ -768,8 +673,7 @@ func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 	} {
 		testLabel := check.Commentf("%s/%v", testData.excludes, testData.savingUserData)
 
-		opts := &backend.AddDirToZipOptions{ExcludePaths: testData.excludes}
-		err := backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, testData.savingUserData, opts)
+		err := backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, testData.savingUserData, testData.excludes)
 		c.Check(err, check.ErrorMatches, "tar failed.*")
 		c.Check(tarArgs, check.DeepEquals, testData.expectedArgs, testLabel)
 	}

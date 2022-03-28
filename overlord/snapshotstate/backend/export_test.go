@@ -20,8 +20,6 @@
 package backend
 
 import (
-	"archive/zip"
-	"context"
 	"os"
 	"os/exec"
 	"os/user"
@@ -41,17 +39,9 @@ var (
 	IsSnapshotFilename = isSnapshotFilename
 
 	NewMultiError = newMultiError
+
+	AddDirToZip = addDirToZip
 )
-
-type AddDirToZipOptions addDirToZipOptions
-
-func AddDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string, savingUserData bool, opts *AddDirToZipOptions) error {
-	return addDirToZip(ctx, snapshot, w, username, entry, dir, savingUserData, (*addDirToZipOptions)(opts))
-}
-
-func ReadSnapshotYaml(si *snap.Info, opts *AddDirToZipOptions) error {
-	return readSnapshotYaml(si, (*addDirToZipOptions)(opts))
-}
 
 func MockIsTesting(newIsTesting bool) func() {
 	oldIsTesting := isTesting
