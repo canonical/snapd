@@ -3302,6 +3302,47 @@ assets:
 	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
 
+func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *image.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	var preseedCalled bool
+	restorePreseedCore20 := image.MockPreseedCore20(func(dir string) error {
+		preseedCalled = true
+		c.Assert(dir, Equals, "/a/dir")
+		return nil
+	})
+	defer restorePreseedCore20()
+
+	model := s.makeUC20Model(nil)
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+
+	err := image.Prepare(&image.Options{
+		ModelFile:  fn,
+		Preseed:    true,
+		PrepareDir: "/a/dir",
+	})
+	c.Assert(err, IsNil)
+	c.Check(preseedCalled, Equals, true)
+}
+
+func (s *imageSuite) TestPrepareWithClassicPreseedError(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *image.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	err := image.Prepare(&image.Options{
+		Preseed:    true,
+		Classic:    true,
+		PrepareDir: "/a/dir",
+	})
+	c.Assert(err, ErrorMatches, `cannot preseed the image for a classic model`)
+}
+
 type toolingStoreContextSuite struct {
 	sc store.DeviceAndAuthContext
 }
