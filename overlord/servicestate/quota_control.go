@@ -58,6 +58,10 @@ func EnsureQuotaUsability() (restore func()) {
 	}
 }
 
+var resourcesCheckFeatureRequirements = func(r *quota.Resources) error {
+	return r.CheckFeatureRequirements()
+}
+
 func quotaGroupsAvailable(st *state.State) error {
 	// check if the systemd version is too old
 	if systemdVersionError != nil {
@@ -96,6 +100,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 
 	// validate the resource limits for the group
 	if err := resourceLimits.Validate(); err != nil {
+		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
+	}
+	// validate that the system has the features needed for this resource
+	if err := resourcesCheckFeatureRequirements(&resourceLimits); err != nil {
 		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
 	}
 
@@ -212,6 +220,10 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 
 	currentQuotas := grp.GetQuotaResources()
 	if err := currentQuotas.ValidateChange(updateOpts.NewResourceLimits); err != nil {
+		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
+	}
+	// validate that the system has the features needed for this resource
+	if err := resourcesCheckFeatureRequirements(&updateOpts.NewResourceLimits); err != nil {
 		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
 	}
 

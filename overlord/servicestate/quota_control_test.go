@@ -64,6 +64,11 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 	r := systemd.MockSystemdVersion(248, nil)
 	s.AddCleanup(r)
 	servicestate.CheckSystemdVersion()
+
+	r = servicestate.MockResourcesCheckFeatureRequirements(func(res *quota.Resources) error {
+		return nil
+	})
+	s.AddCleanup(r)
 }
 
 type quotaGroupState struct {
@@ -302,19 +307,32 @@ func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {
 	c.Assert(err, ErrorMatches, `removing quota groups not supported while preseeding`)
 }
 
-func (s *quotaControlSuite) TestCreateUpdateRemoveQuotaHappy(c *C) {
+func (s *quotaControlSuite) TestCreateUnhappyCheckFeatureReqs(c *C) {
+	r := servicestate.MockResourcesCheckFeatureRequirements(func(res *quota.Resources) error {
+		return fmt.Errorf("check feature requirements error")
+	})
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create the quota constraints to use for the test
+	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
+
+	// create the quota group
+	_, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	c.Check(err, ErrorMatches, `cannot create quota group "foo": check feature requirements error`)
+}
+
+func (s *quotaControlSuite) TestUpdateUnhappyCheckFeatureReqs(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo - success
 		systemctlCallsForCreateQuota("foo", "test-snap"),
-
-		// UpdateQuota for foo
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-
-		// RemoveQuota for foo
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceStop("foo"),
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
 
@@ -332,6 +350,62 @@ func (s *quotaControlSuite) TestCreateUpdateRemoveQuotaHappy(c *C) {
 	// create the quota group
 	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
 	c.Assert(err, IsNil)
+	chg := st.NewChange("quota-control", "...")
+	chg.AddAll(ts)
+	// run the change
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// simulate that update does something that is not supported
+	r = servicestate.MockResourcesCheckFeatureRequirements(func(res *quota.Resources) error {
+		return fmt.Errorf("check feature requirements error")
+	})
+	defer r()
+
+	_, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: quotaConstraits})
+	c.Check(err, ErrorMatches, `cannot update group "foo": check feature requirements error`)
+}
+
+func (s *quotaControlSuite) TestCreateUpdateRemoveQuotaHappy(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo - success
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// UpdateQuota for foo
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+
+		// RemoveQuota for foo
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceStop("foo"),
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForServiceRestart("test-snap"),
+	))
+	defer r()
+	var resCheckFeatureRequirementsCalled int
+	r = servicestate.MockResourcesCheckFeatureRequirements(func(res *quota.Resources) error {
+		resCheckFeatureRequirementsCalled++
+		return nil
+	})
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create the quota constraints to use for the test
+	quotaConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build()
+
+	// create the quota group
+	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quotaConstraits)
+	c.Assert(err, IsNil)
+	c.Check(resCheckFeatureRequirementsCalled, Equals, 1)
 
 	chg := st.NewChange("quota-control", "...")
 	chg.AddAll(ts)
@@ -364,6 +438,7 @@ func (s *quotaControlSuite) TestCreateUpdateRemoveQuotaHappy(c *C) {
 	newConstraits := quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB * 2).Build()
 	ts, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{NewResourceLimits: newConstraits})
 	c.Assert(err, IsNil)
+	c.Check(resCheckFeatureRequirementsCalled, Equals, 2)
 
 	chg = st.NewChange("quota-control", "...")
 	chg.AddAll(ts)
@@ -393,6 +468,8 @@ func (s *quotaControlSuite) TestCreateUpdateRemoveQuotaHappy(c *C) {
 	// remove the quota
 	ts, err = servicestate.RemoveQuota(st, "foo")
 	c.Assert(err, IsNil)
+	// removal is not checked for feature requirements
+	c.Check(resCheckFeatureRequirementsCalled, Equals, 2)
 
 	chg = st.NewChange("quota-control", "...")
 	chg.AddAll(ts)

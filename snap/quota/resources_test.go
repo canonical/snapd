@@ -20,6 +20,7 @@
 package quota_test
 
 import (
+	"fmt"
 	"reflect"
 
 	. "gopkg.in/check.v1"
@@ -51,6 +52,32 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		err := t.limits.Validate()
 		c.Check(err, ErrorMatches, t.err)
 	}
+}
+
+func (s *resourcesTestSuite) TestResourceCheckFeatureRequirementsCgroupv1(c *C) {
+	r := quota.MockCgroupVer(1)
+	defer r()
+
+	// normal cpu resource is fine with cgroup v1
+	good := quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()
+	c.Check(good.Validate(), IsNil)
+
+	// cpu set with cgroup v1 is not supported
+	bad := quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()
+	c.Check(bad.CheckFeatureRequirements(), ErrorMatches, "cannot use CPU set with cgroup version 1")
+}
+
+func (s *resourcesTestSuite) TestResourceCheckFeatureRequirementsCgroupv1Err(c *C) {
+	r := quota.MockCgroupVerErr(fmt.Errorf("some cgroup detection error"))
+	defer r()
+
+	// normal cpu resource is fine
+	good := quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()
+	c.Check(good.Validate(), IsNil)
+
+	// cpu set without cgroup detection is not supported
+	bad := quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()
+	c.Check(bad.CheckFeatureRequirements(), ErrorMatches, "some cgroup detection error")
 }
 
 func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
