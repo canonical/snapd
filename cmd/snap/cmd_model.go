@@ -170,7 +170,7 @@ func (x *cmdModel) Execute(args []string) error {
 		format = clientutil.MODELWRITER_RAW_FORMAT
 	}
 
-	err := clientutil.PrintModelAssertation(
+	err := clientutil.PrintModelAssertion(
 		w, format, modelFormatter,
 		termWidth, x.Serial, x.AbsTime, x.Verbose, x.Assertion,
 		modelAssertion, serialAssertion)
