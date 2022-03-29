@@ -133,8 +133,7 @@ reset_all_snap() {
     for skip_remove_snap in $SKIP_REMOVE_SNAPS; do
         skip_snaps="$skip_snaps --skip $skip_remove_snap"
     done
-
-    snaps.cleanup $skip_snaps
+    "$TESTSTOOLS"/snaps.cleanup $skip_snaps
 
     # purge may have removed udev rules, retrigger device events
     udevadm trigger

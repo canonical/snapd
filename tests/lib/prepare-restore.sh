@@ -690,7 +690,7 @@ restore_suite_each() {
     # In case of nested tests the next checks and changes are not needed
     # Just is needed to cleanup the snaps installed
     if tests.nested is-nested; then
-        snaps.cleanup
+        "$TESTSTOOLS"/snaps.cleanup
         return 0
     fi
 
