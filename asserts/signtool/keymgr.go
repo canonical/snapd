@@ -39,6 +39,8 @@ type KeypairManager interface {
 	DeleteByName(keyName string) error
 }
 
+// GetKeypairManager returns a KeypairManager - either the standrd gpg-based
+// or external one if set via SNAPD_EXT_KEYMGR environment variable.
 func GetKeypairManager() (KeypairManager, error) {
 	keymgrPath := os.Getenv("SNAPD_EXT_KEYMGR")
 	if keymgrPath != "" {
@@ -60,6 +62,7 @@ type ownSecuringKeyGen interface {
 	Generate(keyName string) error
 }
 
+// GenerateKey generates a private RSA key using the provided keypairMgr.
 func GenerateKey(keypairMgr KeypairManager, keyName string) error {
 	switch keyGen := keypairMgr.(type) {
 	case takingPassKeyGen:
