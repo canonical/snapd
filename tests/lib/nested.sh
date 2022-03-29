@@ -650,8 +650,10 @@ nested_create_core_vm() {
 
                 elif nested_is_core_20_system || nested_is_core_22_system; then
                     VERSION=20
+                    UPDATE_THE_TOOL=true
                     if nested_is_core_22_system; then
                         VERSION=22
+                        UPDATE_THE_TOOL=false
                     fi
                     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
                         echo "Repacking kernel snap"
@@ -664,11 +666,8 @@ nested_create_core_vm() {
                         if [ -n "$epochBumpTime" ]; then
                             epochBumpTime="--epoch-bump-time=$epochBumpTime"
                         fi
-                        if nested_is_core_22_system; then
-                            uc22_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                        else
-                            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                        fi
+
+                        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime" "$UPDATE_THE_TOOL"
                         rm -f "$PWD/pc-kernel.snap"
 
                         # Prepare the pc kernel snap
