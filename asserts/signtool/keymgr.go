@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
+// KeypairManager is an interface for common methods of ExternalKeypairManager
+// and GPGPKeypairManager.
 type KeypairManager interface {
 	asserts.KeypairManager
 
