@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package clientutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -120,6 +121,8 @@ func runesTrimRightSpace(text []rune) []rune {
 // string, to fit into termWidth, preserving the line's indent, and
 // writes it out prepending padding to each line.
 func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
+	var temp bytes.Buffer
+
 	// discard any trailing whitespace
 	text = runesTrimRightSpace(text)
 	// establish the indent of the whole block
@@ -136,7 +139,15 @@ func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
 		// Rather than let that happen, give up.
 		indent = pad + "  "
 	}
-	return strutil.WordWrap(out, text, indent, indent, termWidth)
+
+	if err := strutil.WordWrap(&temp, text, indent, indent, termWidth); err != nil {
+		return err
+	}
+
+	// remove the ending newline
+	temp.Truncate(temp.Len() - 1)
+	_, err := out.Write(temp.Bytes())
+	return err
 }
 
 // pushState stores the current state on top of the stack, and resets the
@@ -204,8 +215,14 @@ func (w *modelWriter) StartObject(name string) {
 		}
 	} else if w.format == MODELWRITER_YAML_FORMAT {
 		if w.currentState.inArray {
-			fmt.Fprintf(w.w, "%s- name:\t%s\n", w.indent(), name)
-			indent = 2
+			fmt.Fprintf(w.w, "%s  - name:\t%s\n", w.indent(), name)
+
+			// make sure the indentation for this level is correct
+			// as we add fake indentation, which means an indentation
+			// below 4 at this next level will look invalid
+			if indent < 4 {
+				indent = 4
+			}
 		} else if len(name) > 0 {
 			fmt.Fprintf(w.w, "%s%s:\n", w.indent(), name)
 		}
@@ -213,9 +230,9 @@ func (w *modelWriter) StartObject(name string) {
 
 	w.pushState()
 	// the only time we do not increase indentation for yaml
-	// is for the root object, which is called like this
+	// and raw output is for the root object, which is called like this
 	// startObject("")
-	if w.format != MODELWRITER_YAML_FORMAT || len(name) != 0 {
+	if w.format == MODELWRITER_JSON_FORMAT || len(name) != 0 {
 		w.increaseIndent(indent)
 	}
 
@@ -284,7 +301,7 @@ func (w *modelWriter) EndArray() {
 			fmt.Fprintf(w.w, "%s]", strings.Join(w.currentState.arrayMembers, ", "))
 		} else {
 			for i, member := range w.currentState.arrayMembers {
-				fmt.Fprintf(w.w, "%s- %s", w.indent(), member)
+				fmt.Fprintf(w.w, "%s  - %s", w.indent(), member)
 				if i < len(w.currentState.arrayMembers)-1 {
 					fmt.Fprint(w.w, "\n")
 				}

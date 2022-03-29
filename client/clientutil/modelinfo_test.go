@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -45,6 +45,21 @@ func createWriter(buffer *bytes.Buffer, format clientutil.OutputFormat) (*tabwri
 	return tbw, writer
 }
 
+func (*modelInfoSuite) TestBasicObjectAnonymousRootRaw(c *C) {
+	// This test verifies we can output a very simple structure that resides
+	// in the root scope.
+	var buffer bytes.Buffer
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_RAW_FORMAT)
+
+	writer.StartObject("")
+	writer.WriteStringPair("foo", "bar")
+	writer.WriteStringPair("baz", "qux")
+	writer.EndObject()
+
+	tbw.Flush()
+	c.Check(buffer.String(), Equals, "foo    bar\nbaz    qux\n")
+}
+
 func (*modelInfoSuite) TestBasicObjectAnonymousRootYaml(c *C) {
 	// This test verifies we can output a very simple structure that resides
 	// in the root scope.
@@ -73,6 +88,30 @@ func (*modelInfoSuite) TestBasicObjectYaml(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, "project:\n    foo:    bar\n    baz:    qux\n")
+}
+
+func (*modelInfoSuite) TestLongTextMemberYaml(c *C) {
+	// This test verifies that we can output simple keypairs inside a
+	// named object.
+	var buffer bytes.Buffer
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
+
+	writer.StartObject("")
+	writer.WriteStringPair("foo", "bar")
+	writer.WriteWrappedStringPair("baz", "This is a very long text that should be wrapped at some point so we can see that it actually happens", 25)
+	writer.WriteStringPair("xxx", "yyyy")
+	writer.EndObject()
+
+	tbw.Flush()
+	c.Check(buffer.String(), Equals, `foo:    bar
+baz: |
+  This is a very long
+  text that should be
+  wrapped at some point
+  so we can see that it
+  actually happens
+xxx:    yyyy
+`)
 }
 
 func (*modelInfoSuite) TestNestedObjectYaml(c *C) {
@@ -121,8 +160,8 @@ func (*modelInfoSuite) TestObjectWithArrayYaml(c *C) {
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `project:
     foo:    
-    - bar
-    - baz
+      - bar
+      - baz
 `)
 }
 
@@ -179,8 +218,8 @@ func (*modelInfoSuite) TestNestedObjectWithArrayYaml(c *C) {
         foo:      bar
         baz:      qux
         items:    
-        - item1
-        - item2
+          - item1
+          - item2
         xxx:    yyy
 `)
 }
@@ -208,15 +247,15 @@ func (*modelInfoSuite) TestArrayOfObjectsYaml(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `project:
-    foo:        bar
-    baz:        qux
-    objects:    
-    - name:     object1
-      foo:      bar
-      baz:      qux
-    - name:     object2
-      foo:      bar
-      baz:      qux
+    foo:         bar
+    baz:         qux
+    objects:     
+      - name:    object1
+        foo:     bar
+        baz:     qux
+      - name:    object2
+        foo:     bar
+        baz:     qux
 `)
 }
 
