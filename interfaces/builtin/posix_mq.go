@@ -27,7 +27,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const posixMQSummary = `allows access to POSIX message queues`
@@ -102,6 +104,21 @@ func (iface *posixMQInterface) Name() string {
 	return "posix-mq"
 }
 
+func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {
+	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
+		/* AppArmor is not supported at all; no need to add rules */
+		return nil
+	}
+	if features, err := apparmor_sandbox.ParserFeatures(); err == nil {
+		if !strutil.ListContains(features, "mqueue") {
+			return fmt.Errorf("AppArmor does not support POSIX message queues - cannot setup or connect interfaces")
+		}
+	} else {
+		return err
+	}
+	return nil
+}
+
 func (iface *posixMQInterface) isValidPermission(perm string) bool {
 	for _, validPerm := range posixMQPlugPermissions {
 		if perm == validPerm {
@@ -111,18 +128,29 @@ func (iface *posixMQInterface) isValidPermission(perm string) bool {
 	return false
 }
 
+func (iface *posixMQInterface) validatePermissionList(perms []string, name string) error {
+	for _, perm := range perms {
+		if !iface.isValidPermission(perm) {
+			return fmt.Errorf("posix-mq slot %s permission \"%s\" not valid, must be one of %v", name, perm, posixMQPlugPermissions)
+		}
+	}
+
+	return nil
+}
+
 func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name string) ([]string, error) {
 	var perms []string
-	if err := attrs.Attr("permissions", &perms); err == nil {
-		for _, perm := range perms {
-			if !iface.isValidPermission(perm) {
-				return nil, fmt.Errorf(`posix-mq slot %s permission "%s" not valid, must be one of %v`, name, perm, posixMQPlugPermissions)
-			}
-		}
-		return perms, nil
-	} else {
-		return posixMQDefaultPlugPermissions, nil
+
+	if err := attrs.Attr("permissions", &perms); err != nil {
+		/* If the permissions have not been specified, use the defaults */
+		perms = posixMQDefaultPlugPermissions
 	}
+
+	if err := iface.validatePermissionList(perms, name); err != nil {
+		return nil, err
+	}
+
+	return perms, nil
 }
 
 func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (string, error) {
@@ -135,7 +163,30 @@ func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (st
 	return "", fmt.Errorf(`posix-mq slot %s has missing "path" attribute`, name)
 }
 
+func (iface *posixMQInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if err := iface.checkPosixMQAppArmorSupport(); err != nil {
+		return err
+	}
+
+	/* Ensure that the given permissions are valid */
+	if _, err := iface.getPermissions(plug, plug.Name); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+	if err := iface.checkPosixMQAppArmorSupport(); err != nil {
+		return err
+	}
+
+	/* Ensure that the given permissions are valid */
+	if _, err := iface.getPermissions(slot, slot.Name); err != nil {
+		return err
+	}
+
+	/* Ensure that the given path has a valid POSIX MQ name */
 	if path, err := iface.getPath(slot, slot.Name); err == nil {
 		if posixMQNamePattern.MatchString(path) {
 			return nil
@@ -197,9 +248,8 @@ func (iface *posixMQInterface) SecCompPermanentSlot(spec *seccomp.Specification,
 
 func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
-		// always allow these functions
 		var syscalls = []string{
-			"mq_notify",
+			// always allow this function
 			"mq_open",
 		}
 		for _, perm := range perms {
@@ -208,18 +258,12 @@ func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification,
 				fallthrough
 			case "receive":
 				syscalls = append(syscalls, "mq_timedreceive")
+				syscalls = append(syscalls, "mq_notify")
 				break
 			case "write":
 				fallthrough
 			case "send":
 				syscalls = append(syscalls, "mq_timedsend")
-				break
-			case "associate":
-				fallthrough
-			case "open":
-				fallthrough
-			case "create":
-				syscalls = append(syscalls, "mq_open")
 				break
 			case "delete":
 				fallthrough

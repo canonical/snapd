@@ -229,6 +229,8 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_getsetattr")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
@@ -261,6 +263,8 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_getsetattr")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
@@ -292,6 +296,9 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
 	c.Check(plugSnippet, testutil.Contains, "mq_open")
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_timedsend")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_getsetattr")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
 func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
@@ -356,7 +363,7 @@ func (s *PosixMQInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *PosixMQInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, true)
-	c.Check(si.ImplicitOnClassic, Equals, true)
+	c.Check(si.ImplicitOnCore, Equals, false)
+	c.Check(si.ImplicitOnClassic, Equals, false)
 	c.Check(si.Summary, Equals, `allows access to POSIX message queues`)
 }
