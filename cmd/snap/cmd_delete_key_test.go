@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"os"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -31,7 +30,7 @@ import (
 )
 
 // XXX: share this helper with signtool tests?
-func mockNopExtKeyMgr(c *check.C) (pgm *testutil.MockCmd, restore func()) {
+func mockNopExtKeyMgr(c *C) (pgm *testutil.MockCmd, restore func()) {
 	os.Setenv("SNAPD_EXT_KEYMGR", "keymgr")
 	pgm = testutil.MockCommand(c, "keymgr", `
 if [ "$1" == "features" ]; then
