@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,21 +17,25 @@
  *
  */
 
-package sanity
+package validity
 
 import (
-	"errors"
+	"fmt"
 
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 func init() {
-	checks = append(checks, checkWSL)
+	checks = append(checks, checkCgroup)
 }
 
-func checkWSL() error {
-	if release.OnWSL {
-		return errors.New("snapd does not work inside WSL")
+func checkCgroup() error {
+	v, err := cgroup.Version()
+	if err != nil {
+		return fmt.Errorf("snapd could not probe cgroup version: %v", err)
+	}
+	if v == cgroup.Unknown {
+		return fmt.Errorf("snapd could not determine cgroup version")
 	}
 
 	return nil

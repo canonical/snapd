@@ -17,7 +17,7 @@
  *
  */
 
-package sanity
+package validity
 
 import (
 	"bytes"
@@ -84,13 +84,13 @@ func checkSquashfsMount() error {
 		return err
 	}
 
-	tmpSquashfsFile, err := ioutil.TempFile("", "sanity-squashfs-")
+	tmpSquashfsFile, err := ioutil.TempFile("", "validity-squashfs-")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmpSquashfsFile.Name())
 
-	tmpMountDir, err := ioutil.TempDir("", "sanity-mountpoint-")
+	tmpMountDir, err := ioutil.TempDir("", "validity-mountpoint-")
 	if err != nil {
 		return err
 	}
@@ -124,11 +124,11 @@ func checkSquashfsMount() error {
 	defer func() {
 		if output, err := exec.Command("umount", "-l", tmpMountDir).CombinedOutput(); err != nil {
 			// os.RemoveAll(tmpMountDir) will fail here if umount fails
-			logger.Noticef("cannot unmount sanity check squashfs image: %v", osutil.OutputErr(output, err))
+			logger.Noticef("cannot unmount validity check squashfs image: %v", osutil.OutputErr(output, err))
 		}
 	}()
 
-	// sanity check the
+	// validity check the
 	content, err := ioutil.ReadFile(filepath.Join(tmpMountDir, "canary.txt"))
 	if err != nil {
 		return fmt.Errorf("squashfs mount returned no err but canary file cannot be read")

@@ -17,7 +17,7 @@
  *
  */
 
-package sanity_test
+package validity_test
 
 import (
 	"go/ast"
@@ -33,25 +33,25 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/sanity"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/validity"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type sanitySuite struct {
+type validitySuite struct {
 	testutil.BaseTest
 }
 
-func (s *sanitySuite) SetUpTest(c *C) {
+func (s *validitySuite) SetUpTest(c *C) {
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
 }
 
-var _ = Suite(&sanitySuite{})
+var _ = Suite(&validitySuite{})
 
-func (s *sanitySuite) TestRunHappy(c *C) {
+func (s *validitySuite) TestRunHappy(c *C) {
 	var happyChecks []func() error
 	var happyCheckRan int
 
@@ -60,15 +60,15 @@ func (s *sanitySuite) TestRunHappy(c *C) {
 		return nil
 	})
 
-	restore := sanity.MockChecks(happyChecks)
+	restore := validity.MockChecks(happyChecks)
 	defer restore()
 
-	err := sanity.Check()
+	err := validity.Check()
 	c.Check(err, IsNil)
 	c.Check(happyCheckRan, Equals, 1)
 }
 
-func (s *sanitySuite) TestRunNotHappy(c *C) {
+func (s *validitySuite) TestRunNotHappy(c *C) {
 	var unhappyChecks []func() error
 	var unhappyCheckRan int
 
@@ -77,25 +77,25 @@ func (s *sanitySuite) TestRunNotHappy(c *C) {
 		return nil
 	})
 
-	restore := sanity.MockChecks(unhappyChecks)
+	restore := validity.MockChecks(unhappyChecks)
 	defer restore()
 
-	err := sanity.Check()
+	err := validity.Check()
 	c.Check(err, IsNil)
 	c.Check(unhappyCheckRan, Equals, 1)
 }
 
-func (s *sanitySuite) TestUnexportedChecks(c *C) {
-	// collect what funcs we run in sanity.Check
+func (s *validitySuite) TestUnexportedChecks(c *C) {
+	// collect what funcs we run in validity.Check
 	var runCheckers []string
-	v := reflect.ValueOf(sanity.Checks())
+	v := reflect.ValueOf(validity.Checks())
 	for i := 0; i < v.Len(); i++ {
 		v := v.Index(i)
 		fname := runtime.FuncForPC(v.Pointer()).Name()
 		pos := strings.LastIndexByte(fname, '.')
 		checker := fname[pos+1:]
 		if !strings.HasPrefix(checker, "check") {
-			c.Fatalf(`%q in sanity.Checks does not have "check" prefix`, checker)
+			c.Fatalf(`%q in validity.Checks does not have "check" prefix`, checker)
 		}
 		runCheckers = append(runCheckers, checker)
 	}

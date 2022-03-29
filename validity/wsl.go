@@ -17,24 +17,22 @@
  *
  */
 
-package sanity_test
+package validity
 
 import (
-	"os"
-	"path/filepath"
+	"errors"
 
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/sanity"
+	"github.com/snapcore/snapd/release"
 )
 
-func (s *sanitySuite) TestCheckApparmorUsable(c *C) {
-	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
-	restore := sanity.MockAppArmorProfilesPath(epermProfilePath)
-	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
-	c.Assert(err, IsNil)
+func init() {
+	checks = append(checks, checkWSL)
+}
 
-	err = sanity.CheckApparmorUsable()
-	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
+func checkWSL() error {
+	if release.OnWSL {
+		return errors.New("snapd does not work inside WSL")
+	}
+
+	return nil
 }

@@ -17,13 +17,13 @@
  *
  */
 
-package sanity_test
+package validity_test
 
 import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/sanity"
+	"github.com/snapcore/snapd/validity"
 )
 
 type wslSuite struct{}
@@ -41,11 +41,11 @@ func mockOnWSL(on bool) (restore func()) {
 func (s *wslSuite) TestNonWSL(c *C) {
 	defer mockOnWSL(false)()
 
-	c.Check(sanity.CheckWSL(), IsNil)
+	c.Check(validity.CheckWSL(), IsNil)
 }
 
 func (s *wslSuite) TestWSL(c *C) {
 	defer mockOnWSL(true)()
 
-	c.Check(sanity.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
+	c.Check(validity.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
 }

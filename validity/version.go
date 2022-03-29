@@ -17,7 +17,7 @@
  *
  */
 
-package sanity
+package validity
 
 import (
 	"bytes"

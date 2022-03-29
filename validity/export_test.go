@@ -17,7 +17,7 @@
  *
  */
 
-package sanity
+package validity
 
 var (
 	CheckSquashfsMount  = checkSquashfsMount

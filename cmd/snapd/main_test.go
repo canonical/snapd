@@ -61,7 +61,7 @@ func (s *snapdSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
+func (s *snapdSuite) TestValidityFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
@@ -69,21 +69,21 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 	restore = seccomp.MockSnapSeccompVersionInfo("abcdef 1.2.3 1234abcd -")
 	defer restore()
 
-	sanityErr := fmt.Errorf("foo failed")
-	sanityCalled := make(chan bool)
-	sanityRan := 0
-	restore = snapd.MockSanityCheck(func() error {
-		sanityRan++
+	validityErr := fmt.Errorf("foo failed")
+	validityCalled := make(chan bool)
+	validityRan := 0
+	restore = snapd.MockValidityCheck(func() error {
+		validityRan++
 		// Ensure this ran at least *twice* to avoid a race here:
 		// If we close the channel and this wakes up the "select"
 		// below immediately and stops this go-routine then the
 		// check that the logbuf contains the error will fail.
 		// By running this at least twice we know the error made
 		// it to the log.
-		if sanityRan == 2 {
-			close(sanityCalled)
+		if validityRan == 2 {
+			close(validityCalled)
 		}
-		return sanityErr
+		return validityErr
 	})
 	defer restore()
 
@@ -100,17 +100,17 @@ func (s *snapdSuite) TestSanityFailGoesIntoDegradedMode(c *C) {
 		c.Check(err, IsNil)
 	}()
 
-	sanityCheckWasRun := false
+	validityCheckWasRun := false
 	select {
 	case <-time.After(5 * time.Second):
-	case _, stillOpen := <-sanityCalled:
+	case _, stillOpen := <-validityCalled:
 		c.Assert(stillOpen, Equals, false)
-		sanityCheckWasRun = true
+		validityCheckWasRun = true
 	}
-	c.Check(sanityCheckWasRun, Equals, true)
+	c.Check(validityCheckWasRun, Equals, true)
 	c.Check(logbuf.String(), testutil.Contains, "system does not fully support snapd: foo failed")
 
-	// verify that talking to the daemon yields the sanity error
+	// verify that talking to the daemon yields the validity error
 	// message
 	// disable keepliave as it would sometimes cause the daemon to be
 	// blocked when closing connections during graceful shutdown
