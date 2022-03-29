@@ -51,8 +51,11 @@ const appstreamMetadataConnectedPlugAppArmor = `
 
 # Allow access to AppStream collection metadata
 /usr/share/app-info/** r,
+/usr/share/swcatalog/** r,
 /var/cache/app-info/** r,
+/var/cache/swcatalog/** r,
 /var/lib/app-info/** r,
+/var/lib/swcatalog/** r,
 
 # Apt symlinks the DEP-11 metadata to files in /var/lib/apt/lists
 /var/lib/apt/lists/*.yml.gz r,
@@ -62,8 +65,11 @@ var appstreamMetadataDirs = []string{
 	"/usr/share/metainfo",
 	"/usr/share/appdata",
 	"/usr/share/app-info",
+	"/usr/share/swcatalog",
 	"/var/cache/app-info",
+	"/var/cache/swcatalog",
 	"/var/lib/app-info",
+	"/var/lib/swcatalog",
 	"/var/lib/apt/lists",
 }
 
