@@ -34,11 +34,21 @@ const posixMQSummary = `allows access to POSIX message queues`
 
 const posixMQBaseDeclarationSlots = `
   posix-mq:
-    allow-installation:
-      slot-snap-type:
-        - app
-        - core
-    deny-auto-connection: false
+    allow-installation: true
+    deny-auto-connection: true
+`
+
+const posixMQBaseDeclarationPlugs = `
+  posix-mq:
+    allow-installation: true
+    allow-connection:
+      slot-attributes:
+        posix-mq: $PLUG(posix-mq)
+    allow-auto-connection:
+      slot-publisher-id:
+        - $PLUG_PUBLISHER_ID
+      slot-attributes:
+        posix-mq: $PLUG(posix-mq)
 `
 
 const posixMQPermanentSlotSecComp = `
@@ -82,9 +92,9 @@ type posixMQInterface struct {
 
 func (iface *posixMQInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary:           posixMQSummary,
-		ImplicitOnCore:    true,
-		ImplicitOnClassic: true,
+		Summary:              posixMQSummary,
+		BaseDeclarationSlots: posixMQBaseDeclarationSlots,
+		BaseDeclarationPlugs: posixMQBaseDeclarationPlugs,
 	}
 }
 
