@@ -87,11 +87,14 @@ func (mf modelCommandFormatter) GetPublisher() string {
 	return fmt.Sprintf("%s (%s%s%s)", mf.storeAccount.DisplayName, mf.storeAccount.Username, badge, "\033[0m")
 }
 
+// reportError prints the error message to stderr
 func (c *modelCommand) reportError(format string, a ...interface{}) {
 	w := tabwriter.NewWriter(c.stderr, 2, 2, 2, ' ', 0)
 	fmt.Fprintf(w, format, a...)
 }
 
+// checkGadgetOrModel verifies that the current snap context is either a gadget snap or that
+// the snap shares the same publisher as the current model assertion.
 func (c *modelCommand) checkGadgetOrModel(st *state.State, snapName string) error {
 	st.Lock()
 	defer st.Unlock()
@@ -124,6 +127,8 @@ func (c *modelCommand) checkGadgetOrModel(st *state.State, snapName string) erro
 }
 
 func (c *modelCommand) Execute([]string) error {
+	var modelFormatter modelCommandFormatter
+
 	context, err := c.ensureContext()
 	if err != nil {
 		return err
@@ -146,10 +151,16 @@ func (c *modelCommand) Execute([]string) error {
 		format = clientutil.MODELWRITER_JSON_FORMAT
 	}
 
-	var modelFormatter modelCommandFormatter
-	modelAssertation := deviceCtx.Model()
-	w := tabwriter.NewWriter(c.stdout, 2, 2, 2, ' ', 0)
-	if err = clientutil.PrintModelAssertation(w, format, modelFormatter, c.TermWidth, false, false, true, c.Assertion, modelAssertation, nil); err != nil {
+	// Chosen as the default term width, when none is provided. This seems
+	// like a fair choice to make.
+	termWidth := 80
+	if c.TermWidth > 0 {
+		termWidth = c.TermWidth
+	}
+
+	// use the same tab-writer settings as the 'snap model' in cmd_list.go
+	w := tabwriter.NewWriter(c.stdout, 5, 3, 2, ' ', 0)
+	if err = clientutil.PrintModelAssertion(w, format, modelFormatter, termWidth, false, false, true, c.Assertion, deviceCtx.Model(), nil); err != nil {
 		return err
 	}
 	w.Flush()

@@ -78,11 +78,16 @@ const (
 	MODELWRITER_JSON_FORMAT
 )
 
+// modelAssertJSON is a helper to write out a single assertion in json
+// format that matches how it's done in api_model.go. We have stolen
+// the structure from there.
 type modelAssertJSON struct {
 	Headers map[string]interface{} `json:"headers,omitempty"`
 	Body    string                 `json:"body,omitempty"`
 }
 
+// modelWriterState describes a state of the modelWriter. We use this to support
+// nested objects and arrays.
 type modelWriterState struct {
 	indent       int
 	firstElement bool
@@ -91,9 +96,13 @@ type modelWriterState struct {
 	arrayMembers []string
 }
 
+// modelWriter supports building simple yaml and json output for a model. It's
+// built in a 'write-as-you-go' fashion, to simplify how we write members while
+// parsing the model assertions.
 type modelWriter struct {
 	w            *tabwriter.Writer
 	format       OutputFormat
+	indentSpaces int
 	currentState modelWriterState
 	states       []modelWriterState
 }
@@ -130,6 +139,8 @@ func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
 	return strutil.WordWrap(out, text, indent, indent, termWidth)
 }
 
+// pushState stores the current state on top of the stack, and resets the
+// current state
 func (w *modelWriter) pushState() {
 	w.states = append(w.states, w.currentState)
 	w.currentState = modelWriterState{
@@ -141,13 +152,14 @@ func (w *modelWriter) pushState() {
 	}
 }
 
+// popState restores the previous state from the stack
 func (w *modelWriter) popState() {
 	w.currentState = w.states[len(w.states)-1]
 	w.states = w.states[:len(w.states)-1]
 }
 
-func (w *modelWriter) increaseIndent() {
-	w.currentState.indent += 2
+func (w *modelWriter) increaseIndent(indent int) {
+	w.currentState.indent += indent
 }
 
 func (w *modelWriter) indent() string {
@@ -167,11 +179,16 @@ func (w *modelWriter) writeSeperator() {
 	}
 }
 
+// StartObject marks the beginning of a new object. Objects can contain all
+// types of members, like arrays, keypair values and nested objects. StartObject
+// performs different actions depending on both the current state and also the output
+// format.
 func (w *modelWriter) StartObject(name string) {
 	w.writeSeperator()
 
 	// store this for later use with json arrays
 	inArray := w.currentState.inArray
+	indent := w.indentSpaces
 
 	if w.format == MODELWRITER_JSON_FORMAT {
 		if len(name) > 0 {
@@ -188,6 +205,7 @@ func (w *modelWriter) StartObject(name string) {
 	} else if w.format == MODELWRITER_YAML_FORMAT {
 		if w.currentState.inArray {
 			fmt.Fprintf(w.w, "%s- name:\t%s\n", w.indent(), name)
+			indent = 2
 		} else if len(name) > 0 {
 			fmt.Fprintf(w.w, "%s%s:\n", w.indent(), name)
 		}
@@ -198,17 +216,19 @@ func (w *modelWriter) StartObject(name string) {
 	// is for the root object, which is called like this
 	// startObject("")
 	if w.format != MODELWRITER_YAML_FORMAT || len(name) != 0 {
-		w.increaseIndent()
+		w.increaseIndent(indent)
 	}
 
 	// For objects in arrays in json we need to write the name of
-	// the object seperately. We need to do this post state is pushed
+	// the object separately. We need to do this post state is pushed
 	// and after the indentation has increased
 	if w.format == MODELWRITER_JSON_FORMAT && inArray {
 		w.WriteStringPair("name", name)
 	}
 }
 
+// EndObject marks the end of an object, and will finalize any remaining output
+// for the current object, like writing closing brackets or adding newlines.
 func (w *modelWriter) EndObject() {
 	w.popState()
 	if w.format == MODELWRITER_JSON_FORMAT {
@@ -222,12 +242,7 @@ func (w *modelWriter) EndObject() {
 }
 
 // startArray marks that any following members will be part of an array
-// instead of the outer object. The array can be inlined, which means that
-// it will fit it into one single line. This is useful for yaml to format arrays
-// as [1,2,3] instead of
-// - 1
-// - 2
-// - 3
+// instead of the outer object.
 func (w *modelWriter) StartArray(name string, inline bool) {
 	w.writeSeperator()
 	if w.format == MODELWRITER_JSON_FORMAT {
@@ -241,11 +256,21 @@ func (w *modelWriter) StartArray(name string, inline bool) {
 	}
 
 	w.pushState()
-	w.increaseIndent()
+
+	if w.format != MODELWRITER_YAML_FORMAT {
+		w.increaseIndent(w.indentSpaces)
+	}
 	w.currentState.inArray = true
 	w.currentState.inlineArray = inline
 }
 
+// EndArray will finalize and flush any array members added via 'WriteStringValue'. The
+// reason array values are implemented like this, is to easier support both kinds of arrays.
+// For yaml, we support two kinds of arrays; inline and multiline. Inline arrays are
+// written like this: [1,2,3] whereas multiline arrays are written like this:
+// - 1
+// - 2
+// - 3
 func (w *modelWriter) EndArray() {
 	if w.format == MODELWRITER_JSON_FORMAT {
 		for i, member := range w.currentState.arrayMembers {
@@ -254,7 +279,6 @@ func (w *modelWriter) EndArray() {
 				fmt.Fprint(w.w, ",\n")
 			}
 		}
-		fmt.Fprintf(w.w, "\n%s]", strings.Repeat(" ", w.currentState.indent-2))
 	} else if w.format == MODELWRITER_YAML_FORMAT {
 		if w.currentState.inlineArray {
 			fmt.Fprintf(w.w, "%s]", strings.Join(w.currentState.arrayMembers, ", "))
@@ -267,9 +291,18 @@ func (w *modelWriter) EndArray() {
 			}
 		}
 	}
+
+	// go back to the previous state and decrease indentation
 	w.popState()
+
+	// write array terminator for json, we do this after having corrected
+	// the indentation to the previous state
+	if w.format == MODELWRITER_JSON_FORMAT {
+		fmt.Fprintf(w.w, "\n%s]", w.indent())
+	}
 }
 
+// WriteStringPair writes a new 'key: value' pair for the current object.
 func (w *modelWriter) WriteStringPair(name, value string) {
 	if w.currentState.inArray {
 		// support for this we could do, but we wont as it's not required at this moment
@@ -286,6 +319,9 @@ func (w *modelWriter) WriteStringPair(name, value string) {
 	}
 }
 
+// WriteWrappedStringPair writes a new 'key: value' pair for the current object, and also
+// performs line-wrapping on the value. For yaml this will also set the first line
+// to be 'key: |' and the remaining lines will be indented.
 func (w *modelWriter) WriteWrappedStringPair(name, value string, lineWidth int) error {
 	w.writeSeperator()
 	if w.format == MODELWRITER_JSON_FORMAT {
@@ -307,10 +343,11 @@ func (w *modelWriter) WriteStringValue(value string) {
 	}
 }
 
-func newModelWriter(w *tabwriter.Writer, format OutputFormat) *modelWriter {
+func newModelWriter(w *tabwriter.Writer, indents int, format OutputFormat) *modelWriter {
 	return &modelWriter{
-		w:      w,
-		format: format,
+		w:            w,
+		format:       format,
+		indentSpaces: indents,
 		currentState: modelWriterState{
 			firstElement: true,
 		},
@@ -324,7 +361,10 @@ func fmtTime(t time.Time, abs bool) string {
 	return timeutil.Human(t)
 }
 
-func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormatter ModelFormatter, termWidth int, useSerial, absTime, verbose, assertation bool, modelAssertion *asserts.Model, serialAssertion *asserts.Serial) error {
+// PrintModelAssertion will format the provided serial or model assertion based on the parameters given. How
+// the assertion is formatted will be determined by both format, whether serial or model, or if the raw assertion
+// is requested.
+func PrintModelAssertion(w *tabwriter.Writer, format OutputFormat, modelFormatter ModelFormatter, termWidth int, useSerial, absTime, verbose, assertion bool, modelAssertion *asserts.Model, serialAssertion *asserts.Serial) error {
 	var mainAssertion asserts.Assertion
 
 	// if we got an invalid model assertion bail early
@@ -338,7 +378,7 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 		mainAssertion = modelAssertion
 	}
 
-	if assertation {
+	if assertion {
 		// if we are using the serial assertion and we specifically didn't find the
 		// serial assertion, bail with specific error
 		if useSerial && serialAssertion == nil {
@@ -362,7 +402,7 @@ func PrintModelAssertation(w *tabwriter.Writer, format OutputFormat, modelFormat
 		return err
 	}
 
-	mw := newModelWriter(w, format)
+	mw := newModelWriter(w, 2, format)
 
 	if useSerial && serialAssertion == nil {
 		// for serial assertion, the primary keys are output (model and

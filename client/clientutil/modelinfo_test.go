@@ -39,51 +39,47 @@ func (s *modelInfoSuite) SetUpTest(c *C) {
 
 var _ = Suite(&modelInfoSuite{})
 
+func createWriter(buffer *bytes.Buffer, format clientutil.OutputFormat) (*tabwriter.Writer, *clientutil.ModelWriter) {
+	tbw := tabwriter.NewWriter(buffer, 0, 5, 4, ' ', 0)
+	writer := clientutil.NewModelWriter(tbw, 4, format)
+	return tbw, writer
+}
+
 func (*modelInfoSuite) TestBasicObjectAnonymousRootYaml(c *C) {
+	// This test verifies we can output a very simple structure that resides
+	// in the root scope.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_YAML_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("")
 	writer.WriteStringPair("foo", "bar")
 	writer.WriteStringPair("baz", "qux")
 	writer.EndObject()
 
 	tbw.Flush()
-	c.Check(buffer.String(), Equals, "foo:bar\nbaz:qux\n")
+	c.Check(buffer.String(), Equals, "foo:    bar\nbaz:    qux\n")
 }
 
 func (*modelInfoSuite) TestBasicObjectYaml(c *C) {
+	// This test verifies that we can output simple keypairs inside a
+	// named object.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_YAML_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("project")
 	writer.WriteStringPair("foo", "bar")
 	writer.WriteStringPair("baz", "qux")
 	writer.EndObject()
 
 	tbw.Flush()
-	c.Check(buffer.String(), Equals, "project:\n  foo:\tbar\n  baz:\tqux\n")
+	c.Check(buffer.String(), Equals, "project:\n    foo:    bar\n    baz:    qux\n")
 }
 
 func (*modelInfoSuite) TestNestedObjectYaml(c *C) {
+	// This test verifies we can output simple nested objects.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_YAML_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("project")
 	writer.WriteStringPair("foo", "bar")
 	writer.WriteStringPair("baz", "qux")
@@ -95,98 +91,21 @@ func (*modelInfoSuite) TestNestedObjectYaml(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `project:
-  foo:	bar
-  baz:	qux
-  sub:
-    foo:bar
-    baz:qux
-`)
-}
-
-func (*modelInfoSuite) TestNestedObjectWithArrayYaml(c *C) {
-	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
-
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_YAML_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
-	writer.StartObject("project")
-	writer.WriteStringPair("foo", "bar")
-	writer.WriteStringPair("baz", "qux")
-	writer.StartObject("sub")
-	writer.WriteStringPair("foo", "bar")
-	writer.WriteStringPair("baz", "qux")
-	writer.StartArray("items", false)
-	writer.WriteStringValue("item1")
-	writer.WriteStringValue("item2")
-	writer.EndArray()
-	writer.WriteStringPair("xxx", "yyy")
-	writer.EndObject()
-	writer.EndObject()
-
-	tbw.Flush()
-	c.Check(buffer.String(), Equals, `project:
-  foo:	bar
-  baz:	qux
-  sub:
-    foo:	bar
-    baz:	qux
-    items:	
-      - item1
-      - item2
-    xxx:yyy
-`)
-}
-
-func (*modelInfoSuite) TestArrayOfObjectsYaml(c *C) {
-	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
-
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_YAML_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
-	writer.StartObject("project")
-	writer.WriteStringPair("foo", "bar")
-	writer.WriteStringPair("baz", "qux")
-	writer.StartArray("objects", false)
-	writer.StartObject("object1")
-	writer.WriteStringPair("foo", "bar")
-	writer.WriteStringPair("baz", "qux")
-	writer.EndObject()
-	writer.StartObject("object2")
-	writer.WriteStringPair("foo", "bar")
-	writer.WriteStringPair("baz", "qux")
-	writer.EndObject()
-	writer.EndArray()
-	writer.EndObject()
-
-	tbw.Flush()
-	c.Check(buffer.String(), Equals, `project:
-  foo:		bar
-  baz:		qux
-  objects:	
-    - name:	object1
-      foo:	bar
-      baz:	qux
-    - name:	object2
-      foo:	bar
-      baz:	qux
+    foo:    bar
+    baz:    qux
+    sub:
+        foo:    bar
+        baz:    qux
 `)
 }
 
 func (*modelInfoSuite) TestObjectWithArrayYaml(c *C) {
+	// Test that verifies we can output a very simple array. For yaml we support
+	// two types of arrays, regular and inline. Inlined arrays simply means they
+	// are outputted as [...] instead of each item prefixed with '-'.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_YAML_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("project")
 	writer.StartArray("foo", false)
 	writer.WriteStringValue("bar")
@@ -201,21 +120,19 @@ func (*modelInfoSuite) TestObjectWithArrayYaml(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `project:
-  foo:	
+    foo:    
     - bar
     - baz
 `)
 }
 
 func (*modelInfoSuite) TestObjectWithInlineArrayYaml(c *C) {
+	// Test that verifies we can output a very simple array. For yaml we support
+	// two types of arrays, regular and inline. Inlined arrays simply means they
+	// are outputted as [...] instead of each item prefixed with '-'.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_YAML_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("project")
 	writer.StartArray("foo", true)
 	writer.WriteStringValue("bar")
@@ -230,16 +147,84 @@ func (*modelInfoSuite) TestObjectWithInlineArrayYaml(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `project:
-  foo:	[bar, baz]
+    foo:    [bar, baz]
+`)
+}
+
+func (*modelInfoSuite) TestNestedObjectWithArrayYaml(c *C) {
+	// This test outputs nested objects that also happen to contain an array
+	// to test a more complex state scenario.
+	var buffer bytes.Buffer
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
+
+	writer.StartObject("project")
+	writer.WriteStringPair("foo", "bar")
+	writer.WriteStringPair("baz", "qux")
+	writer.StartObject("sub")
+	writer.WriteStringPair("foo", "bar")
+	writer.WriteStringPair("baz", "qux")
+	writer.StartArray("items", false)
+	writer.WriteStringValue("item1")
+	writer.WriteStringValue("item2")
+	writer.EndArray()
+	writer.WriteStringPair("xxx", "yyy")
+	writer.EndObject()
+	writer.EndObject()
+
+	tbw.Flush()
+	c.Check(buffer.String(), Equals, `project:
+    foo:    bar
+    baz:    qux
+    sub:
+        foo:      bar
+        baz:      qux
+        items:    
+        - item1
+        - item2
+        xxx:    yyy
+`)
+}
+
+func (*modelInfoSuite) TestArrayOfObjectsYaml(c *C) {
+	// Verify that we also support arrays of objects. This is required as a part
+	// of the support for outputting the model info.
+	var buffer bytes.Buffer
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_YAML_FORMAT)
+
+	writer.StartObject("project")
+	writer.WriteStringPair("foo", "bar")
+	writer.WriteStringPair("baz", "qux")
+	writer.StartArray("objects", false)
+	writer.StartObject("object1")
+	writer.WriteStringPair("foo", "bar")
+	writer.WriteStringPair("baz", "qux")
+	writer.EndObject()
+	writer.StartObject("object2")
+	writer.WriteStringPair("foo", "bar")
+	writer.WriteStringPair("baz", "qux")
+	writer.EndObject()
+	writer.EndArray()
+	writer.EndObject()
+
+	tbw.Flush()
+	c.Check(buffer.String(), Equals, `project:
+    foo:        bar
+    baz:        qux
+    objects:    
+    - name:     object1
+      foo:      bar
+      baz:      qux
+    - name:     object2
+      foo:      bar
+      baz:      qux
 `)
 }
 
 func (*modelInfoSuite) TestBasicObjectAnonymousRootJson(c *C) {
+	// This test verifies we can output a very simple structure that resides
+	// in the root scope.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
-
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_JSON_FORMAT)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_JSON_FORMAT)
 
 	writer.StartObject("")
 	writer.WriteStringPair("foo", "bar")
@@ -247,35 +232,30 @@ func (*modelInfoSuite) TestBasicObjectAnonymousRootJson(c *C) {
 	writer.EndObject()
 
 	tbw.Flush()
-	c.Check(buffer.String(), Equals, "{\n  \"foo\": \"bar\",\n  \"baz\": \"qux\"\n}\n")
+	c.Check(buffer.String(), Equals, "{\n    \"foo\": \"bar\",\n    \"baz\": \"qux\"\n}\n")
 }
 
 func (*modelInfoSuite) TestBasicObjectJson(c *C) {
+	// This test verifies that if we provide a scope for an object in
+	// json without being in an array scope, then the object is prefixed
+	// with the name of the scope.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_JSON_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_JSON_FORMAT)
-
-	// the root object of json is ignored always, as json always has a anonymous root
-	writer.StartObject("")
+	writer.StartObject("project")
 	writer.WriteStringPair("foo", "bar")
 	writer.WriteStringPair("baz", "qux")
 	writer.EndObject()
 
 	tbw.Flush()
-	c.Check(buffer.String(), Equals, "{\n  \"foo\": \"bar\",\n  \"baz\": \"qux\"\n}\n")
+	c.Check(buffer.String(), Equals, "\"project\": {\n    \"foo\": \"bar\",\n    \"baz\": \"qux\"\n}\n")
 }
 
 func (*modelInfoSuite) TestNestedObjectJson(c *C) {
+	// This test verifies we can output simple nested objects.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_JSON_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_JSON_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("")
 	writer.WriteStringPair("foo", "bar")
 	writer.WriteStringPair("baz", "qux")
@@ -287,25 +267,22 @@ func (*modelInfoSuite) TestNestedObjectJson(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `{
-  "foo": "bar",
-  "baz": "qux",
-  "sub": {
     "foo": "bar",
-    "baz": "qux"
-  }
+    "baz": "qux",
+    "sub": {
+        "foo": "bar",
+        "baz": "qux"
+    }
 }
 `)
 }
 
 func (*modelInfoSuite) TestNestedObjectWithArrayJson(c *C) {
+	// This test outputs nested objects that also happen to contain an array
+	// to test a more complex state scenario.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_JSON_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_JSON_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("")
 	writer.WriteStringPair("foo", "bar")
 	writer.WriteStringPair("baz", "qux")
@@ -322,30 +299,27 @@ func (*modelInfoSuite) TestNestedObjectWithArrayJson(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `{
-  "foo": "bar",
-  "baz": "qux",
-  "sub": {
     "foo": "bar",
     "baz": "qux",
-    "items": [
-      "item1",
-      "item2"
-    ],
-    "xxx": "yyy"
-  }
+    "sub": {
+        "foo": "bar",
+        "baz": "qux",
+        "items": [
+            "item1",
+            "item2"
+        ],
+        "xxx": "yyy"
+    }
 }
 `)
 }
 
 func (*modelInfoSuite) TestArrayOfObjectsJson(c *C) {
+	// Verify that we also support arrays of objects. This is required as a part
+	// of the support for outputting the model info.
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_JSON_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_JSON_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("")
 	writer.WriteStringPair("foo", "bar")
 	writer.WriteStringPair("baz", "qux")
@@ -363,33 +337,31 @@ func (*modelInfoSuite) TestArrayOfObjectsJson(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `{
-  "foo": "bar",
-  "baz": "qux",
-  "objects": [
-    {
-      "name": "object1",
-      "foo": "bar",
-      "baz": "qux"
-    },
-    {
-      "name": "object2",
-      "foo": "bar",
-      "baz": "qux"
-    }
-  ]
+    "foo": "bar",
+    "baz": "qux",
+    "objects": [
+        {
+            "name": "object1",
+            "foo": "bar",
+            "baz": "qux"
+        },
+        {
+            "name": "object2",
+            "foo": "bar",
+            "baz": "qux"
+        }
+    ]
 }
 `)
 }
 
 func (*modelInfoSuite) TestObjectWithArrayJson(c *C) {
+	// Test that verifies we can output a very simple array. For json the 'inline'
+	// attribute is currently ignored as no requirements exists for us to support
+	// outputting arrays in both an inline and non-inline fashion
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_JSON_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_JSON_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("")
 	writer.StartArray("foo", false)
 	writer.WriteStringValue("bar")
@@ -404,23 +376,21 @@ func (*modelInfoSuite) TestObjectWithArrayJson(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `{
-  "foo": [
-    "bar",
-    "baz"
-  ]
+    "foo": [
+        "bar",
+        "baz"
+    ]
 }
 `)
 }
 
-func (*modelInfoSuite) TestObjectWithInlineArrayJson(c *C) {
+func (*modelInfoSuite) TestObjectWithInlineArrayIsIgnoredJson(c *C) {
+	// Test that verifies we can output a very simple array. For json the 'inline'
+	// attribute is currently ignored as no requirements exists for us to support
+	// outputting arrays in both an inline and non-inline fashion
 	var buffer bytes.Buffer
-	var tbw tabwriter.Writer
-	tbw.Init(&buffer, 4, 4, 0, '\t', 0)
+	tbw, writer := createWriter(&buffer, clientutil.MODELWRITER_JSON_FORMAT)
 
-	writer := clientutil.NewModelWriter(&tbw, clientutil.MODELWRITER_JSON_FORMAT)
-
-	// test basic object functionality with yaml, with empty name to mark
-	// the root object as root.
 	writer.StartObject("")
 	writer.StartArray("foo", true)
 	writer.WriteStringValue("bar")
@@ -435,10 +405,10 @@ func (*modelInfoSuite) TestObjectWithInlineArrayJson(c *C) {
 
 	tbw.Flush()
 	c.Check(buffer.String(), Equals, `{
-  "foo": [
-    "bar",
-    "baz"
-  ]
+    "foo": [
+        "bar",
+        "baz"
+    ]
 }
 `)
 }

@@ -183,7 +183,7 @@ version: 1
 `
 
 func (s *modelSuite) TestUnhappyModelCommandNotGadgetOrSamePublisher(c *C) {
-	// Make sure that we can not get the model assertation if we are not a gadget
+	// Make sure that we can not get the model assertion if we are not a gadget
 	// type snap, or if we are not the publisher of the model assertion.
 	s.state.Lock()
 	s.setupBrands()
