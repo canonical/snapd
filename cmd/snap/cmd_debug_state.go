@@ -55,11 +55,11 @@ type cmdDebugState struct {
 var cmdDebugStateShortHelp = i18n.G("Inspect a snapd state file.")
 var cmdDebugStateLongHelp = i18n.G("Inspect a snapd state file, bypassing snapd API.")
 
-type byChangeID []*state.Change
+type byChangeSpawnTime []*state.Change
 
-func (c byChangeID) Len() int           { return len(c) }
-func (c byChangeID) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
-func (c byChangeID) Less(i, j int) bool { return c[i].ID() < c[j].ID() }
+func (c byChangeSpawnTime) Len() int           { return len(c) }
+func (c byChangeSpawnTime) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (c byChangeSpawnTime) Less(i, j int) bool { return c[i].SpawnTime().Before(c[j].SpawnTime()) }
 
 func loadState(path string) (*state.State, error) {
 	if path == "" {
@@ -202,7 +202,7 @@ func (c *cmdDebugState) showChanges(st *state.State) error {
 	defer st.Unlock()
 
 	changes := st.Changes()
-	sort.Sort(byChangeID(changes))
+	sort.Sort(byChangeSpawnTime(changes))
 
 	w := tabwriter.NewWriter(Stdout, 5, 3, 2, ' ', 0)
 	fmt.Fprintf(w, "ID\tStatus\tSpawn\tReady\tLabel\tSummary\n")

@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -48,6 +49,9 @@ var (
 	bootMakeRunnable            = boot.MakeRunnableSystem
 	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
 	installRun                  = install.Run
+	installFactoryReset         = func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, fmt.Errorf("not implemented")
+	}
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -91,13 +95,16 @@ func writeModel(model *asserts.Model, where string) error {
 	return asserts.NewEncoder(f).Encode(model)
 }
 
-func writeLogs(rootdir string) error {
+func writeLogs(rootdir string, fromMode string) error {
 	// XXX: would be great to use native journal format but it's tied
 	//      to machine-id, we could journal -o export but there
 	//      is no systemd-journal-remote on core{,18,20}
 	//
 	// XXX: or only log if persistent journal is enabled?
 	logPath := filepath.Join(rootdir, "var/log/install-mode.log.gz")
+	if fromMode == "factory-reset" {
+		logPath = filepath.Join(rootdir, "var/log/factory-reset-mode.log.gz")
+	}
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return err
 	}
@@ -148,8 +155,14 @@ func writeTimesyncdClock(srcRootDir, dstRootDir string) error {
 	return nil
 }
 
-func writeTimings(st *state.State, rootdir string) error {
+func writeTimings(st *state.State, rootdir, fromMode string) error {
+	changeKind := "install-system"
 	logPath := filepath.Join(rootdir, "var/log/install-timings.txt.gz")
+	if fromMode == "factory-reset" {
+		changeKind = "factory-reset"
+		logPath = filepath.Join(rootdir, "var/log/factory-reset-timings.txt.gz")
+	}
+
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return err
 	}
@@ -165,7 +178,7 @@ func writeTimings(st *state.State, rootdir string) error {
 
 	var chgIDs []string
 	for _, chg := range st.Changes() {
-		if chg.Kind() == "seed" || chg.Kind() == "install-system" {
+		if chg.Kind() == "seed" || chg.Kind() == changeKind {
 			// this is captured via "--ensure=seed" and
 			// "--ensure=install-system" below
 			continue
@@ -197,8 +210,8 @@ func writeTimings(st *state.State, rootdir string) error {
 	}
 	fmt.Fprintf(gz, "\n")
 	// then the install
-	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=install-system\n")
-	cmd = exec.Command("snap", "debug", "timings", "--ensure=install-system")
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=%v\n", changeKind)
+	cmd = exec.Command("snap", "debug", "timings", fmt.Sprintf("--ensure=%v", changeKind))
 	cmd.Stdout = gz
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot collect timings output: %v", err)
@@ -311,7 +324,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if trustedInstallObserver != nil {
-		// sanity check
+		// validity check
 		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil || installedSystem.KeysForRoles[gadget.SystemSave] == nil {
 			return fmt.Errorf("internal error: system encryption keys are unset")
 		}
@@ -592,11 +605,11 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	}
 
 	// write timing information
-	if err := writeTimings(st, boot.InstallHostWritableDir); err != nil {
+	if err := writeTimings(st, boot.InstallHostWritableDir, modeEnv.Mode); err != nil {
 		logger.Noticef("cannot write timings: %v", err)
 	}
 	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+	if err := writeLogs(boot.InstallHostWritableDir, modeEnv.Mode); err != nil {
 		logger.Noticef("cannot write installation log: %v", err)
 	}
 
@@ -616,5 +629,256 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	logger.Noticef("request immediate system %s", what)
 	restart.Request(st, rst, nil)
 
+	return nil
+}
+
+func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+	// get gadget dir
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+	gadgetInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get gadget info: %v", err)
+	}
+	gadgetDir := gadgetInfo.MountDir()
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	kernelDir := kernelInfo.MountDir()
+
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	// bootstrap
+	bopts := install.Options{
+		Mount: true,
+	}
+	encryptionType, err := m.checkEncryption(st, deviceCtx)
+	if err != nil {
+		return err
+	}
+	bopts.EncryptionType = encryptionType
+	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
+	hasMarker := osutil.FileExists(filepath.Join(boot.InstallHostFDESaveDir, "marker"))
+	// TODO verify that the same encryption mechanism is used
+	if hasMarker != useEncryption {
+		prevStatus := "encrypted"
+		if !hasMarker {
+			prevStatus = "unencrypted"
+		}
+		return fmt.Errorf("cannot perform factory reset using different encryption, the original system was %v", prevStatus)
+	}
+
+	model := deviceCtx.Model()
+
+	// make sure that gadget is usable for the set up we want to use it in
+	validationConstraints := gadget.ValidationConstraints{
+		EncryptedData: useEncryption,
+	}
+	var ginfo *gadget.Info
+	timings.Run(perfTimings, "read-info-and-validate", "Read and validate gagdet info", func(timings.Measurer) {
+		ginfo, err = gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+	if err := gadget.ValidateContent(ginfo, gadgetDir, kernelDir); err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+
+	// run the create partition code
+	logger.Noticef("create and deploy partitions")
+	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
+		st.Unlock()
+		defer st.Lock()
+		_, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, nil, tm)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot perform factory reset: %v", err)
+	}
+
+	// TODO: splice into a common install/reset helper?
+
+	// keep track of the model we installed
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
+	}
+	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	if err != nil {
+		return fmt.Errorf("cannot store the model: %v", err)
+	}
+
+	// preserve systemd-timesyncd clock timestamp, so that RTC-less devices
+	// can start with a more recent time on the next boot
+	if err := writeTimesyncdClock(dirs.GlobalRootDir, boot.InstallHostWritableDir); err != nil {
+		return fmt.Errorf("cannot seed timesyncd clock: %v", err)
+	}
+
+	// configure the run system
+	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
+	// configure cloud init
+	setSysconfigCloudOptions(opts, gadgetDir, model)
+	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
+		err = sysconfigConfigureTargetSystem(model, opts)
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := restoreDeviceFromSave(model); err != nil {
+		return fmt.Errorf("cannot restore data from save: %v", err)
+	}
+
+	// on some specific devices, we need to create these directories in
+	// _writable_defaults in order to allow the install-device hook to install
+	// some files there, this eventually will go away when we introduce a proper
+	// mechanism not using system-files to install files onto the root
+	// filesystem from the install-device hook
+	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
+		return err
+	}
+
+	// make it bootable
+	logger.Noticef("make system runnable")
+	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get boot base info: %v", err)
+	}
+	recoverySystemDir := filepath.Join("/systems", modeEnv.RecoverySystem)
+	bootWith := &boot.BootableSet{
+		Base:              bootBaseInfo,
+		BasePath:          bootBaseInfo.MountFile(),
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInfo.MountFile(),
+		RecoverySystemDir: recoverySystemDir,
+		UnpackedGadgetDir: gadgetDir,
+	}
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
+		err = bootMakeRunnable(deviceCtx.Model(), bootWith, nil)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+	return nil
+}
+
+func restoreDeviceFromSave(model *asserts.Model) error {
+	// we could also look at factory-reset-bootstrap.json left by
+	// snap-bootstrap, but the mount was already verified during boot
+	mounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-save mount state: %v", err)
+	}
+	if !mounted {
+		logger.Noticef("not restoring from save, ubuntu-save not mounted")
+		return nil
+	}
+	// TODO anything else we want to restore?
+	return restoreDeviceSerialFromSave(model)
+}
+
+func restoreDeviceSerialFromSave(model *asserts.Model) error {
+	fromDevice := filepath.Join(boot.InstallHostDeviceSaveDir)
+	logger.Debugf("looking for serial assertion and device key under %v", fromDevice)
+	fromDB, err := sysdb.OpenAt(fromDevice)
+	if err != nil {
+		return err
+	}
+	// key pair manager always uses ubuntu-save whenever it's available
+	kp, err := asserts.OpenFSKeypairManager(fromDevice)
+	if err != nil {
+		return err
+	}
+	// there should be a serial assertion for the current model
+	serials, err := fromDB.FindMany(asserts.SerialType, map[string]string{
+		"brand-id": model.BrandID(),
+		"model":    model.Model(),
+	})
+	if (err != nil && asserts.IsNotFound(err)) || len(serials) == 0 {
+		// there is no serial assertion in the old system that matches
+		// our model, it is still possible that the old system could
+		// have generated device keys and sent out a serial request, but
+		// for simplicity we ignore this scenario and a new set of keys
+		// will be generated after booting into the run system
+		logger.Debugf("no serial assertion for %v/%v", model.BrandID(), model.Model())
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	logger.Noticef("found %v serial assertions for %v/%v", len(serials), model.BrandID(), model.Model())
+
+	var serialAs *asserts.Serial
+	for _, serial := range serials {
+		maybeCurrentSerialAs := serial.(*asserts.Serial)
+		// serial assertion is signed with the device key, its ID is in the
+		// header
+		deviceKeyID := maybeCurrentSerialAs.DeviceKey().ID()
+		logger.Debugf("serial assertion device key ID: %v", deviceKeyID)
+
+		// there can be multiple serial assertions, as the device could
+		// have exercised the registration a number of times, but each
+		// time it unregisters, the old key is removed and a new one is
+		// generated
+		_, err = kp.Get(deviceKeyID)
+		if err != nil {
+			if asserts.IsKeyNotFound(err) {
+				logger.Debugf("no key with ID %v", deviceKeyID)
+				continue
+			}
+			return fmt.Errorf("cannot obtain device key: %v", err)
+		} else {
+			serialAs = maybeCurrentSerialAs
+			break
+		}
+	}
+
+	if serialAs == nil {
+		// no serial assertion that matches the model, brand and is
+		// signed with a device key that is present in the filesystem
+		logger.Debugf("no valid serial assertions")
+		return nil
+	}
+
+	logger.Debugf("found a serial assertion for %v/%v, with serial %v",
+		model.BrandID(), model.Model(), serialAs.Serial())
+
+	toDB, err := sysdb.OpenAt(filepath.Join(boot.InstallHostWritableDir, "var/lib/snapd/assertions"))
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("importing serial and model assertions")
+	b := asserts.NewBatch(nil)
+	err = b.Fetch(toDB,
+		func(ref *asserts.Ref) (asserts.Assertion, error) { return ref.Resolve(fromDB.Find) },
+		func(f asserts.Fetcher) error {
+			if err := f.Save(model); err != nil {
+				return err
+			}
+			return f.Save(serialAs)
+		})
+	if err != nil {
+		return fmt.Errorf("cannot fetch assertions: %v", err)
+	}
+	if err := b.CommitTo(toDB, nil); err != nil {
+		return fmt.Errorf("cannot commit assertions: %v", err)
+	}
 	return nil
 }
