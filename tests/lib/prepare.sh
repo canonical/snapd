@@ -1248,9 +1248,7 @@ prepare_ubuntu_core() {
     snap wait system seed.loaded
 
     echo "Ensure fundamental snaps are still present"
-    # shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB/names.sh"
-    for name in "$gadget_name" "$kernel_name" "$core_name"; do
+    for name in "$(snaps.name gadget)" "$(snaps.name kernel)" "$(snaps.name core)"; do
         if ! snap list "$name"; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
