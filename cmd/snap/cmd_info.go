@@ -147,17 +147,6 @@ func runesTrimRightSpace(text []rune) []rune {
 	return text[:j]
 }
 
-// runesLastIndexSpace returns the index of the last whitespace rune
-// in the text. If the text has no whitespace, returns -1.
-func runesLastIndexSpace(text []rune) int {
-	for i := len(text) - 1; i >= 0; i-- {
-		if unicode.IsSpace(text[i]) {
-			return i
-		}
-	}
-	return -1
-}
-
 // wrapLine wraps a line, assumed to be part of a block-style yaml
 // string, to fit into termWidth, preserving the line's indent, and
 // writes it out prepending padding to each line.
