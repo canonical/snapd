@@ -417,6 +417,6 @@ func (s *modelSuite) TestHappyModelCommandAssertionGadgetJson(c *C) {
     "timestamp": "%s",
     "type": "model"
   }
-}`, current.SignKeyID(), time.Now().Format("2006-01-02T15:04:05-07:00")))
+}`, current.SignKeyID(), time.Now().Format(time.RFC3339)))
 	c.Check(string(stderr), Equals, "")
 }
