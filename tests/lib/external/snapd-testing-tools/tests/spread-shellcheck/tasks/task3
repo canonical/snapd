@@ -7,7 +7,7 @@ restore: |
     ![ -z "something" ]
 
 debug: |
-    echo "debuging"
+    echo "debugging"
 
 execute: |
     echo "executing"

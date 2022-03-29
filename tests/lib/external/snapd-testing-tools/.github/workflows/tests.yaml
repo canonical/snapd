@@ -26,6 +26,12 @@ jobs:
           sudo apt-get install -y shellcheck
           find tools utils -type f -exec sh -c "head -n 1 {} | egrep -a 'bin/bash|bin/sh' >/dev/null" \; -print -exec shellcheck {} \;
 
+    - name: Run codespell tool
+      run: |
+          sudo apt install python3-pip
+          pip3 install codespell
+          codespell
+
   test:
     needs: [unit-tests]
     runs-on: self-hosted
