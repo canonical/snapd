@@ -385,10 +385,6 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 var isTesting = snapdenv.Testing()
 
-type addDirToZipOptions struct {
-	ExcludePaths []string `yaml:"exclude"`
-}
-
 func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string, savingUserData bool, excludePaths []string) error {
 	parent, revdir := filepath.Split(dir)
 	exists, isDir, err := osutil.DirExists(parent)
