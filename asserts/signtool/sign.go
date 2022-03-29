@@ -23,8 +23,14 @@ package signtool
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
+)
+
+var (
+	Stdout = os.Stdout
 )
 
 // Options specifies the complete input for signing an assertion.
@@ -107,4 +113,26 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	}
 
 	return asserts.Encode(a), nil
+}
+
+type KeypairManager interface {
+	asserts.KeypairManager
+
+	GetByName(keyNname string) (asserts.PrivateKey, error)
+	Export(keyName string) ([]byte, error)
+	List() ([]asserts.ExternalKeyInfo, error)
+	DeleteByName(keyName string) error
+}
+
+func GetKeypairManager() (KeypairManager, error) {
+	keymgrPath := os.Getenv("SNAPD_EXT_KEYMGR")
+	if keymgrPath != "" {
+		keypairMgr, err := asserts.NewExternalKeypairManager(keymgrPath)
+		if err != nil {
+			return nil, fmt.Errorf(i18n.G("cannot setup external keypair manager: %v"), err)
+		}
+		return keypairMgr, nil
+	}
+	keypairMgr := asserts.NewGPGKeypairManager()
+	return keypairMgr, nil
 }

@@ -93,9 +93,6 @@ var (
 
 	IsStopping = isStopping
 
-	GetKeypairManager = getKeypairManager
-	GenerateKey       = generateKey
-
 	GetSnapDirOptions = getSnapDirOptions
 
 	ParseQuotas = parseQuotas
