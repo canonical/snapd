@@ -21,9 +21,11 @@ package strutil
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -274,4 +276,60 @@ func Deduplicate(sl []string) []string {
 	}
 
 	return dedup
+}
+
+// runesLastIndexSpace returns the index of the last whitespace rune
+// in the text. If the text has no whitespace, returns -1.
+func runesLastIndexSpace(text []rune) int {
+	for i := len(text) - 1; i >= 0; i-- {
+		if unicode.IsSpace(text[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// WordWrap wraps the given text to the given width, prefixing the
+// first line with indent and the remaining lines with indent2
+func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int) error {
+	// Note: this is _wrong_ for much of unicode (because the width of a rune on
+	//       the terminal is anything between 0 and 2, not always 1 as this code
+	//       assumes) but fixing that is Hard. Long story short, you can get close
+	//       using a couple of big unicode tables (which is what wcwidth
+	//       does). Getting it 100% requires a terminfo-alike of unicode behaviour.
+	//       However, before this we'd count bytes instead of runes, so we'd be
+	//       even more broken. Think of it as successive approximations... at least
+	//       with this work we share tabwriter's opinion on the width of things!
+	if termWidth < 1 {
+		termWidth = 1
+	}
+
+	indentWidth := utf8.RuneCountInString(indent)
+	delta := indentWidth - utf8.RuneCountInString(indent2)
+	width := termWidth - indentWidth
+
+	// establish the indent of the whole block
+	var err error
+	for len(text) > width && err == nil {
+		// find a good place to chop the text
+		idx := runesLastIndexSpace(text[:width+1])
+		if idx < 0 {
+			// there's no whitespace; just chop at line width
+			idx = width
+		}
+		_, err = fmt.Fprint(out, indent, string(text[:idx]), "\n")
+		// prune any remaining whitespace before the start of the next line
+		for idx < len(text) && unicode.IsSpace(text[idx]) {
+			idx++
+		}
+		text = text[idx:]
+		width += delta
+		indent = indent2
+		delta = 0
+	}
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(out, indent, string(text), "\n")
+	return err
 }
