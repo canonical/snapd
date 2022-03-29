@@ -534,6 +534,9 @@ install_core_initrd_deps() {
 }
 
 uc20_modify_the_tool() {
+    local skeletondir=$1
+    local injectKernelPanic=$2
+
     # modify the-tool to verify that our version is used when booting - this
     # is verified in the tests/core/basic20 spread test
     sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
@@ -608,11 +611,11 @@ uc20_build_initramfs_kernel_snap() {
         # kernel and we don't want to test that, just test our snap-bootstrap
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
-        skeletondir=$PWD/skeleton
+        skeletondir="$PWD/skeleton"
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
 
         if [ "$MODIFY_THE_TOOL" = true ]; then
-            uc20_modify_the_tool
+            uc20_modify_the_tool "$skeletondir" "$injectKernelPanic"
         fi
         # bump the epoch time file timestamp, converting unix timestamp to 
         # touch's date format
