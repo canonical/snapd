@@ -45,7 +45,7 @@ const (
 	Hidden       = hidden
 	Home         = home
 	RevertHidden = revertHidden
-	RevertHome   = revertHome
+	DisableHome  = disableHome
 	RevertFull   = revertFull
 )
 

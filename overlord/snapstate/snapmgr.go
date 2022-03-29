@@ -121,9 +121,8 @@ type SnapSetup struct {
 	// that it wasn't create in the current change.
 	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
 
-	// UndidHomeMigration is set if the migration to the ~/Snap dir was undone
-	// in the current change.
-	UndidHomeMigration bool `json:"undid-home-migration,omitempty"`
+	// DisabledHomeMigration is set if ~/Snap should not be used as $HOME.
+	DisableHomeMigration bool `json:"disable-home-migration,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
