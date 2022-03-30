@@ -153,11 +153,11 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 	}
 
 	// Check that the cpu limit is not being removed, we do not support setting these
-	// two settings individually. Count/Percentage must be updated in unison.
+	// two settings individually.
 	if newLimits.CPU != nil && qr.CPU != nil {
-		if newLimits.CPU.Count == 0 && qr.CPU.Count != 0 {
-			return fmt.Errorf("cannot remove cpu limit from quota group")
-		}
+		// Allow count to be changed to zero, but not percentage. This is because count
+		// is an optional setting and we want to allow the user to remove the count to indicate
+		// that we just want to use % of all cpus
 		if newLimits.CPU.Percentage == 0 && qr.CPU.Percentage != 0 {
 			return fmt.Errorf("cannot remove cpu limit from quota group")
 		}
