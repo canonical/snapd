@@ -1,7 +1,7 @@
-summary: Functional test for quota-related snap commands.
+summary: Functional test for memory quota-related snap commands.
 
 details: |
-  Functional test for snap quota group commands ensuring that they are 
+  Functional test for snap memory quota group commands ensuring that they are 
   effective in practice.
 
 # these systems do not support quota groups due to their old systemd versions,
