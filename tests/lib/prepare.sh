@@ -564,7 +564,6 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
-    local MODIFY_THE_TOOL="${3:-true}"
 
     install_core_initrd_deps
 
@@ -614,7 +613,7 @@ uc20_build_initramfs_kernel_snap() {
         skeletondir="$PWD/skeleton"
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
 
-        if [ "$MODIFY_THE_TOOL" = true ]; then
+        if os.query is-core20; then
             uc20_modify_the_tool "$skeletondir" "$injectKernelPanic"
         fi
         # bump the epoch time file timestamp, converting unix timestamp to 
