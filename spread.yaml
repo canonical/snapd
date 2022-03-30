@@ -41,7 +41,7 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/edge"
+    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -544,7 +544,8 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    cat "$RUNTIME_STATE_PATH/runs" || true
+    # since the runs file does not have a newline at EOF, add one 
+    echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit

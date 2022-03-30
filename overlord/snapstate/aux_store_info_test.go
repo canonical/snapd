@@ -39,7 +39,7 @@ func (s *auxInfoSuite) SetUpTest(c *check.C) {
 }
 
 func (s *auxInfoSuite) TestAuxStoreInfoFilename(c *check.C) {
-	// sanity check
+	// precondition check
 	filename := snapstate.AuxStoreInfoFilename("some-snap-id")
 	c.Check(filename, check.Equals, filepath.Join(dirs.SnapAuxStoreInfoDir, "some-snap-id.json"))
 }

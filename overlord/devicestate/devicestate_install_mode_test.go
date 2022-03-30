@@ -850,7 +850,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
-func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errMatch string) {
+func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, errMatch string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -878,18 +878,18 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C) {
+func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoKeys(c *C) {
 	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
 	defer restore()
-	s.testInstallEncryptionSanityChecks(c, `(?ms)cannot perform the following tasks:
+	s.testInstallEncryptionValidityChecks(c, `(?ms)cannot perform the following tasks:
 - Setup system for run mode \(internal error: system encryption keys are unset\)`)
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDataKey(c *C) {
+func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoSystemDataKey(c *C) {
 	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
 		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
 		// no keys set
@@ -899,7 +899,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDat
 		}, nil
 	})
 	defer restore()
-	s.testInstallEncryptionSanityChecks(c, `(?ms)cannot perform the following tasks:
+	s.testInstallEncryptionValidityChecks(c, `(?ms)cannot perform the following tasks:
 - Setup system for run mode \(internal error: system encryption keys are unset\)`)
 }
 

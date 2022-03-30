@@ -74,7 +74,6 @@ func (s *dspSuite) SetUpTest(c *C) {
 	s.noFlavorSlot, s.noFlavorSlotInfo = MockConnectedSlot(c, gadgetDspSlotYaml, nil, "dsp-no-flavor")
 	s.ambarellaSlot, s.ambarellaSlotInfo = MockConnectedSlot(c, gadgetDspSlotYaml, nil, "dsp-ambarella")
 	s.plug, s.plugInfo = MockConnectedPlug(c, dspMockPlugSnapInfoYaml, nil, "dsp")
-
 }
 
 func (s *dspSuite) TestName(c *C) {

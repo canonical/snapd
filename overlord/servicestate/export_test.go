@@ -23,6 +23,8 @@ import (
 	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -46,4 +48,10 @@ func MockOsutilBootID(mockID string) (restore func()) {
 	return func() {
 		osutilBootID = old
 	}
+}
+
+func MockResourcesCheckFeatureRequirements(f func(*quota.Resources) error) (restore func()) {
+	r := testutil.Backup(&resourcesCheckFeatureRequirements)
+	resourcesCheckFeatureRequirements = f
+	return r
 }

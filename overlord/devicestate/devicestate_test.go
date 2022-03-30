@@ -905,7 +905,7 @@ func (s *deviceMgrSuite) TestCanAutoRefreshNoSerialFallback(c *C) {
 	// third attempt ongoing, or done
 	// fallback, try auto-refresh
 	devicestate.IncEnsureOperationalAttempts(s.state)
-	// sanity
+	// validity
 	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 3)
 	c.Check(canAutoRefresh(), Equals, true)
 }

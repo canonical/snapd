@@ -611,7 +611,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 	}
 
-	// Create a map of the target directories (mimics) needed for the  visited
+	// Create a map of the target directories (mimics) needed for the visited
 	// entries
 	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
 	for _, entry := range desiredNotReused {
