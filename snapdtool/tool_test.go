@@ -156,48 +156,48 @@ func (s *toolSuite) TestNonClassicDistroNoSupportsReExec(c *C) {
 	}
 }
 
-func (s *toolSuite) TestCoreSupportsReExecNoInfo(c *C) {
+func (s *toolSuite) TestSystemSnapSupportsReExecNoInfo(c *C) {
 	// there's no snapd/info in a just-created tmpdir :-p
-	c.Check(snapdtool.CoreSupportsReExec(c.MkDir()), Equals, false)
+	c.Check(snapdtool.SystemSnapSupportsReExec(c.MkDir()), Equals, false)
 }
 
-func (s *toolSuite) TestCoreSupportsReExecBadInfo(c *C) {
+func (s *toolSuite) TestSystemSnapSupportsReExecBadInfo(c *C) {
 	// can't read snapd/info if it's a directory
 	p := s.snapdPath + "/usr/lib/snapd/info"
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
 
-	c.Check(snapdtool.CoreSupportsReExec(s.snapdPath), Equals, false)
+	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
 }
 
-func (s *toolSuite) TestCoreSupportsReExecBadInfoContent(c *C) {
+func (s *toolSuite) TestSystemSnapSupportsReExecBadInfoContent(c *C) {
 	// can't understand snapd/info if all it holds are potatoes
 	p := s.snapdPath + "/usr/lib/snapd"
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(p+"/info", []byte("potatoes"), 0644), IsNil)
 
-	c.Check(snapdtool.CoreSupportsReExec(s.snapdPath), Equals, false)
+	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
 }
 
-func (s *toolSuite) TestCoreSupportsReExecBadVersion(c *C) {
+func (s *toolSuite) TestSystemSnapSupportsReExecBadVersion(c *C) {
 	// can't understand snapd/info if all its version is gibberish
 	s.fakeCoreVersion(c, s.snapdPath, "0:")
 
-	c.Check(snapdtool.CoreSupportsReExec(s.snapdPath), Equals, false)
+	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
 }
 
-func (s *toolSuite) TestCoreSupportsReExecOldVersion(c *C) {
+func (s *toolSuite) TestSystemSnapSupportsReExecOldVersion(c *C) {
 	// can't re-exec if core version is too old
 	defer snapdtool.MockVersion("2")()
 	s.fakeCoreVersion(c, s.snapdPath, "0")
 
-	c.Check(snapdtool.CoreSupportsReExec(s.snapdPath), Equals, false)
+	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
 }
 
-func (s *toolSuite) TestCoreSupportsReExec(c *C) {
+func (s *toolSuite) TestSystemSnapSupportsReExec(c *C) {
 	defer snapdtool.MockVersion("2")()
 	s.fakeCoreVersion(c, s.snapdPath, "9999")
 
-	c.Check(snapdtool.CoreSupportsReExec(s.snapdPath), Equals, true)
+	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, true)
 }
 
 func (s *toolSuite) TestInternalToolPathNoReexec(c *C) {
