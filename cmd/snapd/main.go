@@ -33,12 +33,12 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/syscheck"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/validity"
 )
 
 var (
-	validityCheck = validity.Check
+	syscheckCheckSystem = syscheck.CheckSystem
 )
 
 func init() {
@@ -119,12 +119,12 @@ func run(ch chan os.Signal) error {
 		return err
 	}
 
-	// Run validity check now, if anything goes wrong with the
+	// Run syscheck check now, if anything goes wrong with the
 	// check we go into "degraded" mode where we always report
 	// the given error to any snap client.
 	var checkTicker <-chan time.Time
 	var tic *time.Ticker
-	if err := validityCheck(); err != nil {
+	if err := syscheckCheckSystem(); err != nil {
 		degradedErr := fmt.Errorf("system does not fully support snapd: %s", err)
 		logger.Noticef("%s", degradedErr)
 		d.SetDegradedMode(degradedErr)
@@ -158,7 +158,7 @@ out:
 			// something called Stop()
 			break out
 		case <-checkTicker:
-			if err := validityCheck(); err == nil {
+			if err := syscheckCheckSystem(); err == nil {
 				d.SetDegradedMode(nil)
 				tic.Stop()
 			}

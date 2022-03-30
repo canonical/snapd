@@ -17,7 +17,7 @@
  *
  */
 
-package validity
+package syscheck
 
 import (
 	"fmt"

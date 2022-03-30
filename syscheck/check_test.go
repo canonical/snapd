@@ -17,7 +17,7 @@
  *
  */
 
-package validity_test
+package syscheck_test
 
 import (
 	"go/ast"
@@ -33,25 +33,25 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/syscheck"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/validity"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type validitySuite struct {
+type syscheckSuite struct {
 	testutil.BaseTest
 }
 
-func (s *validitySuite) SetUpTest(c *C) {
+func (s *syscheckSuite) SetUpTest(c *C) {
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
 }
 
-var _ = Suite(&validitySuite{})
+var _ = Suite(&syscheckSuite{})
 
-func (s *validitySuite) TestRunHappy(c *C) {
+func (s *syscheckSuite) TestRunHappy(c *C) {
 	var happyChecks []func() error
 	var happyCheckRan int
 
@@ -60,15 +60,15 @@ func (s *validitySuite) TestRunHappy(c *C) {
 		return nil
 	})
 
-	restore := validity.MockChecks(happyChecks)
+	restore := syscheck.MockChecks(happyChecks)
 	defer restore()
 
-	err := validity.Check()
+	err := syscheck.CheckSystem()
 	c.Check(err, IsNil)
 	c.Check(happyCheckRan, Equals, 1)
 }
 
-func (s *validitySuite) TestRunNotHappy(c *C) {
+func (s *syscheckSuite) TestRunNotHappy(c *C) {
 	var unhappyChecks []func() error
 	var unhappyCheckRan int
 
@@ -77,25 +77,25 @@ func (s *validitySuite) TestRunNotHappy(c *C) {
 		return nil
 	})
 
-	restore := validity.MockChecks(unhappyChecks)
+	restore := syscheck.MockChecks(unhappyChecks)
 	defer restore()
 
-	err := validity.Check()
+	err := syscheck.CheckSystem()
 	c.Check(err, IsNil)
 	c.Check(unhappyCheckRan, Equals, 1)
 }
 
-func (s *validitySuite) TestUnexportedChecks(c *C) {
-	// collect what funcs we run in validity.Check
+func (s *syscheckSuite) TestUnexportedChecks(c *C) {
+	// collect what funcs we run in syscheck.CheckSystem
 	var runCheckers []string
-	v := reflect.ValueOf(validity.Checks())
+	v := reflect.ValueOf(syscheck.Checks())
 	for i := 0; i < v.Len(); i++ {
 		v := v.Index(i)
 		fname := runtime.FuncForPC(v.Pointer()).Name()
 		pos := strings.LastIndexByte(fname, '.')
 		checker := fname[pos+1:]
 		if !strings.HasPrefix(checker, "check") {
-			c.Fatalf(`%q in validity.Checks does not have "check" prefix`, checker)
+			c.Fatalf(`%q in syscheck.Checks does not have "check" prefix`, checker)
 		}
 		runCheckers = append(runCheckers, checker)
 	}

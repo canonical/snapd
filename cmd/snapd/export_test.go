@@ -27,11 +27,11 @@ var (
 	Run = run
 )
 
-func MockValidityCheck(f func() error) (restore func()) {
-	oldValidityCheck := validityCheck
-	validityCheck = f
+func MockSyscheckCheckSystem(f func() error) (restore func()) {
+	oldSyscheckCheckSystem := syscheckCheckSystem
+	syscheckCheckSystem = f
 	return func() {
-		validityCheck = oldValidityCheck
+		syscheckCheckSystem = oldSyscheckCheckSystem
 	}
 }
 

@@ -17,18 +17,18 @@
  *
  */
 
-package validity_test
+package syscheck_test
 
 import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/syscheck"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/validity"
 )
 
-func (s *validitySuite) TestCheckSquashfsMountHappy(c *C) {
+func (s *syscheckSuite) TestCheckSquashfsMountHappy(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
@@ -39,7 +39,7 @@ func (s *validitySuite) TestCheckSquashfsMountHappy(c *C) {
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
 
-	err := validity.CheckSquashfsMount()
+	err := syscheck.CheckSquashfsMount()
 	c.Check(err, IsNil)
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -55,7 +55,7 @@ func (s *validitySuite) TestCheckSquashfsMountHappy(c *C) {
 	})
 }
 
-func (s *validitySuite) TestCheckSquashfsMountNotHappy(c *C) {
+func (s *syscheckSuite) TestCheckSquashfsMountNotHappy(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
@@ -65,7 +65,7 @@ func (s *validitySuite) TestCheckSquashfsMountNotHappy(c *C) {
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
 
-	err := validity.CheckSquashfsMount()
+	err := syscheck.CheckSquashfsMount()
 	c.Check(err, ErrorMatches, "cannot mount squashfs image using.*")
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -78,7 +78,7 @@ func (s *validitySuite) TestCheckSquashfsMountNotHappy(c *C) {
 	})
 }
 
-func (s *validitySuite) TestCheckSquashfsMountWrongContent(c *C) {
+func (s *syscheckSuite) TestCheckSquashfsMountWrongContent(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
@@ -88,14 +88,14 @@ func (s *validitySuite) TestCheckSquashfsMountWrongContent(c *C) {
 	mockUmount := testutil.MockCommand(c, "umount", "")
 	defer mockUmount.Restore()
 
-	err := validity.CheckSquashfsMount()
+	err := syscheck.CheckSquashfsMount()
 	c.Check(err, ErrorMatches, `unexpected squashfs canary content: "wrong content\\n"`)
 
 	c.Check(mockMount.Calls(), HasLen, 1)
 	c.Check(mockUmount.Calls(), HasLen, 1)
 }
 
-func (s *validitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
+func (s *syscheckSuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
@@ -108,7 +108,7 @@ func (s *validitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 	mockSELinux := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer mockSELinux()
 
-	err := validity.CheckSquashfsMount()
+	err := syscheck.CheckSquashfsMount()
 	c.Assert(err, ErrorMatches, `squashfs mount returned no err but canary file cannot be read`)
 
 	c.Check(mockMount.Calls(), HasLen, 1)
@@ -121,29 +121,29 @@ func (s *validitySuite) TestCheckSquashfsMountSELinuxContext(c *C) {
 	})
 }
 
-func (s *validitySuite) TestCheckFuseNoFuseHappy(c *C) {
+func (s *syscheckSuite) TestCheckFuseNoFuseHappy(c *C) {
 	restore := squashfs.MockNeedsFuse(false)
 	defer restore()
 
-	c.Assert(validity.CheckFuse(), IsNil)
+	c.Assert(syscheck.CheckFuse(), IsNil)
 }
 
-func (s *validitySuite) TestCheckFuseNeedsFuseAndHasFuse(c *C) {
+func (s *syscheckSuite) TestCheckFuseNeedsFuseAndHasFuse(c *C) {
 	restore := squashfs.MockNeedsFuse(true)
 	defer restore()
 
-	restore = validity.MockFuseBinary("true")
+	restore = syscheck.MockFuseBinary("true")
 	defer restore()
 
-	c.Assert(validity.CheckFuse(), IsNil)
+	c.Assert(syscheck.CheckFuse(), IsNil)
 }
 
-func (s *validitySuite) TestCheckFuseNoDevFuseUnhappy(c *C) {
+func (s *syscheckSuite) TestCheckFuseNoDevFuseUnhappy(c *C) {
 	restore := squashfs.MockNeedsFuse(true)
 	defer restore()
 
-	restore = validity.MockFuseBinary("/it/does/not/exist")
+	restore = syscheck.MockFuseBinary("/it/does/not/exist")
 	defer restore()
 
-	c.Assert(validity.CheckFuse(), ErrorMatches, `The "fuse" filesystem is required on this system but not available. Please try to install the fuse package.`)
+	c.Assert(syscheck.CheckFuse(), ErrorMatches, `The "fuse" filesystem is required on this system but not available. Please try to install the fuse package.`)
 }

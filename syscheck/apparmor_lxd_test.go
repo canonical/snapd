@@ -17,35 +17,24 @@
  *
  */
 
-package validity_test
+package syscheck_test
 
 import (
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/validity"
+	"github.com/snapcore/snapd/syscheck"
 )
 
-type wslSuite struct{}
+func (s *syscheckSuite) TestCheckApparmorUsable(c *C) {
+	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
+	restore := syscheck.MockAppArmorProfilesPath(epermProfilePath)
+	defer restore()
+	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
+	c.Assert(err, IsNil)
 
-var _ = Suite(&wslSuite{})
-
-func mockOnWSL(on bool) (restore func()) {
-	old := release.OnWSL
-	release.OnWSL = on
-	return func() {
-		release.OnWSL = old
-	}
-}
-
-func (s *wslSuite) TestNonWSL(c *C) {
-	defer mockOnWSL(false)()
-
-	c.Check(validity.CheckWSL(), IsNil)
-}
-
-func (s *wslSuite) TestWSL(c *C) {
-	defer mockOnWSL(true)()
-
-	c.Check(validity.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
+	err = syscheck.CheckApparmorUsable()
+	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
 }

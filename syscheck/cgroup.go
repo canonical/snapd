@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,15 +17,25 @@
  *
  */
 
-package validity
+package syscheck
 
-var checks []func() error
+import (
+	"fmt"
 
-func Check() error {
-	for _, f := range checks {
-		if err := f(); err != nil {
-			return err
-		}
+	"github.com/snapcore/snapd/sandbox/cgroup"
+)
+
+func init() {
+	checks = append(checks, checkCgroup)
+}
+
+func checkCgroup() error {
+	v, err := cgroup.Version()
+	if err != nil {
+		return fmt.Errorf("snapd could not probe cgroup version: %v", err)
+	}
+	if v == cgroup.Unknown {
+		return fmt.Errorf("snapd could not determine cgroup version")
 	}
 
 	return nil

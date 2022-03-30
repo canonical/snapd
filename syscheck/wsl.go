@@ -17,24 +17,22 @@
  *
  */
 
-package validity_test
+package syscheck
 
 import (
-	"os"
-	"path/filepath"
+	"errors"
 
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/validity"
+	"github.com/snapcore/snapd/release"
 )
 
-func (s *validitySuite) TestCheckApparmorUsable(c *C) {
-	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
-	restore := validity.MockAppArmorProfilesPath(epermProfilePath)
-	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
-	c.Assert(err, IsNil)
+func init() {
+	checks = append(checks, checkWSL)
+}
 
-	err = validity.CheckApparmorUsable()
-	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
+func checkWSL() error {
+	if release.OnWSL {
+		return errors.New("snapd does not work inside WSL")
+	}
+
+	return nil
 }

@@ -17,7 +17,7 @@
  *
  */
 
-package validity_test
+package syscheck_test
 
 import (
 	"errors"
@@ -25,7 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/cgroup"
-	"github.com/snapcore/snapd/validity"
+	"github.com/snapcore/snapd/syscheck"
 )
 
 type cgroupSuite struct{}
@@ -35,17 +35,17 @@ var _ = Suite(&cgroupSuite{})
 func (s *cgroupSuite) TestBadCgroupProbeHappy(c *C) {
 	defer cgroup.MockVersion(cgroup.V1, nil)()
 
-	c.Check(validity.CheckCgroup(), IsNil)
+	c.Check(syscheck.CheckCgroup(), IsNil)
 }
 
 func (s *cgroupSuite) TestBadCgroupProbeUnknown(c *C) {
 	defer cgroup.MockVersion(cgroup.Unknown, nil)()
 
-	c.Check(validity.CheckCgroup(), ErrorMatches, "snapd could not determine cgroup version")
+	c.Check(syscheck.CheckCgroup(), ErrorMatches, "snapd could not determine cgroup version")
 }
 
 func (s *cgroupSuite) TestBadCgroupProbeErr(c *C) {
 	defer cgroup.MockVersion(cgroup.Unknown, errors.New("nada"))()
 
-	c.Check(validity.CheckCgroup(), ErrorMatches, "snapd could not probe cgroup version: nada")
+	c.Check(syscheck.CheckCgroup(), ErrorMatches, "snapd could not probe cgroup version: nada")
 }

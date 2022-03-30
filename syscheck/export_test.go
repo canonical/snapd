@@ -17,7 +17,7 @@
  *
  */
 
-package validity
+package syscheck
 
 var (
 	CheckSquashfsMount  = checkSquashfsMount

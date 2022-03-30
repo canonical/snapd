@@ -17,22 +17,35 @@
  *
  */
 
-package validity
+package syscheck_test
 
 import (
-	"errors"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/syscheck"
 )
 
-func init() {
-	checks = append(checks, checkWSL)
+type wslSuite struct{}
+
+var _ = Suite(&wslSuite{})
+
+func mockOnWSL(on bool) (restore func()) {
+	old := release.OnWSL
+	release.OnWSL = on
+	return func() {
+		release.OnWSL = old
+	}
 }
 
-func checkWSL() error {
-	if release.OnWSL {
-		return errors.New("snapd does not work inside WSL")
-	}
+func (s *wslSuite) TestNonWSL(c *C) {
+	defer mockOnWSL(false)()
 
-	return nil
+	c.Check(syscheck.CheckWSL(), IsNil)
+}
+
+func (s *wslSuite) TestWSL(c *C) {
+	defer mockOnWSL(true)()
+
+	c.Check(syscheck.CheckWSL(), ErrorMatches, "snapd does not work inside WSL")
 }
