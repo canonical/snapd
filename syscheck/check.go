@@ -21,6 +21,11 @@ package syscheck
 
 var checks []func() error
 
+// CheckSystem ensures that the system is capable of running snapd and
+// snaps. It probe for e.g. that cgroup support is available and squashfs
+// files can be mounted.
+//
+// An error with details is returned if some check fails.
 func CheckSystem() error {
 	for _, f := range checks {
 		if err := f(); err != nil {
