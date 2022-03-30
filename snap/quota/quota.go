@@ -272,11 +272,11 @@ func (grp *Group) getAllowedCPUs() []int {
 	return grp.CPULimit.AllowedCPUs
 }
 
-// GetCorrectedCpuCount returns the maximum number of allowed CPU cores for
+// GetCorrectedCPUCount returns the maximum number of allowed CPU cores for
 // this group. It needs to take into account that CPU set might have been set
 // to limit the number of cores, or a direct limit on the number of cores.
 // Goal is to select the most restrictive limit.
-func (grp *Group) GetCorrectedCpuCount() int {
+func (grp *Group) GetCorrectedCPUCount() int {
 	if grp.CPULimit == nil {
 		return 0
 	}
@@ -296,7 +296,7 @@ func (grp *Group) getTotalCPUPercentage() int {
 	if grp.CPULimit == nil || grp.CPULimit.Percentage == 0 {
 		return 0
 	}
-	return grp.GetCorrectedCpuCount() * grp.CPULimit.Percentage
+	return grp.GetCorrectedCPUCount() * grp.CPULimit.Percentage
 }
 
 // getQuotaAllocations Recursively retrieve current group quotas statistics, this should just
