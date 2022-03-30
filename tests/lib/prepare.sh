@@ -831,7 +831,7 @@ setup_reflash_magic() {
         snap download "--channel=${SNAPD_CHANNEL}" snapd
     fi
 
-    # we cannot use "names.sh" here because no snaps are installed yet
+    # we cannot use "snaps.names tool" here because no snaps are installed yet
     core_name="core"
     if os.query is-core18; then
         core_name="core18"
