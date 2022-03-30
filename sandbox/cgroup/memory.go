@@ -62,9 +62,9 @@ func CheckMemoryCgroup() error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("cannot read %v contents: %v", cgroupsFilePath, err)
+		return fmt.Errorf("cannot read %s contents: %v", cgroupsFilePath, err)
 	}
 
 	// no errors so far but the only path here is the cgroups file without the memory line
-	return fmt.Errorf("cannot find memory cgroup in %v", cgroupsFilePath)
+	return fmt.Errorf("cannot find memory cgroup in %s", cgroupsFilePath)
 }
