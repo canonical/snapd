@@ -265,13 +265,8 @@ func maxq(a, b quantity.Size) quantity.Size {
 	return b
 }
 
-func (grp *Group) getCPUSet() []int {
-	if grp.CPULimit == nil || len(grp.CPULimit.AllowedCPUs) == 0 {
-		return []int{}
-	}
-	return grp.CPULimit.AllowedCPUs
-}
-
+// GetCPUSetQuota returns the currently active CPU set quota for this group, which
+// could originate from a parent
 func (grp *Group) GetCPUSetQuota() []int {
 	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
 		return grp.CPULimit.AllowedCPUs
@@ -303,6 +298,7 @@ func (grp *Group) getCorrectedCPUCount() int {
 	return cpuCount
 }
 
+// GetCPUQuota returns the currently active CPU quota
 func (grp *Group) GetCPUQuota() (int, int) {
 	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
 		return grp.getCorrectedCPUCount(), grp.CPULimit.Percentage
@@ -318,6 +314,7 @@ func (grp *Group) GetCPUQuota() (int, int) {
 	return 0, 0
 }
 
+// GetMemoryQuota returns the currently active memory quota
 func (grp *Group) GetMemoryQuota() quantity.Size {
 	if grp.MemoryLimit != 0 {
 		return grp.MemoryLimit
@@ -333,6 +330,7 @@ func (grp *Group) GetMemoryQuota() quantity.Size {
 	return 0
 }
 
+// GetThreadsQuota returns the currently active threads quota
 func (grp *Group) GetThreadsQuota() int {
 	if grp.TaskLimit != 0 {
 		return grp.TaskLimit
@@ -348,6 +346,16 @@ func (grp *Group) GetThreadsQuota() int {
 	return 0
 }
 
+// getCPUSet helper function to get either the CPU set for this group, or just
+// default to an empty slice
+func (grp *Group) getCPUSet() []int {
+	if grp.CPULimit == nil || len(grp.CPULimit.AllowedCPUs) == 0 {
+		return []int{}
+	}
+	return grp.CPULimit.AllowedCPUs
+}
+
+// getTotalCPUPercentage helper function to get a total percentage of CPU usage
 func (grp *Group) getTotalCPUPercentage() int {
 	if grp.CPULimit == nil || grp.CPULimit.Percentage == 0 {
 		return 0
