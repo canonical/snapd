@@ -123,10 +123,8 @@ func (qr *Resources) CheckFeatureRequirements() error {
 			return fmt.Errorf("cannot use CPU set with cgroup version %d", cgroupVer)
 		}
 	}
-	if qr.Memory != nil {
-		if cgroupCheckMemoryCgroupErr != nil {
-			return fmt.Errorf("cannot use memory quota: %v", cgroupCheckMemoryCgroupErr)
-		}
+	if qr.Memory != nil && cgroupCheckMemoryCgroupErr != nil {
+		return fmt.Errorf("cannot use memory quota: %v", cgroupCheckMemoryCgroupErr)
 	}
 
 	return nil
