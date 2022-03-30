@@ -20,8 +20,6 @@
 package builtin_test
 
 import (
-	"errors"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -254,8 +252,7 @@ func (s *Pkcs11InterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot1Info), ErrorMatches, "slot \"pkcs11-bad-optee-slot-1\", a unix socket name has to start with 'pkcs11-'")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot2Info), ErrorMatches, "slot \"pkcs11-bad-optee-slot-2\", a unix socket name has to start with 'pkcs11-'")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot3Info), ErrorMatches, "pkcs11: \"pkcs11-socket\" attribute must be a string, not 22")
-	err := errors.New("pkcs11 interface socket path is invalid: \"/run/p11-kit/pkcs11-optee-slot-*\" contains a reserved apparmor char from ?*[]{}^\"\x00")
-	c.Assert(err, ErrorMatches, `pkcs11 interface socket path is invalid: "/run/p11-kit/pkcs11-optee-slot-\*" contains a reserved apparmor char .*`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot4Info), ErrorMatches, `pkcs11 interface socket path is invalid: "/run/p11-kit/pkcs11-optee-slot-\*" contains a reserved apparmor char .*`)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot5Info), ErrorMatches, "slot \"pkcs11-bad-optee-slot-5\", a unix socket has to be in /run/p11-kit directory")
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot6Info), ErrorMatches, "cannot use pkcs11 slot pkcs11-bad-optee-slot-6 without \"pkcs11-socket\" attribute")
 }
