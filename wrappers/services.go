@@ -89,19 +89,20 @@ CPUAccounting=true
 `
 	buf := bytes.NewBufferString(header)
 
-	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
+	count, percentage := grp.GetCPUQuota()
+	if percentage != 0 {
 		// convert the number of cores and the allowed percentage
 		// to the systemd specific format.
-		cpuQuotaSnap := grp.GetCorrectedCpuCount() * grp.CPULimit.Percentage
+		cpuQuotaSnap := count * percentage
 		cpuQuotaMax := runtime.NumCPU() * 100
 
 		// The CPUQuota setting is only available since systemd 213
 		fmt.Fprintf(buf, "CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
 	}
 
-	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
-		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
-		fmt.Fprintf(buf, "AllowedCPUs=%s\n", allowedCpusValue)
+	cpuSet := grp.GetCPUSetQuota()
+	if len(cpuSet) != 0 {
+		fmt.Fprintf(buf, "AllowedCPUs=%s\n", strutil.IntsToCommaSeparated(cpuSet))
 	}
 
 	buf.WriteString("\n")
@@ -113,13 +114,14 @@ func formatMemoryGroupSlice(grp *quota.Group) string {
 MemoryAccounting=true
 `
 	buf := bytes.NewBufferString(header)
-	if grp.MemoryLimit != 0 {
+	memoryLimit := grp.GetMemoryQuota()
+	if memoryLimit != 0 {
 		valuesTemplate := `MemoryMax=%[1]d
 # for compatibility with older versions of systemd
 MemoryLimit=%[1]d
 
 `
-		fmt.Fprintf(buf, valuesTemplate, grp.MemoryLimit)
+		fmt.Fprintf(buf, valuesTemplate, memoryLimit)
 	}
 	return buf.String()
 }
@@ -130,9 +132,9 @@ func formatTaskGroupSlice(grp *quota.Group) string {
 TasksAccounting=true
 `
 	buf := bytes.NewBufferString(header)
-
-	if grp.TaskLimit != 0 {
-		fmt.Fprintf(buf, "TasksMax=%d\n", grp.TaskLimit)
+	taskLimit := grp.GetThreadsQuota()
+	if taskLimit != 0 {
+		fmt.Fprintf(buf, "TasksMax=%d\n", taskLimit)
 	}
 	return buf.String()
 }

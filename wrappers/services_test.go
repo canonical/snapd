@@ -321,6 +321,142 @@ TasksMax=%[5]d
 	c.Assert(svcFile, testutil.FileEquals, svcContent)
 }
 
+func (s *servicesTestSuite) TestEnsureSnapServicesWithNestedQuotas(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// set up arbitrary quotas for the parent group, we will not verify whether these are written
+	// correctly, see previous test instead
+	parentLimits := quota.NewResourcesBuilder().
+		WithMemoryLimit(quantity.SizeGiB).
+		WithThreadLimit(32).
+		Build()
+	grp, err := quota.NewGroup("foogroup", parentLimits)
+	c.Assert(err, IsNil)
+
+	subLimits := quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()
+	subgrp, err := grp.NewSubGroup("subgroup", subLimits)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: subgrp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup-subgroup.slice
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+
+	sliceTemplParent := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%[2]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]d
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+TasksMax=%[3]d
+`
+
+	sliceContentParent := fmt.Sprintf(sliceTemplParent, grp.Name,
+		parentLimits.Memory.Limit,
+		parentLimits.Threads.Limit)
+
+	sliceTemplChild := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+CPUQuota=%[2]d%%
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%[3]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[3]d
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+TasksMax=%[4]d
+`
+
+	sliceContentChild := fmt.Sprintf(sliceTemplChild, subgrp.Name,
+		subLimits.CPU.Count*subLimits.CPU.Percentage,
+		parentLimits.Memory.Limit,
+		parentLimits.Threads.Limit)
+
+	exp := []changesObservation{
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContentParent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      subgrp,
+			unitType: "slice",
+			new:      sliceContentChild,
+			old:      "",
+			name:     "subgroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
 func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 	// Kind of a special case, if the cpu count is zero it needs to automatically scale
 	// at the moment of writing the service file to the current number of cpu cores

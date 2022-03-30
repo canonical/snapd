@@ -21,6 +21,10 @@ package quota
 
 type GroupQuotaAllocations = groupQuotaAllocations
 
+func (grp *Group) GetCorrectedCPUCount() int {
+	return grp.getCorrectedCPUCount()
+}
+
 func (grp *Group) SetInternalSubGroups(grps []*Group) {
 	grp.subGroups = grps
 }

@@ -1219,3 +1219,20 @@ func (ts *quotaTestSuite) TestAddingNewMiddleParentThreadLimits(c *C) {
 	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(1024).Build())
 	c.Check(err, IsNil)
 }
+
+func (ts *quotaTestSuite) TestCombinedCpuPercentageWithCpuSetLimits(c *C) {
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Verify that the number of cpus are now reported as 2
+	c.Check(subgrp1.GetCorrectedCPUCount(), Equals, 2)
+
+	subgrp2, err := grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Verify that the number of cpus are now correctly reported and corrected to 2
+	c.Check(subgrp2.GetCorrectedCPUCount(), Equals, 2)
+}
