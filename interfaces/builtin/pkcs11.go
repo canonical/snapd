@@ -39,12 +39,6 @@ const pkcs11BaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const pkcs11BaseDeclarationPlugs = `
-  pkcs11:
-    allow-installation: true
-    deny-auto-connection: false
-`
-
 type pkcs11Interface struct{}
 
 // Name of the pkcs11 interface.
@@ -56,7 +50,6 @@ func (iface *pkcs11Interface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              pkcs11Summary,
 		BaseDeclarationSlots: pkcs11BaseDeclarationSlots,
-		BaseDeclarationPlugs: pkcs11BaseDeclarationPlugs,
 	}
 }
 
