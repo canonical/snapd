@@ -69,16 +69,6 @@ accept
 accept4
 `
 
-func (iface *pkcs11Interface) validateSocketPath(path string) error {
-	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
-		return fmt.Errorf("pkcs11 interface socket path is invalid: %v", err)
-	}
-	if ok := cleanSubPath(path); !ok {
-		return fmt.Errorf("pkcs11 interface socket path is not clean: %q", path)
-	}
-	return nil
-}
-
 func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error) {
 	socketAttr, isSet := slot.Attrs["pkcs11-socket"]
 	if !isSet {
@@ -91,7 +81,11 @@ func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error)
 			slot.Attrs["pkcs11-socket"])
 	}
 
-	// separate socket name and check socket path to start with /run/p11-kit/pkcs11-
+	if ok := cleanSubPath(socketPath); !ok {
+		return "", fmt.Errorf("slot %q, a unix socket path is not clean", slot.Name)
+	}
+
+	// separate socket name and check socket is in /run/p11-kit
 	if filepath.Dir(socketPath) != "/run/p11-kit" {
 		return "", fmt.Errorf("slot %q, a unix socket has to be in /run/p11-kit directory", slot.Name)
 	}
@@ -109,8 +103,8 @@ func (iface *pkcs11Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return err
 	}
 
-	if err = iface.validateSocketPath(socketPath); err != nil {
-		return err
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(socketPath); err != nil {
+		return fmt.Errorf("pkcs11 interface socket path is invalid: %v", err)
 	}
 	return err
 }
