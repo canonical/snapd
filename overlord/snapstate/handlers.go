@@ -1132,23 +1132,20 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// unlinkCurrentSnap only reverts/disables migrations, so only redo those ops
-	if snapsup.DisableHomeMigration {
-		snapsup.DisableHomeMigration = false
-		snapst.MigratedToExposedHome = true
-
-		err := writeMigrationStatus(t, snapst, snapsup)
-		if err != nil {
-			return err
-		}
-	}
-
-	if snapsup.UndidHiddenMigration {
-		if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-			return err
+	if snapsup.DisableHomeMigration || snapsup.UndidHiddenMigration {
+		if snapsup.DisableHomeMigration {
+			snapsup.DisableHomeMigration = false
+			snapst.MigratedToExposedHome = true
 		}
 
-		snapsup.UndidHiddenMigration = false
-		snapst.MigratedHidden = true
+		if snapsup.UndidHiddenMigration {
+			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.UndidHiddenMigration = false
+			snapst.MigratedHidden = true
+		}
 
 		err := writeMigrationStatus(t, snapst, snapsup)
 		if err != nil {
@@ -1485,23 +1482,16 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// if any migration action was taken, try to undo it and rewrite state
-	if snapsup.MigratedToExposedHome {
-		if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
-			return err
+	if snapsup.MigratedToExposedHome || snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
+		if snapsup.MigratedToExposedHome {
+			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.MigratedToExposedHome = false
+			snapst.MigratedToExposedHome = false
 		}
 
-		snapsup.MigratedToExposedHome = false
-		snapst.MigratedToExposedHome = false
-
-		st.Lock()
-		err = writeMigrationStatus(t, snapst, snapsup)
-		st.Unlock()
-		if err != nil {
-			return err
-		}
-	}
-
-	if snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
 		if snapsup.MigratedHidden {
 			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 				return err
