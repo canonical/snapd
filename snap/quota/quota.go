@@ -24,6 +24,7 @@ package quota
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"sort"
 
 	// TODO: move this to snap/quantity? or similar
@@ -271,11 +272,31 @@ func (grp *Group) getAllowedCPUs() []int {
 	return grp.CPULimit.AllowedCPUs
 }
 
+// GetCorrectedCpuCount returns the maximum number of allowed CPU cores for
+// this group. It needs to take into account that CPU set might have been set
+// to limit the number of cores, or a direct limit on the number of cores.
+// Goal is to select the most restrictive limit.
+func (grp *Group) GetCorrectedCpuCount() int {
+	if grp.CPULimit == nil {
+		return 0
+	}
+
+	cpuCount := runtime.NumCPU()
+	cpuSetCount := len(grp.getAllowedCPUs())
+	if cpuSetCount != 0 && cpuSetCount < cpuCount {
+		cpuCount = cpuSetCount
+	}
+	if grp.CPULimit.Count != 0 && grp.CPULimit.Count < cpuCount {
+		cpuCount = grp.CPULimit.Count
+	}
+	return cpuCount
+}
+
 func (grp *Group) getTotalCPUPercentage() int {
 	if grp.CPULimit == nil || grp.CPULimit.Percentage == 0 {
 		return 0
 	}
-	return max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
+	return grp.GetCorrectedCpuCount() * grp.CPULimit.Percentage
 }
 
 // getQuotaAllocations Recursively retrieve current group quotas statistics, this should just
