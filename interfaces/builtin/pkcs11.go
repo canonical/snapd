@@ -22,7 +22,6 @@ package builtin
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -90,10 +89,6 @@ func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error)
 		return "", fmt.Errorf("slot %q, a unix socket has to be in /run/p11-kit directory", slot.Name)
 	}
 
-	socketName := filepath.Base(socketPath)
-	if !strings.HasPrefix(socketName, "pkcs11-") {
-		return "", fmt.Errorf("slot %q, a unix socket name has to start with 'pkcs11-'", slot.Name)
-	}
 	return socketPath, nil
 }
 
