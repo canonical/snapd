@@ -144,6 +144,9 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 		if err != nil || count == 0 {
 			return 0, 0, parseError(cpuMax)
 		}
+	} else {
+		// Assume format was M%
+		count = 1
 	}
 
 	percentage, err = strconv.Atoi(match[2])
