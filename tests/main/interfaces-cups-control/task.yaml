@@ -18,6 +18,8 @@ details: |
 # TODO: enable on debian-sid once https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1006853 is fixed
 systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -arch-*, -amazon-*, -centos-*, -debian-sid-*, -ubuntu-*-32]
 
+manual: true
+
 environment:
     TEST_FILE: /var/snap/test-snapd-cups-control-consumer/current/test_file.txt
 
