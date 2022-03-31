@@ -121,8 +121,18 @@ type SnapSetup struct {
 	// that it wasn't create in the current change.
 	MigratedToExposedHome bool `json:"migrated-exposed-home,omitempty"`
 
+	// RemovedExposedHome is set if the ~/Snap sub directory was removed. This
+	// should only happen when undoing the creation of that directory in the same
+	// (failed) change. To disable usage of the exposed home in a change after it
+	// was created, SnapSetup.DisableExposedHome should be used.
+	RemovedExposedHome bool `json:"removed-exposed-home,omitempty"`
+
+	// EnableExposedHome is set if the ~/Snap sub directory already exists and
+	// should be used.
+	EnableExposedHome bool `json:"enable-exposed-home,omitempty"`
+
 	// DisabledHomeMigration is set if ~/Snap should not be used as $HOME.
-	DisableHomeMigration bool `json:"disable-home-migration,omitempty"`
+	DisableExposedHome bool `json:"disable-exposed-home,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {

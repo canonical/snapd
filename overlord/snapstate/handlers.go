@@ -1131,26 +1131,41 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// unlinkCurrentSnap only reverts/disables migrations, so only redo those ops
-	if snapsup.DisableHomeMigration || snapsup.UndidHiddenMigration {
-		if snapsup.DisableHomeMigration {
-			snapsup.DisableHomeMigration = false
-			snapst.MigratedToExposedHome = true
+	// in a revert, the migration actions were done in doUnlinkCurrentSnap so we
+	// revert them here and set SnapSetup flags (which will be used to set the
+	// state below)
+	if snapsup.Revert {
+		if snapsup.DisableExposedHome {
+			snapsup.DisableExposedHome = false
+			snapsup.EnableExposedHome = true
 		}
 
 		if snapsup.UndidHiddenMigration {
 			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 				return err
 			}
-
 			snapsup.UndidHiddenMigration = false
-			snapst.MigratedHidden = true
+			snapsup.MigratedHidden = true
 		}
+	}
 
-		err := writeMigrationStatus(t, snapst, snapsup)
-		if err != nil {
-			return err
-		}
+	// undo migration-related state changes (set in doLinkSnap). The respective
+	// file migrations are undone either above or in undoCopySnapData. State should only
+	// be set in tasks that link the snap for safety and consistency)
+	if snapsup.MigratedHidden {
+		snapst.MigratedHidden = true
+	} else if snapsup.UndidHiddenMigration {
+		snapst.MigratedHidden = false
+	}
+
+	if snapsup.MigratedToExposedHome || snapsup.EnableExposedHome {
+		snapst.MigratedToExposedHome = true
+	} else if snapsup.RemovedExposedHome || snapsup.DisableExposedHome {
+		snapst.MigratedToExposedHome = false
+	}
+
+	if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
+		return err
 	}
 
 	snapst.Active = true
@@ -1428,7 +1443,7 @@ func (m *SnapManager) revertFullMigration(t *state.Task, st *state.State, snapsu
 
 func (m *SnapManager) disableHomeMigration(t *state.Task, st *state.State, snapsup *SnapSetup) (undo func(), err error) {
 	undo = func() {
-		snapsup.DisableHomeMigration = false
+		snapsup.DisableExposedHome = false
 
 		st.Lock()
 		defer st.Unlock()
@@ -1440,7 +1455,7 @@ func (m *SnapManager) disableHomeMigration(t *state.Task, st *state.State, snaps
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup.DisableHomeMigration = true
+	snapsup.DisableExposedHome = true
 	if err = SetTaskSnapSetup(t, snapsup); err != nil {
 		return undo, fmt.Errorf("cannot disable home migration: %w", err)
 	}
@@ -1481,7 +1496,8 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// if any migration action was taken, try to undo it and rewrite state
+	// undo migration actions performed in doCopySnapData and set SnapSetup flags
+	// accordingly (they're used in undoUnlinkCurrentSnap to set SnapState)
 	if snapsup.MigratedToExposedHome || snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
 		if snapsup.MigratedToExposedHome {
 			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
@@ -1489,7 +1505,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			}
 
 			snapsup.MigratedToExposedHome = false
-			snapst.MigratedToExposedHome = false
+			snapsup.RemovedExposedHome = true
 		}
 
 		if snapsup.MigratedHidden {
@@ -1498,18 +1514,18 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 			}
 
 			snapsup.MigratedHidden = false
-			snapst.MigratedHidden = false
+			snapsup.UndidHiddenMigration = true
 		} else if snapsup.UndidHiddenMigration {
 			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 				return err
 			}
 
+			snapsup.MigratedHidden = true
 			snapsup.UndidHiddenMigration = false
-			snapst.MigratedHidden = true
 		}
 
 		st.Lock()
-		err = writeMigrationStatus(t, snapst, snapsup)
+		err = SetTaskSnapSetup(t, snapsup)
 		st.Unlock()
 		if err != nil {
 			return err
@@ -1622,10 +1638,12 @@ func writeSeqFile(name string, snapst *SnapState) error {
 		MigratedHidden        bool             `json:"migrated-hidden"`
 		MigratedToExposedHome bool             `json:"migrated-exposed-home"`
 	}{
-		Sequence:              snapst.Sequence,
-		Current:               snapst.Current.String(),
-		MigratedHidden:        snapst.MigratedHidden,
-		MigratedToExposedHome: snapst.MigratedToExposedHome,
+		Sequence: snapst.Sequence,
+		Current:  snapst.Current.String(),
+		// if the snap state if empty, we're probably undoing a failed install.
+		// Reset the flags to false
+		MigratedHidden:        len(snapst.Sequence) > 0 && snapst.MigratedHidden,
+		MigratedToExposedHome: len(snapst.Sequence) > 0 && snapst.MigratedToExposedHome,
 	})
 	if err != nil {
 		return err
@@ -1805,7 +1823,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 	if snapsup.MigratedToExposedHome {
 		snapst.MigratedToExposedHome = true
-	} else if snapsup.DisableHomeMigration {
+	} else if snapsup.DisableExposedHome {
 		snapst.MigratedToExposedHome = false
 	}
 
@@ -1844,6 +1862,18 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
 		return err
 	}
+
+	defer func() {
+		// if link snap fails and this is a first install, then we need to clean up
+		// the sequence file
+		if err != nil && firstInstall {
+			snapst.MigratedHidden = false
+			snapst.MigratedToExposedHome = false
+			if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
+				st.Warnf("cannot update sequence file after failed install of %q: %v", snapsup.InstanceName(), err)
+			}
+		}
+	}()
 
 	rebootInfo, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
