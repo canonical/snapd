@@ -272,21 +272,34 @@ func (grp *Group) getAllowedCPUs() []int {
 	return grp.CPULimit.AllowedCPUs
 }
 
+// GetCPUSetQuota returns the currently active CPU set quota for this group, which
+// could originate from a parent
+func (grp *Group) GetCPUSetQuota() []int {
+	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
+		return grp.CPULimit.AllowedCPUs
+	}
+
+	parent := grp.parentGroup
+	for parent != nil {
+		if parent.CPULimit != nil && len(parent.CPULimit.AllowedCPUs) != 0 {
+			return parent.CPULimit.AllowedCPUs
+		}
+		parent = parent.parentGroup
+	}
+	return []int{}
+}
+
 // GetCorrectedCPUCount returns the maximum number of allowed CPU cores for
 // this group. It needs to take into account that CPU set might have been set
 // to limit the number of cores, or a direct limit on the number of cores.
 // Goal is to select the most restrictive limit.
 func (grp *Group) GetCorrectedCPUCount() int {
-	if grp.CPULimit == nil {
-		return 0
-	}
-
 	cpuCount := runtime.NumCPU()
-	cpuSetCount := len(grp.getAllowedCPUs())
+	cpuSetCount := len(grp.GetCPUSetQuota())
 	if cpuSetCount != 0 && cpuSetCount < cpuCount {
 		cpuCount = cpuSetCount
 	}
-	if grp.CPULimit.Count != 0 && grp.CPULimit.Count < cpuCount {
+	if grp.CPULimit != nil && grp.CPULimit.Count != 0 && grp.CPULimit.Count < cpuCount {
 		cpuCount = grp.CPULimit.Count
 	}
 	return cpuCount
@@ -405,12 +418,23 @@ func (grp *Group) validateMemoryResourceFit(allQuotas map[string]*groupQuotaAllo
 // limit of the group, and if not locates the nearest parent group that has a cpu quota, and then verifies
 // if that group has any space available by checking its 'cpuReserved'. The 'cpuReserved' tells us how much
 // of the group quotas limit has been used already by its subgroups (excluding the one querying).
-func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocations, cpuCount, cpuPercentage int) error {
+func (grp *Group) validateCPUResourceFit(allQuotas map[string]*groupQuotaAllocations, resourceLimits Resources) error {
+
+	// calculate the requested cpu usage in the context of this group, we need
+	// to first of all calculate the final cpu usage from the provided cpu set, and
+	// any existing limitations.
+	cpuCountRequested := grp.GetCorrectedCPUCount()
+	if resourceLimits.CPU.Count != 0 {
+		cpuCountRequested = resourceLimits.CPU.Count
+	}
+	if resourceLimits.CPUSet != nil && len(resourceLimits.CPUSet.CPUs) > 0 {
+		cpuCountRequested = len(resourceLimits.CPUSet.CPUs)
+	}
 
 	// make sure current usage does not exceed the new limit, we can avoid any
 	// recursive descent as we already have counted up the usage of our children.
 	currentLimits := allQuotas[grp.Name]
-	cpuRequested := max(cpuCount, 1) * cpuPercentage
+	cpuRequested := cpuCountRequested * resourceLimits.CPU.Percentage
 	cpuReserved := grp.getTotalCPUPercentage()
 	if currentLimits != nil {
 		if currentLimits.CPUReservedByChildren > cpuRequested {
@@ -571,18 +595,14 @@ func (grp *Group) validateQuotasFit(resourceLimits Resources) error {
 			return err
 		}
 	}
-	if resourceLimits.CPU != nil {
-		if resourceLimits.CPU.Percentage != 0 {
-			if err := grp.validateCPUResourceFit(allQuotas, resourceLimits.CPU.Count, resourceLimits.CPU.Percentage); err != nil {
-				return err
-			}
+	if resourceLimits.CPU != nil && resourceLimits.CPU.Percentage != 0 {
+		if err := grp.validateCPUResourceFit(allQuotas, resourceLimits); err != nil {
+			return err
 		}
 	}
-	if resourceLimits.CPUSet != nil {
-		if len(resourceLimits.CPUSet.CPUs) != 0 {
-			if err := grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPUSet.CPUs); err != nil {
-				return err
-			}
+	if resourceLimits.CPUSet != nil && len(resourceLimits.CPUSet.CPUs) != 0 {
+		if err := grp.validateCPUsAllowedResourceFit(allQuotas, resourceLimits.CPUSet.CPUs); err != nil {
+			return err
 		}
 	}
 	if resourceLimits.Threads != nil {
