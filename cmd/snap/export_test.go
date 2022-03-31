@@ -51,7 +51,6 @@ var (
 	Antialias           = antialias
 	FormatChannel       = fmtChannel
 	PrintDescr          = printDescr
-	WrapFlow            = wrapFlow
 	TrueishJSON         = trueishJSON
 	CompletionHandler   = completionHandler
 	MarkForNoCompletion = markForNoCompletion

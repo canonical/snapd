@@ -544,7 +544,8 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    cat "$RUNTIME_STATE_PATH/runs" || true
+    # since the runs file does not have a newline at EOF, add one 
+    echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit

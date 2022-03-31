@@ -70,7 +70,6 @@ restore: |
     apt autoremove -y cryptsetup
 
     rm -Rf /run/mnt
-    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions
@@ -103,7 +102,6 @@ execute: |
     kerneldir=""
 
     echo "Run the snap-bootstrap tool"
-    go get ../../lib/uc20-create-partitions
     uc20-create-partitions \
         --encrypt \
         ./gadget-dir "$kerneldir" "$LOOP"
