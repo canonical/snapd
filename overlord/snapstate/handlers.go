@@ -1299,9 +1299,9 @@ const (
 	home migration = "home"
 	// full migrates ~/snap to ~/.snap and the new home to ~/Snap
 	full migration = "full"
-	// disableHome disables ~/Snap as $HOME
-	disableHome migration = "revertHome"
-	// revertFull disables ~/Snap as $HOME and undoes the hidden migration
+	// disableHome disables ~/Snap as HOME
+	disableHome migration = "disableHome"
+	// revertFull disables ~/Snap as HOME and undoes the hidden migration
 	revertFull migration = "revertFull"
 )
 
