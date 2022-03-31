@@ -138,38 +138,6 @@ func norm(path string) string {
 	return path
 }
 
-// runesTrimRightSpace returns text, with any trailing whitespace dropped.
-func runesTrimRightSpace(text []rune) []rune {
-	j := len(text)
-	for j > 0 && unicode.IsSpace(text[j-1]) {
-		j--
-	}
-	return text[:j]
-}
-
-// wrapLine wraps a line, assumed to be part of a block-style yaml
-// string, to fit into termWidth, preserving the line's indent, and
-// writes it out prepending padding to each line.
-func wrapLine(out io.Writer, text []rune, pad string, termWidth int) error {
-	// discard any trailing whitespace
-	text = runesTrimRightSpace(text)
-	// establish the indent of the whole block
-	idx := 0
-	for idx < len(text) && unicode.IsSpace(text[idx]) {
-		idx++
-	}
-	indent := pad + string(text[:idx])
-	text = text[idx:]
-	if len(indent) > termWidth/2 {
-		// If indent is too big there's not enough space for the actual
-		// text, in the pathological case the indent can even be bigger
-		// than the terminal which leads to lp:1828425.
-		// Rather than let that happen, give up.
-		indent = pad + "  "
-	}
-	return strutil.WordWrap(out, text, indent, indent, termWidth)
-}
-
 // wrapFlow wraps the text using yaml's flow style, allowing indent
 // characters for the first line.
 func wrapFlow(out io.Writer, text []rune, indent string, termWidth int) error {
@@ -201,7 +169,7 @@ func printDescr(w io.Writer, descr string, termWidth int) error {
 	var err error
 	descr = strings.TrimRightFunc(descr, unicode.IsSpace)
 	for _, line := range strings.Split(descr, "\n") {
-		err = wrapLine(w, []rune(line), "  ", termWidth)
+		err = strutil.WordWrapPadded(w, []rune(line), "  ", termWidth)
 		if err != nil {
 			break
 		}
