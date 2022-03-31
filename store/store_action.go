@@ -77,7 +77,10 @@ type currentSnapV2JSON struct {
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
-	// ValidationSets is an optional array of validation sets primary keys.
+	// ValidationSets is an optional array of validation sets primary keys (it
+	// is not currently used; the store supports validation-sets in both
+	// current snaps context and in actions (actions takes precendence if both
+	// are set) and we use action's validation-sets also for refresh.
 	ValidationSets [][]string `json:"validation-sets,omitempty"`
 }
 
@@ -327,6 +330,8 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		if !curSnap.RefreshedDate.IsZero() {
 			refreshedDate = &curSnap.RefreshedDate
 		}
+		// note, ValidationSets are not currently set on currentSnapV2JSON (and shouldn't be set on currentSnaps,
+		// they need to be set on actions).
 		curSnapJSONs[i] = &currentSnapV2JSON{
 			SnapID:           curSnap.SnapID,
 			InstanceKey:      instanceKey,
@@ -336,7 +341,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
-			ValidationSets:   curSnap.ValidationSets,
 		}
 	}
 
@@ -381,11 +385,14 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			a.Channel = ""
 		}
 
+		if a.Action == "install" || a.Action == "refresh" {
+			aJSON.ValidationSets = a.ValidationSets
+		}
+
 		if a.Action == "install" {
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
 			installs[instanceKey] = a
-			aJSON.ValidationSets = a.ValidationSets
 		} else if a.Action == "download" {
 			downloadNum++
 			instanceKey = fmt.Sprintf("download-%d", downloadNum)
