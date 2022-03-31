@@ -25,6 +25,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -66,9 +67,9 @@ func (x *cmdCreateKey) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"), keyName)
 	}
 
-	keypairMgr, err := getKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	if err != nil {
 		return err
 	}
-	return generateKey(keypairMgr, keyName)
+	return signtool.GenerateKey(keypairMgr, keyName)
 }
