@@ -34,12 +34,16 @@ import (
 
 const posixMQSummary = `allows access to POSIX message queues`
 
+// This interface is super-privileged
 const posixMQBaseDeclarationSlots = `
   posix-mq:
-    allow-installation: true
+    allow-installation: false
+    deny-connection: true
     deny-auto-connection: true
 `
 
+// Paths can only be specified by the slot and a slot needs to exist for the
+// plug to connect to, so the plug does not need to be marked super-privileged
 const posixMQBaseDeclarationPlugs = `
   posix-mq:
     allow-installation: true
