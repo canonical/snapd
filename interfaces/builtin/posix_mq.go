@@ -109,13 +109,16 @@ func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {
 		/* AppArmor is not supported at all; no need to add rules */
 		return nil
 	}
-	if features, err := apparmor_sandbox.ParserFeatures(); err == nil {
-		if !strutil.ListContains(features, "mqueue") {
-			return fmt.Errorf("AppArmor does not support POSIX message queues - cannot setup or connect interfaces")
-		}
-	} else {
+
+	features, err := apparmor_sandbox.ParserFeatures()
+	if err != nil {
 		return err
 	}
+
+	if !strutil.ListContains(features, "mqueue") {
+		return fmt.Errorf("AppArmor does not support POSIX message queues - cannot setup or connect interfaces")
+	}
+
 	return nil
 }
 
@@ -154,13 +157,38 @@ func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name stri
 }
 
 func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (string, error) {
-	if pathAttr, isSet := attrs.Lookup("path"); isSet {
-		if path, ok := pathAttr.(string); ok {
-			return path, nil
-		}
+	pathAttr, isSet := attrs.Lookup("path")
+	if !isSet {
+		return "", fmt.Errorf(`posix-mq slot %s has missing "path" attribute`, name)
+	}
+
+	path, ok := pathAttr.(string)
+	if !ok {
 		return "", fmt.Errorf(`posix-mq slot %s "path" attribute must be a string, not %v`, name, pathAttr)
 	}
-	return "", fmt.Errorf(`posix-mq slot %s has missing "path" attribute`, name)
+
+	if err := iface.validatePath(name, path); err != nil {
+		return "", err
+	}
+
+	return path, nil
+
+}
+
+func (iface *posixMQInterface) validatePath(name, path string) error {
+	if !posixMQNamePattern.MatchString(path) {
+		return fmt.Errorf(`posix-mq slot %s "path" attribute must conform to the POSIX message queue name specifications (see "man mq_overview"): %v`, name, path)
+	}
+
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
+		return fmt.Errorf(`posix-mq slot %s "path" attribute is invalid: %v"`, name, path)
+	}
+
+	if !cleanSubPath(path) {
+		return fmt.Errorf(`posix-mq slot %s "path" attribute is not a clean path: %v"`, name, path)
+	}
+
+	return nil
 }
 
 func (iface *posixMQInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
@@ -168,7 +196,7 @@ func (iface *posixMQInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return err
 	}
 
-	/* Ensure that the given permissions are valid */
+	/* Only ensure that the given permissions are valid, don't use them here */
 	if _, err := iface.getPermissions(plug, plug.Name); err != nil {
 		return err
 	}
@@ -181,31 +209,24 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return err
 	}
 
-	/* Ensure that the given permissions are valid */
+	/* Only ensure that the given permissions are valid, don't use them here */
 	if _, err := iface.getPermissions(slot, slot.Name); err != nil {
 		return err
 	}
 
-	/* Ensure that the given path has a valid POSIX MQ name */
-	if path, err := iface.getPath(slot, slot.Name); err == nil {
-		if posixMQNamePattern.MatchString(path) {
-			return nil
-		}
-		return fmt.Errorf("posix-mq path must conform to the POSIX message queue name specifications (see `man mq_overview`)")
-	} else {
+	/* Only ensure that the given path is valid, don't use it here */
+	if _, err := iface.getPath(slot, slot.Name); err != nil {
 		return err
 	}
-}
 
-func (iface *posixMQInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
-	return true
+	return nil
 }
 
 func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if !implicitSystemPermanentSlot(slot) {
 		if path, err := iface.getPath(slot, slot.Name); err == nil {
 			spec.AddSnippet(fmt.Sprintf(`# POSIX Message Queue management
-mqueue (create delete getattr setattr read write) %s,
+mqueue (create delete getattr setattr read write) "%s",
 `, path))
 		} else {
 			return err
@@ -217,7 +238,7 @@ mqueue (create delete getattr setattr read write) %s,
 func (iface *posixMQInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if path, err := iface.getPath(slot, slot.Name()); err == nil {
 		spec.AddSnippet(fmt.Sprintf(`# POSIX Message Queue slot communication
-mqueue (create delete getattr setattr) %s,
+mqueue (create delete getattr setattr) "%s",
 `, path))
 	} else {
 		return err
@@ -230,7 +251,7 @@ func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
 			aaPerms := strings.Join(perms, " ")
 			spec.AddSnippet(fmt.Sprintf(`# POSIX Message Queue plug communication
-mqueue (%s) %s,
+mqueue (%s) "%s",
 `, aaPerms, path))
 		} else {
 			return err
