@@ -1077,6 +1077,12 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		action := triggeredMigration(oldInfo.Base, newInfo.Base, opts)
 
 		switch action {
+		case hidden:
+			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.MigratedHidden = true
 		case revertFull:
 			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 				return err
@@ -1134,10 +1140,18 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 			snapsup.EnableExposedHome = true
 		}
 
-		if snapsup.UndidHiddenMigration {
+		if snapsup.MigratedHidden {
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.UndidHiddenMigration = true
+			snapsup.MigratedHidden = false
+		} else if snapsup.UndidHiddenMigration {
 			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
 				return err
 			}
+
 			snapsup.UndidHiddenMigration = false
 			snapsup.MigratedHidden = true
 		}
