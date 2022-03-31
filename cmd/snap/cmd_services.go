@@ -208,7 +208,7 @@ func (s *svcStart) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Started.\n"))
+	fmt.Fprintln(Stdout, i18n.G("Started."))
 
 	return nil
 }

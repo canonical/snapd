@@ -20,6 +20,7 @@
 package strutil_test
 
 import (
+	"bytes"
 	"math"
 	"sort"
 	"testing"
@@ -278,4 +279,42 @@ func (strutilSuite) TestDeduplicate(c *check.C) {
 	} {
 		c.Assert(strutil.Deduplicate(t.input), check.DeepEquals, t.output)
 	}
+}
+
+func (strutilSuite) TestWordWrap(c *check.C) {
+	for _, t := range []struct {
+		input   string
+		width   int
+		indent  string
+		indent2 string
+		output  string
+	}{
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, indent: "", indent2: "", output: "Lorem ipsum dolor\nsit amet,\nconsectetur\nadipiscing elit, sed\ndo eiusmod tempor\nincididunt ut labore\net dolore magna\naliqua.\n"},
+		{input: "Lorem ips", width: 20, indent: "", indent2: "", output: "Lorem ips\n"},
+		{input: "", width: 5, indent: "", indent2: "", output: "\n"},
+		{input: "", width: 5, indent: "  ", indent2: "  ", output: "  \n"},
+		{input: "Lorem ipsum", width: 0, indent: "", indent2: "", output: "L\no\nr\ne\nm\ni\np\ns\nu\nm\n"},
+		{input: "Lorem ipsum", width: -10, indent: "", indent2: "", output: "L\no\nr\ne\nm\ni\np\ns\nu\nm\n"},
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, indent: "  ", indent2: "", output: "  Lorem ipsum dolor\nsit amet,\nconsectetur\nadipiscing elit, sed\ndo eiusmod tempor\nincididunt ut labore\net dolore magna\naliqua.\n"},
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, indent: "", indent2: "  ", output: "Lorem ipsum dolor\n  sit amet,\n  consectetur\n  adipiscing elit,\n  sed do eiusmod\n  tempor incididunt\n  ut labore et\n  dolore magna\n  aliqua.\n"},
+	} {
+		buf := new(bytes.Buffer)
+		err := strutil.WordWrap(buf, []rune(t.input), t.indent, t.indent2, t.width)
+		c.Assert(err, check.IsNil)
+		c.Check(buf.String(), check.Equals, t.output)
+	}
+}
+
+func (strutilSuite) TestWordWrapCornerCase(c *check.C) {
+	// this particular corner case isn't currently reachable from
+	// printDescr nor printSummary, but best to have it covered
+	var buf bytes.Buffer
+	const s = "This is a paragraph indented with leading spaces that are encoded as multiple bytes. All hail EN SPACE."
+	strutil.WordWrap(&buf, []rune(s), "\u2002\u2002", "  ", 30)
+	c.Check(buf.String(), check.Equals, `
+  This is a paragraph indented
+  with leading spaces that are
+  encoded as multiple bytes.
+  All hail EN SPACE.
+`[1:])
 }

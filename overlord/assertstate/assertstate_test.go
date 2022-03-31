@@ -2380,7 +2380,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	err = s.storeSigning.Add(vsetAs3)
 	c.Assert(err, IsNil)
 
-	// sanity check - sequence 4 not available locally yet
+	// precondition check - sequence 4 not available locally yet
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
@@ -2536,7 +2536,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C)
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
-	// sanity - local assertion vsetAs1 is the latest
+	// precondition - local assertion vsetAs1 is the latest
 	a, err := assertstate.DB(s.state).FindSequence(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
