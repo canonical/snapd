@@ -2529,6 +2529,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
+			"validation-sets":  []interface{}{[]interface{}{"foo", "other"}},
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
@@ -2577,6 +2578,8 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
+			// not actually set during refresh, but supported by snapAction
+			ValidationSets: [][]string{{"foo", "other"}},
 		},
 	}, []*store.SnapAction{
 		{
