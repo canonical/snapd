@@ -34,10 +34,17 @@ import (
 
 var osOpen = os.Open
 
+// SnapshotOptions contains the information provided by a snap package about
+// what files should be included in the snapshots.
 type SnapshotOptions struct {
+	// ExcludePaths is the list of file and directory patterns that need to be
+	// excluded from a snapshot. At the moment the only supported globbing
+	// character is "*", which stands for any sequence of characters other than
+	// "/".
 	ExcludePaths []string `yaml:"exclude"`
 }
 
+// ReadSnapshotYaml reads the snapshot manifest file for the given snap.
 func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
 	file, err := osOpen(filepath.Join(si.MountDir(), "meta", "snapshots.yaml"))
 	if os.IsNotExist(err) {
@@ -51,6 +58,8 @@ func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
 	return readSnapshotYaml(file)
 }
 
+// ReadSnapshotYaml reads the snapshot manifest file for the given snap
+// container.
 func ReadSnapshotYamlFromSnapFile(snapf Container) (*SnapshotOptions, error) {
 	sy, err := snapf.ReadFile("meta/snapshot.yaml")
 	if os.IsNotExist(err) {
