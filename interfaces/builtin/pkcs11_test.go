@@ -261,7 +261,7 @@ func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
 
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug2, s.testBadSlot4)
-	c.Assert(err, ErrorMatches, "slot \"gadget:.*\" must have a valid unix socket 'pkcs11-socket' attribute")
+	c.Assert(err, ErrorMatches, "slot \"gadget:.*\" must have a unix socket 'pkcs11-socket' attribute")
 }
 
 func (s *Pkcs11InterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
