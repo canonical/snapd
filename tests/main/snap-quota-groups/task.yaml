@@ -8,12 +8,14 @@ details: |
 # we do have a check to do for these systems, but that is just to ensure that
 # we don't allow using quota groups, and that check is done in the snap-quota
 # spread instead
+# TODO: arch-linux is disable until snapd pr #11608 is landed
 systems:
   - -ubuntu-14.04-*
   - -centos-7-*
   - -amazon-linux-2-*
   - -ubuntu-16.04-*
   - -ubuntu-core-16-*
+  - -arch-linux-*
 
 prepare: |
   snap install go-example-webserver jq remarshal hello-world
