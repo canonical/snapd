@@ -13,11 +13,14 @@ until gcloud compute --project=snapd-spread instances describe "$INSTANCE" --zon
     sleep 1
 done
 
-backgroundscript=/tmp/background-$RANDOM.sh
+OUTPUT_FILE="console-output-$INSTANCE.txt"
+
+backgroundscript=$(mktemp --suffix=.gce-watcher)
 cat >> "$backgroundscript" << 'EOF'
 INSTANCE="$1"
+OUTPUT_FILE="$2"
 next=0
-truncate -s0 console-output.txt
+truncate -s0 "$OUTPUT_FILE"
 while true; do
     # The get-serial-port-output command will print on the stdout the new lines
     # that the machine emitted on the serial console since the last time it was
@@ -37,26 +40,31 @@ while true; do
             --project=snapd-spread \
             instances get-serial-port-output "$INSTANCE" \
             --start="$next" \
-            --zone=us-east1-b 3>&1 1>"console-output-bits.txt" 2>&3- | grep -Po -- '--start=\K[0-9]+')
-    trimmedConsoleSnippet="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' < console-output-bits.txt)"
+            --zone=us-east1-b 3>&1 1>"${OUTPUT_FILE}-bits.txt" 2>&3- | grep -Po -- '--start=\K[0-9]+')
+    trimmedConsoleSnippet="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' < ${OUTPUT_FILE}-bits.txt)"
     if [ -n "$trimmedConsoleSnippet" ]; then
-        echo "$trimmedConsoleSnippet" >> console-output.txt
+        echo "$trimmedConsoleSnippet" >> "$OUTPUT_FILE"
     fi
     sleep 1
 done
 EOF
 
 # start collecting the console output
-bash "$backgroundscript" "$INSTANCE" &
+bash "$backgroundscript" "$INSTANCE" "$OUTPUT_FILE" &
 
-
-trap "exit" INT TERM
-trap "kill 0" EXIT
+on_exit() {
+    # Restore the signal handlers to avoid recursion
+    trap - INT TERM QUIT EXIT
+    rm -f "$OUTPUT_FILE" "$OUTPUT_FILE-bits.txt"
+    # kill all processes in this group
+    kill 0
+}
+trap "on_exit" INT TERM QUIT EXIT
 
 # wait for it to appear
-until [ -f console-output.txt ]; do
+until [ -f "$OUTPUT_FILE" ]; do
     sleep 1
 done
 
 # watch it
-tail -f console-output.txt
+tail -f "$OUTPUT_FILE"
