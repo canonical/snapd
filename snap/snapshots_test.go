@@ -28,7 +28,21 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 )
+
+type FakeContainer struct {
+	*snapdir.SnapDir
+
+	readFileInput  string
+	readFileOutput []byte
+	readFileError  error
+}
+
+func (s *FakeContainer) ReadFile(file string) (content []byte, err error) {
+	s.readFileInput = file
+	return s.readFileOutput, s.readFileError
+}
 
 type snapshotSuite struct{}
 
@@ -51,6 +65,28 @@ func (s *snapshotSuite) TestReadSnapshotYamlOpenFails(c *C) {
 	returnedError = os.ErrNotExist
 	_, err = snap.ReadSnapshotYaml(info)
 	c.Check(err, IsNil)
+}
+
+func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileFails(c *C) {
+	container := &FakeContainer{
+		readFileError: errors.New("cannot do stuff"),
+	}
+	opts, err := snap.ReadSnapshotYamlFromSnapFile(container)
+	c.Check(container.readFileInput, Equals, "meta/snapshot.yaml")
+	c.Check(opts, IsNil)
+	c.Check(err, ErrorMatches, "cannot do stuff")
+}
+
+func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileHappy(c *C) {
+	container := &FakeContainer{
+		readFileOutput: []byte("exclude:\n  - $SNAP_DATA/dir"),
+	}
+	opts, err := snap.ReadSnapshotYamlFromSnapFile(container)
+	c.Check(container.readFileInput, Equals, "meta/snapshot.yaml")
+	c.Check(err, IsNil)
+	c.Check(opts, DeepEquals, &snap.SnapshotOptions{
+		ExcludePaths: []string{"$SNAP_DATA/dir"},
+	})
 }
 
 func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
