@@ -76,6 +76,8 @@ func readSnapshotYaml(r io.Reader) (*SnapshotOptions, error) {
 	validFirstComponents := []string{
 		"$SNAP_DATA", "$SNAP_COMMON", "$SNAP_USER_DATA", "$SNAP_USER_COMMON",
 	}
+	const invalidChars = "[]{}?"
+
 	for _, excludePath := range opts.ExcludePaths {
 		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
 		if !strutil.ListContains(validFirstComponents, firstComponent) {
@@ -85,6 +87,13 @@ func readSnapshotYaml(r io.Reader) (*SnapshotOptions, error) {
 		cleanPath := filepath.Clean(excludePath)
 		if cleanPath != excludePath {
 			return nil, fmt.Errorf("snapshot exclude path not clean: %q", excludePath)
+		}
+
+		// We could use a regexp to do this validation, but an explicit check
+		// is more readable and less error-prone
+		if strings.ContainsAny(excludePath, invalidChars) ||
+			strings.Contains(excludePath, "**") {
+			return nil, fmt.Errorf("snapshot exclude path contains invalid characters: %q", excludePath)
 		}
 	}
 

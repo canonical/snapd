@@ -75,6 +75,18 @@ func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
 		{
 			"exclude:\n  - $SNAP_DATA/../../meh", "snapshot exclude path not clean.*",
 		},
+		{
+			"exclude:\n  - $SNAP_DATA/{one,two}", "snapshot exclude path contains invalid characters.*",
+		},
+		{
+			"exclude:\n  - $SNAP_DATA/tree**", "snapshot exclude path contains invalid characters.*",
+		},
+		{
+			"exclude:\n  - $SNAP_DATA/foo[12]", "snapshot exclude path contains invalid characters.*",
+		},
+		{
+			"exclude:\n  - $SNAP_DATA/bar?", "snapshot exclude path contains invalid characters.*",
+		},
 	} {
 		manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
 		err := ioutil.WriteFile(manifestFile, []byte(testData.contents), 0644)
@@ -90,9 +102,9 @@ func (s *snapshotSuite) TestReadSnapshotYamlFailures(c *C) {
 
 var snapshotYamlHappy = []byte(`exclude:
   - $SNAP_DATA/one
-  - $SNAP_COMMON/two?
+  - $SNAP_COMMON/two
   - $SNAP_USER_DATA/three*
-  - $SNAP_USER_COMMON/four[0-3]`)
+  - $SNAP_USER_COMMON/fo*ur`)
 
 func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 	manifestFile := filepath.Join(c.MkDir(), "snapshots.yaml")
@@ -109,8 +121,8 @@ func (s *snapshotSuite) TestReadSnapshotYamlHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(opts.ExcludePaths, DeepEquals, []string{
 		"$SNAP_DATA/one",
-		"$SNAP_COMMON/two?",
+		"$SNAP_COMMON/two",
 		"$SNAP_USER_DATA/three*",
-		"$SNAP_USER_COMMON/four[0-3]",
+		"$SNAP_USER_COMMON/fo*ur",
 	})
 }
