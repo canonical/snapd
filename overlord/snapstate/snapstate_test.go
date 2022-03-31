@@ -2410,10 +2410,6 @@ func (s *snapmgrTestSuite) testRevertUndoHiddenMigrationFails(c *C, prepFail pre
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
 
-	// check migration is reverted and then re-done
-	expected := []string{"undo-hide-snap-data", "hide-snap-data"}
-	containsInOrder(c, s.fakeBackend.ops, expected)
-
 	assertMigrationState(c, s.state, "some-snap", &dirs.SnapDirOptions{HiddenSnapDataDir: true})
 }
 
@@ -2517,10 +2513,6 @@ func (s *snapmgrTestSuite) testRevertUndoFullMigrationFails(c *C, prepFail prepF
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
-
-	// check migration is reverted and then re-done
-	expected := []string{"undo-hide-snap-data", "hide-snap-data"}
-	containsInOrder(c, s.fakeBackend.ops, expected)
 
 	assertMigrationState(c, s.state, "snap-core18-to-core22", &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
 }

@@ -1074,33 +1074,27 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			return err
 		}
 
-		st.Unlock()
-		defer st.Lock()
 		action := triggeredMigration(oldInfo.Base, newInfo.Base, opts)
 
-		var undo func()
 		switch action {
 		case revertFull:
-			undo, err = m.revertFullMigration(t, st, snapsup)
-		case revertHidden:
-			undo, err = m.revertHiddenMigration(t, st, snapsup)
-		case disableHome:
-			undo, err = m.disableHomeMigration(t, st, snapsup)
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
 
-		default:
-			// in 'snap revert', only undo migrations
-			err = nil
+			snapsup.UndidHiddenMigration = true
+			snapsup.DisableExposedHome = true
+		case revertHidden:
+			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
+				return err
+			}
+
+			snapsup.UndidHiddenMigration = true
+		case disableHome:
+			snapsup.DisableExposedHome = true
 		}
 
-		// try to undo the migration action if any error happens. The helpers don't
-		// undo because the handler has to be able to anyway (errors can occur after)
-		defer func() {
-			if err != nil && undo != nil {
-				undo()
-			}
-		}()
-
-		if err != nil {
+		if err = SetTaskSnapSetup(t, snapsup); err != nil {
 			return err
 		}
 	}
@@ -1252,25 +1246,42 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		oldBase = oldInfo.Base
 	}
 
-	var undo func()
+	snapName := snapsup.InstanceName()
 	switch triggeredMigration(oldBase, newInfo.Base, opts) {
 	case hidden:
-		undo, err = m.doHiddenMigration(t, st, snapsup, newInfo)
+		if err := m.backend.HideSnapData(snapName); err != nil {
+			return err
+		}
+
+		snapsup.MigratedHidden = true
 	case revertHidden:
-		undo, err = m.revertHiddenMigration(t, st, snapsup)
+		if err := m.backend.UndoHideSnapData(snapName); err != nil {
+			return err
+		}
+
+		snapsup.UndidHiddenMigration = true
 	case home:
-		undo, err = m.doHomeMigration(t, st, snapsup, newInfo.Revision)
+		if err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision); err != nil {
+			return err
+		}
+
+		snapsup.MigratedToExposedHome = true
 	case full:
-		undo, err = m.doFullMigration(t, st, snapsup, newInfo)
+		if err := m.backend.HideSnapData(snapName); err != nil {
+			return err
+		}
+
+		if err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision); err != nil {
+			return err
+		}
+
+		snapsup.MigratedHidden = true
+		snapsup.MigratedToExposedHome = true
 	}
 
-	// try to undo the migration action if any error happens. The helpers don't
-	// undo because the handler has to be able to anyway (errors can occur after)
-	defer func() {
-		if err != nil && undo != nil {
-			undo()
-		}
-	}()
+	st.Lock()
+	err = SetTaskSnapSetup(t, snapsup)
+	st.Unlock()
 
 	return err
 }
@@ -1330,137 +1341,6 @@ func triggeredMigration(oldBase, newBase string, opts *dirMigrationOptions) migr
 	}
 
 	return none
-}
-
-func (m *SnapManager) doHiddenMigration(t *state.Task, st *state.State, snapsup *SnapSetup, newInfo *snap.Info) (undo func(), err error) {
-	undo = func() {
-		// unlike the copy data (which can just be discarded), the migration affects
-		// all revisions of a snap and must be reverted
-		if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-			src := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
-			dst := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
-
-			st.Lock()
-			defer st.Unlock()
-			st.Warnf("cannot undo snap dir hiding (move all user's %s to %s): %v", src, dst, err)
-		}
-	}
-
-	if err = m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-		return undo, err
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup.MigratedHidden = true
-	if err = SetTaskSnapSetup(t, snapsup); err != nil {
-		return undo, fmt.Errorf("cannot set migration status to done: %w", err)
-	}
-
-	return undo, nil
-}
-
-func (m *SnapManager) revertHiddenMigration(t *state.Task, st *state.State, snapsup *SnapSetup) (undo func(), err error) {
-	undo = func() {
-		if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
-			src := filepath.Join("~", dirs.UserHomeSnapDir, snapsup.InstanceName())
-			dst := filepath.Join("~", dirs.HiddenSnapDataHomeDir, snapsup.InstanceName())
-
-			st.Lock()
-			defer st.Unlock()
-			st.Warnf("cannot undo snap dir exposing (move all user's %s to %s): %v", src, dst, err)
-		}
-	}
-
-	if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
-		return undo, err
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup.UndidHiddenMigration = true
-	if err = SetTaskSnapSetup(t, snapsup); err != nil {
-		return undo, fmt.Errorf("cannot set hidden migration status to undone: %w", err)
-	}
-
-	return undo, nil
-}
-
-func (m *SnapManager) doFullMigration(t *state.Task, st *state.State, snapsup *SnapSetup, newInfo *snap.Info) (revert func(), err error) {
-	revertHidden, err := m.doHiddenMigration(t, st, snapsup, newInfo)
-	if err != nil {
-		return revertHidden, err
-	}
-
-	revertHome, err := m.doHomeMigration(t, st, snapsup, newInfo.Revision)
-	return func() {
-		revertHome()
-		revertHidden()
-	}, err
-}
-
-// doHomeMigration creates and initializes ~/Snap to be the new HOME
-func (m *SnapManager) doHomeMigration(t *state.Task, st *state.State, snapsup *SnapSetup, newRev snap.Revision) (undo func(), err error) {
-	undo = func() {
-		if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
-			st.Lock()
-			defer st.Unlock()
-			st.Warnf("cannot remove ~/Snap (must remove manually): %v", err)
-		}
-	}
-
-	// since we may have reverted from a core22 base before, the new HOME may
-	// already exist
-	if err := m.backend.InitExposedSnapHome(snapsup.InstanceName(), newRev); err != nil {
-		return undo, err
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup.MigratedToExposedHome = true
-	if err = SetTaskSnapSetup(t, snapsup); err != nil {
-		return undo, fmt.Errorf("cannot set migration status to done: %w", err)
-	}
-
-	return undo, nil
-}
-
-func (m *SnapManager) revertFullMigration(t *state.Task, st *state.State, snapsup *SnapSetup) (undo func(), err error) {
-	hiddenUndo, err := m.revertHiddenMigration(t, st, snapsup)
-	if err != nil {
-		return hiddenUndo, err
-	}
-
-	homeUndo, err := m.disableHomeMigration(t, st, snapsup)
-	return func() {
-		homeUndo()
-		hiddenUndo()
-	}, err
-}
-
-func (m *SnapManager) disableHomeMigration(t *state.Task, st *state.State, snapsup *SnapSetup) (undo func(), err error) {
-	undo = func() {
-		snapsup.DisableExposedHome = false
-
-		st.Lock()
-		defer st.Unlock()
-		if err := SetTaskSnapSetup(t, snapsup); err != nil {
-			st.Warnf("cannot re-enable home migration: %v", err)
-		}
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	snapsup.DisableExposedHome = true
-	if err = SetTaskSnapSetup(t, snapsup); err != nil {
-		return undo, fmt.Errorf("cannot disable home migration: %w", err)
-	}
-
-	return undo, nil
 }
 
 // atLeastCore22 returns true if 'base' is core22 or newer. Returns

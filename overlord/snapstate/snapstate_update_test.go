@@ -7507,9 +7507,7 @@ func (s *snapmgrTestSuite) testUndoRevertMigrationIfRevertFails(c *C, prepFail p
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
 
-	// check migration is reverted and then re-done
-	expected := []string{"undo-hide-snap-data", "hide-snap-data"}
-	containsInOrder(c, s.fakeBackend.ops, expected)
+	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
 	// check migration reversion was undone in state and seq file
 	expectedOpts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
@@ -7567,74 +7565,6 @@ func (s *snapmgrTestSuite) TestRevertMigration(c *C) {
 	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
 
 	// check migration status is 'off' in state and seq file
-	assertMigrationState(c, s.state, "some-snap", nil)
-}
-
-func (s *snapmgrTestSuite) TestUndoMigrationAfterHidingFails(c *C) {
-	const failInUndo = false
-	s.testUndoMigration(c, failInUndo)
-}
-
-func (s *snapmgrTestSuite) TestUndoMigrationFailsAfterHidingFails(c *C) {
-	const failInUndo = true
-	s.testUndoMigration(c, failInUndo)
-}
-
-func (s *snapmgrTestSuite) testUndoMigration(c *C, failUndo bool) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.hidden-snap-folder", true), IsNil)
-	tr.Commit()
-
-	info := &snap.SideInfo{
-		Revision: snap.R(1),
-		SnapID:   "some-snap-id",
-		RealName: "some-snap",
-	}
-	snapst := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{info},
-		Current:  info.Revision,
-		Active:   true,
-	}
-	snapstate.Set(s.state, "some-snap", snapst)
-	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
-
-	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
-		if op.op == "hide-snap-data" || (failUndo && op.op == "undo-hide-snap-data") {
-			return errors.New("boom")
-		}
-
-		return nil
-	}
-
-	chg := s.state.NewChange("install", "")
-	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.settle(c)
-
-	c.Assert(chg.Err(), Not(IsNil))
-	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-
-	s.fakeBackend.ops.MustFindOp(c, "hide-snap-data")
-	s.fakeBackend.ops.MustFindOp(c, "undo-hide-snap-data")
-
-	warns := s.state.AllWarnings()
-	msgs := make([]string, len(warns))
-	for i, warn := range warns {
-		msgs[i] = warn.String()
-	}
-	failedUndoMsg := `.*cannot undo snap dir hiding \(move all user's ~/\.snap/data/some-snap to ~/snap/some-snap\): boom`
-
-	if failUndo {
-		mustMatch(c, msgs, failedUndoMsg)
-	} else {
-		mustNotMatch(c, msgs, failedUndoMsg)
-	}
-
 	assertMigrationState(c, s.state, "some-snap", nil)
 }
 
@@ -7724,7 +7654,7 @@ func (s *snapmgrTestSuite) testUndoMigrationIfUpdateToCore22Fails(c *C, prepFail
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
 
-	expectedOps := []string{"hide-snap-data", "init-exposed-snap-home", "rm-exposed-snap-home", "undo-hide-snap-data"}
+	expectedOps := []string{"hide-snap-data", "init-exposed-snap-home"}
 	containsInOrder(c, s.fakeBackend.ops, expectedOps)
 
 	assertMigrationState(c, s.state, "snap-core18-to-core22", nil)
@@ -7810,7 +7740,6 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22ButFail
 	// only the ~/Snap was done and undone
 	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
 	c.Assert(s.fakeBackend.ops.First("undo-hide-snap-data"), IsNil)
-	containsInOrder(c, s.fakeBackend.ops, []string{"init-exposed-snap-home", "rm-exposed-snap-home"})
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 	assertMigrationState(c, s.state, "snap-core18-to-core22", expected)
