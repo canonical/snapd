@@ -333,21 +333,12 @@ func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int)
 	return err
 }
 
-// runesTrimRightSpace returns text, with any trailing whitespace dropped.
-func runesTrimRightSpace(text []rune) []rune {
-	j := len(text)
-	for j > 0 && unicode.IsSpace(text[j-1]) {
-		j--
-	}
-	return text[:j]
-}
-
 // WordWrapPadded wraps the given text, assumed to be part of a block-style yaml
 // string, to fit into termWidth, preserving the line's indent, and
 // writes it out prepending padding to each line.
 func WordWrapPadded(out io.Writer, text []rune, pad string, termWidth int) error {
 	// discard any trailing whitespace
-	text = runesTrimRightSpace(text)
+	text = []rune(strings.TrimRightFunc(string(text), unicode.IsSpace))
 	// establish the indent of the whole block
 	idx := 0
 	for idx < len(text) && unicode.IsSpace(text[idx]) {
