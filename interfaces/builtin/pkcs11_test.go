@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -176,6 +177,14 @@ apps:
 
 func (s *Pkcs11InterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "pkcs11")
+}
+
+func (s *Pkcs11InterfaceSuite) TestSecCompPermanentSlot(c *C) {
+	seccompSpec := &seccomp.Specification{}
+	err := seccompSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
+	c.Assert(err, IsNil)
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.gadget.p11-server"})
+	c.Check(seccompSpec.SnippetForTag("snap.gadget.p11-server"), testutil.Contains, "listen\n")
 }
 
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
