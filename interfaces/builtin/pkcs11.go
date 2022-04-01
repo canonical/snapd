@@ -124,7 +124,9 @@ func (iface *pkcs11Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 /etc/pkcs11/{,**} r,
 # pkcs11 tools
 /usr/bin/p11tool ixr,
-/usr/bin/pkcs11-tool ixr,`,
+/usr/bin/pkcs11-tool ixr,
+/usr/share/p11-kit/modules/ r,
+/usr/share/p11-kit/modules/* r,`,
 		socketRule))
 	return nil
 }

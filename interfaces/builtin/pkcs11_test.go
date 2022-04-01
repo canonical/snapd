@@ -245,6 +245,10 @@ func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), testutil.Contains,
 		`/usr/bin/pkcs11-tool ixr,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), testutil.Contains,
+		`/usr/share/p11-kit/modules/ r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), testutil.Contains,
+		`/usr/share/p11-kit/modules/* r,`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), testutil.Contains,
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-0" rw,`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.consumer.app-accessing-1-slot"), Not(testutil.Contains),
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-1" rw,`)
