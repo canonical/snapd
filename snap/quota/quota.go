@@ -289,12 +289,15 @@ func (grp *Group) GetCPUSetQuota() []int {
 	return nil
 }
 
+// export it for test
+var runtimeNumCPU = runtime.NumCPU
+
 // GetCorrectedCPUCount returns the maximum number of allowed CPU cores for
 // this group. It needs to take into account that CPU set might have been set
 // to limit the number of cores, or a direct limit on the number of cores.
 // Goal is to select the most restrictive limit.
 func (grp *Group) GetCorrectedCPUCount() int {
-	cpuCount := runtime.NumCPU()
+	cpuCount := runtimeNumCPU()
 	cpuSetCount := len(grp.GetCPUSetQuota())
 	if cpuSetCount != 0 && cpuSetCount < cpuCount {
 		cpuCount = cpuSetCount

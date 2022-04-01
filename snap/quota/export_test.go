@@ -50,3 +50,9 @@ func MockCgroupVerErr(mockErr error) (restore func()) {
 	cgroupVerErr = mockErr
 	return r
 }
+
+func MockRuntimeNumCPU(mock func() int) (restore func()) {
+	r := testutil.Backup(&runtimeNumCPU)
+	runtimeNumCPU = mock
+	return r
+}
