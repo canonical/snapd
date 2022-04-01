@@ -2445,6 +2445,136 @@ func (s *snapmgrTestSuite) TestRevertToCore22WithoutFlagSet(c *C) {
 	assertMigrationState(c, s.state, "some-snap", &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
 }
 
+func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedMigration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si1 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	restore := snapstate.MockSnapReadInfo(func(_ string, si *snap.SideInfo) (*snap.Info, error) {
+		if si.Revision == si1.Revision {
+			return &snap.Info{
+				SideInfo: *si,
+				Base:     "core20",
+			}, nil
+		} else if si.Revision == si2.Revision {
+			return &snap.Info{
+				SideInfo: *si,
+				Base:     "core22",
+			}, nil
+		}
+		panic("unknown sideinfo")
+
+	})
+	defer restore()
+
+	snapst := &snapstate.SnapState{
+		Active:         true,
+		SnapType:       "app",
+		Sequence:       []*snap.SideInfo{&si1, &si2},
+		Current:        si1.Revision,
+		MigratedHidden: true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	snapstate.Set(s.state, "core22", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "base",
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}},
+		Current:  snap.R(1),
+	})
+
+	chg := s.state.NewChange("revert", "install a revert")
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", si2.Revision, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+	assertMigrationState(c, s.state, "some-snap", &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
+
+	snapst = &snapstate.SnapState{}
+	c.Assert(snapstate.Get(s.state, "some-snap", snapst), IsNil)
+	c.Check(snapst.Current, Equals, si2.Revision)
+}
+
+func (s *snapmgrTestSuite) TestUndoRevertToCore22AfterRevertedMigration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si1 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	restore := snapstate.MockSnapReadInfo(func(_ string, si *snap.SideInfo) (*snap.Info, error) {
+		if si.Revision == si1.Revision {
+			return &snap.Info{
+				SideInfo: *si,
+				Base:     "core20",
+			}, nil
+		} else if si.Revision == si2.Revision {
+			return &snap.Info{
+				SideInfo: *si,
+				Base:     "core22",
+			}, nil
+		}
+		panic("unknown sideinfo")
+
+	})
+	defer restore()
+
+	snapst := &snapstate.SnapState{
+		Active:         true,
+		SnapType:       "app",
+		Sequence:       []*snap.SideInfo{&si1, &si2},
+		Current:        si1.Revision,
+		MigratedHidden: true,
+	}
+	snapstate.Set(s.state, "some-snap", snapst)
+	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
+
+	snapstate.Set(s.state, "core22", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "base",
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}},
+		Current:  snap.R(1),
+	})
+
+	chg := s.state.NewChange("revert", "install a revert")
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/2")
+
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", si2.Revision, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+
+	assertMigrationState(c, s.state, "some-snap", &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+
+	snapst = &snapstate.SnapState{}
+	c.Assert(snapstate.Get(s.state, "some-snap", snapst), IsNil)
+	c.Check(snapst.Current, Equals, si1.Revision)
+}
+
 func (s *snapmgrTestSuite) TestRevertUndoHiddenMigrationFails(c *C) {
 	s.testRevertUndoHiddenMigrationFails(c, func(_ *overlord.Overlord, _ *state.Change) error {
 		err := errors.New("boom")

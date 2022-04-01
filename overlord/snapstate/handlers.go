@@ -1075,7 +1075,6 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		}
 
 		action := triggeredMigration(oldInfo.Base, newInfo.Base, opts)
-
 		switch action {
 		case hidden:
 			if err := m.backend.HideSnapData(snapsup.InstanceName()); err != nil {
@@ -1083,6 +1082,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			}
 
 			snapsup.MigratedHidden = true
+		case home:
+			// we're reverting forward to a core22 based revision, so we already
+			// migrated previously and should use the ~/Snap sub dir as HOME again
+			snapsup.EnableExposedHome = true
 		case revertFull:
 			if err := m.backend.UndoHideSnapData(snapsup.InstanceName()); err != nil {
 				return err
@@ -1135,7 +1138,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// revert them here and set SnapSetup flags (which will be used to set the
 	// state below)
 	if snapsup.Revert {
-		if snapsup.DisableExposedHome {
+		if snapsup.EnableExposedHome {
+			snapsup.DisableExposedHome = true
+			snapsup.EnableExposedHome = false
+		} else if snapsup.DisableExposedHome {
 			snapsup.DisableExposedHome = false
 			snapsup.EnableExposedHome = true
 		}
