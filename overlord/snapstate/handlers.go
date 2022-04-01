@@ -1270,28 +1270,27 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 
 		snapsup.MigratedHidden = true
+
 	case revertHidden:
 		if err := m.backend.UndoHideSnapData(snapName); err != nil {
 			return err
 		}
 
 		snapsup.UndidHiddenMigration = true
-	case home:
-		if err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision); err != nil {
-			return err
-		}
 
-		snapsup.MigratedToExposedHome = true
 	case full:
 		if err := m.backend.HideSnapData(snapName); err != nil {
 			return err
 		}
 
+		snapsup.MigratedHidden = true
+		fallthrough
+
+	case home:
 		if err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision); err != nil {
 			return err
 		}
 
-		snapsup.MigratedHidden = true
 		snapsup.MigratedToExposedHome = true
 	}
 
