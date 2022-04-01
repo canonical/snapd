@@ -375,6 +375,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			Channel:          a.Channel,
 			Revision:         a.Revision.N,
 			CohortKey:        a.CohortKey,
+			ValidationSets:   a.ValidationSets,
 			IgnoreValidation: ignoreValidation,
 		}
 		if !a.Revision.Unset() {
@@ -385,7 +386,6 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
 			installs[instanceKey] = a
-			aJSON.ValidationSets = a.ValidationSets
 		} else if a.Action == "download" {
 			downloadNum++
 			instanceKey = fmt.Sprintf("download-%d", downloadNum)

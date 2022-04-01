@@ -1040,20 +1040,6 @@ func (infoSuite) TestMaybePrintHealth(c *check.C) {
 	}
 }
 
-func (infoSuite) TestWrapCornerCase(c *check.C) {
-	// this particular corner case isn't currently reachable from
-	// printDescr nor printSummary, but best to have it covered
-	var buf bytes.Buffer
-	const s = "This is a paragraph indented with leading spaces that are encoded as multiple bytes. All hail EN SPACE."
-	snap.WrapFlow(&buf, []rune(s), "\u2002\u2002", 30)
-	c.Check(buf.String(), check.Equals, `
-  This is a paragraph indented
-  with leading spaces that are
-  encoded as multiple bytes.
-  All hail EN SPACE.
-`[1:])
-}
-
 func (infoSuite) TestBug1828425(c *check.C) {
 	const s = `This is a description
                                   that has

@@ -405,7 +405,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 				chg.Abort()
 				delete(s.changes, chg.ID())
 			} else if spawnTime.Before(abortLimit) {
-				chg.Abort()
+				chg.AbortUnreadyLanes()
 			}
 			continue
 		}

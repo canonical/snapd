@@ -1,9 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !linux
-// +build !linux
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,24 +17,28 @@
  *
  */
 
-package main
+package preseed
 
 import (
-	"errors"
+	"github.com/snapcore/snapd/seed"
 )
 
-var preseedNotAvailableError = errors.New("preseed mode not available for systems other than linux")
+var (
+	SystemSnapFromSeed       = systemSnapFromSeed
+	ChooseTargetSnapdVersion = chooseTargetSnapdVersion
+	CreatePreseedArtifact    = createPreseedArtifact
+)
 
-func checkChroot(preseedChroot string) error {
-	return preseedNotAvailableError
+type PreseedOpts = preseedOpts
+
+func MockSeedOpen(f func(rootDir, label string) (seed.Seed, error)) (restore func()) {
+	oldSeedOpen := seedOpen
+	seedOpen = f
+	return func() {
+		seedOpen = oldSeedOpen
+	}
 }
 
-func prepareChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
-	return nil, preseedNotAvailableError
+func SnapdPathAndVersion(targetSnapd *targetSnapdInfo) (string, string) {
+	return targetSnapd.path, targetSnapd.version
 }
-
-func runPreseedMode(rootDir string) error {
-	return preseedNotAvailableError
-}
-
-func cleanup() {}

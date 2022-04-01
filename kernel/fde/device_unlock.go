@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -36,6 +37,8 @@ type DeviceUnlockRequest struct {
 	// Device is the device to unlock in /dev/ somewhere such as
 	// /dev/disk/by-partuuid/foo.
 	Device string `json:"device,omitempty"`
+
+	PartitionName string `json:"partition-name,omitempty"`
 }
 
 // runFDEDeviceUnlockCommand returns the output of
@@ -53,22 +56,39 @@ func runFDEDeviceUnlockCommand(req *DeviceUnlockRequest) (output []byte, err err
 	return runFDEinitramfsHelper("fde-device-unlock", stdin)
 }
 
+var runFDEDeviceUnlock = runFDEDeviceUnlockCommand
+
+func MockRunFDEDeviceUnlock(mock func(*DeviceUnlockRequest) ([]byte, error)) (restore func()) {
+	osutil.MustBeTestBinary("fde-device-unlock can only be mocked in tests")
+	oldRunFDEDeviceUnlock := runFDEDeviceUnlock
+	runFDEDeviceUnlock = mock
+	return func() {
+		runFDEDeviceUnlock = oldRunFDEDeviceUnlock
+	}
+}
+
 // DeviceUnlockParams contains the parameters for fde-device-unlock
 // "device-unlock" operation.
 type DeviceUnlockParams struct {
 	Key    []byte
 	Device string
+	// Name of the partition
+	PartitionName string
 }
 
 // DeviceUnlock invokes the "fde-device-unlock" helper with the
 // "device-unlock" operation.
 func DeviceUnlock(params *DeviceUnlockParams) (err error) {
 	req := &DeviceUnlockRequest{
-		Op:     "device-unlock",
-		Key:    params.Key,
-		Device: params.Device,
+		Op:            "device-unlock",
+		Key:           params.Key,
+		Device:        params.Device,
+		PartitionName: params.PartitionName,
 	}
-	output, err := runFDEDeviceUnlockCommand(req)
+
+	logger.Debugf("running fde-device-unlock on %q with name %q", req.Device, req.PartitionName)
+
+	output, err := runFDEDeviceUnlock(req)
 	if err != nil {
 		return fmt.Errorf(`cannot run fde-device-unlock "device-unlock": %v`, osutil.OutputErr(output, err))
 	}
