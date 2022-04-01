@@ -36,6 +36,7 @@ import (
 
 // for the tests
 var syscallExec = syscall.Exec
+var syscallStat = syscall.Stat
 var osReadlink = os.Readlink
 
 // commandline args
@@ -203,9 +204,9 @@ func execApp(snapApp, revision, command string, args []string) error {
 	// except in a strictly confined snap where we setup the bind mount from the
 	// source cups slot snap to the plugging snap.
 	var stVar, stVarCups syscall.Stat_t
-	syscall.Stat(dirs.GlobalRootDir+"/var/", &stVar)
-	syscall.Stat(dirs.GlobalRootDir+"/var/cups/", &stVarCups)
-	if stVar.Dev != stVarCups.Dev {
+	err1 := syscallStat(dirs.GlobalRootDir+"/var/", &stVar)
+	err2 := syscallStat(dirs.GlobalRootDir+"/var/cups/", &stVarCups)
+	if err1 == nil && err2 == nil && stVar.Dev != stVarCups.Dev {
 		env["CUPS_SERVER"] = "/var/cups/cups.sock"
 	}
 
