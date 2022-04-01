@@ -1237,8 +1237,9 @@ func (ts *quotaTestSuite) TestCombinedCpuPercentageWithCpuSetLimits(c *C) {
 	subgrp2, err := grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(50).Build())
 	c.Assert(err, IsNil)
 
-	// Verify that the number of cpus are now correctly reported and corrected to 2
-	c.Check(subgrp2.GetCorrectedCPUCount(), Equals, 2)
+	// Verify that the number of cpus are now correctly reported as the one explicitly set
+	// by the quota
+	c.Check(subgrp2.GetCorrectedCPUCount(), Equals, 8)
 }
 
 func (ts *quotaTestSuite) TestCombinedCpuPercentageWithLowCoreCount(c *C) {
@@ -1255,9 +1256,10 @@ func (ts *quotaTestSuite) TestCombinedCpuPercentageWithLowCoreCount(c *C) {
 	// Verify that the number of cpus are now reported as 1
 	c.Check(subgrp1.GetCorrectedCPUCount(), Equals, 1)
 
-	subgrp2, err := grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(50).Build())
+	subgrp2, err := grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(50).Build())
 	c.Assert(err, IsNil)
 
-	// Verify that the number of cpus are now correctly reported and corrected to 1
-	c.Check(subgrp2.GetCorrectedCPUCount(), Equals, 1)
+	// Verify that the number of cpus are now correctly reported as the one explicitly set
+	// by the quota
+	c.Check(subgrp2.GetCorrectedCPUCount(), Equals, 4)
 }
