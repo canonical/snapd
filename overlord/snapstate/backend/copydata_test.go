@@ -957,6 +957,57 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	c.Check(isDir, Equals, true)
 }
 
+func (s *copydataSuite) TestInitExposedHomeIgnoreXDGDirs(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+
+	cachePath := filepath.Join(revDir, ".cache")
+	c.Assert(os.MkdirAll(cachePath, 0700), IsNil)
+	configPath := filepath.Join(revDir, ".config")
+	c.Assert(os.MkdirAll(configPath, 0700), IsNil)
+	localPath := filepath.Join(revDir, ".local", "share")
+	c.Assert(os.MkdirAll(localPath, 0700), IsNil)
+
+	undoInfo, err := s.be.InitExposedSnapHome(snapName, rev)
+	c.Assert(err, IsNil)
+	exposedHome := snap.UserExposedHomeDir(homeDir, snapName)
+	c.Check(undoInfo.Created, DeepEquals, []string{exposedHome})
+
+	cachePath = filepath.Join(exposedHome, ".cache")
+	exists, _, err := osutil.DirExists(cachePath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	configPath = filepath.Join(exposedHome, ".config")
+	exists, _, err = osutil.DirExists(configPath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, false)
+
+	localPath = filepath.Join(exposedHome, ".local")
+	exists, _, err = osutil.DirExists(localPath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, true)
+
+	sharePath := filepath.Join(exposedHome, ".local", "share")
+	exists, _, err = osutil.DirExists(sharePath)
+	c.Check(err, IsNil)
+	c.Check(exists, Equals, false)
+}
+
 func (s *copydataSuite) TestInitSnapFailOnFirstErr(c *C) {
 	usr1, err := user.Current()
 	c.Assert(err, IsNil)
@@ -1211,4 +1262,104 @@ func (s *copydataSuite) TestRemoveExposedKeepGoingOnFail(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot remove %q: first error`, filepath.Join(s.tempdir, "usr1", "Snap")))
 	// second error is logged
 	c.Assert(buf, Matches, fmt.Sprintf(`.*cannot remove %q: other error\n`, filepath.Join(s.tempdir, "usr2", "Snap")))
+}
+
+func (s *copydataSuite) TestInitXDGDirsAlreadyExist(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+
+	var srcDirs []string
+	mkDir := func(dirs ...string) {
+		srcDir := filepath.Join(append([]string{revDir}, dirs...)...)
+		srcDirs = append(srcDirs, srcDir)
+		c.Assert(os.MkdirAll(srcDir, 0700), IsNil)
+	}
+
+	for _, d := range [][]string{{".config"}, {".cache"}, {".local", "share"}} {
+		mkDir(d...)
+	}
+
+	info := &snap.Info{SideInfo: snap.SideInfo{Revision: rev, RealName: snapName}}
+	c.Assert(s.be.InitXDGDirs(info), IsNil)
+
+	for _, d := range []string{"xdg-config", "xdg-cache", "xdg-data"} {
+		dir := filepath.Join(revDir, d)
+
+		exists, isDir, err := osutil.DirExists(dir)
+		c.Check(err, IsNil)
+		c.Check(exists, Equals, true)
+		c.Check(isDir, Equals, true)
+	}
+}
+
+func (s *copydataSuite) TestInitXDGDirsCreateNew(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+
+	info := &snap.Info{SideInfo: snap.SideInfo{Revision: rev, RealName: snapName}}
+	c.Assert(s.be.InitXDGDirs(info), IsNil)
+
+	for _, d := range []string{"xdg-config", "xdg-cache", "xdg-data"} {
+		dir := filepath.Join(revDir, d)
+
+		exists, isDir, err := osutil.DirExists(dir)
+		c.Check(err, IsNil)
+		c.Check(exists, Equals, true)
+		c.Check(isDir, Equals, true)
+	}
+}
+
+func (s *copydataSuite) TestInitXDGDirsFailAlreadyExists(c *C) {
+	homeDir := filepath.Join(s.tempdir, "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homeDir
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	revDir := snap.UserDataDir(homeDir, snapName, rev, opts)
+	dst := filepath.Join(revDir, "xdg-config")
+	src := filepath.Join(revDir, ".config")
+	c.Assert(os.MkdirAll(dst, 0700), IsNil)
+	c.Assert(os.MkdirAll(src, 0700), IsNil)
+
+	info := &snap.Info{SideInfo: snap.SideInfo{Revision: rev, RealName: snapName}}
+	err = s.be.InitXDGDirs(info)
+	c.Assert(err.Error(), Equals, fmt.Sprintf("cannot migrate XDG dir %q to %q because destination already exists", src, dst))
 }
