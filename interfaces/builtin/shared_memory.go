@@ -24,8 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -323,8 +325,13 @@ func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification
 		return nil
 	}
 
+	devShm := filepath.Join(dirs.GlobalRootDir, "/dev/shm")
+	if osutil.IsSymlink(devShm) {
+		return fmt.Errorf(`shared-memory plug with "private: true" cannot be connected if %q is a symlink`, devShm)
+	}
+
 	return spec.AddMountEntry(osutil.MountEntry{
-		Name:    fmt.Sprintf("/dev/shm/snap.%s", plug.Snap().InstanceName()),
+		Name:    filepath.Join(devShm, "snap."+plug.Snap().InstanceName()),
 		Dir:     "/dev/shm",
 		Options: []string{"bind", "rw"},
 	})

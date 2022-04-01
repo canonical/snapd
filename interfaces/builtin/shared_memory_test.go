@@ -21,10 +21,13 @@ package builtin_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -431,6 +434,11 @@ func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/dev/shm"), 0777), IsNil)
+
 	// No mount entries for non-private shared-memory plugs
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -440,12 +448,19 @@ func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
 	mounts := []osutil.MountEntry{
 		{
-			Name:    "/dev/shm/snap.consumer",
+			Name:    filepath.Join(tmpdir, "/dev/shm/snap.consumer"),
 			Dir:     "/dev/shm",
 			Options: []string{"bind", "rw"},
 		},
 	}
 	c.Check(spec.MountEntries(), DeepEquals, mounts)
+
+	// Cannot set up mount entries if /dev/shm is a symlink
+	c.Assert(os.Remove(filepath.Join(tmpdir, "/dev/shm")), IsNil)
+	c.Assert(os.Symlink("/run/shm", filepath.Join(tmpdir, "/dev/shm")), IsNil)
+	spec = &mount.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot)
+	c.Check(err, ErrorMatches, `shared-memory plug with "private: true" cannot be connected if ".*/dev/shm" is a symlink`)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {

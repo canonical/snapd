@@ -9,6 +9,10 @@ details: |
     objects usually enforced by snapd at the expense of limiting their
     scope to other processes within the snap's sandbox.
 
+# Ubuntu 14.04 has /dev/shm symlinked to /run/shm
+systems:
+    - -ubuntu-14.04*
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local shm-private
     tests.session -u test prepare
