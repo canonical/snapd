@@ -286,7 +286,7 @@ func (grp *Group) GetCPUSetQuota() []int {
 		}
 		parent = parent.parentGroup
 	}
-	return []int{}
+	return nil
 }
 
 // GetCorrectedCPUCount returns the maximum number of allowed CPU cores for
@@ -299,6 +299,12 @@ func (grp *Group) GetCorrectedCPUCount() int {
 	if cpuSetCount != 0 && cpuSetCount < cpuCount {
 		cpuCount = cpuSetCount
 	}
+
+	// The reason we are not checking parent groups for any core count limit is that
+	// we want the core count specifically for this group (but restricted to factors of parent group or runtime cpu count).
+	// This function is only ever called for groups without any CPULimit in the case we are
+	// applying one to a group that doesn't already have a CPU limit. And in that case we are
+	// actually want the above two restraints, hence the 'grp.CPULimit != nil' check here.
 	if grp.CPULimit != nil && grp.CPULimit.Count != 0 && grp.CPULimit.Count < cpuCount {
 		cpuCount = grp.CPULimit.Count
 	}
