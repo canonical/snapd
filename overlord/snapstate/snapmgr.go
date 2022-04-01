@@ -131,7 +131,7 @@ type SnapSetup struct {
 	// should be used.
 	EnableExposedHome bool `json:"enable-exposed-home,omitempty"`
 
-	// DisabledHomeMigration is set if ~/Snap should not be used as $HOME.
+	// DisabledExposedHome is set if ~/Snap should not be used as $HOME.
 	DisableExposedHome bool `json:"disable-exposed-home,omitempty"`
 }
 
