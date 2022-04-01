@@ -340,18 +340,29 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 		return err
 	}
 
-	bcomFiles := filepath.Join(dstDir, "dtbs/broadcom/*")
-	if output, err := exec.Command("sh", "-c",
-		"mv "+bcomFiles+" "+dstDir).CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot move RPi dtbs to %s:\n%s",
-			dstDir, output)
-	}
-	overlaysDir := filepath.Join(dstDir, "dtbs/overlays/")
+	// remove subdirs so mv does not complain about non-empty dirs
+	// if extraction happens multiple times
 	newOvDir := filepath.Join(dstDir, "overlays/")
-	if err := os.Rename(overlaysDir, newOvDir); err != nil {
-		if !os.IsExist(err) {
+	if err := os.RemoveAll(newOvDir); err != nil {
+		return err
+	}
+	// armhf and arm64 pi-kernel store dtbs in different places
+	// (dtbs/ or dtbs/broadcom/ respectively)
+	var dtbDir string
+	if _, err := os.Stat(filepath.Join(dstDir, "dtbs/broadcom")); os.IsNotExist(err) {
+		dtbDir = "dtbs"
+	} else {
+		dtbDir = "dtbs/broadcom"
+		overlaysDir := filepath.Join(dstDir, "dtbs/overlays/")
+		if err := os.Rename(overlaysDir, newOvDir); err != nil {
 			return err
 		}
+	}
+	dtbFiles := filepath.Join(dstDir, dtbDir, "*")
+	if output, err := exec.Command("sh", "-c",
+		"mv "+dtbFiles+" "+dstDir).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot move RPi dtbs to %s:\n%s",
+			dstDir, output)
 	}
 
 	// README file is needed so os_prefix is honored for overlays. See

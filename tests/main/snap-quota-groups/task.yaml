@@ -128,8 +128,8 @@ execute: |
 
   echo "But the service is not running after a short amount of time"
   retry --wait 1 -n 100 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"'
-  # check for the service to have ExecMainStatus=9 (or =203) here since that is 
-  # indicative of the service being killed by systemd ungracefully or being 
+  # check for the service to have ExecMainStatus=9 (or either of =203,219) here since 
+  # that is indicative of the service being killed by systemd ungracefully or being 
   # unable to start up properly which is what we are expecting with the low 
   # memory limit for the quota group.
   # run the check in a loop, because technically what is happening now is that 
@@ -139,7 +139,7 @@ execute: |
   # very quickly transitioning through the various states and we are racing with
   # systemd as we check the status, so doing it in a loop ensures that if the 
   # system is working we won't fail the test simply because systemd won the race
-  retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|9)"'
+  retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|219|9)"'
 
   echo "And after removing the quota group, services will not automatically restart as they were inactive"
   function service_start_time {
