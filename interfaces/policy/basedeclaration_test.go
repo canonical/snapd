@@ -731,6 +731,24 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"shared-memory\" slot rule of interface \"shared-memory\"")
 
+	// The core and snapd snaps may provide a shared-memory slot
+	ic = s.installSlotCand(c, "shared-memory", snap.TypeOS, `name: core
+version: 0
+type: os
+slots:
+  shared-memory:
+`)
+	ic.SnapDeclaration = s.mockSnapDecl(c, "core", "99T7MUlRhtI3U0QFgl5mXXESAiSwt776", "canonical", "")
+	c.Assert(ic.Check(), IsNil)
+
+	ic = s.installSlotCand(c, "shared-memory", snap.TypeSnapd, `name: snapd
+version: 0
+type: snapd
+slots:
+  shared-memory:
+`)
+	ic.SnapDeclaration = s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
+	c.Assert(ic.Check(), IsNil)
 }
 
 func (s *baseDeclSuite) TestPlugInstallation(c *C) {
