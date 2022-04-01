@@ -111,8 +111,8 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}
 	// TODO: resolve content paths from gadget here
 
-	// XXX: the only situation where auto-detect is not desired is
-	//      in (spread) testing - consider to remove forcing a device
+	// the only situation where auto-detect is not desired is in (spread)
+	// testing - consider to remove forcing a device
 	//
 	// auto-detect device if no device is forced
 	if bootDevice == "" {
@@ -312,8 +312,8 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// TODO: resolve content paths from gadget here
 
-	// XXX: the only situation where auto-detect is not desired is
-	//      in (spread) testing - consider to remove forcing a device
+	// the only situation where auto-detect is not desired is in (spread)
+	// testing - consider to remove forcing a device
 	//
 	// auto-detect device if no device is forced
 	if bootDevice == "" {
