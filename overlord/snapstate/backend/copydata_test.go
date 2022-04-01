@@ -1055,13 +1055,19 @@ func (s *copydataSuite) TestInitAlreadyExistsDir(c *C) {
 
 	snapName := "some-snap"
 
-	// ~/Snap/some-snap already exists but is file
+	// ~/Snap/some-snap has already been initialized
 	newHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
 	c.Assert(os.MkdirAll(newHome, 0700), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(newHome, "file"), nil, 0600), IsNil)
 
 	rev, err := snap.ParseRevision("2")
 	c.Assert(err, IsNil)
+
+	// there's a new file in the revisioned dir
+	dataDir := snap.UserDataDir(usr.HomeDir, snapName, rev, &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	c.Assert(os.MkdirAll(dataDir, 0700), IsNil)
+	newRevFile := filepath.Join(dataDir, "new-file")
+	c.Assert(ioutil.WriteFile(newRevFile, nil, 0600), IsNil)
 
 	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
 
@@ -1072,8 +1078,9 @@ func (s *copydataSuite) TestInitAlreadyExistsDir(c *C) {
 
 	files, err := ioutil.ReadDir(newHome)
 	c.Assert(err, IsNil)
+	// the ~/Snap sub dir was re-initialized
 	c.Check(files, HasLen, 1)
-	c.Check(files[0].Name(), Equals, "file")
+	c.Check(files[0].Name(), Equals, "new-file")
 }
 
 func (s *copydataSuite) TestRemoveExposedHome(c *C) {
