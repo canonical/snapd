@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package signtool_test
 
 import (
 	"os"
@@ -25,7 +25,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,7 +34,7 @@ type keymgrSuite struct{}
 var _ = check.Suite(&keymgrSuite{})
 
 func (keymgrSuite) TestGPGKeypairManager(c *check.C) {
-	keypairMgr, err := snap.GetKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	c.Check(err, check.IsNil)
 	c.Check(keypairMgr, check.FitsTypeOf, &asserts.GPGKeypairManager{})
 }
@@ -60,7 +60,7 @@ func (keymgrSuite) TestExternalKeypairManager(c *check.C) {
 	pgm, restore := mockNopExtKeyMgr(c)
 	defer restore()
 
-	keypairMgr, err := snap.GetKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	c.Check(err, check.IsNil)
 	c.Check(keypairMgr, check.FitsTypeOf, &asserts.ExternalKeypairManager{})
 	c.Check(pgm.Calls(), check.HasLen, 1)
@@ -75,7 +75,7 @@ exit 1
 `)
 	defer pgm.Restore()
 
-	_, err := snap.GetKeypairManager()
+	_, err := signtool.GetKeypairManager()
 	c.Check(err, check.ErrorMatches, `cannot setup external keypair manager: external keypair manager "keymgr" \[features\] failed: exit status 1.*`)
 }
 
@@ -83,9 +83,9 @@ func (keymgrSuite) TestExternalKeypairManagerGenerateKey(c *check.C) {
 	_, restore := mockNopExtKeyMgr(c)
 	defer restore()
 
-	keypairMgr, err := snap.GetKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	c.Check(err, check.IsNil)
 
-	err = snap.GenerateKey(keypairMgr, "key")
+	err = signtool.GenerateKey(keypairMgr, "key")
 	c.Check(err, check.ErrorMatches, `cannot generate external keypair manager key via snap command, use the appropriate external procedure to create a 4096-bit RSA key under the name/label "key"`)
 }

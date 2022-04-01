@@ -44,7 +44,7 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 	// If the D-Bus service is not already running, assume it is
 	// not available.
 	// Use owner to verify that the return values of the method call have the
-	// types we expect, which is generally a good sanity check.
+	// types we expect, which is generally a good validity check.
 	var owner string
 	if err := conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, gtkBusName).Store(&owner); err != nil {
 		return nil, err

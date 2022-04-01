@@ -536,6 +536,10 @@ func wantsSystemSeed(m Model) bool {
 	return m != nil && m.Grade() != asserts.ModelGradeUnset
 }
 
+func compatWithPibootOrIndeterminate(m Model) bool {
+	return m == nil || m.Grade() != asserts.ModelGradeUnset
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -594,8 +598,13 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			// pass
 		case "grub", "u-boot", "android-boot", "lk":
 			bootloadersFound += 1
+		case "piboot":
+			if !compatWithPibootOrIndeterminate(model) {
+				return nil, errors.New("piboot bootloader valid only for UC20 onwards")
+			}
+			bootloadersFound += 1
 		default:
-			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot or lk")
+			return nil, errors.New("bootloader must be one of grub, u-boot, android-boot, piboot or lk")
 		}
 	}
 	switch {

@@ -251,7 +251,7 @@ func (s *isConnectedSuite) TestIsConnectedFromApp(c *C) {
 	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
 	c.Check(err, IsNil)
 
-	// sanity
+	// validity
 	c.Assert(mockContext.IsEphemeral(), Equals, true)
 
 	s.testIsConnected(c, mockContext)

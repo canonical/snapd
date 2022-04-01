@@ -19,6 +19,34 @@
 
 package quota
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
+type GroupQuotaAllocations = groupQuotaAllocations
+
 func (grp *Group) SetInternalSubGroups(grps []*Group) {
 	grp.subGroups = grps
+}
+
+func (grp *Group) InspectInternalQuotaAllocations() map[string]*GroupQuotaAllocations {
+	allQuotas := make(map[string]*GroupQuotaAllocations)
+	grp.getQuotaAllocations(allQuotas)
+	return allQuotas
+}
+
+func ResourcesClone(r *Resources) Resources {
+	return r.clone()
+}
+
+func MockCgroupVer(mockVer int) (restore func()) {
+	r := testutil.Backup(&cgroupVer)
+	cgroupVer = mockVer
+	return r
+}
+
+func MockCgroupVerErr(mockErr error) (restore func()) {
+	r := testutil.Backup(&cgroupVerErr)
+	cgroupVerErr = mockErr
+	return r
 }

@@ -2254,10 +2254,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(recoveryKernelBf))),
+						secboot.NewLoadChain(runKernelBf))),
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(runKernelBf))),
+						secboot.NewLoadChain(recoveryKernelBf))),
 			})
 		case 2:
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
@@ -2419,7 +2419,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		}},
 		Kernel:         "pc-kernel-recovery",
 		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+		KernelCmdlines: []string{
+			"snapd_recovery_mode=factory-reset snapd_recovery_system=system",
+			"snapd_recovery_mode=recover snapd_recovery_system=system",
+		},
 	}}
 
 	recoveryBootChains := []boot.BootChain{bootChains[1]}
@@ -2579,7 +2582,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		}},
 		Kernel:         "pc-kernel-recovery",
 		KernelRevision: "1",
-		KernelCmdlines: []string{"snapd_recovery_mode=recover snapd_recovery_system=system"},
+		KernelCmdlines: []string{
+			"snapd_recovery_mode=factory-reset snapd_recovery_system=system",
+			"snapd_recovery_mode=recover snapd_recovery_system=system",
+		},
 	}}
 
 	recoveryBootChains := []boot.BootChain{bootChains[1]}
