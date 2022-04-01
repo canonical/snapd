@@ -65,6 +65,7 @@ Architecture: any
 Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
+         fuse3 (>= 3.10.5-1) | fuse,
          openssh-client,
          squashfs-tools,
          systemd,
