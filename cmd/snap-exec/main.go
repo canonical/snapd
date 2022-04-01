@@ -199,10 +199,13 @@ func execApp(snapApp, revision, command string, args []string) error {
 	// variables to plugging snap apps, but this is a lot simpler as a
 	// work-around
 	// we currently only handle the CUPS_SERVER environment variable, setting it
-	// to /var/cups/ if that directory exists - it should not exist anywhere
+	// to /var/cups/ if that dir is a bind-mount - it should not be one
 	// except in a strictly confined snap where we setup the bind mount from the
-	// source cups slot snap to the plugging snap
-	if exists, _, _ := osutil.DirExists(dirs.GlobalRootDir + "/var/cups"); exists {
+	// source cups slot snap to the plugging snap.
+	var stVar, stVarCups syscall.Stat_t
+	syscall.Stat(dirs.GlobalRootDir+"/var/", &stVar)
+	syscall.Stat(dirs.GlobalRootDir+"/var/cups/", &stVarCups)
+	if stVar.Dev != stVarCups.Dev {
 		env["CUPS_SERVER"] = "/var/cups/cups.sock"
 	}
 
