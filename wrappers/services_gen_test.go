@@ -896,7 +896,7 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 }
 
 func (s *servicesWrapperGenSuite) TestKillModeSig(c *C) {
-	for _, rm := range []string{"sigterm", "sighup", "sigusr1", "sigusr2"} {
+	for _, rm := range []string{"sigterm", "sighup", "sigusr1", "sigusr2", "sigint"} {
 		service := &snap.AppInfo{
 			Snap: &snap.Info{
 				SuggestedName: "snap",

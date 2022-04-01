@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package signtool
 
 import (
 	"errors"
@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
+// KeypairManager is an interface for common methods of ExternalKeypairManager
+// and GPGPKeypairManager.
 type KeypairManager interface {
 	asserts.KeypairManager
 
@@ -39,7 +41,9 @@ type KeypairManager interface {
 	DeleteByName(keyName string) error
 }
 
-func getKeypairManager() (KeypairManager, error) {
+// GetKeypairManager returns a KeypairManager - either the standrd gpg-based
+// or external one if set via SNAPD_EXT_KEYMGR environment variable.
+func GetKeypairManager() (KeypairManager, error) {
 	keymgrPath := os.Getenv("SNAPD_EXT_KEYMGR")
 	if keymgrPath != "" {
 		keypairMgr, err := asserts.NewExternalKeypairManager(keymgrPath)
@@ -60,7 +64,8 @@ type ownSecuringKeyGen interface {
 	Generate(keyName string) error
 }
 
-func generateKey(keypairMgr KeypairManager, keyName string) error {
+// GenerateKey generates a private RSA key using the provided keypairMgr.
+func GenerateKey(keypairMgr KeypairManager, keyName string) error {
 	switch keyGen := keypairMgr.(type) {
 	case takingPassKeyGen:
 		return takePassGenKey(keyGen, keyName)

@@ -183,18 +183,38 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			}
 			logger.Noticef("encrypting partition device %v", part.Node)
 			var dataPart encryptedDevice
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				dataPart, err = newEncryptedDeviceLUKS(&part, keys.Key, part.Label)
-			})
-			if err != nil {
-				return nil, err
-			}
+			switch options.EncryptionType {
+			case secboot.EncryptionTypeLUKS:
+				timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+					dataPart, err = newEncryptedDeviceLUKS(&part, keys.Key, part.Label)
+				})
+				if err != nil {
+					return nil, err
+				}
 
-			timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey)
-			})
-			if err != nil {
-				return nil, err
+				timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+					err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey)
+				})
+				if err != nil {
+					return nil, err
+				}
+
+				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
+					Method: gadget.EncryptionLUKS,
+				}
+			case secboot.EncryptionTypeDeviceSetupHook:
+				timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s using device-setup-hook", roleOrLabelOrName(part)), func(timings.Measurer) {
+					dataPart, err = createEncryptedDeviceWithSetupHook(&part, keys.Key, part.Name)
+				})
+				if err != nil {
+					return nil, err
+				}
+				// Note that inline-crypt-hw does not
+				// support recovery keys currently
+
+				partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
+					Method: gadget.EncryptionICE,
+				}
 			}
 
 			// update the encrypted device node
@@ -204,12 +224,6 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			}
 			keysForRoles[part.Role] = keys
 			logger.Noticef("encrypted device %v", part.Node)
-
-			// TODO: how to determine if this will be a LUKS or an ICE encrypted
-			// partition?
-			partsEncrypted[part.Name] = gadget.StructureEncryptionParameters{
-				Method: gadget.EncryptionLUKS,
-			}
 		}
 
 		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
