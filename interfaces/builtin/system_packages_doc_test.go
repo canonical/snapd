@@ -117,9 +117,9 @@ func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
 	c.Check(entries[1].Name, Equals, "/var/lib/snapd/hostfs/usr/share/libreoffice/help")
 	c.Check(entries[1].Dir, Equals, "/usr/share/libreoffice/help")
 	c.Check(entries[1].Options, DeepEquals, []string{"bind", "ro"})
-	c.Check(entries[0].Name, Equals, "/var/lib/snapd/hostfs/usr/share/xubuntu-docs")
-	c.Check(entries[0].Dir, Equals, "/usr/share/xubuntu-docs")
-	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
+	c.Check(entries[2].Name, Equals, "/var/lib/snapd/hostfs/usr/share/xubuntu-docs")
+	c.Check(entries[2].Dir, Equals, "/usr/share/xubuntu-docs")
+	c.Check(entries[2].Options, DeepEquals, []string{"bind", "ro"})
 
 	entries = spec.UserMountEntries()
 	c.Assert(entries, HasLen, 0)
