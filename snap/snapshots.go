@@ -61,7 +61,7 @@ func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap
 // container.
 func ReadSnapshotYamlFromSnapFile(snapf Container) (*SnapshotOptions, error) {
-	sy, err := snapf.ReadFile("meta/snapshot.yaml")
+	sy, err := snapf.ReadFile("meta/snapshots.yaml")
 	if os.IsNotExist(err) {
 		return &SnapshotOptions{}, nil
 	}

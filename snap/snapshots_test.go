@@ -72,7 +72,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileFails(c *C) {
 		readFileError: errors.New("cannot do stuff"),
 	}
 	opts, err := snap.ReadSnapshotYamlFromSnapFile(container)
-	c.Check(container.readFileInput, Equals, "meta/snapshot.yaml")
+	c.Check(container.readFileInput, Equals, "meta/snapshots.yaml")
 	c.Check(opts, IsNil)
 	c.Check(err, ErrorMatches, "cannot do stuff")
 }
@@ -82,7 +82,7 @@ func (s *snapshotSuite) TestReadSnapshotYamlFromSnapFileHappy(c *C) {
 		readFileOutput: []byte("exclude:\n  - $SNAP_DATA/dir"),
 	}
 	opts, err := snap.ReadSnapshotYamlFromSnapFile(container)
-	c.Check(container.readFileInput, Equals, "meta/snapshot.yaml")
+	c.Check(container.readFileInput, Equals, "meta/snapshots.yaml")
 	c.Check(err, IsNil)
 	c.Check(opts, DeepEquals, &snap.SnapshotOptions{
 		ExcludePaths: []string{"$SNAP_DATA/dir"},
