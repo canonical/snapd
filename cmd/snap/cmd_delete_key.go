@@ -25,6 +25,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -58,7 +59,7 @@ func (x *cmdDeleteKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	keypairMgr, err := getKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	if err != nil {
 		return err
 	}

@@ -540,6 +540,12 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 // and stores the resulting preseed preseed.tgz file in system-seed/systems/<systemlabel>/preseed.tgz.
 // Expects single systemlabel under systems directory.
 func Core20(prepareImageDir string) error {
+	var err error
+	prepareImageDir, err = filepath.Abs(prepareImageDir)
+	if err != nil {
+		return err
+	}
+
 	popts, cleanup, err := prepareCore20Chroot(prepareImageDir)
 	if err != nil {
 		return err
@@ -550,6 +556,12 @@ func Core20(prepareImageDir string) error {
 
 // Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
 func Classic(chrootDir string) error {
+	var err error
+	chrootDir, err = filepath.Abs(chrootDir)
+	if err != nil {
+		return err
+	}
+
 	if err := checkChroot(chrootDir); err != nil {
 		return err
 	}

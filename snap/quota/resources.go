@@ -23,7 +23,17 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
+
+var (
+	cgroupVer    int
+	cgroupVerErr error
+)
+
+func init() {
+	cgroupVer, cgroupVerErr = cgroup.Version()
+}
 
 type ResourceMemory struct {
 	Limit quantity.Size `json:"limit"`
@@ -85,6 +95,7 @@ func (qr *Resources) validateCPUSetQuota() error {
 	if len(qr.CPUSet.CPUs) == 0 {
 		return fmt.Errorf("cpu-set quota must not be empty")
 	}
+
 	return nil
 }
 
@@ -96,12 +107,32 @@ func (qr *Resources) validateThreadQuota() error {
 	return nil
 }
 
+// CheckFeatureRequirements checks if the current system meets the
+// requirements for the given resource request.
+//
+// E.g. a CPUSet only only be set set on systems with cgroup v2.
+func (qr *Resources) CheckFeatureRequirements() error {
+	if qr.CPUSet != nil {
+		if cgroupVerErr != nil {
+			return cgroupVerErr
+		}
+		if cgroupVer < 2 {
+			return fmt.Errorf("cannot use CPU set with cgroup version %d", cgroupVer)
+		}
+	}
+
+	return nil
+}
+
 // Validate performs validation of the provided quota resources for a group.
 // The restrictions imposed are that at least one limit should be set.
 // If memory limit is provided, it must be above 4KB.
 // If cpu percentage is provided, it must be between 1 and 100.
 // If cpu set is provided, it must not be empty.
 // If thread count is provided, it must be above 0.
+//
+// Note that before applying the quota to the system
+// CheckFeatureRequirements() should be called.
 func (qr *Resources) Validate() error {
 	if qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil {
 		return fmt.Errorf("quota group must have at least one resource limit set")

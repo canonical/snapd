@@ -34,6 +34,12 @@ import (
 // ResetPreseededChroot removes all preseeding artifacts from preseedChroot
 // (classic Ubuntu only).
 func ResetPreseededChroot(preseedChroot string) error {
+	var err error
+	preseedChroot, err = filepath.Abs(preseedChroot)
+	if err != nil {
+		return err
+	}
+
 	exists, isDir, err := osutil.DirExists(preseedChroot)
 	if err != nil {
 		return fmt.Errorf("cannot reset %q: %v", preseedChroot, err)

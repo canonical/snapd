@@ -103,7 +103,7 @@ func benchmarkCSRE(b *testing.B, data string) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		snapdtool.CoreSupportsReExec(tempdir)
+		snapdtool.SystemSnapSupportsReExec(tempdir)
 	}
 }
 
@@ -113,6 +113,6 @@ func BenchmarkCSRE_fakeHuge(b *testing.B) { benchmarkCSRE(b, dataHuge) }
 
 func BenchmarkCSRE_real(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		snapdtool.CoreSupportsReExec("/snap/core/current")
+		snapdtool.SystemSnapSupportsReExec("/snap/core/current")
 	}
 }
