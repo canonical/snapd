@@ -1389,7 +1389,7 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Tasks(), HasLen, 6)
 
-	// sanity checks
+	// validity checks
 	t := chg.Tasks()[1]
 	c.Assert(t.Kind(), Equals, "link-snap")
 	t = chg.Tasks()[3]

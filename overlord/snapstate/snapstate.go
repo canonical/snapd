@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -689,6 +690,10 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	if snapdenv.Preseeding() {
+		// nothing to do when preseeding
+		return nil
+	}
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -710,7 +715,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			}
 			// TODO: if future changes to wrappers need one more snapd restart,
 			// then it should be handled here as well.
-			if err := generateSnapdWrappers(snapdInfo); err != nil {
+			if err := generateSnapdWrappers(snapdInfo, nil); err != nil {
 				return err
 			}
 		}
@@ -1636,9 +1641,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		kernelTs.WaitAll(gadgetTs)
 	}
 
-	if deviceCtx.Model().Base() != "" {
+	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
 		// reordering of kernel and base tasks is supported only on
 		// UC18+ devices
+		// this can only be done safely when the gadget is not a part of
+		// the same update, otherwise there will be a circular
+		// dependency, where gadget waits for base, kernel waits for
+		// gadget, but base waits for some of the kernel tasks
 		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
 			return nil, nil, err
 		}
@@ -3587,4 +3596,18 @@ func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.Validation
 	return func() {
 		EnforcedValidationSets = old
 	}
+}
+
+// only useful for procuring a buggy behavior in the tests
+var enforcedSingleRebootForGadgetKernelBase = false
+
+func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := enforcedSingleRebootForGadgetKernelBase
+	enforcedSingleRebootForGadgetKernelBase = val
+	return func() {
+		enforcedSingleRebootForGadgetKernelBase = old
+	}
+
 }

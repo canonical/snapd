@@ -20,6 +20,7 @@
 package disks_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -1532,7 +1533,14 @@ func (s *diskSuite) TestDiskSizeRelatedMethodsGPT(c *C) {
 	})
 	defer restore()
 
+	restoreCalculateLBA := disks.MockCalculateLastUsableLBA(42, nil)
+	defer restoreCalculateLBA()
+
 	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.37.2'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1551,7 +1559,7 @@ echo '{
 	c.Assert(err, IsNil)
 	c.Assert(endSectors, Equals, uint64(43))
 	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
-		{"sfdisk", "--json", "/dev/sda"},
+		{"sfdisk", "--version"},
 	})
 	sfdiskCmd.ForgetCalls()
 
@@ -1587,6 +1595,53 @@ fi
 	c.Assert(sfdiskCmd.Calls(), HasLen, 0)
 }
 
+func (s *diskSuite) TestDiskSizeRelatedMethodsGPTFallback(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":              "1",
+			"MINOR":              "2",
+			"DEVTYPE":            "disk",
+			"DEVNAME":            "/dev/sda",
+			"ID_PART_TABLE_UUID": "foo",
+			"ID_PART_TABLE_TYPE": "gpt",
+			"DEVPATH":            "/devices/foo/sda",
+		}, nil
+	})
+	defer restore()
+
+	restoreCalculateLBA := disks.MockCalculateLastUsableLBA(0, errors.New("Some error"))
+	defer restoreCalculateLBA()
+
+	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
+echo '{
+	"partitiontable": {
+		"unit": "sectors",
+		"lastlba": 42
+	}
+}'
+`)
+	defer sfdiskCmd.Restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	c.Assert(d.Schema(), Equals, "gpt")
+	c.Assert(d.KernelDeviceNode(), Equals, "/dev/sda")
+
+	endSectors, err := d.UsableSectorsEnd()
+	c.Assert(err, IsNil)
+	c.Assert(endSectors, Equals, uint64(43))
+	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--version"},
+		{"sfdisk", "--json", "/dev/sda"},
+	})
+}
+
 func (s *diskSuite) TestDiskUsableSectorsEndGPTUnexpectedSfdiskUnit(c *C) {
 	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
 		c.Assert(typeOpt, Equals, "--name")
@@ -1604,6 +1659,10 @@ func (s *diskSuite) TestDiskUsableSectorsEndGPTUnexpectedSfdiskUnit(c *C) {
 	defer restore()
 
 	cmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "not-sectors",
@@ -1622,6 +1681,7 @@ echo '{
 	c.Assert(err, ErrorMatches, "cannot get size in sectors, sfdisk reported unknown unit not-sectors")
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--version"},
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 }
@@ -1643,6 +1703,10 @@ func (s *diskSuite) TestDiskSizeRelatedMethodsGPTSectorSize4K(c *C) {
 	defer restore()
 
 	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "sectors",
@@ -1661,6 +1725,7 @@ echo '{
 	c.Assert(err, IsNil)
 	c.Assert(endSectors, Equals, uint64(43))
 	c.Assert(sfdiskCmd.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--version"},
 		{"sfdisk", "--json", "/dev/sda"},
 	})
 
@@ -1718,6 +1783,10 @@ func (s *diskSuite) TestDiskSizeRelatedMethodsGPTNon512MultipleSectorSizeError(c
 	defer restore()
 
 	sfdiskCmd := testutil.MockCommand(c, "sfdisk", `
+if [ "$1" = --version ]; then
+	echo 'sfdisk from util-linux 2.34.1'
+	exit 0
+fi
 echo '{
 	"partitiontable": {
 		"unit": "sectors",

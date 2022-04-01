@@ -29,6 +29,7 @@ import (
 	_ "golang.org/x/crypto/sha3"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -84,7 +85,7 @@ func (x *cmdSignBuild) Execute(args []string) error {
 		return err
 	}
 
-	keypairMgr, err := getKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	if err != nil {
 		return err
 	}
