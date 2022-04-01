@@ -279,12 +279,8 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 				return fmt.Errorf("cannot initialize new user HOME %q: already exists but is not a directory", newUserHome)
 			}
 
-			// we reverted from a core22 base before, so the new HOME already exists.
-			// Since we only call init from a refresh, we want to re-initialize it with
-			// the up-to-date revisioned directory
-			if err := os.RemoveAll(newUserHome); err != nil {
-				return err
-			}
+			// we reverted from a core22 base before, so the new HOME already exists
+			continue
 		}
 
 		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
