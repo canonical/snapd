@@ -382,7 +382,10 @@ MemoryAccounting=true
 # threads, etc for a slice
 TasksAccounting=true
 `
-
+	// The reason we are not mocking the cpu count here is because we are relying
+	// on the real code to produce the slice file content, and it will always use
+	// the current number of cores, so we also use the current number of cores of
+	// the test runner here.
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name,
 		runtime.NumCPU()*resourceLimits.CPU.Percentage)
 
@@ -470,8 +473,8 @@ X-Snappy=yes
 [Slice]
 # Always enable cpu accounting, so the following cpu quota options have an effect
 CPUAccounting=true
-CPUQuota=%[2]d%%
-AllowedCPUs=%[3]s
+CPUQuota=50%%
+AllowedCPUs=0
 
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
@@ -480,10 +483,7 @@ MemoryAccounting=true
 TasksAccounting=true
 `
 
-	allowedCpusValue := strutil.IntsToCommaSeparated(resourceLimits.CPUSet.CPUs)
-	sliceContent := fmt.Sprintf(sliceTempl, grp.Name,
-		resourceLimits.CPU.Percentage,
-		allowedCpusValue)
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
 		{
