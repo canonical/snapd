@@ -2445,7 +2445,21 @@ func (s *snapmgrTestSuite) TestRevertToCore22WithoutFlagSet(c *C) {
 	assertMigrationState(c, s.state, "some-snap", &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true})
 }
 
-func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedMigration(c *C) {
+func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedHomeMigration(c *C) {
+	// test reverting back to a core22 revision after reverting from it partially
+	// (the HOME migration was disabled but the hidden one remained)
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: false}
+	s.testRevertToCore22AfterRevertedMigration(c, opts)
+}
+
+func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedFullMigration(c *C) {
+	// test reverting back to a core22 revision after reverting from it fully (after
+	// the first revert, both the hidden and HOME migration were reverted or disabled)
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: false, MigratedToExposedHome: false}
+	s.testRevertToCore22AfterRevertedMigration(c, opts)
+}
+
+func (s *snapmgrTestSuite) testRevertToCore22AfterRevertedMigration(c *C, migrationState *dirs.SnapDirOptions) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2471,16 +2485,16 @@ func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedMigration(c *C) {
 			}, nil
 		}
 		panic("unknown sideinfo")
-
 	})
 	defer restore()
 
 	snapst := &snapstate.SnapState{
-		Active:         true,
-		SnapType:       "app",
-		Sequence:       []*snap.SideInfo{&si1, &si2},
-		Current:        si1.Revision,
-		MigratedHidden: true,
+		Active:                true,
+		SnapType:              "app",
+		Sequence:              []*snap.SideInfo{&si1, &si2},
+		Current:               si1.Revision,
+		MigratedHidden:        migrationState.HiddenSnapDataDir,
+		MigratedToExposedHome: migrationState.MigratedToExposedHome,
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
 	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
@@ -2509,7 +2523,21 @@ func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedMigration(c *C) {
 	c.Check(snapst.Current, Equals, si2.Revision)
 }
 
-func (s *snapmgrTestSuite) TestUndoRevertToCore22AfterRevertedMigration(c *C) {
+func (s *snapmgrTestSuite) TestUndoRevertToCore22AfterRevertedHomeMigration(c *C) {
+	// test reverting back to a core22 revision after reverting from it partially
+	// (the HOME migration was disabled but the hidden one remained)
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: false}
+	s.testUndoRevertToCore22AfterRevertedMigration(c, opts)
+}
+
+func (s *snapmgrTestSuite) TestUndoRevertToCore22AfterRevertedFullMigration(c *C) {
+	// test reverting back to a core22 revision after reverting from it partially
+	// (the HOME migration was disabled but the hidden one remained)
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: false, MigratedToExposedHome: false}
+	s.testUndoRevertToCore22AfterRevertedMigration(c, opts)
+}
+
+func (s *snapmgrTestSuite) testUndoRevertToCore22AfterRevertedMigration(c *C, migrationState *dirs.SnapDirOptions) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2540,11 +2568,12 @@ func (s *snapmgrTestSuite) TestUndoRevertToCore22AfterRevertedMigration(c *C) {
 	defer restore()
 
 	snapst := &snapstate.SnapState{
-		Active:         true,
-		SnapType:       "app",
-		Sequence:       []*snap.SideInfo{&si1, &si2},
-		Current:        si1.Revision,
-		MigratedHidden: true,
+		Active:                true,
+		SnapType:              "app",
+		Sequence:              []*snap.SideInfo{&si1, &si2},
+		Current:               si1.Revision,
+		MigratedHidden:        migrationState.HiddenSnapDataDir,
+		MigratedToExposedHome: migrationState.MigratedToExposedHome,
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
 	c.Assert(snapstate.WriteSeqFile("some-snap", snapst), IsNil)
@@ -2568,7 +2597,7 @@ func (s *snapmgrTestSuite) TestUndoRevertToCore22AfterRevertedMigration(c *C) {
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 
-	assertMigrationState(c, s.state, "some-snap", &dirs.SnapDirOptions{HiddenSnapDataDir: true})
+	assertMigrationState(c, s.state, "some-snap", migrationState)
 
 	snapst = &snapstate.SnapState{}
 	c.Assert(snapstate.Get(s.state, "some-snap", snapst), IsNil)
