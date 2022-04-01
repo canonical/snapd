@@ -127,7 +127,7 @@ type Seed interface {
 	ModeSnaps(mode string) ([]*Snap, error)
 
 	// NumSnaps returns the total number of snaps for which
-	// LoadeMeta loaded their metadata.
+	// LoadMeta loaded their metadata.
 	NumSnaps() int
 
 	// Iter provides a way to iterately perform a function on

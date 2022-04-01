@@ -415,7 +415,7 @@ func (s *seed20) LoadMeta(mode string, tm timings.Measurer) error {
 	}
 
 	if s.mode != AllModes && s.mode != "run" {
-		// extra snaps are only fo run mode
+		// extra snaps are only for run mode
 		return nil
 	}
 	// extra snaps
@@ -526,15 +526,20 @@ func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool
 	return nil
 }
 
-func modesInclude(modes []string, mode string) bool {
-	if strutil.ListContains(modes, mode) {
+func snapModesInclude(snapModes []string, mode string) bool {
+	// mode is explicitly included in the snap modes
+	if strutil.ListContains(snapModes, mode) {
 		return true
 	}
 	if mode == "run" {
-		// not ephemeral
+		// run is not an ephemeral mode (as all the others)
+		// and it is not explicitly included in the snap modes
 		return false
 	}
-	return strutil.ListContains(modes, "ephemeral")
+	// mode is one of the ephemeral modes but was not included
+	// explicitly in the snap modes, now check if the cover-all
+	// "ephemeral" alias is included in the snap modes instead
+	return strutil.ListContains(snapModes, "ephemeral")
 }
 
 func (s *seed20) loadModelRestMeta(tm timings.Measurer) error {
@@ -543,7 +548,7 @@ func (s *seed20) loadModelRestMeta(tm timings.Measurer) error {
 	var filterMode func(*asserts.ModelSnap) bool
 	if s.mode != AllModes {
 		filterMode = func(modelSnap *asserts.ModelSnap) bool {
-			return modesInclude(modelSnap.Modes, s.mode)
+			return snapModesInclude(modelSnap.Modes, s.mode)
 		}
 	}
 
@@ -582,12 +587,9 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 	}
 	res := make([]*Snap, 0, nGuess)
 	for i, snap := range snaps {
-		if !strutil.ListContains(modes[i], mode) {
-			if !ephemeral || !strutil.ListContains(modes[i], "ephemeral") {
-				continue
-			}
+		if snapModesInclude(modes[i], mode) {
+			res = append(res, snap)
 		}
-		res = append(res, snap)
 	}
 	return res, nil
 }

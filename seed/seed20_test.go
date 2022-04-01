@@ -2147,7 +2147,7 @@ func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnaps(c *C) {
 
 	err = seed20.LoadMeta("run", s.perfTimings)
 	c.Assert(err, IsNil)
-	// only recover mode snaps
+	// only run mode snaps
 	c.Check(seed20.NumSnaps(), Equals, 5)
 
 	runSnaps, err := seed20.ModeSnaps("run")
