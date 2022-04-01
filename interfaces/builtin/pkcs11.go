@@ -71,22 +71,22 @@ accept4
 func (iface *pkcs11Interface) getSocketPath(slot *snap.SlotInfo) (string, error) {
 	socketAttr, isSet := slot.Attrs["pkcs11-socket"]
 	if !isSet {
-		return "", fmt.Errorf(`cannot use pkcs11 slot %s without "pkcs11-socket" attribute`, slot.Name)
+		return "", fmt.Errorf(`cannot use pkcs11 slot without "pkcs11-socket" attribute`)
 	}
 
 	socketPath, ok := socketAttr.(string)
 	if !ok {
-		return "", fmt.Errorf(`pkcs11: "pkcs11-socket" attribute must be a string, not %v`,
-			slot.Attrs["pkcs11-socket"])
+		return "", fmt.Errorf(`pkcs11 slot "pkcs11-socket" attribute must be a string, not %v`,
+			socketAttr)
 	}
 
 	if ok := cleanSubPath(socketPath); !ok {
-		return "", fmt.Errorf("slot %q, a unix socket path is not clean", slot.Name)
+		return "", fmt.Errorf("pkcs11 unix socket path is not clean: %q", socketPath)
 	}
 
 	// separate socket name and check socket is in /run/p11-kit
 	if filepath.Dir(socketPath) != "/run/p11-kit" {
-		return "", fmt.Errorf("slot %q, a unix socket has to be in /run/p11-kit directory", slot.Name)
+		return "", fmt.Errorf("pkcs11 unix socket has to be in the /run/p11-kit directory: %q", socketPath)
 	}
 
 	return socketPath, nil
@@ -99,7 +99,7 @@ func (iface *pkcs11Interface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	}
 
 	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(socketPath); err != nil {
-		return fmt.Errorf("pkcs11 interface socket path is invalid: %v", err)
+		return fmt.Errorf("pkcs11 unix socket path is invalid: %v", err)
 	}
 	return err
 }
@@ -112,9 +112,10 @@ func (iface *pkcs11Interface) SecCompPermanentSlot(spec *seccomp.Specification, 
 func (iface *pkcs11Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var socketPath string
 	if err := slot.Attr("pkcs11-socket", &socketPath); err != nil || socketPath == "" {
-		return fmt.Errorf("slot %q must have a unix socket 'pkcs11-socket' attribute", slot.Ref())
+		return fmt.Errorf(`internal error: pkcs11 slot %q must have a unix socket "pkcs11-socket" attribute`, slot.Ref())
 	}
 
+	// The validation from BeforePrepareSlot() ensures that the socket path starts with "/run/p11-kit"
 	socketRule := fmt.Sprintf(`"/{,var/}%s" rw,`, socketPath[1:])
 	// pkcs11 server unix socket
 	spec.AddSnippet(fmt.Sprintf(`# pkcs11 socket
@@ -134,6 +135,7 @@ func (iface *pkcs11Interface) AppArmorPermanentSlot(spec *apparmor.Specification
 		return err
 	}
 
+	// The validation from BeforePrepareSlot() ensures that the socket path starts with "/run/p11-kit"
 	socketRule := fmt.Sprintf(`"/{,var/}%s" rwk,`, socketPath[1:])
 	spec.AddSnippet(fmt.Sprintf(`# pkcs11 socket dir
 /{,var/}run/p11-kit/  rw,

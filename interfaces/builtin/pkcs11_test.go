@@ -221,7 +221,7 @@ func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotMissingSocketPath(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 
-	c.Assert(apparmorSpec.AddPermanentSlot(s.iface, s.testBadSlot4Info), ErrorMatches, "cannot use pkcs11 slot .* without \"pkcs11-socket\" attribute")
+	c.Assert(apparmorSpec.AddPermanentSlot(s.iface, s.testBadSlot4Info), ErrorMatches, `cannot use pkcs11 slot without "pkcs11-socket" attribute`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
@@ -270,7 +270,7 @@ func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 		`"/{,var/}run/p11-kit/pkcs11-optee-slot-2" rw,`)
 
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlug2, s.testBadSlot4)
-	c.Assert(err, ErrorMatches, "slot \"gadget:.*\" must have a unix socket 'pkcs11-socket' attribute")
+	c.Assert(err, ErrorMatches, `internal error: pkcs11 slot "gadget:.*" must have a unix socket "pkcs11-socket" attribute`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
@@ -284,13 +284,13 @@ func (s *Pkcs11InterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot2Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot3Info), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlot4Info), IsNil)
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot0Info), ErrorMatches, "slot \".*\", a unix socket has to be in /run/p11-kit directory")
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot1Info), ErrorMatches, "pkcs11: \"pkcs11-socket\" attribute must be a string, not 22")
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot2Info), ErrorMatches, `pkcs11 interface socket path is invalid: "/run/p11-kit/pkcs11-optee-slot-\*" contains a reserved apparmor char .*`)
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot3Info), ErrorMatches, "slot \".*\", a unix socket path is not clean")
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot4Info), ErrorMatches, "cannot use pkcs11 slot .* without \"pkcs11-socket\" attribute")
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot5Info), ErrorMatches, "slot \".*\", a unix socket has to be in /run/p11-kit directory")
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot6Info), ErrorMatches, "slot \".*\", a unix socket path is not clean")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot0Info), ErrorMatches, `pkcs11 unix socket has to be in the /run/p11-kit directory: "/run/p12.*"`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot1Info), ErrorMatches, `pkcs11 slot "pkcs11-socket" attribute must be a string, not 22`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot2Info), ErrorMatches, `pkcs11 unix socket path is invalid: "/run/p11-kit/pkcs11-optee-slot-\*" contains a reserved apparmor char .*`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot3Info), ErrorMatches, `pkcs11 unix socket path is not clean: ".*"`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot4Info), ErrorMatches, `cannot use pkcs11 slot without "pkcs11-socket" attribute`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot5Info), ErrorMatches, `pkcs11 unix socket has to be in the /run/p11-kit directory: "/run/p11-kit/p11/.*"`)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testBadSlot6Info), ErrorMatches, `pkcs11 unix socket path is not clean: "\.\./.*"`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestStaticInfo(c *C) {
