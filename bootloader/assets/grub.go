@@ -26,6 +26,7 @@ import (
 var cmdlineForArch = map[string][]ForEditions{
 	"amd64": {{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")}},
 	"arm64": {{FirstEdition: 1, Snippet: []byte("panic=-1")}},
+	"i386":  {{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")}},
 }
 
 func registerGrubSnippets() {
