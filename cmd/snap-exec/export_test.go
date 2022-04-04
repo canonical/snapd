@@ -19,6 +19,12 @@
 
 package main
 
+import (
+	"syscall"
+
+	"github.com/snapcore/snapd/testutil"
+)
+
 var (
 	ExpandEnvCmdArgs = expandEnvCmdArgs
 	FindCommand      = findCommand
@@ -57,4 +63,10 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	return func() {
 		osReadlink = realOsReadlink
 	}
+}
+
+func MockSyscallStat(f func(string, *syscall.Stat_t) (err error)) func() {
+	r := testutil.Backup(&syscallStat)
+	syscallStat = f
+	return r
 }
