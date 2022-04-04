@@ -272,6 +272,18 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 		}
 
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+		if exists, isDir, err := osutil.DirExists(newUserHome); err != nil {
+			return err
+		} else if exists {
+			if !isDir {
+				return fmt.Errorf("cannot initialize new user HOME %q: already exists but is not a directory", newUserHome)
+			}
+
+			// we reverted from a core22 base before, so the new HOME already exists
+			// TODO: return undo info about created dirs for doCopySnapData
+			continue
+		}
+
 		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
 			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
 		}

@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 
@@ -5170,4 +5171,60 @@ func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	assertMigrationState(c, s.state, "snap-for-core24", expected)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrateOnInstallWithCore22AfterLinkSnap(c *C) {
+	// we wrote the sequence file but then zeroed it out on undo
+	expectSeqFile := true
+	s.testUndoMigrateOnInstallWithCore22(c, expectSeqFile, failAfterLinkSnap)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrateOnInstallWithCore22OnExposedMigration(c *C) {
+	// we never wrote the sequence file
+	expectSeqFile := false
+	s.testUndoMigrateOnInstallWithCore22(c, expectSeqFile, func(*overlord.Overlord, *state.Change) error {
+		err := errors.New("boom")
+		s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+			if op.op == "init-exposed-snap-home" {
+				return err
+			}
+			return nil
+		}
+
+		return err
+	})
+
+}
+
+func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFile bool, prepFail prepFailFunc) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapName := "snap-core18-to-core22"
+	ts, err := snapstate.Install(context.Background(), s.state, snapName, nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install", "install a snap")
+	chg.AddAll(ts)
+
+	expectedErr := prepFail(s.o, chg)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	containsInOrder(c, s.fakeBackend.ops, []string{"hide-snap-data", "init-exposed-snap-home"})
+
+	// nothing in state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), Equals, state.ErrNoState)
+
+	if expectSeqFile {
+		// seq file exists but is zeroed out
+		assertMigrationInSeqFile(c, snapName, nil)
+	} else {
+		exists, _, err := osutil.RegularFileExists(filepath.Join(dirs.SnapSeqDir, snapName+".json"))
+		c.Assert(exists, Equals, false)
+		c.Assert(err, ErrorMatches, ".*no such file or directory")
+	}
 }

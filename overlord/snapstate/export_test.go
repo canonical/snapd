@@ -45,6 +45,8 @@ const (
 	Hidden       = hidden
 	Home         = home
 	RevertHidden = revertHidden
+	DisableHome  = disableHome
+	RevertFull   = revertFull
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
