@@ -875,6 +875,7 @@ setup_reflash_magic() {
     # Note that we can not put it into /usr/bin as '/usr' is different
     # when the snap uses confinement.
     cp /usr/bin/snap "$IMAGE_HOME"
+    # shellcheck disable=SC2031
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
     if os.query is-core18; then
@@ -891,15 +892,19 @@ setup_reflash_magic() {
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap
+        # shellcheck disable=SC2031
         dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
         # Debian packages don't carry permissions correctly and we use
         # post-inst hooks to fix that on classic systems. Here, as a special
         # case, fix the void directory we just unpacked.
+        # shellcheck disable=SC2031
         chmod 111 "$UNPACK_DIR/var/lib/snapd/void"
         # ensure any new timer units are available
+        # shellcheck disable=SC2031
         cp -a /etc/systemd/system/timers.target.wants/*.timer "$UNPACK_DIR/etc/systemd/system/timers.target.wants"
 
         # add gpio and iio slots
+        # shellcheck disable=SC2031
         cat >> "$UNPACK_DIR/meta/snap.yaml" <<-EOF
 slots:
     gpio-pin:
@@ -914,10 +919,13 @@ EOF
         # Make /var/lib/systemd writable so that we can get linger enabled.
         # This only applies to Ubuntu Core 16 where individual directories were
         # writable. In Core 18 and beyond all of /var/lib/systemd is writable.
+        # shellcheck disable=SC2031
         mkdir -p $UNPACK_DIR/var/lib/systemd/{catalog,coredump,deb-systemd-helper-enabled,rfkill,linger}
+        # shellcheck disable=SC2031
         touch "$UNPACK_DIR"/var/lib/systemd/random-seed
 
         # build new core snap for the image
+        # shellcheck disable=SC2031
         snap pack "$UNPACK_DIR" "$IMAGE_HOME"
 
         # FIXME: fetch directly once its in the assertion service
