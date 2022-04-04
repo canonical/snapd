@@ -1305,6 +1305,13 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
+	// As part of the validation, also read the snapshot manifest file: we
+	// don't care about its contents now, but we need to make sure it's valid.
+	_, err = ReadSnapshotYamlFromSnapFile(snapf)
+	if err != nil {
+		return nil, err
+	}
+
 	return info, nil
 }
 
