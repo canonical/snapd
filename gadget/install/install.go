@@ -86,7 +86,6 @@ func saveStorageTraits(allLaidOutVols map[string]*gadget.LaidOutVolume, optsPerV
 		if err := gadget.SaveDiskVolumesDeviceTraits(boot.InstallHostDeviceSaveDir, allVolTraits); err != nil {
 			return fmt.Errorf("cannot save disk to volume device traits: %v", err)
 		}
-
 	}
 	return nil
 }
@@ -111,10 +110,8 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}
 	// TODO: resolve content paths from gadget here
 
-	// the only situation where auto-detect is not desired is in (spread)
-	// testing - consider to remove forcing a device
-	//
 	// auto-detect device if no device is forced
+	// device forcing is used for (spread) testing only
 	if bootDevice == "" {
 		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
 		if err != nil {
@@ -312,10 +309,8 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// TODO: resolve content paths from gadget here
 
-	// the only situation where auto-detect is not desired is in (spread)
-	// testing - consider to remove forcing a device
-	//
 	// auto-detect device if no device is forced
+	// device forcing is used for (spread) testing only
 	if bootDevice == "" {
 		bootDevice, err = diskWithSystemSeed(laidOutBootVol)
 		if err != nil {
