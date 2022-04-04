@@ -1503,32 +1503,3 @@ nested_wait_for_device_initialized_change() {
         sleep "$wait"
     done
 }
-
-nested_build_ubuntu_image() {
-    if [ "${UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
-        (
-            # build a version which uses the current snapd tree as a dependency
-            # shellcheck disable=SC2030,SC2031
-            export GO111MODULE=off
-            # use go get so that ubuntu-image is built with current snapd
-            # sources
-            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-        )
-    else
-        (
-            # build a version which uses a particular revision of snapd listed
-            # in ubuntu-image go.mod file
-            # shellcheck disable=SC2030,SC2031
-            export GO111MODULE=on
-            # shellcheck disable=SC2030,SC2031
-            unset GOPATH
-            cd /tmp || exit 1
-            git clone https://github.com/canonical/ubuntu-image
-            cd ubuntu-image || exit 1
-            go build -tags 'withtestkeys' ./cmd/ubuntu-image
-        )
-        # make it available
-        cp -av /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
-    fi
-}
