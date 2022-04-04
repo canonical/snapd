@@ -318,3 +318,32 @@ func (strutilSuite) TestWordWrapCornerCase(c *check.C) {
   All hail EN SPACE.
 `[1:])
 }
+
+func (strutilSuite) TestWordWrapPadded(c *check.C) {
+	for _, t := range []struct {
+		input   string
+		width   int
+		padding string
+		output  string
+	}{
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, padding: "  ", output: "  Lorem ipsum dolor\n  sit amet,\n  consectetur\n  adipiscing elit,\n  sed do eiusmod\n  tempor incididunt\n  ut labore et\n  dolore magna\n  aliqua.\n"},
+		{input: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", width: 20, padding: "", output: "Lorem ipsum dolor\nsit amet,\nconsectetur\nadipiscing elit, sed\ndo eiusmod tempor\nincididunt ut labore\net dolore magna\naliqua.\n"},
+		{input: "Lorem ips", width: 20, padding: "  ", output: "  Lorem ips\n"},
+		{input: "", width: 5, padding: "", output: "\n"},
+		{input: "", width: 5, padding: "  ", output: "  \n"},
+
+		// no padding is added when len(padding) == width
+		{input: "Lorem ipsum", width: 0, padding: "", output: "L\no\nr\ne\nm\ni\np\ns\nu\nm\n"},
+
+		// padding gets added when len(padding) is > width, so expect a 4 space padding
+		{input: "Lorem ipsum", width: 0, padding: "  ", output: "    L\n    o\n    r\n    e\n    m\n    i\n    p\n    s\n    u\n    m\n"},
+
+		// padding should be added here as well as now the width is lower than len(padding)
+		{input: "Lorem ipsum", width: -10, padding: "", output: "  L\n  o\n  r\n  e\n  m\n  i\n  p\n  s\n  u\n  m\n"},
+	} {
+		buf := new(bytes.Buffer)
+		err := strutil.WordWrapPadded(buf, []rune(t.input), t.padding, t.width)
+		c.Assert(err, check.IsNil)
+		c.Check(buf.String(), check.Equals, t.output)
+	}
+}
