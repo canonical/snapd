@@ -857,14 +857,10 @@ setup_reflash_magic() {
         # supported yet by the version of mkfs that shipped with Ubuntu 16.04
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
     else
-        # on all other systems, build a custom version ubuntu-image with test
-        # keys
         (
-            #shellcheck disable=SC2030
-            export GO111MODULE=off
-            # use go get so that ubuntu-image is built with current snapd sources
-            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            # shellcheck source=tests/lib/nested.sh
+            . "$TESTSLIB/nested.sh"
+            nested_build_ubuntu_image
         )
     fi
 
