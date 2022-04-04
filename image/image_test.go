@@ -3309,9 +3309,10 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	defer restoreSetupSeed()
 
 	var preseedCalled bool
-	restorePreseedCore20 := image.MockPreseedCore20(func(dir string) error {
+	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key string) error {
 		preseedCalled = true
 		c.Assert(dir, Equals, "/a/dir")
+		c.Assert(key, Equals, "")
 		return nil
 	})
 	defer restorePreseedCore20()

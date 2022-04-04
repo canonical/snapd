@@ -55,6 +55,10 @@ var (
 	preseedCore20 = preseed.Core20
 )
 
+func init() {
+	preseed.SaveAssertion = saveAssertion
+}
+
 func (custo *Customizations) validate(model *asserts.Model) error {
 	core20 := model.Grade() != asserts.ModelGradeUnset
 	var unsupported []string
@@ -159,8 +163,7 @@ func Prepare(opts *Options) error {
 		if model.Base() != "core20" {
 			return fmt.Errorf("cannot preseed the image for a model other than core20")
 		}
-		// TODO: support signing key
-		return preseedCore20(opts.PrepareDir)
+		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey)
 	}
 
 	return nil
@@ -262,6 +265,22 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 
 func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
+}
+
+func saveAssertion(db *asserts.Database, as asserts.Assertion, model *asserts.Model) error {
+	tsto, err := newToolingStoreFromModel(model, "")
+	if err != nil {
+		return err
+	}
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		return tsto.AssertionFetcher(db, save)
+	}
+
+	f := seedwriter.MakeRefAssertsFetcher(newFetcher)
+	if err := f.Save(as); err != nil {
+		return err
+	}
+	return nil
 }
 
 var setupSeed = func(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
