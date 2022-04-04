@@ -336,8 +336,8 @@ jobs:
           # Run spread tests
           if [ -n "$FAILED_TESTS" ] && [[ ${{github.event.pull_request.labels.*.name}} =~ " Run failed " ]]; then
               # "pipefail" ensures that a non-zero status from the spread is
-            # propagated; and we use a subshell as this option could trigger
-            # undesired changes elsewhere
+              # propagated; and we use a subshell as this option could trigger
+              # undesired changes elsewhere
               (set -o pipefail; spread -abend "$FAILED_TESTS" | tee spread.log)
           else
               (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
@@ -349,6 +349,10 @@ jobs:
         touch "$CACHE_RESULT_STAMP"
 
     - name: Cache failed run
+        TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+        mkdir -p "$TEST_RESULTS_DIR"
+        echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
         FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
         echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
 
@@ -380,14 +384,14 @@ jobs:
     - name: save spread results
       if: always()
       run: |
-          mkdir -p "$TEST_RESULTS_DIR"
-          if [ -e spread.log ]; then
+          if [ -f spread.log ]; then
               echo "Running spread log analyzer"
 
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
               if grep -q "Aborted tasks: 0" spread.log; then
                   ./tests/lib/tools/log-analyzer spread.log --output spread-results.json
                   FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
+
                   echo "Failed tests saved for re-execution: $FAILED_TESTS"
                   echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
               else
