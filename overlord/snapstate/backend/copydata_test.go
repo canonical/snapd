@@ -1014,6 +1014,68 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	c.Check(entries, HasLen, 0)
 }
 
+func (s *copydataSuite) TestInitAlreadyExistsFile(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+
+	// ~/Snap/some-snap already exists but is file
+	newHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+	parent := filepath.Dir(newHome)
+	c.Assert(os.MkdirAll(parent, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(newHome, nil, 0600), IsNil)
+
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, fmt.Sprintf("cannot initialize new user HOME %q: already exists but is not a directory", newHome))
+
+	exists, isReg, err := osutil.RegularFileExists(newHome)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isReg, Equals, true)
+}
+
+func (s *copydataSuite) TestInitAlreadyExistsDir(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+
+	// ~/Snap/some-snap already exists but is file
+	newHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+	c.Assert(os.MkdirAll(newHome, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(newHome, "file"), nil, 0600), IsNil)
+
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
+
+	exists, isDir, err := osutil.DirExists(newHome)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isDir, Equals, true)
+
+	files, err := ioutil.ReadDir(newHome)
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	c.Check(files[0].Name(), Equals, "file")
+}
+
 func (s *copydataSuite) TestRemoveExposedHome(c *C) {
 	usr, err := user.Current()
 	c.Assert(err, IsNil)
