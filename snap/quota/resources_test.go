@@ -46,6 +46,7 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeKiB).Build(), `memory limit 1024 is too small: size must be larger than 4KB`},
 		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `invalid cpu quota with count of >0 and percentage of 0`},
+		{quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).Build(), `cpu usage 200% is larger than the maximum allowed for provided set \[0\] of 100%`},
 	}
 
 	for _, t := range tests {
@@ -147,6 +148,21 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
 			quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(0).Build(),
 			`invalid cpu quota with count of >0 and percentage of 0`,
+		},
+		{
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(100).Build(),
+			`cpu usage 800% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(100).WithAllowedCPUs([]int{0, 1}).Build(),
+			`cpu usage 400% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(6).WithCPUPercentage(100).Build(),
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(),
+			`cpu usage 600% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),

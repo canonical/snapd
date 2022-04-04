@@ -25,6 +25,10 @@ import (
 
 type GroupQuotaAllocations = groupQuotaAllocations
 
+func (grp *Group) GetCPUQuotaPercentage() int {
+	return grp.getCurrentCPUAllocation()
+}
+
 func (grp *Group) SetInternalSubGroups(grps []*Group) {
 	grp.subGroups = grps
 }

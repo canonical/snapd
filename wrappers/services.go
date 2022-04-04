@@ -89,10 +89,11 @@ CPUAccounting=true
 `
 	buf := bytes.NewBufferString(header)
 
-	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
+	count, percentage := grp.GetLocalCPUQuota()
+	if percentage != 0 {
 		// convert the number of cores and the allowed percentage
 		// to the systemd specific format.
-		cpuQuotaSnap := grp.GetCorrectedCPUCount() * grp.CPULimit.Percentage
+		cpuQuotaSnap := count * percentage
 		cpuQuotaMax := runtime.NumCPU() * 100
 
 		// The CPUQuota setting is only available since systemd 213
