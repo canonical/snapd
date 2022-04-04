@@ -292,17 +292,20 @@ jobs:
       run: |
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
+
     - name: Checkout code
       uses: actions/checkout@v2
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: pat-s/always-upload-cache@v2.1.3
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+
     - name: Check cached test results
       id: cached-results
       run: |
@@ -311,6 +314,11 @@ jobs:
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
+
+          # Get the list of failed tests
+          FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
+          echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
+
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       env:
@@ -318,17 +326,32 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          # "pipefail" ensures that a non-zero status from the spread is
-          # propagated; and we use a subshell as this option could trigger
-          # undesired changes elsewhere
-          (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
+
+          # Save previous failed test results in FAILED_TESTS env var
+          FAILED_TESTS=""
+          if [ -e "$FAILED_TESTS_FILE" ]; then
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+          fi
+
+          # Run spread tests
+          if [ -n "$FAILED_TESTS" ] && [[ ${{github.event.pull_request.labels.*.name}} =~ " Run failed " ]]; then
+              # "pipefail" ensures that a non-zero status from the spread is
+            # propagated; and we use a subshell as this option could trigger
+            # undesired changes elsewhere
+              (set -o pipefail; spread -abend "$FAILED_TESTS" | tee spread.log)
+          else
+              (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
+          fi
+
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
+
     - name: Cache failed run
         FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
         echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
+
     - name: Discard spread workers
       if: always()
       run: |
@@ -336,6 +359,7 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+
     - name: report spread errors
       if: always()
       run: |
@@ -352,38 +376,27 @@ jobs:
         else
             echo "No spread log found, skipping errors reporting"
         fi
+
     - name: save spread results
       if: always()
       run: |
           mkdir -p "$TEST_RESULTS_DIR"
           if [ -e spread.log ]; then
               echo "Running spread log analyzer"
-              ./tests/lib/tools/log-analyzer spread.log --print-detail none --print-results failed --output spread-results.json
 
-              TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
-              TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
-              TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") | .number ) // 0 ' spread-results.json | awk '{s+=$1} END {print s}')
-
-              echo "TESTS_SUCCESSFUL=$TESTS_SUCCESSFUL" >> $GITHUB_ENV
-              echo "TESTS_FAILED=$TESTS_FAILED" >> $GITHUB_ENV
-              echo "TESTS_ABORTED=$TESTS_ABORTED" >> $GITHUB_ENV
-
-              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
-              TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
-              echo "Found a total number of tests: $TOTAL_COUNTED"
-
-              # Set which tests need to be re-executed (empty will re-execute all the tests)
-              rm -f "$FAILED_TESTS_FILE"
-              if [ "$TESTS_FAILED" != "0" ] && [ "$TESTS_ABORTED" == "0" ] && [ "$TOTAL_COUNTED" == "$TESTS_NUMBER" ]; then
+              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
+              if grep -q "Aborted tasks: 0" spread.log; then
+                  ./tests/lib/tools/log-analyzer spread.log --output spread-results.json
                   FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
                   echo "Failed tests saved for re-execution: $FAILED_TESTS"
                   echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
               else
-                  echo "No failed tests saved"
+                  echo "No failed tests saved, this means all the tests will be executed next run"
                   touch "$FAILED_TESTS_FILE"
               fi
           else
-              echo "No spread log found, skipping saving errors"
+              echo "No spread log found, saving empty list of failed tests"
+              touch "$FAILED_TESTS_FILE"
           fi
 
   spread-nested:
