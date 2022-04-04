@@ -280,7 +280,9 @@ func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVo
 			continue
 		}
 		// now that we have a match, override the laid out structure
-		// such that the fields reflect what was declared in the gadget
+		// such that the fields reflect what was declared in the gadget,
+		// the on-disk-structure already has the right size as read from
+		// the partition table
 		part.LaidOutStructure = *gs
 		parts = append(parts, part)
 	}

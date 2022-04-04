@@ -80,7 +80,7 @@ func (x *cmdSign) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot read assertion input: %v"), err)
 	}
 
-	keypairMgr, err := getKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	if err != nil {
 		return err
 	}

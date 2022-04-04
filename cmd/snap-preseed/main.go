@@ -56,6 +56,10 @@ var (
 	// Stdout   io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
 
+	preseedCore20               = preseed.Core20
+	preseedClassic              = preseed.Classic
+	preseedResetPreseededChroot = preseed.ResetPreseededChroot
+
 	opts options
 )
 
@@ -110,11 +114,11 @@ func run(parser *flags.Parser, args []string) (err error) {
 	}
 
 	if opts.Reset {
-		return preseed.ResetPreseededChroot(chrootDir)
+		return preseedResetPreseededChroot(chrootDir)
 	}
 
 	if probeCore20ImageDir(chrootDir) {
-		return preseed.Core20(chrootDir)
+		return preseedCore20(chrootDir)
 	}
-	return preseed.Classic(chrootDir)
+	return preseedClassic(chrootDir)
 }
