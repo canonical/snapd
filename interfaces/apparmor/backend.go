@@ -839,6 +839,15 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				return `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`
 			}
 			return ""
+		case "###INCLUDE_IF_EXISTS_LOCAL_SNAP_PROFILE###":
+			features, _ := parserFeatures()
+			for _, f := range features {
+				if f == "include-if-exists" {
+					return fmt.Sprintf("#include if exists \"%s\"",
+						filepath.Join(dirs.SnapAppArmorDir, "local", securityTag))
+				}
+			}
+			return ""
 		// XXX: Remove this when we have a better solution to including the system
 		// tunables. See snapConfineFromSnapProfile() for a more detailed explanation.
 		case "###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###":

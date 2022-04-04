@@ -1185,7 +1185,7 @@ func (s *backendSuite) TestCombineSnippetsChangeProfile(c *C) {
 	}
 }
 
-func (s *backendSuite) TestCombineSnippetsIncludeIfExists(c *C) {
+func (s *backendSuite) TestCombineSnippetsIncludeIfExistsSnapTuning(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
@@ -1207,6 +1207,45 @@ func (s *backendSuite) TestCombineSnippetsIncludeIfExists(c *C) {
 	}, {
 		features: []string{"include-if-exists"},
 		expected: `#include if exists "/var/lib/snapd/apparmor/snap-tuning"`,
+	}}
+
+	for i, scenario := range includeIfExistsScenarios {
+		restore = apparmor.MockParserFeatures(func() ([]string, error) { return scenario.features, nil })
+		defer restore()
+
+		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		c.Check(profile, testutil.FileEquals, scenario.expected, Commentf("scenario %d: %#v", i, scenario))
+		stat, err := os.Stat(profile)
+		c.Assert(err, IsNil)
+		c.Check(stat.Mode(), Equals, os.FileMode(0644))
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestCombineSnippetsIncludeIfExistsLocalSnapProfile(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	restoreTemplate := apparmor.MockTemplate("###INCLUDE_IF_EXISTS_LOCAL_SNAP_PROFILE###")
+	defer restoreTemplate()
+
+	type includeIfExistsScenario struct {
+		features []string
+		expected string
+	}
+
+	var includeIfExistsScenarios = []includeIfExistsScenario{{
+		features: []string{},
+		expected: "",
+	}, {
+		features: []string{"include-if-exists"},
+		expected: fmt.Sprintf("#include if exists \"%s\"",
+			filepath.Join(dirs.SnapAppArmorDir, "local", "snap.samba.smbd")),
 	}}
 
 	for i, scenario := range includeIfExistsScenarios {
