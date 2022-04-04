@@ -280,6 +280,7 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 			}
 
 			// we reverted from a core22 base before, so the new HOME already exists
+			// TODO: return undo info about created dirs for doCopySnapData
 			continue
 		}
 
