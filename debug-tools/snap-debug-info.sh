@@ -27,8 +27,16 @@ for sn in $(snap list | awk 'NR>1 {print $1}'); do
 done
 h1 "SNAP CHANGES"
 snap changes --abs-time
-h1 "GADGET SNAP GADGET.YAML"
-cat /snap/"$(snap list | awk '($6 ~ /.*gadget.*$/) {print $1}')"/current/meta/gadget.yaml
+
+GADGET_SNAP="$(snap list | awk '($6 ~ /.*gadget.*$/) {print $1}')"
+if [ -z "$GADGET_SNAP" ]; then
+    # could be a serious bug/problem or otherwise could be just on a classic 
+    # device
+    h1 "NO GADGET SNAP DETECTED"
+else
+    h1 "GADGET SNAP GADGET.YAML"
+    cat /snap/"$(snap list | awk '($6 ~ /.*gadget.*$/) {print $1}')"/current/meta/gadget.yaml
+fi
 
 h1 "SNAP CHANGES (in Doing)"
 # print off the output of snap tasks <chg> for every chg that is in Doing state

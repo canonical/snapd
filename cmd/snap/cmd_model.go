@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -308,7 +309,7 @@ func (x *cmdModel) Execute(args []string) error {
 					fmt.Fprintf(w, "device-key-sha3-384: %s\n", headerString)
 				case termWidth <= 86 && termWidth > 66:
 					fmt.Fprintln(w, "device-key-sha3-384: |")
-					wrapLine(w, []rune(headerString), "  ", termWidth)
+					strutil.WordWrapPadded(w, []rune(headerString), "  ", termWidth)
 				}
 			case "snaps":
 				// also flush the writer before continuing so the previous keys
@@ -391,7 +392,7 @@ func (x *cmdModel) Execute(args []string) error {
 					strings.Split(headerString, "\n"),
 					"")
 				fmt.Fprintln(w, "device-key: |")
-				wrapLine(w, []rune(headerString), "  ", termWidth)
+				strutil.WordWrapPadded(w, []rune(headerString), "  ", termWidth)
 
 			// the default is all the rest of short scalar values, which all
 			// should be strings

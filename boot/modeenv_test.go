@@ -92,7 +92,7 @@ func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
 	c.Assert(err, IsNil)
 }
 
-func (s *modeenvSuite) TestWasReadSanity(c *C) {
+func (s *modeenvSuite) TestWasReadValidity(c *C) {
 	modeenv := &boot.Modeenv{}
 	c.Check(modeenv.WasRead(), Equals, false)
 }

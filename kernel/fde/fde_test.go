@@ -683,3 +683,14 @@ func (s *fdeSuite) TestIsEncryptedDeviceMapperName(c *C) {
 		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, false)
 	}
 }
+
+func (s *fdeSuite) TestEncryptedDeviceMapperName(c *C) {
+	for _, str := range []string{
+		"ubuntu-data",
+		"ubuntu-save",
+		"foo",
+		"other",
+	} {
+		c.Assert(fde.EncryptedDeviceMapperName(str), Equals, str+"-device-locked")
+	}
+}

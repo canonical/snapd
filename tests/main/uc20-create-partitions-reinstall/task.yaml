@@ -48,7 +48,6 @@ restore: |
         losetup -d "$LOOP"
         losetup -l | NOMATCH "$LOOP"
     fi
-    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions
@@ -67,7 +66,6 @@ execute: |
     udevadm info --query=property "${LOOP}p2" | grep ID_FS_TYPE ||:
 
     echo "Run the snap-bootstrap tool in auto-detect mode"
-    go get ../../lib/uc20-create-partitions
     # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
     #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""
