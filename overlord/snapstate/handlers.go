@@ -1280,9 +1280,13 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapsup.MigratedHidden = true
 		fallthrough
 	case home:
-		if err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision); err != nil {
+		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision)
+		if err != nil {
 			return err
 		}
+		st.Lock()
+		t.Set("undo-exposed-init", undo)
+		st.Unlock()
 
 		snapsup.MigratedToExposedHome = true
 	}
@@ -1386,7 +1390,16 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	// accordingly (they're used in undoUnlinkCurrentSnap to set SnapState)
 	if snapsup.MigratedToExposedHome || snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
 		if snapsup.MigratedToExposedHome {
-			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+			var undoInfo backend.UndoInfo
+
+			st.Lock()
+			err := t.Get("undo-exposed-init", &undoInfo)
+			st.Unlock()
+			if err != nil {
+				return err
+			}
+
+			if err := m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undoInfo); err != nil {
 				return err
 			}
 

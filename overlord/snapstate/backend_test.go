@@ -1275,13 +1275,18 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) error {
+func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) (*backend.UndoInfo, error) {
 	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
-	return f.maybeErrForLastOp()
+
+	if err := f.maybeErrForLastOp(); err != nil {
+		return nil, err
+	}
+
+	return &backend.UndoInfo{}, nil
 }
 
-func (f *fakeSnappyBackend) RemoveExposedSnapHome(snapName string) error {
-	f.appendOp(&fakeOp{op: "rm-exposed-snap-home", name: snapName})
+func (f *fakeSnappyBackend) UndoInitExposedSnapHome(snapName string, undoInfo *backend.UndoInfo) error {
+	f.appendOp(&fakeOp{op: "undo-init-exposed-snap-home", name: snapName})
 	return f.maybeErrForLastOp()
 }
 

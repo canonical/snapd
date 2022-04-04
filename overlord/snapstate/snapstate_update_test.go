@@ -7445,7 +7445,7 @@ func (s *snapmgrTestSuite) TestUpdateAfterCore22Migration(c *C) {
 	c.Check(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
 	c.Check(s.fakeBackend.ops.First("undo-hide-snap-data"), IsNil)
 	c.Check(s.fakeBackend.ops.First("init-exposed-snap-home"), IsNil)
-	c.Check(s.fakeBackend.ops.First("rm-exposed-snap-home"), IsNil)
+	c.Check(s.fakeBackend.ops.First("undo-init-exposed-snap-home"), IsNil)
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	c.Check(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, expected)
