@@ -531,6 +531,9 @@ plugs:
   polkit:
     interface: polkit
     action-prefix: io.snapcraft.example
+  shared-memory:
+    interface: shared-memory
+    private: true
   system-files:
     interface: system-files
     read: [/file1]
