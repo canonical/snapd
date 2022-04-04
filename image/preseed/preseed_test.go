@@ -113,6 +113,8 @@ func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
 }
 
+func (fs *Fake16Seed) SetParallelism(int) {}
+
 func (fs *Fake16Seed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
 	return fs.LoadMetaErr
 }
