@@ -259,10 +259,29 @@ func (s *SnapSuite) TestDebugTasksWithCycles(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches,
-		"Lanes  ID   Status  Spawn                 Ready                 Kind  Summary\n"+
+		""+
+			"Lanes  ID   Status  Spawn                 Ready                 Kind  Summary\n"+
 			"0      13   Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  bar   Bar task\n"+
 			"0      12   Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  bar   Bar task\n"+
 			"0      11   Done    0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  foo   Foo task\n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugCheckForCycles(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--check", "--change=1", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, ``+
+		`Detected task dependency cycle involving tasks:
+Lanes  ID   Status  Spawn       Ready       Kind  Summary   After  Before
+0      11   Done    0001-01-01  0001-01-01  foo   Foo task  []     [13]
+0      12   Do      0001-01-01  0001-01-01  bar   Bar task  []     [13]
+0      13   Do      0001-01-01  0001-01-01  bar   Bar task  []     [11,12]
+`)
 	c.Check(s.Stderr(), Equals, "")
 }
 
