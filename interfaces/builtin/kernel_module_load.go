@@ -206,7 +206,7 @@ func (iface *kernelModuleLoadInterface) KModConnectedPlug(spec *kmod.Specificati
 				// just look for the "$SNAP_COMMON/" string and replace it; the
 				// extra "/" at the end ensures that the variable is
 				// terminated.
-				options := strings.ReplaceAll(moduleInfo.options, "$SNAP_COMMON/", commonDataDir + "/")
+				options := strings.ReplaceAll(moduleInfo.options, "$SNAP_COMMON/", commonDataDir+"/")
 				err = spec.SetModuleOptions(moduleInfo.name, options)
 			}
 		default:
