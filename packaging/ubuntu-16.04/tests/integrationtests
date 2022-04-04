@@ -46,7 +46,7 @@ systemctl daemon-reload
 systemctl restart snapd
 
 # Spread will only buid with recent go
-snap install --classic go
+snap install --classic --channel 1.17/stable go
 
 # and now run spread against localhost
 export GOPATH=/tmp/go
