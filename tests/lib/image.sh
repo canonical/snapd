@@ -1,6 +1,12 @@
 #!/bin/bash
 
 build_ubuntu_image() {
+    # the helper can be invoked multiple times, so do nothing if ubuntu-image
+    # was already built and is accessible
+    if command -v ubuntu-image; then
+        return
+    fi
+
     if [ "${UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
         (
             # build a version which uses the current snapd tree as a dependency
