@@ -569,10 +569,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 			return nil, fmt.Errorf(i18n.G("cannot install snap with empty name"))
 		}
 	}
-	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, &snapstate.Flags{
-		Transactional: inst.Transactional,
-		IgnoreRunning: inst.IgnoreRunning,
-	})
+	installed, tasksets, err := snapstateInstallMany(st, inst.Snaps, inst.userID, &snapstate.Flags{Transactional: inst.Transactional})
 	if err != nil {
 		return nil, err
 	}

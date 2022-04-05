@@ -1280,7 +1280,6 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		if err != nil {
 			return nil, nil, err
 		}
-		validatedFlags.IgnoreRunning = flags.IgnoreRunning
 
 		channel := "stable"
 		if sar.RedirectChannel != "" {
