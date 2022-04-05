@@ -310,6 +310,7 @@ jobs:
       id: cached-results
       run: |
           TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          mkdir -p "$TEST_RESULTS_DIR"
           echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
 
           CACHE_RESULT_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-success"
