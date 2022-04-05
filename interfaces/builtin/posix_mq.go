@@ -232,7 +232,7 @@ func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	if !implicitSystemPermanentSlot(slot) {
 		if path, err := iface.getPath(slot, slot.Name); err == nil {
 			spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue management
-  mqueue (create delete read write) "%s",
+  mqueue (open create delete read write) "%s",
 `, path))
 		} else {
 			return err
@@ -246,7 +246,7 @@ func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
 			aaPerms := strings.Join(perms, " ")
 			spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue plug communication
-  mqueue (%s) "%s",
+  mqueue (open %s) "%s",
 `, aaPerms, path))
 		} else {
 			return err
