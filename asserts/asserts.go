@@ -62,7 +62,10 @@ type AssertionType struct {
 	// Optional primary key headers can be added to types defined
 	// in previous versions of snapd, as long as they are added at
 	// the end of the old primary key together with a default value set in
-	// this map.
+	// this map. So they must form a contiguous suffix of PrimaryKey with
+	// each member having a default value set in this map.
+	// Optional primary key headers are not supported for sequence
+	// forming types.
 	OptionalPrimaryKeyDefaults map[string]string
 
 	assembler func(assert assertionBase) (Assertion, error)
@@ -80,9 +83,9 @@ func (at *AssertionType) validate() {
 			if defl == "" {
 				panic(fmt.Sprintf("assertion type %q primary key header %q has no default, optional primary keys must be a proper suffix of the primary key", at.Name, k))
 			}
+		}
+		if defl != "" {
 			noptional++
-		} else if defl != "" {
-			noptional = 1
 		}
 	}
 	if len(at.OptionalPrimaryKeyDefaults) != noptional {
