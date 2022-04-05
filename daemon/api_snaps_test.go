@@ -693,6 +693,36 @@ func (s *snapsSuite) TestRefreshMany(c *check.C) {
 	c.Check(refreshAssertionsOpts.IsRefreshOfAllSnaps, check.Equals, false)
 }
 
+func (s *snapsSuite) TestRefreshManyIgnoreRunning(c *check.C) {
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})()
+
+	var calledFlags *snapstate.Flags
+	defer daemon.MockSnapstateUpdateMany(func(_ context.Context, s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		calledFlags = flags
+
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-refresh-2", "Refreshing two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:        "refresh",
+		Snaps:         []string{"foo", "bar"},
+		IgnoreRunning: true,
+	}
+	st := d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
+}
+
 func (s *snapsSuite) TestRefreshMany1(c *check.C) {
 	refreshSnapAssertions := false
 	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
@@ -719,7 +749,7 @@ func (s *snapsSuite) TestRefreshMany1(c *check.C) {
 }
 
 func (s *snapsSuite) TestInstallMany(c *check.C) {
-	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, _ *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-install-2", "Install two")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -734,6 +764,29 @@ func (s *snapsSuite) TestInstallMany(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
 	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+}
+
+func (s *snapsSuite) TestInstallManyIgnoreRunning(c *check.C) {
+	var calledFlags *snapstate.Flags
+
+	defer daemon.MockSnapstateInstallMany(func(s *state.State, names []string, userID int, flags *snapstate.Flags) ([]string, []*state.TaskSet, error) {
+		calledFlags = flags
+
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-install-2", "Install two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "install", Snaps: []string{"foo", "bar"}, IgnoreRunning: true}
+	st := d.Overlord().State()
+	st.Lock()
+	res, err := inst.DispatchForMany()(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(res.Summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(res.Affected, check.DeepEquals, inst.Snaps)
+	c.Check(calledFlags.IgnoreRunning, check.Equals, true)
 }
 
 func (s *snapsSuite) TestInstallManyTransactionally(c *check.C) {
