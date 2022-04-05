@@ -309,17 +309,27 @@ jobs:
     - name: Check cached test results
       id: cached-results
       run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
+          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
+          CACHE_RESULT_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-success"
           echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
 
           # Save the var with the failed tests file
-          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
-          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
-          mkdir -p "$TEST_RESULTS_DIR"
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+
+    - name: Check failed tests to run
+      if: "contains(github.event.pull_request.labels.*.name, 'Run failed') && steps.cached-results.outputs.already-ran != 'true'"
+      run: |
+          # Save previous failed test results in FAILED_TESTS env var
+          FAILED_TESTS=""
+          if [ -f "$FAILED_TESTS_FILE" ]; then
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+          fi
+          echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
 
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
@@ -330,24 +340,19 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
           # Save previous failed test results in FAILED_TESTS env var
-          FAILED_TESTS=""
-          if [ -e "$FAILED_TESTS_FILE" ]; then
-              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+          RUN_TESTS="google:${{ matrix.system }}:tests/..."
+          if [ -n "$FAILED_TESTS" ]; then
+              RUN_TESTS="$FAILED_TESTS"
           fi
 
           # Run spread tests
-          if [ -n "$FAILED_TESTS" ] && [[ ${{github.event.pull_request.labels.*.name}} =~ " Run failed " ]]; then
-              # "pipefail" ensures that a non-zero status from the spread is
-              # propagated; and we use a subshell as this option could trigger
-              # undesired changes elsewhere
-              (set -o pipefail; spread -abend "$FAILED_TESTS" | tee spread.log)
-          else
-              (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
-          fi
+          # "pipefail" ensures that a non-zero status from the spread is
+          # propagated; and we use a subshell as this option could trigger
+          # undesired changes elsewhere
+          (set -o pipefail; spread -abend "$RUN_TESTS" | tee spread.log)
 
     - name: Cache successful run
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
 
     - name: Discard spread workers
