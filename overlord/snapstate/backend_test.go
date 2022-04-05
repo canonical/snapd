@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
@@ -81,7 +82,8 @@ type fakeOp struct {
 
 	requireSnapdTooling bool
 
-	dirOpts *dirs.SnapDirOptions
+	dirOpts  *dirs.SnapDirOptions
+	undoInfo *backend.UndoInfo
 }
 
 type fakeOps []fakeOp
@@ -1275,13 +1277,18 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) error {
+func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) (*backend.UndoInfo, error) {
 	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
-	return f.maybeErrForLastOp()
+
+	if err := f.maybeErrForLastOp(); err != nil {
+		return nil, err
+	}
+
+	return &backend.UndoInfo{Created: []string{randutil.RandomString(10)}}, nil
 }
 
-func (f *fakeSnappyBackend) RemoveExposedSnapHome(snapName string) error {
-	f.appendOp(&fakeOp{op: "rm-exposed-snap-home", name: snapName})
+func (f *fakeSnappyBackend) UndoInitExposedSnapHome(snapName string, undoInfo *backend.UndoInfo) error {
+	f.appendOp(&fakeOp{op: "undo-init-exposed-snap-home", name: snapName, undoInfo: undoInfo})
 	return f.maybeErrForLastOp()
 }
 
