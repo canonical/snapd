@@ -1280,9 +1280,13 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapsup.MigratedHidden = true
 		fallthrough
 	case home:
-		if err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision); err != nil {
+		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision)
+		if err != nil {
 			return err
 		}
+		st.Lock()
+		t.Set("undo-exposed-home-init", undo)
+		st.Unlock()
 
 		snapsup.MigratedToExposedHome = true
 	}
@@ -1386,7 +1390,16 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	// accordingly (they're used in undoUnlinkCurrentSnap to set SnapState)
 	if snapsup.MigratedToExposedHome || snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
 		if snapsup.MigratedToExposedHome {
-			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+			var undoInfo backend.UndoInfo
+
+			st.Lock()
+			err := t.Get("undo-exposed-home-init", &undoInfo)
+			st.Unlock()
+			if err != nil {
+				return err
+			}
+
+			if err := m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undoInfo); err != nil {
 				return err
 			}
 
@@ -3845,15 +3858,26 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 		switch {
 		case snapsup.MigratedHidden && snapsup.UndidHiddenMigration:
 			// should never happen except for programmer error
-			return nil, fmt.Errorf("internal error: migration was done and reversed in same change without updating migration flags")
+			return nil, fmt.Errorf("internal error: ~/.snap migration was done and reversed in same change without updating migration flags")
 		case snapsup.MigratedHidden:
 			opts.MigratedToHidden = true
 		case snapsup.UndidHiddenMigration:
 			opts.MigratedToHidden = false
 		}
 
-		if snapsup.MigratedToExposedHome {
-			opts.MigratedToExposedHome = snapsup.MigratedToExposedHome
+		switch {
+		case (snapsup.EnableExposedHome || snapsup.MigratedToExposedHome) &&
+			(snapsup.DisableExposedHome || snapsup.RemovedExposedHome):
+			// should never happen except for programmer error
+			return nil, fmt.Errorf("internal error: ~/Snap migration was done and reversed in same change without updating migration flags")
+		case snapsup.MigratedToExposedHome:
+			fallthrough
+		case snapsup.EnableExposedHome:
+			opts.MigratedToExposedHome = true
+		case snapsup.RemovedExposedHome:
+			fallthrough
+		case snapsup.DisableExposedHome:
+			opts.MigratedToExposedHome = false
 		}
 	}
 

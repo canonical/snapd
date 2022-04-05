@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -7445,7 +7446,7 @@ func (s *snapmgrTestSuite) TestUpdateAfterCore22Migration(c *C) {
 	c.Check(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
 	c.Check(s.fakeBackend.ops.First("undo-hide-snap-data"), IsNil)
 	c.Check(s.fakeBackend.ops.First("init-exposed-snap-home"), IsNil)
-	c.Check(s.fakeBackend.ops.First("rm-exposed-snap-home"), IsNil)
+	c.Check(s.fakeBackend.ops.First("undo-init-exposed-snap-home"), IsNil)
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	c.Check(s.fakeBackend.ops.MustFindOp(c, "copy-data").dirOpts, DeepEquals, expected)
@@ -7606,25 +7607,63 @@ func (s *snapmgrTestSuite) TestUpdateDoHiddenDirMigrationOnCore22(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateToCore22FailsAfterWritingState(c *C) {
-	s.testUndoMigrationIfUpdateToCore22Fails(c, failAfterLinkSnap)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "snap-for-core22-id",
+		RealName: "snap-core18-to-core22",
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		Active:   true,
+	}
+	snapstate.Set(s.state, "snap-core18-to-core22", snapst)
+	c.Assert(snapstate.WriteSeqFile("snap-core18-to-core22", snapst), IsNil)
+
+	// adding core22 so it's easier to find the other snap's tasks below
+	snapstate.Set(s.state, "core22", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{{
+			SnapID:   "core22",
+			Revision: snap.R("2"),
+			RealName: "core22",
+		}},
+		Current:  snap.R("2"),
+		SnapType: "base",
+	})
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "snap-core18-to-core22", &snapstate.RevisionOptions{Channel: "channel-for-core22/stable"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// fails change while after link-snap runs (after state is persisted)
+	expectedErr := failAfterLinkSnap(s.o, chg)
+
+	s.settle(c)
+	c.Assert(chg.Err(), Not(IsNil))
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
+
+	expectedOps := []string{"hide-snap-data", "init-exposed-snap-home", "undo-init-exposed-snap-home", "undo-hide-snap-data"}
+	containsInOrder(c, s.fakeBackend.ops, expectedOps)
+
+	// check that the undoInfo returned by InitExposed and stored in the task is
+	// the same as the one passed into UndoInitExposed
+	t := findLastTask(chg, "copy-snap-data")
+	c.Assert(t, Not(IsNil))
+
+	var undoInfo backend.UndoInfo
+	c.Assert(t.Get("undo-exposed-home-init", &undoInfo), IsNil)
+	op := s.fakeBackend.ops.MustFindOp(c, "undo-init-exposed-snap-home")
+	c.Check(op.undoInfo, DeepEquals, &undoInfo)
+
+	assertMigrationState(c, s.state, "snap-core18-to-core22", nil)
 }
 
 func (s *snapmgrTestSuite) TestUndoMigrationIfUpdateToCore22Fails(c *C) {
-	// fails change while initializing ~/Snap (before state is persisted)
-	s.testUndoMigrationIfUpdateToCore22Fails(c, func(*overlord.Overlord, *state.Change) error {
-		err := errors.New("boom")
-		s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
-			if op.op == "init-exposed-snap-home" {
-				return err
-			}
-			return nil
-		}
-
-		return err
-	})
-}
-
-func (s *snapmgrTestSuite) testUndoMigrationIfUpdateToCore22Fails(c *C, prepFail prepFailFunc) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -7646,11 +7685,16 @@ func (s *snapmgrTestSuite) testUndoMigrationIfUpdateToCore22Fails(c *C, prepFail
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	// make change fail
-	expectedErr := prepFail(s.o, chg)
+	// fails change while initializing ~/Snap (before state is persisted)
+	expectedErr := errors.New("boom")
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "init-exposed-snap-home" {
+			return expectedErr
+		}
+		return nil
+	}
 
 	s.settle(c)
-	c.Assert(chg.Err(), Not(IsNil))
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
 
