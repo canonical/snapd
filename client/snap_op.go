@@ -30,21 +30,32 @@ import (
 	"path/filepath"
 )
 
+// Installs and updates can be done for multiple snaps in the same API
+// call. We can treat each snap separately (the transaction is per
+// snap) or consider the call a single transaction so everything is
+// reverted if it fails for just one snap.
+type TransactionType string
+
+const (
+	TransactionAllSnaps TransactionType = "all-snaps"
+	TransactionPerSnap  TransactionType = "per-snap"
+)
+
 type SnapOptions struct {
-	Channel          string `json:"channel,omitempty"`
-	Revision         string `json:"revision,omitempty"`
-	CohortKey        string `json:"cohort-key,omitempty"`
-	LeaveCohort      bool   `json:"leave-cohort,omitempty"`
-	DevMode          bool   `json:"devmode,omitempty"`
-	JailMode         bool   `json:"jailmode,omitempty"`
-	Classic          bool   `json:"classic,omitempty"`
-	Dangerous        bool   `json:"dangerous,omitempty"`
-	IgnoreValidation bool   `json:"ignore-validation,omitempty"`
-	IgnoreRunning    bool   `json:"ignore-running,omitempty"`
-	Unaliased        bool   `json:"unaliased,omitempty"`
-	Purge            bool   `json:"purge,omitempty"`
-	Amend            bool   `json:"amend,omitempty"`
-	Transactional    bool   `json:"transactional,omitempty"`
+	Channel          string          `json:"channel,omitempty"`
+	Revision         string          `json:"revision,omitempty"`
+	CohortKey        string          `json:"cohort-key,omitempty"`
+	LeaveCohort      bool            `json:"leave-cohort,omitempty"`
+	DevMode          bool            `json:"devmode,omitempty"`
+	JailMode         bool            `json:"jailmode,omitempty"`
+	Classic          bool            `json:"classic,omitempty"`
+	Dangerous        bool            `json:"dangerous,omitempty"`
+	IgnoreValidation bool            `json:"ignore-validation,omitempty"`
+	IgnoreRunning    bool            `json:"ignore-running,omitempty"`
+	Unaliased        bool            `json:"unaliased,omitempty"`
+	Purge            bool            `json:"purge,omitempty"`
+	Amend            bool            `json:"amend,omitempty"`
+	Transaction      TransactionType `json:"transaction,omitempty"`
 
 	Users []string `json:"users,omitempty"`
 }
@@ -85,7 +96,11 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 	fields := []field{
 		{"ignore-running", opts.IgnoreRunning},
 		{"unaliased", opts.Unaliased},
-		{"transactional", opts.Transactional},
+	}
+	if opts.Transaction != "" {
+		if err := mw.WriteField("transaction", string(opts.Transaction)); err != nil {
+			return err
+		}
 	}
 	return writeFields(mw, fields)
 }
@@ -98,10 +113,10 @@ type actionData struct {
 }
 
 type multiActionData struct {
-	Action        string   `json:"action"`
-	Snaps         []string `json:"snaps,omitempty"`
-	Users         []string `json:"users,omitempty"`
-	Transactional bool     `json:"transactional,omitempty"`
+	Action      string          `json:"action"`
+	Snaps       []string        `json:"snaps,omitempty"`
+	Users       []string        `json:"users,omitempty"`
+	Transaction TransactionType `json:"transaction,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -206,7 +221,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 	if options != nil {
 		// TODO: consider returning error when options.Dangerous is set
 		action.Users = options.Users
-		action.Transactional = options.Transactional
+		action.Transaction = options.Transaction
 	}
 
 	data, err := json.Marshal(&action)
