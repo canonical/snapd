@@ -114,6 +114,8 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 		{"rsyslog", "rsyslog.service", false},
 		{"systemd-resolved", "systemd-resolved.service", true},
 		{"systemd-resolved", "systemd-resolved.service", false},
+		{"systemd-timesyncd", "systemd-timesyncd.service", true},
+		{"systemd-timesyncd", "systemd-timesyncd.service", false},
 	} {
 		s.systemctlArgs = nil
 		s.serviceInstalled = service.installed

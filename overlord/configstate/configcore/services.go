@@ -39,6 +39,7 @@ var services = []struct{ configName, systemdName string }{
 	{"rsyslog", "rsyslog.service"},
 	{"console-conf", "console-conf@*"},
 	{"systemd-resolved", "systemd-resolved.service"},
+	{"systemd-timesyncd", "systemd-timesyncd.service"},
 }
 
 func init() {
