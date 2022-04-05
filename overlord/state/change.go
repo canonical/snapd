@@ -648,15 +648,12 @@ func (e *ErrTaskDependencyCycle) Is(err error) bool {
 // and returns an error in such case.
 func (c *Change) CheckTaskDependencies() error {
 	tasks := c.Tasks()
-	// list of successors of a task (their IDs), i.e. tasks waiting for it
-	successors := make(map[string][]string, len(tasks))
-	// count how many tasks the given task waits for
+	// count how many tasks any given task waits for
 	predecessors := make(map[string]int, len(tasks))
 
 	taskByID := map[string]*Task{}
 	for _, t := range tasks {
 		taskByID[t.id] = t
-		successors[t.id] = t.haltTasks
 		for range t.waitTasks {
 			predecessors[t.id]++
 		}
@@ -682,7 +679,7 @@ func (c *Change) CheckTaskDependencies() error {
 		id := queue[0]
 		queue = queue[1:]
 		// reduce the incoming edge of its successors
-		for _, successor := range successors[id] {
+		for _, successor := range taskByID[id].haltTasks {
 			predecessors[successor]--
 			if predecessors[successor] == 0 {
 				// a task that was a successor has become
