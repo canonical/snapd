@@ -298,13 +298,11 @@ func (grp *Group) GetCPUSetQuota() []int {
 // GetLocalCPUQuota returns the final calculated count and percentage of the
 // current CPU quota for the group. This does not return any inherited CPU quota, but
 // it does take any inherited CPU set into account to adjust in the case of a relative
-// usage percentage.
-// The following output is expected:
-// Count of 0, 50% - 50% times the number of all allowed cores. This is either
-//                   the full amount of cores present on the system, or it is
-//                   the number of cores allowed for this group.
-// Count of 4, 25% - If the count is provided, it will always be the used multipler
-//                   for the final percentage calculation. This case will be 4x25%.
+// usage percentage. If the CPU count is set to 0, then it is expected that it returns
+// CPULimit.Percentage times the number of all allowed cores. This is either
+// the full amount of cores present on the system, or it is the number of cores allowed
+// for this group. Otherwise this command should return the actual count and percentage
+// set by the group.
 func (grp *Group) GetLocalCPUQuota() (int, int) {
 	if grp.CPULimit == nil || grp.CPULimit.Percentage == 0 {
 		return 0, 0
