@@ -60,6 +60,7 @@ type linkSuiteCommon struct {
 
 func (s *linkSuiteCommon) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -219,6 +220,36 @@ type: kernel
 	reboot, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(reboot, DeepEquals, boot.RebootInfo{})
+}
+
+func (s *linkSuite) TestLinkSnapdSnapCallsWrappersWithPreseedingFlag(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var called bool
+	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error {
+		c.Check(opts.Preseeding, Equals, true)
+		called = true
+		return nil
+	})
+	defer restoreAddSnapdSnapWrappers()
+
+	be := backend.NewForPreseedMode()
+	coreDev := boottest.MockUC20Device("run", nil)
+
+	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	const yaml = `name: snapd
+version: 1.0
+type: snapd
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	_, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, true)
 }
 
 func (s *linkSuite) TestLinkDoIdempotent(c *C) {
@@ -444,7 +475,7 @@ Icon=${SNAP}/bin.png
 Exec=bin
 `), 0644), IsNil)
 
-	// sanity checks
+	// validity checks
 	for _, d := range []string{dirs.SnapBinariesDir, dirs.SnapDesktopFilesDir, dirs.SnapServicesDir, dirs.SnapDBusSystemServicesDir, dirs.SnapDBusSessionServicesDir} {
 		os.MkdirAll(d, 0755)
 		l, err := filepath.Glob(filepath.Join(d, "*"))
@@ -513,7 +544,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 }
 
 func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C) {
-	// sanity check
+	// validity check
 	c.Assert(s.info.DataDir(), testutil.FileAbsent)
 
 	// the mountdir symlink is currently the last thing in LinkSnap that can
@@ -701,7 +732,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
-	// sanity checks
+	// validity checks
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
 		fmt.Sprintf("[Service]\nExecStart=%s/usr/lib/snapd/snapd\n", info.MountDir()))
 	// expecting all generated untis to be present
@@ -811,7 +842,7 @@ apps:
 `
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(quantity.SizeMiB))
+	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
 
 	linkCtxWithGroup := backend.LinkContext{

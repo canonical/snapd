@@ -16,6 +16,7 @@ backends:
             - ubuntu-18.04-64:
             - ubuntu-20.04-64:
             - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
             - debian-10-64:
             - debian-sid-64:
             - fedora-33-64:

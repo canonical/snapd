@@ -243,7 +243,6 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			foundFsckYes := false
 			foundFsckNo := false
 			foundNoBlock := false
-			foundDefaultDependenciesNo := false
 			foundBeforeInitrdfsTarget := false
 			foundNoSuid := false
 			foundBind := false
@@ -259,8 +258,6 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 					foundFsckNo = true
 				case arg == "--no-block":
 					foundNoBlock = true
-				case arg == "--property=DefaultDependencies=no":
-					foundDefaultDependenciesNo = true
 				case arg == "--property=Before=initrd-fs.target":
 					foundBeforeInitrdfsTarget = true
 				case strings.HasPrefix(arg, "--options="):
@@ -286,7 +283,6 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			c.Assert(foundFsckYes, Equals, opts.NeedsFsck)
 			c.Assert(foundFsckNo, Equals, !opts.NeedsFsck)
 			c.Assert(foundNoBlock, Equals, opts.NoWait)
-			c.Assert(foundDefaultDependenciesNo, Equals, !opts.Ephemeral)
 			c.Assert(foundBeforeInitrdfsTarget, Equals, !opts.Ephemeral)
 			c.Assert(foundNoSuid, Equals, opts.NoSuid)
 			c.Assert(foundBind, Equals, opts.Bind)
@@ -296,6 +292,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			// or check the overrides are not present if opts.Ephemeral is true
 			for _, initrdUnit := range []string{
 				"initrd-fs.target",
+				"local-fs.target",
 			} {
 				mountUnit := systemd.EscapeUnitNamePath(t.where)
 				fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)

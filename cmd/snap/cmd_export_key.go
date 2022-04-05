@@ -26,6 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -66,14 +67,14 @@ func (x *cmdExportKey) Execute(args []string) error {
 		keyName = "default"
 	}
 
-	keypairMgr, err := getKeypairManager()
+	keypairMgr, err := signtool.GetKeypairManager()
 	if err != nil {
 		return err
 	}
 	if x.Account != "" {
 		privKey, err := keypairMgr.GetByName(keyName)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot find key named %q: %v", keyName, err)
 		}
 		pubKey := privKey.PublicKey()
 		headers := map[string]interface{}{
@@ -95,7 +96,7 @@ func (x *cmdExportKey) Execute(args []string) error {
 	} else {
 		encoded, err := keypairMgr.Export(keyName)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot export key named %q: %v", keyName, err)
 		}
 		fmt.Fprintf(Stdout, "%s\n", encoded)
 	}

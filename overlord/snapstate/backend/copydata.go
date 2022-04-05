@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -37,6 +38,17 @@ var (
 	allUsers      = snap.AllUsers
 	mkdirAllChown = osutil.MkdirAllChown
 )
+
+// MockAllUsers allows tests to mock snap.AllUsers. Panics if called outside of
+// tests.
+func MockAllUsers(f func(options *dirs.SnapDirOptions) ([]*user.User, error)) func() {
+	osutil.MustBeTestBinary("MockAllUsers can only be called in tests")
+	old := allUsers
+	allUsers = f
+	return func() {
+		allUsers = old
+	}
+}
 
 // CopySnapData makes a copy of oldSnap data for newSnap in its data directories.
 func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter, opts *dirs.SnapDirOptions) error {
@@ -260,6 +272,18 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 		}
 
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+		if exists, isDir, err := osutil.DirExists(newUserHome); err != nil {
+			return err
+		} else if exists {
+			if !isDir {
+				return fmt.Errorf("cannot initialize new user HOME %q: already exists but is not a directory", newUserHome)
+			}
+
+			// we reverted from a core22 base before, so the new HOME already exists
+			// TODO: return undo info about created dirs for doCopySnapData
+			continue
+		}
+
 		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
 			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
 		}

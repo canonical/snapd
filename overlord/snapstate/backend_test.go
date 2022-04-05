@@ -221,10 +221,11 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+	snapID := spec.Name + "-id"
 	switch spec.Name {
 	case "core", "core16", "ubuntu-core", "some-core":
 		typ = snap.TypeOS
-	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18":
+	case "some-base", "other-base", "some-other-base", "yet-another-base", "core18", "core22":
 		typ = snap.TypeBase
 	case "some-kernel":
 		typ = snap.TypeKernel
@@ -238,6 +239,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		confinement = "classic"
 	case "some-epoch-snap":
 		epoch = snap.E("42")
+	case "snapd-desktop-integration":
+		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 	}
 
 	if spec.Name == "snap-unknown" {
@@ -249,7 +252,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		SideInfo: snap.SideInfo{
 			RealName: spec.Name,
 			Channel:  spec.Channel,
-			SnapID:   spec.Name + "-id",
+			SnapID:   snapID,
 			Revision: spec.Revision,
 		},
 		Version: spec.Name,
@@ -334,6 +337,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+	base := ""
 
 	switch cand.snapID {
 	case "":
@@ -361,6 +365,13 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "core18-snap-id":
 		name = "core18"
 		typ = snap.TypeBase
+	case "core22-id":
+		name = "core22"
+		typ = snap.TypeBase
+	case "snap-for-core22-id":
+		name = "snap-core18-to-core22"
+	case "snap-for-core24-id":
+		name = "snap-for-core24"
 	case "snap-with-snapd-control-id":
 		name = "snap-with-snapd-control"
 	case "producer-id":
@@ -380,6 +391,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	case "kernel-id":
 		name = "kernel"
 		typ = snap.TypeKernel
+	case "gadget-core18-id":
+		name = "gadget"
+		typ = snap.TypeGadget
+		base = "core18"
 	case "brand-kernel-id":
 		name = "brand-kernel"
 		typ = snap.TypeKernel
@@ -430,6 +445,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Confinement:   confinement,
 		Architectures: []string{"all"},
 		Epoch:         epoch,
+		Base:          base,
 	}
 
 	if name == "outdated-consumer" {
@@ -464,6 +480,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		}
 	case "channel-for-base/stable":
 		info.Base = "some-base"
+	case "channel-for-core22/stable":
+		info.Base = "core22"
+		info.Revision = snap.R(2)
 	}
 
 	var hit snap.Revision
@@ -899,6 +918,13 @@ apps:
 			panic(err)
 		}
 		info.SideInfo = *si
+	case "snap-core18-to-core22":
+		info.Base = "core18"
+		if info.Revision.N > 1 {
+			info.Base = "core22"
+		}
+	case "snap-for-core24":
+		info.Base = "core24"
 	}
 
 	info.InstanceKey = instanceKey
@@ -1250,7 +1276,7 @@ func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
 }
 
 func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision) error {
-	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName})
+	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
 	return f.maybeErrForLastOp()
 }
 

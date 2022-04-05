@@ -51,7 +51,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"account",
 		"account-key",
 		"account-key-request",
-		"authority-delegation",
+		// XXX "authority-delegation",
 		"base-declaration",
 		"device-session-request",
 		"model",
@@ -80,7 +80,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
 	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
-	// sanity
+	// validity
 	c.Check(snapDeclMaxFormat >= 4, Equals, true)
 	c.Check(systemUserMaxFormat >= 1, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
@@ -729,7 +729,7 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 	c.Check(cont1, DeepEquals, cont0)
 }
 
-func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
+func (as *assertsSuite) TestSignFormatValidityEmptyBody(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -741,7 +741,7 @@ func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (as *assertsSuite) TestSignFormatSanitySignatoryId(c *C) {
+func (as *assertsSuite) TestSignFormatValiditySignatoryId(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -760,7 +760,7 @@ signatory-id: delegated-auth-id
 	c.Check(err, IsNil)
 }
 
-func (as *assertsSuite) TestSignFormatSanitySignatoryIdCoalesce(c *C) {
+func (as *assertsSuite) TestSignFormatValiditySignatoryIdCoalesce(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -776,7 +776,7 @@ func (as *assertsSuite) TestSignFormatSanitySignatoryIdCoalesce(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
+func (as *assertsSuite) TestSignFormatValidityNonEmptyBody(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -791,7 +791,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 	c.Check(decoded.Body(), DeepEquals, body)
 }
 
-func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
+func (as *assertsSuite) TestSignFormatValiditySupportMultilineHeaderValues(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -1099,7 +1099,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	withAuthority := []string{
 		"account",
 		"account-key",
-		"authority-delegation",
+		// XXX "authority-delegation",
 		"base-declaration",
 		"store",
 		"snap-declaration",

@@ -21,11 +21,31 @@ package main_test
 
 import (
 	"encoding/json"
+	"os"
 
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
+
+// XXX: share this helper with signtool tests?
+func mockNopExtKeyMgr(c *C) (pgm *testutil.MockCmd, restore func()) {
+	os.Setenv("SNAPD_EXT_KEYMGR", "keymgr")
+	pgm = testutil.MockCommand(c, "keymgr", `
+if [ "$1" == "features" ]; then
+  echo '{"signing":["RSA-PKCS"] , "public-keys":["DER"]}'
+  exit 0
+fi
+exit 1
+`)
+	r := func() {
+		pgm.Restore()
+		os.Unsetenv("SNAPD_EXT_KEYMGR")
+	}
+
+	return pgm, r
+}
 
 func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key"})
@@ -38,7 +58,7 @@ func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
 func (s *SnapKeysSuite) TestDeleteKeyNonexistent(c *C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "nonexistent"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot find key named \"nonexistent\" in GPG keyring")
+	c.Check(err.Error(), Equals, `cannot delete key named "nonexistent": cannot find key pair in GPG keyring`)
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }

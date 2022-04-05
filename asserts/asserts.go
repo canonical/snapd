@@ -44,7 +44,7 @@ var MetaHeaders = [...]string{
 	"type",
 	"format",
 	"authority-id",
-	"signatory-id",
+	// XXX authority-delegation: "signatory-id",
 	"revision",
 	"body-length",
 	"sign-key-sha3-384",
@@ -189,7 +189,8 @@ func init() {
 	maxSupportedFormat[SystemUserType.Name] = 1
 
 	// done here to untangle initialization loop via Type()
-	typeRegistry[AuthorityDelegationType.Name] = AuthorityDelegationType
+	// XXX authority-delegation disabled
+	// typeRegistry[AuthorityDelegationType.Name] = AuthorityDelegationType
 
 	for _, at := range typeRegistry {
 		at.validate()
@@ -535,10 +536,11 @@ func (ab *assertionBase) AuthorityID() string {
 // SignatoryID returns the account that signed this assertion, it will
 // differ from AuthorityID in the case of signing authority delegation.
 func (ab *assertionBase) SignatoryID() string {
-	signID := ab.HeaderString("signatory-id")
+	// XXX authority-delegation: disabled, remove this
+	/*signID := ab.HeaderString("signatory-id")
 	if signID != "" {
 		return signID
-	}
+	}*/
 	return ab.AuthorityID()
 }
 
@@ -594,7 +596,7 @@ func (ab *assertionBase) At() *AtRevision {
 	return &AtRevision{Ref: *ab.Ref(), Revision: ab.Revision()}
 }
 
-// sanity check
+// expected interface is implemented
 var _ Assertion = (*assertionBase)(nil)
 
 // Decode parses a serialized assertion.

@@ -580,7 +580,7 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 				c.Check(sto.Xdelta3Cmd("foo", "bar").Args, DeepEquals, expArgs, comment)
 			}
 		} else {
-			// sanity check that the test case makes sense, if we didn't want
+			// quick check that the test case makes sense, if we didn't want
 			// deltas, the scenario should have either disabled via an env var,
 			// or had both exes missing
 			c.Assert((scenario.env == "0") ||

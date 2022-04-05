@@ -169,7 +169,7 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 	_, err = os.Stat(filepath.Join(v2.CommonDataDir(), "canary.common"))
 	c.Assert(err, IsNil)
 
-	// sanity atm
+	// validity atm
 	c.Check(v1.DataDir(), Not(Equals), v2.DataDir())
 	c.Check(v1.CommonDataDir(), Equals, v2.CommonDataDir())
 }
@@ -492,7 +492,7 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
-	// sanity check: the 20 dirs don't exist yet (but 10 do)
+	// precondition check: the 20 dirs don't exist yet (but 10 do)
 	for _, dir := range []string{dirs.SnapDataDir, homedir1, homedir2} {
 		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "20")), Equals, false, Commentf(dir))
 		c.Assert(osutil.FileExists(filepath.Join(dir, "hello", "10")), Equals, true, Commentf(dir))
@@ -1012,6 +1012,68 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	entries, err := ioutil.ReadDir(newHomeDir)
 	c.Assert(err, IsNil)
 	c.Check(entries, HasLen, 0)
+}
+
+func (s *copydataSuite) TestInitAlreadyExistsFile(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+
+	// ~/Snap/some-snap already exists but is file
+	newHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+	parent := filepath.Dir(newHome)
+	c.Assert(os.MkdirAll(parent, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(newHome, nil, 0600), IsNil)
+
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), ErrorMatches, fmt.Sprintf("cannot initialize new user HOME %q: already exists but is not a directory", newHome))
+
+	exists, isReg, err := osutil.RegularFileExists(newHome)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isReg, Equals, true)
+}
+
+func (s *copydataSuite) TestInitAlreadyExistsDir(c *C) {
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = filepath.Join(s.tempdir, "user")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	snapName := "some-snap"
+
+	// ~/Snap/some-snap already exists but is file
+	newHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+	c.Assert(os.MkdirAll(newHome, 0700), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(newHome, "file"), nil, 0600), IsNil)
+
+	rev, err := snap.ParseRevision("2")
+	c.Assert(err, IsNil)
+
+	c.Assert(s.be.InitExposedSnapHome(snapName, rev), IsNil)
+
+	exists, isDir, err := osutil.DirExists(newHome)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isDir, Equals, true)
+
+	files, err := ioutil.ReadDir(newHome)
+	c.Assert(err, IsNil)
+	c.Check(files, HasLen, 1)
+	c.Check(files[0].Name(), Equals, "file")
 }
 
 func (s *copydataSuite) TestRemoveExposedHome(c *C) {

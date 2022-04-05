@@ -300,6 +300,8 @@ func (s *poolSuite) TestFetch(c *C) {
 }
 
 func (s *poolSuite) TestFetchDelegation(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	pool := asserts.NewPool(s.db, 64)
 
 	at5555 := &asserts.AtRevision{
@@ -783,7 +785,7 @@ func (s *poolSuite) TestUnknownGroup(c *C) {
 
 	_, err := pool.Singleton("suggestion")
 	c.Assert(err, IsNil)
-	// sanity
+	// validity
 	c.Check(pool.Err("suggestion"), IsNil)
 
 	c.Check(pool.Err("foo"), Equals, asserts.ErrUnknownPoolGroup)

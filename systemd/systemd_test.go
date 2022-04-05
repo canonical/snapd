@@ -623,18 +623,18 @@ func (s *SystemdTestSuite) TestStopManyTimeout(c *C) {
 
 func (s *SystemdTestSuite) TestDisable(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.Disable([]string{"foo"})
+	err := sysd.DisableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo"}})
 
 	s.argses = nil
-	err = sysd.Disable([]string{"foo", "bar"})
+	err = sysd.DisableNoReload([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"disable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "disable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestUnderRootDisable(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Disable([]string{"foo"})
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).DisableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "disable", "foo"}})
 }
@@ -683,18 +683,18 @@ func (s *SystemdTestSuite) TestVersion(c *C) {
 
 func (s *SystemdTestSuite) TestEnable(c *C) {
 	sysd := New(SystemMode, s.rep)
-	err := sysd.Enable([]string{"foo"})
+	err := sysd.EnableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo"}})
 
 	s.argses = nil
-	err = sysd.Enable([]string{"foo", "bar"})
+	err = sysd.EnableNoReload([]string{"foo", "bar"})
 	c.Assert(err, IsNil)
-	c.Check(s.argses, DeepEquals, [][]string{{"enable", "foo", "bar"}})
+	c.Check(s.argses, DeepEquals, [][]string{{"--no-reload", "enable", "foo", "bar"}})
 }
 
 func (s *SystemdTestSuite) TestEnableUnderRoot(c *C) {
-	err := NewUnderRoot("xyzzy", SystemMode, s.rep).Enable([]string{"foo"})
+	err := NewUnderRoot("xyzzy", SystemMode, s.rep).EnableNoReload([]string{"foo"})
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "enable", "foo"}})
 }
@@ -1060,7 +1060,7 @@ WantedBy=multi-user.target
 
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"enable", "snap-snapname-x1.mount"},
+		{"--no-reload", "enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
 	})
 }
@@ -1400,7 +1400,7 @@ func (s *SystemdTestSuite) TestUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, UserMode, nil)
 
-	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--root", rootDir, "enable", "foo"})
 	c.Assert(sysd.Start([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "start", "foo"})
@@ -1410,9 +1410,9 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	rootDir := dirs.GlobalRootDir
 	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
 
-	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "enable", "foo"})
-	c.Assert(sysd.Disable([]string{"foo"}), IsNil)
+	c.Assert(sysd.DisableNoReload([]string{"foo"}), IsNil)
 	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "disable", "foo"})
 	c.Assert(sysd.Mask("foo"), IsNil)
 	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "mask", "foo"})
@@ -1625,10 +1625,10 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 
 func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Enable([]string{"foo"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"foo"}), IsNil)
 
 	sysd = NewEmulationMode("")
-	c.Assert(sysd.Enable([]string{"bar"}), IsNil)
+	c.Assert(sysd.EnableNoReload([]string{"bar"}), IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "enable", "foo"},
 		{"--root", dirs.GlobalRootDir, "enable", "bar"}})
@@ -1636,7 +1636,7 @@ func (s *SystemdTestSuite) TestEnableInEmulationMode(c *C) {
 
 func (s *SystemdTestSuite) TestDisableInEmulationMode(c *C) {
 	sysd := NewEmulationMode("/path")
-	c.Assert(sysd.Disable([]string{"foo"}), IsNil)
+	c.Assert(sysd.DisableNoReload([]string{"foo"}), IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"--root", "/path", "disable", "foo"}})

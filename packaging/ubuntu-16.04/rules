@@ -222,8 +222,13 @@ endif
 	(cd c-vendor/squashfuse && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
+	# skip running tests on riscv64 for now because they are too slow and fail
+	# constantly
+ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),riscv64)
 	GO111MODULE=on \
 		dh_auto_test -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
+endif
+	
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included

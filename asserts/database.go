@@ -22,6 +22,7 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -96,6 +97,24 @@ func (nbs nullBackstore) SequenceMemberAfter(t *AssertionType, kp []string, afte
 	return nil, &NotFoundError{Type: t}
 }
 
+// keyNotFoundError is returned when the key with a given ID cannot be found.
+type keyNotFoundError struct {
+	msg string
+}
+
+func (e *keyNotFoundError) Error() string { return e.msg }
+
+func (e *keyNotFoundError) Is(target error) bool {
+	_, ok := target.(*keyNotFoundError)
+	return ok
+}
+
+// IsKeyNotFound returns true when the error indicates that a given key was not
+// found.
+func IsKeyNotFound(err error) bool {
+	return errors.Is(err, &keyNotFoundError{})
+}
+
 // A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
 	// Put stores the given private/public key pair,
@@ -103,7 +122,9 @@ type KeypairManager interface {
 	// Trying to store a key with an already present key id should
 	// result in an error.
 	Put(privKey PrivateKey) error
-	// Get returns the private/public key pair with the given key id.
+	// Get returns the private/public key pair with the given key id. The
+	// error can be tested with IsKeyNotFound to check whether the given key
+	// was not found, or other error occurred.
 	Get(keyID string) (PrivateKey, error)
 	// Delete deletes the private/public key pair with the given key id.
 	Delete(keyID string) error
@@ -332,7 +353,7 @@ func (db *Database) ImportKey(privKey PrivateKey) error {
 }
 
 var (
-	// for sanity checking of base64 hash strings
+	// for validity checking of base64 hash strings
 	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 )
 
@@ -722,7 +743,8 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionCons
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
 		if assert.SignatoryID() != signingKey.AccountID() {
-			return nil, fmt.Errorf("assertion signatory %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
+			// XXX authority-delegation: s/signatory/authority/
+			return nil, fmt.Errorf("assertion authority %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
 		}
 		if assert.SignatoryID() != assert.AuthorityID() {
 			ad, err := roDB.Find(AuthorityDelegationType, map[string]string{
@@ -866,9 +888,10 @@ func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstra
 var DefaultCheckers = []Checker{
 	CheckSigningKeyIsNotExpired,
 	CheckSignature,
-	CheckDelegationIsNotExpired,
+	// XXX authority-delegation disabled
+	// CheckDelegationIsNotExpired,
 	CheckTimestampVsSigningKeyValidity,
-	CheckTimestampVsDelegationValidity,
-	CheckDelegation,
+	// CheckTimestampVsDelegationValidity,
+	// CheckDelegation,
 	CheckCrossConsistency,
 }
