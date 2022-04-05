@@ -315,8 +315,9 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
 
-          # Get the list of failed tests
+          # Save the var with the failed tests file
           echo "TEST_RESULTS_DIR=${{ github.workspace }}/.test-results" >> $GITHUB_ENV
+          mkdir -p "$TEST_RESULTS_DIR"
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
 
     - name: Run spread tests
