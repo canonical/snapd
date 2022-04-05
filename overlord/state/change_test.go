@@ -949,6 +949,18 @@ var cyclicDependencyTests = []struct {
 		// independent tasks
 		setup: "t1 t2 t3",
 	}, {
+		// some independent and some ordered tasks
+		setup: "t1 t2 t3 t4",
+		order: "t2->t3",
+	},
+	// some independent, dependencies as if added by WaitAll()
+	// t1 => t2
+	// t1,t2 => t3
+	// t1,t2,t3 => t4
+	{
+		setup: "t1 t2 t3 t4",
+		order: "t1->t2 t1->t3 t2->t3 t1->t4 t2->t4 t3->t4",
+	}, {
 		// simple loop
 		setup:  "t1 t2",
 		order:  "t1->t2 t2->t1",
@@ -971,7 +983,6 @@ var cyclicDependencyTests = []struct {
 		setup: "t11 t12 t21 t22 t31 t32 t41 t42",
 		order: "t11->t12 t12->t21 t12->t31 t21->t22 t31->t32 t22->t41 t32->t41 t41->t42",
 	},
-
 	// t11 (1) => t12 (1)
 	// t21 (2) => t22 (2)
 	// t31 (3) => t32 (3)
@@ -1006,6 +1017,14 @@ var cyclicDependencyTests = []struct {
 		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42 t32->t21",
 		err:    `dependency cycle involving tasks \[3:t21 4:t22 5:t31 6:t32 7:t41 8:t42\]`,
 		errIDs: []string{"3", "4", "5", "6", "7", "8"},
+	},
+	// t1 => t2 => t3 => t4 --> t6
+	// t5 => t6 => t7 => t8 --> t2
+	{
+		setup:  "t1 t2 t3 t4 t5 t6 t7 t8",
+		order:  "t1->t2 t2->t3 t3->t4 t4->t6 t5->t6 t6->t7 t7->t8 t8->t2",
+		err:    `dependency cycle involving tasks \[2:t2 3:t3 4:t4 6:t6 7:t7 8:t8\]`,
+		errIDs: []string{"2", "3", "4", "6", "7", "8"},
 	},
 }
 
