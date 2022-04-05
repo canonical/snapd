@@ -17,28 +17,22 @@
  *
  */
 
-package main
+package syscheck
 
 import (
-	"time"
+	"errors"
+
+	"github.com/snapcore/snapd/release"
 )
 
-var (
-	Run = run
-)
-
-func MockSyscheckCheckSystem(f func() error) (restore func()) {
-	oldSyscheckCheckSystem := syscheckCheckSystem
-	syscheckCheckSystem = f
-	return func() {
-		syscheckCheckSystem = oldSyscheckCheckSystem
-	}
+func init() {
+	checks = append(checks, checkWSL)
 }
 
-func MockCheckRunningConditionsRetryDelay(d time.Duration) (restore func()) {
-	oldCheckRunningConditionsRetryDelay := checkRunningConditionsRetryDelay
-	checkRunningConditionsRetryDelay = d
-	return func() {
-		checkRunningConditionsRetryDelay = oldCheckRunningConditionsRetryDelay
+func checkWSL() error {
+	if release.OnWSL {
+		return errors.New("snapd does not work inside WSL")
 	}
+
+	return nil
 }
