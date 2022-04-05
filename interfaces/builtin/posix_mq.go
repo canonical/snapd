@@ -72,8 +72,6 @@ var posixMQPlugPermissions = []string{
 	"write",
 	"create",
 	"delete",
-	"setattr",
-	"getattr",
 }
 
 var posixMQDefaultPlugPermissions = []string{
@@ -234,7 +232,7 @@ func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 	if !implicitSystemPermanentSlot(slot) {
 		if path, err := iface.getPath(slot, slot.Name); err == nil {
 			spec.AddSnippet(fmt.Sprintf(`# POSIX Message Queue management
-mqueue (create delete getattr setattr read write) "%s",
+mqueue (create delete read write) "%s",
 `, path))
 		} else {
 			return err
@@ -246,7 +244,7 @@ mqueue (create delete getattr setattr read write) "%s",
 func (iface *posixMQInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if path, err := iface.getPath(slot, slot.Name()); err == nil {
 		spec.AddSnippet(fmt.Sprintf(`# POSIX Message Queue slot communication
-mqueue (create delete getattr setattr) "%s",
+mqueue (create delete) "%s",
 `, path))
 	} else {
 		return err
@@ -278,8 +276,9 @@ func (iface *posixMQInterface) SecCompPermanentSlot(spec *seccomp.Specification,
 func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
 		var syscalls = []string{
-			// always allow this function
+			// always allow these functions
 			"mq_open",
+			"mq_getsetattr",
 		}
 		for _, perm := range perms {
 			switch perm {
@@ -292,11 +291,6 @@ func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification,
 				break
 			case "delete":
 				syscalls = append(syscalls, "mq_unlink")
-				break
-			case "setattr":
-				fallthrough
-			case "getattr":
-				syscalls = append(syscalls, "mq_getsetattr")
 				break
 			default:
 				continue // no syscall needed
