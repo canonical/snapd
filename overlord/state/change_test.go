@@ -20,6 +20,7 @@
 package state_test
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -933,9 +934,10 @@ func (ts *taskRunnerSuite) TestAbortUnreadyLanes(c *C) {
 // setup is a list of tasks "<task1> <task2>", order is <task1>-><task2>
 // (implies task2 waits for task 1)
 var cyclicDependencyTests = []struct {
-	setup string
-	order string
-	err   string
+	setup  string
+	order  string
+	err    string
+	errIDs []string
 }{
 
 	// Some basics.
@@ -948,9 +950,10 @@ var cyclicDependencyTests = []struct {
 		setup: "t1 t2 t3",
 	}, {
 		// simple loop
-		setup: "t1 t2",
-		order: "t1->t2 t2->t1",
-		err:   `dependency cycle involving tasks \[t1\(1\) t2\(2\)\]`,
+		setup:  "t1 t2",
+		order:  "t1->t2 t2->t1",
+		err:    `dependency cycle involving tasks \[1:t1 2:t2\]`,
+		errIDs: []string{"1", "2"},
 	},
 
 	// t1 => t2 => t3 => t4
@@ -999,13 +1002,14 @@ var cyclicDependencyTests = []struct {
 	//                                          \
 	//                                            => t41 (4) => t42 (4)
 	{
-		setup: "t11 t12 t21 t22 t31 t32 t41 t42",
-		order: "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42 t32->t21",
-		err:   `dependency cycle involving tasks \[t21\(3\) t22\(4\) t31\(5\) t32\(6\) t41\(7\) t42\(8\)\]`,
+		setup:  "t11 t12 t21 t22 t31 t32 t41 t42",
+		order:  "t11->t12 t12->t21 t21->t22 t22->t31 t22->t41 t31->t32 t41->t42 t32->t21",
+		err:    `dependency cycle involving tasks \[3:t21 4:t22 5:t31 6:t32 7:t41 8:t42\]`,
+		errIDs: []string{"3", "4", "5", "6", "7", "8"},
 	},
 }
 
-func (ts *taskRunnerSuite) TestVerifyTaskDependencies(c *C) {
+func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
 
 	for i, test := range cyclicDependencyTests {
 		names := strings.Fields(test.setup)
@@ -1037,10 +1041,13 @@ func (ts *taskRunnerSuite) TestVerifyTaskDependencies(c *C) {
 			tasks[pair[1]].WaitFor(tasks[pair[0]])
 		}
 
-		err := chg.VerifyTaskDependencies()
+		err := chg.CheckTaskDependencies()
 
 		if test.err != "" {
 			c.Assert(err, ErrorMatches, test.err)
+			c.Assert(errors.Is(err, &state.ErrTaskDependencyCycle{}), Equals, true)
+			errTasksDepCycle := err.(*state.ErrTaskDependencyCycle)
+			c.Assert(errTasksDepCycle.IDs, DeepEquals, test.errIDs)
 		} else {
 			c.Assert(err, IsNil)
 		}

@@ -632,30 +632,41 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks 
 	}
 }
 
-// VerifyTaskDependencies checks the tasks in the change for cyclic dependencies
-// and returns in error in such case.
-func (c *Change) VerifyTaskDependencies() error {
+type ErrTaskDependencyCycle struct {
+	IDs []string
+	msg string
+}
+
+func (e *ErrTaskDependencyCycle) Error() string { return e.msg }
+
+func (e *ErrTaskDependencyCycle) Is(err error) bool {
+	_, ok := err.(*ErrTaskDependencyCycle)
+	return ok
+}
+
+// CheckTaskDependencies checks the tasks in the change for cyclic dependencies
+// and returns an error in such case.
+func (c *Change) CheckTaskDependencies() error {
 	tasks := c.Tasks()
-	// list of successors of a task (their IDs)
+	// list of successors of a task (their IDs), i.e. tasks waiting for it
 	successors := make(map[string][]string, len(tasks))
-	// count incoming edges to a task (how many tasks precede a given task)
+	// count how many tasks the given task waits for
 	predecessors := make(map[string]int, len(tasks))
 
-	idToTask := map[string]*Task{}
+	taskByID := map[string]*Task{}
 	for _, t := range tasks {
-		idToTask[t.id] = t
-		for _, waitTaskID := range t.waitTasks {
+		taskByID[t.id] = t
+		successors[t.id] = t.haltTasks
+		for range t.waitTasks {
 			predecessors[t.id]++
-			// edge: waitTask -> task
-			successors[waitTaskID] = append(successors[waitTaskID], t.id)
 		}
 	}
 
 	// Kahn topological sort: make our way starting with tasks that are
 	// independent (their predecessors count is 0), then visit their direct
-	// successors, and for each reduce their predecessors count, once the
-	// count drops to 0, all direct dependencies of a given task have been
-	// accounted for and the task becomes independent.
+	// successors (halt tasks), and for each reduce their predecessors
+	// count; once the count drops to 0, all direct dependencies of a given
+	// task have been accounted for and the task becomes independent.
 
 	// queue of tasks to check
 	queue := make([]string, 0, len(tasks))
@@ -689,17 +700,20 @@ func (c *Change) VerifyTaskDependencies() error {
 			unsatisfiedTasks = append(unsatisfiedTasks, id)
 		}
 		sort.Strings(unsatisfiedTasks)
-		msg := bytes.Buffer{}
-		msg.WriteString("[")
+		msg := strings.Builder{}
+		msg.WriteString("dependency cycle involving tasks [")
 		for i, id := range unsatisfiedTasks {
-			t := idToTask[id]
-			msg.WriteString(fmt.Sprintf("%v(%v)", t.kind, t.id))
+			t := taskByID[id]
+			msg.WriteString(fmt.Sprintf("%v:%v", t.id, t.kind))
 			if i < len(unsatisfiedTasks)-1 {
 				msg.WriteRune(' ')
 			}
 		}
-		msg.WriteString("]")
-		return fmt.Errorf("dependency cycle involving tasks %s", msg.String())
+		msg.WriteRune(']')
+		return &ErrTaskDependencyCycle{
+			IDs: unsatisfiedTasks,
+			msg: msg.String(),
+		}
 	}
 	return nil
 }
