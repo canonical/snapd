@@ -48,5 +48,5 @@ execute: |
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
-    echo "And validate snaps can be installed because fuse is a snapd dependency"
+    echo "And validate snaps can be installed because fuse comes with core as a snapd dependency"
     lxd.lxc exec my-ubuntu snap install test-snapd-sh | MATCH "test-snapd-sh .* installed"
