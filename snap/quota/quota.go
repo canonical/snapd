@@ -34,6 +34,9 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+// export it for test
+var runtimeNumCPU = runtime.NumCPU
+
 // GroupQuotaCPU contains the different knobs that can be tuned
 // for cpu quota limits. The allowed CPU percentage to use is split across two limits
 // to better support a inituitive way of setting the limits.
@@ -292,12 +295,9 @@ func (grp *Group) GetCPUSetQuota() []int {
 	return nil
 }
 
-// export it for test
-var runtimeNumCPU = runtime.NumCPU
-
 // GetLocalCPUQuota returns the final calculated count and percentage of the
 // current CPU quota for the group. This does not return any inherited CPU quota, but
-// it does take any inheritted CPU set into account to adjust in the case of a relative
+// it does take any inherited CPU set into account to adjust in the case of a relative
 // usage percentage.
 // The following output is expected:
 // Count of 0, 50% - 50% times the number of all allowed cores. This is either
