@@ -44,7 +44,7 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.Resources{CPUSet: &quota.ResourceCPUSet{}}, `cpu-set quota must not be empty`},
 		{quota.Resources{Threads: &quota.ResourceThreads{}}, `invalid thread quota with a thread count of 0`},
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
-		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeKiB).Build(), `memory limit 1024 is too small: size must be larger than 4KB`},
+		{quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeKiB).Build(), `memory limit 1024 is too small: size must be larger than 640KB`},
 		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `invalid cpu quota with count of >0 and percentage of 0`},
 	}
 
@@ -136,7 +136,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		{
 			quota.NewResourcesBuilder().WithCPUCount(1).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(1).Build(),
-			`memory limit 1 is too small: size must be larger than 4KB`,
+			`memory limit 1 is too small: size must be larger than 640KB`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),

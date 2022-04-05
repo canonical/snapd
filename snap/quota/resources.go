@@ -75,8 +75,8 @@ func (qr *Resources) validateMemoryQuota() error {
 	// to allow nesting, otherwise groups with less than 4K will trigger the
 	// oom killer to be invoked when a new group is added as a sub-group to the
 	// larger group.
-	if qr.Memory.Limit <= 4*quantity.SizeKiB {
-		return fmt.Errorf("memory limit %d is too small: size must be larger than 4KB", qr.Memory.Limit)
+	if qr.Memory.Limit <= 640*quantity.SizeKiB {
+		return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", qr.Memory.Limit)
 	}
 	return nil
 }
@@ -132,7 +132,7 @@ func (qr *Resources) CheckFeatureRequirements() error {
 
 // Validate performs validation of the provided quota resources for a group.
 // The restrictions imposed are that at least one limit should be set.
-// If memory limit is provided, it must be above 4KB.
+// If memory limit is provided, it must be above 640KB.
 // If cpu percentage is provided, it must be between 1 and 100.
 // If cpu set is provided, it must not be empty.
 // If thread count is provided, it must be above 0.
