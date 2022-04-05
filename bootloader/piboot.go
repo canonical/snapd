@@ -356,15 +356,16 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 	// armhf and arm64 pi-kernel store dtbs in different places
 	// (dtbs/ or dtbs/broadcom/ respectively)
 	var dtbDir string
-	if _, err := os.Stat(filepath.Join(dstDir, "dtbs/broadcom")); os.IsNotExist(err) {
-		dtbDir = "dtbs"
-	} else {
+	if _, isDir, _ := osutil.DirExists(filepath.Join(dstDir, "dtbs/broadcom")); isDir {
 		dtbDir = "dtbs/broadcom"
 		overlaysDir := filepath.Join(dstDir, "dtbs/overlays/")
 		if err := os.Rename(overlaysDir, newOvDir); err != nil {
 			return err
 		}
+	} else {
+		dtbDir = "dtbs"
 	}
+
 	dtbFiles := filepath.Join(dstDir, dtbDir, "*")
 	if output, err := exec.Command("sh", "-c",
 		"mv "+dtbFiles+" "+dstDir).CombinedOutput(); err != nil {
