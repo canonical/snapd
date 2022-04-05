@@ -1,7 +1,7 @@
 #!/bin/bash
 
 build_ubuntu_image() {
-    if [ "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
+    if [ "${UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
         (
             # build a version which uses the current snapd tree as a dependency
             # shellcheck disable=SC2030,SC2031
