@@ -316,8 +316,8 @@ jobs:
           fi
 
           # Get the list of failed tests
-          FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
-          echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
+          echo "TEST_RESULTS_DIR=${{ github.workspace }}/.test-results" >> $GITHUB_ENV
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
 
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
@@ -347,14 +347,6 @@ jobs:
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
-
-    - name: Cache failed run
-        TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
-        mkdir -p "$TEST_RESULTS_DIR"
-        echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
-
-        FAILED_TESTS_FILE="$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests"
-        echo "FAILED_TESTS_FILE=$FAILED_TESTS_FILE" >> $GITHUB_ENV
 
     - name: Discard spread workers
       if: always()
@@ -389,7 +381,7 @@ jobs:
 
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
               if grep -q "Aborted tasks: 0" spread.log; then
-                  ./tests/lib/tools/log-analyzer spread.log --output spread-results.json
+                  ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
                   FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
 
                   echo "Failed tests saved for re-execution: $FAILED_TESTS"
