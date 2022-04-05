@@ -632,15 +632,15 @@ func (c *Change) abortTasks(tasks []*Task, abortedLanes map[int]bool, seenTasks 
 	}
 }
 
-type ErrTaskDependencyCycle struct {
+type TaskDependencyCycleError struct {
 	IDs []string
 	msg string
 }
 
-func (e *ErrTaskDependencyCycle) Error() string { return e.msg }
+func (e *TaskDependencyCycleError) Error() string { return e.msg }
 
-func (e *ErrTaskDependencyCycle) Is(err error) bool {
-	_, ok := err.(*ErrTaskDependencyCycle)
+func (e *TaskDependencyCycleError) Is(err error) bool {
+	_, ok := err.(*TaskDependencyCycleError)
 	return ok
 }
 
@@ -648,14 +648,15 @@ func (e *ErrTaskDependencyCycle) Is(err error) bool {
 // and returns an error in such case.
 func (c *Change) CheckTaskDependencies() error {
 	tasks := c.Tasks()
-	// count how many tasks any given task waits for
+	// count how many tasks any given non-independent task waits for
 	predecessors := make(map[string]int, len(tasks))
 
 	taskByID := map[string]*Task{}
 	for _, t := range tasks {
 		taskByID[t.id] = t
-		for range t.waitTasks {
-			predecessors[t.id]++
+		if l := len(t.waitTasks); l > 0 {
+			// only add an entry if the ask is not independent
+			predecessors[t.id] = l
 		}
 	}
 
@@ -707,7 +708,7 @@ func (c *Change) CheckTaskDependencies() error {
 			}
 		}
 		msg.WriteRune(']')
-		return &ErrTaskDependencyCycle{
+		return &TaskDependencyCycleError{
 			IDs: unsatisfiedTasks,
 			msg: msg.String(),
 		}

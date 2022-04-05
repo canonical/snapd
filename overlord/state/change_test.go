@@ -1064,8 +1064,8 @@ func (ts *taskRunnerSuite) TestCheckTaskDependencies(c *C) {
 
 		if test.err != "" {
 			c.Assert(err, ErrorMatches, test.err)
-			c.Assert(errors.Is(err, &state.ErrTaskDependencyCycle{}), Equals, true)
-			errTasksDepCycle := err.(*state.ErrTaskDependencyCycle)
+			c.Assert(errors.Is(err, &state.TaskDependencyCycleError{}), Equals, true)
+			errTasksDepCycle := err.(*state.TaskDependencyCycleError)
 			c.Assert(errTasksDepCycle.IDs, DeepEquals, test.errIDs)
 		} else {
 			c.Assert(err, IsNil)
