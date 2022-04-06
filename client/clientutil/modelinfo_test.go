@@ -414,7 +414,7 @@ func (s *modelInfoSuite) TestPrintModelJSON(c *C) {
   "store": "brand-store",
   "system-user-authority": "*",
   "timestamp": "%s"
-}`, timeutil.Human(s.ts)))
+}`, s.ts.Format(time.RFC3339)))
 }
 
 func (s *modelInfoSuite) TestPrintModelJSONAssertion(c *C) {
