@@ -643,7 +643,7 @@ func (s *pibootTestSuite) testExtractKernelAssetsOnRPi4CheckEeprom(c *C, rpiRevi
 	err = p.ExtractKernelAssets(info, snapf)
 	if errExpected {
 		c.Check(err.Error(), Equals,
-			"your EEPROM does not support tryboot, please upgrade to a newer one before installing Ubuntu Core")
+			"your EEPROM does not support tryboot, please upgrade to a newer one before installing Ubuntu Core - see http://forum.snapcraft.io/t/29455 for more details")
 		return
 	}
 
