@@ -7737,8 +7737,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) 
 		{macaroon: s.user.StoreMacaroon, name: "snap-core18-to-core22", target: filepath.Join(dirs.SnapBlobDir, "snap-core18-to-core22_2.snap")},
 	})
 
-	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
-	s.fakeBackend.ops.MustFindOp(c, "init-exposed-snap-home")
+	containsInOrder(c, s.fakeBackend.ops, []string{"init-exposed-snap-home", "init-xdg-dirs"})
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	assertMigrationState(c, s.state, "snap-core18-to-core22", expected)
