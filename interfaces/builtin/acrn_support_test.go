@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type acrnInterfaceSuite struct {
+type acrnSupportInterfaceSuite struct {
 	testutil.BaseTest
 
 	iface    interfaces.Interface
@@ -43,44 +43,44 @@ type acrnInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&acrnInterfaceSuite{
-	iface: builtin.MustInterface("acrn"),
+var _ = Suite(&acrnSupportInterfaceSuite{
+	iface: builtin.MustInterface("acrn-support"),
 })
 
-const acrnConsumerYaml = `name: consumer
+const acrnSupportConsumerYaml = `name: consumer
 version: 0
 apps:
   app:
-   plugs: [acrn]
+   plugs: [acrn-support]
 `
 
-const acrnCoreYaml = `name: core
+const acrnSupportCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  acrn:
+  acrn-support:
 `
 
-func (s *acrnInterfaceSuite) SetUpTest(c *C) {
+func (s *acrnSupportInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	s.plug, s.plugInfo = MockConnectedPlug(c, acrnConsumerYaml, nil, "acrn")
-	s.slot, s.slotInfo = MockConnectedSlot(c, acrnCoreYaml, nil, "acrn")
+	s.plug, s.plugInfo = MockConnectedPlug(c, acrnSupportConsumerYaml, nil, "acrn-support")
+	s.slot, s.slotInfo = MockConnectedSlot(c, acrnSupportCoreYaml, nil, "acrn-support")
 }
 
-func (s *acrnInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "acrn")
+func (s *acrnSupportInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "acrn-support")
 }
 
-func (s *acrnInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *acrnSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *acrnInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *acrnSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *acrnInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *acrnSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -93,27 +93,27 @@ func (s *acrnInterfaceSuite) TestAppArmorSpec(c *C) {
 `)
 }
 
-func (s *acrnInterfaceSuite) TestUDevSpec(c *C) {
+func (s *acrnSupportInterfaceSuite) TestUDevSpec(c *C) {
 	spec := &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
-	c.Assert(spec.Snippets()[0], Equals, `# acrn
+	c.Assert(spec.Snippets()[0], Equals, `# acrn-support
 KERNEL=="acrn_hsm", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%s/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
-func (s *acrnInterfaceSuite) TestStaticInfo(c *C) {
+func (s *acrnSupportInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to the acrn_hsm device`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "acrn")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "acrn-support")
 }
 
-func (s *acrnInterfaceSuite) TestAutoConnect(c *C) {
+func (s *acrnSupportInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
-func (s *acrnInterfaceSuite) TestInterfaces(c *C) {
+func (s *acrnSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

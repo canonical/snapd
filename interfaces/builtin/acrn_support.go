@@ -19,17 +19,17 @@
 
 package builtin
 
-const acrnSummary = `allows access to the acrn_hsm device`
+const acrnSupportSummary = `allows access to the acrn_hsm device`
 
-const acrnBaseDeclarationSlots = `
-  acrn:
+const acrnSupportBaseDeclarationSlots = `
+  acrn-support:
     allow-installation:
       slot-snap-type:
         - core
     deny-auto-connection: true
 `
 
-const acrnConnectedPlugAppArmor = `
+const acrnSupportConnectedPlugAppArmor = `
 # Description: Allow write access to acrn_hsm.
 /dev/acrn_hsm rw,
 # Allow offlining CPU cores
@@ -37,22 +37,22 @@ const acrnConnectedPlugAppArmor = `
 
 `
 
-type acrnInterface struct {
+type acrnSupportInterface struct {
 	commonInterface
 }
 
-var acrnConnectedPlugUDev = []string{
+var acrnSupportConnectedPlugUDev = []string{
 	`KERNEL=="acrn_hsm"`,
 }
 
 func init() {
-	registerIface(&acrnInterface{commonInterface{
-		name:                  "acrn",
-		summary:               acrnSummary,
+	registerIface(&acrnSupportInterface{commonInterface{
+		name:                  "acrn-support",
+		summary:               acrnSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
-		connectedPlugUDev:     acrnConnectedPlugUDev,
-		baseDeclarationSlots:  acrnBaseDeclarationSlots,
-		connectedPlugAppArmor: acrnConnectedPlugAppArmor,
+		connectedPlugUDev:     acrnSupportConnectedPlugUDev,
+		baseDeclarationSlots:  acrnSupportBaseDeclarationSlots,
+		connectedPlugAppArmor: acrnSupportConnectedPlugAppArmor,
 	}})
 }
