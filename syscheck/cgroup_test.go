@@ -17,26 +17,35 @@
  *
  */
 
-package sanity
+package syscheck_test
 
 import (
-	"fmt"
+	"errors"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/syscheck"
 )
 
-func init() {
-	checks = append(checks, checkCgroup)
+type cgroupSuite struct{}
+
+var _ = Suite(&cgroupSuite{})
+
+func (s *cgroupSuite) TestBadCgroupProbeHappy(c *C) {
+	defer cgroup.MockVersion(cgroup.V1, nil)()
+
+	c.Check(syscheck.CheckCgroup(), IsNil)
 }
 
-func checkCgroup() error {
-	v, err := cgroup.Version()
-	if err != nil {
-		return fmt.Errorf("snapd could not probe cgroup version: %v", err)
-	}
-	if v == cgroup.Unknown {
-		return fmt.Errorf("snapd could not determine cgroup version")
-	}
+func (s *cgroupSuite) TestBadCgroupProbeUnknown(c *C) {
+	defer cgroup.MockVersion(cgroup.Unknown, nil)()
 
-	return nil
+	c.Check(syscheck.CheckCgroup(), ErrorMatches, "snapd could not determine cgroup version")
+}
+
+func (s *cgroupSuite) TestBadCgroupProbeErr(c *C) {
+	defer cgroup.MockVersion(cgroup.Unknown, errors.New("nada"))()
+
+	c.Check(syscheck.CheckCgroup(), ErrorMatches, "snapd could not probe cgroup version: nada")
 }

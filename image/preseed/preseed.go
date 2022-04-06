@@ -108,7 +108,7 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 	model := sd.Model()
 
 	tm := timings.New(nil)
-	if err := sd.LoadMeta(tm); err != nil {
+	if err := sd.LoadMeta("run", tm); err != nil {
 		return err
 	}
 

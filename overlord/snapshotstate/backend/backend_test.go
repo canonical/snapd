@@ -560,12 +560,13 @@ func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
 	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap"}
 	buf, restore := logger.MockLogger()
 	defer restore()
+	savingUserData := false
 	// note as the zip is nil this would panic if it didn't bail
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent")), check.IsNil)
+	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil), check.IsNil)
 	// no log for the non-existent case
 	c.Check(buf.String(), check.Equals, "")
 	buf.Reset()
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd"), check.IsNil)
+	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, nil), check.IsNil)
 	c.Check(buf.String(), check.Matches, "(?m).* is not a directory.")
 }
 
@@ -579,7 +580,8 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
-	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d), check.ErrorMatches, ".* context canceled")
+	savingUserData := false
+	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d, savingUserData, nil), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
@@ -593,7 +595,8 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	snapshot := &client.Snapshot{
 		SHA3_384: map[string]string{},
 	}
-	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d), check.IsNil)
+	savingUserData := false
+	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, savingUserData, nil), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(snapshot.SHA3_384, check.HasLen, 1)
@@ -604,6 +607,76 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(r.File, check.HasLen, 1)
 	c.Check(r.File[0].Name, check.Equals, "an/entry")
+}
+
+func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
+	d := filepath.Join(s.root, "x1")
+	c.Assert(os.MkdirAll(d, 0755), check.IsNil)
+
+	var buf bytes.Buffer
+	z := zip.NewWriter(&buf)
+	snapshot := &client.Snapshot{
+		SHA3_384: map[string]string{},
+	}
+	defer z.Close()
+
+	var tarArgs []string
+	restore := backend.MockTarAsUser(func(username string, args ...string) *exec.Cmd {
+		// We care only about the exclusion arguments in this test
+		tarArgs = nil
+		for _, arg := range args {
+			if strings.HasPrefix(arg, "--exclude=") {
+				tarArgs = append(tarArgs, arg)
+			}
+		}
+		// We only care about being called with the right arguments
+		return exec.Command("false")
+	})
+	defer restore()
+
+	for _, testData := range []struct {
+		excludes       []string
+		savingUserData bool
+		expectedArgs   []string
+	}{
+		{
+			[]string{"$SNAP_DATA/file"},
+			false,
+			[]string{"--exclude=x1/file"},
+		},
+		{
+			// user data, but vars are for system data: they must be ignored
+			[]string{"$SNAP_DATA/a", "$SNAP_COMMON_DATA/b"}, true, nil,
+		},
+		{
+			// system data, but vars are for system data: they must be ignored
+			[]string{"$SNAP_USER_DATA/a", "$SNAP_USER_COMMON/b"}, false, nil,
+		},
+		{
+			// system data
+			[]string{"$SNAP_DATA/one", "$SNAP_COMMON/two"},
+			false,
+			[]string{"--exclude=x1/one", "--exclude=common/two"},
+		},
+		{
+			// user data
+			[]string{"$SNAP_USER_DATA/file", "$SNAP_USER_COMMON/test"},
+			true,
+			[]string{"--exclude=x1/file", "--exclude=common/test"},
+		},
+		{
+			// mixed case
+			[]string{"$SNAP_USER_DATA/1", "$SNAP_DATA/2", "$SNAP_COMMON/3", "$SNAP_DATA/4"},
+			false,
+			[]string{"--exclude=x1/2", "--exclude=common/3", "--exclude=x1/4"},
+		},
+	} {
+		testLabel := check.Commentf("%s/%v", testData.excludes, testData.savingUserData)
+
+		err := backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, testData.savingUserData, testData.excludes)
+		c.Check(err, check.ErrorMatches, "tar failed.*")
+		c.Check(tarArgs, check.DeepEquals, testData.expectedArgs, testLabel)
+	}
 }
 
 func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {

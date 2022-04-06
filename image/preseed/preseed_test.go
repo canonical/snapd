@@ -115,10 +115,10 @@ func (fs *FakeSeed) Brand() (*asserts.Account, error) {
 }
 
 func (fs *FakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
-	panic("unexpected")
+	return fs.LoadMetaErr
 }
 
-func (fs *FakeSeed) LoadMeta(tm timings.Measurer) error {
+func (fs *FakeSeed) LoadMeta(mode string, tm timings.Measurer) error {
 	return fs.LoadMetaErr
 }
 
