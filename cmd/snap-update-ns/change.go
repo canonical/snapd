@@ -499,9 +499,19 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
+	logger.Debugf("current profile:\n%v", current)
+	logger.Debugf("desired profile")
+	for _, en := range desired {
+		logger.Debugf("- %v", en)
+	}
 	// Sort both lists by directory name with implicit trailing slash.
 	sort.Sort(byOriginAndMagicDir(current))
+	logger.Debugf("current profile sorted:\n%v", current)
 	sort.Sort(byOriginAndMagicDir(desired))
+	logger.Debugf("desired profile sorted")
+	for _, en := range desired {
+		logger.Debugf("- %v", en)
+	}
 
 	// Construct a desired directory map.
 	desiredMap := make(map[string]*osutil.MountEntry)
@@ -601,24 +611,36 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	// 3. Perform all the remaining desired mounts
 
 	var newDesiredEntries []osutil.MountEntry
+	var newIndependentDesiredEntries []osutil.MountEntry
 	// Indexed by mount point path.
 	addedDesiredEntries := make(map[string]bool)
 	// This function is idempotent, it won't add the same entry twice
 	addDesiredEntry := func(entry osutil.MountEntry) {
 		if !addedDesiredEntries[entry.Dir] {
+			logger.Debugf("adding entry: %s", entry)
 			newDesiredEntries = append(newDesiredEntries, entry)
 			addedDesiredEntries[entry.Dir] = true
 		}
 	}
+	addIndependentDesiredEntry := func(entry osutil.MountEntry) {
+		if !addedDesiredEntries[entry.Dir] {
+			logger.Debugf("adding independent entry: %s", entry)
+			newIndependentDesiredEntries = append(newIndependentDesiredEntries, entry)
+			addedDesiredEntries[entry.Dir] = true
+		}
+	}
 
+	logger.Debugf("processing mount entries")
 	// Create a map of the target directories (mimics) needed for the visited
 	// entries
 	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
 	for _, entry := range desiredNotReused {
 		if entry.XSnapdOrigin() == "overname" {
-			addDesiredEntry(entry)
+			logger.Debugf("- overname entry: %v", entry)
+			addIndependentDesiredEntry(entry)
 		}
 
+		// collect all entries, so that we know what mimics are needed
 		parentTargetDir := filepath.Dir(entry.Dir)
 		affectedTargetCreationDirs[parentTargetDir] = append(affectedTargetCreationDirs[parentTargetDir], entry)
 	}
@@ -653,6 +675,11 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 				if !exists {
 					neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
 					entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
+					logger.Debugf("- entry that requires %q: %v", neededMimicDir, entry)
+				} else {
+					logger.Debugf("- independent entry: %v", entry)
+					// entry is independent
+					addIndependentDesiredEntry(entry)
 				}
 			}
 		}
@@ -667,11 +694,17 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 		sort.Strings(allMimicCreationDirs)
 
+		logger.Debugf("adding mimics and their entries")
+
 		for _, mimicDir := range allMimicCreationDirs {
 			// make sure to sort the entries for each mimic dir in a consistent
 			// order
 			entries := entriesForMimicDir[mimicDir]
 			sort.Sort(byOriginAndMagicDir(entries))
+			logger.Debugf("mimic creation dirs")
+			for _, en := range allMimicCreationDirs {
+				logger.Debugf("- %v", en)
+			}
 
 			for _, entry := range entries {
 				addDesiredEntry(entry)
@@ -679,11 +712,9 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 	}
 
-	for _, entry := range desiredNotReused {
-		addDesiredEntry(entry)
-	}
+	sort.Sort(byOriginAndMagicDir(newIndependentDesiredEntries))
 
-	for _, entry := range newDesiredEntries {
+	for _, entry := range append(newIndependentDesiredEntries, newDesiredEntries...) {
 		changes = append(changes, &Change{Action: Mount, Entry: entry})
 	}
 

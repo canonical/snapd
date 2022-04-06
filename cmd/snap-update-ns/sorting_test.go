@@ -65,10 +65,12 @@ func (s *sortSuite) TestParallelInstancesAndSimple(c *C) {
 	c.Assert(entries, DeepEquals, []osutil.MountEntry{
 		{Dir: "/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
 		{Dir: "/var/snap/bar", Options: []string{osutil.XSnapdOriginOvername()}},
+		// implicit content before layouts
 		{Dir: "/a/b-1"},
 		{Dir: "/a/b-1/3"},
-		{Dir: "/a/b", Options: []string{osutil.XSnapdOriginLayout()}},
 		{Dir: "/a/b/c"},
+		// layouts
+		{Dir: "/a/b", Options: []string{osutil.XSnapdOriginLayout()}},
 		{Dir: "/snap/bar/baz", Options: []string{osutil.XSnapdOriginLayout()}},
 	})
 }

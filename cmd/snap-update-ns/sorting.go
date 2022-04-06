@@ -49,6 +49,15 @@ func (c byOriginAndMagicDir) Less(i, j int) bool {
 			// non-overname ith element should be sorted after
 			return false
 		}
+		// neither is overname, can be layout or nothing (implied
+		// content)
+		if iOrigin == "layout" {
+			return false
+		}
+		// i is not layout, so it must be nothing (implied content)
+		if jOrigin == "layout" {
+			return true
+		}
 	}
 
 	iDir := c[i].Dir
