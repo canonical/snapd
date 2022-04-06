@@ -27,14 +27,6 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 prepare: |
-    # We skip the test in trusty butcause it fails with the following error
-    # since was added private /dev/shm support to shared-memory interface
-    # shared-memory plug with "private: true" cannot be connected if "/dev/shm"
-    # is a symlink)
-    if os.query is-trusty; then
-        echo "Ubuntu trusty is not supported, exiting..."
-        exit 0
-    fi
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
 
@@ -47,10 +39,6 @@ prepare: |
     fi
 
 restore: |
-    if os.query is-trusty; then
-        echo "Ubuntu trusty is not supported, exiting..."
-        exit 0
-    fi
     # Remove the snaps to avoid timeout in next test
     snap remove --purge "$CONSUMER_SNAP"
     if tests.session has-session-systemd-and-dbus; then
@@ -64,8 +52,16 @@ debug: |
 
 execute: |
     if os.query is-trusty; then
-        echo "Ubuntu trusty is not supported, exiting..."
-        exit 0
+        echo "Removing the SHM plug, which is unsupported in 14.04"
+        cp -r "$TESTSLIB/snaps/test-snapd-policy-app-consumer" .
+        shm="$(grep -n "shared-memory: test-snapd-policy-app-consumer/meta/snap.yaml"|cut -d ':' -f1)"
+        ed=()
+        n=0
+        for l in $shm; do
+            ed[$n]="-e $l,+2d"
+            n=$((n + 1))
+        done
+        sed -i "${ed[@]}" test-snapd-policy-app-consumer/meta/snap.yaml
     fi
     echo "For each core-provided slot"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
