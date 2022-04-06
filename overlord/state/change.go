@@ -655,7 +655,7 @@ func (c *Change) CheckTaskDependencies() error {
 	for _, t := range tasks {
 		taskByID[t.id] = t
 		if l := len(t.waitTasks); l > 0 {
-			// only add an entry if the ask is not independent
+			// only add an entry if the task is not independent
 			predecessors[t.id] = l
 		}
 	}
