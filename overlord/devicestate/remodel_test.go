@@ -902,7 +902,7 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 
 	remodCtx.Init(chg)
 
-	// sanity check
+	// validity check
 	device1, err := devBE.Device()
 	c.Assert(err, IsNil)
 	c.Check(device1, DeepEquals, &auth.DeviceState{
@@ -1073,7 +1073,7 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 
 	remodCtx.Init(chg)
 
-	// sanity check
+	// validity check
 	device1, err := devBE.Device()
 	c.Assert(err, IsNil)
 	c.Check(device1, DeepEquals, &auth.DeviceState{

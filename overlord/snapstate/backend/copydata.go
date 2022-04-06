@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -255,26 +256,59 @@ var removeIfEmpty = func(dir string) error {
 	return os.Remove(dir)
 }
 
+// UndoInfo contains information about what an operation did so that it can be
+// undone.
+type UndoInfo struct {
+	// Created contains the directories created in the operation.
+	Created []string `json:"created,omitempty"`
+}
+
 // InitExposedSnapHome creates and initializes ~/Snap/<snapName> based on the
-// specified revision. Must be called after the snap has been migrated.
-func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err error) {
+// specified revision. Must be called after the snap has been migrated. If no
+// error occurred, returns a non-nil undoInfo so that the operation can be undone.
+// If an error occurred, an attempt is made to undo so no undoInfo is returned.
+func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoInfo *UndoInfo, err error) {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
 	users, err := allUsers(opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	undoInfo = &UndoInfo{}
+	defer func() {
+		if err != nil {
+			if err := b.UndoInitExposedSnapHome(snapName, undoInfo); err != nil {
+				logger.Noticef("cannot undo ~/Snap init for %q after it failed: %v", snapName, err)
+			}
+
+			undoInfo = nil
+		}
+	}()
 
 	for _, usr := range users {
 		uid, gid, err := osutil.UidGid(usr)
 		if err != nil {
-			return err
+			return undoInfo, err
 		}
 
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
-		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
-			return fmt.Errorf("cannot create %q: %v", newUserHome, err)
+		if exists, isDir, err := osutil.DirExists(newUserHome); err != nil {
+			return undoInfo, err
+		} else if exists {
+			if !isDir {
+				return undoInfo, fmt.Errorf("cannot initialize new user HOME %q: already exists but is not a directory", newUserHome)
+			}
+
+			// we reverted from a core22 base before, so the new HOME already exists
+			continue
 		}
+
+		if err := mkdirAllChown(newUserHome, 0700, uid, gid); err != nil {
+			return undoInfo, fmt.Errorf("cannot create %q: %v", newUserHome, err)
+		}
+
+		undoInfo.Created = append(undoInfo.Created, newUserHome)
 
 		userData := snap.UserDataDir(usr.HomeDir, snapName, rev, opts)
 		entries, err := ioutil.ReadDir(userData)
@@ -284,24 +318,27 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (err er
 				continue
 			}
 
-			return err
+			return undoInfo, err
 		}
 		for _, e := range entries {
 			src := filepath.Join(userData, e.Name())
 			dst := filepath.Join(newUserHome, e.Name())
 
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
-				return err
+				return undoInfo, err
 			}
 		}
 	}
 
-	return nil
+	return undoInfo, nil
 }
 
-// RemoveExposedSnapHome removes the ~/Snap dirs.
-func (b Backend) RemoveExposedSnapHome(snapName string) error {
+// UndoInitExposedSnapHome undoes the ~/Snap initialization according to the undoInfo.
+func (b Backend) UndoInitExposedSnapHome(snapName string, undoInfo *UndoInfo) error {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	if undoInfo == nil {
+		undoInfo = &UndoInfo{}
+	}
 
 	var firstErr error
 	handle := func(err error) {
@@ -319,6 +356,10 @@ func (b Backend) RemoveExposedSnapHome(snapName string) error {
 
 	for _, usr := range users {
 		newUserHome := snap.UserExposedHomeDir(usr.HomeDir, snapName)
+		if !strutil.ListContains(undoInfo.Created, newUserHome) {
+			continue
+		}
+
 		if err := os.RemoveAll(newUserHome); err != nil {
 			handle(fmt.Errorf("cannot remove %q: %v", newUserHome, err))
 			continue

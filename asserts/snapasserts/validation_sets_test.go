@@ -606,14 +606,14 @@ func (s *validationSetsSuite) TestCheckInstalledSnapsIgnoreValidation(c *C) {
 	snapB := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(3))
 	snapBinvRev := snapasserts.NewInstalledSnap("snap-b", "mysnapbbbbbbbbbbbbbbbbbbbbbbbbbb", snap.R(8))
 
-	// sanity check
+	// validity check
 	c.Check(valsets.CheckInstalledSnaps([]*snapasserts.InstalledSnap{snapA, snapB}, nil), ErrorMatches, "validation sets assertions are not met:\n"+
 		"- invalid snaps:\n"+
 		"  - snap-a \\(invalid for sets acme/fooname\\)")
 	// snapA is invalid but ignore-validation is set so it's ok
 	c.Check(valsets.CheckInstalledSnaps([]*snapasserts.InstalledSnap{snapA, snapB}, map[string]bool{"snap-a": true}), IsNil)
 
-	// sanity check
+	// validity check
 	c.Check(valsets.CheckInstalledSnaps([]*snapasserts.InstalledSnap{snapBinvRev}, nil), ErrorMatches, "validation sets assertions are not met:\n"+
 		"- snaps at wrong revisions:\n"+
 		"  - snap-b \\(required at revision 3 by sets acme/fooname\\)")
@@ -780,7 +780,7 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	c.Assert(valsets.Add(valset2), IsNil)
 	c.Assert(valsets.Add(valset3), IsNil)
 
-	// sanity
+	// validity
 	c.Assert(valsets.Conflict(), IsNil)
 
 	vsKeys, rev, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
@@ -866,7 +866,7 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	c.Assert(valsets.Add(valset1), IsNil)
 	c.Assert(valsets.Add(valset2), IsNil)
 
-	// sanity
+	// validity
 	c.Assert(valsets.Conflict(), IsNil)
 
 	// invalid in two sets

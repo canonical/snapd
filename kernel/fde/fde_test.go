@@ -180,7 +180,7 @@ func checkSystemdRunOrSkip(c *C) {
 func (s *fdeSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	checkSystemdRunOrSkip(c)
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
@@ -202,7 +202,7 @@ cat - > %s
 func (s *fdeSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
 	checkSystemdRunOrSkip(c)
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
 	defer mockSystemdRun.Restore()
@@ -220,7 +220,7 @@ func (s *fdeSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
 func (s *fdeSuite) TestLockSealedKeysHonorsParanoia(c *C) {
 	checkSystemdRunOrSkip(c)
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
 	defer mockSystemdRun.Restore()
@@ -245,7 +245,7 @@ func (s *fdeSuite) TestReveal(c *C) {
 	sealedKey := []byte("sealed-v2-payload")
 	v2payload := []byte("unsealed-v2-payload")
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
@@ -279,7 +279,7 @@ func (s *fdeSuite) TestRevealV1(c *C) {
 	// fix randutil outcome
 	rand.Seed(1)
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
@@ -313,7 +313,7 @@ func (s *fdeSuite) TestRevealV2PayloadV1Hook(c *C) {
 	sealedKey := []byte("sealed-v2-payload")
 	v2payload := []byte("unsealed-v2-payload")
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
@@ -349,7 +349,7 @@ func (s *fdeSuite) TestRevealV2BadJSON(c *C) {
 
 	sealedKey := []byte("sealed-v2-payload")
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
@@ -383,7 +383,7 @@ func (s *fdeSuite) TestRevealV1BadOutputSize(c *C) {
 	// fix randutil outcome
 	rand.Seed(1)
 
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
@@ -469,7 +469,7 @@ echo "making the hook always fail for simpler test code" 1>&2
 exit 1
 `, streamFiles[0], streamFiles[1], streamFiles[2]))
 	defer mockSystemdRun.Restore()
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 
 	sealedKey := []byte{1, 2, 3, 4}
@@ -499,7 +499,7 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 
 	mockSystemdRun := testutil.MockCommand(c, "systemd-run", `echo failed 1>&2; false`)
 	defer mockSystemdRun.Restore()
-	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
 	defer restore()
 
 	sealedKey := []byte{1, 2, 3, 4}
@@ -574,6 +574,67 @@ func (s *fdeSuite) TestDeviceSetupError(c *C) {
 	c.Check(err, ErrorMatches, "device setup failed with: something failed badly")
 }
 
+func (s *fdeSuite) TestDeviceUnlock(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
+	defer restore()
+	fdeDeviceUnlockStdin := filepath.Join(c.MkDir(), "stdin")
+	mockDeviceUnlockHook := testutil.MockCommand(c, "fde-device-unlock", fmt.Sprintf(`
+cat - > %s
+`, fdeDeviceUnlockStdin))
+	defer mockDeviceUnlockHook.Restore()
+
+	// ensure we have a device-unlock hook
+	c.Assert(fde.HasDeviceUnlock(), Equals, true)
+	key := []byte{0, 1, 2, 3, 4, 5}
+	err := fde.DeviceUnlock(&fde.DeviceUnlockParams{
+		Key:           key,
+		Device:        "/dev/mapper/data-device-locked",
+		PartitionName: "data",
+	})
+	c.Assert(err, IsNil)
+	c.Check(mockDeviceUnlockHook.Calls(), DeepEquals, [][]string{
+		{"fde-device-unlock"},
+	})
+	exp := fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/mapper/data-device-locked","partition-name":"data"}`, base64.StdEncoding.EncodeToString(key))
+	c.Check(fdeDeviceUnlockStdin, testutil.FileEquals, exp)
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-device-unlock")), Equals, false)
+}
+
+func (s *fdeSuite) TestDeviceUnlockErr(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
+	defer restore()
+	mockDeviceUnlockHook := testutil.MockCommand(c, "fde-device-unlock", `
+echo  "output-only-used-for-errors" 1>&2
+exit 1
+`)
+	defer mockDeviceUnlockHook.Restore()
+
+	p := fde.DeviceUnlockParams{
+		Key:           []byte{0, 1, 2, 3, 4, 5},
+		Device:        "/dev/mapper/data-device-locked",
+		PartitionName: "data",
+	}
+	err := fde.DeviceUnlock(&p)
+	c.Assert(err, ErrorMatches, `cannot run fde-device-unlock "device-unlock": 
+-----
+output-only-used-for-errors
+service result: exit-code
+-----`)
+
+	c.Assert(mockDeviceUnlockHook.Calls(), DeepEquals, [][]string{
+		{"fde-device-unlock"},
+	})
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-device-unlock")), Equals, false)
+}
+
 func (s *fdeSuite) TestHasDeviceUnlock(c *C) {
 	oldPath := os.Getenv("PATH")
 	defer func() { os.Setenv("PATH", oldPath) }()
@@ -620,5 +681,16 @@ func (s *fdeSuite) TestIsEncryptedDeviceMapperName(c *C) {
 		"CRYPT-LUKS2-5a522809c87e4dfa81a88dc5667d1304-ubuntu-data-3776bab4-8bcc-46b7-9da2-6a84ce7f93b4",
 	} {
 		c.Assert(fde.IsHardwareEncryptedDeviceMapperName(t), Equals, false)
+	}
+}
+
+func (s *fdeSuite) TestEncryptedDeviceMapperName(c *C) {
+	for _, str := range []string{
+		"ubuntu-data",
+		"ubuntu-save",
+		"foo",
+		"other",
+	} {
+		c.Assert(fde.EncryptedDeviceMapperName(str), Equals, str+"-device-locked")
 	}
 }

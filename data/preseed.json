@@ -1,0 +1,24 @@
+{
+    "include": [
+        "etc/udev/rules.d",
+        "etc/systemd",
+        "etc/dbus-1",
+        "snap",
+        "var/lib/snapd/state.json",
+        "var/lib/snapd/apparmor",
+        "var/lib/snapd/system-key",
+        "var/lib/snapd/assertions",
+        "var/lib/snapd/seccomp",
+        "var/lib/snapd/desktop",
+        "var/lib/snapd/sequence",
+        "var/lib/snapd/cookie",
+        "var/lib/snapd/dbus-1",
+        "var/snap",
+        "var/cache/snapd/aux",
+        "var/cache/apparmor"
+    ],
+    "exclude": [
+        "var/lib/snapd/snaps/*.snap",
+        "var/lib/seed/*"
+    ]
+}

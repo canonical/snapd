@@ -1,7 +1,7 @@
 summary: Integration tests for the snap-bootstrap binary
 
 # use the same system and tooling as uc20
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     SNAPD_DEBUG: "1"
@@ -9,7 +9,7 @@ environment:
 
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
-    truncate --size=10GB fake.img
+    truncate --size=5GB fake.img
 
     apt install -y cryptsetup
 
@@ -18,8 +18,7 @@ prepare: |
     cat > losetup.sh <<'EOF'
     #!/bin/sh -e
     echo "Setting up loop"
-    losetup -fP fake.img
-    losetup -a |grep fake.img|cut -f1 -d: > loop.txt
+    losetup --show -fP fake.img >loop.txt
     EOF
     chmod +x ./losetup.sh
     ./losetup.sh
@@ -39,6 +38,11 @@ prepare: |
     echo "Double check that we got the expected partitions"
     sfdisk -l "$LOOP" | MATCH 'BIOS boot'
     sfdisk -l "$LOOP" | MATCH 'EFI System'
+
+    # Resize the disk without resizing the partition table
+    truncate --size=10GB fake.img
+    losetup -c "${LOOP}"
+    partx -u "${LOOP}"
 
     echo "Get the UC20 gadget"
     snap download --channel=20/edge pc
@@ -66,7 +70,6 @@ restore: |
     apt autoremove -y cryptsetup
 
     rm -Rf /run/mnt
-    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions
@@ -99,7 +102,6 @@ execute: |
     kerneldir=""
 
     echo "Run the snap-bootstrap tool"
-    go get ../../lib/uc20-create-partitions
     uc20-create-partitions \
         --encrypt \
         ./gadget-dir "$kerneldir" "$LOOP"

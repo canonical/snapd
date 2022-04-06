@@ -23,6 +23,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -45,6 +46,8 @@ const (
 	Hidden       = hidden
 	Home         = home
 	RevertHidden = revertHidden
+	DisableHome  = disableHome
+	RevertFull   = revertFull
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -293,7 +296,7 @@ func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID 
 	}
 }
 
-func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info) error) func() {
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error) func() {
 	old := generateSnapdWrappers
 	generateSnapdWrappers = f
 	return func() {

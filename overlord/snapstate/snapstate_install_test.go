@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 
@@ -1303,7 +1304,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 
 	tasks := ts.Tasks()
 	last := tasks[len(tasks)-1]
-	// sanity
+	// validity
 	c.Assert(last.Lanes(), HasLen, 1)
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(last)
@@ -3137,6 +3138,30 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
 	c.Assert(err, ErrorMatches, "user session daemons are not supported on this release")
 }
 
+func (s *snapmgrTestSuite) TestInstallUserDaemonsSnapdDesktopIntegration(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "22.04"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.user-daemons", false)
+	tr.Commit()
+
+	// Installing snapd-desktop-integration is possible even when
+	// user-daemons is disabled.
+	opts := &snapstate.RevisionOptions{Channel: "channel-for-user-daemon"}
+	_, err := snapstate.Install(context.Background(), s.state, "snapd-desktop-integration", opts, s.user.ID, snapstate.Flags{})
+	c.Check(err, IsNil)
+
+	// However, it will still fail on systems that do not support
+	// the user-daemons feature at all.
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
+	defer restore()
+	_, err = snapstate.Install(context.Background(), s.state, "snapd-desktop-integration", opts, s.user.ID, snapstate.Flags{})
+	c.Check(err, ErrorMatches, "user session daemons are not supported on this release")
+}
+
 func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3229,7 +3254,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 
 	tasks := ts.Tasks()
 	last := tasks[len(tasks)-1]
-	// sanity
+	// validity
 	c.Assert(last.Lanes(), HasLen, 1)
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(last)
@@ -4310,7 +4335,7 @@ func (s *snapmgrTestSuite) TestInstallPrereqIgnoreConflictInSameChange(c *C) {
 }
 
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevisionIgnoreValidationOK(c *C) {
-	// sanity check: fails with validation
+	// validity check: fails with validation
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(11), "", &snapstate.Flags{IgnoreValidation: false})
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 11 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
 
@@ -5146,4 +5171,60 @@ func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	assertMigrationState(c, s.state, "snap-for-core24", expected)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrateOnInstallWithCore22AfterLinkSnap(c *C) {
+	// we wrote the sequence file but then zeroed it out on undo
+	expectSeqFile := true
+	s.testUndoMigrateOnInstallWithCore22(c, expectSeqFile, failAfterLinkSnap)
+}
+
+func (s *snapmgrTestSuite) TestUndoMigrateOnInstallWithCore22OnExposedMigration(c *C) {
+	// we never wrote the sequence file
+	expectSeqFile := false
+	s.testUndoMigrateOnInstallWithCore22(c, expectSeqFile, func(*overlord.Overlord, *state.Change) error {
+		err := errors.New("boom")
+		s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+			if op.op == "init-exposed-snap-home" {
+				return err
+			}
+			return nil
+		}
+
+		return err
+	})
+
+}
+
+func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFile bool, prepFail prepFailFunc) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapName := "snap-core18-to-core22"
+	ts, err := snapstate.Install(context.Background(), s.state, snapName, nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install", "install a snap")
+	chg.AddAll(ts)
+
+	expectedErr := prepFail(s.o, chg)
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), ErrorMatches, fmt.Sprintf(`(.|\s)*%s\)?`, expectedErr.Error()))
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	containsInOrder(c, s.fakeBackend.ops, []string{"hide-snap-data", "init-exposed-snap-home"})
+
+	// nothing in state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), Equals, state.ErrNoState)
+
+	if expectSeqFile {
+		// seq file exists but is zeroed out
+		assertMigrationInSeqFile(c, snapName, nil)
+	} else {
+		exists, _, err := osutil.RegularFileExists(filepath.Join(dirs.SnapSeqDir, snapName+".json"))
+		c.Assert(exists, Equals, false)
+		c.Assert(err, ErrorMatches, ".*no such file or directory")
+	}
 }

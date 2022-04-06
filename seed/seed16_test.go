@@ -207,7 +207,7 @@ func (s *seed16Suite) TestLoadMetaNoMeta(c *C) {
 	err = s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, Equals, seed.ErrNoMeta)
 }
 
@@ -237,7 +237,7 @@ func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot read seed yaml: invalid risk in channel name: track/not-a-risk`)
 }
 
@@ -424,7 +424,7 @@ func (s *seed16Suite) TestLoadMetaCore16Minimal(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
@@ -470,7 +470,7 @@ func (s *seed16Suite) TestLoadMetaCore16(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
@@ -508,7 +508,7 @@ func (s *seed16Suite) TestLoadMetaCore18Minimal(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
@@ -564,7 +564,7 @@ func (s *seed16Suite) TestLoadMetaCore18(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
@@ -635,7 +635,7 @@ func (s *seed16Suite) TestLoadMetaClassicNothing(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
@@ -656,7 +656,7 @@ func (s *seed16Suite) TestLoadMetaClassicCore(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
@@ -697,7 +697,7 @@ func (s *seed16Suite) TestLoadMetaClassicCoreWithGadget(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, false)
@@ -737,7 +737,7 @@ func (s *seed16Suite) TestLoadMetaClassicSnapd(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
@@ -782,7 +782,7 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
@@ -832,7 +832,7 @@ func (s *seed16Suite) TestLoadMetaClassicSnapdWithGadget18(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
@@ -901,7 +901,7 @@ func (s *seed16Suite) TestLoadMetaCore18Local(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
@@ -963,7 +963,7 @@ func (s *seed16Suite) TestLoadMetaCore18StoreInfo(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	essSnaps := s.seed16.EssentialSnaps()
@@ -1013,7 +1013,7 @@ func (s *seed16Suite) TestLoadMetaCore18EnforcePinnedTracks(c *C) {
 	err := s.seed16.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = s.seed16.LoadMeta(s.perfTimings)
+	err = s.seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(s.seed16.UsesSnapdSnap(), Equals, true)
@@ -1134,7 +1134,7 @@ version: other-base
 		testSeedSnap16s = t.breakSeed(testSeedSnap16s)
 		s.writeSeed(c, testSeedSnap16s)
 
-		c.Check(seed16.LoadMeta(s.perfTimings), ErrorMatches, t.err)
+		c.Check(seed16.LoadMeta(seed.AllModes, s.perfTimings), ErrorMatches, t.err)
 	}
 }
 
@@ -1308,7 +1308,7 @@ func (s *seed16Suite) TestLoadEssentialAndMetaCore18(c *C) {
 	// caching in place
 	hideSnaps(c, []*seed.Snap{snapdSnap, core18Snap, pcKernelSnap}, nil)
 
-	err = seed16.LoadMeta(s.perfTimings)
+	err = seed16.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed16.UsesSnapdSnap(), Equals, true)

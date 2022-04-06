@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - uboot implements the required interfaces
+// uboot implements the required interfaces
 var (
 	_ Bootloader                             = (*uboot)(nil)
 	_ ExtractedRecoveryKernelImageBootloader = (*uboot)(nil)

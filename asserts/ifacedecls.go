@@ -621,6 +621,7 @@ func (r *PlugRule) setConstraints(field string, cstrs []constraintsHolder) {
 // PlugInstallationConstraints specifies a set of constraints on an interface plug relevant to the installation of snap.
 type PlugInstallationConstraints struct {
 	PlugSnapTypes []string
+	PlugSnapIDs   []string
 
 	PlugNames *NameConstraints
 
@@ -663,6 +664,8 @@ func (c *PlugInstallationConstraints) setIDConstraints(field string, cstrs []str
 	switch field {
 	case "plug-snap-type":
 		c.PlugSnapTypes = cstrs
+	case "plug-snap-id":
+		c.PlugSnapIDs = cstrs
 	default:
 		panic("unknown PlugInstallationConstraints field " + field)
 	}
@@ -678,7 +681,9 @@ func (c *PlugInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compilePlugInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	plugInstCstrs := &PlugInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type"})
+	// plug-snap-id is supported here mainly for symmetry with the slot case
+	// see discussion there
+	err := baseCompileConstraints(context, cDef, plugInstCstrs, []string{"plug-names"}, []string{"plug-attributes"}, []string{"plug-snap-type", "plug-snap-id"})
 	if err != nil {
 		return nil, err
 	}
@@ -925,6 +930,7 @@ func (r *SlotRule) setConstraints(field string, cstrs []constraintsHolder) {
 // interface slot relevant to the installation of snap.
 type SlotInstallationConstraints struct {
 	SlotSnapTypes []string
+	SlotSnapIDs   []string
 
 	SlotNames *NameConstraints
 
@@ -967,6 +973,8 @@ func (c *SlotInstallationConstraints) setIDConstraints(field string, cstrs []str
 	switch field {
 	case "slot-snap-type":
 		c.SlotSnapTypes = cstrs
+	case "slot-snap-id":
+		c.SlotSnapIDs = cstrs
 	default:
 		panic("unknown SlotInstallationConstraints field " + field)
 	}
@@ -982,7 +990,17 @@ func (c *SlotInstallationConstraints) setDeviceScopeConstraint(deviceScope *Devi
 
 func compileSlotInstallationConstraints(context *subruleContext, cDef constraintsDef) (constraintsHolder, error) {
 	slotInstCstrs := &SlotInstallationConstraints{}
-	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type"})
+	// slot-snap-id here is mostly useful to restrict a relaxed
+	// base-declaration slot-snap-type constraint because the latter is used
+	// also for --dangerous installations. So in rare complex situations
+	// slot-snap-type might constraint to core and app
+	// but the intention is really that only system snaps should have the
+	// slot without a snap-declaration rule, slot-snap-id then can
+	// be used to limit to the known system snap snap-ids.
+	// This means we want app-slots to be super-privileged but we have
+	// slots for the interface on the system snaps as well.
+	// An example of this is shared-memory.
+	err := baseCompileConstraints(context, cDef, slotInstCstrs, []string{"slot-names"}, []string{"slot-attributes"}, []string{"slot-snap-type", "slot-snap-id"})
 	if err != nil {
 		return nil, err
 	}

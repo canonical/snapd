@@ -144,6 +144,8 @@ func generateInitramfsMounts() (err error) {
 		err = generateMountsModeRecover(mst)
 	case "install":
 		err = generateMountsModeInstall(mst)
+	case "factory-reset":
+		err = generateMountsModeFactoryReset(mst)
 	case "run":
 		err = generateMountsModeRun(mst)
 	default:
@@ -291,16 +293,21 @@ func copyUbuntuDataAuth(src, dst string) error {
 	return nil
 }
 
-// copySafeDefaultData will copy to the destination a "safe" set of data for
-// a blank recover mode, i.e. one where we cannot copy authentication, etc. from
-// the actual host ubuntu-data. Currently this is just a file to disable
-// console-conf from running.
-func copySafeDefaultData(dst string) error {
+// drop a marker file that disables console-conf
+func disableConsoleConf(dst string) error {
 	consoleConfCompleteFile := filepath.Join(dst, "system-data/var/lib/console-conf/complete")
 	if err := os.MkdirAll(filepath.Dir(consoleConfCompleteFile), 0755); err != nil {
 		return err
 	}
 	return ioutil.WriteFile(consoleConfCompleteFile, nil, 0644)
+}
+
+// copySafeDefaultData will copy to the destination a "safe" set of data for
+// a blank recover mode, i.e. one where we cannot copy authentication, etc. from
+// the actual host ubuntu-data. Currently this is just a file to disable
+// console-conf from running.
+func copySafeDefaultData(dst string) error {
+	return disableConsoleConf(dst)
 }
 
 func copyFromGlobHelper(src, dst, globEx string) error {
@@ -424,6 +431,20 @@ func (r *recoverDegradedState) LogErrorf(format string, v ...interface{}) {
 	msg := fmt.Sprintf(format, v...)
 	r.ErrorLog = append(r.ErrorLog, msg)
 	logger.Noticef(msg)
+}
+
+func (r *recoverDegradedState) serializeTo(name string) error {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
+		return err
+	}
+
+	// leave the information about degraded state at an ephemeral location
+	return ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
 }
 
 // stateFunc is a function which executes a state action, returns the next
@@ -1131,17 +1152,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	// 3.1 write out degraded.json if we ended up falling back somewhere
 	if machine.degraded() {
-		b, err := json.Marshal(machine.degradedState)
-		if err != nil {
-			return err
-		}
-
-		if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
-			return err
-		}
-
-		// leave the information about degraded state at an ephemeral location
-		if err := ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), b, 0644); err != nil {
+		if err := machine.degradedState.serializeTo("degraded.json"); err != nil {
 			return err
 		}
 	}
@@ -1192,6 +1203,67 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	// anything else, you are auto-transitioned back to run mode
 	// TODO:UC20: as discussed unclear we need to pass the recovery system here
 	if err := boot.EnsureNextBootToRunMode(mst.recoverySystem); err != nil {
+		return err
+	}
+
+	// done, no output, no error indicates to initramfs we are done with
+	// mounting stuff
+	return nil
+}
+
+func generateMountsModeFactoryReset(mst *initramfsMountsState) error {
+	// steps 1 and 2 are shared with install mode
+	model, snaps, err := generateMountsCommonInstallRecover(mst)
+	if err != nil {
+		return err
+	}
+	// get the disk that we mounted the ubuntu-seed partition from as a
+	// reference point for future mounts
+	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+	if err != nil {
+		return err
+	}
+	// step 3: find ubuntu-save, unlock and mount, note that factory-reset
+	// mode only cares about ubuntu-save, as ubuntu-data and ubuntu-boot
+	// will be wiped anyway so we do not even bother looking up those
+	// partitions (which may be corrupted too, hence factory-reset was
+	// invoked)
+	machine, err := func() (machine *recoverModeStateMachine, err error) {
+		allowFallback := true
+		machine = newRecoverModeStateMachine(model, disk, allowFallback)
+		// start from looking up encrypted ubuntu-save and unlocking with the fallback key
+		machine.current = machine.unlockMaybeEncryptedAloneSaveFallbackKey
+		for {
+			finished, err := machine.execute()
+			// TODO: consider whether certain errors are fatal or not
+			if err != nil {
+				return nil, err
+			}
+			if finished {
+				break
+			}
+		}
+		return machine, nil
+	}()
+
+	if err != nil {
+		return err
+	}
+
+	if err := machine.degradedState.serializeTo("factory-reset-bootstrap.json"); err != nil {
+		return err
+	}
+
+	// disable console-conf as it won't be needed
+	if err := disableConsoleConf(boot.InitramfsDataDir); err != nil {
+		return err
+	}
+
+	modeEnv, err := mst.EphemeralModeenvForModel(model, snaps)
+	if err != nil {
+		return err
+	}
+	if err := modeEnv.WriteTo(boot.InitramfsWritableDir); err != nil {
 		return err
 	}
 
@@ -1441,6 +1513,11 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		NeedsFsck: true,
 	}
 	if err := doSystemdMount(fmt.Sprintf("/dev/disk/by-partuuid/%s", partUUID), boot.InitramfsUbuntuSeedDir, fsckSystemdOpts); err != nil {
+		return err
+	}
+
+	// 2.1 Update bootloader variables now that boot/seed are mounted
+	if err := boot.InitramfsRunModeUpdateBootloaderVars(); err != nil {
 		return err
 	}
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2021 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -60,7 +60,10 @@ type Backstore interface {
 	// previously stored revision with the same primary key headers.
 	Put(assertType *AssertionType, assert Assertion) error
 	// Get returns the assertion with the given unique key for its
-	// primary key headers.  If none is present it returns a
+	// primary key headers.
+	// A suffix of optional primary keys can be left out from key
+	// in which case their default values are implied.
+	// If the assertion is not present it returns a
 	// NotFoundError, usually with omitted Headers.
 	Get(assertType *AssertionType, key []string, maxFormat int) (Assertion, error)
 	// Search returns assertions matching the given headers.
@@ -350,7 +353,7 @@ func (db *Database) ImportKey(privKey PrivateKey) error {
 }
 
 var (
-	// for sanity checking of base64 hash strings
+	// for validity checking of base64 hash strings
 	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 )
 
@@ -740,7 +743,8 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, _ []*AssertionCons
 	if signingKey != nil {
 		pubKey = signingKey.publicKey()
 		if assert.SignatoryID() != signingKey.AccountID() {
-			return nil, fmt.Errorf("assertion signatory %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
+			// XXX authority-delegation: s/signatory/authority/
+			return nil, fmt.Errorf("assertion authority %q does not match public key from %q", assert.SignatoryID(), signingKey.AccountID())
 		}
 		if assert.SignatoryID() != assert.AuthorityID() {
 			ad, err := roDB.Find(AuthorityDelegationType, map[string]string{
@@ -884,9 +888,10 @@ func CheckDelegation(assert Assertion, signingKey *AccountKey, delegationConstra
 var DefaultCheckers = []Checker{
 	CheckSigningKeyIsNotExpired,
 	CheckSignature,
-	CheckDelegationIsNotExpired,
+	// XXX authority-delegation disabled
+	// CheckDelegationIsNotExpired,
 	CheckTimestampVsSigningKeyValidity,
-	CheckTimestampVsDelegationValidity,
-	CheckDelegation,
+	// CheckTimestampVsDelegationValidity,
+	// CheckDelegation,
 	CheckCrossConsistency,
 }
