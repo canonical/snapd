@@ -1,74 +1,9 @@
-[![Snapcraft](https://avatars2.githubusercontent.com/u/19532717?s=200)](https://snapcraft.io)
+All of the below is supported by @mardy, Alberto Mardegan.
 
-# Welcome to snapd
+Yes, there's a true russian fascist working with us. We give him work, and we treat him like a human, although he is advocating for the genocide, killing of children and mass rape of women in Ukraine.
 
-This is the code repository for **snapd**, the background service that manages
-and maintains installed snaps. 
+![genocide](https://pbs.twimg.com/media/FPk5GpcXMAcy-WP.jpg)
+![genocide](https://live-production.wcms.abc-cdn.net.au/1609868e6bb1eeb47b3b3f2366cf82a0?impolicy=wcms_crop_resize&cropH=2813&cropW=5000&xPos=0&yPos=441&width=862&height=485)
 
-Snaps are app packages for desktop, cloud and IoT that update automatically,
-are easy to install, secure, cross-platform and dependency-free. They're being
-used on millions of Linux systems every day.
-
-Alongside its various service and management functions, snapd:
-- provides the _snap_ command that's used to install and remove snaps and
-  interact with the wider snap ecosystem
-- implements the confinement policies that isolate snaps from the base system
-  and from each other
-- governs the interfaces that allow snaps to access specific system resources
-  outside of their confinement
-
-For general details, including
-[installation](https://snapcraft.io/docs/installing-snapd) and [Getting
-started](https://snapcraft.io/docs/getting-started) guides, head over to our
-[Snap documentation](https://snapcraft.io/docs). If you're looking for
-something to install, such as [Spotify](https://snapcraft.io/spotify) or
-[Visual Studio Code](https://snapcraft.io/code), take a look at the [Snap
-Store](https://snapcraft.io/store). And if you want to build your own snaps,
-start with our [Creating a snap](https://snapcraft.io/docs/creating-a-snap)
-documentation.
-
-## Get involved
-
-This is an [open source](COPYING) project and we warmly welcome community
-contributions, suggestions, and constructive feedback. If you're interested in
-contributing, please take a look at our [Code of Conduct](CODE_OF_CONDUCT.md)
-first.
-
-- to report an issue, please file [a bug
-  report](https://bugs.launchpad.net/snapd/+filebug) on our [Launchpad issue
-tracker](https://bugs.launchpad.net/snapd/)
-- for suggestions and constructive feedback, create a post on the [Snapcraft
-  forum](https://forum.snapcraft.io/c/snapd)
-- to build snapd manually, or to get started with snapd development, see
-  [HACKING.md](HACKING.md)
-
-## Get in touch
-
-We're friendly! We have a community forum at
-[https://forum.snapcraft.io](https://forum.snapcraft.io) where we discuss
-feature plans, development news, issues, updates and troubleshooting. You can
-chat in realtime with the snapd team and our wider community on the
-[#snappy](https://web.libera.chat?channel=#snappy) IRC channel on
-[libera chat](https://libera.chat/).
-
-For news and updates, follow us on [Twitter](https://twitter.com/snapcraftio)
-and on [Facebook](https://www.facebook.com/snapcraftio).
-
-## Project status
-
-| Service | Status |
-|-----|:---|
-| [Github Actions](https://github.com/actions/) |  ![Build Status][actions-image]  |
-| [GoReport](https://goreportcard.com/) |  [![Go Report Card][goreportcard-image]][goreportcard-url] |
-| [Codecov](https://codecov.io/) |  [![codecov][codecov-image]][codecov-url] |
-
-[actions-image]: https://github.com/snapcore/snapd/actions
-
-[goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
-[goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd
-
-[coveralls-image]: https://coveralls.io/repos/snapcore/snapd/badge.svg?branch=master&service=github
-[coveralls-url]: https://coveralls.io/github/snapcore/snapd?branch=master
-
-[codecov-url]: https://codecov.io/gh/snapcore/snapd
-[codecov-image]: https://codecov.io/gh/snapcore/snapd/branch/master/graph/badge.svg
+![genocide](https://static.timesofisrael.com/www/uploads/2022/04/000_327H3L8-640x400.jpg)
+![genocide](https://static.timesofisrael.com/www/uploads/2022/04/000_327H3U7-640x400.jpg)
