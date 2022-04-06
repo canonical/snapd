@@ -522,6 +522,34 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 	}
 }
 
+func (ts *quotaTestSuite) TestChangingRequirementsDoesNotBreakExistingGroups(c *C) {
+	tt := []struct {
+		grp     *quota.Group
+		err     string
+		comment string
+	}{
+		// Test that an existing group with lower than 640kB limit
+		// does not break .validate(), since the requirement was increased
+		{
+			grp: &quota.Group{
+				Name:        "foogroup",
+				MemoryLimit: quantity.SizeKiB * 12,
+			},
+			comment: "group with a lower memory limit than 640kB",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		err := t.grp.ValidateGroup()
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+		}
+	}
+}
+
 func (ts *quotaTestSuite) TestAddAllNecessaryGroupsAvoidsInfiniteRecursion(c *C) {
 	grp, err := quota.NewGroup("infinite-group", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, IsNil)
@@ -1029,7 +1057,7 @@ func (ts *quotaTestSuite) TestChangingParentMemoryLimits(c *C) {
 
 	// Now the test is to change the upper most parent limit so that it would be less
 	// than the current usage, which we should not be able to do
-	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build())
+	err = grp1.QuotaUpdateCheck(quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB / 2).Build())
 	c.Check(err, ErrorMatches, `group memory limit of 512 MiB is too small to fit current subgroup usage of 1 GiB`)
 }
 
@@ -1089,7 +1117,7 @@ func (ts *quotaTestSuite) TestChangingParentTaskLimits(c *C) {
 
 	// Now the test is to change the upper most parent limit so that it would be less
 	// than the current usage, which we should not be able to do
-	err = grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(16).Build())
+	err = grp1.QuotaUpdateCheck(quota.NewResourcesBuilder().WithThreadLimit(16).Build())
 	c.Check(err, ErrorMatches, `group thread limit of 16 is too small to fit current subgroup usage of 32`)
 }
 

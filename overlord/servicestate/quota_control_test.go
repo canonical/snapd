@@ -248,7 +248,6 @@ func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {
 	}{
 		{"foo", quantity.SizeMiB, nil, `group "foo" already exists`},
 		{"new", 0, nil, `cannot create quota group "new": memory quota must have a limit set`},
-		{"new", quantity.SizeKiB, nil, `cannot create quota group "new": memory limit 1024 is too small: size must be larger than 640KB`},
 		{"new", quantity.SizeMiB, []string{"baz"}, `cannot use snap "baz" in group "new": snap "baz" is not installed`},
 	}
 

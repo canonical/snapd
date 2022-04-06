@@ -70,14 +70,6 @@ func (qr *Resources) validateMemoryQuota() error {
 	if qr.Memory.Limit == 0 {
 		return fmt.Errorf("memory quota must have a limit set")
 	}
-
-	// make sure the memory limit is at least 4K, that is the minimum size
-	// to allow nesting, otherwise groups with less than 4K will trigger the
-	// oom killer to be invoked when a new group is added as a sub-group to the
-	// larger group.
-	if qr.Memory.Limit <= 640*quantity.SizeKiB {
-		return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", qr.Memory.Limit)
-	}
 	return nil
 }
 
@@ -178,6 +170,14 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 	if newLimits.Memory != nil {
 		if newLimits.Memory.Limit == 0 {
 			return fmt.Errorf("cannot remove memory limit from quota group")
+		}
+
+		// make sure the memory limit is at least 640K, that is the minimum size
+		// we will require for a quota group. Newer systemd versions require up to
+		// 12kB per slice, so we need to ensure 'plenty' of space for this, and also
+		// 640kB seems sensible as a minimum.
+		if newLimits.Memory.Limit <= 640*quantity.SizeKiB {
+			return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", newLimits.Memory.Limit)
 		}
 
 		// we disallow decreasing the memory limit because it is difficult to do
