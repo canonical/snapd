@@ -175,7 +175,7 @@ fi`)
 	c.Check(s.snapSeccomp.Calls(), HasLen, 0)
 	// ensure the snap-seccomp from the core snap was used instead
 	c.Check(snapSeccompOnCore.Calls(), DeepEquals, [][]string{
-		{"snap-seccomp", "version-info"},
+		{"snap-seccomp", "version-info"}, // from Initialize()
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
 	raw, err := ioutil.ReadFile(profile + ".src")

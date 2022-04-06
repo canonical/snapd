@@ -1,0 +1,48 @@
+project: snapd-testing-tools
+
+environment:
+    PROJECT_PATH: /root/snapd-testing-tools
+    PATH: $PATH:$PROJECT_PATH/tools:$PROJECT_PATH/utils
+    
+backends:
+    google:
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-east1-b
+        halt-timeout: 2h
+        systems:
+            - ubuntu-14.04-64:
+            - ubuntu-16.04-64:
+            - ubuntu-18.04-32:
+            - ubuntu-18.04-64:
+            - ubuntu-20.04-64:
+            - ubuntu-21.10-64:
+            - ubuntu-22.04-64:
+            - debian-10-64:
+            - debian-sid-64:
+            - fedora-33-64:
+            - fedora-34-64:
+            - arch-linux-64:
+            - amazon-linux-2-64:
+                storage: preserve-size
+            - centos-7-64:
+                storage: preserve-size
+            - centos-8-64:
+                storage: preserve-size
+            - opensuse-15.3-64:
+
+path: /root/snapd-testing-tools
+
+prepare: |
+    echo "Prepare snapd-testing-tools project"
+
+restore: |
+    echo "Restore snapd-testing-tools project"
+    rm -rf "$PROJECT_PATH"
+
+suites:
+    tests/:
+        summary: Main test suite for snapd-testing-tools
+        prepare: |
+            echo "Preparing snapd-testing-tools main suite"
+        restore: |
+            echo "Restoring snapd-testing-tools main suite"

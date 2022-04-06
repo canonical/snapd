@@ -20,9 +20,11 @@
 package image
 
 import (
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func MockToolingStore(sto Store) *ToolingStore {
@@ -61,4 +63,24 @@ func MockWriteResolvedContent(f func(prepareImageDir string, info *gadget.Info, 
 	return func() {
 		writeResolvedContent = oldWriteResolvedContent
 	}
+}
+
+func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitecture string) (*ToolingStore, error)) (restore func()) {
+	old := newToolingStoreFromModel
+	newToolingStoreFromModel = f
+	return func() {
+		newToolingStoreFromModel = old
+	}
+}
+
+func MockPreseedCore20(f func(dir string) error) (restore func()) {
+	r := testutil.Backup(&preseedCore20)
+	preseedCore20 = f
+	return r
+}
+
+func MockSetupSeed(f func(tsto *ToolingStore, model *asserts.Model, opts *Options) error) (restore func()) {
+	r := testutil.Backup(&setupSeed)
+	setupSeed = f
+	return r
 }

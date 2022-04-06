@@ -141,7 +141,8 @@ volumes:
 `
 
 func (s *deviceMgrGadgetSuite) SetUpTest(c *C) {
-	s.deviceMgrBaseSuite.SetUpTest(c)
+	classic := false
+	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
 	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	s.managedbl.StaticCommandLine = "console=ttyS0 console=tty1 panic=-1"

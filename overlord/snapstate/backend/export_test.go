@@ -20,13 +20,27 @@
 package backend
 
 import (
+	"os"
 	"os/exec"
+
+	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var (
 	AddMountUnit    = addMountUnit
 	RemoveMountUnit = removeMountUnit
+	RemoveIfEmpty   = removeIfEmpty
 )
+
+func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error) (restore func()) {
+	old := wrappersAddSnapdSnapServices
+	wrappersAddSnapdSnapServices = f
+	return func() {
+		wrappersAddSnapdSnapServices = old
+	}
+}
 
 func MockUpdateFontconfigCaches(f func() error) (restore func()) {
 	oldUpdateFontconfigCaches := updateFontconfigCaches
@@ -41,5 +55,21 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	commandFromSystemSnap = f
 	return func() {
 		commandFromSystemSnap = old
+	}
+}
+
+func MockRemoveIfEmpty(f func(dir string) error) func() {
+	old := removeIfEmpty
+	removeIfEmpty = f
+	return func() {
+		removeIfEmpty = old
+	}
+}
+
+func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) error) func() {
+	old := mkdirAllChown
+	mkdirAllChown = f
+	return func() {
+		mkdirAllChown = old
 	}
 }

@@ -107,12 +107,12 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 		},
 	})
@@ -149,22 +149,22 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     401 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     901 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 			},
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1001 * quantity.OffsetMiB,
-				Index:           3,
+				YamlIndex:       3,
 			},
 		},
 	})
@@ -205,22 +205,22 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           3,
+				YamlIndex:       3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     1200 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 			},
 		},
 	})
@@ -260,22 +260,22 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[3],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           3,
+				YamlIndex:       3,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     200 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 			{
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     700 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 			},
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 		},
 	})
@@ -670,12 +670,12 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
 			},
 		},
@@ -696,12 +696,12 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     512 * quantity.OffsetKiB,
-				Index:           1,
+				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
 			},
 		},
@@ -722,12 +722,12 @@ volumes:
 		LaidOutStructure: []gadget.LaidOutStructure{
 			{
 				VolumeStructure: &vol.Structure[0],
-				Index:           0,
+				YamlIndex:       0,
 			},
 			{
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     446,
-				Index:           1,
+				YamlIndex:       1,
 				ResolvedContent: resolvedContent,
 			},
 		},
@@ -763,11 +763,11 @@ volumes:
 				// MBR
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
-				Index:           0,
+				YamlIndex:       0,
 			}, {
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 			},
 		},
 	})
@@ -815,12 +815,12 @@ volumes:
 				// mbr
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     0,
-				Index:           0,
+				YamlIndex:       0,
 			}, {
 				// foo
 				VolumeStructure: &vol.Structure[1],
 				StartOffset:     1 * quantity.OffsetMiB,
-				Index:           1,
+				YamlIndex:       1,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asOffsetPtr(92),
 				LaidOutContent: []gadget.LaidOutContent{
@@ -836,7 +836,7 @@ volumes:
 				// bar
 				VolumeStructure: &vol.Structure[2],
 				StartOffset:     2 * quantity.OffsetMiB,
-				Index:           2,
+				YamlIndex:       2,
 				// break for gofmt < 1.11
 				AbsoluteOffsetWrite: asOffsetPtr(600),
 				LaidOutContent: []gadget.LaidOutContent{
@@ -981,7 +981,7 @@ volumes:
 			{
 				VolumeStructure: &vol.Structure[0],
 				StartOffset:     800 * quantity.OffsetMiB,
-				Index:           0,
+				YamlIndex:       0,
 			},
 		},
 	})
@@ -1021,7 +1021,7 @@ volumes:
 		// foo
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     1 * quantity.OffsetMiB,
-		Index:           0,
+		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1042,7 +1042,7 @@ volumes:
 		// foo
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     0,
-		Index:           0,
+		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1063,7 +1063,7 @@ volumes:
 		// foo
 		VolumeStructure: &vol.Structure[0],
 		StartOffset:     2 * quantity.OffsetMiB,
-		Index:           0,
+		YamlIndex:       0,
 		LaidOutContent: []gadget.LaidOutContent{
 			{
 				VolumeContent: &vol.Structure[0].Content[0],
@@ -1081,7 +1081,7 @@ volumes:
 }
 
 func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
-	// sanity
+	// precondition
 	_, err := kernel.InfoFromKernelYaml([]byte(kernelYaml))
 	c.Assert(err, IsNil)
 

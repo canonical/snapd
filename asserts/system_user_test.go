@@ -248,7 +248,7 @@ func (s *systemUserSuite) TestDecodeOKFormat1Serials(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	systemUser := a.(*asserts.SystemUser)
-	// just for sanity, already covered by "format: 0" tests
+	// just for double checking, already covered by "format: 0" tests
 	c.Check(systemUser.BrandID(), Equals, "canonical")
 	// new in "format: 1"
 	c.Check(systemUser.Serials(), DeepEquals, []string{"7c7f435d-ed28-4281-bd77-e271e0846904"})

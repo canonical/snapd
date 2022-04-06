@@ -258,7 +258,7 @@ func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
 }
 
 // EstimateSnapshotSize calculates estimated size of the snapshot.
-func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
+func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirOptions) (uint64, error) {
 	var total uint64
 	calculateSize := func(path string, finfo os.FileInfo, err error) error {
 		if finfo.Mode().IsRegular() {
@@ -284,15 +284,15 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
 		}
 	}
 
-	users, err := usersForUsernames(usernames)
+	users, err := usersForUsernames(usernames, opts)
 	if err != nil {
 		return 0, err
 	}
 	for _, usr := range users {
-		if err := visitDir(si.UserDataDir(usr.HomeDir)); err != nil {
+		if err := visitDir(si.UserDataDir(usr.HomeDir, opts)); err != nil {
 			return 0, err
 		}
-		if err := visitDir(si.UserCommonDataDir(usr.HomeDir)); err != nil {
+		if err := visitDir(si.UserCommonDataDir(usr.HomeDir, opts)); err != nil {
 			return 0, err
 		}
 	}
@@ -302,7 +302,7 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
 	}
@@ -321,6 +321,11 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		// Note: Auto is no longer set in the Snapshot.
 	}
 
+	snapshotOptions, err := snap.ReadSnapshotYaml(si)
+	if err != nil {
+		return nil, err
+	}
+
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, err
@@ -330,17 +335,19 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 	w := zip.NewWriter(aw)
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
-	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir()); err != nil {
+	savingUserData := false
+	if err := addDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir(), savingUserData, snapshotOptions.ExcludePaths); err != nil {
 		return nil, err
 	}
 
-	users, err := usersForUsernames(usernames)
+	users, err := usersForUsernames(usernames, opts)
 	if err != nil {
 		return nil, err
 	}
 
+	savingUserData = true
 	for _, usr := range users {
-		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir)); err != nil {
+		if err := addDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), si.UserDataDir(usr.HomeDir, opts), savingUserData, snapshotOptions.ExcludePaths); err != nil {
 			return nil, err
 		}
 	}
@@ -378,7 +385,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 
 var isTesting = snapdenv.Testing()
 
-func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string) error {
+func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username string, entry, dir string, savingUserData bool, excludePaths []string) error {
 	parent, revdir := filepath.Split(dir)
 	exists, isDir, err := osutil.DirExists(parent)
 	if err != nil {
@@ -397,6 +404,39 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 		"--sparse", "--gzip",
 		"--format", "gnu",
 		"--directory", parent,
+		"--anchored",
+		"--no-wildcards-match-slash",
+	}
+
+	expandSnapDataDirs := func(varName string) string {
+		// Validation of the environment variables has already been performed.
+		// We just need to make sure that we consider the right variables
+		// according to whether we are saving user or system data.
+		switch {
+		case varName == "SNAP_COMMON" && !savingUserData:
+			fallthrough
+		case varName == "SNAP_USER_COMMON" && savingUserData:
+			return "common"
+		case varName == "SNAP_DATA" && !savingUserData:
+			fallthrough
+		case varName == "SNAP_USER_DATA" && savingUserData:
+			return revdir
+		}
+		// The variable specified does not match the current operating mode
+		// (for example, the variable is SNAP_COMMON but we are saving user
+		// data); in this case, we need to inform our caller that the returned
+		// string should be ignored and not added to the "tar" parameters. In
+		// order to do this, we return a "-" as a sentinel.
+		return "-"
+	}
+	for _, excludePath := range excludePaths {
+		expandedPath := os.Expand(excludePath, expandSnapDataDirs)
+		// "-" is the sentinel returned by expandSnapDataDirs() if the
+		// exclusion path is not relevant for the type of data being considered
+		if expandedPath[0] == '-' {
+			continue
+		}
+		tarArgs = append(tarArgs, fmt.Sprintf("--exclude=%s", expandedPath))
 	}
 
 	noRev, noCommon := true, true

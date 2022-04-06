@@ -20,15 +20,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/usersession/client"
 )
 
 func waitWhileInhibited(snapName string) error {
@@ -45,7 +45,7 @@ func waitWhileInhibited(snapName string) error {
 	// and then either unlocks it or changes to HintInhibitedForRefresh (see
 	// gateAutoRefreshHookHandler in hooks.go).
 	// waitInhibitUnlock will return also on HintNotInhibited.
-	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, nil)
+	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh)
 	if err != nil {
 		return err
 	}
@@ -53,8 +53,8 @@ func waitWhileInhibited(snapName string) error {
 		return nil
 	}
 
-	if isGraphicalSession() && hasZenityExecutable() {
-		return zenityFlow(snapName, hint)
+	if isGraphicalSession() {
+		return graphicalSessionFlow(snapName, hint)
 	}
 	// terminal and headless
 	return textFlow(snapName, hint)
@@ -73,56 +73,46 @@ var isGraphicalSession = func() bool {
 	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
-var hasZenityExecutable = func() bool {
-	return osutil.ExecutableExists("zenity")
+var pendingRefreshNotification = func(refreshInfo *client.PendingSnapRefreshInfo) error {
+	userclient := client.NewForUids(os.Getuid())
+	if err := userclient.PendingRefreshNotification(context.TODO(), refreshInfo); err != nil {
+		return err
+	}
+	return nil
 }
 
-func zenityFlow(snapName string, hint runinhibit.Hint) error {
-	zenityTitle := i18n.G("Snap package waiting for update")
-
-	// Run zenity with a progress bar.
-	// TODO: while we are waiting ask snapd for progress updates and send those
-	// to zenity via stdin.
-	zenityDied := make(chan error, 1)
-
-	// TODO: use a dbus API to allow integration with native desktop environment.
-	cmd := exec.Command(
-		"zenity",
-		// [generic options]
-		"--title="+zenityTitle,
-		// [progress options]
-		"--progress",
-		"--text="+inhibitMessage(snapName, hint),
-		"--pulsate",
-	)
-	if err := cmd.Start(); err != nil {
+var finishRefreshNotification = func(refreshInfo *client.FinishedSnapRefreshInfo) error {
+	userclient := client.NewForUids(os.Getuid())
+	if err := userclient.FinishRefreshNotification(context.TODO(), refreshInfo); err != nil {
 		return err
 	}
-	// Make sure that zenity is eventually terminated.
-	defer cmd.Process.Signal(os.Interrupt)
-	// Wait for zenity to terminate and store the error code.
-	// The way we invoke zenity --progress makes it wait forever.
-	// so it will typically be an external operation.
-	go func() {
-		zenityErr := cmd.Wait()
-		if zenityErr != nil {
-			zenityErr = fmt.Errorf("zenity error: %s\n", zenityErr)
-		}
-		zenityDied <- zenityErr
-	}()
-
-	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, zenityDied); err != nil {
-		return err
-	}
-
 	return nil
+}
+
+func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
+	refreshInfo := client.PendingSnapRefreshInfo{
+		InstanceName: snapName,
+		// Remaining time = 0 results in "Snap .. is refreshing now" message from
+		// usersession agent.
+		TimeRemaining: 0,
+	}
+
+	if err := pendingRefreshNotification(&refreshInfo); err != nil {
+		return err
+	}
+	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
+		return err
+	}
+
+	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
+	return finishRefreshNotification(&finishRefreshInfo)
 }
 
 func textFlow(snapName string, hint runinhibit.Hint) error {
 	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
 	pb := progress.MakeProgressBar()
 	pb.Spin(i18n.G("please wait..."))
-	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, nil)
+	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited)
 	pb.Finished()
 	return err
 }
@@ -130,20 +120,13 @@ func textFlow(snapName string, hint runinhibit.Hint) error {
 var isLocked = runinhibit.IsLocked
 
 // waitInhibitUnlock waits until the runinhibit lock hint has a specific waitFor value
-// or isn't inhibited anymore. In addition the optional errCh channel is monitored
-// for an error - any error is printed to stderr and immediately returns false (the error
-// value isn't returned).
-var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) (notInhibited bool, err error) {
+// or isn't inhibited anymore.
+var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint) (notInhibited bool, err error) {
 	// Every 0.5s check if the inhibition file is still present.
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
-		case err := <-errCh:
-			if err != nil {
-				fmt.Fprintf(Stderr, "%s", err)
-			}
-			return false, nil
 		case <-ticker.C:
 			// Half a second has elapsed, let's check again.
 			hint, err := isLocked(snapName)

@@ -23,11 +23,11 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -41,7 +41,25 @@ func checkSystemdVersion() {
 }
 
 func init() {
+	EnsureQuotaUsability()
+}
+
+// EnsureQuotaUsability is exported for unit tests from other packages to re-run
+// the init() time checks for quota usability which set the errors which
+// quotaGroupsAvailable() checks for.
+// It saves the previous state of the usability errors to be restored via the
+// provided restore function.
+func EnsureQuotaUsability() (restore func()) {
+	oldSystemdErr := systemdVersionError
 	checkSystemdVersion()
+
+	return func() {
+		systemdVersionError = oldSystemdErr
+	}
+}
+
+var resourcesCheckFeatureRequirements = func(r *quota.Resources) error {
+	return r.CheckFeatureRequirements()
 }
 
 func quotaGroupsAvailable(st *state.State) error {
@@ -65,7 +83,7 @@ func quotaGroupsAvailable(st *state.State) error {
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
-func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error) {
+func CreateQuota(st *state.State, name string, parentName string, snaps []string, resourceLimits quota.Resources) (*state.TaskSet, error) {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return nil, err
 	}
@@ -80,16 +98,13 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		return nil, fmt.Errorf("group %q already exists", name)
 	}
 
-	if memoryLimit == 0 {
-		return nil, fmt.Errorf("cannot create quota group with no memory limit set")
+	// validate the resource limits for the group
+	if err := resourceLimits.Validate(); err != nil {
+		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
 	}
-
-	// make sure the memory limit is at least 4K, that is the minimum size
-	// to allow nesting, otherwise groups with less than 4K will trigger the
-	// oom killer to be invoked when a new group is added as a sub-group to the
-	// larger group.
-	if memoryLimit <= 4*quantity.SizeKiB {
-		return nil, fmt.Errorf("memory limit for group %q is too small: size must be larger than 4KB", name)
+	// validate that the system has the features needed for this resource
+	if err := resourcesCheckFeatureRequirements(&resourceLimits); err != nil {
+		return nil, fmt.Errorf("cannot create quota group %q: %v", name, err)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
@@ -106,11 +121,11 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 
 	// create the task with the action in it
 	qc := QuotaControlAction{
-		Action:      "create",
-		QuotaName:   name,
-		MemoryLimit: memoryLimit,
-		AddSnaps:    snaps,
-		ParentName:  parentName,
+		Action:         "create",
+		QuotaName:      name,
+		ResourceLimits: resourceLimits,
+		AddSnaps:       snaps,
+		ParentName:     parentName,
 	}
 
 	ts := state.NewTaskSet()
@@ -179,9 +194,9 @@ type QuotaGroupUpdate struct {
 	// the quota group
 	AddSnaps []string
 
-	// NewMemoryLimit is the new memory limit to be used for the quota group. If
-	// zero, then the quota group's memory limit is not changed.
-	NewMemoryLimit quantity.Size
+	// NewResourceLimits is the new resource limits to be used for the quota group. A
+	// limit is only changed if the corresponding limit is != nil.
+	NewResourceLimits quota.Resources
 }
 
 // UpdateQuota updates the quota as per the options.
@@ -203,15 +218,19 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 		return nil, fmt.Errorf("group %q does not exist", name)
 	}
 
-	// check that the memory limit is not being decreased
-	if updateOpts.NewMemoryLimit != 0 {
-		// we disallow decreasing the memory limit because it is difficult to do
-		// so correctly with the current state of our code in
-		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
-		// full details
-		if updateOpts.NewMemoryLimit < grp.MemoryLimit {
-			return nil, fmt.Errorf("cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
-		}
+	currentQuotas := grp.GetQuotaResources()
+	if err := currentQuotas.ValidateChange(updateOpts.NewResourceLimits); err != nil {
+		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
+	}
+	// validate that the system has the features needed for this resource
+	if err := resourcesCheckFeatureRequirements(&updateOpts.NewResourceLimits); err != nil {
+		return nil, fmt.Errorf("cannot update group %q: %v", name, err)
+	}
+
+	// ensure that the group we are modifying does not contain a mix of snaps and sub-groups
+	// as we no longer support this, and existing quota groups might have this
+	if err := ensureGroupIsNotMixed(name, allGrps); err != nil {
+		return nil, err
 	}
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
@@ -229,10 +248,10 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 
 	// create the action and the correspoding task set
 	qc := QuotaControlAction{
-		Action:      "update",
-		QuotaName:   name,
-		MemoryLimit: updateOpts.NewMemoryLimit,
-		AddSnaps:    updateOpts.AddSnaps,
+		Action:         "update",
+		QuotaName:      name,
+		ResourceLimits: updateOpts.NewResourceLimits,
+		AddSnaps:       updateOpts.AddSnaps,
 	}
 
 	ts := state.NewTaskSet()

@@ -67,12 +67,13 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 
 	sshCanary := filepath.Join(rootDir, "/etc/ssh/sshd_not_to_be_run")
 
+	units := []string{serviceName}
 	if disabled {
 		if err := ioutil.WriteFile(sshCanary, []byte("SSH has been disabled by snapd system configuration\n"), 0644); err != nil {
 			return err
 		}
 		if opts == nil {
-			return sysd.Stop(serviceName, 5*time.Minute)
+			return sysd.Stop(units, 5*time.Minute)
 		}
 	} else {
 		err := os.Remove(sshCanary)
@@ -85,7 +86,7 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 		sysd.Unmask("sshd.service")
 		sysd.Unmask("ssh.service")
 		if opts == nil {
-			return sysd.Start(serviceName)
+			return sysd.Start(units)
 		}
 	}
 	return nil
@@ -158,9 +159,10 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
 	}
 
+	units := []string{serviceName}
 	if opts == nil {
 		// ignore the service if not installed
-		status, err := sysd.Status(serviceName)
+		status, err := sysd.Status(units)
 		if err != nil {
 			return err
 		}
@@ -175,27 +177,32 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 
 	if disabled {
 		if opts == nil {
-			if err := sysd.Disable(serviceName); err != nil {
+			if err := sysd.DisableNoReload(units); err != nil {
 				return err
 			}
 		}
 		if err := sysd.Mask(serviceName); err != nil {
 			return err
 		}
+		// mask triggered a reload already
 		if opts == nil {
-			return sysd.Stop(serviceName, 5*time.Minute)
+			return sysd.Stop(units, 5*time.Minute)
 		}
 	} else {
 		if err := sysd.Unmask(serviceName); err != nil {
 			return err
 		}
 		if opts == nil {
-			if err := sysd.Enable(serviceName); err != nil {
+			if err := sysd.EnableNoReload(units); err != nil {
+				return err
+			}
+			// enable does not trigger reloads, so issue one now
+			if err := sysd.DaemonReload(); err != nil {
 				return err
 			}
 		}
 		if opts == nil {
-			return sysd.Start(serviceName)
+			return sysd.Start(units)
 		}
 	}
 	return nil

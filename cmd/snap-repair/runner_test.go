@@ -2166,7 +2166,7 @@ func (s *shared1620RunnerSuite) TestTLSTime(c *C) {
 }
 
 func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
-	// sanity
+	// validity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
 	// setup realistic seed/assertions
@@ -2235,7 +2235,7 @@ func (s *runner16Suite) rmSeedAssert16(c *C, fname string) {
 }
 
 func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
-	// sanity
+	// validity
 	c.Check(osutil.IsDirectory(dirs.SnapRepairDir), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapRepairStateFile), Equals, false)
 	// setup realistic seed/assertions

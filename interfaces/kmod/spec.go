@@ -20,6 +20,7 @@
 package kmod
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -33,6 +34,9 @@ import (
 // setup process.
 type Specification struct {
 	modules map[string]bool
+
+	moduleOptions     map[string]string
+	disallowedModules map[string]bool
 }
 
 // AddModule adds a kernel module, trimming spaces and ignoring duplicated modules.
@@ -54,6 +58,45 @@ func (spec *Specification) Modules() map[string]bool {
 	for k, v := range spec.modules {
 		result[k] = v
 	}
+	return result
+}
+
+// SetModuleOptions specifies which options to use when loading the given kernel module.
+func (spec *Specification) SetModuleOptions(module, options string) error {
+	if spec.moduleOptions == nil {
+		spec.moduleOptions = make(map[string]string)
+	}
+	spec.moduleOptions[module] = options
+	return nil
+}
+
+// moduleOptions returns the load options for each kernel module
+func (spec *Specification) ModuleOptions() map[string]string {
+	return spec.moduleOptions
+}
+
+// DisallowModule adds a kernel module to the list of disallowed modules.
+func (spec *Specification) DisallowModule(module string) error {
+	m := strings.TrimSpace(module)
+	if m == "" {
+		return nil
+	}
+	if spec.disallowedModules == nil {
+		spec.disallowedModules = make(map[string]bool)
+	}
+	spec.disallowedModules[m] = true
+	return nil
+}
+
+// DisallowedModules returns the list of disallowed modules.
+func (spec *Specification) DisallowedModules() []string {
+	result := make([]string, 0, len(spec.disallowedModules))
+	for k, v := range spec.disallowedModules {
+		if v {
+			result = append(result, k)
+		}
+	}
+	sort.Strings(result)
 	return result
 }
 

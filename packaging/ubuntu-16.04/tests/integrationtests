@@ -46,7 +46,7 @@ systemctl daemon-reload
 systemctl restart snapd
 
 # Spread will only buid with recent go
-snap install --classic go
+snap install --classic --channel 1.17/stable go
 
 # and now run spread against localhost
 export GOPATH=/tmp/go
@@ -74,6 +74,9 @@ backends:
         - adt-local:
             username: ubuntu
             password: ubuntu
+prepare: |
+    # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
+    cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
 suites:
         tests/smoke/:
             summary: Essenial system level tests for snapd

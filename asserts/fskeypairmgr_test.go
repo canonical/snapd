@@ -63,3 +63,35 @@ func (fsbss *fsKeypairMgrSuite) TestOpenWorldWritableFail(c *C) {
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(bs, IsNil)
 }
+
+func (fsbss *fsKeypairMgrSuite) TestDelete(c *C) {
+	// ensure umask is clean when creating the DB dir
+	oldUmask := syscall.Umask(0)
+	defer syscall.Umask(oldUmask)
+
+	topDir := filepath.Join(c.MkDir(), "asserts-db")
+	err := os.MkdirAll(topDir, 0775)
+	c.Assert(err, IsNil)
+
+	keypairMgr, err := asserts.OpenFSKeypairManager(topDir)
+	c.Check(err, IsNil)
+
+	pk1 := testPrivKey1
+	keyID := pk1.PublicKey().ID()
+	err = keypairMgr.Put(pk1)
+	c.Assert(err, IsNil)
+
+	_, err = keypairMgr.Get(keyID)
+	c.Assert(err, IsNil)
+
+	err = keypairMgr.Delete(keyID)
+	c.Assert(err, IsNil)
+
+	err = keypairMgr.Delete(keyID)
+	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
+
+	_, err = keypairMgr.Get(keyID)
+	c.Check(err, ErrorMatches, "cannot find key pair")
+	c.Check(asserts.IsKeyNotFound(err), Equals, true)
+}

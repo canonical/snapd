@@ -518,6 +518,8 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"sigusr1-all", true},
 		{"sigusr2", true},
 		{"sigusr2-all", true},
+		{"sigint", true},
+		{"sigint-all", true},
 		// bad
 		{"invalid-thing", false},
 	} {
@@ -962,6 +964,21 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/tmp", Type: "tmpfs"}, nil),
 		ErrorMatches, `layout "/tmp" in an off-limits area`)
 
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "$SNAP/dev/sda[0123]"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/dev/sda\[0123\]" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Bind: "$SNAP/*"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/\*" contains a reserved apparmor char.*`)
+
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", BindFile: "$SNAP/a\"quote"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/a\\"quote" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", BindFile: "$SNAP/^invalid"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid mount source: "/snap/foo/unset/\^invalid" contains a reserved apparmor char.*`)
+
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/{here,there}"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink: "/snap/foo/unset/{here,there}" contains a reserved apparmor char.*`)
+	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/evil", Symlink: "$SNAP/**"}, nil),
+		ErrorMatches, `layout "\$SNAP/evil" uses invalid symlink: "/snap/foo/unset/\*\*" contains a reserved apparmor char.*`)
+
 	// Several valid layouts.
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/foo", Type: "tmpfs", Mode: 01755}, nil), IsNil)
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "/usr", Bind: "$SNAP/usr"}, nil), IsNil)
@@ -1246,6 +1263,7 @@ layout:
     symlink: $SNAP/existent-dir
 `
 
+	// TODO: merge with the block below
 	for _, testCase := range []struct {
 		str         string
 		topLevelDir string
@@ -1264,6 +1282,24 @@ layout:
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`layout %q defines a new top-level directory %q`, testCase.str, testCase.topLevelDir))
 	}
 
+	for _, testCase := range []struct {
+		str           string
+		expectedError string
+	}{
+		{"$SNAP/with\"quote", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/myDir[0123]", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/here{a,b}", "invalid layout path: .* contains a reserved apparmor char.*"},
+		{"$SNAP/anywhere*", "invalid layout path: .* contains a reserved apparmor char.*"},
+	} {
+		// Layout adding a new top-level directory
+		strk = NewScopedTracker()
+		yaml14 := fmt.Sprintf(yaml14Pattern, testCase.str)
+		info, err = InfoFromSnapYamlWithSideInfo([]byte(yaml14), &SideInfo{Revision: R(42)}, strk)
+		c.Assert(err, IsNil)
+		c.Assert(info.Layout, HasLen, 1)
+		err = ValidateLayoutAll(info)
+		c.Assert(err, ErrorMatches, testCase.expectedError, Commentf("path: %s", testCase.str))
+	}
 }
 
 func (s *YamlSuite) TestValidateAppStartupOrder(c *C) {

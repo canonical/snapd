@@ -1,0 +1,22 @@
+summary: Test that devmode snaps can be installed during seeding.
+
+# testing with core16 (no snapd snap) and core18 (with snapd snap) is enough
+systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+
+environment:
+    NESTED_IMAGE_ID: core-seeding-devmode
+
+prepare: |
+    # seed a devmode snap
+    snap download --beta godd
+    GODD_SNAP=$(ls godd_*.snap)
+    mv "$GODD_SNAP" "$(tests.nested get extra-snaps-path)"
+
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+    tests.nested exec "sudo snap wait system seed.loaded"
+
+    # godd is installed
+    tests.nested exec "snap list godd" | MATCH "godd"
