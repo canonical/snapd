@@ -42,7 +42,7 @@ debug: |
 
 prepare: |
     # We remove the shared-memory plug and interface in trusty because it fails with the
-    # following error since was added private /dev/shm support to shared-memory interface:
+    # following error since adding private /dev/shm support to shared-memory interface:
     # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
     if os.query is-trusty; then
         cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
