@@ -170,17 +170,25 @@ execute: |
   snap set-quota group-five --memory=10MB --parent=group-four hello-world
 
   snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-five | jq -r '.result.current.memory')"
-  # both 0 and 4096 values are expected here, 0 is for older systemd/kernels 
+  # both 0 and up to 12KiB values are expected here, 0 is for older systemd/kernels 
   # where an empty cgroup has exactly 0, but on newer systems there is some 
-  # minimum amount of accounting memory for an empty cgroup, so it shows up as 
-  # 4K
-  if [ "$snapdSaysMemUsage" != null ] && [ "$snapdSaysMemUsage" != 0 ] && [ "$snapdSaysMemUsage" != 4096 ] ; then
-    echo "unexpected memory usage for empty quota group group-five, snapd says: $snapdSaysMemUsage"
-    exit 1
-  fi
+  # minimum amount of accounting memory for an empty cgroup, which is observed
+  # to be up to 12KiB due to cached memory.
+  case "$snapdSaysMemUsage" in
+      null|0|4096|12288)
+          # expected
+          ;; 
+      *)
+          echo "unexpected memory usage for empty quota group group-five, snapd says: $snapdSaysMemUsage"
+          exit 1
+  esac
 
   snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-four | jq -r '.result.current.memory')"
-  if [ "$snapdSaysMemUsage" != null ] && [ "$snapdSaysMemUsage" != 0 ] && [ "$snapdSaysMemUsage" != 4096 ] ; then
-    echo "unexpected memory usage for empty quota group group-four, snapd says: $snapdSaysMemUsage"
-    exit 1
-  fi
+  case "$snapdSaysMemUsage" in
+      null|0|4096|12288)
+          # expected
+          ;; 
+      *)
+          echo "unexpected memory usage for empty quota group group-four, snapd says: $snapdSaysMemUsage"
+          exit 1
+  esac

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -68,6 +68,10 @@ func (s *Snap) PlaceInfo() snap.PlaceInfo {
 	return &snap.Info{SideInfo: *s.SideInfo}
 }
 
+// AllModes can be passed to Seed.LoadMeta to load metadata for snaps
+// for all modes.
+const AllModes = ""
+
 // Seed supports loading assertions and seed snaps' metadata.
 type Seed interface {
 	// LoadAssertions loads all assertions from the seed with
@@ -102,7 +106,11 @@ type Seed interface {
 	// return ErrNoMeta if there is no metadata nor snaps in the
 	// seed, this is legitimate only on classic.
 	// It will panic if called before LoadAssertions.
-	LoadMeta(tm timings.Measurer) error
+	// If a precise mode is passed and not AllModes it will
+	// load the metadata only for the snaps of that mode.
+	// At which point ModeSnaps will only accept that mode
+	// and Iter and NumSnaps only consider the snaps for that mode.
+	LoadMeta(mode string, tm timings.Measurer) error
 
 	// UsesSnapdSnap returns whether the system as defined by the
 	// seed will use the snapd snap, after LoadMeta.
@@ -114,14 +122,16 @@ type Seed interface {
 
 	// ModeSnaps returns the snaps that should be available
 	// in the given mode as defined by the seed, after LoadMeta.
+	// If LoadMeta was passed a precise mode, passing a different
+	// mode here will result in error.
 	ModeSnaps(mode string) ([]*Snap, error)
 
-	// NumSnaps returns the total number of snaps in a seed.
+	// NumSnaps returns the total number of snaps for which
+	// LoadMeta loaded their metadata.
 	NumSnaps() int
 
 	// Iter provides a way to iterately perform a function on
-	// each of the snaps in a seed. For UC20 all snaps will be
-	// considered independent of mode.
+	// each of the snaps for which LoadMeta loaded their metadata.
 	Iter(f func(sn *Snap) error) error
 }
 
