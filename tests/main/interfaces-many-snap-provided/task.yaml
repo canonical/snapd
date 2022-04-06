@@ -27,11 +27,6 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 restore: |
-    if os.query is-trusty; then
-        echo "Ubuntu trusty is not supported, exiting..."
-        exit 0
-    fi
-
     # Remove the snaps to avoid timeout in next test
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
     if os.query is-core; then
@@ -45,15 +40,16 @@ debug: |
     # shellcheck disable=SC2119
     "$TESTSTOOLS"/journal-state get-log
 
-execute: |
-    # We skip the test in trusty butcause it fails with the following error since
-    # was added private /dev/shm support to shared-memory interface
+prepare: |
+    # We remove the shared-memory plug and interface in trusty because it fails with the
+    # following error since was added private /dev/shm support to shared-memory interface:
     # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
     if os.query is-trusty; then
-        echo "Ubuntu trusty is not supported, exiting..."
-        exit 0
+        cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
+        sed -e '/shared-memory:/,+2d' -i $CONSUMER_SNAP/meta/snap.yaml
     fi
 
+execute: |
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
     if os.query is-core; then
         PROVIDER_SNAP="test-snapd-policy-app-provider-core"
