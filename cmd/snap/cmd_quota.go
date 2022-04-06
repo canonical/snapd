@@ -77,7 +77,11 @@ memory limit for a quota group does not restart any services associated with
 snaps in the quota group.
 
 The CPU limit for a quota group can be both increased and decreased after being
-set on a quota group.
+set on a quota group. The CPU limit can be specified as a single percentage which
+means that the quota group is allowed an overall percentage of the CPU resources. Setting
+it to 50% means that the quota group is allowed to use up to 50% of all CPU cores
+in the allowed CPU set. Setting the percentage to 2x100% means that the quota group 
+is allowed up to 100% on two cpu cores.
 
 The CPU set limit for a quota group can be modified to include new cpus, or to remove
 existing cpus from the quota already set.

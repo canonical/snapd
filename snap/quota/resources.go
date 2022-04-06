@@ -78,6 +78,18 @@ func (qr *Resources) validateMemoryQuota() error {
 	return nil
 }
 
+func cpuFitsIntoCPUSet(count, percentage int, cpuSet []int) error {
+	if len(cpuSet) > 0 && count != 0 {
+		maxCPUUsage := len(cpuSet) * 100
+		cpuUsage := count * percentage
+		if cpuUsage > maxCPUUsage {
+			return fmt.Errorf("cpu usage %d%% is larger than the maximum allowed for provided set %v of %d%%",
+				cpuUsage, cpuSet, maxCPUUsage)
+		}
+	}
+	return nil
+}
+
 func (qr *Resources) validateCPUQuota() error {
 	// if cpu count is non-zero, then percentage should be set
 	if qr.CPU.Count != 0 && qr.CPU.Percentage == 0 {
@@ -87,6 +99,16 @@ func (qr *Resources) validateCPUQuota() error {
 	// at least one cpu limit value must be set
 	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 {
 		return fmt.Errorf("invalid cpu quota with a cpu quota of 0")
+	}
+
+	// make sure the limit is not going above any cpu-set limit also
+	// provided, note that this check is very preliminary, and we
+	// cant take all circumstances into account, but we can check
+	// against bad input that is obviously not allowed.
+	if qr.CPUSet != nil {
+		if err := cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, qr.CPUSet.CPUs); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -183,21 +205,42 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		}
 	}
 
-	// Check that the cpu limit is not being removed, we do not support setting these
-	// two settings individually. Count/Percentage must be updated in unison.
-	if newLimits.CPU != nil && qr.CPU != nil {
-		if newLimits.CPU.Count == 0 && qr.CPU.Count != 0 {
+	// Check that the cpu limit is not being removed, and we want to verify the new limit
+	// is valid.
+	if newLimits.CPU != nil {
+		// Allow count to be changed to zero, but not percentage. This is because count
+		// is an optional setting and we want to allow the user to remove the count to indicate
+		// that we just want to use % of all cpus
+		if qr.CPU != nil && newLimits.CPU.Percentage == 0 && qr.CPU.Percentage != 0 {
 			return fmt.Errorf("cannot remove cpu limit from quota group")
 		}
-		if newLimits.CPU.Percentage == 0 && qr.CPU.Percentage != 0 {
-			return fmt.Errorf("cannot remove cpu limit from quota group")
+
+		// Check that the CPU percentage still fits into any pre-existing CPU set or
+		// the new one if set.
+		if newLimits.CPUSet != nil {
+			if err := cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, newLimits.CPUSet.CPUs); err != nil {
+				return err
+			}
+		} else if qr.CPUSet != nil {
+			if err := cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, qr.CPUSet.CPUs); err != nil {
+				return err
+			}
 		}
 	}
 
-	// Check that we are not removing the entire cpu set
-	if newLimits.CPUSet != nil && qr.CPUSet != nil {
-		if len(newLimits.CPUSet.CPUs) == 0 {
+	// Check that we are not removing the entire cpu set, or applying a CPU set that is
+	// more restrictive than the current usage
+	if newLimits.CPUSet != nil {
+		if qr.CPUSet != nil && len(newLimits.CPUSet.CPUs) == 0 {
 			return fmt.Errorf("cannot remove all allowed cpus from quota group")
+		}
+
+		// if we are applying a new CPU set and not a new CPU quota, we need to make sure
+		// that the existing CPU quota fits with the new set
+		if newLimits.CPU == nil && qr.CPU != nil {
+			if err := cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, newLimits.CPUSet.CPUs); err != nil {
+				return err
+			}
 		}
 	}
 
