@@ -231,9 +231,10 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if !implicitSystemPermanentSlot(slot) {
 		if path, err := iface.getPath(slot, slot.Name); err == nil {
+			aaPerms := strings.Join(posixMQPlugPermissions, " ")
 			spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue management
-  mqueue (open create delete read write) "%s",
-`, path))
+  mqueue (%s) "%s",
+`, aaPerms, path))
 		} else {
 			return err
 		}
@@ -244,9 +245,11 @@ func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specificatio
 func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if path, err := iface.getPath(slot, slot.Name()); err == nil {
 		if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
+			// Always allow "open"
+			perms = append(perms, "open")
 			aaPerms := strings.Join(perms, " ")
 			spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue plug communication
-  mqueue (open %s) "%s",
+  mqueue (%s) "%s",
 `, aaPerms, path))
 		} else {
 			return err

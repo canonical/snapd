@@ -63,7 +63,7 @@ slots:
 
   test-invalid-path-1:
     interface: posix-mq
-    path: test-invalid
+    path: ../../test-invalid
 
   test-invalid-path-2:
     interface: posix-mq
@@ -228,10 +228,10 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open create delete read write) "/test-rw",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-rw",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(plugSnippet, testutil.Contains, `mqueue (open read write) "/test-rw",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) "/test-rw",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
@@ -248,7 +248,7 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
-	c.Check(plugSnippet, Not(testutil.Contains), "mq_getsetattr")
+	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
@@ -261,10 +261,10 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open create delete read write) "/test-default",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-default",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(plugSnippet, testutil.Contains, `mqueue (open read write) "/test-default",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (read write open) "/test-default",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
@@ -282,7 +282,7 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
-	c.Check(plugSnippet, Not(testutil.Contains), "mq_getsetattr")
+	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
@@ -295,10 +295,10 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open create delete read write) "/test-ro",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-ro",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(plugSnippet, testutil.Contains, `mqueue (open read) "/test-ro",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (read open) "/test-ro",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
@@ -315,8 +315,8 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
 	c.Check(plugSnippet, testutil.Contains, "mq_open")
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_timedsend")
-	c.Check(plugSnippet, Not(testutil.Contains), "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
@@ -329,10 +329,10 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
 
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
-	c.Check(slotSnippet, testutil.Contains, `mqueue (open create delete read write) "/test-all-perms",`)
+	c.Check(slotSnippet, testutil.Contains, `mqueue (open read write create delete) "/test-all-perms",`)
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
-	c.Check(plugSnippet, testutil.Contains, `mqueue (open create delete read write) "/test-all-perms",`)
+	c.Check(plugSnippet, testutil.Contains, `mqueue (create delete read write open) "/test-all-perms",`)
 }
 
 func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
@@ -375,6 +375,8 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo1), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo2), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo3), IsNil)
+
+	/* These should return errors due to invalid paths */
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo4), NotNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo5), NotNil)
 }
