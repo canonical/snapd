@@ -164,12 +164,7 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 		return fmt.Errorf("cannot add preseed assertion: %v", err)
 	}
 
-	assertsDir := filepath.Join(sysDir, "systems", opts.SystemLabel, "assertions")
-	if err := os.MkdirAll(assertsDir, 0755); err != nil {
-		return err
-	}
-
-	f, err := os.OpenFile(filepath.Join(assertsDir, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	f, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return err
 	}

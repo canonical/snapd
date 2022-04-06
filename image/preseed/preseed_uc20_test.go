@@ -229,7 +229,7 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	// validity check; -1 to account for handle-writable-paths mock which doesn’t trigger mount in the test
 	c.Check(len(mockMountCmd.Calls()), Equals, len(mockUmountCmd.Calls())-1)
 
-	preseedAssertionPath := filepath.Join(tmpDir, "system-seed/systems/20220203/assertions/preseed")
+	preseedAssertionPath := filepath.Join(tmpDir, "system-seed/systems/20220203/preseed")
 	c.Assert(osutil.FileExists(preseedAssertionPath), Equals, true)
 	data, err := ioutil.ReadFile(preseedAssertionPath)
 	c.Assert(err, IsNil)
