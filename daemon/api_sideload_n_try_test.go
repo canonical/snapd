@@ -1097,14 +1097,9 @@ func (s *trySuite) TestTryChangeConflict(c *check.C) {
 func (s *sideloadSuite) TestSideloadSnapInvalidTransaction(c *check.C) {
 	s.daemon(c)
 
-	// try a multipart/form-data upload with missing "name"
 	content := "" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; filename=\"x\"\r\n" +
-		"\r\n" +
-		"xyzzy\r\n" +
-		"----hello--\r\n"
-	content += "Content-Disposition: form-data; name=\"transaction\"\r\n" +
+		"Content-Disposition: form-data; name=\"transaction\"\r\n" +
 		"\r\n" +
 		"xyz\r\n" +
 		"----hello--\r\n"

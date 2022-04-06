@@ -1146,7 +1146,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transaction": i18n.G("Have one transaction per-snap (default), or have one transaction for all the specified snaps"),
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1167,7 +1167,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transaction": i18n.G("Have one transaction per-snap (default), or have one transaction for all the specified snaps"),
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

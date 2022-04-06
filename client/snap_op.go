@@ -30,10 +30,11 @@ import (
 	"path/filepath"
 )
 
-// Installs and updates can be done for multiple snaps in the same API
-// call. We can treat each snap separately (the transaction is per
-// snap) or consider the call a single transaction so everything is
-// reverted if it fails for just one snap.
+// TransactionType says whether we want to treat each snap separately
+// (the transaction is per snap) or whether to consider the call a
+// single transaction so everything is reverted if it fails for just
+// one snap. This applies to installs and updates, which can be done
+// for multiple snaps in the same API call.
 type TransactionType string
 
 const (

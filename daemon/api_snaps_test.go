@@ -2246,7 +2246,7 @@ func (s *snapsSuite) TestPostSnapInvalidTransaction(c *check.C) {
 	s.daemonWithOverlordMock()
 
 	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
-		expectedErr := fmt.Sprintf(`transaction type is invalid for "%s" actions`, action)
+		expectedErr := fmt.Sprintf(`transaction type is unsupported for "%s" actions`, action)
 		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "transaction": "per-snap"}`, action))
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)

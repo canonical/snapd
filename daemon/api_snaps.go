@@ -262,7 +262,7 @@ func (inst *snapInstruction) validate() error {
 	case "":
 	case client.TransactionPerSnap, client.TransactionAllSnaps:
 		if inst.Action != "install" && inst.Action != "refresh" {
-			return fmt.Errorf(`transaction type is invalid for "%s" actions`, inst.Action)
+			return fmt.Errorf(`transaction type is unsupported for %q actions`, inst.Action)
 		}
 	default:
 		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
