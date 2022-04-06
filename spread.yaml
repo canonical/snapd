@@ -42,6 +42,9 @@ environment:
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
     UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
+    # controls whether ubuntu-image is built using the current snapd tree as a
+    # dependency or the one listed in its go.mod
+    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -962,6 +965,8 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial; then
@@ -969,13 +974,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # build a custom version ubuntu-image with test keys
-                (
-                    export GO111MODULE=off
-                    # use go get so that ubuntu-image is built with current snapd sources
-                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                )
+               build_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1008,6 +1007,8 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial; then
@@ -1015,13 +1016,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # build a custom version ubuntu-image with test keys
-                (
-                    export GO111MODULE=off
-                    # use go get so that ubuntu-image is built with current snapd sources
-                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                )
+                build_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1059,6 +1054,8 @@ suites:
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial; then
@@ -1066,13 +1063,7 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
-                # build a custom version ubuntu-image with test keys
-                (
-                    export GO111MODULE=off
-                    # use go get so that ubuntu-image is built with current snapd sources
-                    go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                    go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-                )
+                build_ubuntu_image
             fi
 
             # Install the snapd built
