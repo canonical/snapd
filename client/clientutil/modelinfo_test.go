@@ -29,7 +29,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -54,26 +56,95 @@ const (
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"AXNpZw=="
+
+	core20ModelExample = `type: model
+authority-id: brand-id1
+series: 16
+brand-id: brand-id1
+model: baz-3000
+display-name: Baz 3000
+architecture: amd64
+system-user-authority: *
+base: core20
+store: brand-store
+snaps:
+  -
+    name: baz-linux
+    id: bazlinuxidididididididididididid
+    type: kernel
+    default-channel: 20
+  -
+    name: brand-gadget
+    id: brandgadgetdidididididididididid
+    type: gadget
+  -
+    name: other-base
+    id: otherbasedididididididididididid
+    type: base
+    modes:
+      - run
+    presence: required
+  -
+    name: nm
+    id: nmididididididididididididididid
+    modes:
+      - ephemeral
+      - run
+    default-channel: 1.0
+  -
+    name: myapp
+    id: myappdididididididididididididid
+    type: app
+    default-channel: 2.0
+  -
+    name: myappopt
+    id: myappoptidididididididididididid
+    type: app
+    presence: optional
+    grade: secured
+    storage-safety: encrypted
+` + "TSLINE" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
+	serialExample = "type: serial\n" +
+		"authority-id: brand-id1\n" +
+		"brand-id: brand-id1\n" +
+		"model: baz-3000\n" +
+		"serial: 2700\n" +
+		"device-key:\n    DEVICEKEY\n" +
+		"device-key-sha3-384: KEYID\n" +
+		"TSLINE" +
+		"body-length: 2\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
+		"HW" +
+		"\n\n" +
+		"AXNpZw=="
 )
 
 type testFormatter struct {
-	publisher string
 }
 
 func (tf testFormatter) GetEscapedDash() string {
 	return "--"
 }
 
-func (tf testFormatter) GetPublisher() string {
-	return tf.publisher
+func (tf testFormatter) LongPublisher(storeAccountID string) string {
+	return storeAccountID
 }
 
 type modelInfoSuite struct {
 	testutil.BaseTest
-	ts        time.Time
-	tsLine    string
-	formatter testFormatter
+	ts            time.Time
+	tsLine        string
+	deviceKey     asserts.PrivateKey
+	encodedDevKey string
+	formatter     testFormatter
 }
+
+var testPrivKey2, _ = assertstest.GenerateKey(752)
 
 var _ = Suite(&modelInfoSuite{})
 
@@ -81,24 +152,53 @@ func (s *modelInfoSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.ts = time.Now().Truncate(time.Second).UTC()
 	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
-	s.formatter.publisher = "brand-id1"
+
+	s.deviceKey = testPrivKey2
+	encodedPubKey, err := asserts.EncodePublicKey(s.deviceKey.PublicKey())
+	c.Assert(err, IsNil)
+	s.encodedDevKey = string(encodedPubKey)
 }
 
-func (s *modelInfoSuite) getModel(c *C) *asserts.Model {
-	encoded := strings.Replace(modelExample, "TSLINE", s.tsLine, 1)
+func (s *modelInfoSuite) getModel(c *C, modelText string) asserts.Model {
+	encoded := strings.Replace(modelText, "TSLINE", s.tsLine, 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
-	return model
+	return *model
+}
+
+func (s *modelInfoSuite) getDeviceKey(padding string, termWidth int) string {
+	var buffer bytes.Buffer
+	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
+	key := strings.Join(strings.Split(s.encodedDevKey, "\n"), "")
+	strutil.WordWrapPadded(w, []rune(key), padding, termWidth)
+	return buffer.String()
+}
+
+func (s *modelInfoSuite) getSerial(c *C, serialText string) asserts.Serial {
+	encoded := strings.Replace(serialText, "TSLINE", s.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(s.encodedDevKey, "\n", "\n    ", -1), 1)
+	encoded = strings.Replace(encoded, "KEYID", s.deviceKey.PublicKey().ID(), 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SerialType)
+	serial := a.(*asserts.Serial)
+	return *serial
 }
 
 func (s *modelInfoSuite) TestPrintModelYAML(c *C) {
 	var buffer bytes.Buffer
 	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
-	model := s.getModel(c)
+	model := s.getModel(c, modelExample)
 
-	err := clientutil.PrintModelAssertionYAML(w, s.formatter, 80, false, false, false, false, model, nil)
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   false,
+		AbsTime:   false,
+		Assertion: false,
+	}
+	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, nil)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, `brand     brand-id1
 model     Baz 3000 (baz-3000)
@@ -106,36 +206,88 @@ serial    - (device not registered yet)
 `)
 }
 
+func (s *modelInfoSuite) TestPrintModelWithSerialYAML(c *C) {
+	var buffer bytes.Buffer
+	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
+	model := s.getModel(c, modelExample)
+	serial := s.getSerial(c, serialExample)
+
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   false,
+		AbsTime:   false,
+		Assertion: false,
+	}
+	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, &serial)
+	c.Assert(err, IsNil)
+	c.Check(buffer.String(), Equals, `brand     brand-id1
+model     Baz 3000 (baz-3000)
+serial    2700
+`)
+}
+
 func (s *modelInfoSuite) TestPrintModelYAMLVerbose(c *C) {
 	var buffer bytes.Buffer
 	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
-	model := s.getModel(c)
+	model := s.getModel(c, core20ModelExample)
 
-	err := clientutil.PrintModelAssertionYAML(w, s.formatter, 80, false, false, true, false, model, nil)
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   true,
+		AbsTime:   false,
+		Assertion: false,
+	}
+	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, nil)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:                 brand-id1
 model:                    baz-3000
 serial:                   -- (device not registered yet)
 architecture:             amd64
-base:                     core18
+base:                     core20
 display-name:             Baz 3000
-gadget:                   brand-gadget
-kernel:                   baz-linux
 store:                    brand-store
 system-user-authority:    *
 timestamp:                %s
-required-snaps:           
-  - foo
-  - bar
+snaps:
+  - name:               baz-linux
+    id:                 bazlinuxidididididididididididid
+    type:               kernel
+    default-channel:    20
+  - name:               brand-gadget
+    id:                 brandgadgetdidididididididididid
+    type:               gadget
+  - name:               other-base
+    id:                 otherbasedididididididididididid
+    type:               base
+    presence:           required
+    modes:              [run]
+  - name:               nm
+    id:                 nmididididididididididididididid
+    default-channel:    1.0
+    modes:              [ephemeral, run]
+  - name:               myapp
+    id:                 myappdididididididididididididid
+    type:               app
+    default-channel:    2.0
+  - name:               myappopt
+    id:                 myappoptidididididididididididid
+    type:               app
+    presence:           optional
 `, timeutil.Human(s.ts)))
 }
 
 func (s *modelInfoSuite) TestPrintModelYAMLAssertion(c *C) {
 	var buffer bytes.Buffer
 	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
-	model := s.getModel(c)
+	model := s.getModel(c, modelExample)
 
-	err := clientutil.PrintModelAssertionYAML(w, s.formatter, 80, false, false, false, true, model, nil)
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   false,
+		AbsTime:   false,
+		Assertion: true,
+	}
+	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, nil)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: model
 authority-id: brand-id1
@@ -161,12 +313,90 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 `, s.ts.Format(time.RFC3339)))
 }
 
+func (s *modelInfoSuite) TestPrintSerialYAML(c *C) {
+	var buffer bytes.Buffer
+	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
+	serial := s.getSerial(c, serialExample)
+
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   false,
+		AbsTime:   false,
+		Assertion: false,
+	}
+	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, options, serial)
+	c.Assert(err, IsNil)
+	c.Check(buffer.String(), Equals, `brand-id:    brand-id1
+model:       baz-3000
+serial:      2700
+`)
+}
+
+func (s *modelInfoSuite) TestPrintSerialAssertionYAML(c *C) {
+	var buffer bytes.Buffer
+	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
+	serial := s.getSerial(c, serialExample)
+
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   false,
+		AbsTime:   false,
+		Assertion: true,
+	}
+	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, options, serial)
+	c.Assert(err, IsNil)
+	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: serial
+authority-id: brand-id1
+brand-id: brand-id1
+model: baz-3000
+serial: 2700
+device-key:
+%sdevice-key-sha3-384: %s
+timestamp: %s
+body-length: 2
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+HW
+
+`, s.getDeviceKey("    ", options.TermWidth), s.deviceKey.PublicKey().ID(), s.ts.Format(time.RFC3339)))
+}
+
+func (s *modelInfoSuite) TestPrintSerialVerboseYAML(c *C) {
+	var buffer bytes.Buffer
+	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
+	serial := s.getSerial(c, serialExample)
+
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   true,
+		AbsTime:   false,
+		Assertion: false,
+	}
+	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, options, serial)
+	c.Assert(err, IsNil)
+	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:     brand-id1
+model:        baz-3000
+serial:       2700
+timestamp:    %s
+device-key-sha3-384: |
+  %s
+device-key: |
+%s`, timeutil.Human(s.ts), s.deviceKey.PublicKey().ID(), s.getDeviceKey("  ", options.TermWidth)))
+}
+
 func (s *modelInfoSuite) TestPrintModelJSON(c *C) {
 	var buffer bytes.Buffer
 	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
-	model := s.getModel(c)
+	model := s.getModel(c, modelExample)
 
-	err := clientutil.PrintModelAssertionJSON(w, s.formatter, false, false, false, model, nil)
+	// For JSON verbose is always implictly true
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   true,
+		AbsTime:   false,
+		Assertion: false,
+	}
+	err := clientutil.PrintModelAssertionJSON(w, s.formatter, options, model, nil)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
@@ -190,9 +420,16 @@ func (s *modelInfoSuite) TestPrintModelJSON(c *C) {
 func (s *modelInfoSuite) TestPrintModelJSONAssertion(c *C) {
 	var buffer bytes.Buffer
 	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
-	model := s.getModel(c)
+	model := s.getModel(c, modelExample)
 
-	err := clientutil.PrintModelAssertionJSON(w, s.formatter, false, false, true, model, nil)
+	// For JSON verbose is always implictly true
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   true,
+		AbsTime:   false,
+		Assertion: true,
+	}
+	err := clientutil.PrintModelAssertionJSON(w, s.formatter, options, model, nil)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
   "headers": {
