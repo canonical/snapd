@@ -122,12 +122,9 @@ func (qr *Resources) CheckFeatureRequirements() error {
 	return nil
 }
 
-// Validate performs validation of the provided quota resources for a group.
-// The restrictions imposed are that at least one limit should be set.
-// If memory limit is provided, it must be above 640KB.
-// If cpu percentage is provided, it must be between 1 and 100.
-// If cpu set is provided, it must not be empty.
-// If thread count is provided, it must be above 0.
+// Validate performs basic validation of the provided quota resources for a group.
+// The restrictions imposed are that at least one limit should be set, and each
+// of the imposed limits are not zero.
 //
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
@@ -163,8 +160,10 @@ func (qr *Resources) Validate() error {
 }
 
 // ValidateChange performs validation of new quota limits against the current limits.
+// We do this validation each time a new group/subgroup is created or updated.
 // This is to catch issues where we want to guard against lowering limits where not supported
 // or to make sure that certain/all limits are not removed.
+// We also require memory limits are above 640kB.
 func (qr *Resources) ValidateChange(newLimits Resources) error {
 	// Check that the memory limit is not being decreased
 	if newLimits.Memory != nil {
