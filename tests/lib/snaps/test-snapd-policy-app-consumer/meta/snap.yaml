@@ -8,9 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
-  acrn-control:
+  acrn-support:
     command: bin/run
-    plugs: [ acrn-control ]
+    plugs: [ acrn-support ]
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
