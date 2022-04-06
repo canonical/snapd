@@ -160,7 +160,13 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	trasactionVals := form.Values["transaction"]
 	flags.Transaction = client.TransactionPerSnap
 	if len(trasactionVals) > 0 {
-		flags.Transaction = client.TransactionType(trasactionVals[0])
+		switch trasactionVals[0] {
+		case string(client.TransactionPerSnap), string(client.TransactionAllSnaps):
+			flags.Transaction = client.TransactionType(trasactionVals[0])
+		default:
+			return BadRequest(`transaction must be either "%s" or "%s"`,
+				client.TransactionPerSnap, client.TransactionAllSnaps)
+		}
 	}
 
 	sideloadFlags := sideloadFlags{

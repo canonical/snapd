@@ -1093,3 +1093,30 @@ func (s *trySuite) TestTryChangeConflict(c *check.C) {
 	rspe := daemon.TrySnap(st, tryDir, snapstate.Flags{}).(*daemon.APIError)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }
+
+func (s *sideloadSuite) TestSideloadSnapInvalidTransaction(c *check.C) {
+	s.daemon(c)
+
+	// try a multipart/form-data upload with missing "name"
+	content := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n"
+	content += "Content-Disposition: form-data; name=\"transaction\"\r\n" +
+		"\r\n" +
+		"xyz\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Message, check.Matches, `transaction must be either "per-snap" or "all-snaps"`)
+}

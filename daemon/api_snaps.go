@@ -258,6 +258,15 @@ func (inst *snapInstruction) validate() error {
 			}
 		}
 	}
+	switch inst.Transaction {
+	case "":
+	case client.TransactionPerSnap, client.TransactionAllSnaps:
+		if inst.Action != "install" && inst.Action != "refresh" {
+			return fmt.Errorf(`transaction type is invalid for "%s" actions`, inst.Action)
+		}
+	default:
+		return fmt.Errorf("invalid value for transaction type: %s", inst.Transaction)
+	}
 
 	return inst.snapRevisionOptions.validate()
 }
