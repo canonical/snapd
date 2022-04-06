@@ -126,7 +126,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
-		err = deviceSeed.LoadMeta(nested)
+		err = deviceSeed.LoadMeta(mode, nested)
 	})
 	if release.OnClassic && err == seed.ErrNoMeta {
 		if preseed {

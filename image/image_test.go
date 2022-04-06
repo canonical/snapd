@@ -596,7 +596,7 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 		label = filepath.Base(systems[0])
 	}
 
-	seed, err := seed.Open(seeddir, label)
+	sd, err := seed.Open(seeddir, label)
 	c.Assert(err, IsNil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -609,14 +609,14 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 		return b.CommitTo(db, nil)
 	}
 
-	err = seed.LoadAssertions(db, commitTo)
+	err = sd.LoadAssertions(db, commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed.LoadMeta(timings.New(nil))
+	err = sd.LoadMeta(seed.AllModes, timings.New(nil))
 	c.Assert(err, IsNil)
 
-	essSnaps = seed.EssentialSnaps()
-	runSnaps, err = seed.ModeSnaps("run")
+	essSnaps = sd.EssentialSnaps()
+	runSnaps, err = sd.ModeSnaps("run")
 	c.Assert(err, IsNil)
 
 	return essSnaps, runSnaps, db
