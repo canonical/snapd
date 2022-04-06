@@ -347,6 +347,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  pkcs11:
+    command: bin/run
+    plugs: [ pkcs11 ]
   polkit:
     command: bin/run
     plugs: [ polkit ]
@@ -531,6 +534,9 @@ plugs:
   polkit:
     interface: polkit
     action-prefix: io.snapcraft.example
+  shared-memory:
+    interface: shared-memory
+    private: true
   system-files:
     interface: system-files
     read: [/file1]

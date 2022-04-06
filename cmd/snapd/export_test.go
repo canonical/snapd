@@ -27,11 +27,11 @@ var (
 	Run = run
 )
 
-func MockSanityCheck(f func() error) (restore func()) {
-	oldSanityCheck := sanityCheck
-	sanityCheck = f
+func MockSyscheckCheckSystem(f func() error) (restore func()) {
+	oldSyscheckCheckSystem := syscheckCheckSystem
+	syscheckCheckSystem = f
 	return func() {
-		sanityCheck = oldSanityCheck
+		syscheckCheckSystem = oldSyscheckCheckSystem
 	}
 }
 
