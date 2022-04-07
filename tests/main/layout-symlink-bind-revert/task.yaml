@@ -1,5 +1,9 @@
 summary: Demonstrate that the layout is updated
 
+systems:
+  # unshare or nsenter are not available on 14.04
+  - -ubuntu-14.04-*
+
 prepare: |
     echo "Ensure feature flag is enabled"
     snap set core experimental.layouts=true
