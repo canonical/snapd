@@ -4593,6 +4593,37 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyIgnoreRunning(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-snap`, &si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si},
+		Current:         si.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"some-snap"}, 0, &snapstate.Flags{IgnoreRunning: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(updates, HasLen, 1)
+
+	snapsup, err := snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.IgnoreRunning, Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -7764,8 +7795,7 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22(c *C) 
 		{macaroon: s.user.StoreMacaroon, name: "snap-core18-to-core22", target: filepath.Join(dirs.SnapBlobDir, "snap-core18-to-core22_2.snap")},
 	})
 
-	c.Assert(s.fakeBackend.ops.First("hide-snap-data"), IsNil)
-	s.fakeBackend.ops.MustFindOp(c, "init-exposed-snap-home")
+	containsInOrder(c, s.fakeBackend.ops, []string{"init-exposed-snap-home", "init-xdg-dirs"})
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
 	assertMigrationState(c, s.state, "snap-core18-to-core22", expected)

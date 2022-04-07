@@ -128,9 +128,9 @@ func userEnv(info *snap.Info, home string, opts *dirs.SnapDirOptions) osutil.Env
 	env["SNAP_REAL_HOME"] = home
 
 	if opts.MigratedToExposedHome {
-		env["XDG_DATA_HOME"] = filepath.Join(info.UserDataDir(home, opts), "data")
-		env["XDG_CONFIG_HOME"] = filepath.Join(info.UserDataDir(home, opts), "config")
-		env["XDG_CACHE_HOME"] = filepath.Join(info.UserDataDir(home, opts), "cache")
+		env["XDG_DATA_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-data")
+		env["XDG_CONFIG_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-config")
+		env["XDG_CACHE_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-cache")
 
 		env["SNAP_USER_HOME"] = info.UserExposedHomeDir(home)
 		env["HOME"] = info.UserExposedHomeDir(home)

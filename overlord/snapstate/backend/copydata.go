@@ -311,7 +311,7 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoIn
 		undoInfo.Created = append(undoInfo.Created, newUserHome)
 
 		userData := snap.UserDataDir(usr.HomeDir, snapName, rev, opts)
-		entries, err := ioutil.ReadDir(userData)
+		files, err := ioutil.ReadDir(userData)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				// there's nothing to copy into ~/Snap/<snap> (like on a fresh install)
@@ -320,12 +320,27 @@ func (b Backend) InitExposedSnapHome(snapName string, rev snap.Revision) (undoIn
 
 			return undoInfo, err
 		}
-		for _, e := range entries {
-			src := filepath.Join(userData, e.Name())
-			dst := filepath.Join(newUserHome, e.Name())
+
+		for _, f := range files {
+			// some XDG vars aren't copied to the new HOME, they will be in SNAP_USER_DATA
+			// .local/share is a subdirectory it needs to be handled specially below
+			if strutil.ListContains([]string{".cache", ".config"}, f.Name()) {
+				continue
+			}
+
+			src := filepath.Join(userData, f.Name())
+			dst := filepath.Join(newUserHome, f.Name())
 
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 				return undoInfo, err
+			}
+
+			// don't copy .local/share but copy other things under .local/
+			if f.Name() == ".local" {
+				shareDir := filepath.Join(dst, "share")
+				if err := os.RemoveAll(shareDir); err != nil {
+					return undoInfo, err
+				}
 			}
 		}
 	}
@@ -373,4 +388,54 @@ func (b Backend) UndoInitExposedSnapHome(snapName string, undoInfo *UndoInfo) er
 	}
 
 	return firstErr
+}
+
+var (
+	srcXDGDirs = []string{".config", ".cache", ".local/share"}
+	dstXDGDirs = []string{"xdg-config", "xdg-cache", "xdg-data"}
+)
+
+// InitXDGDirs renames .local/share, .config and .cache directories to their
+// post core22 migration locations. Directories that don't exist are created.
+// Must be invoked after the revisioned data has been migrated.
+func (b Backend) InitXDGDirs(info *snap.Info) error {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true, MigratedToExposedHome: true}
+	users, err := allUsers(opts)
+	if err != nil {
+		return err
+	}
+
+	for _, usr := range users {
+		uid, gid, err := osutil.UidGid(usr)
+		if err != nil {
+			return err
+		}
+
+		revDir := info.UserDataDir(usr.HomeDir, opts)
+		for i, srcDir := range srcXDGDirs {
+			src := filepath.Join(revDir, srcDir)
+			dst := filepath.Join(revDir, dstXDGDirs[i])
+
+			if exists, _, err := osutil.DirExists(dst); err != nil {
+				return err
+			} else if exists {
+				return fmt.Errorf("cannot migrate XDG dir %q to %q because destination already exists", src, dst)
+			}
+
+			if exists, isDir, err := osutil.DirExists(src); err != nil {
+				return err
+			} else if exists && isDir {
+				if err := os.Rename(src, dst); err != nil {
+					return err
+				}
+
+			} else {
+				if err := mkdirAllChown(dst, 0700, uid, gid); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }

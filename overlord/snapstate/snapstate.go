@@ -166,6 +166,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Media:   update.Media,
 		},
 	}
+	snapsup.IgnoreRunning = globalFlags.IgnoreRunning
 	return &snapsup, snapst, nil
 }
 

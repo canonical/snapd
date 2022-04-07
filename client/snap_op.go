@@ -102,6 +102,7 @@ type multiActionData struct {
 	Snaps         []string `json:"snaps,omitempty"`
 	Users         []string `json:"users,omitempty"`
 	Transactional bool     `json:"transactional,omitempty"`
+	IgnoreRunning bool     `json:"ignore-running,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -207,6 +208,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		// TODO: consider returning error when options.Dangerous is set
 		action.Users = options.Users
 		action.Transactional = options.Transactional
+		action.IgnoreRunning = options.IgnoreRunning
 	}
 
 	data, err := json.Marshal(&action)

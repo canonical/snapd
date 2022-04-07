@@ -25,6 +25,10 @@ import (
 
 type GroupQuotaAllocations = groupQuotaAllocations
 
+func (grp *Group) GetCPUQuotaPercentage() int {
+	return grp.getCurrentCPUAllocation()
+}
+
 func (grp *Group) SetInternalSubGroups(grps []*Group) {
 	grp.subGroups = grps
 }
@@ -48,5 +52,11 @@ func MockCgroupVer(mockVer int) (restore func()) {
 func MockCgroupVerErr(mockErr error) (restore func()) {
 	r := testutil.Backup(&cgroupVerErr)
 	cgroupVerErr = mockErr
+	return r
+}
+
+func MockRuntimeNumCPU(mock func() int) (restore func()) {
+	r := testutil.Backup(&runtimeNumCPU)
+	runtimeNumCPU = mock
 	return r
 }
