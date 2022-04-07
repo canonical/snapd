@@ -636,7 +636,6 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
 	for _, entry := range desiredNotReused {
 		if entry.XSnapdOrigin() == "overname" {
-			logger.Debugf("- overname entry: %v", entry)
 			addIndependentDesiredEntry(entry)
 		}
 
@@ -694,8 +693,8 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		sort.Strings(allMimicCreationDirs)
 
 		logger.Debugf("all mimics:")
-		for _, en := range allMimicCreationDirs {
-			logger.Debugf("- %v", en)
+		for _, mimicDir := range allMimicCreationDirs {
+			logger.Debugf("- %v", mimicDir)
 		}
 
 		for _, mimicDir := range allMimicCreationDirs {
@@ -711,7 +710,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 	sort.Sort(byOriginAndMagicDir(newIndependentDesiredEntries))
 	allEntries := append(newIndependentDesiredEntries, newDesiredEntries...)
-	dumpMountEntries(allEntries, "final mount entries")
+	dumpMountEntries(allEntries, "mount entries ordered as they will be applied")
 	for _, entry := range allEntries {
 		changes = append(changes, &Change{Action: Mount, Entry: entry})
 	}
