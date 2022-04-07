@@ -47,18 +47,23 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// A Store can find metadata on snaps, download snaps and fetch assertions.
-type Store interface {
-	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
-	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error
-
-	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
-}
-
 // ToolingStore wraps access to the store for tools.
 type ToolingStore struct {
-	sto  Store
+	sto  StoreImpl
 	user *auth.UserState
+}
+
+// A StoreImpl can find metadata on snaps, download snaps and fetch assertions.
+// This interface is a subset of store.Store methods.
+type StoreImpl interface {
+	// SnapAction queries the store for snap information for the given install/refresh actions. Orthogonally it can be used to fetch or update assertions.
+	SnapAction(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
+
+	// Download downloads the snap addressed by download info
+	Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error
+
+	// Assertion retrieves the assertion for the given type and primary key.
+	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 }
 
 func newToolingStore(arch, storeID string) (*ToolingStore, error) {
@@ -198,6 +203,8 @@ func NewToolingStoreFromModel(model *asserts.Model, fallbackArchitecture string)
 	return newToolingStore(architecture, model.Store())
 }
 
+// NewToolingStore creates ToolingStore, with optional arch and store id
+// read from UBUNTU_STORE_ARCH and UBUNTU_STORE_ID environment variables.
 func NewToolingStore() (*ToolingStore, error) {
 	arch := os.Getenv("UBUNTU_STORE_ARCH")
 	storeID := os.Getenv("UBUNTU_STORE_ID")
@@ -259,10 +266,9 @@ type DownloadedSnap struct {
 	RedirectChannel string
 }
 
-// DownloadSnap downloads the snap with the given name and optionally
-// revision using the provided store and options. It returns the final
-// full path of the snap and a snap.Info for it and optionally a
-// channel the snap got redirected to.
+// DownloadSnap downloads the snap with the given name and options.
+// It returns the final full path of the snap and a snap.Info for it and
+// optionally a channel the snap got redirected to wrapped in DownloadedSnap.
 func (tsto *ToolingStore) DownloadSnap(name string, opts DownloadSnapOptions) (downloadedSnap *DownloadedSnap, err error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
@@ -441,7 +447,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 	return downloadedSnaps, nil
 }
 
-// AssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
+// AssertionFetcher creates an asserts.Fetcher for assertions using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
 func (tsto *ToolingStore) AssertionFetcher(db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return tsto.sto.Assertion(ref.Type, ref.PrimaryKey, tsto.user)
@@ -469,7 +475,8 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 	return tsto.sto.Assertion(at, pk, tsto.user)
 }
 
-func MockToolingStore(sto Store) *ToolingStore {
-	osutil.MustBeTestBinary("tooling store can only be mocked in tests")
+// MockToolingStore creates a ToolingStore that uses the provided StoreImpl
+// implementation for Download, SnapAction and Assertion methods.
+func MockToolingStore(sto StoreImpl) *ToolingStore {
 	return &ToolingStore{sto: sto}
 }
