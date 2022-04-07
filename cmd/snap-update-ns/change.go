@@ -510,7 +510,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	// slash and the mount kind.
 	// Note that the current profile is a log of what was applied and should
 	// not be sorted at all.
-	sort.Sort(byOriginAndMagicDir(desired))
+	sort.Sort(byOriginAndMountPoint(desired))
 	dumpMountEntries(desired, "desired mount entries (sorted)")
 
 	// Construct a desired directory map.
@@ -704,14 +704,14 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			// make sure to sort the entries for each mimic dir in a consistent
 			// order
 			entries := entriesForMimicDir[mimicDir]
-			sort.Sort(byOriginAndMagicDir(entries))
+			sort.Sort(byOriginAndMountPoint(entries))
 			for _, entry := range entries {
 				addDesiredEntry(entry)
 			}
 		}
 	}
 
-	sort.Sort(byOriginAndMagicDir(newIndependentDesiredEntries))
+	sort.Sort(byOriginAndMountPoint(newIndependentDesiredEntries))
 	allEntries := append(newIndependentDesiredEntries, newDesiredEntries...)
 	dumpMountEntries(allEntries, "mount entries ordered as they will be applied")
 	for _, entry := range allEntries {

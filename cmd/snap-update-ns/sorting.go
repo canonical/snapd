@@ -63,14 +63,14 @@ func (c byOvernameAndMountPoint) Less(i, j int) bool {
 	return iDir < jDir
 }
 
-// byOriginAndMagicDir allows sorting an array of entries by the source of mount
-// entry (overname, other, layout) and lexically by mount point name.
-// Automagically adds a trailing slash to paths.
-type byOriginAndMagicDir []osutil.MountEntry
+// byOriginAndMountPoint allows sorting an array of entries by the
+// source of mount entry (overname, other, layout) and lexically by
+// mount point name.  Automagically adds a trailing slash to paths.
+type byOriginAndMountPoint []osutil.MountEntry
 
-func (c byOriginAndMagicDir) Len() int      { return len(c) }
-func (c byOriginAndMagicDir) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c byOriginAndMagicDir) Less(i, j int) bool {
+func (c byOriginAndMountPoint) Len() int      { return len(c) }
+func (c byOriginAndMountPoint) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byOriginAndMountPoint) Less(i, j int) bool {
 	iMe := c[i]
 	jMe := c[j]
 

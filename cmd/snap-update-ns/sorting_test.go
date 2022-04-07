@@ -32,14 +32,22 @@ type sortSuite struct {
 	layoutsLast bool
 }
 
+type byOriginAndMountPointSuite struct {
+	sortSuite
+}
+
+type byOvernameAndMountPointSuite struct {
+	sortSuite
+}
+
 var (
-	_ = Suite(&sortSuite{
-		sort:        func(entries []osutil.MountEntry) { sort.Sort(byOriginAndMagicDir(entries)) },
+	_ = Suite(&byOriginAndMountPointSuite{sortSuite{
+		sort:        func(entries []osutil.MountEntry) { sort.Sort(byOriginAndMountPoint(entries)) },
 		layoutsLast: true,
-	})
-	_ = Suite(&sortSuite{
+	}})
+	_ = Suite(&byOvernameAndMountPointSuite{sortSuite{
 		sort: func(entries []osutil.MountEntry) { sort.Sort(byOvernameAndMountPoint(entries)) },
-	})
+	}})
 )
 
 func (s *sortSuite) TestTrailingSlashesComparison(c *C) {
@@ -114,7 +122,7 @@ func (s *sortSuite) TestOvernameOrder(c *C) {
 	}
 	s.sort(entries)
 	c.Assert(entries, DeepEquals, expected)
-	sort.Sort(byOriginAndMagicDir(entriesRev))
+	s.sort(entriesRev)
 	c.Assert(entriesRev, DeepEquals, expected)
 }
 
