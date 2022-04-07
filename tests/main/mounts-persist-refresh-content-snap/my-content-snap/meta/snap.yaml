@@ -1,0 +1,16 @@
+name: my-content-snap
+version: 0.1
+
+slots:
+  shared-content-slot-1:
+    interface: content
+    content: content-1
+    source:
+      read:
+      - $SNAP/dir-1
+  shared-content-slot-2:
+    interface: content
+    content: content-2
+    source:
+      read:
+      - $SNAP/dir-2

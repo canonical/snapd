@@ -22,13 +22,17 @@ prepare: |
   systemctl restart snapd
 
   # install a snap which exposes some files via a content slot
-  "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
+  "$TESTSTOOLS"/snaps-state install-local my-content-snap
 
   # install a snap which consumes said files via content plug
+  # First, create the missing mount points (git ignores empty directories)
+  mkdir -p test-snapd-desktop-layout-with-content/dir-1
+  mkdir -p test-snapd-desktop-layout-with-content/dir-2
   "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop-layout-with-content
 
   # connect
-  snap connect test-snapd-desktop-layout-with-content:shared-content-plug test-snapd-content-slot:shared-content-slot
+  snap connect test-snapd-desktop-layout-with-content:shared-content-plug-1 my-content-snap:shared-content-slot-1
+  snap connect test-snapd-desktop-layout-with-content:shared-content-plug-2 my-content-snap:shared-content-slot-2
 
   # prepare a user session
   tests.session -u test prepare
@@ -40,13 +44,14 @@ execute: |
   # while loop here has to be inside the snap run shell, since the process must
   # persist during the refresh, if it is on the outside the mount namespace will
   # be rebuilt and the crash will not be reproduced
-  tests.session -u test exec snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'while test -f /run/keep-running && test -d /usr/share/fonts/foo-font; do true; done' &
+  # shellcheck disable=SC2016
+  tests.session -u test exec snap run --shell test-snapd-desktop-layout-with-content.cmd -c 'while test -f /run/keep-running && $SNAP/check-entries.sh; do true; done' &
   pid=$!
 
   # refresh the content slot snap
   # TODO: when refresh app awareness is enabled, this will need to ignore running processes to
   # check the behavior
-  "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
+  "$TESTSTOOLS"/snaps-state install-local my-content-snap
 
   # ensure the process is still running
   if not ps -p "$pid"; then
