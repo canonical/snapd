@@ -842,9 +842,10 @@ func (x *cmdRefresh) Execute([]string) error {
 		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
 	}
-	// transactional flag is the only one with meaning when
+	// transactional and ignore-running flags are the only ones with meaning when
 	// refreshing many snaps
 	opts := &client.SnapOptions{
+		IgnoreRunning: x.IgnoreRunning,
 		Transactional: x.Transactional,
 	}
 
@@ -854,9 +855,6 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.IgnoreValidation {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
-	}
-	if x.IgnoreRunning {
-		return errors.New(i18n.G("a single snap name must be specified when ignoring running apps and hooks"))
 	}
 
 	return x.refreshMany(names, opts)

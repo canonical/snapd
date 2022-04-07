@@ -45,6 +45,7 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.NewResourcesBuilder().WithThreadLimit(0).Build(), `invalid thread quota with a thread count of 0`},
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `invalid cpu quota with count of >0 and percentage of 0`},
+		{quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).Build(), `cpu usage 200% is larger than the maximum allowed for provided set \[0\] of 100%`},
 	}
 
 	for _, t := range tests {
@@ -128,7 +129,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		},
 		{
 			quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(75).Build(),
-			quota.NewResourcesBuilder().WithCPUCount(0).WithCPUPercentage(0).Build(),
+			quota.NewResourcesBuilder().WithCPUPercentage(0).Build(),
 			`cannot remove cpu limit from quota group`,
 		},
 		{
@@ -151,6 +152,21 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
 			quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(0).Build(),
 			`invalid cpu quota with count of >0 and percentage of 0`,
+		},
+		{
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(100).Build(),
+			`cpu usage 800% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
+		},
+		{
+			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(100).WithAllowedCPUs([]int{0, 1}).Build(),
+			`cpu usage 400% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(6).WithCPUPercentage(100).Build(),
+			quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build(),
+			`cpu usage 600% is larger than the maximum allowed for provided set \[0 1\] of 200%`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
@@ -206,6 +222,11 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(100).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).WithThreadLimit(32).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).WithCPUCount(1).WithCPUPercentage(100).WithThreadLimit(32).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).Build(),
+			quota.NewResourcesBuilder().WithCPUPercentage(25).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(0).WithCPUPercentage(25).Build(),
 		},
 		{
 			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0}).Build(),

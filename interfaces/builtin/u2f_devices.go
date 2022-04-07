@@ -125,7 +125,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "SoloKeys",
 		VendorIDPattern:  "1209",
-		ProductIDPattern: "5070|50b0",
+		ProductIDPattern: "5070|50b0|beee",
 	},
 	{
 		Name:             "OnlyKey",

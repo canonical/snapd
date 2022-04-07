@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -291,6 +292,198 @@ TasksMax=%[5]d
 		allowedCpusValue,
 		resourceLimits.Memory.Limit,
 		resourceLimits.Threads.Limit)
+
+	exp := []changesObservation{
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
+	// Kind of a special case, if the cpu count is zero it needs to automatically scale
+	// at the moment of writing the service file to the current number of cpu cores
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	resourceLimits := quota.NewResourcesBuilder().
+		WithCPUPercentage(50).
+		Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+CPUQuota=%[2]d%%
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+	// The reason we are not mocking the cpu count here is because we are relying
+	// on the real code to produce the slice file content, and it will always use
+	// the current number of cores, so we also use the current number of cores of
+	// the test runner here.
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name,
+		runtime.NumCPU()*resourceLimits.CPU.Percentage)
+
+	exp := []changesObservation{
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuotas(c *C) {
+	// Another special case, if the cpu count is zero it needs to automatically scale as the
+	// previous test, but only up the maximum allowed provided in the cpu-set. So in this test
+	// we provide only 1 allowed CPU, which means that the percentage that will be written is 50%
+	// and not 200% or how many cores that runs this test!
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// set up arbitrary quotas for the group to test they get written correctly to the slice
+	resourceLimits := quota.NewResourcesBuilder().
+		WithCPUPercentage(50).
+		WithAllowedCPUs([]int{0}).
+		Build()
+	grp, err := quota.NewGroup("foogroup", resourceLimits)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+CPUQuota=50%%
+AllowedCPUs=0
+
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name)
 
 	exp := []changesObservation{
 		{
