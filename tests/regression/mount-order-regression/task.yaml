@@ -1,18 +1,20 @@
 summary: Regression test for snap-update-ns mount order
 
-environment:
-    SNAP_NAME: test-content-layout-consumer
-
 details: |
     A refactoring of snap-update-ns caused some snaps to fail to start.
     We check that a typical GNOME snap using the content interface and layouts
     has its filesystem laid out as expected.
 
+environment:
+    SNAP_NAME: test-content-layout-consumer
+
 prepare: |
-    mkdir -p $SNAP_NAME/gnome-platform
-    mkdir -p $SNAP_NAME/data-dir/themes
-    mkdir -p $SNAP_NAME/data-dir/icons
-    mkdir -p $SNAP_NAME/data-dir/sounds
+    # Create mount points for the content interface (we would like to have them
+    # in the repository, but git does not allow storing empty directories)
+    mkdir -p "$SNAP_NAME/gnome-platform"
+    mkdir -p "$SNAP_NAME/data-dir/themes"
+    mkdir -p "$SNAP_NAME/data-dir/icons"
+    mkdir -p "$SNAP_NAME/data-dir/sounds"
     "$TESTSTOOLS"/snaps-state install-local $SNAP_NAME
 
 execute: |
