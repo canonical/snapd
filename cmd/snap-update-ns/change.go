@@ -506,8 +506,10 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 	}
 	dumpMountEntries(desired, "desired mount entries")
-	// Sort both lists by directory name with implicit trailing slash.
-	sort.Sort(byOriginAndMagicDir(current))
+	// Sort only the desired lists by directory name with implicit trailing
+	// slash and the mount kind.
+	// Note that the current profile is a log of what was applied and should
+	// not be sorted at all.
 	sort.Sort(byOriginAndMagicDir(desired))
 	dumpMountEntries(desired, "desired mount entries (sorted)")
 
