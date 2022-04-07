@@ -11,7 +11,7 @@ apps:
     - wayland
     - x11
     - home
-base: core20
+base: core18
 
 layout:
   /lib/x86_64-linux-gnu/bindtextdomain.so:
