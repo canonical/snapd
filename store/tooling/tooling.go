@@ -470,5 +470,6 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 }
 
 func MockToolingStore(sto Store) *ToolingStore {
+	osutil.MustBeTestBinary("tooling store can only be mocked in tests")
 	return &ToolingStore{sto: sto}
 }
