@@ -15,7 +15,7 @@ base: core18
 
 layout:
   /lib/x86_64-linux-gnu/bindtextdomain.so:
-    bind: $SNAP/gnome-platform/lib/x86_64-linux-gnu/bindtextdomain.so
+    bind-file: $SNAP/gnome-platform/lib/x86_64-linux-gnu/bindtextdomain.so
   /usr/lib/x86_64-linux-gnu/webkit2gtk-4.0:
     bind: $SNAP/gnome-platform/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0
   /usr/share/xml/iso-codes:
