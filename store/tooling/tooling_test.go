@@ -20,7 +20,6 @@
 package tooling_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -35,8 +34,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -52,11 +49,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 type toolingSuite struct {
 	testutil.BaseTest
-	root       string
-	bootloader *bootloadertest.MockBootloader
-
-	stdout *bytes.Buffer
-	stderr *bytes.Buffer
+	root string
 
 	storeActionsBunchSizes []int
 	storeActions           []*store.SnapAction
@@ -67,8 +60,6 @@ type toolingSuite struct {
 	// SeedSnaps helps creating and making available seed snaps
 	// (it provides MakeAssertedSnap etc.) for the tests.
 	*seedtest.SeedSnaps
-
-	model *asserts.Model
 }
 
 var _ = Suite(&toolingSuite{})
@@ -77,111 +68,14 @@ var (
 	brandPrivKey, _ = assertstest.GenerateKey(752)
 )
 
-// TODO: use seedtest.SampleSnapYaml for some of these
-const packageGadget = `
-name: pc
-version: 1.0
-type: gadget
-`
-
-const packageGadgetWithBase = `
-name: pc18
-version: 1.0
-type: gadget
-base: core18
-`
-const packageClassicGadget = `
-name: classic-gadget
-version: 1.0
-type: gadget
-`
-
-const packageClassicGadget18 = `
-name: classic-gadget18
-version: 1.0
-type: gadget
-base: core18
-`
-
-const packageKernel = `
-name: pc-kernel
-version: 4.4-1
-type: kernel
-`
-
 const packageCore = `
 name: core
 version: 16.04
 type: os
 `
 
-const packageCore18 = `
-name: core18
-version: 18.04
-type: base
-`
-
-const snapdSnap = `
-name: snapd
-version: 3.14
-type: snapd
-`
-
-const otherBase = `
-name: other-base
-version: 2.5029
-type: base
-`
-
-const requiredSnap1 = `
-name: required-snap1
-version: 1.0
-`
-
-const requiredSnap18 = `
-name: required-snap18
-version: 1.0
-base: core18
-`
-
-const defaultTrackSnap18 = `
-name: default-track-snap18
-version: 1.0
-base: core18
-`
-
-const snapReqOtherBase = `
-name: snap-req-other-base
-version: 1.0
-base: other-base
-`
-
-const snapReqCore16Base = `
-name: snap-req-core16-base
-version: 1.0
-base: core16
-`
-
-const snapReqContentProvider = `
-name: snap-req-content-provider
-version: 1.0
-plugs:
- gtk-3-themes:
-  interface: content
-  default-provider: gtk-common-themes
-  target: $SNAP/data-dir/themes
-`
-
-const snapBaseNone = `
-name: snap-base-none
-version: 1.0
-base: none
-`
-
 func (s *toolingSuite) SetUpTest(c *C) {
 	s.root = c.MkDir()
-	s.bootloader = bootloadertest.Mock("grub", c.MkDir())
-	bootloader.Force(s.bootloader)
 
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
@@ -194,14 +88,6 @@ func (s *toolingSuite) SetUpTest(c *C) {
 		"verification": "verified",
 	})
 	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys("my-brand")...)
-
-	s.model = s.Brands.Model("my-brand", "my-model", map[string]interface{}{
-		"display-name":   "my display name",
-		"architecture":   "amd64",
-		"gadget":         "pc",
-		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"required-snap1"},
-	})
 
 	otherAcct := assertstest.NewAccount(s.StoreSigning, "other", map[string]interface{}{
 		"account-id": "other",
@@ -219,67 +105,8 @@ func (s *toolingSuite) MakeAssertedSnap(c *C, snapYaml string, files [][]string,
 	s.SeedSnaps.MakeAssertedSnap(c, snapYaml, files, revision, developerID, s.StoreSigning.Database)
 }
 
-const stableChannel = "stable"
-
-const pcGadgetYaml = `
- volumes:
-   pc:
-     bootloader: grub
- `
-
 func (s *toolingSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml string) {
-	gadgetYaml := pcGadgetYaml + defaultsYaml
-	if _, ok := publishers["pc"]; ok {
-		s.MakeAssertedSnap(c, packageGadget, [][]string{
-			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
-			{"meta/gadget.yaml", gadgetYaml},
-		}, snap.R(1), publishers["pc"])
-	}
-	if _, ok := publishers["pc18"]; ok {
-		s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
-			{"grub.conf", ""}, {"grub.cfg", "I'm a grub.cfg"},
-			{"meta/gadget.yaml", gadgetYaml},
-		}, snap.R(4), publishers["pc18"])
-	}
-
-	if _, ok := publishers["classic-gadget"]; ok {
-		s.MakeAssertedSnap(c, packageClassicGadget, [][]string{
-			{"some-file", "Some file"},
-		}, snap.R(5), publishers["classic-gadget"])
-	}
-
-	if _, ok := publishers["classic-gadget18"]; ok {
-		s.MakeAssertedSnap(c, packageClassicGadget18, [][]string{
-			{"some-file", "Some file"},
-		}, snap.R(5), publishers["classic-gadget18"])
-	}
-
-	if _, ok := publishers["pc-kernel"]; ok {
-		s.MakeAssertedSnap(c, packageKernel, nil, snap.R(2), publishers["pc-kernel"])
-	}
-
 	s.MakeAssertedSnap(c, packageCore, nil, snap.R(3), "canonical")
-
-	s.MakeAssertedSnap(c, packageCore18, nil, snap.R(18), "canonical")
-	s.MakeAssertedSnap(c, snapdSnap, nil, snap.R(18), "canonical")
-
-	s.MakeAssertedSnap(c, otherBase, nil, snap.R(18), "other")
-
-	s.MakeAssertedSnap(c, snapReqCore16Base, nil, snap.R(16), "other")
-
-	s.MakeAssertedSnap(c, requiredSnap1, nil, snap.R(3), "other")
-	s.AssertedSnapInfo("required-snap1").EditedContact = "mailto:foo@example.com"
-
-	s.MakeAssertedSnap(c, requiredSnap18, nil, snap.R(6), "other")
-	s.AssertedSnapInfo("required-snap18").EditedContact = "mailto:foo@example.com"
-
-	s.MakeAssertedSnap(c, defaultTrackSnap18, nil, snap.R(5), "other")
-
-	s.MakeAssertedSnap(c, snapReqOtherBase, nil, snap.R(5), "other")
-
-	s.MakeAssertedSnap(c, snapReqContentProvider, nil, snap.R(5), "other")
-
-	s.MakeAssertedSnap(c, snapBaseNone, nil, snap.R(1), "other")
 }
 
 func (s *toolingSuite) TestNewToolingStoreWithAuth(c *C) {
