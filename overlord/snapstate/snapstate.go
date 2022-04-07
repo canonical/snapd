@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -1263,7 +1264,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 	}
 
 	var transactionLane int
-	if flags.Transactional {
+	if flags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
@@ -1304,7 +1305,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if flags.Transactional {
+		if flags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
@@ -1542,7 +1543,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	var transactionLane int
-	if globalFlags.Transactional {
+	if globalFlags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	for _, update := range updates {
@@ -1568,7 +1569,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if globalFlags.Transactional {
+		if globalFlags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())

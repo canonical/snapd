@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
@@ -3373,7 +3374,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
 	defer s.state.Unlock()
 
 	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
@@ -3399,7 +3400,7 @@ func (s *snapmgrTestSuite) TestInstallManyWithPrereqsTransactionally(c *C) {
 
 	snapsToInstall := []string{"snap1", "snap2"}
 	installed, tts, err := snapstate.InstallMany(s.state, snapsToInstall, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, snapsToInstall)
@@ -3480,7 +3481,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
 	chg := s.state.NewChange("install", "install some snaps")
 	installed, tts, err := snapstate.InstallMany(s.state,
 		[]string{"some-snap", "some-other-snap"}, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"some-snap", "some-other-snap"})
 	for _, ts := range tts {
@@ -4684,7 +4685,7 @@ epoch: 1
 	}
 
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
-		paths, 0, &snapstate.Flags{Transactional: true})
+		paths, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4735,7 +4736,7 @@ epoch: 1
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/other-snap/x1")
 
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
-		paths, 0, &snapstate.Flags{Transactional: true})
+		paths, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
