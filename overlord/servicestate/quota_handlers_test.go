@@ -641,14 +641,14 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 
 	// trying to create a quota with too low of a memory limit fails
 	err = s.callDoQuotaControl(&qc2)
-	c.Assert(err, ErrorMatches, `cannot create quota group "foo": memory limit 4096 is too small: size must be larger than 4KB`)
+	c.Assert(err, ErrorMatches, `memory limit 4096 is too small: size must be larger than 640KB`)
 
 	// but with an adequately sized memory limit, and a snap that exists, we can
 	// create it
 	qc3 := servicestate.QuotaControlAction{
 		Action:         "create",
 		QuotaName:      "foo",
-		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeKiB + 1).Build(),
+		ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(640*quantity.SizeKiB + 1).Build(),
 		AddSnaps:       []string{"test-snap"},
 	}
 	err = s.callDoQuotaControl(&qc3)
@@ -657,7 +657,7 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 	// check that the quota groups were created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
 		"foo": {
-			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(4*quantity.SizeKiB + 1).Build(),
+			ResourceLimits: quota.NewResourcesBuilder().WithMemoryLimit(640*quantity.SizeKiB + 1).Build(),
 			Snaps:          []string{"test-snap"},
 		},
 	})

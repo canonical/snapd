@@ -92,6 +92,10 @@ restore: |
             ;;
     esac
 
+debug: |
+    lsof | grep /home
+    fuser -mv /home
+
 execute: |
     # only needed because we do it 11 times (!)
     restart_snapd() {
