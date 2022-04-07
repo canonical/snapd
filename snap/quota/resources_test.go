@@ -46,6 +46,9 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.NewResourcesBuilder().Build(), `quota group must have at least one resource limit set`},
 		{quota.NewResourcesBuilder().WithCPUCount(1).Build(), `invalid cpu quota with count of >0 and percentage of 0`},
 		{quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).Build(), `cpu usage 200% is larger than the maximum allowed for provided set \[0\] of 100%`},
+		{quota.NewResourcesBuilder().WithJournalRate(0, 1).Build(), `journal quota must have a rate count and period larger than zero`},
+		{quota.NewResourcesBuilder().WithJournalRate(1, 0).Build(), `journal quota must have a rate count and period larger than zero`},
+		{quota.NewResourcesBuilder().WithJournalSize(0).Build(), `journal size quota must have a limit set`},
 	}
 
 	for _, t := range tests {
@@ -88,6 +91,9 @@ func (s *resourcesTestSuite) TestQuotaValidationPasses(c *C) {
 		{quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build()},
 		{quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build()},
 		{quota.NewResourcesBuilder().WithThreadLimit(16).Build()},
+		{quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build()},
+		{quota.NewResourcesBuilder().WithJournalRate(1, 1).Build()},
+		{quota.NewResourcesBuilder().WithJournalNamespace().Build()},
 	}
 
 	for _, t := range tests {
@@ -180,6 +186,24 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 			quota.NewResourcesBuilder().WithThreadLimit(-1).Build(),
 			`invalid thread quota with a thread count of -1`,
 		},
+		{
+			quota.NewResourcesBuilder().WithJournalRate(1, 1).Build(),
+
+			quota.NewResourcesBuilder().WithJournalRate(0, 0).Build(),
+			`cannot remove journal rate limit from quota group`,
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalRate(1, 1).Build(),
+
+			quota.NewResourcesBuilder().WithJournalRate(-2, -2).Build(),
+			`journal quota must have a rate count and period larger than zero`,
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
+
+			quota.NewResourcesBuilder().WithJournalSize(0).Build(),
+			`cannot remove journal size limit from quota group`,
+		},
 	}
 
 	for _, t := range tests {
@@ -242,6 +266,21 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithAllowedCPUs([]int{0, 1, 2}).Build(),
 			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build(),
 			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).WithAllowedCPUs([]int{0, 1, 2}).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalRate(15, 5).Build(),
+			quota.NewResourcesBuilder().WithJournalRate(5, 5).Build(),
+			quota.NewResourcesBuilder().WithJournalRate(5, 5).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalRate(15, 5).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).WithJournalRate(15, 5).Build(),
 		},
 	}
 

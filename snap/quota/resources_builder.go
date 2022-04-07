@@ -38,6 +38,15 @@ type ResourcesBuilder struct {
 
 	ThreadLimit    int
 	ThreadLimitSet bool
+
+	JournalNamespaceSet bool
+
+	JournalSizeLimit    quantity.Size
+	JournalSizeLimitSet bool
+
+	JournalRateCountLimit  int
+	JournalRatePeriodLimit int
+	JournalRateSet         bool
 }
 
 func (rb *ResourcesBuilder) WithMemoryLimit(limit quantity.Size) *ResourcesBuilder {
@@ -70,6 +79,24 @@ func (rb *ResourcesBuilder) WithThreadLimit(limit int) *ResourcesBuilder {
 	return rb
 }
 
+func (rb *ResourcesBuilder) WithJournalNamespace() *ResourcesBuilder {
+	rb.JournalNamespaceSet = true
+	return rb
+}
+
+func (rb *ResourcesBuilder) WithJournalSize(limit quantity.Size) *ResourcesBuilder {
+	rb.JournalSizeLimit = limit
+	rb.JournalSizeLimitSet = true
+	return rb
+}
+
+func (rb *ResourcesBuilder) WithJournalRate(count, period int) *ResourcesBuilder {
+	rb.JournalRateCountLimit = count
+	rb.JournalRatePeriodLimit = period
+	rb.JournalRateSet = true
+	return rb
+}
+
 func (rb *ResourcesBuilder) Build() Resources {
 	var quotaResources Resources
 	if rb.MemoryLimitSet {
@@ -91,6 +118,20 @@ func (rb *ResourcesBuilder) Build() Resources {
 	if rb.ThreadLimitSet {
 		quotaResources.Threads = &ResourceThreads{
 			Limit: rb.ThreadLimit,
+		}
+	}
+	if rb.JournalNamespaceSet || rb.JournalSizeLimitSet || rb.JournalRateSet {
+		quotaResources.Journal = &ResourceJournal{}
+		if rb.JournalSizeLimitSet {
+			quotaResources.Journal.Size = &ResourceJournalSize{
+				Limit: rb.JournalSizeLimit,
+			}
+		}
+		if rb.JournalRateSet {
+			quotaResources.Journal.Rate = &ResourceJournalRate{
+				Count:  rb.JournalRateCountLimit,
+				Period: rb.JournalRatePeriodLimit,
+			}
 		}
 	}
 	return quotaResources

@@ -55,6 +55,24 @@ type ResourceThreads struct {
 	Limit int `json:"limit"`
 }
 
+type ResourceJournalSize struct {
+	Limit quantity.Size `json:"limit"`
+}
+
+type ResourceJournalRate struct {
+	Count  int `json:"count"`
+	Period int `json:"period"`
+}
+
+// ResourceJournal represents the available journal quotas. It's structured
+// a bit different compared to the other resources to support namespace only
+// cases, where the existence of != nil ResourceJournal with empty values
+// indicates that the namespace only is wanted.
+type ResourceJournal struct {
+	Size *ResourceJournalSize `json:"size"`
+	Rate *ResourceJournalRate `json:"rate,omitempty"`
+}
+
 // Resources are built up of multiple quota limits. Each quota limit is a pointer
 // value to indicate that their presence may be optional, and because we want to detect
 // whenever someone changes a limit to '0' explicitly.
@@ -63,6 +81,7 @@ type Resources struct {
 	CPU     *ResourceCPU     `json:"cpu,omitempty"`
 	CPUSet  *ResourceCPUSet  `json:"cpu-set,omitempty"`
 	Threads *ResourceThreads `json:"thread,omitempty"`
+	Journal *ResourceJournal `json:"journal,omitempty"`
 }
 
 func (qr *Resources) validateMemoryQuota() error {
@@ -124,6 +143,26 @@ func (qr *Resources) validateThreadQuota() error {
 	return nil
 }
 
+func (qr *Resources) validateJournalQuota() error {
+	// Journal quota is a bit different than the rest, we allow nil values
+	// for the size and rate, because this means that the only 'quota' we want
+	// in this case is to scope the journal for snaps in the group to just a namespace
+	// without any extra limits.
+	// XXX: Should we have a minimum log size that can be set?
+	if qr.Journal.Size != nil && qr.Journal.Size.Limit == 0 {
+		return fmt.Errorf("journal size quota must have a limit set")
+	}
+
+	if qr.Journal.Rate != nil {
+		count := qr.Journal.Rate.Count
+		period := qr.Journal.Rate.Period
+		if count != 0 && period <= 0 || count <= 0 && period != 0 {
+			return fmt.Errorf("journal quota must have a rate count and period larger than zero")
+		}
+	}
+	return nil
+}
+
 // CheckFeatureRequirements checks if the current system meets the
 // requirements for the given resource request.
 //
@@ -147,11 +186,17 @@ func (qr *Resources) CheckFeatureRequirements() error {
 // Validate performs basic validation of the provided quota resources for a group.
 // The restrictions imposed are that at least one limit should be set, and each
 // of the imposed limits are not zero.
+// If memory limit is provided, it must be non-zero.
+// If cpu percentage is provided, it must be non-zero and fit into current cpu-set limits.
+// If cpu set is provided, it must not be empty.
+// If thread count is provided, it must be non-zero.
+// If journal size is provided, it must be non-zero.
+// If a journal rate is provided, both count/period must be non-zero
 //
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
 func (qr *Resources) Validate() error {
-	if qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil {
+	if qr.Memory == nil && qr.CPU == nil && qr.CPUSet == nil && qr.Threads == nil && qr.Journal == nil {
 		return fmt.Errorf("quota group must have at least one resource limit set")
 	}
 
@@ -178,6 +223,12 @@ func (qr *Resources) Validate() error {
 			return err
 		}
 	}
+
+	if qr.Journal != nil {
+		if err := qr.validateJournalQuota(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -188,7 +239,7 @@ func (qr *Resources) Validate() error {
 // We also require memory limits are above 640kB.
 func (qr *Resources) ValidateChange(newLimits Resources) error {
 	// Check that the memory limit is not being decreased
-	if newLimits.Memory != nil {
+	if qr.Memory != nil && newLimits.Memory != nil {
 		if newLimits.Memory.Limit == 0 {
 			return fmt.Errorf("cannot remove memory limit from quota group")
 		}
@@ -205,14 +256,14 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		// so correctly with the current state of our code in
 		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
 		// full details
-		if qr.Memory != nil && newLimits.Memory.Limit < qr.Memory.Limit {
+		if newLimits.Memory.Limit < qr.Memory.Limit {
 			return fmt.Errorf("cannot decrease memory limit, remove and re-create it to decrease the limit")
 		}
 	}
 
 	// Check that the cpu limit is not being removed, and we want to verify the new limit
 	// is valid.
-	if newLimits.CPU != nil {
+	if qr.CPU != nil && newLimits.CPU != nil {
 		// Allow count to be changed to zero, but not percentage. This is because count
 		// is an optional setting and we want to allow the user to remove the count to indicate
 		// that we just want to use % of all cpus
@@ -235,7 +286,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 
 	// Check that we are not removing the entire cpu set, or applying a CPU set that is
 	// more restrictive than the current usage
-	if newLimits.CPUSet != nil {
+	if qr.CPUSet != nil && newLimits.CPUSet != nil {
 		if qr.CPUSet != nil && len(newLimits.CPUSet.CPUs) == 0 {
 			return fmt.Errorf("cannot remove all allowed cpus from quota group")
 		}
@@ -250,7 +301,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 	}
 
 	// Check that the thread limit is not being decreased
-	if newLimits.Threads != nil {
+	if qr.Threads != nil && newLimits.Threads != nil {
 		if newLimits.Threads.Limit == 0 {
 			return fmt.Errorf("cannot remove thread limit from quota group")
 		}
@@ -259,6 +310,20 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		// the full consequences of doing so.
 		if qr.Threads != nil && newLimits.Threads.Limit < qr.Threads.Limit {
 			return fmt.Errorf("cannot decrease thread limit, remove and re-create it to decrease the limit")
+		}
+	}
+
+	// Verify journal limits not being removed
+	if qr.Journal != nil && newLimits.Journal != nil {
+		if qr.Journal.Size != nil && newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit == 0 {
+			return fmt.Errorf("cannot remove journal size limit from quota group")
+		}
+		if qr.Journal.Rate != nil && newLimits.Journal.Rate != nil {
+			count := newLimits.Journal.Rate.Count
+			period := newLimits.Journal.Rate.Period
+			if count == 0 && period == 0 {
+				return fmt.Errorf("cannot remove journal rate limit from quota group")
+			}
 		}
 	}
 
@@ -280,6 +345,15 @@ func (qr *Resources) clone() Resources {
 	if qr.Threads != nil {
 		resourcesCopy.Threads = &ResourceThreads{Limit: qr.Threads.Limit}
 	}
+	if qr.Journal != nil {
+		resourcesCopy.Journal = &ResourceJournal{}
+		if qr.Journal.Size != nil {
+			resourcesCopy.Journal.Size = &ResourceJournalSize{Limit: qr.Journal.Size.Limit}
+		}
+		if qr.Journal.Rate != nil {
+			resourcesCopy.Journal.Rate = &ResourceJournalRate{Count: qr.Journal.Rate.Count, Period: qr.Journal.Rate.Period}
+		}
+	}
 	return resourcesCopy
 }
 
@@ -296,6 +370,17 @@ func (qr *Resources) changeInternal(newLimits Resources) {
 	}
 	if newLimits.Threads != nil {
 		qr.Threads = newLimits.Threads
+	}
+	if newLimits.Journal != nil {
+		if qr.Journal == nil {
+			qr.Journal = &ResourceJournal{}
+		}
+		if newLimits.Journal.Size != nil {
+			qr.Journal.Size = newLimits.Journal.Size
+		}
+		if newLimits.Journal.Rate != nil {
+			qr.Journal.Rate = newLimits.Journal.Rate
+		}
 	}
 }
 
