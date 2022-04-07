@@ -1568,6 +1568,35 @@ func (s *SnapOpSuite) TestRefreshAllChannel(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
+func (s *SnapOpSuite) TestRefreshOneIgnoreRunning(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":         "refresh",
+			"ignore-running": true,
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-running", "one"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshManyIgnoreRunning(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":         "refresh",
+			"snaps":          []interface{}{"one", "two"},
+			"ignore-running": true,
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-running", "one", "two"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapOpSuite) TestRefreshManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "one", "two"})
