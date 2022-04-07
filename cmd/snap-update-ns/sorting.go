@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,8 +25,46 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// byOvernameAndMountPoint allows sorting an array of entries by the
+// source of mount entry (whether it's an overname or not) and
+// lexically by mount point name.  Automagically adds a trailing slash
+// to paths.
+type byOvernameAndMountPoint []osutil.MountEntry
+
+func (c byOvernameAndMountPoint) Len() int      { return len(c) }
+func (c byOvernameAndMountPoint) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
+func (c byOvernameAndMountPoint) Less(i, j int) bool {
+	iMe := c[i]
+	jMe := c[j]
+
+	iOrigin := iMe.XSnapdOrigin()
+	jOrigin := jMe.XSnapdOrigin()
+	if iOrigin != jOrigin {
+		// overname entries should always be sorted first, before
+		// entries from layouts or content interface
+		if iOrigin == "overname" {
+			// overname ith element should be sorted before
+			return true
+		}
+		if jOrigin == "overname" {
+			// non-overname ith element should be sorted after
+			return false
+		}
+	}
+
+	iDir := c[i].Dir
+	jDir := c[j].Dir
+	if !strings.HasSuffix(iDir, "/") {
+		iDir = iDir + "/"
+	}
+	if !strings.HasSuffix(jDir, "/") {
+		jDir = jDir + "/"
+	}
+	return iDir < jDir
+}
+
 // byOriginAndMagicDir allows sorting an array of entries by the source of mount
-// entry (overname, layout, content) and lexically by mount point name.
+// entry (overname, other, layout) and lexically by mount point name.
 // Automagically adds a trailing slash to paths.
 type byOriginAndMagicDir []osutil.MountEntry
 

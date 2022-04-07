@@ -533,6 +533,8 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 	// Compute reusable entries: those which are equal in current and desired and which
 	// are not prefixed by another entry that changed.
+	// sort them first
+	sort.Sort(byOvernameAndMountPoint(current))
 	for i := range current {
 		dir := current[i].Dir
 		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
@@ -580,11 +582,12 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	for i := len(current) - 1; i >= 0; i-- {
-		if reuse[current[i].Dir] {
-			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
+	unmountOrder := currentProfile.Entries
+	for i := len(unmountOrder) - 1; i >= 0; i-- {
+		if reuse[unmountOrder[i].Dir] {
+			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
 		} else {
-			var entry osutil.MountEntry = current[i]
+			var entry osutil.MountEntry = unmountOrder[i]
 			entry.Options = append([]string(nil), entry.Options...)
 			// If the mount entry can potentially host nested mount points then detach
 			// rather than unmount, since detach will always succeed.
