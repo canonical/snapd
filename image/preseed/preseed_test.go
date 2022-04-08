@@ -67,6 +67,7 @@ type FakeSeed struct {
 	LoadMetaErr       error
 	LoadAssertionsErr error
 	UsesSnapd         bool
+	loadAssertions    func(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error
 }
 
 func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
@@ -96,6 +97,9 @@ func mockClassicModel() *asserts.Model {
 }
 
 func (fs *FakeSeed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+	if fs.loadAssertions != nil {
+		return fs.loadAssertions(db, commitTo)
+	}
 	return fs.LoadAssertionsErr
 }
 

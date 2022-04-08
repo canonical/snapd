@@ -22,6 +22,7 @@ package preseed_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -48,11 +49,8 @@ type fakeKeyMgr struct {
 	key asserts.PrivateKey
 }
 
-func (f *fakeKeyMgr) Put(privKey asserts.PrivateKey) error { return nil }
-func (f *fakeKeyMgr) Get(keyID string) (asserts.PrivateKey, error) {
-	fmt.Printf("!!!!! %s\n", keyID)
-	return f.key, nil
-}
+func (f *fakeKeyMgr) Put(privKey asserts.PrivateKey) error                  { return nil }
+func (f *fakeKeyMgr) Get(keyID string) (asserts.PrivateKey, error)          { return f.key, nil }
 func (f *fakeKeyMgr) Delete(keyID string) error                             { return nil }
 func (f *fakeKeyMgr) GetByName(keyNname string) (asserts.PrivateKey, error) { return f.key, nil }
 func (f *fakeKeyMgr) Export(keyName string) ([]byte, error)                 { return nil, nil }
@@ -100,14 +98,11 @@ func (s *toolingStore) Download(ctx context.Context, name, targetFn string, down
 }
 
 func (s *toolingStore) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
-	fmt.Printf("get: %s %s\n", assertType.Name, primaryKey)
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: primaryKey}
 	as, err := ref.Resolve(s.StoreSigning.Find)
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("got: %q\n", as.Headers())
 	return as, nil
 }
 
@@ -169,12 +164,16 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 					SideInfo: &snap.SideInfo{
 						RealName: "foo"},
 				}}},
+			loadAssertions: func(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+				// XXX: this doesn't have effect on the serialized account-keys
+				// batch := asserts.NewBatch(nil)
+				// c.Assert(batch.Add(ts.StoreSigning.TrustedKey), IsNil)
+				// c.Assert(commitTo(batch), IsNil)
+				return nil
+			},
 		}, nil
 	})
 	defer restoreSeedOpen()
-
-	// XXX
-	fmt.Printf("test key: %s\n", testKey.PublicKey().ID())
 
 	keyMgr := &fakeKeyMgr{testKey}
 	restoreGetKeypairMgr := preseed.MockGetKeypairManager(func() (signtool.KeypairManager, error) {
@@ -303,27 +302,47 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	r, err := os.Open(preseedAssertionPath)
 	c.Assert(err, IsNil)
 	defer r.Close()
+
+	seen := make(map[string]bool)
 	dec := asserts.NewDecoder(r)
-	as, err := dec.Decode()
-	c.Assert(err, IsNil)
-	c.Assert(as.Type(), Equals, asserts.AccountKeyType)
+	for {
+		as, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		c.Assert(err, IsNil)
 
-	as, err = dec.Decode()
-	c.Assert(as.Type(), Equals, asserts.PreseedType)
+		tpe := as.Type().Name
 
-	preseedAs := as.(*asserts.Preseed)
-	c.Check(preseedAs.Revision(), Equals, 1)
-	c.Check(preseedAs.Series(), Equals, "16")
-	c.Check(preseedAs.AuthorityID(), Equals, "my-brand")
-	c.Check(preseedAs.BrandID(), Equals, "my-brand")
-	c.Check(preseedAs.Model(), Equals, "my-model-uc20")
-	c.Check(preseedAs.SystemLabel(), Equals, "20220203")
-	c.Check(preseedAs.ArtifactSHA3_384(), Equals, "g7_yjd4bG_WBAHHGZDwI5bBb24Nu_9cLQD6o6gpjTcSZfrEFOqNZP1kPnGNjDdkL")
-	c.Check(preseedAs.Snaps(), DeepEquals, []*asserts.PreseedSnap{{
-		Name:     "snapd",
-		SnapID:   "snapdidididididididididididididd",
-		Revision: 1,
-	}, {
-		Name: "foo",
-	}})
+		switch as.Type() {
+		case asserts.AccountKeyType:
+			acckeyAs := as.(*asserts.AccountKey)
+			tpe = fmt.Sprintf("%s:%s", as.Type().Name, acckeyAs.AccountID())
+		case asserts.PreseedType:
+			preseedAs := as.(*asserts.Preseed)
+			c.Check(preseedAs.Revision(), Equals, 1)
+			c.Check(preseedAs.Series(), Equals, "16")
+			c.Check(preseedAs.AuthorityID(), Equals, "my-brand")
+			c.Check(preseedAs.BrandID(), Equals, "my-brand")
+			c.Check(preseedAs.Model(), Equals, "my-model-uc20")
+			c.Check(preseedAs.SystemLabel(), Equals, "20220203")
+			c.Check(preseedAs.ArtifactSHA3_384(), Equals, "g7_yjd4bG_WBAHHGZDwI5bBb24Nu_9cLQD6o6gpjTcSZfrEFOqNZP1kPnGNjDdkL")
+			c.Check(preseedAs.Snaps(), DeepEquals, []*asserts.PreseedSnap{{
+				Name:     "snapd",
+				SnapID:   "snapdidididididididididididididd",
+				Revision: 1,
+			}, {
+				Name: "foo",
+			}})
+		default:
+			c.Fatalf("unexpected assertion: %s", as.Type().Name)
+		}
+		seen[tpe] = true
+	}
+
+	c.Check(seen, DeepEquals, map[string]bool{
+		"account-key:canonical": true,
+		"account-key:my-brand":  true,
+		"preseed":               true,
+	})
 }
