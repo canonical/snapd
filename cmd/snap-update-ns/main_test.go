@@ -61,6 +61,11 @@ func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
+	// mount targets look at the the actual local filesystem
+	if !osutil.IsDirectory("/usr/share/fonts") || !osutil.IsDirectory("/usr/local/share/fonts") {
+		c.Skip("missing local directories (/usr/share/fonts or /usr/local/share/fonts)")
+	}
+
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
 		return nil, nil
 	})
