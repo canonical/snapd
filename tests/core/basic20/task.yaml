@@ -28,7 +28,7 @@ execute: |
 
     if [[ "$SPREAD_SYSTEM" = ubuntu-core-20-64 ]]; then
         echo "Ensure extracted kernel.efi exists"
-        kernel_name="$(snaps.name kernel)
+        kernel_name="$(snaps.name kernel)"
         test -e /boot/grub/"$kernel_name"*/kernel.efi
 
         echo "Ensure kernel.efi is a symlink"
