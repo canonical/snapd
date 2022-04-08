@@ -439,8 +439,6 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	var filterEssential func(*asserts.ModelSnap) bool
 	if len(essentialTypes) != 0 {
 		filterEssential = essentialSnapTypesToModelFilter(essentialTypes)
-	} else {
-		filterEssential = essentialSnapTypesToModelFilter([]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase})
 	}
 
 	if err := s.loadEssentialMeta(filterEssential, tm); err != nil {

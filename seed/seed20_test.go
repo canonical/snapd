@@ -796,8 +796,8 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		// the order in essentialTypes is not relevant
 		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
 		// degenerate case
-		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
-		{nil, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
+		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
+		{nil, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
 	}
 
 	for _, t := range tests {
@@ -900,7 +900,7 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 		// the order in essentialTypes is not relevant
 		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
 		// degenerate case
-		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
+		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
 	}
 
 	baseLabel := "20210315"
