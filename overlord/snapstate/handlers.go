@@ -1289,6 +1289,11 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		st.Unlock()
 
 		snapsup.MigratedToExposedHome = true
+
+		// no specific undo action is needed since undoing the copy will undo this
+		if err := m.backend.InitXDGDirs(newInfo); err != nil {
+			return err
+		}
 	}
 
 	st.Lock()

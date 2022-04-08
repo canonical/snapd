@@ -1219,3 +1219,45 @@ func (ts *quotaTestSuite) TestAddingNewMiddleParentThreadLimits(c *C) {
 	err = subgrp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithThreadLimit(1024).Build())
 	c.Check(err, IsNil)
 }
+
+func (ts *quotaTestSuite) TestCombinedCpuPercentageWithCpuSetLimits(c *C) {
+	// mock the CPU count to be above 2
+	restore := quota.MockRuntimeNumCPU(func() int { return 4 })
+	defer restore()
+
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	// Create a subgroup of the CPU set of 0,1 with 50% allowed CPU usage. This should result in a combined
+	// allowance of 100%
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+	c.Check(subgrp1.GetCPUQuotaPercentage(), Equals, 100)
+
+	_, err = grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(8).WithCPUPercentage(50).Build())
+	c.Assert(err, ErrorMatches, `sub-group cpu limit of 400% is too large to fit inside group "groot" with allowed CPU set \[0 1\]`)
+}
+
+func (ts *quotaTestSuite) TestCombinedCpuPercentageWithLowCoreCount(c *C) {
+	// mock the CPU count to be above 1
+	restore := quota.MockRuntimeNumCPU(func() int { return 1 })
+	defer restore()
+
+	grp1, err := quota.NewGroup("groot", quota.NewResourcesBuilder().WithAllowedCPUs([]int{0, 1}).Build())
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("cpu-sub1", quota.NewResourcesBuilder().WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Even though the CPU set is set to cores 0+1, which technically means that a CPUPercentage of 50 would
+	// be half of this, the CPU percentage is capped at at total of 100% because the number of cores on the system
+	// is 1.
+	c.Check(subgrp1.GetCPUQuotaPercentage(), Equals, 50)
+
+	subgrp2, err := grp1.NewSubGroup("cpu-sub2", quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(50).Build())
+	c.Assert(err, IsNil)
+
+	// Verify that the number of cpus are now correctly reported as the one explicitly set
+	// by the quota
+	c.Check(subgrp2.GetCPUQuotaPercentage(), Equals, 200)
+}

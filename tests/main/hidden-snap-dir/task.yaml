@@ -39,9 +39,9 @@ execute: |
         echo "Checking core22 migration related env vars"
         echo "$snapEnv" | MATCH "HOME=$HOME/Snap"
         echo "$snapEnv" | MATCH "SNAP_USER_HOME=$HOME/Snap"
-        echo "$snapEnv" | MATCH "XDG_DATA_HOME=$HOME/\.snap/data/$NAME/$REV/data"
-        echo "$snapEnv" | MATCH "XDG_CACHE_HOME=$HOME/\.snap/data/$NAME/$REV/cache"
-        echo "$snapEnv" | MATCH "XDG_CONFIG_HOME=$HOME/\.snap/data/$NAME/$REV/config"
+        echo "$snapEnv" | MATCH "XDG_DATA_HOME=$HOME/\.snap/data/$NAME/$REV/xdg-data"
+        echo "$snapEnv" | MATCH "XDG_CACHE_HOME=$HOME/\.snap/data/$NAME/$REV/xdg-cache"
+        echo "$snapEnv" | MATCH "XDG_CONFIG_HOME=$HOME/\.snap/data/$NAME/$REV/xdg-config"
       else
         echo "$snapEnv" | MATCH "HOME=$HOME/\.snap/data/$NAME/$REV"
       fi
@@ -71,9 +71,9 @@ execute: |
       if [ "$CHECK_EXPOSED_HOME" = "yes" ]; then
         echo "Checking core22 migration related dirs"
         test -d "$HOME/Snap/$NAME"
-        test -d "$HOME/.snap/data/$NAME/$REV/data"
-        test -d "$HOME/.snap/data/$NAME/$REV/config"
-        test -d "$HOME/.snap/data/$NAME/$REV/cache"
+        test -d "$HOME/.snap/data/$NAME/$REV/xdg-data"
+        test -d "$HOME/.snap/data/$NAME/$REV/xdg-config"
+        test -d "$HOME/.snap/data/$NAME/$REV/xdg-cache"
       fi
     }
 
