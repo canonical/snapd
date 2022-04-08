@@ -100,12 +100,10 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	})
 	defer restoreSeedOpen()
 
-	restoreSaveAssertion := preseed.MockSaveAssertion(func(*asserts.Database, asserts.Assertion, *asserts.Model) error {
-		return nil
-	})
-	defer restoreSaveAssertion()
-
 	testKey, _ := assertstest.GenerateKey(752)
+	// XXX
+	fmt.Printf("test key: %s\n", testKey.PublicKey().ID())
+
 	keyMgr := &fakeKeyMgr{testKey}
 	restoreGetKeypairMgr := preseed.MockGetKeypairManager(func() (signtool.KeypairManager, error) {
 		return keyMgr, nil

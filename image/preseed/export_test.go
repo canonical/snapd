@@ -20,7 +20,6 @@
 package preseed
 
 import (
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/testutil"
@@ -52,8 +51,9 @@ func MockGetKeypairManager(f func() (signtool.KeypairManager, error)) (restore f
 	return r
 }
 
-func MockSaveAssertion(f func(*asserts.Database, asserts.Assertion, *asserts.Model) error) (restore func()) {
+/*func MockSaveAssertion(f func(*asserts.Database, asserts.Assertion, *asserts.Model) error) (restore func()) {
 	r := testutil.Backup(&SaveAssertion)
 	SaveAssertion = f
 	return r
 }
+*/

@@ -110,7 +110,8 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	model := seed.Model()
 
 	tm := timings.New(nil)
-	if err := seed.LoadEssentialMeta(nil, tm); err != nil {
+	// XXX
+	if err := seed.LoadMeta("", tm); err != nil {
 		return "", "", err
 	}
 

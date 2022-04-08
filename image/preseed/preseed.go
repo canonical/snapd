@@ -37,6 +37,8 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/seedwriter"
+	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -58,10 +60,6 @@ type preseedOpts struct {
 type targetSnapdInfo struct {
 	path    string
 	version string
-}
-
-var SaveAssertion = func(*asserts.Database, asserts.Assertion, *asserts.Model) error {
-	panic("SaveAssertion function not set")
 }
 
 var getKeypairManager = signtool.GetKeypairManager
@@ -160,19 +158,36 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 		return fmt.Errorf("cannot sign preseed asertion: %v", err)
 	}
 
-	if err := SaveAssertion(adb, signedAssert, model); err != nil {
-		return fmt.Errorf("cannot add preseed assertion: %v", err)
-	}
-
-	f, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	tsto, err := tooling.NewToolingStoreFromModel(model, "")
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
+		return tsto.AssertionFetcher(adb, save)
+	}
 
-	enc := asserts.NewEncoder(f)
-	if err := enc.Encode(signedAssert); err != nil {
-		return fmt.Errorf("cannot save preseed assertion: %v", err)
+	f := seedwriter.MakeRefAssertsFetcher(newFetcher)
+	if err := f.Save(signedAssert); err != nil {
+		return err
+	}
+
+	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	defer serialized.Close()
+
+	enc := asserts.NewEncoder(serialized)
+	for _, aref := range f.Refs() {
+		if aref.Type == asserts.PreseedType || aref.Type == asserts.AccountKeyType {
+			as, err := aref.Resolve(adb.Find)
+			if err != nil {
+				return fmt.Errorf("internal error: %v", err)
+			}
+			if err := enc.Encode(as); err != nil {
+				return fmt.Errorf("cannot save assertion %s: %v", aref, err)
+			}
+		}
 	}
 
 	return nil
