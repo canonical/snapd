@@ -2,6 +2,7 @@ summary: Test that gadget config defaults are applied early on core20.
 
 systems: [ubuntu-20.04-64]
 
+# TODO: revert this once the issue https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1967084 is fixed
 manual: true
 
 environment:
