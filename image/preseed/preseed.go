@@ -62,7 +62,19 @@ type targetSnapdInfo struct {
 	version string
 }
 
-var getKeypairManager = signtool.GetKeypairManager
+var (
+	getKeypairManager        = signtool.GetKeypairManager
+	newToolingStoreFromModel = tooling.NewToolingStoreFromModel
+	trusted                  = sysdb.Trusted()
+)
+
+func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
+	prevTrusted := trusted
+	trusted = mockTrusted
+	return func() {
+		trusted = prevTrusted
+	}
+}
 
 func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 	keypairMgr, err := getKeypairManager()
@@ -88,7 +100,7 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 
 	bs := asserts.NewMemoryBackstore()
 	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Trusted:        sysdb.Trusted(),
+		Trusted:        trusted,
 		KeypairManager: keypairMgr,
 		Backstore:      bs,
 	})
@@ -158,7 +170,7 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 		return fmt.Errorf("cannot sign preseed asertion: %v", err)
 	}
 
-	tsto, err := tooling.NewToolingStoreFromModel(model, "")
+	tsto, err := newToolingStoreFromModel(model, "")
 	if err != nil {
 		return err
 	}
@@ -168,7 +180,7 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 
 	f := seedwriter.MakeRefAssertsFetcher(newFetcher)
 	if err := f.Save(signedAssert); err != nil {
-		return err
+		return fmt.Errorf("cannot save assertion: %v", err)
 	}
 
 	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)

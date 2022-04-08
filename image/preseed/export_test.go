@@ -20,8 +20,10 @@
 package preseed
 
 import (
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -49,6 +51,14 @@ func MockGetKeypairManager(f func() (signtool.KeypairManager, error)) (restore f
 	r := testutil.Backup(&getKeypairManager)
 	getKeypairManager = f
 	return r
+}
+
+func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error)) (restore func()) {
+	old := newToolingStoreFromModel
+	newToolingStoreFromModel = f
+	return func() {
+		newToolingStoreFromModel = old
+	}
 }
 
 /*func MockSaveAssertion(f func(*asserts.Database, asserts.Assertion, *asserts.Model) error) (restore func()) {

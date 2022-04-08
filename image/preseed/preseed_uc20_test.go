@@ -20,6 +20,7 @@
 package preseed_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -33,8 +34,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,8 +48,11 @@ type fakeKeyMgr struct {
 	key asserts.PrivateKey
 }
 
-func (f *fakeKeyMgr) Put(privKey asserts.PrivateKey) error                  { return nil }
-func (f *fakeKeyMgr) Get(keyID string) (asserts.PrivateKey, error)          { return f.key, nil }
+func (f *fakeKeyMgr) Put(privKey asserts.PrivateKey) error { return nil }
+func (f *fakeKeyMgr) Get(keyID string) (asserts.PrivateKey, error) {
+	fmt.Printf("!!!!! %s\n", keyID)
+	return f.key, nil
+}
 func (f *fakeKeyMgr) Delete(keyID string) error                             { return nil }
 func (f *fakeKeyMgr) GetByName(keyNname string) (asserts.PrivateKey, error) { return f.key, nil }
 func (f *fakeKeyMgr) Export(keyName string) ([]byte, error)                 { return nil, nil }
@@ -78,10 +87,74 @@ func mockUC20Model() *asserts.Model {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Model)
 }
 
+type toolingStore struct {
+	*seedtest.SeedSnaps
+}
+
+func (t *toolingStore) SnapAction(_ context.Context, curSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, _ *auth.UserState, _ *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	panic("not expected")
+}
+
+func (s *toolingStore) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
+	panic("not expected")
+}
+
+func (s *toolingStore) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	fmt.Printf("get: %s %s\n", assertType.Name, primaryKey)
+	ref := &asserts.Ref{Type: assertType, PrimaryKey: primaryKey}
+	as, err := ref.Resolve(s.StoreSigning.Find)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("got: %q\n", as.Headers())
+	return as, nil
+}
+
 func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
+
+	testKey, _ := assertstest.GenerateKey(752)
+
+	ts := &toolingStore{&seedtest.SeedSnaps{}}
+	ts.SeedSnaps.SetupAssertSigning("canonical")
+	ts.Brands.Register("my-brand", testKey, map[string]interface{}{
+		"verification": "verified",
+	})
+
+	assertstest.AddMany(ts.StoreSigning, ts.Brands.AccountsAndKeys("my-brand")...)
+
+	tsto := tooling.MockToolingStore(ts)
+	restoreToolingStore := preseed.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
+		return tsto, nil
+	})
+	defer restoreToolingStore()
+
+	restoreTrusted := preseed.MockTrusted(ts.StoreSigning.Trusted)
+	defer restoreTrusted()
+
+	model := ts.Brands.Model("my-brand", "my-model-uc20", map[string]interface{}{
+		"display-name": "My Model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"timestamp":    "2019-11-01T08:00:00+00:00",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name": "pc-kernel",
+				"id":   "pckernelidididididididididididid",
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name": "pc",
+				"id":   "pcididididididididididididididid",
+				"type": "gadget",
+			},
+		},
+	})
+
 	restoreSeedOpen := preseed.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
 		return &FakeSeed{
-			AssertsModel: mockUC20Model(),
+			AssertsModel: model,
 			UsesSnapd:    true,
 			Essential: []*seed.Snap{{
 				Path: "/some/path/snapd.snap",
@@ -100,7 +173,6 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	})
 	defer restoreSeedOpen()
 
-	testKey, _ := assertstest.GenerateKey(752)
 	// XXX
 	fmt.Printf("test key: %s\n", testKey.PublicKey().ID())
 
@@ -228,12 +300,16 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Check(len(mockMountCmd.Calls()), Equals, len(mockUmountCmd.Calls())-1)
 
 	preseedAssertionPath := filepath.Join(tmpDir, "system-seed/systems/20220203/preseed")
-	c.Assert(osutil.FileExists(preseedAssertionPath), Equals, true)
-	data, err := ioutil.ReadFile(preseedAssertionPath)
+	r, err := os.Open(preseedAssertionPath)
 	c.Assert(err, IsNil)
-	as, err := asserts.Decode(data)
+	defer r.Close()
+	dec := asserts.NewDecoder(r)
+	as, err := dec.Decode()
 	c.Assert(err, IsNil)
-	c.Check(as.Type(), Equals, asserts.PreseedType)
+	c.Assert(as.Type(), Equals, asserts.AccountKeyType)
+
+	as, err = dec.Decode()
+	c.Assert(as.Type(), Equals, asserts.PreseedType)
 
 	preseedAs := as.(*asserts.Preseed)
 	c.Check(preseedAs.Revision(), Equals, 1)
