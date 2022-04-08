@@ -69,7 +69,7 @@ type ResourceJournalRate struct {
 // cases, where the existence of != nil ResourceJournal with empty values
 // indicates that the namespace only is wanted.
 type ResourceJournal struct {
-	Size *ResourceJournalSize `json:"size"`
+	Size *ResourceJournalSize `json:"size,omitempty"`
 	Rate *ResourceJournalRate `json:"rate,omitempty"`
 }
 
@@ -149,8 +149,15 @@ func (qr *Resources) validateJournalQuota() error {
 	// in this case is to scope the journal for snaps in the group to just a namespace
 	// without any extra limits.
 	// XXX: Should we have a minimum log size that can be set?
-	if qr.Journal.Size != nil && qr.Journal.Size.Limit == 0 {
-		return fmt.Errorf("journal size quota must have a limit set")
+	if qr.Journal.Size != nil {
+		if qr.Journal.Size.Limit == 0 {
+			return fmt.Errorf("journal size quota must have a limit set")
+		}
+
+		// max supported in systemd is 4GB
+		if qr.Journal.Size.Limit > 4*quantity.SizeGiB {
+			return fmt.Errorf("journal size quota must be smaller than 4GB")
+		}
 	}
 
 	if qr.Journal.Rate != nil {
