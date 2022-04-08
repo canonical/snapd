@@ -183,10 +183,14 @@ func (ps *preseedSuite) TestSnapIdImpliesRevision(c *C) {
 
 func (ps *preseedSuite) TestSnapIdOptional(c *C) {
 	encoded := strings.Replace(preseedExample, "TSLINE", ps.tsLine, 1)
-	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	encoded = strings.Replace(encoded, "OTHER", "  -\n    name: foo-linux\n", 1)
 	encoded = strings.Replace(encoded, "    revision: 99\n", "", 1)
 	encoded = strings.Replace(encoded, "    id: bazlinuxidididididididididididid\n", "", 1)
 
-	_, err := asserts.Decode([]byte(encoded))
+	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
+	snaps := a.(*asserts.Preseed).Snaps()
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps[0].Name, Equals, "baz-linux")
+	c.Check(snaps[1].Name, Equals, "foo-linux")
 }

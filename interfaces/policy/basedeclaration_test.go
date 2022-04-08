@@ -1119,7 +1119,7 @@ slots:
 	}
 }
 
-func (s *baseDeclSuite) TestSanity(c *C) {
+func (s *baseDeclSuite) TestValidity(c *C) {
 	all := builtin.Interfaces()
 
 	// these interfaces have rules both for the slots and plugs side

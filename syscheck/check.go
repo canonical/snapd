@@ -17,21 +17,20 @@
  *
  */
 
-package sanity
+package syscheck
 
-import (
-	"errors"
+var checks []func() error
 
-	"github.com/snapcore/snapd/release"
-)
-
-func init() {
-	checks = append(checks, checkWSL)
-}
-
-func checkWSL() error {
-	if release.OnWSL {
-		return errors.New("snapd does not work inside WSL")
+// CheckSystem ensures that the system is capable of running snapd and
+// snaps. It probe for e.g. that cgroup support is available and squashfs
+// files can be mounted.
+//
+// An error with details is returned if some check fails.
+func CheckSystem() error {
+	for _, f := range checks {
+		if err := f(); err != nil {
+			return err
+		}
 	}
 
 	return nil

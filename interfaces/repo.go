@@ -645,7 +645,7 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Sanity check
+	// Validity check
 	if plugSnapName == "" {
 		return fmt.Errorf("cannot disconnect, plug snap name is empty")
 	}

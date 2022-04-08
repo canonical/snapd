@@ -385,13 +385,13 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 		}
 	}
 
-	// sanity check, exactly two calls to link-snap due to retry error on 1st call
+	// validity check, exactly two calls to link-snap due to retry error on 1st call
 	c.Check(calls, Equals, 2)
 
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 
-	// sanity
+	// validity
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 

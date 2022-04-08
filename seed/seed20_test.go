@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -128,7 +128,7 @@ func (s *seed20Suite) TestLoadMetaCore20Minimal(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -439,7 +439,7 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByName(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot find snap-declaration for snap name: core20`)
 }
 
@@ -482,7 +482,7 @@ func (s *seed20Suite) TestLoadMetaMissingSnapDeclByID(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot find snap-declaration for snap-id: pcididididididididididididididid`)
 }
 
@@ -499,7 +499,7 @@ func (s *seed20Suite) TestLoadMetaMissingSnap(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot stat snap:.*pc_1\.snap.*`)
 }
 
@@ -516,7 +516,7 @@ func (s *seed20Suite) TestLoadMetaWrongSizeSnap(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot validate ".*pc_1\.snap" for snap "pc" \(snap-id "pc.*"\), wrong size`)
 }
 
@@ -548,7 +548,7 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnap(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot validate ".*pc_1\.snap" for snap "pc" \(snap-id "pc.*"\), hash mismatch with snap-revision`)
 }
 
@@ -576,7 +576,7 @@ func (s *seed20Suite) TestLoadMetaWrongGadgetBase(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot use gadget snap because its base "core18" is different from model base "core20"`)
 }
 
@@ -619,7 +619,7 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1059,7 +1059,7 @@ func (s *seed20Suite) TestLoadEssentialAndMetaCore20(c *C) {
 	// caching in place
 	hideSnaps(c, []*seed.Snap{snapdSnap, core20Snap, pcKernelSnap}, nil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1130,7 +1130,7 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnaps(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1225,7 +1225,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1320,7 +1320,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1408,7 +1408,7 @@ func (s *seed20Suite) TestLoadMetaCore20LocalSnapd(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1490,7 +1490,7 @@ func (s *seed20Suite) TestLoadMetaCore20ModelOverrideSnapd(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1582,7 +1582,7 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnaps(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1682,7 +1682,7 @@ func (s *seed20Suite) TestLoadMetaCore20OptionalSnapsLocal(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1775,7 +1775,7 @@ func (s *seed20Suite) TestLoadMetaCore20ExtraSnaps(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1898,7 +1898,7 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -1937,6 +1937,8 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 			Channel:       "20",
 		},
 	})
+
+	c.Check(seed20.NumSnaps(), Equals, 7)
 
 	runSnaps, err := seed20.ModeSnaps("run")
 	c.Assert(err, IsNil)
@@ -1993,6 +1995,174 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 	})
 }
 
+func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnaps(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+	s.makeSnap(c, "optional20-a", "developerid")
+	s.makeSnap(c, "optional20-b", "developerid")
+
+	sysLabel := "20191122"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":  "required20",
+				"id":    s.AssertedSnapID("required20"),
+				"modes": []interface{}{"run", "ephemeral"},
+			},
+			map[string]interface{}{
+				"name":     "optional20-a",
+				"id":       s.AssertedSnapID("optional20-a"),
+				"presence": "optional",
+				"modes":    []interface{}{"ephemeral"},
+			},
+			map[string]interface{}{
+				"name":     "optional20-b",
+				"id":       s.AssertedSnapID("optional20-b"),
+				"presence": "optional",
+				"modes":    []interface{}{"install"},
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Name: "optional20-a"},
+		{Name: "optional20-b"},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadMeta("install", s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:          s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		}, {
+			Path:          s.expectedPath("core20"),
+			SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "latest/stable",
+		}, {
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "20",
+		},
+	})
+
+	c.Check(seed20.NumSnaps(), Equals, 7)
+
+	installSnaps, err := seed20.ModeSnaps("install")
+	c.Assert(err, IsNil)
+	c.Check(installSnaps, HasLen, 3)
+	c.Check(installSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     s.expectedPath("optional20-a"),
+			SideInfo: &s.AssertedSnapInfo("optional20-a").SideInfo,
+			Required: false,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     s.expectedPath("optional20-b"),
+			SideInfo: &s.AssertedSnapInfo("optional20-b").SideInfo,
+			Required: false,
+			Channel:  "latest/stable",
+		},
+	})
+
+	_, err = seed20.ModeSnaps("recover")
+	c.Check(err, ErrorMatches, `metadata was loaded only for snaps for mode install not recover`)
+	_, err = seed20.ModeSnaps("run")
+	c.Check(err, ErrorMatches, `metadata was loaded only for snaps for mode install not run`)
+
+	err = seed20.LoadMeta("recover", s.perfTimings)
+	c.Assert(err, IsNil)
+	// only recover mode snaps
+	c.Check(seed20.NumSnaps(), Equals, 6)
+
+	recoverSnaps, err := seed20.ModeSnaps("recover")
+	c.Assert(err, IsNil)
+	c.Check(recoverSnaps, HasLen, 2)
+	c.Check(recoverSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+		{
+			Path:     s.expectedPath("optional20-a"),
+			SideInfo: &s.AssertedSnapInfo("optional20-a").SideInfo,
+			Required: false,
+			Channel:  "latest/stable",
+		},
+	})
+
+	err = seed20.LoadMeta("run", s.perfTimings)
+	c.Assert(err, IsNil)
+	// only run mode snaps
+	c.Check(seed20.NumSnaps(), Equals, 5)
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("required20"),
+			SideInfo: &s.AssertedSnapInfo("required20").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+}
+
 func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
@@ -2030,7 +2200,7 @@ func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.UsesSnapdSnap(), Equals, true)
@@ -2138,7 +2308,7 @@ func (s *seed20Suite) TestLoadMetaCore20Iter(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(s.perfTimings)
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	c.Check(seed20.NumSnaps(), Equals, 5)

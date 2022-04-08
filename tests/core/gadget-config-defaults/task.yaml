@@ -167,6 +167,8 @@ execute: |
 
     echo "The configuration for core is applied"
     snap get core "service.$SERVICE.disable" | MATCH true
+    # request a document (-d) to ensure we get an integer
+    snap get -d system refresh.retain | MATCH "refresh.retain\": +5$"
 
     if [ "$SERVICE" = ssh ]; then
         echo "And the ssh service is disabled"

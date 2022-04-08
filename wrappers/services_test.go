@@ -3283,6 +3283,8 @@ func (s *servicesTestSuite) TestStopServiceSigs(c *C) {
 		{mode: "sigusr1-all", expectedSig: "USR1", expectedWho: "all"},
 		{mode: "sigusr2", expectedSig: "USR2", expectedWho: "main"},
 		{mode: "sigusr2-all", expectedSig: "USR2", expectedWho: "all"},
+		{mode: "sigint", expectedSig: "INT", expectedWho: "main"},
+		{mode: "sigint-all", expectedSig: "INT", expectedWho: "all"},
 	} {
 		surviveYaml := fmt.Sprintf(`name: survive-snap
 version: 1.0

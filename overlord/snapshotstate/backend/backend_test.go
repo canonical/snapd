@@ -762,7 +762,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 
 	for i := 0; i < 3; i++ {
 		comm := check.Commentf("%d", i)
-		// sanity check
+		// validity check
 		c.Check(diff().Run(), check.NotNil, comm)
 
 		// restore leaves things like they were (again and again)
@@ -840,7 +840,7 @@ func (s *snapshotSuite) TestRestoreRoundtripDifferentRevision(c *check.C) {
 		return cmd
 	}
 
-	// sanity check
+	// validity check
 	c.Check(diff().Run(), check.NotNil)
 
 	// restore leaves things like they were, but in the new dir

@@ -26,6 +26,15 @@ priority: 100
 environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
+prepare: |
+    # We remove the shared-memory plug and interface in trusty because it fails with the
+    # following error since adding private /dev/shm support to shared-memory interface:
+    # shared-memory plug with "private: true" cannot be connected if "/dev/shm" is a symlink)
+    if os.query is-trusty; then
+        cp -r "$TESTSLIB/snaps/$CONSUMER_SNAP" .
+        sed -e '/shared-memory:/,+2d' -i $CONSUMER_SNAP/meta/snap.yaml
+    fi
+
 restore: |
     # Remove the snaps to avoid timeout in next test
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"

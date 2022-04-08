@@ -27,7 +27,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -7818,27 +7817,6 @@ func (s *snapmgrTestSuite) TestUpdateMigrateTurnOffFlagAndRefreshToCore22ButFail
 
 	expected := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 	assertMigrationState(c, s.state, "snap-core18-to-core22", expected)
-}
-
-func mustMatch(c *C, haystack []string, needle string) {
-	c.Assert(someMatches(c, haystack, needle), Equals, true)
-}
-
-func mustNotMatch(c *C, haystack []string, needle string) {
-	c.Assert(someMatches(c, haystack, needle), Equals, false)
-}
-
-func someMatches(c *C, haystack []string, needle string) bool {
-	pattern, err := regexp.Compile(needle)
-	c.Assert(err, IsNil)
-
-	for _, s := range haystack {
-		if pattern.MatchString(s) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // assertMigrationState checks the migration status in the state and sequence
