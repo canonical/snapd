@@ -145,7 +145,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		},
 		// ensure that changes will call "Validate" too
 		{
-			quota.NewResourcesBuilder().WithCPUCount(1).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(1).Build(),
 			`memory limit 1 is too small: size must be larger than 640KB`,
 		},

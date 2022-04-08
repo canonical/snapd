@@ -240,8 +240,8 @@ func (qr *Resources) Validate() error {
 // We also require memory limits are above 640kB.
 func (qr *Resources) ValidateChange(newLimits Resources) error {
 	// Check that the memory limit is not being decreased
-	if qr.Memory != nil && newLimits.Memory != nil {
-		if newLimits.Memory.Limit == 0 {
+	if newLimits.Memory != nil {
+		if qr.Memory != nil && newLimits.Memory.Limit == 0 {
 			return fmt.Errorf("cannot remove memory limit from quota group")
 		}
 
@@ -257,7 +257,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		// so correctly with the current state of our code in
 		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
 		// full details
-		if newLimits.Memory.Limit < qr.Memory.Limit {
+		if qr.Memory != nil && newLimits.Memory.Limit < qr.Memory.Limit {
 			return fmt.Errorf("cannot decrease memory limit, remove and re-create it to decrease the limit")
 		}
 	}
