@@ -58,7 +58,7 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  remount options=(bind, ro) /usr/share/libreoffice/help/,\n")
 	emit("  umount /usr/share/libreoffice/help/,\n")
 	// /usr/share/libreoffice may not exist, set up apparmor profile for
-	// creating a mimir, assuming that at least /usr/share exists
+	// creating a mimic, assuming that at least /usr/share exists
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/help", 3)
 	return nil
 }
