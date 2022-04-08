@@ -70,14 +70,6 @@ func (qr *Resources) validateMemoryQuota() error {
 	if qr.Memory.Limit == 0 {
 		return fmt.Errorf("memory quota must have a limit set")
 	}
-
-	// make sure the memory limit is at least 4K, that is the minimum size
-	// to allow nesting, otherwise groups with less than 4K will trigger the
-	// oom killer to be invoked when a new group is added as a sub-group to the
-	// larger group.
-	if qr.Memory.Limit <= 4*quantity.SizeKiB {
-		return fmt.Errorf("memory limit %d is too small: size must be larger than 4KB", qr.Memory.Limit)
-	}
 	return nil
 }
 
@@ -152,12 +144,9 @@ func (qr *Resources) CheckFeatureRequirements() error {
 	return nil
 }
 
-// Validate performs validation of the provided quota resources for a group.
-// The restrictions imposed are that at least one limit should be set.
-// If memory limit is provided, it must be above 4KB.
-// If cpu percentage is provided, it must be between 1 and 100.
-// If cpu set is provided, it must not be empty.
-// If thread count is provided, it must be above 0.
+// Validate performs basic validation of the provided quota resources for a group.
+// The restrictions imposed are that at least one limit should be set, and each
+// of the imposed limits are not zero.
 //
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
@@ -193,13 +182,23 @@ func (qr *Resources) Validate() error {
 }
 
 // ValidateChange performs validation of new quota limits against the current limits.
+// We do this validation each time a new group/subgroup is created or updated.
 // This is to catch issues where we want to guard against lowering limits where not supported
 // or to make sure that certain/all limits are not removed.
+// We also require memory limits are above 640kB.
 func (qr *Resources) ValidateChange(newLimits Resources) error {
 	// Check that the memory limit is not being decreased
 	if newLimits.Memory != nil {
 		if newLimits.Memory.Limit == 0 {
 			return fmt.Errorf("cannot remove memory limit from quota group")
+		}
+
+		// make sure the memory limit is at least 640K, that is the minimum size
+		// we will require for a quota group. Newer systemd versions require up to
+		// 12kB per slice, so we need to ensure 'plenty' of space for this, and also
+		// 640kB seems sensible as a minimum.
+		if newLimits.Memory.Limit <= 640*quantity.SizeKiB {
+			return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", newLimits.Memory.Limit)
 		}
 
 		// we disallow decreasing the memory limit because it is difficult to do

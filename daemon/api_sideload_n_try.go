@@ -157,7 +157,17 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	flags.RemoveSnapPath = true
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
-	flags.Transactional = isTrue(form, "transactional")
+	trasactionVals := form.Values["transaction"]
+	flags.Transaction = client.TransactionPerSnap
+	if len(trasactionVals) > 0 {
+		switch trasactionVals[0] {
+		case string(client.TransactionPerSnap), string(client.TransactionAllSnaps):
+			flags.Transaction = client.TransactionType(trasactionVals[0])
+		default:
+			return BadRequest(`transaction must be either %q or %q`,
+				client.TransactionPerSnap, client.TransactionAllSnaps)
+		}
+	}
 
 	sideloadFlags := sideloadFlags{
 		Flags:       flags,

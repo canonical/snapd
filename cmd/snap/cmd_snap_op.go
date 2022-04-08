@@ -476,10 +476,10 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
-	Cohort           string `long:"cohort"`
-	IgnoreValidation bool   `long:"ignore-validation"`
-	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
-	Transactional    bool   `long:"transactional"`
+	Cohort           string                 `long:"cohort"`
+	IgnoreValidation bool                   `long:"ignore-validation"`
+	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Positional       struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -624,7 +624,7 @@ func (x *cmdInstall) Execute([]string) error {
 		CohortKey:        x.Cohort,
 		IgnoreValidation: x.IgnoreValidation,
 		IgnoreRunning:    x.IgnoreRunning,
-		Transactional:    x.Transactional,
+		Transaction:      x.Transaction,
 	}
 	x.setModes(opts)
 
@@ -659,15 +659,15 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
-	Amend            bool   `long:"amend"`
-	Revision         string `long:"revision"`
-	Cohort           string `long:"cohort"`
-	LeaveCohort      bool   `long:"leave-cohort"`
-	List             bool   `long:"list"`
-	Time             bool   `long:"time"`
-	IgnoreValidation bool   `long:"ignore-validation"`
-	IgnoreRunning    bool   `long:"ignore-running" hidden:"yes"`
-	Transactional    bool   `long:"transactional"`
+	Amend            bool                   `long:"amend"`
+	Revision         string                 `long:"revision"`
+	Cohort           string                 `long:"cohort"`
+	LeaveCohort      bool                   `long:"leave-cohort"`
+	List             bool                   `long:"list"`
+	Time             bool                   `long:"time"`
+	IgnoreValidation bool                   `long:"ignore-validation"`
+	IgnoreRunning    bool                   `long:"ignore-running" hidden:"yes"`
+	Transaction      client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
 	Positional       struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -837,16 +837,16 @@ func (x *cmdRefresh) Execute([]string) error {
 			Revision:         x.Revision,
 			CohortKey:        x.Cohort,
 			LeaveCohort:      x.LeaveCohort,
-			Transactional:    x.Transactional,
+			Transaction:      x.Transaction,
 		}
 		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
 	}
-	// transactional and ignore-running flags are the only ones with meaning when
+	// transaction flag and ignore-running flags are the only ones with meaning when
 	// refreshing many snaps
 	opts := &client.SnapOptions{
 		IgnoreRunning: x.IgnoreRunning,
-		Transactional: x.Transactional,
+		Transaction:   x.Transaction,
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
@@ -1144,7 +1144,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transactional": i18n.G("Install a set of snaps transactionally."),
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		colorDescs.also(waitDescs).also(channelDescs).also(modeDescs).also(timeDescs).also(map[string]string{
@@ -1165,7 +1165,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"leave-cohort": i18n.G("Refresh the snap out of its cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"transactional": i18n.G("Refresh a set of snaps transactionally."),
+			"transaction": i18n.G("Have one transaction per-snap or one for all the specified snaps"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, waitDescs.also(modeDescs), nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, waitDescs, nil)

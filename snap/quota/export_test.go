@@ -33,6 +33,14 @@ func (grp *Group) SetInternalSubGroups(grps []*Group) {
 	grp.subGroups = grps
 }
 
+func (grp *Group) QuotaUpdateCheck(resourceLimits Resources) error {
+	return grp.validateQuotasFit(resourceLimits)
+}
+
+func (grp *Group) ValidateGroup() error {
+	return grp.validate()
+}
+
 func (grp *Group) InspectInternalQuotaAllocations() map[string]*GroupQuotaAllocations {
 	allQuotas := make(map[string]*GroupQuotaAllocations)
 	grp.getQuotaAllocations(allQuotas)
