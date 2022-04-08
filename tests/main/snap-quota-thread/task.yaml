@@ -76,9 +76,7 @@ execute: |
   # the group is double escaped
   systemctl show --property=ControlGroup snap.test-snapd-stressd.spawner.service | MATCH 'ControlGroup=/snap.group(.*)one.slice/snap.test-snapd-stressd.spawner.service'
 
-  # snap quota group-one formats the quota usage as a nice human readable 
-  # string, which complicates the comparison here, so instead just grab the 
-  # task usage from the REST API instead
+  # verify that 'snap quota' is reporting the correct usage
   echo "Verify the number of threads is correct (=16)"
   threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
   if ! [ "$threadUsage" -eq 16 ]; then
@@ -89,6 +87,7 @@ execute: |
   echo "Increase the thread quota to 24"
   snap set-quota group-one --threads=24
 
+  # verify that 'snap quota' is reporting the correct new usage
   echo "Verify the number of threads is correct (=24)"
   sleep 3 # sleep the delay time (2s) and one more to allow for threads to start
   threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"

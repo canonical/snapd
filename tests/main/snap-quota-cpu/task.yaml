@@ -5,9 +5,7 @@ details: |
   effective in practice.
 
 # these systems do not support quota groups due to their old systemd versions,
-# we do have a check to do for these systems, but that is just to ensure that
-# we don't allow using quota groups, and that check is done in the snap-quota
-# spread instead
+# and this is tested in the snap-quota spread test.
 systems:
   - -ubuntu-14.04-*
   - -centos-7-*
