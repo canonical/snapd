@@ -120,18 +120,9 @@ func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {
 	return nil
 }
 
-func (iface *posixMQInterface) isValidPermission(perm string) bool {
-	for _, validPerm := range posixMQPlugPermissions {
-		if perm == validPerm {
-			return true
-		}
-	}
-	return false
-}
-
 func (iface *posixMQInterface) validatePermissionList(perms []string, name string) error {
 	for _, perm := range perms {
-		if !iface.isValidPermission(perm) {
+		if !strutil.ListContains(posixMQPlugPermissions, perm) {
 			return fmt.Errorf("posix-mq slot %s permission \"%s\" not valid, must be one of %v", name, perm, posixMQPlugPermissions)
 		}
 	}
