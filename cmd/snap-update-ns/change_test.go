@@ -178,6 +178,64 @@ func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 	}
 }
 
+func (s *changeSuite) TestNeededChangesMountFromReal(c *C) {
+	existingDirectories := []string{}
+
+	restore := update.MockIsDirectory(func(path string) bool {
+		return strutil.ListContains(existingDirectories, path)
+	})
+	defer restore()
+
+	current := &osutil.MountProfile{}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Dir: "/snap/test-snapd-layout/x1/fooo-top", Options: []string{"x-snapd.origin=layout"}},
+		{Dir: "/snap/test-snapd-layout/x1/fooo/deeper", Options: []string{"x-snapd.origin=layout"}},
+		{Dir: "/usr/lib/x86_64-linux-gnu/wpe-webkit-1.0", Options: []string{"x-snapd.origin=layout"}},
+		{Dir: "/usr/libexec/wpe-webkit-1.0", Options: []string{"x-snapd.origin=layout"}},
+		{Dir: "/var/fooo-top", Options: []string{"x-snapd.origin=layout"}},
+		{Dir: "/var/fooo/deeper", Options: []string{"x-snapd.origin=layout"}},
+	}}
+
+	for _, testData := range []struct {
+		existingDirs  []string
+		expectedOrder []string
+	}{
+		{
+			existingDirs: []string{"/snap/test-snapd-layout/x1", "/usr", "/usr/lib/x86_64-linux-gnu", "/var"},
+			expectedOrder: []string{
+				"/snap/test-snapd-layout/x1/fooo-top", "/snap/test-snapd-layout/x1/fooo/deeper",
+				// triggers a mimic on /usr
+				"/usr/libexec/wpe-webkit-1.0",
+				"/usr/lib/x86_64-linux-gnu/wpe-webkit-1.0",
+				"/var/fooo-top", "/var/fooo/deeper",
+			},
+		},
+		{
+			existingDirs: []string{"/snap/test-snapd-layout/x1", "/usr", "/usr/lib/x86_64-linux-gnu", "/usr/libexec", "/var"},
+			expectedOrder: []string{
+				// parents for all dirs exists, so entries are
+				// ordered lexicographically
+				"/snap/test-snapd-layout/x1/fooo-top", "/snap/test-snapd-layout/x1/fooo/deeper",
+				"/usr/lib/x86_64-linux-gnu/wpe-webkit-1.0", "/usr/libexec/wpe-webkit-1.0",
+				"/var/fooo-top", "/var/fooo/deeper",
+			},
+		},
+	} {
+		existingDirectories = testData.existingDirs
+		changes := update.NeededChanges(current, desired)
+
+		// Check that every change is sane, and extract their path in order
+		actualOrder := make([]string, 0, len(changes))
+		for _, change := range changes {
+			c.Check(change.Action, Equals, update.Mount)
+			actualOrder = append(actualOrder, change.Entry.Dir)
+		}
+
+		c.Check(actualOrder, DeepEquals, testData.expectedOrder,
+			Commentf("Existing dirs: %q", existingDirectories))
+	}
+}
+
 func (s *changeSuite) TestNeededChangesKind(c *C) {
 	current := &osutil.MountProfile{}
 	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
