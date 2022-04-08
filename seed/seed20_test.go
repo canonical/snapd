@@ -796,13 +796,17 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		// the order in essentialTypes is not relevant
 		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
 		// degenerate case
-		{[]snap.Type{}, []*seed.Snap(nil)},
+		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
+		{nil, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
 	}
 
 	for _, t := range tests {
 		// hide the non-requested snaps to make sure they are not
 		// accessed
-		unhide := hideSnaps(c, all, t.onlyTypes)
+		var unhide func()
+		if len(t.onlyTypes) != 0 {
+			unhide = hideSnaps(c, all, t.onlyTypes)
+		}
 
 		seed20, err := seed.Open(s.SeedDir, sysLabel)
 		c.Assert(err, IsNil)
@@ -824,7 +828,9 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(runSnaps, HasLen, 0)
 
-		unhide()
+		if unhide != nil {
+			unhide()
+		}
 
 		// test short-cut helper as well
 		mod, essSnaps, err := seed.ReadSystemEssential(s.SeedDir, sysLabel, t.onlyTypes, s.perfTimings)
@@ -894,7 +900,7 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 		// the order in essentialTypes is not relevant
 		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
 		// degenerate case
-		{[]snap.Type{}, []*seed.Snap(nil)},
+		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
 	}
 
 	baseLabel := "20210315"
