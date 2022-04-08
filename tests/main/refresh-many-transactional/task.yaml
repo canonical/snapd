@@ -55,7 +55,7 @@ execute: |
     init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
 
     echo "And a refresh is performed"
-    snap refresh --transactional test-snapd-tools test-snapd-python-webserver
+    snap refresh --transaction=all-snaps test-snapd-tools test-snapd-python-webserver
 
     echo "Then the new versions are installed"
     for name in test-snapd-tools test-snapd-python-webserver; do
