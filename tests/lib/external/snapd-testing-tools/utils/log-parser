@@ -309,7 +309,7 @@ class LogReader:
                     self.full_log.append(info)
                 continue
 
-            # The line is another opertion: Rebooting, Discarding, Allocating
+            # The line is another operation: Rebooting, Discarding, Allocating
             # Waiting, Allocated, Connecting, Connected, Sending'
             if self._match_operation(line):
                 operation = self._get_operation(line)
@@ -468,7 +468,7 @@ def _make_parser():
     # type: () -> argparse.ArgumentParser
     parser = argparse.ArgumentParser(
         description="""
-Parse the spread log and generates a file with a standarized output. It also
+Parse the spread log and generates a file with a standardized output. It also
 allows to filter the output by type and define the number of lines to show
 for the error/debug/warning output.
 """
@@ -478,7 +478,7 @@ for the error/debug/warning output.
         "--cut",
         type=int,
         default=1000,
-        help="maximun number of lines for logs on errors and debug sections",
+        help="maximum number of lines for logs on errors and debug sections",
     )
     parser.add_argument(
         "-f",

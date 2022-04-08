@@ -2,7 +2,7 @@
 
 """
 This tool is used to varify a correct format of spread tests
-The imput is a directory which is scanned recursively and all
+The input is a directory which is scanned recursively and all
 the task.yaml files are check
 """
 
