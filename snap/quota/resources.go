@@ -193,12 +193,6 @@ func (qr *Resources) CheckFeatureRequirements() error {
 // Validate performs basic validation of the provided quota resources for a group.
 // The restrictions imposed are that at least one limit should be set, and each
 // of the imposed limits are not zero.
-// If memory limit is provided, it must be non-zero.
-// If cpu percentage is provided, it must be non-zero and fit into current cpu-set limits.
-// If cpu set is provided, it must not be empty.
-// If thread count is provided, it must be non-zero.
-// If journal size is provided, it must be non-zero.
-// If a journal rate is provided, both count/period must be non-zero
 //
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
