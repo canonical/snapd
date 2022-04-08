@@ -60,6 +60,7 @@ ptrace (read),
 @{PROC}/partitions r,
 @{PROC}/sys/kernel/panic r,
 @{PROC}/sys/kernel/panic_on_oops r,
+@{PROC}/sys/vm/max_map_count r,
 @{PROC}/sys/vm/panic_on_oom r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
