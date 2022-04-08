@@ -57,34 +57,6 @@ func (f *fakeKeyMgr) Export(keyName string) ([]byte, error)                 { re
 func (f *fakeKeyMgr) List() ([]asserts.ExternalKeyInfo, error)              { return nil, nil }
 func (f *fakeKeyMgr) DeleteByName(keyName string) error                     { return nil }
 
-func mockUC20Model() *asserts.Model {
-	headers := map[string]interface{}{
-		"type":         "model",
-		"authority-id": "my-brand",
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model-uc20",
-		"display-name": "My Model",
-		"architecture": "amd64",
-		"base":         "core20",
-		"grade":        "dangerous",
-		"timestamp":    "2019-11-01T08:00:00+00:00",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name": "pc-kernel",
-				"id":   "pckernelidididididididididididid",
-				"type": "kernel",
-			},
-			map[string]interface{}{
-				"name": "pc",
-				"id":   "pcididididididididididididididid",
-				"type": "gadget",
-			},
-		},
-	}
-	return assertstest.FakeAssertion(headers, nil).(*asserts.Model)
-}
-
 type toolingStore struct {
 	*seedtest.SeedSnaps
 }
