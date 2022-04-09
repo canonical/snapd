@@ -29,7 +29,7 @@ prepare: |
         snap install --channel=20 network-manager
     fi
 
-    snap install network-manager
+    rm -f /etc/netplan/00-default-nm-renderer.yaml
 
 execute: |
     # using wait_for_service is not enough, systemd considers the service
