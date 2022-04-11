@@ -156,18 +156,22 @@ func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefres
 
 // Error formats an error string describing what is running.
 func (err *BusySnapError) Error() string {
+	pids := make([]string, 0, len(err.pids))
+	for _, p := range err.pids {
+		pids = append(pids, fmt.Sprintf("%d", p))
+	}
 	switch {
 	case len(err.busyAppNames) > 0 && len(err.busyHookNames) > 0:
-		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s)",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "))
+		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s), pids: %s",
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "), strings.Join(pids, ", "))
 	case len(err.busyAppNames) > 0:
-		return fmt.Sprintf("snap %q has running apps (%s)",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "))
+		return fmt.Sprintf("snap %q has running apps (%s), pids: %s",
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(pids, ", "))
 	case len(err.busyHookNames) > 0:
-		return fmt.Sprintf("snap %q has running hooks (%s)",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "))
+		return fmt.Sprintf("snap %q has running hooks (%s), pids: %s",
+			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "), strings.Join(pids, ", "))
 	default:
-		return fmt.Sprintf("snap %q has running apps or hooks", err.SnapInfo.InstanceName())
+		return fmt.Sprintf("snap %q has running apps or hooks, pids: %s", err.SnapInfo.InstanceName(), strings.Join(pids, ", "))
 	}
 }
 
