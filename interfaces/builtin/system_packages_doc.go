@@ -58,9 +58,13 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/libreoffice/help/ -> /usr/share/libreoffice/help/,\n")
 	emit("  remount options=(bind, ro) /usr/share/libreoffice/help/,\n")
 	emit("  umount /usr/share/libreoffice/help/,\n")
+	// /usr/share/libreoffice may not exist, set up apparmor profile for
+	// creating a mimic, assuming that at least /usr/share exists
+	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/help", 3)
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	emit("  umount /usr/share/xubuntu-docs/,\n")
+	apparmor.GenWritableProfile(emit, "/usr/share/xubuntu-doc", 3)
 	return nil
 }
 

@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdDebugState struct {
@@ -259,7 +260,7 @@ func (c *cmdDebugState) showTask(st *state.State, taskID string) error {
 	if len(log) > 0 {
 		fmt.Fprintf(Stdout, "log: |\n")
 		for _, msg := range log {
-			if err := wrapLine(Stdout, []rune(msg), "  ", termWidth); err != nil {
+			if err := strutil.WordWrapPadded(Stdout, []rune(msg), "  ", termWidth); err != nil {
 				break
 			}
 		}
