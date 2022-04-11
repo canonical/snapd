@@ -211,8 +211,8 @@ capability setuid,
 # are virtual and don't show up in /dev
 /dev/net/tun rw,
 
-# Access to sysfs interfaces for tun/tap device settings.
-/sys/devices/virtual/net/tap*/** rw,
+# Access to sysfs interfaces for tun/tap/mstp/bchat device settings.
+/sys/devices/virtual/net/{tap*,mstp*,bchat*}/** rw,
 
 # access to bridge sysfs interfaces for bridge settings
 /sys/devices/virtual/net/*/bridge/* rw,
