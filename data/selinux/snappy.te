@@ -543,6 +543,11 @@ allow snappy_mount_t snappy_snap_t:dir mounton;
 allow snappy_mount_t snappy_snap_t:file mounton;
 allow snappy_mount_t snappy_snap_t:filesystem { unmount remount };
 
+# layouts may also require mounting on top of /var/lib/snapd which contains the
+# snaps
+allow snappy_mount_t snappy_var_lib_t:dir mounton;
+allow snappy_mount_t snappy_var_lib_t:file mounton;
+
 # freezer
 fs_manage_cgroup_dirs(snappy_mount_t)
 fs_manage_cgroup_files(snappy_mount_t)
