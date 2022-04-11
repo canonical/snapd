@@ -96,6 +96,13 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/libreoffice/help/ -> /usr/share/libreoffice/help/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/libreoffice/help/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/libreoffice/help/,\n")
+
+	// check mimic bits
+	c.Check(updateNS, testutil.Contains, "  # Writable mimic /usr/share/libreoffice\n")
+	c.Check(updateNS, testutil.Contains, "  mount fstype=tmpfs options=(rw) tmpfs -> \"/usr/share/\",\n")
+	c.Check(updateNS, testutil.Contains, "  \"/usr/share/\" r,\n")
+	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/\" rw,\n")
+	c.Check(updateNS, testutil.Contains, "  mount options=(bind, rw) \"/tmp/.snap/usr/share/*\" -> \"/usr/share/*\",\n")
 }
 
 func (s *systemPackagesDocSuite) TestMountSpec(c *C) {

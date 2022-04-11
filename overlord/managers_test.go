@@ -1635,7 +1635,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyFails(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1681,7 +1681,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1717,7 +1717,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyFails(c *C) {
 
 	// refresh
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1767,7 +1767,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transactional: true})
+	affected, tasksets, err := snapstate.InstallMany(st, snapNames, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -1802,7 +1802,7 @@ func (s *mgrsSuite) TestTransactionalInstallManyOkUpdateManyOk(c *C) {
 
 	// refresh
 	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
@@ -10284,6 +10284,9 @@ base: core20
 	st.Lock()
 	defer st.Unlock()
 
+	// cyclic dependency check would detect the problem
+	c.Assert(chg.CheckTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
+
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "snapd", &snapst)
 	c.Assert(err, IsNil)
@@ -10378,6 +10381,9 @@ base: core20
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// cyclic dependency check would detect the problem
+	c.Assert(chg.CheckTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "snapd", &snapst)
