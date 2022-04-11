@@ -108,8 +108,9 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/xubuntu-docs/,\n")
-
-	c.Check(updateNS, testutil.Contains, "  # Writable mimic /usr/share/xubuntu-docs\n")
+	// there is xubuntu-docs specific rule as it's already covered by mimic
+	// on /usr/share, so only check that
+	c.Check(updateNS, testutil.Contains, "  # Writable mimic /usr/share\n")
 }
 
 func (s *systemPackagesDocSuite) TestMountSpec(c *C) {

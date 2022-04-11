@@ -64,7 +64,8 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	emit("  umount /usr/share/xubuntu-docs/,\n")
-	apparmor.GenWritableProfile(emit, "/usr/share/xubuntu-doc", 3)
+	// and a writable mimic for /usr/share/xubuntu-docs
+	apparmor.GenWritableProfile(emit, "/usr/share/xubuntu-docs", 3)
 	return nil
 }
 
