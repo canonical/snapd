@@ -89,8 +89,14 @@ execute: |
 
   # verify that 'snap quota' is reporting the correct new usage
   echo "Verify the number of threads is correct (=24)"
-  sleep 3 # sleep the delay time (2s) and one more to allow for threads to start
-  threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
+  n=0
+  until [ "$n" -ge 10 ]; do
+      threadUsage="$(snap quota group-one | awk '/current:/,/threads:/{printf "%s",$2} END {print ""}')"
+      if [ "$threadUsage" -eq 24 ]; then
+          break
+      fi
+      sleep 1
+  done
   if ! [ "$threadUsage" -eq 24 ]; then
     echo "thread usage reported does not equal the expected quota usage $threadUsage"
     exit 1
