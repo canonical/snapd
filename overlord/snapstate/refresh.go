@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
@@ -32,17 +33,13 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	userclient "github.com/snapcore/snapd/usersession/client"
+	"gopkg.in/retry.v1"
 )
 
 // pidsOfSnap is a mockable version of PidsOfSnap
 var pidsOfSnap = cgroup.PidsOfSnap
 
 var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
-	knownPids, err := pidsOfSnap(info.InstanceName())
-	if err != nil {
-		return err
-	}
-
 	// Due to specific of the interaction with locking, all locking is performed by the caller.
 	var busyAppNames []string
 	var busyHookNames []string
@@ -55,28 +52,40 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 		return false
 	}
 
-	for name, app := range info.Apps {
-		if canAppRunDuringRefresh(app) {
-			continue
+	for attempt := retry.Start(retry.LimitTime(5*time.Second, retry.Regular{Min: 1}), nil); attempt.Next(); {
+		knownPids, err := pidsOfSnap(info.InstanceName())
+		if err != nil {
+			return err
 		}
-		if PIDs := knownPids[app.SecurityTag()]; len(PIDs) > 0 {
-			busyAppNames = append(busyAppNames, name)
-			busyPIDs = append(busyPIDs, PIDs...)
+
+		busyAppNames = nil
+		busyHookNames = nil
+		busyPIDs = nil
+
+		for name, app := range info.Apps {
+			if canAppRunDuringRefresh(app) {
+				continue
+			}
+			if PIDs := knownPids[app.SecurityTag()]; len(PIDs) > 0 {
+				busyAppNames = append(busyAppNames, name)
+				busyPIDs = append(busyPIDs, PIDs...)
+			}
+		}
+
+		for name, hook := range info.Hooks {
+			if canHookRunDuringRefresh(hook) {
+				continue
+			}
+			if PIDs := knownPids[hook.SecurityTag()]; len(PIDs) > 0 {
+				busyHookNames = append(busyHookNames, name)
+				busyPIDs = append(busyPIDs, PIDs...)
+			}
+		}
+		if len(busyAppNames) == 0 && len(busyHookNames) == 0 {
+			return nil
 		}
 	}
 
-	for name, hook := range info.Hooks {
-		if canHookRunDuringRefresh(hook) {
-			continue
-		}
-		if PIDs := knownPids[hook.SecurityTag()]; len(PIDs) > 0 {
-			busyHookNames = append(busyHookNames, name)
-			busyPIDs = append(busyPIDs, PIDs...)
-		}
-	}
-	if len(busyAppNames) == 0 && len(busyHookNames) == 0 {
-		return nil
-	}
 	sort.Strings(busyAppNames)
 	sort.Strings(busyHookNames)
 	sort.Ints(busyPIDs)
