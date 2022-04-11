@@ -1,0 +1,38 @@
+summary: Check that migrating from core20->core22 works
+
+# this test is flaky on CentOS and openSUSE due to an issue w/ 'snap remove'
+# https://bugs.launchpad.net/snapd/+bug/1959036
+systems: [-centos-*, -opensuse-*]
+
+environment:
+    NAME: test-snapd-tools
+
+execute: |
+    # core22 snap isn't available for x86
+    if os.query is-pc-i386; then
+      exit 0
+    fi
+
+    echo "Install core20 snap"
+    snap_path_20=$("$TESTSTOOLS"/snaps-state pack-local "$NAME")
+    snap install --dangerous "$snap_path_20"
+    # trigger "snap run" so that we have a dir in /root/snap/test-snapd-tools
+    test-snapd-tools.echo foo
+
+    echo "Update snap to core22"
+    snap install --edge core22
+    cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
+    echo -e "\nbase: core22" >> "$PWD/$NAME/meta/snap.yaml"
+    snap_path_22="${NAME}"_22.0_all.snap
+    snap pack --filename="$snap_path_22" "$PWD/$NAME"
+    snap install --dangerous "$snap_path_22"
+    test-snapd-tools.echo foo
+
+    echo "And remove it again"
+    snap remove --purge "$NAME"
+    echo "And install both again and see that it works"
+    snap install --dangerous "$snap_path_20"
+    test-snapd-tools.echo foo
+    snap install --dangerous "$snap_path_22"
+    test-snapd-tools.echo foo
+
