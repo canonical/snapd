@@ -84,11 +84,79 @@ func fmtTime(t time.Time, abs bool) string {
 	return timeutil.Human(t)
 }
 
+func formatInvalidTypeErr(headers ...string) error {
+	return fmt.Errorf("invalid type for %q header", strings.Join(headers, "/"))
+}
+
+func printVerboseSnapsList(w *tabwriter.Writer, snaps []interface{}) error {
+	printModes := func(snapName string, members map[string]interface{}) error {
+		modes, ok := members["modes"]
+		if !ok {
+			return nil
+		}
+
+		modesSlice, ok := modes.([]interface{})
+		if !ok {
+			return formatInvalidTypeErr("snaps", snapName, "modes")
+		}
+
+		if len(modesSlice) == 0 {
+			return nil
+		}
+
+		modeStrSlice := make([]string, 0, len(modesSlice))
+		for _, mode := range modesSlice {
+			modeStr, ok := mode.(string)
+			if !ok {
+				return formatInvalidTypeErr("snaps", snapName, "modes")
+			}
+			modeStrSlice = append(modeStrSlice, modeStr)
+		}
+		modesSliceYamlStr := "[" + strings.Join(modeStrSlice, ", ") + "]"
+		fmt.Fprintf(w, "    modes:\t%s\n", modesSliceYamlStr)
+		return nil
+	}
+
+	for _, sn := range snaps {
+		snMap, ok := sn.(map[string]interface{})
+		if !ok {
+			return formatInvalidTypeErr("snaps")
+		}
+
+		// Print all the desiered keys in the map in a stable, visually
+		// appealing ordering
+		// first do snap name, which will always be present since we
+		// parsed a valid assertion
+		name := snMap["name"].(string)
+		fmt.Fprintf(w, "  - name:\t%s\n", name)
+
+		// the rest of these may be absent, but they are all still
+		// simple strings
+		for _, snKey := range []string{"id", "type", "default-channel", "presence"} {
+			snValue, ok := snMap[snKey]
+			if !ok {
+				continue
+			}
+			snStrValue, ok := snValue.(string)
+			if !ok {
+				return formatInvalidTypeErr("snaps", snKey)
+			}
+			if snStrValue != "" {
+				fmt.Fprintf(w, "    %s:\t%s\n", snKey, snStrValue)
+			}
+		}
+
+		// finally handle "modes" which is a list
+		if err := printModes(name, snMap); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAssertionOptions, assertion asserts.Assertion) error {
 	allHeadersMap := assertion.Headers()
 	for _, headerName := range niceOrdering {
-		invalidTypeErr := fmt.Errorf("invalid type for %q header", headerName)
-
 		headerValue, ok := allHeadersMap[headerName]
 		// make sure the header is in the map
 		if !ok {
@@ -107,7 +175,7 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 					fmt.Fprintf(w, "%s:\t%s\n", headerName, headerString)
 					continue
 				}
-				return invalidTypeErr
+				return formatInvalidTypeErr(headerName)
 			}
 			if len(headerIfaceList) == 0 {
 				continue
@@ -117,7 +185,7 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 			for _, elem := range headerIfaceList {
 				headerStringElem, ok := elem.(string)
 				if !ok {
-					return invalidTypeErr
+					return formatInvalidTypeErr(headerName)
 				}
 				// note we don't wrap these, since for now this is
 				// specifically just required-snaps and so all of these
@@ -125,11 +193,12 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 				fmt.Fprintf(w, "  - %s\n", headerStringElem)
 			}
 
-		// timestamp needs to be formatted with fmtTime from the timeMixin
+		// timestamp needs to be formatted in an identical manner to how fmtTime works
+		// from timeMixin package in cmd/snap
 		case "timestamp":
 			timestamp, ok := headerValue.(string)
 			if !ok {
-				return invalidTypeErr
+				return formatInvalidTypeErr(headerName)
 			}
 
 			// parse the time string as RFC3339, which is what the format is
@@ -148,13 +217,13 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 			w.Flush()
 			headerString, ok := headerValue.(string)
 			if !ok {
-				return invalidTypeErr
+				return formatInvalidTypeErr(headerName)
 			}
 
 			switch {
 			case options.TermWidth > 86:
 				fmt.Fprintf(w, "device-key-sha3-384: %s\n", headerString)
-			case options.TermWidth <= 86 && options.TermWidth > 66:
+			case options.TermWidth > 66:
 				fmt.Fprintln(w, "device-key-sha3-384: |")
 				strutil.WordWrapPadded(w, []rune(headerString), "  ", options.TermWidth)
 			}
@@ -164,89 +233,37 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 			w.Flush()
 			snapsHeader, ok := headerValue.([]interface{})
 			if !ok {
-				return invalidTypeErr
+				return formatInvalidTypeErr(headerName)
 			}
 			if len(snapsHeader) == 0 {
 				// unexpected why this is an empty list, but just ignore for
 				// now
 				continue
 			}
+
 			fmt.Fprintf(w, "snaps:\n")
-			for _, sn := range snapsHeader {
-				snMap, ok := sn.(map[string]interface{})
-				if !ok {
-					return invalidTypeErr
-				}
-				// iterate over all keys in the map in a stable, visually
-				// appealing ordering
-				// first do snap name, which will always be present since we
-				// parsed a valid assertion
-				name := snMap["name"].(string)
-				fmt.Fprintf(w, "  - name:\t%s\n", name)
-
-				// the rest of these may be absent, but they are all still
-				// simple strings
-				for _, snKey := range []string{"id", "type", "default-channel", "presence"} {
-					snValue, ok := snMap[snKey]
-					if !ok {
-						continue
-					}
-					snStrValue, ok := snValue.(string)
-					if !ok {
-						return invalidTypeErr
-					}
-					if snStrValue != "" {
-						fmt.Fprintf(w, "    %s:\t%s\n", snKey, snStrValue)
-					}
-				}
-
-				// finally handle "modes" which is a list
-				modes, ok := snMap["modes"]
-				if !ok {
-					continue
-				}
-				modesSlice, ok := modes.([]interface{})
-				if !ok {
-					return invalidTypeErr
-				}
-				if len(modesSlice) == 0 {
-					continue
-				}
-
-				modeStrSlice := make([]string, 0, len(modesSlice))
-				for _, mode := range modesSlice {
-					modeStr, ok := mode.(string)
-					if !ok {
-						return invalidTypeErr
-					}
-					modeStrSlice = append(modeStrSlice, modeStr)
-				}
-				modesSliceYamlStr := "[" + strings.Join(modeStrSlice, ", ") + "]"
-				fmt.Fprintf(w, "    modes:\t%s\n", modesSliceYamlStr)
+			if err := printVerboseSnapsList(w, snapsHeader); err != nil {
+				return err
 			}
 
 		// long base64 key we can rewrap safely
 		case "device-key":
 			headerString, ok := headerValue.(string)
 			if !ok {
-				return invalidTypeErr
+				return formatInvalidTypeErr(headerName)
 			}
 			// the string value here has newlines inserted as part of the
 			// raw assertion, but base64 doesn't care about whitespace, so
-			// it's safe to split by newlines and re-wrap to make it
-			// prettier
-			headerString = strings.Join(
-				strings.Split(headerString, "\n"),
-				"")
+			// it's safe to replace the newlines
+			headerString = strings.ReplaceAll(headerString, "\n", "")
 			fmt.Fprintln(w, "device-key: |")
 			strutil.WordWrapPadded(w, []rune(headerString), "  ", options.TermWidth)
 
-		// the default is all the rest of short scalar values, which all
-		// should be strings
+		// The rest of the values should be single strings
 		default:
 			headerString, ok := headerValue.(string)
 			if !ok {
-				return invalidTypeErr
+				return formatInvalidTypeErr(headerName)
 			}
 			fmt.Fprintf(w, "%s:\t%s\n", headerName, headerString)
 		}
@@ -275,11 +292,9 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 	}
 
 	// ordering of the primary keys for model: brand, model, serial
-	// ordering of primary keys for serial is brand-id, model, serial
-
-	// output brand/brand-id
 	brandIDHeader := modelAssertion.HeaderString("brand-id")
 	modelHeader := modelAssertion.HeaderString("model")
+
 	// for the serial header, if there's no serial yet, it's not an error for
 	// model (and we already handled the serial error above) but need to add a
 	// parenthetical about the device not being registered yet
@@ -316,9 +331,6 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		fmt.Fprintf(w, "model%s\t%s\n", separator, modelHeader)
 	}
 
-	// only output the grade if it is non-empty, either it is not in the model
-	// assertion for all non-uc20 model assertions, or it is non-empty and
-	// required for uc20 model assertions
 	grade := modelAssertion.HeaderString("grade")
 	if grade != "" {
 		fmt.Fprintf(w, "grade%s\t%s\n", separator, grade)
@@ -329,21 +341,21 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		fmt.Fprintf(w, "storage-safety%s\t%s\n", separator, storageSafety)
 	}
 
-	// serial is same for all variants
 	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 
-	// return if verbose is not requested
-	if !options.Verbose {
-		return w.Flush()
+	if options.Verbose {
+		if err := printVerboseAssertionHeaders(w, options, &modelAssertion); err != nil {
+			return err
+		}
 	}
-	return printVerboseAssertionHeaders(w, options, &modelAssertion)
+	return w.Flush()
 }
 
 // PrintModelAssertionYAML will format the provided serial or model assertion based on the parameters given in
 // YAML format. The output will be written to the provided io.Writer.
 func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter, options PrintModelAssertionOptions, serialAssertion asserts.Serial) error {
 
-	// if we got an invalid model assertion bail early
+	// if assertion was requested we want it raw
 	if options.Assertion {
 		_, err := w.Write(asserts.Encode(&serialAssertion))
 		return err
@@ -352,10 +364,7 @@ func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter
 	// the rest of this function is the main flow for outputting either the
 	// serial assertion in normal or verbose mode
 
-	// ordering of the primary keys for model: brand, model, serial
 	// ordering of primary keys for serial is brand-id, model, serial
-
-	// output brand/brand-id
 	brandIDHeader := serialAssertion.HeaderString("brand-id")
 	modelHeader := serialAssertion.HeaderString("model")
 	serial := serialAssertion.HeaderString("serial")
@@ -364,11 +373,12 @@ func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter
 	fmt.Fprintf(w, "model:\t%s\n", modelHeader)
 	fmt.Fprintf(w, "serial:\t%s\n", serial)
 
-	// return if verbose is not requested
-	if !options.Verbose {
-		return w.Flush()
+	if options.Verbose {
+		if err := printVerboseAssertionHeaders(w, options, &serialAssertion); err != nil {
+			return err
+		}
 	}
-	return printVerboseAssertionHeaders(w, options, &serialAssertion)
+	return w.Flush()
 }
 
 // PrintModelAssertionJSON will format the provided serial or model assertion based on the parameters given in
@@ -380,9 +390,12 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		if err != nil {
 			return err
 		}
+
 		_, err = w.Write(marshalled)
-		w.Flush()
-		return err
+		if err != nil {
+			return err
+		}
+		return w.Flush()
 	}
 
 	if options.Assertion {
@@ -392,10 +405,6 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		return serializeJSON(modelJSON)
 	}
 
-	// ordering of the primary keys for model: brand, model, serial
-	// ordering of primary keys for serial is brand-id, model, serial
-
-	// output brand/brand-id
 	modelData := make(map[string]interface{})
 	modelData["brand-id"] = modelAssertion.HeaderString("brand-id")
 	modelData["model"] = modelAssertion.HeaderString("model")
@@ -412,9 +421,6 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		serial = serialAssertion.HeaderString("serial")
 	}
 
-	// only output the grade if it is non-empty, either it is not in the model
-	// assertion for all non-uc20 model assertions, or it is non-empty and
-	// required for uc20 model assertions
 	grade := modelAssertion.HeaderString("grade")
 	if grade != "" {
 		modelData["grade"] = grade
@@ -425,16 +431,12 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		modelData["storage-safety"] = storageSafety
 	}
 
-	// serial is same for all variants
 	modelData["serial"] = serial
 	allHeadersMap := modelAssertion.Headers()
 
 	// always print extra information for JSON
 	for _, headerName := range niceOrdering {
-		invalidTypeErr := fmt.Errorf("invalid type for %q header", headerName)
-
 		headerValue, ok := allHeadersMap[headerName]
-		// make sure the header is in the map
 		if !ok {
 			continue
 		}
@@ -445,10 +447,10 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		case "device-key":
 			headerString, ok := headerValue.(string)
 			if !ok {
-				return invalidTypeErr
+				return formatInvalidTypeErr(headerName)
 			}
 			// remove the newlines from the string
-			modelData["device-key"] = strings.Replace(headerString, "\n", "", -1)
+			modelData["device-key"] = strings.ReplaceAll(headerString, "\n", "")
 
 		// the default is all the rest of short scalar values, which all
 		// should be strings
