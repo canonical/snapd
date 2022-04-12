@@ -161,9 +161,7 @@ func (qr *Resources) validateJournalQuota() error {
 	}
 
 	if qr.Journal.Rate != nil {
-		count := qr.Journal.Rate.Count
-		period := qr.Journal.Rate.Period
-		if count != 0 && period <= 0 || count <= 0 && period != 0 {
+		if qr.Journal.Rate.Count <= 0 || qr.Journal.Rate.Period <= 0 {
 			return fmt.Errorf("journal quota must have a rate count and period larger than zero")
 		}
 	}
