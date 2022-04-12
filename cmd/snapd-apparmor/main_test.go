@@ -103,6 +103,10 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 	c.Assert(err, IsNil)
 	f.Close()
 
+	// ensure SNAPD_DEBUG is set in the environment so then --quiet
+	// will *not* be included in the apparmor_parser arguments (since
+	// when these test are run in via CI SNAPD_DEBUG is set)
+	os.Setenv("SNAPD_DEBUG", "1")
 	err = snapd_apparmor.LoadAppArmorProfiles()
 	c.Assert(err, IsNil)
 
@@ -111,7 +115,7 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 		{"apparmor_parser", "--replace", "--write-cache",
 			"-O", "no-expr-simplify",
 			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir),
-			"--quiet", profile}})
+			profile}})
 
 	// test error case
 	testutil.MockCommand(c, "apparmor_parser", "exit 1")
