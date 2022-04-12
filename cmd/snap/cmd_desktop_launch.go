@@ -28,6 +28,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -83,6 +84,27 @@ func (x *cmdDesktopLaunch) Execute([]string) error {
 	}
 	if !strings.HasPrefix(x.DesktopFile, dirs.SnapDesktopFilesDir+"/") {
 		return fmt.Errorf("only launching snap applications from %s is supported", dirs.SnapDesktopFilesDir)
+	}
+
+	// If running a desktop file from a confined snap process,
+	// then run via the privileged launcher.
+	if os.Getenv("SNAP") != "" {
+		// Only the application file name is required for launching.
+		desktopFile := filepath.Base(x.DesktopFile)
+
+		// Attempt to launch the desktop file via the
+		// privileged launcher, this will check that this snap
+		// has the desktop-launch interface connected.
+		conn, err := dbusutil.SessionBusPrivate()
+		if err != nil {
+			return fmt.Errorf(i18n.G("unable to access privileged desktop launcher: unable to get session bus: %v"), err)
+		}
+		o := conn.Object("io.snapcraft.Launcher", "/io/snapcraft/PrivilegedDesktopLauncher")
+		call := o.Call("io.snapcraft.PrivilegedDesktopLauncher.OpenDesktopEntry", 0, desktopFile)
+		if call.Err != nil {
+			return fmt.Errorf(i18n.G("failed to launch %s via the privileged desktop launcher: %v"), desktopFile, call.Err)
+		}
+		return nil
 	}
 
 	de, err := desktopentry.Read(x.DesktopFile)

@@ -65,10 +65,16 @@ func (s *DesktopLaunchSuite) SetUpTest(c *C) {
 	err = ioutil.WriteFile(s.desktopFile, []byte(sampleDesktopFile), 0o644)
 	c.Assert(err, IsNil)
 
+	oldSnap := os.Getenv("SNAP")
+	s.AddCleanup(func() {
+		os.Setenv("SNAP", oldSnap)
+	})
+	os.Unsetenv("SNAP")
 	bamfDesktopFileHint := os.Getenv("BAMF_DESKTOP_FILE_HINT")
 	s.AddCleanup(func() {
 		os.Setenv("BAMF_DESKTOP_FILE_HINT", bamfDesktopFileHint)
 	})
+	os.Unsetenv("BAMF_DESKTOP_FILE_HINT")
 }
 
 func (s *DesktopLaunchSuite) TestLaunch(c *C) {
