@@ -138,6 +138,13 @@ TasksAccounting=true
 	return buf.String()
 }
 
+func formatLogNamespaceSlice(grp *quota.Group) string {
+	if grp.JournalLimit == nil {
+		return ""
+	}
+	return fmt.Sprintf("LogNamespace=%s\n", grp.Name)
+}
+
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) []byte {
@@ -146,6 +153,7 @@ func generateGroupSliceFile(grp *quota.Group) []byte {
 	cpuOptions := formatCpuGroupSlice(grp)
 	memoryOptions := formatMemoryGroupSlice(grp)
 	taskOptions := formatTaskGroupSlice(grp)
+	logOptions := formatLogNamespaceSlice(grp)
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
@@ -155,7 +163,41 @@ X-Snappy=yes
 `
 
 	fmt.Fprintf(&buf, template, grp.Name)
-	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
+	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions, logOptions)
+	return buf.Bytes()
+}
+
+func formatJournalSizeConf(grp *quota.Group) string {
+	if grp.JournalLimit.Size == 0 {
+		return ""
+	}
+	return fmt.Sprintf("SystemMaxUse=%d\n", grp.JournalLimit.Size)
+}
+
+func formatJournalRateConf(grp *quota.Group) string {
+	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`RateLimitIntervalSec=%d
+RateLimitBurst=%d
+`, grp.JournalLimit.RateCount, grp.JournalLimit.RatePeriod)
+}
+
+func generateJournaldConfFile(grp *quota.Group) []byte {
+	if grp.JournalLimit == nil {
+		return nil
+	}
+
+	buf := bytes.Buffer{}
+
+	sizeOptions := formatJournalSizeConf(grp)
+	rateOptions := formatJournalRateConf(grp)
+	template := `# Journald configuration for snap quota group %[1]s
+[Journal]
+`
+
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, sizeOptions, rateOptions)
 	return buf.Bytes()
 }
 
@@ -695,10 +737,50 @@ func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGr
 	// now make sure that all of the slice units exist
 	for _, grp := range quotaGroups.AllQuotaGroups() {
 		content := generateGroupSliceFile(grp)
-
 		sliceFileName := grp.SliceFileName()
-		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
-		if err := handleSliceModification(grp, path, content); err != nil {
+
+		slicePath := filepath.Join(dirs.SnapServicesDir, sliceFileName)
+		if err := handleSliceModification(grp, slicePath, content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureSnapJournaldUnits(context *ensureSnapServicesContext, quotaGroups *quota.QuotaGroupSet) error {
+	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if modifiedFile {
+			if context.observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				context.observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+			}
+
+			context.modifiedFiles[path] = old
+
+			// also mark that we need to reload the system instance of systemd
+			// TODO: also handle reloading the user instance of systemd when
+			// needed
+			context.modifiedSystem = true
+		}
+
+		return nil
+	}
+
+	// now make sure that all of the slice units exist
+	for _, grp := range quotaGroups.AllQuotaGroups() {
+		contents := generateJournaldConfFile(grp)
+		journalConfFileName := grp.JournalFileName()
+
+		journalConfPath := filepath.Join(dirs.SnapSystemdDir, journalConfFileName)
+		if err := handleSliceModification(grp, journalConfPath, contents); err != nil {
 			return err
 		}
 	}
