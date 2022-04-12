@@ -460,7 +460,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifact(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -498,7 +499,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactError(c *C
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcGadget(c, "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
 
@@ -535,7 +537,7 @@ func (fakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measure
 	return nil
 }
 
-func (fakeSeed) LoadMeta(tm timings.Measurer) error {
+func (fakeSeed) LoadMeta(string, timings.Measurer) error {
 	return nil
 }
 
@@ -549,6 +551,14 @@ func (f *fakeSeed) EssentialSnaps() []*seed.Snap {
 
 func (f *fakeSeed) ModeSnaps(mode string) ([]*seed.Snap, error) {
 	return f.modeSnaps, nil
+}
+
+func (f *fakeSeed) NumSnaps() int {
+	return 0
+}
+
+func (f *fakeSeed) Iter(func(sn *seed.Snap) error) error {
+	return nil
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
