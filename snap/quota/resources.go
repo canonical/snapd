@@ -89,14 +89,14 @@ const (
 	// we will require for a quota group. Newer systemd versions require up to
 	// 12kB per slice, so we need to ensure 'plenty' of space for this, and also
 	// 640kB seems sensible as a minimum.
-	MemoryLimitMin = 640 * quantity.SizeKiB
+	memoryLimitMin = 640 * quantity.SizeKiB
 
 	// Systemd specifies that the maximum journal log size is 4GB. There is no
 	// minimum value according to the documentation, but the source code reveals
 	// that the minimum value will be adjusted if it is set lower than the current
-	// usage, but we have selected 64kB to protect against rediciously small values.
-	JournalLimitMin = 64 * quantity.SizeKiB
-	JournalLimitMax = 4 * quantity.SizeGiB
+	// usage, but we have selected 64kB to protect against ridiculously small values.
+	journalLimitMin = 64 * quantity.SizeKiB
+	journalLimitMax = 4 * quantity.SizeGiB
 )
 
 func (qr *Resources) validateMemoryQuota() error {
@@ -168,7 +168,7 @@ func (qr *Resources) validateJournalQuota() error {
 			return fmt.Errorf("journal size quota must have a limit set")
 		}
 
-		if qr.Journal.Size.Limit > JournalLimitMax {
+		if qr.Journal.Size.Limit > journalLimitMax {
 			return fmt.Errorf("journal size quota must be smaller than 4GB")
 		}
 	}
@@ -256,7 +256,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 			return fmt.Errorf("cannot remove memory limit from quota group")
 		}
 
-		if newLimits.Memory.Limit <= MemoryLimitMin {
+		if newLimits.Memory.Limit <= memoryLimitMin {
 			return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", newLimits.Memory.Limit)
 		}
 
@@ -327,7 +327,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 			return fmt.Errorf("cannot remove journal size limit from quota group")
 		}
 
-		if newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit < JournalLimitMin {
+		if newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit < journalLimitMin {
 			return fmt.Errorf("journal size limit %d is too small: size must be larger than 64KB", newLimits.Journal.Size.Limit)
 		}
 
