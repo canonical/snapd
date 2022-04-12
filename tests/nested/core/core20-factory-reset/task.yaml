@@ -8,6 +8,7 @@ systems: [ubuntu-20.04-64]
 environment:
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_ENABLE_TPM: false
+    NESTED_IMAGE_ID: core20-factory-reset
 
 execute: |
     echo "Wait for the system to be seeded first"
