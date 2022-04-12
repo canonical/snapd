@@ -41,6 +41,7 @@ const systemPackagesDocConnectedPlugAppArmor = `
 
 /usr/share/doc/{,**} r,
 /usr/share/libreoffice/help/{,**} r,
+/usr/share/xubuntu-docs/{,**} r,
 `
 
 type systemPackagesDocInterface struct {
@@ -60,6 +61,11 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	// /usr/share/libreoffice may not exist, set up apparmor profile for
 	// creating a mimic, assuming that at least /usr/share exists
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/help", 3)
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
+	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
+	emit("  umount /usr/share/xubuntu-docs/,\n")
+	// and a writable mimic for /usr/share/xubuntu-docs
+	apparmor.GenWritableProfile(emit, "/usr/share/xubuntu-docs", 3)
 	return nil
 }
 
@@ -72,6 +78,11 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/libreoffice/help",
 		Dir:     "/usr/share/libreoffice/help",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/xubuntu-docs",
+		Dir:     "/usr/share/xubuntu-docs",
 		Options: []string{"bind", "ro"},
 	})
 	return nil
