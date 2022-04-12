@@ -146,12 +146,19 @@ func isContainer() bool {
 }
 
 func main() {
-	snapdtool.ExecInSnapdOrCoreSnap()
-
-	if len(os.Args) != 2 || os.Args[1] != "start" {
-		fmt.Fprintln(os.Stderr, "Expected to be called with 'start' argument.")
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func run() error {
+	snapdtool.ExecInSnapdOrCoreSnap()
+
+	if err := validateArgs(os.Args[1:]); err != nil {
+		return err
+	}
+
 	if isContainer() {
 		logger.Debugf("inside container environment")
 		// in container environment - see if container has own
@@ -159,13 +166,21 @@ func main() {
 		// way
 		if !isContainerWithInternalPolicy() {
 			logger.Noticef("Inside container environment without internal policy")
-			os.Exit(0)
+			return nil
 		}
 	}
 
 	err := loadAppArmorProfiles()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+		return err
 	}
+
+	return nil
+}
+
+func validateArgs(args []string) error {
+	if len(args) != 1 || args[0] != "start" {
+		return errors.New("Expected to be called with a single 'start' argument.")
+	}
+	return nil
 }

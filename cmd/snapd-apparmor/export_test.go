@@ -20,6 +20,8 @@
 package main
 
 var (
+	Run                           = run
+	ValidateArgs                  = validateArgs
 	IsContainer                   = isContainer
 	IsContainerWithInternalPolicy = isContainerWithInternalPolicy
 	LoadAppArmorProfiles          = loadAppArmorProfiles

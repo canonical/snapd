@@ -91,6 +91,8 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 	defer parserCmd.Restore()
 	err := snapd_apparmor.LoadAppArmorProfiles()
 	c.Assert(err, IsNil)
+	// since no profiles to load the parser should not have been called
+	c.Assert(parserCmd.Calls(), DeepEquals, [][]string(nil))
 
 	// mock a profile
 	err = os.MkdirAll(dirs.SnapAppArmorDir, 0755)
@@ -132,4 +134,45 @@ func (s *mainSuite) TestIsContainer(c *C) {
 	c.Check(snapd_apparmor.IsContainer(), Equals, true)
 	c.Assert(detectCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-detect-virt", "--quiet", "--container"}})
+}
+
+func (s *mainSuite) TestValidateArgs(c *C) {
+	testCases := []struct {
+		args   []string
+		errMsg string
+	}{
+		{
+			args:   []string{"start"},
+			errMsg: "",
+		},
+		{
+			args:   []string{"foo"},
+			errMsg: "Expected to be called with a single 'start' argument.",
+		},
+		{
+			args:   []string{"start", "foo"},
+			errMsg: "Expected to be called with a single 'start' argument.",
+		},
+	}
+	for _, tc := range testCases {
+		err := snapd_apparmor.ValidateArgs(tc.args)
+		if err != nil {
+			c.Check(err.Error(), Equals, tc.errMsg)
+		} else {
+			c.Check(tc.errMsg, Equals, "")
+		}
+	}
+}
+
+func (s *mainSuite) TestRun(c *C) {
+	os.Args = []string{"snapd-apparmor", "start"}
+	err := snapd_apparmor.Run()
+	c.Assert(err, IsNil)
+
+	// simulate being inside a container environment
+	detectCmd := testutil.MockCommand(c, "systemd-detect-virt", "echo wsl")
+	defer detectCmd.Restore()
+
+	err = snapd_apparmor.Run()
+	c.Assert(err, IsNil)
 }
