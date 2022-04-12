@@ -12,6 +12,9 @@ details: |
 
 systems: [ubuntu-1*]
 
+# XXX
+manual: true
+
 environment:
     VARIANT/changed: changed
     VARIANT/unchanged: unchanged
