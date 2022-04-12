@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
@@ -4566,6 +4567,37 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyIgnoreRunning(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-snap`, &si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si},
+		Current:         si.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"some-snap"}, 0, &snapstate.Flags{IgnoreRunning: true})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	verifyLastTasksetIsReRefresh(c, tts)
+	c.Assert(updates, HasLen, 1)
+
+	snapsup, err := snapstate.TaskSnapSetup(tts[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.IgnoreRunning, Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
@@ -4601,7 +4633,7 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionally(c *C) {
 
 	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap", "some-other-snap"}, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 3)
 	verifyLastTasksetIsReRefresh(c, tts)
@@ -4658,7 +4690,7 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionallyFails(c *C) {
 	chg := s.state.NewChange("refresh", "refresh some snaps")
 	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state,
 		[]string{"some-snap", "some-other-snap"}, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Check(updated, testutil.DeepUnsortedMatches,
 		[]string{"some-snap", "some-other-snap"})

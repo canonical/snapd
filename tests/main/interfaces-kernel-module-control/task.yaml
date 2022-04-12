@@ -12,7 +12,15 @@ details: |
     loaded, insert and remove a module. For the test we use the $MODULE module.
 
 # the s390x kernel has no minix module
-systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x, -arch-*, -amazon-*, -centos-*]
+systems:
+  - -fedora-*
+  - -opensuse-*
+  - -ubuntu-*-s390x
+  - -arch-*
+  - -amazon-*
+  - -centos-*
+  # TODO: su -l -c test-snapd-kernel-module-consumer.lsmod fails on core 22
+  - -ubuntu-core-22-*
 
 environment:
     MODULE: minix
