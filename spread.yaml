@@ -121,6 +121,10 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 6
                   storage: 20G
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
+                  workers: 6
+                  storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
@@ -272,6 +276,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-21.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-10-64:
