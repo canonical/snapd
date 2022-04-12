@@ -176,33 +176,33 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
-
 			quota.NewResourcesBuilder().WithAllowedCPUs([]int{}).Build(),
 			`cpu-set quota must not be empty`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
-
 			quota.NewResourcesBuilder().WithThreadLimit(-1).Build(),
 			`invalid thread quota with a thread count of -1`,
 		},
 		{
 			quota.NewResourcesBuilder().WithJournalRate(1, 1).Build(),
-
 			quota.NewResourcesBuilder().WithJournalRate(0, 0).Build(),
 			`cannot remove journal rate limit from quota group`,
 		},
 		{
 			quota.NewResourcesBuilder().WithJournalRate(1, 1).Build(),
-
 			quota.NewResourcesBuilder().WithJournalRate(-2, -2).Build(),
 			`journal quota must have a rate count and period larger than zero`,
 		},
 		{
 			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
-
 			quota.NewResourcesBuilder().WithJournalSize(0).Build(),
 			`cannot remove journal size limit from quota group`,
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(5 * quantity.SizeKiB).Build(),
+			`journal size limit 5120 is too small: size must be larger than 64KB`,
 		},
 	}
 

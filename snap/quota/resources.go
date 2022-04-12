@@ -148,7 +148,6 @@ func (qr *Resources) validateJournalQuota() error {
 	// for the size and rate, because this means that the only 'quota' we want
 	// in this case is to scope the journal for snaps in the group to just a namespace
 	// without any extra limits.
-	// XXX: Should we have a minimum log size that can be set?
 	if qr.Journal.Size != nil {
 		if qr.Journal.Size.Limit == 0 {
 			return fmt.Errorf("journal size quota must have a limit set")
@@ -317,6 +316,13 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		if qr.Journal.Size != nil && newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit == 0 {
 			return fmt.Errorf("cannot remove journal size limit from quota group")
 		}
+
+		// The lower limit for the journal size is arbitrarily set to 64kb to protect against any
+		// accidental values that are very low.
+		if newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit < 64*quantity.SizeKiB {
+			return fmt.Errorf("journal size limit %d is too small: size must be larger than 64KB", newLimits.Journal.Size.Limit)
+		}
+
 		if qr.Journal.Rate != nil && newLimits.Journal.Rate != nil {
 			count := newLimits.Journal.Rate.Count
 			period := newLimits.Journal.Rate.Period
