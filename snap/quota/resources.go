@@ -84,6 +84,21 @@ type Resources struct {
 	Journal *ResourceJournal `json:"journal,omitempty"`
 }
 
+const (
+	// make sure the memory limit is at least 640K, that is the minimum size
+	// we will require for a quota group. Newer systemd versions require up to
+	// 12kB per slice, so we need to ensure 'plenty' of space for this, and also
+	// 640kB seems sensible as a minimum.
+	MemoryLimitMin = 640 * quantity.SizeKiB
+
+	// Systemd specifies that the maximum journal log size is 4GB. There is no
+	// minimum value according to the documentation, but the source code reveals
+	// that the minimum value will be adjusted if it is set lower than the current
+	// usage, but we have selected 64kB to protect against rediciously small values.
+	JournalLimitMin = 64 * quantity.SizeKiB
+	JournalLimitMax = 4 * quantity.SizeGiB
+)
+
 func (qr *Resources) validateMemoryQuota() error {
 	// make sure the memory limit is not zero
 	if qr.Memory.Limit == 0 {
@@ -153,8 +168,7 @@ func (qr *Resources) validateJournalQuota() error {
 			return fmt.Errorf("journal size quota must have a limit set")
 		}
 
-		// max supported in systemd is 4GB
-		if qr.Journal.Size.Limit > 4*quantity.SizeGiB {
+		if qr.Journal.Size.Limit > JournalLimitMax {
 			return fmt.Errorf("journal size quota must be smaller than 4GB")
 		}
 	}
@@ -242,11 +256,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 			return fmt.Errorf("cannot remove memory limit from quota group")
 		}
 
-		// make sure the memory limit is at least 640K, that is the minimum size
-		// we will require for a quota group. Newer systemd versions require up to
-		// 12kB per slice, so we need to ensure 'plenty' of space for this, and also
-		// 640kB seems sensible as a minimum.
-		if newLimits.Memory.Limit <= 640*quantity.SizeKiB {
+		if newLimits.Memory.Limit <= MemoryLimitMin {
 			return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", newLimits.Memory.Limit)
 		}
 
@@ -317,9 +327,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 			return fmt.Errorf("cannot remove journal size limit from quota group")
 		}
 
-		// The lower limit for the journal size is arbitrarily set to 64kb to protect against any
-		// accidental values that are very low.
-		if newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit < 64*quantity.SizeKiB {
+		if newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit < JournalLimitMin {
 			return fmt.Errorf("journal size limit %d is too small: size must be larger than 64KB", newLimits.Journal.Size.Limit)
 		}
 
