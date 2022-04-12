@@ -499,13 +499,13 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	c.Assert(wt, HasLen, 2)
 	for i := 0; i < 2; i++ {
 		c.Check(wt[i].Kind(), Equals, "connect")
-		// sanity, check flags on "connect" tasks
+		// validity, check flags on "connect" tasks
 		var flag bool
 		c.Assert(wt[i].Get("delayed-setup-profiles", &flag), IsNil)
 		c.Check(flag, Equals, true)
 		c.Assert(wt[i].Get("auto", &flag), IsNil)
 		c.Check(flag, Equals, true)
-		// ... sanity by-gadget flag
+		// ... validity by-gadget flag
 		var plugRef interfaces.PlugRef
 		c.Check(wt[i].Get("plug", &plugRef), IsNil)
 		err := wt[i].Get("by-gadget", &flag)
@@ -1793,7 +1793,7 @@ func (s *interfaceManagerSuite) TestForgetUndo(c *C) {
 	// Initialize the manager. This registers both snaps and reloads the connection.
 	mgr := s.manager(c)
 
-	// sanity
+	// validity
 	s.getConnection(c, "consumer", "plug", "producer", "slot")
 
 	s.state.Lock()
@@ -1892,7 +1892,7 @@ func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c
 		SnapType: "app",
 	})
 
-	// sanity check - snap is broken
+	// validity check - snap is broken
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, brokenSnapName, &snapst), IsNil)
 	curInfo, err := snapst.CurrentInfo()
@@ -1973,7 +1973,7 @@ func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, s
 	// connections. Only one connection ends up in the repository.
 	mgr := s.manager(c)
 
-	// sanity
+	// validity
 	_ = s.getConnection(c, "consumer", "plug", "producer", "slot")
 
 	// Run the disconnect --forget task and let it finish.
@@ -2465,7 +2465,7 @@ func (s *interfaceManagerSuite) TestBadInterfacesWarning(c *C) {
 	c.Assert(warns, HasLen, 1)
 	c.Check(warns[0].String(), Matches, `snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
 
-	// sanity, bad interfaces are logged in the task log.
+	// validity, bad interfaces are logged in the task log.
 	task := change.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "setup-profiles")
 	c.Check(strings.Join(task.Log(), ""), Matches, `.* snap "snap" has bad plugs or slots: plug-name \(reason-for-bad\)`)
@@ -3594,7 +3594,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// Put a new revision of the sample snap in place.
 	newSnapInfo := s.mockUpdatedSnap(c, sampleSnapYaml, 42)
 
-	// Sanity check, the revisions are different.
+	// Validity check, the revisions are different.
 	c.Assert(oldSnapInfo.Revision, Not(Equals), 42)
 	c.Assert(newSnapInfo.Revision, Equals, snap.R(42))
 
@@ -7535,7 +7535,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlot(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// sanity check
+	// validity check
 	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
 
 	s.state.Lock()
@@ -7597,7 +7597,7 @@ func (s *interfaceManagerSuite) TestHotplugUpdateSlotWhenConnected(c *C) {
 	err = repo.AddPlug(consumer.Plugs["plug"])
 	c.Assert(err, IsNil)
 
-	// sanity check
+	// validity check
 	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
 
 	s.state.Lock()
@@ -7662,7 +7662,7 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlot(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// sanity check
+	// validity check
 	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
 
 	s.state.Lock()
@@ -7725,7 +7725,7 @@ func (s *interfaceManagerSuite) TestHotplugRemoveSlotWhenConnected(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	// sanity check
+	// validity check
 	c.Assert(repo.Slot("core", "hotplugslot"), NotNil)
 
 	s.state.Lock()

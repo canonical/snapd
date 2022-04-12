@@ -1,5 +1,7 @@
 summary: smoke test for the boot-state tool
 
+backends: [google, qemu]
+
 execute: |
     # Check help
     "$TESTSTOOLS"/boot-state | MATCH "usage: boot-state bootenv"

@@ -226,7 +226,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
 
-	// Sanity check: the inhibition lock was not set.
+	// Validity check: the inhibition lock was not set.
 	hint, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
@@ -278,7 +278,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
 	c.Assert(lock, IsNil)
 
-	// Sanity check: the inhibition lock was not set.
+	// Validity check: the inhibition lock was not set.
 	op := backend.ops.MustFindOp(c, "run-inhibit-snap-for-unlink")
 	c.Check(op.inhibitHint, Equals, runinhibit.Hint("refresh"))
 }

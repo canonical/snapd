@@ -365,13 +365,16 @@ prepare_classic() {
 
         disable_refreshes
 
-        echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
-        # shellcheck disable=SC2119
-        output=$("$TESTSTOOLS"/boot-state bootenv show)
-        if echo "$output" | MATCH snap_ ; then
-            echo "Expected bootloader environment without snap_*, got:"
-            echo "$output"
-            exit 1
+        # Check bootloader environment output in architectures different to s390x which uses zIPL
+        if ! [ "$(uname  -m)" = "s390x" ]; then
+            echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
+            # shellcheck disable=SC2119
+            output=$("$TESTSTOOLS"/boot-state bootenv show)
+            if echo "$output" | MATCH snap_ ; then
+                echo "Expected bootloader environment without snap_*, got:"
+                echo "$output"
+                exit 1
+            fi
         fi
 
         setup_experimental_features
@@ -854,15 +857,9 @@ setup_reflash_magic() {
         # supported yet by the version of mkfs that shipped with Ubuntu 16.04
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
     else
-        # on all other systems, build a custom version ubuntu-image with test
-        # keys
-        (
-            #shellcheck disable=SC2030
-            export GO111MODULE=off
-            # use go get so that ubuntu-image is built with current snapd sources
-            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-        )
+        # shellcheck source=tests/lib/image.sh
+        . "$TESTSLIB/image.sh"
+        build_ubuntu_image
     fi
 
     # needs to be under /home because ubuntu-device-flash

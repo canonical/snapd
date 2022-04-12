@@ -361,7 +361,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	st, err := os.Lstat(cur)
 	c.Assert(err, IsNil)
 	instTime := st.ModTime()
-	// sanity
+	// validity
 	c.Check(instTime.IsZero(), Equals, false)
 
 	c.Check(info.InstallDate().Equal(instTime), Equals, true)
@@ -1547,6 +1547,8 @@ func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
 		{"sigusr1-all", true},
 		{"sigusr2", false},
 		{"sigusr2-all", true},
+		{"sigint", false},
+		{"sigint-all", true},
 	} {
 		c.Check(snap.StopModeType(t.stopMode).KillAll(), Equals, t.killall, Commentf("wrong KillAll for %v", t.stopMode))
 	}

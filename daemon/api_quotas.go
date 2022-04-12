@@ -65,11 +65,21 @@ var (
 var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 	var currentUsage client.QuotaValues
 
-	mem, err := grp.CurrentMemoryUsage()
-	if err != nil {
-		return nil, err
+	if grp.MemoryLimit != 0 {
+		mem, err := grp.CurrentMemoryUsage()
+		if err != nil {
+			return nil, err
+		}
+		currentUsage.Memory = mem
 	}
-	currentUsage.Memory = mem
+
+	if grp.TaskLimit != 0 {
+		threads, err := grp.CurrentTaskUsage()
+		if err != nil {
+			return nil, err
+		}
+		currentUsage.Threads = threads
+	}
 
 	return &currentUsage, nil
 }
@@ -77,6 +87,17 @@ var getQuotaUsage = func(grp *quota.Group) (*client.QuotaValues, error) {
 func createQuotaValues(grp *quota.Group) *client.QuotaValues {
 	var constraints client.QuotaValues
 	constraints.Memory = grp.MemoryLimit
+	constraints.Threads = grp.TaskLimit
+
+	if grp.CPULimit != nil {
+		constraints.CPU = &client.QuotaCPUValues{
+			Count:      grp.CPULimit.Count,
+			Percentage: grp.CPULimit.Percentage,
+		}
+		constraints.CPUSet = &client.QuotaCPUSetValues{
+			CPUs: grp.CPULimit.AllowedCPUs,
+		}
+	}
 	return &constraints
 }
 
@@ -157,13 +178,25 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 }
 
 func quotaValuesToResources(values client.QuotaValues) quota.Resources {
-	var quotaResources quota.Resources
+	resourcesBuilder := quota.NewResourcesBuilder()
 	if values.Memory != 0 {
-		quotaResources.Memory = &quota.ResourceMemory{
-			Limit: values.Memory,
+		resourcesBuilder.WithMemoryLimit(values.Memory)
+	}
+	if values.CPU != nil {
+		if values.CPU.Count != 0 {
+			resourcesBuilder.WithCPUCount(values.CPU.Count)
+		}
+		if values.CPU.Percentage != 0 {
+			resourcesBuilder.WithCPUPercentage(values.CPU.Percentage)
 		}
 	}
-	return quotaResources
+	if values.CPUSet != nil && len(values.CPUSet.CPUs) != 0 {
+		resourcesBuilder.WithAllowedCPUs(values.CPUSet.CPUs)
+	}
+	if values.Threads != 0 {
+		resourcesBuilder.WithThreadLimit(values.Threads)
+	}
+	return resourcesBuilder.Build()
 }
 
 // postQuotaGroup creates quota resource group or updates an existing group.

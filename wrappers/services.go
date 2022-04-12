@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,7 +50,7 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
-type interacter interface {
+type Interacter interface {
 	Notify(status string)
 }
 
@@ -75,34 +76,90 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 	return genServiceFile(app, opts)
 }
 
+func min(a, b int) int {
+	if b < a {
+		return b
+	}
+	return a
+}
+
+func formatCpuGroupSlice(grp *quota.Group) string {
+	header := `# Always enable cpu accounting, so the following cpu quota options have an effect
+CPUAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+
+	count, percentage := grp.GetLocalCPUQuota()
+	if percentage != 0 {
+		// convert the number of cores and the allowed percentage
+		// to the systemd specific format.
+		cpuQuotaSnap := count * percentage
+		cpuQuotaMax := runtime.NumCPU() * 100
+
+		// The CPUQuota setting is only available since systemd 213
+		fmt.Fprintf(buf, "CPUQuota=%d%%\n", min(cpuQuotaSnap, cpuQuotaMax))
+	}
+
+	if grp.CPULimit != nil && len(grp.CPULimit.AllowedCPUs) != 0 {
+		allowedCpusValue := strutil.IntsToCommaSeparated(grp.CPULimit.AllowedCPUs)
+		fmt.Fprintf(buf, "AllowedCPUs=%s\n", allowedCpusValue)
+	}
+
+	buf.WriteString("\n")
+	return buf.String()
+}
+
+func formatMemoryGroupSlice(grp *quota.Group) string {
+	header := `# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+	if grp.MemoryLimit != 0 {
+		valuesTemplate := `MemoryMax=%[1]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[1]d
+
+`
+		fmt.Fprintf(buf, valuesTemplate, grp.MemoryLimit)
+	}
+	return buf.String()
+}
+
+func formatTaskGroupSlice(grp *quota.Group) string {
+	header := `# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
+`
+	buf := bytes.NewBufferString(header)
+
+	if grp.TaskLimit != 0 {
+		fmt.Fprintf(buf, "TasksMax=%d\n", grp.TaskLimit)
+	}
+	return buf.String()
+}
+
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) []byte {
 	buf := bytes.Buffer{}
 
+	cpuOptions := formatCpuGroupSlice(grp)
+	memoryOptions := formatMemoryGroupSlice(grp)
+	taskOptions := formatTaskGroupSlice(grp)
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
 X-Snappy=yes
 
 [Slice]
-# Always enable memory accounting otherwise the MemoryMax setting does nothing.
-MemoryAccounting=true
-MemoryMax=%[2]d
-# for compatibility with older versions of systemd
-MemoryLimit=%[2]d
-
-# Always enable task accounting in order to be able to count the processes/
-# threads, etc for a slice
-TasksAccounting=true
 `
 
-	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
-
+	fmt.Fprintf(&buf, template, grp.Name)
+	fmt.Fprint(&buf, cpuOptions, memoryOptions, taskOptions)
 	return buf.Bytes()
 }
 
-func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
+func stopUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 	failures, err := cli.ServicesStop(ctx, services)
@@ -112,7 +169,7 @@ func stopUserServices(cli *client.Client, inter interacter, services ...string) 
 	return err
 }
 
-func startUserServices(cli *client.Client, inter interacter, services ...string) error {
+func startUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 	startFailures, stopFailures, err := cli.ServicesStart(ctx, services)
@@ -125,7 +182,7 @@ func startUserServices(cli *client.Client, inter interacter, services ...string)
 	return err
 }
 
-func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
+func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) error {
 	serviceName := app.ServiceName()
 	tout := serviceStopTimeout(app)
 
@@ -176,7 +233,7 @@ type StartServicesFlags struct {
 // StartServices starts service units for the applications from the snap which
 // are services. Service units will be started in the order provided by the
 // caller.
-func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
+func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter Interacter, tm timings.Measurer) (err error) {
 	if flags == nil {
 		flags = &StartServicesFlags{}
 	}
@@ -206,16 +263,18 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			}
 		}
 		if len(toEnableSystem) > 0 {
-			if e := systemSysd.Disable(toEnableSystem); e != nil {
+			if e := systemSysd.DisableNoReload(toEnableSystem); e != nil {
 				inter.Notify(fmt.Sprintf("While trying to disable previously enabled services %q: %v", toEnableSystem, e))
+			}
+			if e := systemSysd.DaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("While trying to do daemon-reload: %v", e))
 			}
 		}
 		if len(toEnableUser) > 0 {
-			if e := userSysd.Disable(toEnableUser); e != nil {
+			if e := userSysd.DisableNoReload(toEnableUser); e != nil {
 				inter.Notify(fmt.Sprintf("while trying to disable previously enabled user services %q: %v", toEnableUser, e))
 			}
 		}
-
 	}()
 	// process all services of the snap in the order specified by the
 	// caller; before batched calls were introduced, the sockets and timers
@@ -279,12 +338,15 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 
 	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnableSystem), func(nested timings.Measurer) {
 		if len(toEnableSystem) > 0 {
-			if err = systemSysd.Enable(toEnableSystem); err != nil {
+			if err = systemSysd.EnableNoReload(toEnableSystem); err != nil {
+				return
+			}
+			if err = systemSysd.DaemonReload(); err != nil {
 				return
 			}
 		}
 		if len(toEnableUser) > 0 {
-			err = userSysd.Enable(toEnableUser)
+			err = userSysd.EnableNoReload(toEnableUser)
 		}
 	})
 	if err != nil {
@@ -426,7 +488,7 @@ type EnsureSnapServicesOptions struct {
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
 // This function is idempotent.
-func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (err error) {
+func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
 
@@ -655,7 +717,7 @@ type AddSnapServicesOptions struct {
 
 // AddSnapServices adds service units for the applications from the snap which
 // are services. The services do not get enabled or started.
-func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) error {
+func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacter) error {
 	m := map[*snap.Info]*SnapServiceOptions{
 		s: {},
 	}
@@ -682,7 +744,7 @@ type StopServicesFlags struct {
 
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
-func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
+func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 	if flags == nil {
 		flags = &StopServicesFlags{}
@@ -734,15 +796,20 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 			sysd.Kill(app.ServiceName(), "KILL", "")
 		}
 	}
-	if err := sysd.Disable(disableServices); err != nil {
-		return err
+	if len(disableServices) > 0 {
+		if err := sysd.DisableNoReload(disableServices); err != nil {
+			return err
+		}
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // ServicesEnableState returns a map of service names from the given snap,
 // together with their enable/disable status.
-func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
+func ServicesEnableState(s *snap.Info, inter Interacter) (map[string]bool, error) {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	// loop over all services in the snap, querying systemd for the current
@@ -771,7 +838,7 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 // with sub-groups, one must remove all the sub-groups first.
 // This function is idempotent, if the slice file doesn't exist no error is
 // returned.
-func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
+func RemoveQuotaGroup(grp *quota.Group, inter Interacter) error {
 	// TODO: it only works on leaf sub-groups currently
 	if len(grp.SubGroups) != 0 {
 		return fmt.Errorf("internal error: cannot remove quota group with sub-groups")
@@ -797,7 +864,7 @@ func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
 // RemoveSnapServices disables and removes service units for the applications
 // from the snap which are services. The optional flag indicates whether
 // services are removed as part of undoing of first install of a given snap.
-func RemoveSnapServices(s *snap.Info, inter interacter) error {
+func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
 	}
@@ -860,12 +927,12 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	}
 
 	// disable all collected systemd units
-	if err := systemSysd.Disable(systemUnits); err != nil {
+	if err := systemSysd.DisableNoReload(systemUnits); err != nil {
 		return err
 	}
 
 	// disable all collected user units
-	if err := userSysd.Disable(userUnits); err != nil {
+	if err := userSysd.DisableNoReload(userUnits); err != nil {
 		return err
 	}
 
@@ -1540,7 +1607,7 @@ type RestartServicesFlags struct {
 // TODO: change explicitServices format to be less unusual, more consistent
 // (introduce AppRef?)
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
-	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
+	flags *RestartServicesFlags, inter Interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	unitNames := make([]string, 0, len(svcs))

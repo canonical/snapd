@@ -388,6 +388,7 @@
     # experimental
     @{HOME}/.snap/                rw,
     @{HOME}/.snap/data/{,*/,*/*/} rw,
+    @{HOME}/Snap/{,*/,*/*/}       rw,
 
     # Special case for *classic* snaps that are used by users with existing dirs
     # in /var/lib/. Like jenkins, postgresql, mysql, puppet, ...

@@ -295,10 +295,10 @@ type Systemd interface {
 	// only necessary to apply manager's configuration like
 	// watchdog.
 	DaemonReexec() error
-	// Enable the given services.
-	Enable(services []string) error
-	// Disable the given services.
-	Disable(services []string) error
+	// EnableNoReload the given services, do not reload systemd.
+	EnableNoReload(services []string) error
+	// DisableNoReload the given services, do not reload system.
+	DisableNoReload(services []string) error
 	// Start the given service or services.
 	Start(service []string) error
 	// StartNoBlock starts the given service or services non-blocking.
@@ -501,16 +501,20 @@ func (s *systemd) DaemonReexec() error {
 	return err
 }
 
-func (s *systemd) Enable(serviceNames []string) error {
+func (s *systemd) EnableNoReload(serviceNames []string) error {
 	if 0 == len(serviceNames) {
 		return nil
 	}
-	var err error
+	var args []string
 	if s.rootDir != "" {
-		_, err = s.systemctl(append([]string{"--root", s.rootDir, "enable"}, serviceNames...)...)
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
 	} else {
-		_, err = s.systemctl(append([]string{"enable"}, serviceNames...)...)
+		args = append(args, "--no-reload")
 	}
+	args = append(args, "enable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 
@@ -524,16 +528,20 @@ func (s *systemd) Unmask(serviceName string) error {
 	return err
 }
 
-func (s *systemd) Disable(serviceNames []string) error {
+func (s *systemd) DisableNoReload(serviceNames []string) error {
 	if 0 == len(serviceNames) {
 		return nil
 	}
-	var err error
+	var args []string
 	if s.rootDir != "" {
-		_, err = s.systemctl(append([]string{"--root", s.rootDir, "disable"}, serviceNames...)...)
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
 	} else {
-		_, err = s.systemctl(append([]string{"disable"}, serviceNames...)...)
+		args = append(args, "--no-reload")
 	}
+	args = append(args, "disable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
 	return err
 }
 
@@ -1353,7 +1361,7 @@ func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (st
 	}
 
 	units := []string{mountUnitName}
-	if err := s.Enable(units); err != nil {
+	if err := s.EnableNoReload(units); err != nil {
 		return "", err
 	}
 	if err := s.Start(units); err != nil {
@@ -1390,7 +1398,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 			return err
 		}
 	}
-	if err := s.Disable(units); err != nil {
+	if err := s.DisableNoReload(units); err != nil {
 		return err
 	}
 	if err := os.Remove(unit); err != nil {

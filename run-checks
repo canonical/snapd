@@ -71,6 +71,19 @@ addtrap() {
     trap "store_exit_code; $CURRENTTRAP ; exit_with_exit_code" EXIT
 }
 
+goinstall() {
+    pkg="$1"
+    # go1.18+ will no longer build/install packages. Here "go install"
+    # must be used but it will only fetch remote packages if the @latest
+    # (or similar syntax is used). Instead of checking the version we
+    # check if the "go install" help mentions this new feature.
+    if go help install | grep -q @latest; then
+        go install "${pkg}"@latest
+    else
+        go get -u "${pkg}"
+    fi
+}
+
 endmsg() {
     if [ $EXIT_CODE -eq 0 ]; then
         p="success.txt"
@@ -205,12 +218,12 @@ if [ "$STATIC" = 1 ]; then
         fi
         unset regexp
         # also run spread-shellcheck
-        ./spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
     fi
 
     echo "Checking spelling errors"
     if ! command -v misspell >/dev/null; then
-        go get -u github.com/client9/misspell/cmd/misspell
+        goinstall github.com/client9/misspell/cmd/misspell
     fi
     # FIXME: auter is only misspelled in the changelog so we should fix there
     # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
@@ -222,7 +235,7 @@ if [ "$STATIC" = 1 ]; then
     if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
         echo "Checking for ineffective assignments"
         if ! command -v ineffassign >/dev/null; then
-            go get -u github.com/gordonklaus/ineffassign
+            goinstall github.com/gordonklaus/ineffassign
         fi
         # ineffassign knows about ignoring vendor/ \o/
         ineffassign ./...
@@ -230,7 +243,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
-        go get -u github.com/alexkohler/nakedret
+        goinstall github.com/alexkohler/nakedret
     fi
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then
@@ -267,7 +280,7 @@ if [ "$STATIC" = 1 ]; then
 
     if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
         echo "Checking tests formatting"
-        ./tests/utils/check-test-format ./tests
+        ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
     fi
 fi
 

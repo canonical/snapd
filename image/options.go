@@ -23,6 +23,12 @@ type Options struct {
 	ModelFile string
 	Classic   bool
 
+	// Preseed requests the image to be preseeded (only for UC20)
+	Preseed bool
+	// PreseedSignKey is the name of the key to use for signing preseed
+	// assertion (empty means the default key).
+	PreseedSignKey string
+
 	Channel string
 
 	// TODO: use OptionsSnap directly here?

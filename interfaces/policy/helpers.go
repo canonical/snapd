@@ -245,6 +245,9 @@ func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo
 	if err := checkSnapType(slot.Snap, constraints.SlotSnapTypes); err != nil {
 		return err
 	}
+	if err := checkID("snap id", ic.snapID(), constraints.SlotSnapIDs, nil); err != nil {
+		return err
+	}
 	if err := checkOnClassic(constraints.OnClassic); err != nil {
 		return err
 	}
@@ -279,6 +282,9 @@ func checkPlugInstallationConstraints1(ic *InstallCandidate, plug *snap.PlugInfo
 		return err
 	}
 	if err := checkSnapType(plug.Snap, constraints.PlugSnapTypes); err != nil {
+		return err
+	}
+	if err := checkID("snap id", ic.snapID(), constraints.PlugSnapIDs, nil); err != nil {
 		return err
 	}
 	if err := checkOnClassic(constraints.OnClassic); err != nil {

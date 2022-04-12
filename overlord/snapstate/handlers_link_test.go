@@ -329,7 +329,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	// and check that the sequence file got updated
 	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
 	c.Assert(err, IsNil)
-	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false}`)
+	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
@@ -394,7 +394,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	// and check that the sequence file got updated
 	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
 	c.Assert(err, IsNil)
-	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset","migrated-hidden":false}`)
+	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset","migrated-hidden":false,"migrated-exposed-home":false}`)
 
 	// nothing in config
 	var config map[string]*json.RawMessage
@@ -1389,7 +1389,7 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Tasks(), HasLen, 6)
 
-	// sanity checks
+	// validity checks
 	t := chg.Tasks()[1]
 	c.Assert(t.Kind(), Equals, "link-snap")
 	t = chg.Tasks()[3]

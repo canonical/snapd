@@ -61,6 +61,9 @@ var (
 	BuildNewVolumeToDeviceMapping = buildNewVolumeToDeviceMapping
 	ErrSkipUpdateProceedRefresh   = errSkipUpdateProceedRefresh
 
+	BuildVolumeStructureToLocation = buildVolumeStructureToLocation
+	VolumeStructureToLocationMap   = volumeStructureToLocationMap
+
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
 
 	SearchForVolumeWithTraits = searchForVolumeWithTraits

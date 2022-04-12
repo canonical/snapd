@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -136,14 +137,93 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 	// check that the do-prereq task added all needed prereqs
 	expectedLinkedSnaps := []string{"prereq1", "snapd"}
 	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
+	lane := 0
 	for _, t := range chg.Tasks() {
+		if t.Kind() == "link-snap" {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			c.Assert(err, IsNil)
+			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
+		} else if t.Kind() == "prerequisites" {
+			c.Assert(t.Lanes(), DeepEquals, []int{lane})
+			lane++
+		}
+	}
+	c.Assert(lane, Equals, 3)
+	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
+}
+
+func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: "none",
+		PrereqContentAttrs: map[string][]string{
+			"prereq1": {"some-content"}, "prereq2": {"other-content"}},
+		Flags: snapstate.Flags{Transaction: client.TransactionAllSnaps},
+	})
+	// Set lane to make sure new tasks will match this one
+	lane := s.state.NewLane()
+	t.JoinLane(lane)
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	// check that the do-prereq task added all needed prereqs
+	expectedLinkedSnaps := []string{"prereq1", "prereq2", "snapd"}
+	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
+	for _, t := range chg.Tasks() {
+		// Make sure that the Transactional flag has been applied,
+		// so we have only one lane.
+		c.Assert(t.Lanes(), DeepEquals, []int{lane})
+
 		if t.Kind() == "link-snap" {
 			snapsup, err := snapstate.TaskSnapSetup(t)
 			c.Assert(err, IsNil)
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		}
 	}
-	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
+	c.Check(linkedSnaps, testutil.DeepUnsortedMatches, expectedLinkedSnaps)
+}
+
+func (s *prereqSuite) TestDoPrereqTransactionalFailTooManyLanes(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: "none",
+		PrereqContentAttrs: map[string][]string{
+			"prereq1": {"some-content"}},
+		Flags: snapstate.Flags{Transaction: client.TransactionAllSnaps},
+	})
+	// There should be only one lane in a transactional change
+	t.JoinLane(s.state.NewLane())
+	t.JoinLane(s.state.NewLane())
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.ErrorStatus)
 }
 
 func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
@@ -305,13 +385,13 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 		}
 	}
 
-	// sanity check, exactly two calls to link-snap due to retry error on 1st call
+	// validity check, exactly two calls to link-snap due to retry error on 1st call
 	c.Check(calls, Equals, 2)
 
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 
-	// sanity
+	// validity
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 

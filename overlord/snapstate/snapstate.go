@@ -27,12 +27,14 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -49,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -75,6 +78,8 @@ const (
 	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 )
+
+const snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 
 var ErrNothingToDo = errors.New("nothing to do")
 
@@ -162,6 +167,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Media:   update.Media,
 		},
 	}
+	snapsup.IgnoreRunning = globalFlags.IgnoreRunning
 	return &snapsup, snapst, nil
 }
 
@@ -254,6 +260,48 @@ func optedIntoSnapdSnap(st *state.State) (bool, error) {
 		return false, err
 	}
 	return experimentalAllowSnapd, nil
+}
+
+// refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
+// It deals with potentially wrong type due to lax validation.
+func refreshRetain(st *state.State) int {
+	var val interface{}
+	// due to lax validation of refresh.retain on set we might end up having a string representing a number here; handle it gracefully
+	// for backwards compatibility.
+	err := config.NewTransaction(st).Get("core", "refresh.retain", &val)
+	var retain int
+	if err == nil {
+		switch v := val.(type) {
+		// this is the expected value; confusingly, since we pass interface{} to Get(), we get json.Number type; if int reference was passed,
+		// we would get an int instead of json.Number.
+		case json.Number:
+			retain, err = strconv.Atoi(string(v))
+		// not really expected when requesting interface{}.
+		case int:
+			retain = v
+		// we can get string here due to lax validation of refresh.retain on Set in older releases.
+		case string:
+			retain, err = strconv.Atoi(v)
+		default:
+			logger.Noticef("internal error: refresh.retain system option has unexpected type: %T", v)
+		}
+	}
+
+	// this covers error from Get() and strconv above.
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("internal error: refresh.retain system option is not valid: %v", err)
+	}
+
+	// not set, use default value
+	if retain == 0 {
+		// on classic we only keep 2 copies by default
+		if release.OnClassic {
+			retain = 2
+		} else {
+			retain = 3
+		}
+	}
+	return retain
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
@@ -486,15 +534,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		var retain int
-		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
-			// on classic we only keep 2 copies by default
-			if release.OnClassic {
-				retain = 2
-			} else {
-				retain = 3
-			}
-		}
+		retain := refreshRetain(st)
 
 		// if we're not using an already present revision, account for the one being added
 		if snapst.LastIndex(targetRevision) == -1 {
@@ -652,6 +692,10 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	if snapdenv.Preseeding() {
+		// nothing to do when preseeding
+		return nil
+	}
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -673,7 +717,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			}
 			// TODO: if future changes to wrappers need one more snapd restart,
 			// then it should be handled here as well.
-			if err := generateSnapdWrappers(snapdInfo); err != nil {
+			if err := generateSnapdWrappers(snapdInfo, nil); err != nil {
 				return err
 			}
 		}
@@ -856,7 +900,13 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if err != nil {
 			return err
 		}
-		if !flag {
+		// The snapd-desktop-integration snap is allowed to
+		// use user daemons, irrespective of the feature flag
+		// state.
+		//
+		// TODO: remove the special case once
+		// experimental.user-daemons is the default
+		if !flag && info.SnapID != snapdDesktopIntegrationSnapID {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
 		if !release.SystemctlSupportsUserUnits() {
@@ -1219,7 +1269,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 	}
 
 	var transactionLane int
-	if flags.Transactional {
+	if flags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
@@ -1260,7 +1310,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if flags.Transactional {
+		if flags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
@@ -1498,7 +1548,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	var transactionLane int
-	if globalFlags.Transactional {
+	if globalFlags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	for _, update := range updates {
@@ -1524,7 +1574,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if globalFlags.Transactional {
+		if globalFlags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
@@ -1533,11 +1583,15 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+		typ := update.Type()
+		if typ == snap.TypeOS || typ == snap.TypeBase || typ == snap.TypeSnapd {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
 			prereqs[update.InstanceName()] = ts
+			if typ == snap.TypeBase {
+				waitPrereq(ts, "snapd")
+			}
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
@@ -1559,7 +1613,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 		}
 		// keep track of kernel/gadget/base updates
-		switch update.Type() {
+		switch typ {
 		case snap.TypeKernel:
 			kernelTs = ts
 		case snap.TypeGadget:
@@ -1589,9 +1643,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		kernelTs.WaitAll(gadgetTs)
 	}
 
-	if deviceCtx.Model().Base() != "" {
+	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
 		// reordering of kernel and base tasks is supported only on
 		// UC18+ devices
+		// this can only be done safely when the gadget is not a part of
+		// the same update, otherwise there will be a circular
+		// dependency, where gadget waits for base, kernel waits for
+		// gadget, but base waits for some of the kernel tasks
 		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
 			return nil, nil, err
 		}
@@ -3540,4 +3598,18 @@ func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.Validation
 	return func() {
 		EnforcedValidationSets = old
 	}
+}
+
+// only useful for procuring a buggy behavior in the tests
+var enforcedSingleRebootForGadgetKernelBase = false
+
+func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := enforcedSingleRebootForGadgetKernelBase
+	enforcedSingleRebootForGadgetKernelBase = val
+	return func() {
+		enforcedSingleRebootForGadgetKernelBase = old
+	}
+
 }

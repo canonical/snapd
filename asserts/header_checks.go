@@ -93,9 +93,9 @@ func checkAssertType(assertType *AssertionType) error {
 	if assertType == nil {
 		return fmt.Errorf("internal error: assertion type cannot be nil")
 	}
-	// sanity check against known canonical
-	sanity := typeRegistry[assertType.Name]
-	switch sanity {
+	// validity check against known canonical
+	validity := typeRegistry[assertType.Name]
+	switch validity {
 	case assertType:
 		// fine, matches canonical
 		return nil

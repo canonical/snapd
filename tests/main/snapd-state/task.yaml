@@ -1,5 +1,7 @@
 summary: smoke test for the snapd-state test tool
 
+backends: [google, qemu]
+
 prepare: |
     snap install test-snapd-tools
     snap install --devmode jq

@@ -13,9 +13,8 @@ set -ul snap_xdg_path /var/lib/snapd/desktop
 # fish_add_path or set --path
 
 if not set -q XDG_DATA_DIRS
-    set --global --export XDG_DATA_DIRS $XDG_DATA_DIRS
     # XDG_DATA_DIRS is not defined, set it to some reasonable defaults
-    set XDG_DATA_DIRS (string join : /usr/local/share /usr/share)
+    set --global --export XDG_DATA_DIRS /usr/local/share:/usr/share
 end
 
 if not contains $snap_xdg_path (string split : "$XDG_DATA_DIRS")

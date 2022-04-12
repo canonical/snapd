@@ -86,12 +86,16 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: can access documentation of system packages.")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/doc/{,**} r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/usr/share/libreoffice/help/{,**} r,")
 
 	updateNS := spec.UpdateNS()
 	c.Check(updateNS, testutil.Contains, "  # Mount documentation of system packages\n")
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/doc/,\n")
+	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/libreoffice/help/ -> /usr/share/libreoffice/help/,\n")
+	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/libreoffice/help/,\n")
+	c.Check(updateNS, testutil.Contains, "  umount /usr/share/libreoffice/help/,\n")
 }
 
 func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
@@ -102,10 +106,13 @@ func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
 	entries := spec.MountEntries()
-	c.Assert(entries, HasLen, 1)
+	c.Assert(entries, HasLen, 2)
 	c.Check(entries[0].Name, Equals, "/var/lib/snapd/hostfs/usr/share/doc")
 	c.Check(entries[0].Dir, Equals, "/usr/share/doc")
 	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
+	c.Check(entries[1].Name, Equals, "/var/lib/snapd/hostfs/usr/share/libreoffice/help")
+	c.Check(entries[1].Dir, Equals, "/usr/share/libreoffice/help")
+	c.Check(entries[1].Options, DeepEquals, []string{"bind", "ro"})
 
 	entries = spec.UserMountEntries()
 	c.Assert(entries, HasLen, 0)

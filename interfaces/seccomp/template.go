@@ -105,6 +105,7 @@ clock_nanosleep_time64
 clone
 clone3
 close
+close_range
 
 # needed by ls -l
 connect

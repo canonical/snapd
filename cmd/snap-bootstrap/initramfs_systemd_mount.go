@@ -146,12 +146,6 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	// if it should survive pivot_root() then we need to add overrides for this
 	// unit to /run/systemd units
 	if !opts.Ephemeral {
-		// Default dependencies are not necessary for initrd
-		// units. For instance this would add
-		// `Before=local-fs.target`. But `local-fs.target` is not
-		// the right target. We need `Before=initrd-fs.target` instead.
-		args = append(args, "--property=DefaultDependencies=no")
-
 		// to survive the pivot_root, mounts need to be "wanted" by
 		// initrd-switch-root.target directly or indirectly. The
 		// proper target to place them in is initrd-fs.target
@@ -160,22 +154,24 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		// waiting for those files to be added before things works here, this is
 		// a more flexible strategy that puts snap-bootstrap in control
 		overrideContent := []byte(fmt.Sprintf(unitFileDependOverride, unitName))
-		initrdUnit := "initrd-fs.target"
-		targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
-		err := os.MkdirAll(targetDir, 0755)
-		if err != nil {
-			return err
-		}
+		for _, initrdUnit := range []string{"initrd-fs.target", "local-fs.target"} {
+			targetDir := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d")
+			err := os.MkdirAll(targetDir, 0755)
+			if err != nil {
+				return err
+			}
 
-		// add an override file for the initrd unit to depend on this mount
-		// unit so that when we isolate to the initrd unit, it does not get
-		// unmounted
-		fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-		err = ioutil.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
-		if err != nil {
-			return err
+			// add an override file for the initrd unit to depend on this mount
+			// unit so that when we isolate to the initrd unit, it does not get
+			// unmounted
+			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
+			err = ioutil.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
+			if err != nil {
+				return err
+			}
 		}
-		args = append(args, "--property=Before="+initrdUnit)
+		// local-fs.target is already automatically a depenency
+		args = append(args, "--property=Before=initrd-fs.target")
 	}
 
 	// note that we do not currently parse any output from systemd-mount, but if

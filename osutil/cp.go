@@ -63,7 +63,7 @@ func doOpenFile(name string, flag int, perm os.FileMode) (fileish, error) {
 func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	if flags&CopyFlagPreserveAll != 0 {
 		// Our native copy code does not preserve all attributes
-		// (yet). If the user needs this functionatlity we just
+		// (yet). If the user needs this functionality we just
 		// fallback to use the system's "cp" binary to do the copy.
 		if err := runCpPreserveAll(src, dst, "copy all"); err != nil {
 			return err

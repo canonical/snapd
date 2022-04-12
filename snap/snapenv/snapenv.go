@@ -102,6 +102,10 @@ func basicEnv(info *snap.Info) osutil.Environment {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func userEnv(info *snap.Info, home string, opts *dirs.SnapDirOptions) osutil.Environment {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
 	// To keep things simple the user variables always point to the
 	// instance-specific directories.
 	env := osutil.Environment{
@@ -122,5 +126,14 @@ func userEnv(info *snap.Info, home string, opts *dirs.SnapDirOptions) osutil.Env
 	}
 	// Provide the location of the real home directory.
 	env["SNAP_REAL_HOME"] = home
+
+	if opts.MigratedToExposedHome {
+		env["XDG_DATA_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-data")
+		env["XDG_CONFIG_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-config")
+		env["XDG_CACHE_HOME"] = filepath.Join(info.UserDataDir(home, opts), "xdg-cache")
+
+		env["SNAP_USER_HOME"] = info.UserExposedHomeDir(home)
+		env["HOME"] = info.UserExposedHomeDir(home)
+	}
 	return env
 }

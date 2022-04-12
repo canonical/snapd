@@ -224,7 +224,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 				uid = uidFields[9]
 			}
 		}
-		// sanity checking
+		// validity checking
 		if privKey == nil || uid == "" {
 			continue
 		}
@@ -247,6 +247,8 @@ type gpgKeypairInfo struct {
 	fingerprint string
 }
 
+var errKeypairNotFoundInGPGKeyring = &keyNotFoundError{msg: "cannot find key pair in GPG keyring"}
+
 func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
 	stop := errors.New("stop marker")
 	var hit *gpgKeypairInfo
@@ -267,7 +269,7 @@ func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
+	return nil, errKeypairNotFoundInGPGKeyring
 }
 
 func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
@@ -330,7 +332,7 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("cannot find key named %q in GPG keyring", name)
+	return nil, errKeypairNotFoundInGPGKeyring
 }
 
 // GetByName looks up a private key by name and returns it.

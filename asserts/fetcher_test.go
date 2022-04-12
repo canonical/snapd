@@ -129,6 +129,8 @@ func (s *fetcherSuite) TestFetch(c *C) {
 }
 
 func (s *fetcherSuite) TestFetchDelegation(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	s.prereqSnapAssertions(c)
 
 	localDB := setup3rdPartySigning(c, "local", s.storeSigning, s.storeSigning.SigningDB.Database)

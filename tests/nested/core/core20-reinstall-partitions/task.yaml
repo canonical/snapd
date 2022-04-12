@@ -1,4 +1,4 @@
-summary: Run a smoke test on UC20 with encryption enabled
+summary: Verify reinstallation of a UC20 system
 
 details: |
     This test checks that UC20 can be reinstalled

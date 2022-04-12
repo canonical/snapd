@@ -215,7 +215,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	c.Check(removeCalled, check.Equals, 0)
 
 	if tsk != nil {
-		// sanity check of the test setup: snapshot gets removed once conflict goes away
+		// validity check of the test setup: snapshot gets removed once conflict goes away
 		tsk.SetStatus(state.DoneStatus)
 	} else {
 		c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 1), check.Equals, snapshotOp)

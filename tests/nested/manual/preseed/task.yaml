@@ -40,6 +40,7 @@ prepare: |
   if [ "$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps" -name 'core18*.snap' | wc -l)" = 0 ]; then
       snap download --edge --basename=core18 core18
       inject_snap_into_seed "$IMAGE_MOUNTPOINT" core18
+      rm core18.snap
   fi
 
   # inject a snap that uses system-usernames into the seed to confirm that works

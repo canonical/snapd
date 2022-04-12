@@ -41,10 +41,13 @@ const (
 	// ModeRecover is a mode in which the device boots into the recovery
 	// system.
 	ModeRecover = "recover"
+	// ModeFactoryReset is a mode in which the device performs a factory
+	// reset.
+	ModeFactoryReset = "factory-reset"
 )
 
 var (
-	validModes = []string{ModeInstall, ModeRecover, ModeRun}
+	validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun}
 )
 
 // ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
@@ -135,7 +138,7 @@ const (
 )
 
 func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPath string) (string, error) {
-	if mode != ModeRun && mode != ModeRecover {
+	if mode != ModeRun && mode != ModeRecover && mode != ModeFactoryReset {
 		return "", fmt.Errorf("internal error: unsupported command line mode %q", mode)
 	}
 	// get the run mode bootloader under the native run partition layout
@@ -147,7 +150,7 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 	components := bootloader.CommandLineComponents{
 		ModeArg: "snapd_recovery_mode=run",
 	}
-	if mode == ModeRecover {
+	if mode == ModeRecover || mode == ModeFactoryReset {
 		if system == "" {
 			return "", fmt.Errorf("internal error: system is unset")
 		}
@@ -155,8 +158,12 @@ func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPat
 		opts.Role = bootloader.RoleRecovery
 		bootloaderRootDir = InitramfsUbuntuSeedDir
 		// recovery mode & system command line arguments
+		modeArg := "snapd_recovery_mode=recover"
+		if mode == ModeFactoryReset {
+			modeArg = "snapd_recovery_mode=factory-reset"
+		}
 		components = bootloader.CommandLineComponents{
-			ModeArg:   "snapd_recovery_mode=recover",
+			ModeArg:   modeArg,
 			SystemArg: fmt.Sprintf("snapd_recovery_system=%v", system),
 		}
 	}
