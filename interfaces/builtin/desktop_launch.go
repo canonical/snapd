@@ -42,6 +42,13 @@ const desktopLaunchConnectedPlugAppArmor = `
 /var/lib/snapd/desktop/applications/{,*} r,
 /var/lib/snapd/desktop/icons/{,*} r,
 
+# Allow to execute snap commands.
+/snap/bin/* ixr,
+
+# Allow to execute the snap command, which is used to launch each application
+/usr/bin/snap ixr,
+/snap/snapd/*/usr/bin/snap ixr,
+
 #include <abstractions/dbus-session-strict>
 
 dbus (send)
