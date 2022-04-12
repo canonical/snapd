@@ -57,6 +57,24 @@ type GroupQuotaCPU struct {
 	AllowedCPUs []int `json:"allowed-cpus,omitempty"`
 }
 
+// GroupQuotaJournal contains the supported limits for journald. Any limit set here
+// applies only the quota group itself. Journal limits will not be inherited by the
+// sub-groups as this behaviour is not supported by systemd.
+type GroupQuotaJournal struct {
+	// Size is the maximum allowed size of the journal for the group.
+	// If the size is set below current usage, systemd will automatically treat
+	// the current usage of the journald namespace as the minimum limit and
+	// render whatever set here ineffective. The maximum allowed size for
+	// journald namespaces is 4GB. A value of 0 here means no limit is present.
+	Size quantity.Size `json:"size,omitempty"`
+
+	// RateCount/RatePeriod determines the maximum rate of journal writes for
+	// the group. The count is the number of journal messages that can be written
+	// in each period. 0 Values here means there is no limit currently set.
+	RateCount  int `json:"rate-count,omitempty"`
+	RatePeriod int `json:"rate-period,omitempty"`
+}
+
 // Group is a quota group of snaps, services or sub-groups that are all subject
 // to specific resource quotas. The only quota resource types currently
 // supported is memory, but this can be expanded in the future.
@@ -92,6 +110,11 @@ type Group struct {
 	// the group. Once the limit is reached, further forks() or clones() will be blocked
 	// for processes in the group.
 	TaskLimit int `json:"task-limit,omitempty"`
+
+	// JournalLimit is the limits that apply to the journal for this quota group. When
+	// this limit is present, then the quota group will be assigned a log namespace for
+	// journald.
+	JournalLimit *GroupQuotaJournal `json:"journal-limit,omitempty"`
 
 	// ParentGroup is the the parent group that this group is a child of. If it
 	// is empty, then this is a "root" quota group.
@@ -141,6 +164,15 @@ func (grp *Group) GetQuotaResources() Resources {
 	}
 	if grp.TaskLimit != 0 {
 		resourcesBuilder.WithThreadLimit(grp.TaskLimit)
+	}
+	if grp.JournalLimit != nil {
+		resourcesBuilder.WithJournalNamespace()
+		if grp.JournalLimit.Size != 0 {
+			resourcesBuilder.WithJournalSize(grp.JournalLimit.Size)
+		}
+		if grp.JournalLimit.RateCount != 0 && grp.JournalLimit.RatePeriod != 0 {
+			resourcesBuilder.WithJournalRate(grp.JournalLimit.RateCount, grp.JournalLimit.RatePeriod)
+		}
 	}
 	return resourcesBuilder.Build()
 }
@@ -224,8 +256,16 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
+// JournalFileName returns the name of the journal configuration file that should
+// be used for this quota group. As an example, a group named "foo" will return a name
+// of journald@snap-foo.conf
+func (grp *Group) JournalFileName() string {
+	return fmt.Sprintf("journald@snap-%s.conf", grp.Name)
+}
+
 // groupQuotaAllocations contains information about current quotas of a group
-// and is used by getQuotaAllocations to contain this information.
+// and is used by getQuotaAllocations to contain this information. This only accounts
+// for quotas that support inheritance, which currently does not include journal quotas.
 // There are two types of values for each quota - the quota limit set by this group,
 // and the quota reserved by children of this group. Examples:
 // Group that has a non-memory quota, but has a child group that has a memory quota of 512mb:
@@ -671,6 +711,18 @@ func (grp *Group) UpdateQuotaLimits(resourceLimits Resources) error {
 	}
 	if resourceLimits.Threads != nil {
 		grp.TaskLimit = resourceLimits.Threads.Limit
+	}
+	if resourceLimits.Journal != nil {
+		if grp.JournalLimit == nil {
+			grp.JournalLimit = &GroupQuotaJournal{}
+		}
+		if resourceLimits.Journal.Size != nil {
+			grp.JournalLimit.Size = resourceLimits.Journal.Size.Limit
+		}
+		if resourceLimits.Journal.Rate != nil {
+			grp.JournalLimit.RateCount = resourceLimits.Journal.Rate.Count
+			grp.JournalLimit.RatePeriod = resourceLimits.Journal.Rate.Period
+		}
 	}
 	return nil
 }
