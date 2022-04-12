@@ -94,26 +94,25 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/doc/,\n")
+
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/gtk-doc/ -> /usr/share/gtk-doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/gtk-doc/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/gtk-doc/,\n")
+
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/libreoffice/help/ -> /usr/share/libreoffice/help/,\n")
 	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/libreoffice/help/,\n")
 	c.Check(updateNS, testutil.Contains, "  umount /usr/share/libreoffice/help/,\n")
 
+	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
+	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
+	c.Check(updateNS, testutil.Contains, "  umount /usr/share/xubuntu-docs/,\n")
 	// check mimic bits
-	c.Check(updateNS, testutil.Contains, "  # Writable mimic /usr/share/libreoffice\n")
+	c.Check(updateNS, testutil.Contains, "  # Writable mimic /usr/share\n")
 	c.Check(updateNS, testutil.Contains, "  mount fstype=tmpfs options=(rw) tmpfs -> \"/usr/share/\",\n")
 	c.Check(updateNS, testutil.Contains, "  \"/usr/share/\" r,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind, rw) \"/tmp/.snap/usr/share/*\" -> \"/usr/share/*\",\n")
 
-	c.Check(updateNS, testutil.Contains, "  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
-	c.Check(updateNS, testutil.Contains, "  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
-	c.Check(updateNS, testutil.Contains, "  umount /usr/share/xubuntu-docs/,\n")
-	// there is xubuntu-docs specific rule as it's already covered by mimic
-	// on /usr/share, so only check that
-	c.Check(updateNS, testutil.Contains, "  # Writable mimic /usr/share\n")
 }
 
 func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
@@ -124,7 +123,7 @@ func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
 	entries := spec.MountEntries()
-	c.Assert(entries, HasLen, 3)
+	c.Assert(entries, HasLen, 4)
 	c.Check(entries[0].Name, Equals, "/var/lib/snapd/hostfs/usr/share/doc")
 	c.Check(entries[0].Dir, Equals, "/usr/share/doc")
 	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
