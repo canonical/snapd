@@ -52,7 +52,7 @@ var genericRefreshCheck = func(info *snap.Info, canAppRunDuringRefresh func(app 
 		return false
 	}
 
-	for attempt := retry.Start(retry.LimitTime(5*time.Second, retry.Regular{Min: 1}), nil); attempt.Next(); {
+	for attempt := retry.Start(retry.LimitTime(5*time.Second, retry.Exponential{Initial: 5 * time.Millisecond, Factor: 2.0}), nil); attempt.Next(); {
 		knownPids, err := pidsOfSnap(info.InstanceName())
 		if err != nil {
 			return err
