@@ -5,6 +5,10 @@ details: |
     We check that a typical GNOME snap using the content interface and layouts
     has its filesystem laid out as expected.
 
+systems:
+  # there is no gnome-3-38-2004 for i386
+  - -ubuntu-18.04-32
+
 environment:
     SNAP_NAME: test-content-layout-consumer
 
