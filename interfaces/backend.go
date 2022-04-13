@@ -21,6 +21,7 @@ package interfaces
 
 import (
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -78,10 +79,15 @@ type SecurityBackendOptions struct {
 	SnapdSnapInfo *snap.Info
 }
 
-// SecurityBackendSnapOptions combines the per-snap options.
+// SecurityBackendSnapOptions combines the per-snap options. Not all
+// options are required for all backends.
 type SecurityBackendSnapOptions struct {
 	// The snap information, this must be set and valid.
 	SnapInfo *snap.Info
+
+	// If the snap described in SnapInfo has a quota group attached
+	// to it, then this pointer will be non-nil.
+	QuotaGrp *quota.Group
 
 	// The confinement options for the current snap.
 	ConfinementOpts ConfinementOptions
