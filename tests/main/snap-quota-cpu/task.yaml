@@ -51,7 +51,7 @@ execute: |
     exit 1
   }
   
-  echo "Verifying cpu usage, expecting atleast above 60% as we test against 50%"
+  echo "Verifying cpu usage, expecting at least above 60% as we test against 50%"
   ensure_cpu_usage_higher_than "stress" 60
 
   echo "Create a group with a snap in it"
@@ -139,5 +139,5 @@ execute: |
   echo "And the slice is not active anymore"
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
-  echo "Verifying cpu usage, expecting atleast above 60% again"
+  echo "Verifying cpu usage, expecting at least above 60% again"
   ensure_cpu_usage_higher_than "stress" 60
