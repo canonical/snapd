@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -156,22 +157,19 @@ func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefres
 
 // Error formats an error string describing what is running.
 func (err *BusySnapError) Error() string {
-	pids := make([]string, 0, len(err.pids))
-	for _, p := range err.pids {
-		pids = append(pids, fmt.Sprintf("%d", p))
-	}
+	pids := strutil.IntsToCommaSeparated(err.pids)
 	switch {
 	case len(err.busyAppNames) > 0 && len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s) and hooks (%s), pids: %s",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "), strings.Join(pids, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(err.busyHookNames, ", "), pids)
 	case len(err.busyAppNames) > 0:
 		return fmt.Sprintf("snap %q has running apps (%s), pids: %s",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), strings.Join(pids, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyAppNames, ", "), pids)
 	case len(err.busyHookNames) > 0:
 		return fmt.Sprintf("snap %q has running hooks (%s), pids: %s",
-			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "), strings.Join(pids, ", "))
+			err.SnapInfo.InstanceName(), strings.Join(err.busyHookNames, ", "), pids)
 	default:
-		return fmt.Sprintf("snap %q has running apps or hooks, pids: %s", err.SnapInfo.InstanceName(), strings.Join(pids, ", "))
+		return fmt.Sprintf("snap %q has running apps or hooks, pids: %s", err.SnapInfo.InstanceName(), pids)
 	}
 }
 

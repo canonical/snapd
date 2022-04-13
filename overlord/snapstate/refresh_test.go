@@ -107,7 +107,7 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app) and hooks (configure), pids: 105, 106`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app) and hooks (configure), pids: 105,106`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105, 106})
 }
 
