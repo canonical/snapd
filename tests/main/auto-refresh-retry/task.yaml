@@ -14,7 +14,7 @@ debug: |
     systemctl cat snapd.service
     ip netns list
     ip netns pids testns || true
-    ps aux | grep snap
+    pgrep -a snap
 
 execute: |
     echo "Install a snap from stable"

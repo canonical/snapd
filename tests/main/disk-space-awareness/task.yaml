@@ -26,7 +26,7 @@ restore: |
   systemctl start snapd.{socket,service}
 
 debug: |
-  ps aux | grep snap
+  pgrep -a snap
 
 execute: |
   resize() {
