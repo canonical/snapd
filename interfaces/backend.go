@@ -78,6 +78,15 @@ type SecurityBackendOptions struct {
 	SnapdSnapInfo *snap.Info
 }
 
+// SecurityBackendSnapOptions combines the per-snap options.
+type SecurityBackendSnapOptions struct {
+	// The snap information, this must be set and valid.
+	SnapInfo *snap.Info
+
+	// The confinement options for the current snap.
+	ConfinementOpts ConfinementOptions
+}
+
 // SecurityBackend abstracts interactions between the interface system and the
 // needs of a particular security system.
 type SecurityBackend interface {
@@ -96,7 +105,7 @@ type SecurityBackend interface {
 	//
 	// This method should be called after changing plug, slots, connections
 	// between them or application present in the snap.
-	Setup(snapInfo *snap.Info, opts ConfinementOptions, repo *Repository, tm timings.Measurer) error
+	Setup(snapOpts SecurityBackendSnapOptions, repo *Repository, tm timings.Measurer) error
 
 	// Remove removes and unloads security artefacts of a given snap.
 	//
@@ -115,7 +124,7 @@ type SecurityBackend interface {
 type SecurityBackendSetupMany interface {
 	// SetupMany creates and loads apparmor profiles of multiple snaps. It tries to process all snaps and doesn't interrupt processing
 	// on errors of individual snaps.
-	SetupMany(snaps []*snap.Info, confinement func(snapName string) ConfinementOptions, repo *Repository, tm timings.Measurer) []error
+	SetupMany(snapsOpts []SecurityBackendSnapOptions, repo *Repository, tm timings.Measurer) []error
 }
 
 // SecurityBackendDiscardingLate interface may be implemented by backends that

@@ -58,8 +58,8 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // Setup installs the polkit policy files specific to a given snap.
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(snapOpts interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := snapOpts.SnapInfo.InstanceName()
 	// Get the policies that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -68,7 +68,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 
 	// Get the files that this snap should have
 	glob := polkitPolicyName(snapName, "*")
-	content := deriveContent(spec.(*Specification), snapInfo)
+	content := deriveContent(spec.(*Specification), snapOpts.SnapInfo)
 	dir := dirs.SnapPolkitPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for polkit policy files %q: %s", dir, err)

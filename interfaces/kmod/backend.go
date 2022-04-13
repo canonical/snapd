@@ -119,20 +119,20 @@ func (b *Backend) setupModprobe(snapInfo *snap.Info, spec *Specification) error 
 // The devMode is ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(snapOpts interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := snapOpts.SnapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", snapName, err)
 	}
 
-	err = b.setupModprobe(snapInfo, spec.(*Specification))
+	err = b.setupModprobe(snapOpts.SnapInfo, spec.(*Specification))
 	if err != nil {
 		return err
 	}
 
-	err = b.setupModules(snapInfo, spec.(*Specification))
+	err = b.setupModules(snapOpts.SnapInfo, spec.(*Specification))
 	if err != nil {
 		return err
 	}

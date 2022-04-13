@@ -325,7 +325,7 @@ func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdY
 	makeFakeDbusConfigAndUserdServiceFiles(c, coreOrSnapdInfo)
 
 	// Config files are not copied if we haven't reexecuted
-	err := s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err := s.Backend.Setup(interfaces.SecurityBackendSnapOptions{SnapInfo: coreOrSnapdInfo}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -338,7 +338,7 @@ func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdY
 	})
 	defer restore()
 
-	err = s.Backend.Setup(coreOrSnapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(interfaces.SecurityBackendSnapOptions{SnapInfo: coreOrSnapdInfo}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -374,11 +374,11 @@ func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 	defer restore()
 
 	// first setup snapd which writes the files
-	err = s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(interfaces.SecurityBackendSnapOptions{SnapInfo: snapdInfo}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	// then setup core - if both are installed snapd should win
-	err = s.Backend.Setup(coreInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(interfaces.SecurityBackendSnapOptions{SnapInfo: coreInfo}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {

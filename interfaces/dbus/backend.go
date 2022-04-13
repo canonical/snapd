@@ -137,8 +137,8 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 // Setup creates dbus configuration files specific to a given snap.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(snapOpts interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := snapOpts.SnapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -146,19 +146,19 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// copy some config files when installing core/snapd if we reexec
-	if shouldCopyConfigFiles(snapInfo) {
-		if err := setupDbusServiceForUserd(snapInfo); err != nil {
+	if shouldCopyConfigFiles(snapOpts.SnapInfo) {
+		if err := setupDbusServiceForUserd(snapOpts.SnapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}
 		// TODO: Make this conditional on the dbus-activation
 		// feature flag.
-		if err := setupHostDBusConf(snapInfo); err != nil {
+		if err := setupHostDBusConf(snapOpts.SnapInfo); err != nil {
 			logger.Noticef("cannot create host dbus config: %s", err)
 		}
 	}
 
 	// Get the files that this snap should have
-	content := b.deriveContent(spec.(*Specification), snapInfo)
+	content := b.deriveContent(spec.(*Specification), snapOpts.SnapInfo)
 
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	dir := dirs.SnapDBusSystemPolicyDir

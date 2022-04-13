@@ -358,7 +358,7 @@ func (s *helpersSuite) TestSystemKeyAndFailingProfileRegeneration(c *C) {
 	// test backends with empty name for convenience.
 	backend := &ifacetest.TestSecurityBackend{
 		BackendName: "BROKEN",
-		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(snapOpts interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository) error {
 			return errors.New("FAILED")
 		},
 	}
@@ -451,8 +451,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	// Create a fake security backend
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
-		SetupManyCallback: func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
-			c.Check(snaps, HasLen, 2)
+		SetupManyCallback: func(snapsOpts []interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			c.Check(snapsOpts, HasLen, 2)
 			setupManyCalls++
 			return nil
 		},
@@ -495,8 +495,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	// Create a fake security backend
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
-		SetupManyCallback: func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
-			c.Check(snaps, HasLen, 2)
+		SetupManyCallback: func(snapsOpts []interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			c.Check(snapsOpts, HasLen, 2)
 			setupManyCalls++
 			return []error{fmt.Errorf("FAILED")}
 		},

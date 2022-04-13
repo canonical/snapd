@@ -247,8 +247,8 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(snapOpts interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := snapOpts.SnapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
@@ -256,7 +256,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// Get the snippets that apply to this snap
-	content, err := b.deriveContent(spec.(*Specification), opts, snapInfo)
+	content, err := b.deriveContent(spec.(*Specification), snapOpts.ConfinementOpts, snapOpts.SnapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}

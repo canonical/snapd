@@ -204,7 +204,7 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 	}
 
 	s.addPlugsSlots(c, snapInfo)
-	err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
+	err := s.Backend.Setup(interfaces.SecurityBackendSnapOptions{SnapInfo: snapInfo, ConfinementOpts: opts}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -217,7 +217,7 @@ func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err := s.Backend.Setup(newSnapInfo, opts, s.Repo, s.meas)
+	err := s.Backend.Setup(interfaces.SecurityBackendSnapOptions{SnapInfo: newSnapInfo, ConfinementOpts: opts}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }

@@ -56,16 +56,16 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 }
 
 // Setup creates mount mount profile files specific to a given snap.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(snapOpts interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
-	snapName := snapInfo.InstanceName()
+	snapName := snapOpts.SnapInfo.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
-	spec.(*Specification).AddOvername(snapInfo)
-	spec.(*Specification).AddLayout(snapInfo)
-	content := deriveContent(spec.(*Specification), snapInfo)
+	spec.(*Specification).AddOvername(snapOpts.SnapInfo)
+	spec.(*Specification).AddLayout(snapOpts.SnapInfo)
+	content := deriveContent(spec.(*Specification), snapOpts.SnapInfo)
 	// synchronize the content with the filesystem
 	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
 	dir := dirs.SnapMountPolicyDir

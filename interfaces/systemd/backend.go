@@ -62,15 +62,15 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(snapOpts interfaces.SecurityBackendSnapOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all the extra systemd services for this snap.
-	snapName := snapInfo.InstanceName()
+	snapName := snapOpts.SnapInfo.InstanceName()
 	// Get the services that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapName)
 	if err != nil {
 		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
 	}
-	content := deriveContent(spec.(*Specification), snapInfo)
+	content := deriveContent(spec.(*Specification), snapOpts.SnapInfo)
 	// synchronize the content with the filesystem
 	dir := dirs.SnapServicesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
