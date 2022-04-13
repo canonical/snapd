@@ -62,14 +62,6 @@ type ModelFormatter interface {
 	GetEscapedDash() string
 }
 
-// modelAssertJSON is a helper to write out a single assertion in json
-// format that matches how it's done in api_model.go. We have stolen
-// the structure from there.
-type modelAssertJSON struct {
-	Headers map[string]interface{} `json:"headers,omitempty"`
-	Body    string                 `json:"body,omitempty"`
-}
-
 type PrintModelAssertionOptions struct {
 	TermWidth int
 	AbsTime   bool
@@ -123,7 +115,7 @@ func printVerboseSnapsList(w *tabwriter.Writer, snaps []interface{}) error {
 			return formatInvalidTypeErr("snaps")
 		}
 
-		// Print all the desiered keys in the map in a stable, visually
+		// Print all the desired keys in the map in a stable, visually
 		// appealing ordering
 		// first do snap name, which will always be present since we
 		// parsed a valid assertion
@@ -275,7 +267,7 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 // YAML format. The output will be written to the provided io.Writer.
 func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter, options PrintModelAssertionOptions, modelAssertion asserts.Model, serialAssertion *asserts.Serial) error {
 
-	// if we got an invalid model assertion bail early
+	// if assertion was requested we want it raw
 	if options.Assertion {
 		_, err := w.Write(asserts.Encode(&modelAssertion))
 		return err
@@ -399,7 +391,7 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 	}
 
 	if options.Assertion {
-		modelJSON := modelAssertJSON{}
+		modelJSON := asserts.ModelAssertJSON{}
 		modelJSON.Headers = modelAssertion.Headers()
 		modelJSON.Body = string(modelAssertion.Body())
 		return serializeJSON(modelJSON)

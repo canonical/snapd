@@ -217,9 +217,9 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.ModelAssertJSON{})
+	c.Assert(rsp.Result, check.FitsTypeOf, asserts.ModelAssertJSON{})
 
-	jsonResponse := rsp.Result.(daemon.ModelAssertJSON)
+	jsonResponse := rsp.Result.(asserts.ModelAssertJSON)
 
 	// get the architecture key from the headers
 	arch, ok := jsonResponse.Headers["architecture"]
@@ -364,9 +364,9 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	// get the body and try to unmarshal into modelAssertJSON
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.ModelAssertJSON{})
+	c.Assert(rsp.Result, check.FitsTypeOf, asserts.ModelAssertJSON{})
 
-	jsonResponse := rsp.Result.(daemon.ModelAssertJSON)
+	jsonResponse := rsp.Result.(asserts.ModelAssertJSON)
 
 	// get the architecture key from the headers
 	devKey, ok := jsonResponse.Headers["device-key"]

@@ -53,11 +53,6 @@ type postModelData struct {
 	NewModel string `json:"new-model"`
 }
 
-type modelAssertJSON struct {
-	Headers map[string]interface{} `json:"headers,omitempty"`
-	Body    string                 `json:"body,omitempty"`
-}
-
 func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	defer r.Body.Close()
 	var data postModelData
@@ -115,7 +110,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		modelJSON := modelAssertJSON{}
+		modelJSON := asserts.ModelAssertJSON{}
 
 		modelJSON.Headers = model.Headers()
 		if !opts.headersOnly {
@@ -155,7 +150,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		serialJSON := modelAssertJSON{}
+		serialJSON := asserts.ModelAssertJSON{}
 
 		serialJSON.Headers = serial.Headers()
 		if !opts.headersOnly {
