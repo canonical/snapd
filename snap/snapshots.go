@@ -44,9 +44,13 @@ type SnapshotOptions struct {
 	ExcludePaths []string `yaml:"exclude"`
 }
 
+const (
+	snapshotManifestPath = "meta/snapshots.yaml"
+)
+
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap.
 func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
-	file, err := osOpen(filepath.Join(si.MountDir(), "meta", "snapshots.yaml"))
+	file, err := osOpen(filepath.Join(si.MountDir(), snapshotManifestPath))
 	if os.IsNotExist(err) {
 		return &SnapshotOptions{}, nil
 	}
@@ -61,7 +65,7 @@ func ReadSnapshotYaml(si *Info) (*SnapshotOptions, error) {
 // ReadSnapshotYaml reads the snapshot manifest file for the given snap
 // container.
 func ReadSnapshotYamlFromSnapFile(snapf Container) (*SnapshotOptions, error) {
-	sy, err := snapf.ReadFile("meta/snapshots.yaml")
+	sy, err := snapf.ReadFile(snapshotManifestPath)
 	if os.IsNotExist(err) {
 		return &SnapshotOptions{}, nil
 	}
