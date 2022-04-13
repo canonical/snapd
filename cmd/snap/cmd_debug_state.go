@@ -379,6 +379,9 @@ func (c *cmdDebugState) Execute(args []string) error {
 	if c.NoHoldState && c.ChangeID == "" {
 		return fmt.Errorf("--no-hold can only be used with --change=")
 	}
+	if c.Check && c.ChangeID == "" {
+		return fmt.Errorf("--check can only be used with --change")
+	}
 
 	if c.Changes {
 		return c.showChanges(st)
