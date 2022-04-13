@@ -5,6 +5,7 @@ systems: [-ubuntu-14.04*]
 
 restore: |
     kill %1 || true
+    pkill -f "sleep 9999" || true
 
 execute: |
     wait_for_remove_state(){
