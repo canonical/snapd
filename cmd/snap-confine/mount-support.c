@@ -543,10 +543,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		die("cannot stat %s", SC_HOSTFS_DIR);
 	}
 	if (sb.st_uid != 0 || sb.st_gid != 0) {
-		if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
-			die("cannot change user/group owner of %s to root",
-			    SC_HOSTFS_DIR);
-		}
+		die("%s is not owned by root", SC_HOSTFS_DIR);
 	}
 	// Make the upcoming "put_old" directory for pivot_root private so that
 	// mount events don't propagate to any peer group. In practice pivot root
