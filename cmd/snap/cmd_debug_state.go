@@ -170,12 +170,8 @@ func (c *cmdDebugState) showTasks(st *state.State, changeID string) error {
 		if c.NoHoldState && t.Status() == state.HoldStatus {
 			continue
 		}
-		var lanes []string
-		for _, lane := range t.Lanes() {
-			lanes = append(lanes, fmt.Sprintf("%d", lane))
-		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			strings.Join(lanes, ","),
+			strutil.IntsToCommaSeparated(t.Lanes()),
 			t.ID(),
 			t.Status().String(),
 			c.fmtTime(t.SpawnTime()),
@@ -239,12 +235,8 @@ func (c *cmdDebugState) checkTasks(st *state.State, changeID string) error {
 			fmt.Fprintf(w, "Lanes\tID\tStatus\tSpawn\tReady\tKind\tSummary\tAfter\tBefore\n")
 			for _, tid := range tdcErr.IDs {
 				t := st.Task(tid)
-				var lanes []string
-				for _, lane := range t.Lanes() {
-					lanes = append(lanes, fmt.Sprintf("%d", lane))
-				}
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%v\t%v\n",
-					strings.Join(lanes, ","),
+					strutil.IntsToCommaSeparated(t.Lanes()),
 					t.ID(),
 					t.Status().String(),
 					c.fmtTime(t.SpawnTime()),
