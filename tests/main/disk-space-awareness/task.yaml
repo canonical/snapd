@@ -25,6 +25,9 @@ restore: |
   umount -l "$TMPFSMOUNT"
   systemctl start snapd.{socket,service}
 
+debug: |
+  ps aux | grep snap
+
 execute: |
   resize() {
     # remount can increase/decrease the size as long as it is enough for
