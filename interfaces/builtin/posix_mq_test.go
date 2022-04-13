@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -371,6 +372,9 @@ func (s *PosixMQInterfaceSuite) TestName(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
+	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{"mqueue"}, nil)
+	defer restore()
+
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo0), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo1), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testSlotInfo2), IsNil)
@@ -382,6 +386,9 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestSanitizePlug(c *C) {
+	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{"mqueue"}, nil)
+	defer restore()
+
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testPlugInfo0), IsNil)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testPlugInfo1), IsNil)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testPlugInfo2), IsNil)
