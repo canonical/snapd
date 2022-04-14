@@ -863,7 +863,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
 
-	// sanity check of seedtest helper
+	// validity check of seedtest helper
 	const usesSnapd = false
 	// core seeds do not use system labels
 	seedtest.ValidateSeed(c, s.opts.SeedDir, "", usesSnapd, s.StoreSigning.Trusted)
@@ -980,7 +980,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		c.Check(rev[0].HeaderString("snap-id"), Equals, s.AssertedSnapID(snapName))
 	}
 
-	// sanity check of seedtest helper
+	// validity check of seedtest helper
 	const usesSnapd = true
 	// core18 seeds do not use system labels
 	seedtest.ValidateSeed(c, s.opts.SeedDir, "", usesSnapd, s.StoreSigning.Trusted)
@@ -1913,7 +1913,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2063,7 +2063,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 
 	c.Check(filepath.Join(systemDir, "options.yaml"), testutil.FileAbsent)
 
-	// sanity check of seedtest helper
+	// validity check of seedtest helper
 	const usesSnapd = true
 	seedtest.ValidateSeed(c, s.opts.SeedDir, s.opts.Label, usesSnapd,
 		s.StoreSigning.Trusted)
@@ -2131,7 +2131,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBase(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2178,7 +2178,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseModes(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2226,7 +2226,7 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseEphemeralOK(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2348,7 +2348,7 @@ func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2564,7 +2564,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")
@@ -2691,7 +2691,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 		},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")
@@ -2795,7 +2795,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2895,7 +2895,7 @@ func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
 	s.makeSnap(c, "snapd", "")
@@ -2943,7 +2943,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")
@@ -3117,7 +3117,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 			}},
 	})
 
-	// sanity
+	// validity
 	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
 
 	s.makeSnap(c, "snapd", "")

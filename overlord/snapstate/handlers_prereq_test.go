@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -163,7 +164,7 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 		Base: "none",
 		PrereqContentAttrs: map[string][]string{
 			"prereq1": {"some-content"}, "prereq2": {"other-content"}},
-		Flags: snapstate.Flags{Transactional: true},
+		Flags: snapstate.Flags{Transaction: client.TransactionAllSnaps},
 	})
 	// Set lane to make sure new tasks will match this one
 	lane := s.state.NewLane()
@@ -208,7 +209,7 @@ func (s *prereqSuite) TestDoPrereqTransactionalFailTooManyLanes(c *C) {
 		Base: "none",
 		PrereqContentAttrs: map[string][]string{
 			"prereq1": {"some-content"}},
-		Flags: snapstate.Flags{Transactional: true},
+		Flags: snapstate.Flags{Transaction: client.TransactionAllSnaps},
 	})
 	// There should be only one lane in a transactional change
 	t.JoinLane(s.state.NewLane())
@@ -384,13 +385,13 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 		}
 	}
 
-	// sanity check, exactly two calls to link-snap due to retry error on 1st call
+	// validity check, exactly two calls to link-snap due to retry error on 1st call
 	c.Check(calls, Equals, 2)
 
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 
-	// sanity
+	// validity
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 

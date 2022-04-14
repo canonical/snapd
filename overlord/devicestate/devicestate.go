@@ -135,7 +135,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return true, nil
 	}
 
-	// Check model exists, for sanity. We always have a model, either
+	// Check model exists, for validity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
 	_, err := findModel(st)
 	if err == state.ErrNoState {
@@ -230,7 +230,7 @@ func checkGadgetValid(st *state.State, snapInfo, _ *snap.Info, snapf snap.Contai
 		return nil
 	}
 
-	// do basic validity checks on the gadget against its model constraints
+	// do basic precondition checks on the gadget against its model constraints
 	_, err := gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model())
 	return err
 }
@@ -1031,7 +1031,7 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
-	// sanity check, the directory should not exist yet
+	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
 	if err != nil {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2845,4 +2845,151 @@ AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.snapDeclPlugsSlots), 1)
 			c.Check(err, ErrorMatches, t.expected)
 		}
 	}
+}
+
+func (s *policySuite) TestSuperprivilegedVsAllowedSystemSlotInterfaceAllowInstallation(c *C) {
+	baseDeclStr := `type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  superprivileged-vs-allowed-system-slot:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+      slot-snap-id:
+        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+timestamp: 2022-03-20T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+	a, err := asserts.Decode([]byte(baseDeclStr))
+	c.Assert(err, IsNil)
+	baseDecl := a.(*asserts.BaseDeclaration)
+
+	appSnap := snaptest.MockInfo(c, `name: app-snap
+version: 0
+slots:
+  myslot:
+    interface: superprivileged-vs-allowed-system-slot
+    special: special
+`, nil)
+
+	// ok with dangerous
+	minCand := policy.InstallCandidateMinimalCheck{
+		Snap:            appSnap,
+		BaseDeclaration: baseDecl,
+	}
+	err = minCand.Check()
+	c.Check(err, IsNil)
+
+	// not ok without snap-declaration rule
+	a, err = asserts.Decode([]byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: app-snap
+snap-id: appsnapid
+publisher-id: publisher
+timestamp: 2022-03-20T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+
+	cand := policy.InstallCandidate{
+		Snap:            appSnap,
+		SnapDeclaration: snapDecl,
+		BaseDeclaration: baseDecl,
+	}
+	err = cand.Check()
+	c.Check(err, NotNil)
+
+	snapdSnap := snaptest.MockInfo(c, `name: snapd
+version: 0
+type: snapd
+slots:
+  superprivileged-vs-allowed-system-slot:
+`, nil)
+	a, err = asserts.Decode([]byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: snapd
+snap-id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+publisher-id: canonical
+timestamp: 2022-03-20T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	snapDecl = a.(*asserts.SnapDeclaration)
+	c.Check(snapdSnap.Type(), Equals, snap.TypeSnapd)
+	cand = policy.InstallCandidate{
+		Snap:            snapdSnap,
+		SnapDeclaration: snapDecl,
+		BaseDeclaration: baseDecl,
+	}
+	err = cand.Check()
+	c.Check(err, IsNil)
+}
+
+func (s *policySuite) TestSuperprivilegedVsAllowedSystemPlugInterfaceAllowInstallation(c *C) {
+	// this is unlikely to be used in practice as system snap so far
+	// have no plugs, but tested for symmetry/completeness
+	baseDeclStr := `type: base-declaration
+authority-id: canonical
+series: 16
+plugs:
+  superprivileged-vs-allowed-system-plug:
+    allow-installation:
+      plug-snap-type:
+        - app
+        - core
+      plug-snap-id:
+        - PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+timestamp: 2022-03-20T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+	a, err := asserts.Decode([]byte(baseDeclStr))
+	c.Assert(err, IsNil)
+	baseDecl := a.(*asserts.BaseDeclaration)
+
+	appSnap := snaptest.MockInfo(c, `name: app-snap
+version: 0
+plugs:
+  myplug:
+    interface: superprivileged-vs-allowed-system-plug
+    special: special
+`, nil)
+
+	// ok with dangerous
+	minCand := policy.InstallCandidateMinimalCheck{
+		Snap:            appSnap,
+		BaseDeclaration: baseDecl,
+	}
+	err = minCand.Check()
+	c.Check(err, IsNil)
+
+	// not ok without snap-declaration rule
+	a, err = asserts.Decode([]byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: app-snap
+snap-id: appsnapid
+publisher-id: publisher
+timestamp: 2022-03-20T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+
+	cand := policy.InstallCandidate{
+		Snap:            appSnap,
+		SnapDeclaration: snapDecl,
+		BaseDeclaration: baseDecl,
+	}
+	err = cand.Check()
+	c.Check(err, NotNil)
 }

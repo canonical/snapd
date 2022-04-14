@@ -51,7 +51,6 @@ var (
 	Antialias           = antialias
 	FormatChannel       = fmtChannel
 	PrintDescr          = printDescr
-	WrapFlow            = wrapFlow
 	TrueishJSON         = trueishJSON
 	CompletionHandler   = completionHandler
 	MarkForNoCompletion = markForNoCompletion
@@ -94,10 +93,9 @@ var (
 
 	IsStopping = isStopping
 
-	GetKeypairManager = getKeypairManager
-	GenerateKey       = generateKey
-
 	GetSnapDirOptions = getSnapDirOptions
+
+	ParseQuotas = parseQuotas
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {

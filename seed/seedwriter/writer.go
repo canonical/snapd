@@ -854,7 +854,7 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 }
 
 func (w *Writer) checkBase(info *snap.Info, modes []string) error {
-	// Sanity check, note that we could support this case
+	// Validity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
 	if info.Type() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {

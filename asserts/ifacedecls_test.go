@@ -678,6 +678,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstalationConstraintsIDConstrai
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-installation": map[string]interface{}{
 			"plug-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
+			"plug-snap-id":   []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -685,6 +686,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstalationConstraintsIDConstrai
 	c.Assert(rule.AllowInstallation, HasLen, 1)
 	cstrs := rule.AllowInstallation[0]
 	c.Check(cstrs.PlugSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+	c.Check(cstrs.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic(c *C) {
@@ -1522,6 +1524,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsIDConstra
 	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
 		"allow-installation": map[string]interface{}{
 			"slot-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
+			"slot-snap-id":   []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -1529,6 +1532,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsIDConstra
 	c.Assert(rule.AllowInstallation, HasLen, 1)
 	cstrs := rule.AllowInstallation[0]
 	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic(c *C) {

@@ -404,13 +404,6 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	instanceCommonUserData := info.UserCommonDataDir(usr.HomeDir, opts)
 	createDirs := []string{instanceUserData, instanceCommonUserData}
 
-	if opts.MigratedToExposedHome {
-		createDirs = append(createDirs,
-			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "data"),
-			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "config"),
-			filepath.Join(info.UserDataDir(usr.HomeDir, opts), "cache"))
-	}
-
 	if info.InstanceKey != "" {
 		// parallel instance snaps get additional mapping in their mount
 		// namespace, namely /home/joe/snap/foo_bar ->
@@ -792,7 +785,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 		return err
 	}
 
-	// Sanity check to make sure the document portal is exposed
+	// Quick check to make sure the document portal is exposed
 	// where we think it is.
 	if actualMountPoint != expectedMountPoint {
 		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)

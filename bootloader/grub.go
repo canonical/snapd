@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - grub implements the required interfaces
+// grub implements the required interfaces
 var (
 	_ Bootloader                        = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)

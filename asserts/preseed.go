@@ -173,10 +173,12 @@ func checkPreseedSnaps(snapList interface{}) ([]*PreseedSnap, error) {
 		}
 		seen[preseedSnap.Name] = true
 		snapID := preseedSnap.SnapID
-		if underName := seenIDs[snapID]; underName != "" {
-			return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", snapID, underName, preseedSnap.Name)
+		if snapID != "" {
+			if underName := seenIDs[snapID]; underName != "" {
+				return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", snapID, underName, preseedSnap.Name)
+			}
+			seenIDs[snapID] = preseedSnap.Name
 		}
-		seenIDs[snapID] = preseedSnap.Name
 		snaps = append(snaps, preseedSnap)
 	}
 

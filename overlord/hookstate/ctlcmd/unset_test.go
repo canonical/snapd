@@ -67,7 +67,7 @@ func (s *unsetSuite) TestUnsetOne(c *C) {
 	tr.Commit()
 	s.mockContext.State().Unlock()
 
-	// Sanity check
+	// Validity check
 	var value interface{}
 	s.mockContext.State().Lock()
 	tr = config.NewTransaction(s.mockContext.State())

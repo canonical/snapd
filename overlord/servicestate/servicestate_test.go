@@ -313,7 +313,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	defer st.Unlock()
 
 	// make a quota group
-	grp, err := quota.NewGroup("foogroup", quota.NewResources(quantity.SizeGiB))
+	grp, err := quota.NewGroup("foogroup", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
 	c.Assert(err, IsNil)
 
 	grp.Snaps = []string{"foosnap"}

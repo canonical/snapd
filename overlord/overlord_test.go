@@ -673,7 +673,7 @@ func (ovs *overlordSuite) TestOverlordStartUpSetsStartOfOperation(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// sanity check, not set
+	// validity check, not set
 	var opTime time.Time
 	c.Assert(st.Get("start-of-operation-time", &opTime), Equals, state.ErrNoState)
 	st.Unlock()
@@ -716,7 +716,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneDoesntAbortShortlyAfterStartOfOpera
 
 	restoreTimeNow()
 
-	// sanity
+	// validity
 	c.Check(st.Changes(), HasLen, 1)
 
 	st.Unlock()
@@ -773,7 +773,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 
 	restoreTimeNow()
 
-	// sanity
+	// validity
 	c.Check(st.Changes(), HasLen, 1)
 	st.Unlock()
 
@@ -786,7 +786,7 @@ func (ovs *overlordSuite) TestEnsureLoopPruneAbortsOld(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// sanity
+	// validity
 	op, err := o.DeviceManager().StartOfOperationTime()
 	c.Assert(err, IsNil)
 	c.Check(op.Equal(opTime), Equals, true)
@@ -815,7 +815,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 		return &state.Retry{}
 	}, nil)
 
-	// sanity
+	// validity
 	_, err = o.DeviceManager().StartOfOperationTime()
 	c.Assert(err, ErrorMatches, `internal error: unexpected call to StartOfOperationTime in preseed mode`)
 

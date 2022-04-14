@@ -27,12 +27,12 @@ execute: |
   snap set-quota group-two --parent=group-top1 --memory=2MB test-snapd-tools
 
   echo "Creating a nested empty quota groups which fails"
-  snap set-quota group-sub-one --parent=group-one --memory=10KB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot mix sub groups with snaps in the same group'
+  snap set-quota group-sub-one --parent=group-one --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot mix sub groups with snaps in the same group'
 
   echo "Creating some empty quota sub groups"
   snap set-quota group-three --parent=group-top1 --memory=15MB
-  snap set-quota group-sub-three --parent=group-three --memory=10KB
-  snap set-quota group-sub-sub-three --parent=group-sub-three --memory=5KB
+  snap set-quota group-sub-three --parent=group-three --memory=4MB
+  snap set-quota group-sub-sub-three --parent=group-sub-three --memory=1MB
 
   echo "Trying to add snap to more than one group fails"
   snap set-quota group-bad --memory=1MB hello-world 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'error: cannot create quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
@@ -46,11 +46,11 @@ execute: |
   MATCH "     2\s+group-top1\s+memory=400MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
   MATCH "     3\s+group-one\s+group-top1\s+memory=100MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
   # this line could be either for memory=0 in the current column, in which case
-  # it is omitted entirely, or it could be memory=4096 on some systems where 
-  # empty cgroups have 4K memory usage even on empty cgroups
+  # it is omitted entirely, or it could be either 4096 or 12.3kB on some systems where 
+  # empty cgroups have memory usage even on empty cgroups
   MATCH "     4\s+group-three\s+group-top1\s+memory=15.0MB(\s*|\s*memory=[0-9.a-zA-Z]+)\s*$" < quotas.txt
-  MATCH "     5\s+group-sub-three\s+group-three\s+memory=10.0kB(\s*|\s*memory=4096B)\s*$" < quotas.txt
-  MATCH "     6\s+group-sub-sub-three\s+group-sub-three\s+memory=5000B\s*$" < quotas.txt
+  MATCH "     5\s+group-sub-three\s+group-three\s+memory=4.00MB(\s*|\s*memory=4096B|\s*memory=12.3kB)\s*$" < quotas.txt
+  MATCH "     6\s+group-sub-sub-three\s+group-sub-three\s+memory=1.00MB\s*$" < quotas.txt
   MATCH "     7\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
   MATCH "     8\s+group-top2\s+memory=500MB\s*$" < quotas.txt
 

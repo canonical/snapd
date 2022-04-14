@@ -407,7 +407,7 @@ func (s *detailsV2Suite) TestCopyNonZero(c *C) {
 	aCopy := a
 	bCopy := b
 
-	// sanity check
+	// validity check
 	c.Check(a, DeepEquals, aCopy)
 	c.Check(b, DeepEquals, bCopy)
 	c.Check(a, Not(DeepEquals), b)

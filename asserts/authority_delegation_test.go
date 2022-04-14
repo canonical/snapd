@@ -39,6 +39,8 @@ type authorityDelegationSuite struct {
 var _ = Suite(&authorityDelegationSuite{})
 
 func (s *authorityDelegationSuite) SetUpSuite(c *C) {
+	c.Skip("authority-delegation disabled")
+
 	s.assertionsLines = `assertions:
   -
     type: snap-revision

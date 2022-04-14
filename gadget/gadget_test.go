@@ -777,7 +777,7 @@ volumes:
 	c.Assert(err, IsNil)
 
 	_, err = gadget.ReadInfo(s.dir, nil)
-	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot or lk")
+	c.Assert(err, ErrorMatches, "bootloader must be one of grub, u-boot, android-boot, piboot or lk")
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptyBootloader(c *C) {
@@ -2801,7 +2801,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibility(c *C) {
 	smallDeviceLayout := mockDeviceLayout
 	smallDeviceLayout.UsableSectorsEnd = uint64(100 * quantity.SizeMiB / 512)
 
-	// sanity check
+	// validity check
 	c.Check(gadgetLayoutWithExtras.Size > quantity.Size(smallDeviceLayout.UsableSectorsEnd*uint64(smallDeviceLayout.SectorSize)), Equals, true)
 	err = gadget.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout, nil)
 	c.Assert(err, ErrorMatches, `device /dev/node \(last usable byte at 100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)

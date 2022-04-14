@@ -93,7 +93,7 @@ func (s *cgroupSuite) TestProbeVersionUnhappy(c *C) {
 	})
 	defer restore()
 	v, err := cgroup.ProbeCgroupVersion()
-	c.Assert(err, ErrorMatches, "cannot determine filesystem type: statfs fail")
+	c.Assert(err, ErrorMatches, "cannot determine cgroup version: statfs fail")
 	c.Assert(v, Equals, cgroup.Unknown)
 }
 

@@ -180,7 +180,7 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ consistencyChecker = (*AccountKey)(nil)
 
 // Prerequisites returns references to this account-key's prerequisite assertions.
@@ -274,7 +274,7 @@ func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) 
 	return nil
 }
 
-// sanity
+// expected interfaces are implemented
 var (
 	_ consistencyChecker = (*AccountKeyRequest)(nil)
 	_ customSigner       = (*AccountKeyRequest)(nil)

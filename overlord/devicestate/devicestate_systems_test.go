@@ -1817,7 +1817,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-	// sanity check asserted snaps location
+	// validity check asserted snaps location
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FilePresent)
 	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
 	c.Assert(err, IsNil)
@@ -2042,7 +2042,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 	c.Assert(tskFinalize.Status(), Equals, state.HoldStatus)
 
 	c.Check(s.restartRequests, HasLen, 0)
-	// sanity check asserted snaps location
+	// validity check asserted snaps location
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234error"), testutil.FileAbsent)
 	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
 	c.Assert(err, IsNil)
