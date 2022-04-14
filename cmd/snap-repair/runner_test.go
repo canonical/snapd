@@ -2207,7 +2207,7 @@ func (s *runner16Suite) SetUpTest(c *C) {
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 
-	// dummy seed yaml
+	// sample seed yaml
 	err := os.MkdirAll(s.seedAssertsDir, 0755)
 	c.Assert(err, IsNil)
 	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
@@ -2295,7 +2295,7 @@ func (s *runner20Suite) SetUpTest(c *C) {
 	err := os.MkdirAll(s.seedAssertsDir, 0755)
 	c.Assert(err, IsNil)
 
-	// write dummy modeenv
+	// write sample modeenv
 	err = os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)

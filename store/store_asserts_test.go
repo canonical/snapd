@@ -465,7 +465,7 @@ func (s *storeAssertsSuite) TestSeqFormingAssertion(c *C) {
 	defer restore()
 
 	// overwritten by test loop for each test case
-	expectedSeqArg := "dummy"
+	expectedSeqArg := "sample"
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "GET", "/v2/assertions/.*")
