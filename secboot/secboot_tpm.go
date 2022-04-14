@@ -415,7 +415,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
 			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
-			//            signature updates to blacklist signing keys (after rotating them).
+			//            signature updates to excluded signing keys (after rotating them).
 			//            This also requires integration of sbkeysync, and some work to
 			//            ensure that the PCR profile is updated before/after sbkeysync executes.
 		}
