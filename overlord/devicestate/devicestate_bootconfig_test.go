@@ -105,7 +105,7 @@ func (s *deviceMgrBootconfigSuite) testBootConfigUpdateRun(c *C, updateAttempted
 
 	s.state.Lock()
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.Set("system-restart-immediate", true)
 	s.state.Unlock()
@@ -267,7 +267,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigRemodelDoNothing(c *C) {
 	// be extra sure
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	tsk := s.state.NewTask("update-managed-boot-config", "update boot config")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	remodCtx.Init(chg)
 	// replace the bootloader with something that always fails

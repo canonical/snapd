@@ -7948,21 +7948,21 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 
 	// try a kernel snap first
 	si := &snap.SideInfo{RealName: "some-kernel", Revision: snap.R(2)}
-	tPrepare := s.state.NewTask("prepare-snap", "dummy task")
+	tPrepare := s.state.NewTask("prepare-snap", "test task")
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     "kernel",
 	}
 	tPrepare.Set("snap-setup", snapsup)
-	tDummy := s.state.NewTask("dummy-task", "dummy task")
+	tDummy := s.state.NewTask("test-task", "test task")
 	ts := state.NewTaskSet(tPrepare, tDummy)
 
 	tsNew, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(nonReLinkKinds)))
-	// since this is the kernel, we have our task + dummy task + update-gadget-assets + link-snap
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap", "test-task"}, kindsToSet(nonReLinkKinds)))
+	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]
 	tLink := tasks[3]
@@ -7985,7 +7985,7 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 
 	// try with base snap
 	si = &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
-	tPrepare = s.state.NewTask("prepare-snap", "dummy task")
+	tPrepare = s.state.NewTask("prepare-snap", "test task")
 	tPrepare.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     "base",
@@ -8077,21 +8077,21 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	defer s.state.Unlock()
 
 	si := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(3)}
-	tPrepare := s.state.NewTask("prepare-snap", "dummy task")
+	tPrepare := s.state.NewTask("prepare-snap", "test task")
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     "gadget",
 	}
 	tPrepare.Set("snap-setup", snapsup)
-	tDummy := s.state.NewTask("dummy-task", "dummy task")
+	tDummy := s.state.NewTask("test-task", "test task")
 	ts := state.NewTaskSet(tPrepare, tDummy)
 
 	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
-	// since this is the gadget, we have our task + dummy task + update assets + update cmdline
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap", "test-task"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
+	// since this is the gadget, we have our task + test task + update assets + update cmdline
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]
 	tUpdateGadgetCmdline := tasks[3]

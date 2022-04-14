@@ -51,10 +51,10 @@ name: pkg
 version: 1
 apps:
   daemon:
-    command: dummy
+    command: test
     daemon: simple
   app:
-    command: dummy
+    command: test
 hooks:
   configure:
 `
