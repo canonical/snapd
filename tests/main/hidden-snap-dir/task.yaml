@@ -120,7 +120,7 @@ execute: |
     "$NAME".echo "$data" > "$HOME/snap/$NAME/common/file"
 
     echo "Refresh the snap"
-    "$TESTSTOOLS"/snaps-state install-local "$NAME" --ignore-running
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
 
     # Check env vars, dirs and data after the migration
     check_env "x2"
