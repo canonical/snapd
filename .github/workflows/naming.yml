@@ -9,9 +9,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      - uses: jitterbit/get-changed-files@v1
+        id: files
+
       - name: woke
-        uses: petesfrench/inclusive-naming-action@master
+        uses:  get-woke/woke-action@v0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-check
           fail-on-error: true
+          woke-args: ${{ steps.files.outputs.added_modified }}
