@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,26 @@
  *
  */
 
-package sanity_test
+package syscheck
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
 
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/sanity"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
-func (s *sanitySuite) TestCheckApparmorUsable(c *C) {
-	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
-	restore := sanity.MockAppArmorProfilesPath(epermProfilePath)
-	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
-	c.Assert(err, IsNil)
+func init() {
+	checks = append(checks, checkCgroup)
+}
 
-	err = sanity.CheckApparmorUsable()
-	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
+func checkCgroup() error {
+	v, err := cgroup.Version()
+	if err != nil {
+		return fmt.Errorf("snapd could not probe cgroup version: %v", err)
+	}
+	if v == cgroup.Unknown {
+		return fmt.Errorf("snapd could not determine cgroup version")
+	}
+
+	return nil
 }

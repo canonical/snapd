@@ -300,13 +300,12 @@ func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int)
 	//       However, before this we'd count bytes instead of runes, so we'd be
 	//       even more broken. Think of it as successive approximations... at least
 	//       with this work we share tabwriter's opinion on the width of things!
-	if termWidth < 1 {
-		termWidth = 1
-	}
-
 	indentWidth := utf8.RuneCountInString(indent)
 	delta := indentWidth - utf8.RuneCountInString(indent2)
 	width := termWidth - indentWidth
+	if width < 1 {
+		width = 1
+	}
 
 	// establish the indent of the whole block
 	var err error
@@ -332,4 +331,27 @@ func WordWrap(out io.Writer, text []rune, indent, indent2 string, termWidth int)
 	}
 	_, err = fmt.Fprint(out, indent, string(text), "\n")
 	return err
+}
+
+// WordWrapPadded wraps the given text, assumed to be part of a block-style yaml
+// string, to fit into termWidth, preserving the line's indent, and
+// writes it out prepending padding to each line.
+func WordWrapPadded(out io.Writer, text []rune, pad string, termWidth int) error {
+	// discard any trailing whitespace
+	text = []rune(strings.TrimRightFunc(string(text), unicode.IsSpace))
+	// establish the indent of the whole block
+	idx := 0
+	for idx < len(text) && unicode.IsSpace(text[idx]) {
+		idx++
+	}
+	indent := pad + string(text[:idx])
+	text = text[idx:]
+	if len(indent) > termWidth/2 {
+		// If indent is too big there's not enough space for the actual
+		// text, in the pathological case the indent can even be bigger
+		// than the terminal which leads to lp:1828425.
+		// Rather than let that happen, give up.
+		indent = pad + "  "
+	}
+	return WordWrap(out, text, indent, indent, termWidth)
 }

@@ -17,7 +17,7 @@
  *
  */
 
-package sanity
+package syscheck
 
 var (
 	CheckSquashfsMount  = checkSquashfsMount

@@ -57,6 +57,11 @@ func (s *grubTestSuite) SetUpTest(c *C) {
 	// By default assume amd64 in the tests: there are specialized
 	// tests for other arches
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	snippets := []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	}
+	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
+	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 }
 
 // grubEditenvCmd finds the right grub{,2}-editenv command

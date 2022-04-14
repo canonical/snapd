@@ -55,7 +55,7 @@ execute: |
     echo "i-am-broken-now" >> "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
 
     echo "And a transactional refresh is tried and should fail"
-    not snap refresh --transactional "$GOOD_SNAP" "$BAD_SNAP"
+    not snap refresh --transaction=all-snaps "$GOOD_SNAP" "$BAD_SNAP"
 
     echo "Bad snap did not get updated"
     snap list | MATCH -E "${BAD_SNAP}" | NOMATCH "fake"

@@ -87,7 +87,7 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app), pids: 101`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
 	// Hooks behave just like apps. IDEA: perhaps hooks should not be
@@ -97,7 +97,7 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure), pids: 105`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 
 	// Both apps and hooks can be running.
@@ -107,7 +107,7 @@ func (s *refreshSuite) TestSoftNothingRunningRefreshCheck(c *C) {
 	}
 	err = snapstate.SoftNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app) and hooks (configure)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app) and hooks (configure), pids: 105,106`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105, 106})
 }
 
@@ -119,7 +119,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	}
 	err := snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (daemon)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (daemon), pids: 100`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{100})
 
 	// When the service is supposed to endure refreshes it will not be
@@ -135,7 +135,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	}
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running apps (app), pids: 101`)
 	c.Assert(err, FitsTypeOf, &snapstate.BusySnapError{})
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{101})
 
@@ -145,7 +145,7 @@ func (s *refreshSuite) TestHardNothingRunningRefreshCheck(c *C) {
 	}
 	err = snapstate.HardNothingRunningRefreshCheck(s.info)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure)`)
+	c.Check(err.Error(), Equals, `snap "pkg" has running hooks (configure), pids: 105`)
 	c.Check(err.(*snapstate.BusySnapError).Pids(), DeepEquals, []int{105})
 }
 
@@ -218,13 +218,13 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
-		return &snapstate.BusySnapError{SnapInfo: info}
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()
 
 	// Soft refresh should fail with a proper error.
 	err := snapstate.SoftCheckNothingRunningForRefresh(s.state, snapst, info)
-	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
 	hint, err := runinhibit.IsLocked(info.InstanceName())
@@ -269,13 +269,13 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
-		return &snapstate.BusySnapError{SnapInfo: info}
+		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()
 
 	// Hard refresh should fail and not return a lock.
 	lock, err := snapstate.HardEnsureNothingRunningDuringRefresh(backend, s.state, snapst, info)
-	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 	c.Assert(lock, IsNil)
 
 	// Validity check: the inhibition lock was not set.

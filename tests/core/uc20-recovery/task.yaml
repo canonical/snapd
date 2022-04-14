@@ -1,6 +1,8 @@
 summary: verify booting into recovery mode on UC20 systems
 
-systems: [ubuntu-core-20-*]
+systems:
+  - ubuntu-core-20-*
+  - ubuntu-core-22-*
 
 restore: |
     rm -f /writable/systems.json.run
