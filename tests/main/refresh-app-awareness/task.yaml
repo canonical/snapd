@@ -80,7 +80,7 @@ execute: |
             not snap install --dangerous test-snapd-refresh_2_all.snap >install.log 2>&1
             ;;
     esac
-    unwrap_msg < install.log | MATCH 'error: cannot install snap file: snap "test-snapd-refresh" has running apps +\(sh\)'
+    unwrap_msg < install.log | MATCH 'error: cannot install snap file: snap "test-snapd-refresh" has running apps +\(sh\), pids: [0-9]+'
     test-snapd-refresh.version | MATCH v1
 
     # Kill the app process running from v1.
