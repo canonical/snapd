@@ -123,7 +123,7 @@ execute: |
     fi
 
     echo "When the snap is refreshed"
-    snap refresh --ignore-running --channel=edge "$SNAP_NAME"
+    snap refresh --channel=edge "$SNAP_NAME"
 
     if [ -f /tmp/inhibit.events ]; then
       echo "During the refresh process, the inhibition lock was established and released"
@@ -139,7 +139,7 @@ execute: |
     snap list | grep -Pzq "$expected"
 
     echo "When a snap is refreshed and has no update it exit 0"
-    snap refresh --ignore-running "$SNAP_NAME" 2>stderr.out
+    snap refresh "$SNAP_NAME" 2>stderr.out
     MATCH "snap \"$SNAP_NAME\" has no updates available" < stderr.out
 
     echo "classic snaps "
@@ -149,7 +149,7 @@ execute: |
     snap refresh "$SNAP_NAME" basic 2>&1 | MATCH "All snaps up to date."
 
     echo "When moving to stable"
-    snap refresh --stable --ignore-running "$SNAP_NAME"
+    snap refresh --stable "$SNAP_NAME"
     snap info "$SNAP_NAME" | MATCH "tracking: +latest/stable"
 
     snap refresh --candidate "$SNAP_NAME" 2>&1 | MATCH "$SNAP_NAME \\(candidate\\).*"
