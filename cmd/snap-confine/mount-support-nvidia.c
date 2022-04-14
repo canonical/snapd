@@ -462,6 +462,7 @@ static void sc_mkdir_and_mount_and_bind(const char *rootfs_dir,
 	// that case the container may not have the userspace library installed but
 	// the kernel will still have the module around.
 	if (access(src, F_OK) != 0) {
+		debug("nvidia src path %s not accessible", src);
 		return;
 	}
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());

@@ -668,7 +668,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 		/* Create and populate the mount namespace. This performs all
 		   of the bootstrapping mounts, pivots into the new root filesystem and
 		   applies the per-snap mount profile using snap-update-ns. */
-		debug("unsharing the mount namespace (per-snap)");
+		debug("unsharing the mount namespace for %s (per-snap)", inv->snap_name);
 		if (unshare(CLONE_NEWNS) < 0) {
 			die("cannot unshare the mount namespace");
 		}
@@ -678,8 +678,9 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 
 		/* Preserve the mount namespace. */
 		sc_preserve_populated_mount_ns(group);
+	} else {
+		debug("re-using the mount namespace for %s",  inv->snap_name);
 	}
-
 	/* Older versions of snap-confine created incorrect 777 permissions
 	   for /var/lib and we need to fixup for systems that had their NS created
 	   with an old version. */
