@@ -13,7 +13,7 @@ jobs:
         id: files
 
       - name: woke
-        uses:  get-woke/woke-action@v0
+        uses:  get-woke/woke-action-reviewdog@v0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-check
