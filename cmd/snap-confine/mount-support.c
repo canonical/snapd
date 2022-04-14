@@ -524,25 +524,24 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		sc_do_mount(SNAP_MOUNT_DIR, dst, NULL, MS_BIND | MS_REC, NULL);
 		sc_do_mount("none", dst, NULL, MS_REC | MS_SLAVE, NULL);
 	}
-	// Create the hostfs directory if one is missing. This directory is a part
-	// of packaging now so perhaps this code can be removed later.
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
-		if (errno != EEXIST) {
-			die("cannot perform operation: mkdir %s",
-			    SC_HOSTFS_DIR);
-		}
-	}
-	(void)sc_set_effective_identity(old);
-	// Ensure that hostfs isgroup owned by root. We may have (now or earlier)
-	// created the directory as the user who first ran a snap on a given
-	// system and the group identity of that user is visilbe on disk.
+	// Ensure that hostfs exists and is group-owned by root. We may have (now
+	// or earlier) created the directory as the user who first ran a snap on a
+	// given system and the group identity of that user is visible on disk.
 	// This was LP:#1665004
 	struct stat sb;
 	if (stat(SC_HOSTFS_DIR, &sb) < 0) {
-		die("cannot stat %s", SC_HOSTFS_DIR);
-	}
-	if (sb.st_uid != 0 || sb.st_gid != 0) {
+		if (errno == ENOENT) {
+			// Create the hostfs directory if one is missing. This directory is a part
+			// of packaging now so perhaps this code can be removed later.
+			sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+			if (mkdir(SC_HOSTFS_DIR, 0755) < 0) {
+				die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
+			}
+			(void)sc_set_effective_identity(old);
+		} else {
+			die("cannot stat %s", SC_HOSTFS_DIR);
+		}
+	} else if (sb.st_uid != 0 || sb.st_gid != 0) {
 		die("%s is not owned by root", SC_HOSTFS_DIR);
 	}
 	// Make the upcoming "put_old" directory for pivot_root private so that
