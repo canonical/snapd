@@ -40,7 +40,7 @@ execute: |
     retry -n 5 test -e /var/snap/test-strict-cgroup/common/started
 
     echo "Disallow access to /dev/full"
-    # sanity check
+    # precondition check
     tests.device-cgroup test-strict-cgroup.sh dump | MATCH 'c 1:7 rwm'
     tests.device-cgroup --verbose test-strict-cgroup.sh deny c 1:7
 

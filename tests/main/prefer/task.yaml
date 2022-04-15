@@ -4,7 +4,7 @@ execute: |
     echo "Install the snap with auto-aliases"
     snap install test-snapd-auto-aliases
 
-    echo "Sanity check"
+    echo "Precondition check"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown1"
     test -h "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"

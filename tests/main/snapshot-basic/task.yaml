@@ -90,7 +90,7 @@ execute: |
 
     snap forget "$RESTORE_ID"
     echo "Import re-creates snapshots directory if misssing"
-    # sanity check
+    # precondition check
     test -d /var/lib/snapd/snapshots
     rm -rf /var/lib/snapd/snapshots
     RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | head -n1 | cut -f2 -d'#' )
