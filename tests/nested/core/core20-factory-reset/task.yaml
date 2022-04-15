@@ -85,3 +85,6 @@ execute: |
     tests.nested exec test ! -e /writable/marker
     tests.nested exec test -e /run/mnt/ubuntu-save/marker
     tests.nested exec test -e /run/mnt/ubuntu-seed/marker
+
+    # verify that the factory-reset log was collected
+    tests.nested exec "zcat /var/log/factory-reset-mode.log.gz" | MATCH 'performing factory reset on an installed system'
