@@ -40,7 +40,9 @@ const systemPackagesDocConnectedPlugAppArmor = `
 # Description: can access documentation of system packages.
 
 /usr/share/doc/{,**} r,
+/usr/share/gtk-doc/{,**} r,
 /usr/share/libreoffice/help/{,**} r,
+/usr/share/xubuntu-docs/{,**} r,
 `
 
 type systemPackagesDocInterface struct {
@@ -54,9 +56,18 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/doc/,\n")
 	emit("  umount /usr/share/doc/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/gtk-doc/ -> /usr/share/gtk-doc/,\n")
+	emit("  remount options=(bind, ro) /usr/share/gtk-doc/,\n")
+	emit("  umount /usr/share/gtk-doc/,\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/libreoffice/help/ -> /usr/share/libreoffice/help/,\n")
 	emit("  remount options=(bind, ro) /usr/share/libreoffice/help/,\n")
 	emit("  umount /usr/share/libreoffice/help/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
+	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
+	emit("  umount /usr/share/xubuntu-docs/,\n")
+	// the mount targets under /usr/share/ do not necessarily exist in the
+	// base image, in which case, we need to create a writable mimic
+	apparmor.GenWritableProfile(emit, "/usr/share/", 3)
 	return nil
 }
 
@@ -67,8 +78,18 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 		Options: []string{"bind", "ro"},
 	})
 	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/gtk-doc",
+		Dir:     "/usr/share/gtk-doc",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/libreoffice/help",
 		Dir:     "/usr/share/libreoffice/help",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/xubuntu-docs",
+		Dir:     "/usr/share/xubuntu-docs",
 		Options: []string{"bind", "ro"},
 	})
 	return nil

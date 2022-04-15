@@ -17,7 +17,7 @@
  *
  */
 
-package sanity
+package syscheck
 
 import (
 	"fmt"

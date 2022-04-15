@@ -124,6 +124,9 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	if err := snap.ValidateContainer(snapdir.New(sourceDir), info, logger.Noticef); err != nil {
 		return nil, err
 	}
+	if _, err := snap.ReadSnapshotYamlFromSnapFile(snapdir.New(sourceDir)); err != nil {
+		return nil, err
+	}
 
 	if info.SnapType == snap.TypeGadget {
 		// TODO:UC20: optionally pass model

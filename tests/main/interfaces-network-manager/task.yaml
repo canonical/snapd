@@ -18,6 +18,7 @@ systems:
     - ubuntu-core-18-64
     - ubuntu-core-18-32
     - ubuntu-core-20-64
+    - ubuntu-core-22-64
 
 prepare: |
     echo "Given a network-manager snap is installed"
@@ -29,7 +30,7 @@ prepare: |
         snap install --channel=20 network-manager
     fi
 
-    snap install network-manager
+    rm -f /etc/netplan/00-default-nm-renderer.yaml
 
 execute: |
     # using wait_for_service is not enough, systemd considers the service

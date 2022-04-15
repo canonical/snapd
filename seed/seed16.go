@@ -349,7 +349,11 @@ func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return s.loadEssentialMeta(essentialTypes, required, added, tm)
 }
 
-func (s *seed16) LoadMeta(tm timings.Measurer) error {
+func (s *seed16) LoadMeta(mode string, tm timings.Measurer) error {
+	if mode != AllModes && mode != "run" {
+		return fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
+	}
+
 	model := s.Model()
 
 	if err := s.loadYaml(); err != nil {

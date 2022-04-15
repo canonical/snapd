@@ -1822,7 +1822,7 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheckOn(c *C) {
 
 	chg := s.testDoUnlinkSnapRefreshAwareness(c)
 
-	c.Check(chg.Err(), ErrorMatches, `(?ms).*^- some-change-descr \(snap "some-snap" has running apps \(some-app\)\).*`)
+	c.Check(chg.Err(), ErrorMatches, `(?ms).*^- some-change-descr \(snap "some-snap" has running apps \(some-app\), pids: 1234\).*`)
 }
 
 func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {

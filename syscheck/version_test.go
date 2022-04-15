@@ -17,7 +17,7 @@
  *
  */
 
-package sanity_test
+package syscheck_test
 
 import (
 	"io/ioutil"
@@ -29,14 +29,14 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/sanity"
+	"github.com/snapcore/snapd/syscheck"
 )
 
 type versionSuite struct{}
 
 var _ = Suite(&versionSuite{})
 
-func (s *sanitySuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
+func (s *syscheckSuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
 	// Mock an Ubuntu 14.04 system running a 3.13.0 kernel
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -46,11 +46,11 @@ func (s *sanitySuite) TestFreshInstallOfSnapdOnTrusty(c *C) {
 	defer restore()
 
 	// Check for the given advice.
-	err := sanity.CheckKernelVersion()
+	err := syscheck.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "you need to reboot into a 4.4 kernel to start using snapd")
 }
 
-func (s *sanitySuite) TestRebootedOnTrusty(c *C) {
+func (s *syscheckSuite) TestRebootedOnTrusty(c *C) {
 	// Mock an Ubuntu 14.04 system running a 4.4.0 kernel
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -60,11 +60,11 @@ func (s *sanitySuite) TestRebootedOnTrusty(c *C) {
 	defer restore()
 
 	// Check for the given advice.
-	err := sanity.CheckKernelVersion()
+	err := syscheck.CheckKernelVersion()
 	c.Assert(err, IsNil)
 }
 
-func (s *sanitySuite) TestRHEL80OK(c *C) {
+func (s *syscheckSuite) TestRHEL80OK(c *C) {
 	// Mock an Ubuntu 14.04 system running a 4.4.0 kernel
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -75,11 +75,11 @@ func (s *sanitySuite) TestRHEL80OK(c *C) {
 	defer restore()
 
 	// Check for the given advice.
-	err := sanity.CheckKernelVersion()
+	err := syscheck.CheckKernelVersion()
 	c.Assert(err, IsNil)
 }
 
-func (s *sanitySuite) TestRHEL7x(c *C) {
+func (s *syscheckSuite) TestRHEL7x(c *C) {
 	dir := c.MkDir()
 	dirs.SetRootDir(dir)
 	defer dirs.SetRootDir("/")
@@ -96,7 +96,7 @@ func (s *sanitySuite) TestRHEL7x(c *C) {
 	defer restore()
 
 	// pretend the kernel knob is not there
-	err := sanity.CheckKernelVersion()
+	err := syscheck.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "cannot read the value of fs.may_detach_mounts kernel parameter: .*")
 
 	p := filepath.Join(dir, "/proc/sys/fs/may_detach_mounts")
@@ -107,30 +107,30 @@ func (s *sanitySuite) TestRHEL7x(c *C) {
 	err = ioutil.WriteFile(p, []byte("0\n"), 0644)
 	c.Assert(err, IsNil)
 
-	err = sanity.CheckKernelVersion()
+	err = syscheck.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
 
 	// actually enabled
 	err = ioutil.WriteFile(p, []byte("1\n"), 0644)
 	c.Assert(err, IsNil)
 
-	err = sanity.CheckKernelVersion()
+	err = syscheck.CheckKernelVersion()
 	c.Assert(err, IsNil)
 
 	// custom kernel version, which is old and we have no knowledge about
 	restore = osutil.MockKernelVersion("3.10.0-1024.foo.x86_64")
 	defer restore()
-	err = sanity.CheckKernelVersion()
+	err = syscheck.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, `unsupported kernel version "3.10.0-1024.foo.x86_64", you need to switch to the stock kernel`)
 
 	// custom kernel version, but new enough
 	restore = osutil.MockKernelVersion("4.18.0-32.foo.x86_64")
 	defer restore()
-	err = sanity.CheckKernelVersion()
+	err = syscheck.CheckKernelVersion()
 	c.Assert(err, IsNil)
 }
 
-func (s *sanitySuite) TestCentOS7x(c *C) {
+func (s *syscheckSuite) TestCentOS7x(c *C) {
 	dir := c.MkDir()
 	dirs.SetRootDir(dir)
 	defer dirs.SetRootDir("/")
@@ -155,13 +155,13 @@ func (s *sanitySuite) TestCentOS7x(c *C) {
 	err = ioutil.WriteFile(p, []byte("0\n"), 0644)
 	c.Assert(err, IsNil)
 
-	err = sanity.CheckKernelVersion()
+	err = syscheck.CheckKernelVersion()
 	c.Assert(err, ErrorMatches, "fs.may_detach_mounts kernel parameter is supported but disabled")
 
 	// actually enabled
 	err = ioutil.WriteFile(p, []byte("1\n"), 0644)
 	c.Assert(err, IsNil)
 
-	err = sanity.CheckKernelVersion()
+	err = syscheck.CheckKernelVersion()
 	c.Assert(err, IsNil)
 }
