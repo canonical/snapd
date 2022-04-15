@@ -26,6 +26,11 @@ type Options struct {
 	// Preseed requests the image to be preseeded (only for UC20)
 	Preseed bool
 
+	// AppArmor kernel features directory to bind-mount when preseeding.
+	// If empty then the features from /sys/kernel/security/apparmor will be used.
+	// (only for UC20)
+	AppArmorKernelFeaturesDir string
+
 	Channel string
 
 	// TODO: use OptionsSnap directly here?

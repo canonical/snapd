@@ -47,7 +47,8 @@ first-boot startup time`
 )
 
 type options struct {
-	Reset bool `long:"reset"`
+	Reset               bool   `long:"reset"`
+	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
 }
 
 var (
@@ -118,7 +119,7 @@ func run(parser *flags.Parser, args []string) (err error) {
 	}
 
 	if probeCore20ImageDir(chrootDir) {
-		return preseedCore20(chrootDir)
+		return preseedCore20(chrootDir, opts.AppArmorFeaturesDir)
 	}
 	return preseedClassic(chrootDir)
 }

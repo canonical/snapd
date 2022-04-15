@@ -73,7 +73,7 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 	}
 }
 
-func MockPreseedCore20(f func(dir string) error) (restore func()) {
+func MockPreseedCore20(f func(dir, aaDir string) error) (restore func()) {
 	r := testutil.Backup(&preseedCore20)
 	preseedCore20 = f
 	return r
