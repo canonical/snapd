@@ -82,7 +82,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if b.preseed {
 		systemd = sysd.NewEmulationMode(dirs.GlobalRootDir)
 	} else {
-		systemd = sysd.New(sysd.SystemMode, &dummyReporter{})
+		systemd = sysd.New(sysd.SystemMode, &noopReporter{})
 	}
 
 	// We need to be carefully here and stop all removed service units before
@@ -128,7 +128,7 @@ func (b *Backend) Remove(snapName string) error {
 		// for completeness.
 		systemd = sysd.NewEmulationMode(dirs.GlobalRootDir)
 	} else {
-		systemd = sysd.New(sysd.SystemMode, &dummyReporter{})
+		systemd = sysd.New(sysd.SystemMode, &noopReporter{})
 	}
 	// Remove all the files matching snap glob
 	glob := serviceName(snapName, "*")
@@ -212,7 +212,7 @@ func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string,
 	return nil
 }
 
-type dummyReporter struct{}
+type noopReporter struct{}
 
-func (dr *dummyReporter) Notify(msg string) {
+func (dr *noopReporter) Notify(msg string) {
 }

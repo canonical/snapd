@@ -51,10 +51,10 @@ name: pkg
 version: 1
 apps:
   daemon:
-    command: dummy
+    command: test
     daemon: simple
   app:
-    command: dummy
+    command: test
 hooks:
   configure:
 `
@@ -176,7 +176,7 @@ func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate
 	return snapst, info
 }
 
-func (s *refreshSuite) addDummyInstalledSnap() (*snapstate.SnapState, *snap.Info) {
+func (s *refreshSuite) addFakeInstalledSnap() (*snapstate.SnapState, *snap.Info) {
 	return s.addInstalledSnap(&snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -192,7 +192,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapst, info := s.addDummyInstalledSnap()
+	snapst, info := s.addFakeInstalledSnap()
 
 	// Pretend that snaps can refresh normally.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -214,7 +214,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapst, info := s.addDummyInstalledSnap()
+	snapst, info := s.addFakeInstalledSnap()
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -237,7 +237,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapst, info := s.addDummyInstalledSnap()
+	snapst, info := s.addFakeInstalledSnap()
 
 	// Pretend that snaps can refresh normally.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
@@ -265,7 +265,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	// Pretend we have a snap
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapst, info := s.addDummyInstalledSnap()
+	snapst, info := s.addFakeInstalledSnap()
 
 	// Pretend that snaps cannot refresh.
 	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {

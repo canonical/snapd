@@ -8351,9 +8351,9 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithGadget
 				case "core18":
 					baseTsk = tsk
 				}
-				var dummy bool
+				var flag bool
 				// the flag isn't set for any of link-snap tasks
-				c.Assert(tsk.Get("cannot-reboot", &dummy), Equals, state.ErrNoState)
+				c.Assert(tsk.Get("cannot-reboot", &flag), Equals, state.ErrNoState)
 			}
 		}
 	}

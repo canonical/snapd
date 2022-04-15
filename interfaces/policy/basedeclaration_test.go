@@ -149,7 +149,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"packagekit-control": true,
 		"pkcs11":             true,
 		"snapd-control":      true,
-		"dummy":              true,
+		"empty":              true,
 	}
 
 	// these simply auto-connect, anything else doesn't
@@ -745,7 +745,7 @@ var (
 		"docker-support":            {"core"},
 		"desktop-launch":            {"core"},
 		"dsp":                       {"core", "gadget"},
-		"dummy":                     {"app"},
+		"empty":                     {"app"},
 		"fwupd":                     {"app", "core"},
 		"gpio":                      {"core", "gadget"},
 		"gpio-control":              {"core"},
