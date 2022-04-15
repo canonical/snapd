@@ -315,8 +315,8 @@ override_dh_systemd_start:
 	# debhelper supporting --remaining like behaviour here would
 	# have been useful
 	# (Re-)start socket first
-	dh_systemd_start snapd.socket
+	dh_systemd_start --restart-after-upgrade snapd.socket
 	# Then service
-	dh_systemd_start snapd.service
+	dh_systemd_start --restart-after-upgrade snapd.service
 	# Then the rest
-	dh_systemd_start $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))
+	dh_systemd_start --restart-after-upgrade $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))
