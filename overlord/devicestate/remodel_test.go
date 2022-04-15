@@ -60,7 +60,7 @@ type remodelLogicBaseSuite struct {
 	brands       *assertstest.SigningAccounts
 
 	capturedDevBE storecontext.DeviceBackend
-	dummyStore    snapstate.StoreService
+	testStore     snapstate.StoreService
 }
 
 func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
@@ -91,11 +91,11 @@ func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
 		assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
 	}()
 
-	s.dummyStore = new(storetest.Store)
+	s.testStore = new(storetest.Store)
 
 	newStore := func(devBE storecontext.DeviceBackend) snapstate.StoreService {
 		s.capturedDevBE = devBE
-		return s.dummyStore
+		return s.testStore
 	}
 
 	hookMgr, err := hookstate.Manager(s.state, o.TaskRunner())
@@ -455,10 +455,10 @@ func (s *remodelLogicSuite) TestNewStoreRemodelContextStore(c *C) {
 	})
 
 	sto := remodCtx.Store()
-	c.Check(sto, Equals, s.dummyStore)
+	c.Check(sto, Equals, s.testStore)
 
 	// store is kept and not rebuilt
-	s.dummyStore = nil
+	s.testStore = nil
 
 	sto1 := remodCtx.Store()
 	c.Check(sto1, Equals, sto)

@@ -274,6 +274,43 @@ func MockPibootFiles(c *C, rootdir string, blOpts *Options) func() {
 	return func() { ubuntuSeedDir = oldSeedPartDir }
 }
 
+func MockRPi4Files(c *C, rootdir string, rpiRevisionCode, eepromTimeStamp []byte) func() {
+	oldRevCodePath := rpi4RevisionCodesPath
+	oldEepromTs := rpi4EepromTimeStampPath
+	rpi4RevisionCodesPath = filepath.Join(rootdir, "linux,revision")
+	rpi4EepromTimeStampPath = filepath.Join(rootdir, "build-timestamp")
+
+	files := []struct {
+		path string
+		data []byte
+	}{
+		{
+			path: rpi4RevisionCodesPath,
+			data: rpiRevisionCode,
+		},
+		{
+			path: rpi4EepromTimeStampPath,
+			data: eepromTimeStamp,
+		},
+	}
+	for _, file := range files {
+		if len(file.data) == 0 {
+			continue
+		}
+		fd, err := os.Create(file.path)
+		c.Assert(err, IsNil)
+		defer fd.Close()
+		written, err := fd.Write(file.data)
+		c.Assert(err, IsNil)
+		c.Assert(written, Equals, len(file.data))
+	}
+
+	return func() {
+		rpi4RevisionCodesPath = oldRevCodePath
+		rpi4EepromTimeStampPath = oldEepromTs
+	}
+}
+
 func PibootConfigFile(b Bootloader) string {
 	p := b.(*piboot)
 	return p.envFile()

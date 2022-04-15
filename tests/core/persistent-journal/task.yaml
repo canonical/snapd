@@ -19,7 +19,7 @@ execute: |
     echo "Wait for first boot to be done"
     snap wait system seed.loaded
 
-    echo "Sanity check, persistent journal is not available by default"
+    echo "Precondition check, persistent journal is not available by default"
     not test -e /var/log/journal
 
     echo "Check that persistent journal can be enabled"

@@ -344,17 +344,17 @@ func (s *preseedSuite) TestReset(c *C) {
 		c.Assert(preseed.ResetPreseededChroot("/non/existing/chrootpath"), ErrorMatches, `cannot reset non-existing directory "/non/existing/chrootpath"`)
 
 		// reset complains if target is not a directory
-		dummyFile := filepath.Join(resetDirArg, "foo")
-		c.Assert(ioutil.WriteFile(dummyFile, nil, os.ModePerm), IsNil)
-		err = preseed.ResetPreseededChroot(dummyFile)
+		fooFile := filepath.Join(resetDirArg, "foo")
+		c.Assert(ioutil.WriteFile(fooFile, nil, os.ModePerm), IsNil)
+		err = preseed.ResetPreseededChroot(fooFile)
 		// the error message is always with an absolute file, so make the path
 		// absolute if we are running the relative test to properly match
 		if isRelative {
 			var err2 error
-			dummyFile, err2 = filepath.Abs(dummyFile)
+			fooFile, err2 = filepath.Abs(fooFile)
 			c.Assert(err2, IsNil)
 		}
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, dummyFile))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, fooFile))
 	}
 
 }

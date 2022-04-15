@@ -104,7 +104,7 @@ func MockTimeNow(t time.Time) (restore func()) {
 	}
 }
 
-// define dummy assertion types to use in the tests
+// define test assertion types to use in the tests
 
 type TestOnly struct {
 	assertionBase

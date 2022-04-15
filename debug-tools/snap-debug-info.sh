@@ -52,7 +52,11 @@ for chg in $(snap changes | tail -n +2 | grep -Po '(?:[0-9]+\s+Error)' | awk '{p
     snap tasks "$chg" --abs-time
 done
 
+h1 "VALIDATION SET ASSERTIONS"
+snap known validation-set
+
 # sudo needed for these commands
+h1 "VALIDATION SETS"; sudo snap validate
 h1 "OFFLINE SNAP CHANGES"; sudo snap debug state --abs-time --changes /var/lib/snapd/state.json
 h1 "SNAPD STACKTRACE"; sudo snap debug stacktraces
 h1 "SNAP SYSTEM CONFIG"; sudo snap get system -d

@@ -42,7 +42,7 @@ execute: |
         exit
     fi
 
-    echo "Sanity check for the fake store"
+    echo "Precondition check for the fake store"
     snap refresh 2>&1 | MATCH "All snaps up to date"
 
     echo "When the store is configured to make them refreshable"
@@ -55,7 +55,7 @@ execute: |
     echo "i-am-broken-now" >> "$BLOB_DIR/${BAD_SNAP}"*fake1*.snap
 
     echo "And a transactional refresh is tried and should fail"
-    not snap refresh --transactional "$GOOD_SNAP" "$BAD_SNAP"
+    not snap refresh --transaction=all-snaps "$GOOD_SNAP" "$BAD_SNAP"
 
     echo "Bad snap did not get updated"
     snap list | MATCH -E "${BAD_SNAP}" | NOMATCH "fake"
