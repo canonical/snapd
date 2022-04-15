@@ -1533,6 +1533,7 @@ func (safs *signAddFindSuite) TestFindOptionalPrimaryKeys(c *C) {
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a2)
+	c.Assert(err, IsNil)
 
 	a, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
 		"primary-key": "k1",
