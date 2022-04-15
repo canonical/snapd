@@ -420,7 +420,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 
 	// And observe that we cannot refresh because the snap is busy.
 	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
-	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\)`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\), pids: 1234`)
 
 	// The state records the time of the failed refresh operation.
 	err = snapstate.Get(s.state, "some-snap", snapst)
