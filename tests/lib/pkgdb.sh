@@ -621,7 +621,7 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-21.10-64|ubuntu-22.04-64)
+        ubuntu-21.10-64)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
@@ -630,6 +630,21 @@ pkg_dependencies_ubuntu_classic(){
                 linux-tools-virtual
                 qemu-utils
                 "
+            ;;
+        ubuntu-22.04-64)
+            # bpftool is part of linux-tools package
+            echo "
+                dbus-user-session
+                fwupd
+                golang
+                linux-tools-virtual
+                qemu-utils
+                "
+            if [ "$SPREAD_BACKEND" = "google" ]; then
+                echo "
+                    linux-tools-gcp
+                    "
+            fi
             ;;
         ubuntu-*)
             echo "
