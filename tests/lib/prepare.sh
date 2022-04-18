@@ -524,48 +524,16 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
-install_core_initrd_deps() {
+uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
     # TODO: install the linux-firmware as the current version of
     # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
     # to build the initrd
     apt install ubuntu-core-initramfs linux-firmware -y
-}
 
-uc20_modify_the_tool() {
-    local skeletondir=$1
-    local injectKernelPanic=$2
-
-    # modify the-tool to verify that our version is used when booting - this
-    # is verified in the tests/core/basic20 spread test
-    sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
-    # also save the time before snap-bootstrap runs
-    sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
-    cat >> "$skeletondir/main/usr/lib/the-tool" <<'EOF'
-    if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi
-    # also copy the time for the clock-epoch to system-data, this is
-    # used by a specific test but doesn't hurt anything to do this for
-    # all tests
-    mode=$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)
-    mode=${mode##snapd_recovery_mode=}
-    mkdir -p /run/mnt/ubuntu-seed/test
-    stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
-    echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
-    date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
-EOF
-
-    if [ "$injectKernelPanic" = "true" ]; then
-        # add a kernel panic to the end of the-tool execution
-        echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
-    fi
-}
-
-uc20_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
-
-    install_core_initrd_deps
 
     # TODO proper option support here would be nice but bash is hard and this is
     # easier, and likely we won't need to both inject a panic and set the epoch
@@ -610,22 +578,37 @@ uc20_build_initramfs_kernel_snap() {
         # kernel and we don't want to test that, just test our snap-bootstrap
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
-        skeletondir="$PWD/skeleton"
+        skeletondir=$PWD/skeleton
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap.real"
+        cat <<'EOF' | sed -E "s/^ {8}//" >"$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        #!/bin/sh
+        set -eux
+        if [ "$1" != initramfs-mounts ]; then
+            exec /usr/lib/snapd/snap-bootstrap.real "$@"
         fi
-
         beforeDate="$(date --utc '+%s')"
-
         /usr/lib/snapd/snap-bootstrap.real "$@"
-
         if [ -d /run/mnt/data/system-data ]; then
             touch /run/mnt/data/system-data/the-tool-ran
         fi
+        # also copy the time for the clock-epoch to system-data, this is
+        # used by a specific test but doesn't hurt anything to do this for
+        # all tests
+        mode="$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
+        mode=${mode##snapd_recovery_mode=}
+        mkdir -p /run/mnt/ubuntu-seed/test
+        stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
+        echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
+        date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
+EOF
 
+        chmod +x "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
 
-        if os.query is-core20; then
-            uc20_modify_the_tool "$skeletondir" "$injectKernelPanic"
+        if [ "$injectKernelPanic" = "true" ]; then
+            # add a kernel panic to the end of the-tool execution
+            echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         fi
+
         # bump the epoch time file timestamp, converting unix timestamp to 
         # touch's date format
         touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
