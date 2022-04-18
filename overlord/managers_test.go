@@ -4117,7 +4117,7 @@ version: 1.0
 apps:
    baz:
         command: bin/bar
-        plugs: [media-hub]
+        plugs: [wayland]
 `
 
 func (s *mgrsSuite) TestUpdateManyWithAutoconnect(c *C) {
@@ -4127,7 +4127,7 @@ apps:
    foo:
         command: bin/bar
         plugs: [network,home]
-        slots: [media-hub]
+        slots: [wayland]
 `
 
 	const coreSnapYaml = `name: core
@@ -4235,14 +4235,14 @@ version: @VERSION@`
 	var conns map[string]interface{}
 	st.Get("conns", &conns)
 	c.Assert(conns, DeepEquals, map[string]interface{}{
-		"some-snap:home core:home":                 map[string]interface{}{"interface": "home", "auto": true},
-		"some-snap:network core:network":           map[string]interface{}{"interface": "network", "auto": true},
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+		"some-snap:home core:home":       map[string]interface{}{"interface": "home", "auto": true},
+		"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true},
+		// TODO "other-snap:wayland some-snap:wayland": map[string]interface{}{"interface": "wayland", "auto": true},
 	})
 
 	connections, err := repo.Connections("some-snap")
 	c.Assert(err, IsNil)
-	c.Assert(connections, HasLen, 3)
+	c.Assert(connections, HasLen, 2)
 }
 
 func (s *mgrsSuite) TestUpdateWithAutoconnectAndInactiveRevisions(c *C) {
@@ -4331,7 +4331,7 @@ version: 1.0
 apps:
    foo:
         command: bin/bar
-        slots: [media-hub]
+        slots: [wayland]
 `
 
 func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeSnapName string) {
@@ -4452,25 +4452,25 @@ version: 1.0
 apps:
    foo:
         command: bin/bar
-        slots: [media-hub]
+        slots: [wayland]
 hooks:
-   disconnect-slot-media-hub:
+   disconnect-slot-wayland:
 `
 	const otherSnapYaml = `name: other-snap
 version: 1.0
 apps:
    baz:
         command: bin/bar
-        plugs: [media-hub]
+        plugs: [wayland]
 hooks:
-   disconnect-plug-media-hub:
+   disconnect-plug-wayland:
 `
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	st.Set("conns", map[string]interface{}{
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
+		"other-snap:wayland some-snap:wayland": map[string]interface{}{"interface": "wayland", "auto": false},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
@@ -4500,8 +4500,8 @@ hooks:
 	c.Assert(repo.AddSnap(snapInfo), IsNil)
 	c.Assert(repo.AddSnap(otherInfo), IsNil)
 	repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
-		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "wayland"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "wayland"},
 	}, nil, nil, nil, nil, nil)
 
 	flags := &snapstate.RemoveFlags{Purge: true}
@@ -4536,10 +4536,10 @@ hooks:
 		if t.Kind() == "run-hook" {
 			var hsup hookstate.HookSetup
 			c.Assert(t.Get("hook-setup", &hsup), IsNil)
-			if hsup.Hook == "disconnect-plug-media-hub" {
+			if hsup.Hook == "disconnect-plug-wayland" {
 				plugHookCount++
 			}
-			if hsup.Hook == "disconnect-slot-media-hub" {
+			if hsup.Hook == "disconnect-slot-wayland" {
 				slotHookCount++
 			}
 		}
@@ -4551,8 +4551,8 @@ hooks:
 	var snst snapstate.SnapState
 	err = snapstate.Get(st, "other-snap", &snst)
 	c.Assert(err, Equals, state.ErrNoState)
-	_, err = repo.Connected("other-snap", "media-hub")
-	c.Assert(err, ErrorMatches, `snap "other-snap" has no plug or slot named "media-hub"`)
+	_, err = repo.Connected("other-snap", "wayland")
+	c.Assert(err, ErrorMatches, `snap "other-snap" has no plug or slot named "wayland"`)
 }
 
 func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
@@ -4561,7 +4561,7 @@ func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	defer st.Unlock()
 
 	st.Set("conns", map[string]interface{}{
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": true},
+		"other-snap:wayland some-snap:wayland": map[string]interface{}{"interface": "wayland", "auto": true},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
@@ -4589,8 +4589,8 @@ func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 	c.Assert(repo.AddSnap(snapInfo), IsNil)
 	c.Assert(repo.AddSnap(otherInfo), IsNil)
 	repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
-		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "wayland"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "wayland"},
 	}, nil, nil, nil, nil, nil)
 
 	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), &snapstate.RemoveFlags{Purge: true})
@@ -8235,7 +8235,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	defer st.Unlock()
 
 	st.Set("conns", map[string]interface{}{
-		"other-snap:media-hub some-snap:media-hub": map[string]interface{}{"interface": "media-hub", "auto": false},
+		"other-snap:wayland some-snap:wayland": map[string]interface{}{"interface": "wayland", "auto": false},
 	})
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
@@ -8262,8 +8262,8 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	c.Assert(repo.AddSnap(snapInfo), IsNil)
 	c.Assert(repo.AddSnap(otherInfo), IsNil)
 	_, err := repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "media-hub"},
-		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "media-hub"},
+		PlugRef: interfaces.PlugRef{Snap: "other-snap", Name: "wayland"},
+		SlotRef: interfaces.SlotRef{Snap: "some-snap", Name: "wayland"},
 	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
