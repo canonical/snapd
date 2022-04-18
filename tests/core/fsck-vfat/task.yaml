@@ -51,12 +51,12 @@ execute: |
   retval=$?
   set -e
   test "$retval" -eq 1  # see fsck.vfat(8) for details
-  MATCH '0x25: Dirty bit is set. Fs was not properly unmounted and some data may be corrupt.' < fsck.vfat.dirty.log
+  MATCH 'Dirty bit is set. Fs was not properly unmounted and some data may be corrupt.' < fsck.vfat.dirty.log
   MATCH 'Automatically removing dirty bit.' < fsck.vfat.dirty.log
 
   echo "fsck.fat reports the file system as clean"
   fsck.vfat -v -a fat.img > fsck.vfat.cleaned.log
-  NOMATCH '0x25: Dirty bit is set. Fs was not properly unmounted and some data may be corrupt.' < fsck.vfat.cleaned.log
+  NOMATCH 'Dirty bit is set. Fs was not properly unmounted and some data may be corrupt.' < fsck.vfat.cleaned.log
 
   echo "Cleaned FAT mounts without warnings"
   mount fat.img /mnt

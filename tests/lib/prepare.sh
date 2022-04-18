@@ -611,7 +611,17 @@ uc20_build_initramfs_kernel_snap() {
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
         skeletondir="$PWD/skeleton"
-        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap"
+        cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap.real"
+        fi
+
+        beforeDate="$(date --utc '+%s')"
+
+        /usr/lib/snapd/snap-bootstrap.real "$@"
+
+        if [ -d /run/mnt/data/system-data ]; then
+            touch /run/mnt/data/system-data/the-tool-ran
+        fi
+
 
         if os.query is-core20; then
             uc20_modify_the_tool "$skeletondir" "$injectKernelPanic"
@@ -948,8 +958,13 @@ EOF
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
-    if os.query is-core20; then
-        snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
+    if os.query is-core20 || os.query is-core22; then
+        if os.query is-core20; then
+            BRANCH=20
+        elif os.query is-core22; then
+            BRANCH=22
+        fi
+        snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
         # make sure we have the snap
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
@@ -958,7 +973,7 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        snap download --basename=pc --channel="20/$GADGET_CHANNEL" pc
+        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
         
@@ -1022,9 +1037,13 @@ EOF
     fi
 
     # download the core20 snap manually from the specified channel for UC20
-    if os.query is-core20; then
-        snap download core20 --channel="$BASE_CHANNEL" --basename=core20
-
+    if os.query is-core20 || os.query is-core22; then
+        if os.query is-core20; then
+            BASE=core20
+        elif os.query is-core22; then
+            BASE=core22
+        fi
+        snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
         
         # we want to download the specific channel referenced by $BASE_CHANNEL, 
         # but if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL,
@@ -1041,15 +1060,15 @@ EOF
         # * pc (to aid in debugging by modifying the kernel command line)
         # * core20 (to avoid the automatic refresh issue)
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
-            unsquashfs -d core20-snap core20.snap
-            snap pack --filename=core20-repacked.snap core20-snap
-            rm -r core20-snap
-            mv core20-repacked.snap $IMAGE_HOME/core20.snap
+            unsquashfs -d "${BASE}-snap" "${BASE}.snap"
+            snap pack --filename="${BASE}-repacked.snap" "${BASE}-snap"
+            rm -r "${BASE}-snap"
+            mv "${BASE}-repacked.snap" "${IMAGE_HOME}/${BASE}.snap"
         else 
-            mv core20.snap $IMAGE_HOME/core20.snap
+            mv "${BASE}.snap" "${IMAGE_HOME}/${BASE}.snap"
         fi
         
-        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20.snap"
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
     local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
     if os.query is-core16; then
@@ -1063,7 +1082,7 @@ EOF
                     $EXTRA_FUNDAMENTAL \
                     --snap "${extra_snap[0]}" \
                     --output-dir "$IMAGE_HOME"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22}.{snap,assert}
 
     if os.query is-core20 || os.query is-core22; then
         # (ab)use ubuntu-seed

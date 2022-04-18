@@ -1,5 +1,9 @@
 summary: Ensure that the security rules related to device cgroups work.
 
+systems:
+  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  - -ubuntu-core-22-*
+
 environment:
     DEVICE_NAME/kmsg: kmsg
     UDEVADM_PATH/kmsg: /sys/devices/virtual/mem/kmsg

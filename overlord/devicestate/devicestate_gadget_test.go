@@ -254,7 +254,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade, gadgetYamlCon
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg = s.state.NewChange("dummy", "...")
+	chg = s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 
 	return chg, tsk
@@ -502,7 +502,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -559,7 +559,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -610,7 +610,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -639,7 +639,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	s.state.Set("seeded", true)
 
 	t := s.state.NewTask("update-gadget-assets", "update gadget")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -736,7 +736,7 @@ volumes:
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -927,7 +927,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridFirstboot(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -1016,7 +1016,7 @@ volumes:
 		SideInfo: siNext,
 		Type:     snap.TypeKernel,
 	})
-	chg = s.state.NewChange("dummy", "...")
+	chg = s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 
 	return chg, tsk
@@ -1135,7 +1135,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		SideInfo: &updateSi,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	s.state.Unlock()
 
@@ -1445,7 +1445,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	})
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(tsk)
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.AddTask(terr)
 	chg.Set("system-restart-immediate", true)
@@ -1554,7 +1554,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 	})
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(tsk)
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.AddTask(terr)
 	s.state.Unlock()
