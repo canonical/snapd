@@ -632,7 +632,7 @@ pkg_dependencies_ubuntu_classic(){
                 "
             if [ "$SPREAD_BACKEND" = "google" ]; then
                 echo "
-                    linux-tools-gcp
+                    linux-tools-$(uname -r)
                     "
             fi
             ;;
