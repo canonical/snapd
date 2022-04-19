@@ -20,6 +20,10 @@
 package apparmor
 
 import (
+	"io"
+	"os"
+
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -33,6 +37,24 @@ func MockRuntimeNumCPU(new func() int) (restore func()) {
 	return func() {
 		runtimeNumCPU = old
 	}
+}
+
+func MockMkdirAll(f func(string, os.FileMode) error) func() {
+	r := testutil.Backup(&osMkdirAll)
+	osMkdirAll = f
+	return r
+}
+
+func MockFileExists(f func(string) bool) func() {
+	r := testutil.Backup(&osutilFileExists)
+	osutilFileExists = f
+	return r
+}
+
+func MockAtomicWrite(f func(string, io.Reader, os.FileMode, osutil.AtomicWriteFlags) error) func() {
+	r := testutil.Backup(&osutilAtomicWrite)
+	osutilAtomicWrite = f
+	return r
 }
 
 // MockProfilesPath mocks the file read by LoadedProfiles()
