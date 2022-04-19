@@ -55,7 +55,7 @@ restore: |
     if mountpoint ./mnt; then
         umount ./mnt
     fi
-    # sanity check
+    # precondition check
     mount | NOMATCH /run/mnt
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"

@@ -21,8 +21,8 @@
 
 package osutil
 
-// MaybeInjectFault is a dummy implementation for builds with fault injection
+// MaybeInjectFault is an empty implementation for builds with fault injection
 // disabled.
 func MaybeInjectFault(tag string) {
-	// dummy
+	// intentionally empty
 }

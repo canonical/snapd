@@ -1,7 +1,7 @@
-summary: Ensure that the sanity check works
+summary: Ensure that the squashfs precondition check works
 
 prepare: |
-    echo "Break mounting so that the sanity check of a squashfs mount fails"
+    echo "Break mounting so that the precondition check of a squashfs mount fails"
     mount -o bind /bin/false /bin/mount
 
 restore: |
@@ -10,7 +10,7 @@ restore: |
     systemctl restart snapd
 
 execute: |
-    echo "Restart snapd so that the sanity check runs"
+    echo "Restart snapd so that the precondition check runs"
     systemctl restart snapd
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
@@ -18,11 +18,11 @@ execute: |
 
     retry -n 120 --wait 1 sh -c 'journalctl -u snapd | MATCH "system does not fully support snapd: cannot mount squashfs image"'
 
-    echo "Ensure sanity check error is reported in the journal"
+    echo "Ensure precondition check error is reported in the journal"
     journalctl -u snapd | MATCH "system does not fully support snapd: cannot mount squashfs image"
 
     echo "Ensure GET commands still work"
     snap list | MATCH core
     
-    echo "Ensure snap commands reply with sanity check error"
+    echo "Ensure snap commands reply with precondition check error"
     snap install test-snapd-sh 2>&1 | MATCH "system does not fully support snapd: cannot mount squashfs image"
