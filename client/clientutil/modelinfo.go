@@ -32,10 +32,7 @@ import (
 )
 
 var (
-	// this list is a "nice" "human" "readable" "ordering" of headers to print
-	// off, sorted in lexical order with meta headers and primary key headers
-	// removed, and big nasty keys such as device-key-sha3-384 and
-	// device-key at the bottom
+	// this list is a "nice" "human" "readable" "ordering" of headers to print.
 	// it also contains both serial and model assertion headers, but we
 	// follow the same code path for both assertion types and some of the
 	// headers are shared between the two, so it still works out correctly
