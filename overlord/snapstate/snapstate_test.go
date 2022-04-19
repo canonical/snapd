@@ -8190,3 +8190,10 @@ func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
 		}
 	}
 }
+
+func (s *snapmgrTestSuite) TestExcludeFromRefreshAppAwareness(c *C) {
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeApp), Equals, false)
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeGadget), Equals, false)
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeSnapd), Equals, true)
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeOS), Equals, true)
+}
