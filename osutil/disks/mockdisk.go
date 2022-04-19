@@ -93,6 +93,21 @@ func (d *MockDiskMapping) FindMatchingPartitionWithPartLabel(label string) (Part
 	}
 }
 
+func (d *MockDiskMapping) FindMatchingPartitionWithNode(node string) (Partition, error) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	for _, p := range d.Structure {
+		if p.KernelDeviceNode == node {
+			return p, nil
+		}
+	}
+
+	return Partition{}, PartitionNotFoundError{
+		SearchType:  "node",
+		SearchQuery: node,
+	}
+}
+
 func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
 	p, err := d.FindMatchingPartitionWithFsLabel(label)
 	if err != nil {

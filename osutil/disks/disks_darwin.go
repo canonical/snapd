@@ -66,3 +66,7 @@ var mountPointsForPartitionRoot = func(p Partition, opts map[string]string) ([]s
 var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
+
+func PartitionUUID(node string) (string, error) {
+	return "", osutil.ErrDarwin
+}
