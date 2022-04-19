@@ -21,7 +21,7 @@ execute: |
     cat /var/lib/snapd/state.json | jq -r '.data["conns"] | has("simplesnap:home core:home")'
   }
 
-  # sanity
+  # precondition
   inspect_connection | MATCH "true"
 
   echo "Checking that 'home' connection is not reported after removing the test snap"

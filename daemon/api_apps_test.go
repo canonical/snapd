@@ -111,7 +111,7 @@ func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo
 	}
 	s.serviceControlCalls = append(s.serviceControlCalls, serviceCommand)
 
-	t := st.NewTask("dummy", "")
+	t := st.NewTask("sample", "")
 	ts := state.NewTaskSet(t)
 	return []*state.TaskSet{ts}, nil
 }
