@@ -929,3 +929,18 @@ func AllPhysicalDisks() ([]Disk, error) {
 	}
 	return disks, nil
 }
+
+// PartitionUUID returns the UUID of a given partition
+func PartitionUUID(node string) (string, error) {
+	props, err := udevPropertiesForName(node)
+	if err != nil && props == nil {
+		// only fail here if props is nil, if it's available we validate it
+		// below
+		return "", fmt.Errorf("cannot process udev properties: %v", err)
+	}
+	partUUID := props["ID_PART_ENTRY_UUID"]
+	if partUUID == "" {
+		return "", fmt.Errorf("cannot get required udev partition UUID property")
+	}
+	return partUUID, nil
+}

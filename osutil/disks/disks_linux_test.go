@@ -2022,3 +2022,37 @@ func (s *diskSuite) TestAllPhysicalDisks(c *C) {
 	c.Assert(d[2].KernelDeviceNode(), Equals, "/dev/sda")
 	c.Assert(d[3].KernelDeviceNode(), Equals, "/dev/sdb")
 }
+
+func (s *diskSuite) TestPartitionUUID(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/vda4":
+			return map[string]string{
+				"ID_PART_ENTRY_UUID": "foo-uuid",
+			}, nil
+		case "/dev/no-uuid":
+			return map[string]string{
+				"no-uuid": "no-uuid",
+			}, nil
+		case "/dev/mock-failure":
+			return nil, fmt.Errorf("mock failure")
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	uuid, err := disks.PartitionUUID("/dev/vda4")
+	c.Assert(err, IsNil)
+	c.Assert(uuid, Equals, "foo-uuid")
+
+	uuid, err = disks.PartitionUUID("/dev/no-uuid")
+	c.Assert(err, ErrorMatches, "cannot get required udev partition UUID property")
+	c.Check(uuid, Equals, "")
+
+	uuid, err = disks.PartitionUUID("/dev/mock-failure")
+	c.Assert(err, ErrorMatches, "cannot process udev properties: mock failure")
+	c.Check(uuid, Equals, "")
+}
