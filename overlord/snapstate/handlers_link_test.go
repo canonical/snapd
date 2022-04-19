@@ -440,11 +440,20 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	})
 	defer restore()
 
+	var called bool
+	restore = snapstate.MockExcludeFromRefreshAppAwareness(func(t snap.Type) bool {
+		called = true
+		c.Check(t, Equals, snap.TypeApp)
+		return false
+	})
+	defer restore()
+
 	// We can unlink the current revision of that snap, by setting IgnoreRunning flag.
 	task := s.state.NewTask("unlink-current-snap", "")
 	task.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Flags:    snapstate.Flags{IgnoreRunning: true},
+		Type:     "app",
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(task)
@@ -468,6 +477,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
 	}}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+	c.Check(called, Equals, true)
 }
 
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {

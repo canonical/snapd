@@ -469,10 +469,19 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	})
 	defer restore()
 
+	var called bool
+	restore = snapstate.MockExcludeFromRefreshAppAwareness(func(t snap.Type) bool {
+		called = true
+		c.Check(t, Equals, snap.TypeApp)
+		return false
+	})
+	defer restore()
+
 	// Attempt to install revision 2 of the snap, with the IgnoreRunning flag set.
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "pkg", SnapID: "pkg-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IgnoreRunning: true},
+		Type:     "app",
 	}
 
 	// And observe that we do so despite the running app.
@@ -483,6 +492,7 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	err = snapstate.Get(s.state, "pkg", snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.RefreshInhibitedTime, IsNil)
+	c.Check(called, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
