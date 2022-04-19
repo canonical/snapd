@@ -59,7 +59,7 @@ func (snapshotSuite) TestManager(c *check.C) {
 	})
 }
 
-func mockDummySnapshot(c *check.C) (restore func()) {
+func mockFakeSnapshot(c *check.C) (restore func()) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
 
@@ -87,7 +87,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	})
 	defer restoreOsRemove()
 
-	restore := mockDummySnapshot(c)
+	restore := mockFakeSnapshot(c)
 	defer restore()
 
 	st := state.New(nil)
@@ -175,7 +175,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	})
 	defer restoreOsRemove()
 
-	restore := mockDummySnapshot(c)
+	restore := mockFakeSnapshot(c)
 	defer restore()
 
 	st := state.New(nil)

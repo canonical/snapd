@@ -760,7 +760,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	// create the group
-	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(5 * quantity.SizeKiB).Build()
+	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(650 * quantity.SizeKiB).Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 

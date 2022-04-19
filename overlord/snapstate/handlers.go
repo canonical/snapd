@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -508,7 +509,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	// undone. Otherwise, have different lanes per snap so
 	// failures only affect the culprit snap.
 	var joinLane func(ts *state.TaskSet)
-	if flags.Transactional {
+	if flags.Transaction == client.TransactionAllSnaps {
 		lanes := t.Lanes()
 		if len(lanes) != 1 {
 			return fmt.Errorf("internal error: more than one lane (%d) on a transactional action", len(lanes))
