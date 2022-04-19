@@ -627,14 +627,9 @@ pkg_dependencies_ubuntu_classic(){
                 dbus-user-session
                 fwupd
                 golang
-                linux-tools-virtual
+                linux-tools-$(uname -r)
                 qemu-utils
                 "
-            if [ "$SPREAD_BACKEND" = "google" ]; then
-                echo "
-                    linux-tools-$(uname -r)
-                    "
-            fi
             ;;
         ubuntu-*)
             echo "
