@@ -103,17 +103,13 @@ can either use `snap revert snapd`, or you can refresh directly with
 #### Building for other architectures with snapcraft
 
 It is also sometimes useful to use snapcraft to build the snapd snap for
-other architectures using the `remote-build` feature, however there is currently a
-bug in snapcraft around using the `4.x` track and using `remote-build`, where the
-Launchpad job created for the remote-build will attempt to use the `latest` track instead
-of the `4.x` channel. This was recently fixed in snapcraft in https://github.com/snapcore/snapcraft/pull/3600
-which for now requires using the `latest/edge` channel of snapcraft instead of the
-`4.x` track which is needed to build the snap locally. 
-
-In order to build remotely with snapcraft, do the following:
+other architectures using the `remote-build` feature. In order to build
+remotely with snapcraft, make sure you have at least version `6.x` installed:
+if the command `snap info snapcraft` shows that you are running an older
+version, upgrade with:
 
 ```
-snap refresh snapcraft --channel=latest/edge
+snap refresh snapcraft --channel=latest/stable
 ```
 
 Now you can use remote-build with snapcraft on the snapd tree for any desired 
