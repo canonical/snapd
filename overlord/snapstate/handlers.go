@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -508,7 +509,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 	// undone. Otherwise, have different lanes per snap so
 	// failures only affect the culprit snap.
 	var joinLane func(ts *state.TaskSet)
-	if flags.Transactional {
+	if flags.Transaction == client.TransactionAllSnaps {
 		lanes := t.Lanes()
 		if len(lanes) != 1 {
 			return fmt.Errorf("internal error: more than one lane (%d) on a transactional action", len(lanes))
@@ -1280,11 +1281,20 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapsup.MigratedHidden = true
 		fallthrough
 	case home:
-		if err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision); err != nil {
+		undo, err := m.backend.InitExposedSnapHome(snapName, newInfo.Revision)
+		if err != nil {
 			return err
 		}
+		st.Lock()
+		t.Set("undo-exposed-home-init", undo)
+		st.Unlock()
 
 		snapsup.MigratedToExposedHome = true
+
+		// no specific undo action is needed since undoing the copy will undo this
+		if err := m.backend.InitXDGDirs(newInfo); err != nil {
+			return err
+		}
 	}
 
 	st.Lock()
@@ -1386,7 +1396,16 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	// accordingly (they're used in undoUnlinkCurrentSnap to set SnapState)
 	if snapsup.MigratedToExposedHome || snapsup.MigratedHidden || snapsup.UndidHiddenMigration {
 		if snapsup.MigratedToExposedHome {
-			if err := m.backend.RemoveExposedSnapHome(snapsup.InstanceName()); err != nil {
+			var undoInfo backend.UndoInfo
+
+			st.Lock()
+			err := t.Get("undo-exposed-home-init", &undoInfo)
+			st.Unlock()
+			if err != nil {
+				return err
+			}
+
+			if err := m.backend.UndoInitExposedSnapHome(snapsup.InstanceName(), &undoInfo); err != nil {
 				return err
 			}
 
@@ -3845,15 +3864,26 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 		switch {
 		case snapsup.MigratedHidden && snapsup.UndidHiddenMigration:
 			// should never happen except for programmer error
-			return nil, fmt.Errorf("internal error: migration was done and reversed in same change without updating migration flags")
+			return nil, fmt.Errorf("internal error: ~/.snap migration was done and reversed in same change without updating migration flags")
 		case snapsup.MigratedHidden:
 			opts.MigratedToHidden = true
 		case snapsup.UndidHiddenMigration:
 			opts.MigratedToHidden = false
 		}
 
-		if snapsup.MigratedToExposedHome {
-			opts.MigratedToExposedHome = snapsup.MigratedToExposedHome
+		switch {
+		case (snapsup.EnableExposedHome || snapsup.MigratedToExposedHome) &&
+			(snapsup.DisableExposedHome || snapsup.RemovedExposedHome):
+			// should never happen except for programmer error
+			return nil, fmt.Errorf("internal error: ~/Snap migration was done and reversed in same change without updating migration flags")
+		case snapsup.MigratedToExposedHome:
+			fallthrough
+		case snapsup.EnableExposedHome:
+			opts.MigratedToExposedHome = true
+		case snapsup.RemovedExposedHome:
+			fallthrough
+		case snapsup.DisableExposedHome:
+			opts.MigratedToExposedHome = false
 		}
 	}
 

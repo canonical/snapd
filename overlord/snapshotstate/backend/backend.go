@@ -964,7 +964,7 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 // so it should be called without any locks. The SnapshotExport
 // keeps the FDs open so even files moved/deleted will be found.
 func (se *SnapshotExport) Init() error {
-	// Export once into a dummy writer so that we can set the size
+	// Export once into a fake writer so that we can set the size
 	// of the export. This is then used to set the Content-Length
 	// in the response correctly.
 	//

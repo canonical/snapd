@@ -70,13 +70,17 @@ func (qr *Resources) validateMemoryQuota() error {
 	if qr.Memory.Limit == 0 {
 		return fmt.Errorf("memory quota must have a limit set")
 	}
+	return nil
+}
 
-	// make sure the memory limit is at least 4K, that is the minimum size
-	// to allow nesting, otherwise groups with less than 4K will trigger the
-	// oom killer to be invoked when a new group is added as a sub-group to the
-	// larger group.
-	if qr.Memory.Limit <= 4*quantity.SizeKiB {
-		return fmt.Errorf("memory limit %d is too small: size must be larger than 4KB", qr.Memory.Limit)
+func cpuFitsIntoCPUSet(count, percentage int, cpuSet []int) error {
+	if len(cpuSet) > 0 && count != 0 {
+		maxCPUUsage := len(cpuSet) * 100
+		cpuUsage := count * percentage
+		if cpuUsage > maxCPUUsage {
+			return fmt.Errorf("cpu usage %d%% is larger than the maximum allowed for provided set %v of %d%%",
+				cpuUsage, cpuSet, maxCPUUsage)
+		}
 	}
 	return nil
 }
@@ -90,6 +94,16 @@ func (qr *Resources) validateCPUQuota() error {
 	// at least one cpu limit value must be set
 	if qr.CPU.Count == 0 && qr.CPU.Percentage == 0 {
 		return fmt.Errorf("invalid cpu quota with a cpu quota of 0")
+	}
+
+	// make sure the limit is not going above any cpu-set limit also
+	// provided, note that this check is very preliminary, and we
+	// cant take all circumstances into account, but we can check
+	// against bad input that is obviously not allowed.
+	if qr.CPUSet != nil {
+		if err := cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, qr.CPUSet.CPUs); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -130,12 +144,9 @@ func (qr *Resources) CheckFeatureRequirements() error {
 	return nil
 }
 
-// Validate performs validation of the provided quota resources for a group.
-// The restrictions imposed are that at least one limit should be set.
-// If memory limit is provided, it must be above 4KB.
-// If cpu percentage is provided, it must be between 1 and 100.
-// If cpu set is provided, it must not be empty.
-// If thread count is provided, it must be above 0.
+// Validate performs basic validation of the provided quota resources for a group.
+// The restrictions imposed are that at least one limit should be set, and each
+// of the imposed limits are not zero.
 //
 // Note that before applying the quota to the system
 // CheckFeatureRequirements() should be called.
@@ -171,13 +182,23 @@ func (qr *Resources) Validate() error {
 }
 
 // ValidateChange performs validation of new quota limits against the current limits.
+// We do this validation each time a new group/subgroup is created or updated.
 // This is to catch issues where we want to guard against lowering limits where not supported
 // or to make sure that certain/all limits are not removed.
+// We also require memory limits are above 640kB.
 func (qr *Resources) ValidateChange(newLimits Resources) error {
 	// Check that the memory limit is not being decreased
 	if newLimits.Memory != nil {
 		if newLimits.Memory.Limit == 0 {
 			return fmt.Errorf("cannot remove memory limit from quota group")
+		}
+
+		// make sure the memory limit is at least 640K, that is the minimum size
+		// we will require for a quota group. Newer systemd versions require up to
+		// 12kB per slice, so we need to ensure 'plenty' of space for this, and also
+		// 640kB seems sensible as a minimum.
+		if newLimits.Memory.Limit <= 640*quantity.SizeKiB {
+			return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", newLimits.Memory.Limit)
 		}
 
 		// we disallow decreasing the memory limit because it is difficult to do
@@ -189,21 +210,42 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		}
 	}
 
-	// Check that the cpu limit is not being removed, we do not support setting these
-	// two settings individually. Count/Percentage must be updated in unison.
-	if newLimits.CPU != nil && qr.CPU != nil {
-		if newLimits.CPU.Count == 0 && qr.CPU.Count != 0 {
+	// Check that the cpu limit is not being removed, and we want to verify the new limit
+	// is valid.
+	if newLimits.CPU != nil {
+		// Allow count to be changed to zero, but not percentage. This is because count
+		// is an optional setting and we want to allow the user to remove the count to indicate
+		// that we just want to use % of all cpus
+		if qr.CPU != nil && newLimits.CPU.Percentage == 0 && qr.CPU.Percentage != 0 {
 			return fmt.Errorf("cannot remove cpu limit from quota group")
 		}
-		if newLimits.CPU.Percentage == 0 && qr.CPU.Percentage != 0 {
-			return fmt.Errorf("cannot remove cpu limit from quota group")
+
+		// Check that the CPU percentage still fits into any pre-existing CPU set or
+		// the new one if set.
+		if newLimits.CPUSet != nil {
+			if err := cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, newLimits.CPUSet.CPUs); err != nil {
+				return err
+			}
+		} else if qr.CPUSet != nil {
+			if err := cpuFitsIntoCPUSet(newLimits.CPU.Count, newLimits.CPU.Percentage, qr.CPUSet.CPUs); err != nil {
+				return err
+			}
 		}
 	}
 
-	// Check that we are not removing the entire cpu set
-	if newLimits.CPUSet != nil && qr.CPUSet != nil {
-		if len(newLimits.CPUSet.CPUs) == 0 {
+	// Check that we are not removing the entire cpu set, or applying a CPU set that is
+	// more restrictive than the current usage
+	if newLimits.CPUSet != nil {
+		if qr.CPUSet != nil && len(newLimits.CPUSet.CPUs) == 0 {
 			return fmt.Errorf("cannot remove all allowed cpus from quota group")
+		}
+
+		// if we are applying a new CPU set and not a new CPU quota, we need to make sure
+		// that the existing CPU quota fits with the new set
+		if newLimits.CPU == nil && qr.CPU != nil {
+			if err := cpuFitsIntoCPUSet(qr.CPU.Count, qr.CPU.Percentage, newLimits.CPUSet.CPUs); err != nil {
+				return err
+			}
 		}
 	}
 

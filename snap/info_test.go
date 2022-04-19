@@ -587,6 +587,23 @@ confinement: foo`
 	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
 }
 
+func (s *infoSuite) TestReadInfoFromSnapFileChatchesInvalidSnapshot(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app`
+	contents := [][]string{
+		{"meta/snapshots.yaml", "Oops! This is not really valid yaml :-("},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+
+	snapf, err := snapfile.Open(snapInfo.MountDir())
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, "cannot read snapshot manifest: yaml: unmarshal errors:\n.*")
+}
+
 func (s *infoSuite) TestAppEnvSimple(c *C) {
 	yaml := `name: foo
 version: 1.0

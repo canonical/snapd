@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/kmod"
@@ -179,6 +180,9 @@ func (iface *kernelModuleLoadInterface) BeforeConnectPlug(plug *interfaces.Conne
 }
 
 func (iface *kernelModuleLoadInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	snapInfo := plug.Snap()
+	commonDataDir := snapInfo.CommonDataDir()
+
 	err := enumerateModules(plug, func(moduleInfo *ModuleInfo) error {
 		var err error
 		switch moduleInfo.load {
@@ -192,7 +196,18 @@ func (iface *kernelModuleLoadInterface) KModConnectedPlug(spec *kmod.Specificati
 			fallthrough
 		case loadNone:
 			if len(moduleInfo.options) > 0 {
-				err = spec.SetModuleOptions(moduleInfo.name, moduleInfo.options)
+				// module options might include filesystem paths. Beside
+				// supporting hardcoded paths, it makes sense to support also
+				// paths to files provided by the snap; for this reason, we
+				// support expanding the $SNAP_COMMON variable here.
+				// We do not use os.Expand() because that supports both $ENV
+				// and ${ENV}, and we'd rather not alter the options which
+				// contain a "$" but are not meant to be expanded. Instead,
+				// just look for the "$SNAP_COMMON/" string and replace it; the
+				// extra "/" at the end ensures that the variable is
+				// terminated.
+				options := strings.ReplaceAll(moduleInfo.options, "$SNAP_COMMON/", commonDataDir+"/")
+				err = spec.SetModuleOptions(moduleInfo.name, options)
 			}
 		default:
 			// we can panic, this will be catched on validation
