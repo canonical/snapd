@@ -14,7 +14,7 @@ prepare: |
   # external backends would fail because a signed gadget cannot be replaced
   # with an unsigned one
   # TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed
-  if ! snap list pc | grep -q " x[0-9]+ "; then  
+  if ! snap list pc | grep -Eq " x[0-9]+ "; then  
     echo "This test needs a sideloaded gadget snap"
     exit
   fi
@@ -47,7 +47,7 @@ execute: |
   # external backends would fail because a signed gadget cannot be replaced
   # with an unsigned one
   # TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed
-  if ! snap list pc | grep -q " x[0-9]+ "; then
+  if ! snap list pc | grep -Eq " x[0-9]+ "; then
     echo "This test needs a sideloaded gadget snap"
     exit
   fi
