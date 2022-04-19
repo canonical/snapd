@@ -83,7 +83,7 @@ does match for the plug and slot:
     # in the snap consuming the content:
     plugs:
       foo-content:
-        interface: something-else
+        interface: content
         content: specific-files
 
 While the following plug and slots are not compatible:
