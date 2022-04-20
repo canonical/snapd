@@ -776,6 +776,11 @@ EOF
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
             find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
+                if [ "$(basename "$imgname")" = "$NESTED_EXTRA_VOLUME" ]; then
+                    # for multi-volume images, just copy this one as-is
+                    mv "$imgname" "$NESTED_IMAGES_DIR/$NESTED_EXTRA_VOLUME"
+                    continue
+                fi
                 if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
                     echo "Image $IMAGE_NAME file already present"
                     exit 1
@@ -1035,7 +1040,7 @@ nested_start_core_vm_unit() {
         exit 1
     fi
     
-    local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
+    local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE PARAM_EXTRA_IMAGE
     PARAM_ASSERTIONS=""
     PARAM_BIOS=""
     PARAM_TPM=""
@@ -1088,6 +1093,12 @@ nested_start_core_vm_unit() {
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw"
     fi
 
+    if [ -n "$NESTED_EXTRA_VOLUME" ]; then
+        PARAM_EXTRA_IMAGE="-drive file=$NESTED_IMAGES_DIR/$NESTED_EXTRA_VOLUME,cache=none,format=raw,id=disk2,if=none"
+    else
+        PARAM_EXTRA_IMAGE=""
+    fi
+
     # ensure we have a log dir
     mkdir -p "$NESTED_LOGS_DIR"
     # make sure we start with clean log file
@@ -1107,6 +1118,7 @@ nested_start_core_vm_unit() {
         ${PARAM_TPM} \
         ${PARAM_RANDOM} \
         ${PARAM_IMAGE} \
+        ${PARAM_EXTRA_IMAGE} \
         ${PARAM_ASSERTIONS} \
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \

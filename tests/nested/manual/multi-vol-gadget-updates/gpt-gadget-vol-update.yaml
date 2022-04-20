@@ -1,0 +1,34 @@
+
+  foo:
+    schema: gpt
+    structure:
+      - name: barething
+        type: bare
+        size: 4096
+        content:
+          - image: foobare.img
+        update:
+          edition: 2
+      - name: no-fs-partition
+        type: 84,A11D2A7C-D82A-4C2F-8A01-1805240E6626
+        size: 4096
+        content:
+          - image: foowithoutfs.img
+        update:
+          edition: 2
+      - name: some-filesystem
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        content:
+          - source: foo.txt
+            target: foo.txt
+        update:
+          edition: 2
+      - name: foounspecifiedfs
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+        content:
+          - image: foowithfs-v2.img
+        update:
+          edition: 2
