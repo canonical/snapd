@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,14 +17,26 @@
  *
  */
 
-package gadget
+package tooling
 
 import (
-	"errors"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 )
 
-var errNotImplemented = errors.New("not implemented")
+var (
+	ErrRevisionAndCohort = errRevisionAndCohort
+	ErrPathInBase        = errPathInBase
+)
 
-func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
+func (tsto *ToolingStore) User() *auth.UserState {
+	return tsto.user
+}
+
+func ToolingStoreContext() store.DeviceAndAuthContext {
+	return toolingStoreContext{}
+}
+
+func (opts *DownloadSnapOptions) Validate() error {
+	return opts.validate()
 }
