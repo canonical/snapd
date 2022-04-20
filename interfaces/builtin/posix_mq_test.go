@@ -70,6 +70,24 @@ slots:
     interface: posix-mq
     path: /test-invalid-2"[
 
+  test-invalid-path-3:
+    interface: posix-mq
+    path:
+      - this-is-not-a-string
+
+  test-invalid-perms-1:
+    interface: posix-mq
+    path: /test-invalid-perms-1
+    permissions:
+      - create
+      - delete
+      - break-everything
+
+  test-invalid-perms-2:
+      interface: posix-mq
+      path: /test-invalid-perms-2
+      permissions: not-a-list
+
 apps:
   app:
     command: foo
@@ -134,6 +152,19 @@ apps:
     plugs: [test-all-perms]
 `
 
+const invalidPerms1PlugSnapInfoYaml = `name: consumer
+version: 1.0
+
+plugs:
+  test-invalid-perms-1:
+    interface: posix-mq
+
+apps:
+  app:
+    command: foo
+    plugs: [test-invalid-perms-1]
+`
+
 type PosixMQInterfaceSuite struct {
 	testutil.BaseTest
 
@@ -164,6 +195,17 @@ type PosixMQInterfaceSuite struct {
 
 	testInvalidPath2SlotInfo *snap.SlotInfo
 	testInvalidPath2Slot     *interfaces.ConnectedSlot
+
+	testInvalidPath3SlotInfo *snap.SlotInfo
+	testInvalidPath3Slot     *interfaces.ConnectedSlot
+
+	testInvalidPerms1SlotInfo *snap.SlotInfo
+	testInvalidPerms1Slot     *interfaces.ConnectedSlot
+	testInvalidPerms1PlugInfo *snap.PlugInfo
+	testInvalidPerms1Plug     *interfaces.ConnectedPlug
+
+	testInvalidPerms2SlotInfo *snap.SlotInfo
+	testInvalidPerms2Slot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&PosixMQInterfaceSuite{
@@ -193,6 +235,15 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 	s.testInvalidPath2SlotInfo = slotSnap.Slots["test-invalid-path-2"]
 	s.testInvalidPath2Slot = interfaces.NewConnectedSlot(s.testInvalidPath2SlotInfo, nil, nil)
 
+	s.testInvalidPath3SlotInfo = slotSnap.Slots["test-invalid-path-3"]
+	s.testInvalidPath3Slot = interfaces.NewConnectedSlot(s.testInvalidPath3SlotInfo, nil, nil)
+
+	s.testInvalidPerms1SlotInfo = slotSnap.Slots["test-invalid-perms-1"]
+	s.testInvalidPerms1Slot = interfaces.NewConnectedSlot(s.testInvalidPerms1SlotInfo, nil, nil)
+
+	s.testInvalidPerms2SlotInfo = slotSnap.Slots["test-invalid-perms-2"]
+	s.testInvalidPerms2Slot = interfaces.NewConnectedSlot(s.testInvalidPerms2SlotInfo, nil, nil)
+
 	plugSnap0 := snaptest.MockInfo(c, rwPlugSnapInfoYaml, nil)
 	s.testReadWritePlugInfo = plugSnap0.Plugs["test-rw"]
 	s.testReadWritePlug = interfaces.NewConnectedPlug(s.testReadWritePlugInfo, nil, nil)
@@ -208,6 +259,10 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 	plugSnap3 := snaptest.MockInfo(c, allPermsPlugSnapInfoYaml, nil)
 	s.testAllPermsPlugInfo = plugSnap3.Plugs["test-all-perms"]
 	s.testAllPermsPlug = interfaces.NewConnectedPlug(s.testAllPermsPlugInfo, nil, nil)
+
+	plugSnap4 := snaptest.MockInfo(c, invalidPerms1PlugSnapInfoYaml, nil)
+	s.testInvalidPerms1PlugInfo = plugSnap4.Plugs["test-invalid-perms-1"]
+	s.testInvalidPerms1Plug = interfaces.NewConnectedPlug(s.testInvalidPerms1PlugInfo, nil, nil)
 }
 
 func (s *PosixMQInterfaceSuite) checkSlotSeccompSnippet(c *C, spec *seccomp.Specification) {
@@ -367,11 +422,44 @@ func (s *PosixMQInterfaceSuite) TestPathValidationAppArmorRegex(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
+	spec := &apparmor.Specification{}
+	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath3SlotInfo)
+	c.Assert(err, NotNil)
+}
+
+func (s *PosixMQInterfaceSuite) testInvalidPerms1(c *C) {
+	spec := &apparmor.Specification{}
+	// The slot should function correctly here as it receives the full list
+	// of built-in permissions, not what's listed in the configuration
+	err := spec.AddPermanentSlot(s.iface, s.testInvalidPerms1SlotInfo)
+	c.Assert(err, IsNil)
+	// The plug should fail to connect as it receives the given list of
+	// invalid permissions
+	err = spec.AddConnectedPlug(s.iface, s.testInvalidPerms1Plug, s.testInvalidPerms1Slot)
+	c.Assert(err, NotNil)
+}
+
 func (s *PosixMQInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "posix-mq")
 }
 
+func (s *PosixMQInterfaceSuite) TestNoAppArmor(c *C) {
+	// Ensure that the interface does not fail if AppArmor is unsupported
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
+	defer restore()
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testReadWriteSlotInfo), IsNil)
+}
+
+func (s *PosixMQInterfaceSuite) TestFeatureDetection(c *C) {
+	// Ensure that the interface fails if the mqueue feature is not present
+	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{}, nil)
+	defer restore()
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testReadWriteSlotInfo), NotNil)
+}
+
 func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
+	// Ensure that the mqueue feature is detected
 	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{"mqueue"}, nil)
 	defer restore()
 
@@ -380,12 +468,16 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testReadOnlySlotInfo), IsNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testAllPermsSlotInfo), IsNil)
 
-	/* These should return errors due to invalid paths */
+	// These should return errors due to invalid configuration
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath1SlotInfo), NotNil)
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath2SlotInfo), NotNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath3SlotInfo), NotNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms1SlotInfo), NotNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms2SlotInfo), NotNil)
 }
 
 func (s *PosixMQInterfaceSuite) TestSanitizePlug(c *C) {
+	// Ensure that the mqueue feature is detected
 	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{"mqueue"}, nil)
 	defer restore()
 
@@ -393,6 +485,7 @@ func (s *PosixMQInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testDefaultPermsPlugInfo), IsNil)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testReadOnlyPlugInfo), IsNil)
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testAllPermsPlugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testInvalidPerms1PlugInfo), IsNil)
 }
 
 func (s *PosixMQInterfaceSuite) TestInterfaces(c *C) {
