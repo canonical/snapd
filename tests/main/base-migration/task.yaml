@@ -42,7 +42,8 @@ execute: |
       pid=$!
       test-snapd-core-migration.sh -c "cat /usr/lib/os-release" | MATCH 'VERSION_ID="16"'
       MATCH 'base-snap-name=core' < /run/snapd/ns/snap.test-snapd-core-migration.info
-      # due to refresh-app-awareness we need to ignore running app
+      # there is a sleep process running in the background in the snap context, due to 
+      # refresh-app-awareness we need to ignore it
       snap install --ignore-running --dangerous test-snapd-core-migration_2_all.snap
       # With core -> core18 migration this doesn't work however, as now
       # applications that were expecting to use core18 libraries would be forced to
