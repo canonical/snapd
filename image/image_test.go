@@ -3273,7 +3273,7 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key string) error {
 		preseedCalled = true
 		c.Assert(dir, Equals, "/a/dir")
-		c.Assert(key, Equals, "")
+		c.Assert(key, Equals, "foo")
 		return nil
 	})
 	defer restorePreseedCore20()
@@ -3283,9 +3283,10 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
 
 	err := image.Prepare(&image.Options{
-		ModelFile:  fn,
-		Preseed:    true,
-		PrepareDir: "/a/dir",
+		ModelFile:      fn,
+		Preseed:        true,
+		PrepareDir:     "/a/dir",
+		PreseedSignKey: "foo",
 	})
 	c.Assert(err, IsNil)
 	c.Check(preseedCalled, Equals, true)

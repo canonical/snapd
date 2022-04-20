@@ -76,7 +76,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
+func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
 	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err
@@ -161,13 +161,13 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 		"system-label":      opts.SystemLabel,
 		"artifact-sha3-384": base64Digest,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"revision":          "1",
+		"revision":          "0",
 		"snaps":             snaps,
 	}
 
 	signedAssert, err := adb.Sign(asserts.PreseedType, headers, nil, privKey.PublicKey().ID())
 	if err != nil {
-		return fmt.Errorf("cannot sign preseed asertion: %v", err)
+		return fmt.Errorf("cannot sign preseed assertion: %v", err)
 	}
 
 	tsto, err := newToolingStoreFromModel(model, "")
@@ -180,7 +180,7 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 
 	f := seedwriter.MakeRefAssertsFetcher(newFetcher)
 	if err := f.Save(signedAssert); err != nil {
-		return fmt.Errorf("cannot save assertion: %v", err)
+		return fmt.Errorf("cannot fetch assertion: %v", err)
 	}
 
 	serialized, err := os.OpenFile(filepath.Join(sysDir, "systems", opts.SystemLabel, "preseed"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
@@ -197,7 +197,7 @@ func writePreseedAssertion(opts *preseedOpts, artifactDigest []byte) error {
 				return fmt.Errorf("internal error: %v", err)
 			}
 			if err := enc.Encode(as); err != nil {
-				return fmt.Errorf("cannot save assertion %s: %v", aref, err)
+				return fmt.Errorf("cannot write assertion %s: %v", aref, err)
 			}
 		}
 	}

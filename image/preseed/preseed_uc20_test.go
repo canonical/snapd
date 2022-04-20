@@ -292,7 +292,7 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 			tpe = fmt.Sprintf("%s:%s", as.Type().Name, acckeyAs.AccountID())
 		case asserts.PreseedType:
 			preseedAs := as.(*asserts.Preseed)
-			c.Check(preseedAs.Revision(), Equals, 1)
+			c.Check(preseedAs.Revision(), Equals, 0)
 			c.Check(preseedAs.Series(), Equals, "16")
 			c.Check(preseedAs.AuthorityID(), Equals, "my-brand")
 			c.Check(preseedAs.BrandID(), Equals, "my-brand")

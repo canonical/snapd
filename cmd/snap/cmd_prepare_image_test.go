@@ -174,6 +174,11 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCustomize(c *C) {
 	})
 }
 
+func (s *SnapPrepareImageSuite) TestPrepareImagePreseedArgError(c *C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"prepare-image", "--preseed-sign-key", "key", "model", "prepare-dir"})
+	c.Assert(err, ErrorMatches, `--preseed-sign-key cannot be used without --preseed`)
+}
+
 func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 	var opts *image.Options
 	prep := func(o *image.Options) error {
