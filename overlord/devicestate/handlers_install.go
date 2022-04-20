@@ -20,7 +20,10 @@
 package devicestate
 
 import (
+	"bytes"
 	"compress/gzip"
+	"crypto"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -36,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -594,7 +598,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
-	preseeded, err := maybeApplyPreseededData(boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
+	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
 	if err != nil {
 		msg := fmt.Sprintf("failed to apply preseed data: %v", err)
 		t.Logf(msg)
@@ -648,13 +652,43 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 
 var seedOpen = seed.Open
 
-var maybeApplyPreseededData = func(ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
+var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
 	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
 	if !osutil.FileExists(preseedArtifact) {
 		return false, nil
 	}
 
-	// TODO: verify artifact signature?
+	model, err := findModel(st)
+	if err != nil {
+		return false, fmt.Errorf("internal error: cannot find model: %v", err)
+	}
+	as, err := assertstate.DB(st).Find(asserts.PreseedType, map[string]string{
+		"series":       model.Series(),
+		"brand-id":     model.BrandID(),
+		"model":        model.Model(),
+		"system-label": sysLabel,
+	})
+	if asserts.IsNotFound(err) {
+		logger.Noticef("preseed.tgz artifact is present but preseed assertion for brand %q, model %q couldn't be found", model.BrandID(), model.Model())
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("internal error: cannot get preseed assertion: %v", err)
+	}
+
+	preseedAs := as.(*asserts.Preseed)
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	if err != nil {
+		return false, fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
+	}
+
+	digest, err := base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384())
+	if err != nil {
+		return false, fmt.Errorf("cannot decode preseed artifact digest")
+	}
+	if !bytes.Equal(sha3_384, digest) {
+		return false, fmt.Errorf("invalid preseed artifact digest")
+	}
 
 	logger.Noticef("apply preseed data: %q, %q", writableDir, preseedArtifact)
 	cmd := exec.Command("tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact)

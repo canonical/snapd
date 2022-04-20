@@ -446,7 +446,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifact(c *C) {
 	defer restore()
 
 	var applyPreseedCalled int
-	restoreApplyPreseed := devicestate.MockMaybeApplyPreseededData(func(ubuntuSeedDir, sysLabel, writableDir string) (bool, error) {
+	restoreApplyPreseed := devicestate.MockMaybeApplyPreseededData(func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error) {
 		applyPreseedCalled++
 		c.Check(ubuntuSeedDir, Equals, filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed"))
 		c.Check(sysLabel, Equals, "20200105")
@@ -488,7 +488,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactError(c *C
 	defer restore()
 
 	var applyPreseedCalled int
-	restoreApplyPreseed := devicestate.MockMaybeApplyPreseededData(func(ubuntuSeedDir, sysLabel, writableDir string) (bool, error) {
+	restoreApplyPreseed := devicestate.MockMaybeApplyPreseededData(func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error) {
 		applyPreseedCalled++
 		return false, fmt.Errorf("boom")
 	})
@@ -562,6 +562,8 @@ func (f *fakeSeed) Iter(func(sn *seed.Snap) error) error {
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
+	st := s.state
+
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
 	defer mockTarCmd.Restore()
 
@@ -585,7 +587,12 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
-	preseeded, err := devicestate.MaybeApplyPreseededData(ubuntuSeedDir, sysLabel, writableDir)
+
+	st.Lock()
+	defer st.Unlock()
+	s.makeMockInstallModel(c, "dangerous")
+
+	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
 	c.Check(preseeded, Equals, true)
 
@@ -600,6 +607,10 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededNoopIfNoArtifact(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
 	defer mockTarCmd.Restore()
 
@@ -608,7 +619,7 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededNoopIfNoArtifact(c *C
 	writableDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-data/system-data")
 	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
-	preseeded, err := devicestate.MaybeApplyPreseededData(ubuntuSeedDir, sysLabel, writableDir)
+	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
 	c.Check(preseeded, Equals, false)
 	c.Check(mockTarCmd.Calls(), HasLen, 0)

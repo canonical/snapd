@@ -267,7 +267,7 @@ var (
 	MaybeApplyPreseededData = maybeApplyPreseededData
 )
 
-func MockMaybeApplyPreseededData(f func(ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
+func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
 	old := maybeApplyPreseededData
 	maybeApplyPreseededData = f
 	return func() {
