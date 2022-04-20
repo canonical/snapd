@@ -76,7 +76,7 @@ execute: |
     echo "Check that connection referring to a missing plug is not reported after a refresh to new revision"
     snap install --dangerous test-snap_1_all.snap
     snap connect test-snap:log-observe
-    # sanity check, connection exists
+    # precondition check, connection exists
     snap connections test-snap | MATCH "log-observe +test-snap:log-observe +:log-observe +manual"
 
     # simulate refresh to a new revision that doesn't have log-observe plug

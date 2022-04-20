@@ -4,7 +4,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local aliases
 
 execute: |
-    echo "Sanity check"
+    echo "Precondition check"
     aliases.cmd1|MATCH "ok command 1"
     aliases.cmd2|MATCH "ok command 2"
 
