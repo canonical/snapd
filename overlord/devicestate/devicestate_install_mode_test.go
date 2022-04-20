@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -590,7 +592,36 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModel(c, "dangerous")
+
+	// XXX
+	snaps := []interface{}{
+		map[string]interface{}{"name": "essential-snap"},
+	}
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
+	c.Assert(err, IsNil)
+	headers := map[string]interface{}{
+		"type":              "preseed",
+		"authority-id":      model.AuthorityID(),
+		"series":            "16",
+		"brand-id":          model.BrandID(),
+		"model":             model.Model(),
+		"system-label":      sysLabel,
+		"artifact-sha3-384": digest,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"revision":          "1",
+		"snaps":             snaps,
+	}
+
+	signer := s.brands.Signing(model.BrandID())
+	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+	assertstatetest.AddMany(st, preseedAs)
+	// XXX
 
 	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
