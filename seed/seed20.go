@@ -436,13 +436,16 @@ func (s *seed20) LoadMeta(mode string, tm timings.Measurer) error {
 }
 
 func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
-	filterEssential := essentialSnapTypesToModelFilter(essentialTypes)
+	var filterEssential func(*asserts.ModelSnap) bool
+	if len(essentialTypes) != 0 {
+		filterEssential = essentialSnapTypesToModelFilter(essentialTypes)
+	}
 
 	if err := s.loadEssentialMeta(filterEssential, tm); err != nil {
 		return err
 	}
 
-	if s.essentialSnapsNum != len(essentialTypes) {
+	if len(essentialTypes) != 0 && s.essentialSnapsNum != len(essentialTypes) {
 		// did not find all the explicitly asked essential types
 		return fmt.Errorf("model does not specify all the requested essential snaps: %v", essentialTypes)
 	}
