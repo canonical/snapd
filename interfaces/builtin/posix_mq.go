@@ -104,7 +104,7 @@ func (iface *posixMQInterface) Name() string {
 
 func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {
 	if apparmor_sandbox.ProbedLevel() == apparmor_sandbox.Unsupported {
-		/* AppArmor is not supported at all; no need to add rules */
+		// AppArmor is not supported at all; no need to add rules
 		return nil
 	}
 
@@ -123,7 +123,7 @@ func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {
 func (iface *posixMQInterface) validatePermissionList(perms []string, name string) error {
 	for _, perm := range perms {
 		if !strutil.ListContains(posixMQPlugPermissions, perm) {
-			return fmt.Errorf("posix-mq slot %s permission \"%s\" not valid, must be one of %v", name, perm, posixMQPlugPermissions)
+			return fmt.Errorf("posix-mq slot permission \"%s\" not valid, must be one of %v", perm, posixMQPlugPermissions)
 		}
 	}
 
@@ -134,7 +134,7 @@ func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name stri
 	var perms []string
 
 	if err := attrs.Attr("permissions", &perms); err != nil {
-		/* If the permissions have not been specified, use the defaults */
+		// If the permissions have not been specified, use the defaults
 		perms = posixMQDefaultPlugPermissions
 	}
 
@@ -152,14 +152,14 @@ func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (st
 		if pathStr, ok := pathAttr.(string); ok {
 			path = pathStr
 		} else {
-			return "", fmt.Errorf(`posix-mq slot %s "path" attribute must be a string, not %v`, name, pathAttr)
+			return "", fmt.Errorf(`posix-mq slot "path" attribute must be a string, not %v`, pathAttr)
 		}
 	} else {
-		/* path defaults to name if unspecified */
+		// Path defaults to name if unspecified
 		path = name
 	}
 
-	/* Path must begin with a / */
+	// Path must begin with a /
 	if path[0] != '/' {
 		path = "/" + path
 	}
@@ -174,15 +174,15 @@ func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (st
 
 func (iface *posixMQInterface) validatePath(name, path string) error {
 	if !posixMQNamePattern.MatchString(path) {
-		return fmt.Errorf(`posix-mq slot %s "path" attribute must conform to the POSIX message queue name specifications (see "man mq_overview"): %v`, name, path)
+		return fmt.Errorf(`posix-mq "path" attribute must conform to the POSIX message queue name specifications (see "man mq_overview"): %v`, path)
 	}
 
 	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
-		return fmt.Errorf(`posix-mq slot %s "path" attribute is invalid: %v"`, name, path)
+		return fmt.Errorf(`posix-mq "path" attribute is invalid: %v"`, path)
 	}
 
 	if !cleanSubPath(path) {
-		return fmt.Errorf(`posix-mq slot %s "path" attribute is not a clean path: %v"`, name, path)
+		return fmt.Errorf(`posix-mq "path" attribute is not a clean path: %v"`, path)
 	}
 
 	return nil
@@ -193,10 +193,8 @@ func (iface *posixMQInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return err
 	}
 
-	/* Only ensure that the given permissions are valid, don't use them here */
-	if _, err := iface.getPermissions(plug, plug.Name); err != nil {
-		return err
-	}
+	// Plugs don't have any arguments to validate; everything is configured
+	// by the slot
 
 	return nil
 }
@@ -206,12 +204,12 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return err
 	}
 
-	/* Only ensure that the given permissions are valid, don't use them here */
+	// Only ensure that the given permissions are valid, don't use them here
 	if _, err := iface.getPermissions(slot, slot.Name); err != nil {
 		return err
 	}
 
-	/* Only ensure that the given path is valid, don't use it here */
+	// Only ensure that the given path is valid, don't use it here
 	if _, err := iface.getPath(slot, slot.Name); err != nil {
 		return err
 	}
@@ -222,6 +220,8 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 	if !implicitSystemPermanentSlot(slot) {
 		if path, err := iface.getPath(slot, slot.Name); err == nil {
+			// Slots always have all permissions enabled for the
+			// given message queue path
 			aaPerms := strings.Join(posixMQPlugPermissions, " ")
 			spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue management
   mqueue (%s) "%s",
@@ -259,7 +259,7 @@ func (iface *posixMQInterface) SecCompPermanentSlot(spec *seccomp.Specification,
 func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
 		var syscalls = []string{
-			// always allow these functions
+			// Always allow these functions
 			"mq_open",
 			"mq_getsetattr",
 		}
@@ -276,7 +276,8 @@ func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification,
 				syscalls = append(syscalls, "mq_unlink")
 				break
 			default:
-				continue // no syscall needed
+				// No syscall needed
+				continue
 			}
 		}
 		spec.AddSnippet(strings.Join(syscalls, "\n"))
