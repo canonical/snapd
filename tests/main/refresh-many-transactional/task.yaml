@@ -45,7 +45,7 @@ execute: |
         exit
     fi
 
-    echo "Sanity check for the fake store"
+    echo "Precondition check for the fake store"
     snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
@@ -55,7 +55,7 @@ execute: |
     init_fake_refreshes  "$BLOB_DIR" test-snapd-python-webserver
 
     echo "And a refresh is performed"
-    snap refresh --transactional test-snapd-tools test-snapd-python-webserver
+    snap refresh --transaction=all-snaps test-snapd-tools test-snapd-python-webserver
 
     echo "Then the new versions are installed"
     for name in test-snapd-tools test-snapd-python-webserver; do

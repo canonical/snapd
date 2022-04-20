@@ -20,6 +20,7 @@
 package bootloader
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -33,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - piboot implements the required interfaces
+// ensure piboot implements the required interfaces
 var (
 	_ Bootloader                             = (*piboot)(nil)
 	_ ExtractedRecoveryKernelImageBootloader = (*piboot)(nil)
@@ -51,9 +52,14 @@ const (
 // This is in a variable so it can be mocked in tests
 var ubuntuSeedDir = "/run/mnt/ubuntu-seed/"
 
+// More variables to facilitate mocking
+var rpi4RevisionCodesPath = "/sys/firmware/devicetree/base/system/linux,revision"
+var rpi4EepromTimeStampPath = "/proc/device-tree/chosen/bootloader/build-timestamp"
+
 type piboot struct {
-	rootdir string
-	basedir string
+	rootdir          string
+	basedir          string
+	prepareImageTime bool
 }
 
 func (p *piboot) setDefaults() {
@@ -65,6 +71,7 @@ func (p *piboot) processBlOpts(blOpts *Options) {
 		return
 	}
 
+	p.prepareImageTime = blOpts.PrepareImageTime
 	switch {
 	case blOpts.Role == RoleRecovery || blOpts.NoSlashBoot:
 		if !blOpts.PrepareImageTime {
@@ -349,15 +356,16 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 	// armhf and arm64 pi-kernel store dtbs in different places
 	// (dtbs/ or dtbs/broadcom/ respectively)
 	var dtbDir string
-	if _, err := os.Stat(filepath.Join(dstDir, "dtbs/broadcom")); os.IsNotExist(err) {
-		dtbDir = "dtbs"
-	} else {
+	if _, isDir, _ := osutil.DirExists(filepath.Join(dstDir, "dtbs/broadcom")); isDir {
 		dtbDir = "dtbs/broadcom"
 		overlaysDir := filepath.Join(dstDir, "dtbs/overlays/")
 		if err := os.Rename(overlaysDir, newOvDir); err != nil {
 			return err
 		}
+	} else {
+		dtbDir = "dtbs"
 	}
+
 	dtbFiles := filepath.Join(dstDir, dtbDir, "*")
 	if output, err := exec.Command("sh", "-c",
 		"mv "+dtbFiles+" "+dstDir).CombinedOutput(); err != nil {
@@ -375,7 +383,54 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 	return nil
 }
 
+func (p *piboot) eepromVersionSupportsTryboot() (bool, error) {
+	// To find out the EEPROM version we do the same as the
+	// rpi-eeprom-update script (see
+	// https://github.com/raspberrypi/rpi-eeprom/blob/master/rpi-eeprom-update)
+	buf, err := ioutil.ReadFile(rpi4EepromTimeStampPath)
+	if err != nil {
+		return false, err
+	}
+
+	// The timestamp is seconds since the epoch, UTC time
+	eepromTs := binary.BigEndian.Uint32(buf)
+	// 2021-03-18 or more modern supports tryboot, see
+	// https://github.com/raspberrypi/rpi-eeprom/blob/master/firmware/release-notes.md#2021-04-19---promote-2021-03-18-from-latest-to-default---default
+	// The timestamp we compare with (1616057651 seconds since the epoch,
+	// which is jue 18 mar 2021 08:54:11 UTC) can be found with:
+	// $ strings pieeprom-2021-03-18.bin | grep BUILD_TIMESTAMP
+	return eepromTs >= 1616057651, nil
+}
+
+func (p *piboot) isRaspberryPi4() bool {
+	// For RPi4 detection we do the same as the rpi-eeprom-update script (see
+	// https://github.com/raspberrypi/rpi-eeprom/blob/master/rpi-eeprom-update)
+	buf, err := ioutil.ReadFile(rpi4RevisionCodesPath)
+	if err != nil {
+		return false
+	}
+
+	// This is an RPi4 if we have new style codes (RPi2 or newer) and the
+	// processor is BCM2711 (RPi4's SoC). For details, see
+	// https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#raspberry-pi-revision-codes
+	boardInfo := binary.BigEndian.Uint32(buf)
+	return ((boardInfo>>23)&1) == 1 && ((boardInfo>>12)&0xF) == 3
+}
+
 func (p *piboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
+	if !p.prepareImageTime {
+		// If this is an RPi4, check first if EEPROM supports tryboot
+		if p.isRaspberryPi4() {
+			supportsTryboot, err := p.eepromVersionSupportsTryboot()
+			if err != nil {
+				return fmt.Errorf("cannot check EEPROM version: %v", err)
+			}
+			if !supportsTryboot {
+				return fmt.Errorf("your EEPROM does not support tryboot, please upgrade to a newer one before installing Ubuntu Core - see http://forum.snapcraft.io/t/29455 for more details")
+			}
+		}
+	}
+
 	// Rootdir will point to ubuntu-boot, but we need to put things in ubuntu-seed
 	dstDir := filepath.Join(ubuntuSeedDir, pibootPartFolder, s.Filename())
 

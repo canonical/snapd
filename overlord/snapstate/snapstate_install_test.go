@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
@@ -365,7 +366,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
-func dummyInUseCheck(snap.Type) (boot.InUseFunc, error) {
+func inUseCheck(snap.Type) (boot.InUseFunc, error) {
 	return func(string, snap.Revision) bool {
 		return false
 	}, nil
@@ -418,8 +419,8 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	}
 
 	// And observe that we cannot refresh because the snap is busy.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
-	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\)`)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\), pids: 1234`)
 
 	// The state records the time of the failed refresh operation.
 	err = snapstate.Get(s.state, "some-snap", snapst)
@@ -475,7 +476,7 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	}
 
 	// And observe that we do so despite the running app.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
 	c.Assert(err, IsNil)
 
 	// The state confirms that the refresh operation was not postponed.
@@ -535,7 +536,7 @@ func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	}
 
 	// And observe that refresh occurred regardless of the running process.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
 	c.Assert(err, IsNil)
 }
 
@@ -3373,7 +3374,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionally(c *C) {
 	defer s.state.Unlock()
 
 	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
@@ -3399,7 +3400,7 @@ func (s *snapmgrTestSuite) TestInstallManyWithPrereqsTransactionally(c *C) {
 
 	snapsToInstall := []string{"snap1", "snap2"}
 	installed, tts, err := snapstate.InstallMany(s.state, snapsToInstall, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 	c.Check(installed, DeepEquals, snapsToInstall)
@@ -3480,7 +3481,7 @@ func (s *snapmgrTestSuite) TestInstallManyTransactionallyFails(c *C) {
 	chg := s.state.NewChange("install", "install some snaps")
 	installed, tts, err := snapstate.InstallMany(s.state,
 		[]string{"some-snap", "some-other-snap"}, 0,
-		&snapstate.Flags{Transactional: true})
+		&snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"some-snap", "some-other-snap"})
 	for _, ts := range tts {
@@ -4684,7 +4685,7 @@ epoch: 1
 	}
 
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
-		paths, 0, &snapstate.Flags{Transactional: true})
+		paths, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4735,7 +4736,7 @@ epoch: 1
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/other-snap/x1")
 
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
-		paths, 0, &snapstate.Flags{Transactional: true})
+		paths, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 

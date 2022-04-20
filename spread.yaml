@@ -44,7 +44,7 @@ environment:
     UBUNTU_IMAGE_SNAP_CHANNEL: "latest/candidate"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
-    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-false}")'
+    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
@@ -119,6 +119,10 @@ backends:
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
+                  workers: 6
+                  storage: 20G
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
                   workers: 6
                   storage: 20G
             - ubuntu-secboot-20.04-64:
@@ -272,6 +276,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-21.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-10-64:
@@ -858,7 +865,7 @@ suites:
         summary: Tests for snapd upgrade
         # Test cases are not yet ported to openSUSE that is why we keep
         # it disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems: [-ubuntu-core-*, -opensuse-*, -ubuntu-secboot-*]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
@@ -891,7 +898,7 @@ suites:
         summary: Suite to run unit tests (non-go and different go runtimes)
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems:
             [
                 -ubuntu-core-*,
@@ -937,7 +944,7 @@ suites:
         manual: true
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

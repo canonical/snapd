@@ -77,7 +77,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatibility(c *C) {
 		// snapstate.{Install,Update} directly.
 		DownloadInfo: nil,
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -137,7 +137,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 			DownloadURL: "http://some-url.com/snap",
 		},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -201,7 +201,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapWithDeviceContext(c *C) {
 			DownloadURL: "http://some-url.com/snap",
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -230,7 +230,7 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 			DownloadURL: "http://something.com/snap",
 		},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
@@ -281,7 +281,7 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 			IsAutoRefresh: true,
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 

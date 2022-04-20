@@ -85,7 +85,7 @@ execute: |
     test -f "$SEED_DIR/snaps/test-snapd-service.snap"
 
     echo "Checking that service restart happened before mark-seeded"
-    # sanity check
+    # precondition check
     snap change 1 | MATCH "Mark system seeded"
     snap change 1 | MATCH "restart of .*test-snapd-service.test-snapd-other-service"
     snap install --edge jq

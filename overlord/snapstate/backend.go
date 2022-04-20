@@ -114,4 +114,5 @@ type managerBackend interface {
 	UndoHideSnapData(snapName string) error
 	InitExposedSnapHome(snapName string, rev snap.Revision) (*backend.UndoInfo, error)
 	UndoInitExposedSnapHome(snapName string, undoInfo *backend.UndoInfo) error
+	InitXDGDirs(info *snap.Info) error
 }

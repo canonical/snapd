@@ -1292,6 +1292,11 @@ func (f *fakeSnappyBackend) UndoInitExposedSnapHome(snapName string, undoInfo *b
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) InitXDGDirs(info *snap.Info) error {
+	f.appendOp(&fakeOp{op: "init-xdg-dirs", name: info.InstanceName()})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
