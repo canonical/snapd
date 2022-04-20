@@ -39,9 +39,9 @@ debug: |
 
 execute: |
     check_core20_early_config(){
-        # sanity - check that defaults were applied; note this doesn't guarantee
+        # precondition - check that defaults were applied; note this doesn't guarantee
         # that defaults were applied early - that is checked further down.
-        echo "Sanity check of the gadget defaults"
+        echo "Precondition check of the gadget defaults"
         tests.nested exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
         tests.nested exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
         tests.nested exec "sudo snap get system system.power-key-action" | MATCH "ignore"
@@ -71,6 +71,11 @@ execute: |
         tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "hostname: foo"
         tests.nested exec "cat /etc/hostname" | MATCH "foo"
         tests.nested exec "hostname" | MATCH "foo"
+
+        # TODO: 2022.04.19 exercise netplan checks once
+        # https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1967084 is
+        # fixed
+        return
 
         # netplan config defaults are applied
         tests.nested exec "cat /etc/netplan/0-snapd-defaults.yaml" | MATCH br54

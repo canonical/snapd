@@ -194,6 +194,7 @@ func (tac toolingStoreContext) UpdateUserAuth(user *auth.UserState, discharges [
 	return user, nil
 }
 
+// NewToolingStoreFromModel creates ToolingStore for the snap store used by the given model.
 func NewToolingStoreFromModel(model *asserts.Model, fallbackArchitecture string) (*ToolingStore, error) {
 	architecture := model.Architecture()
 	// can happen on classic
@@ -477,6 +478,7 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 
 // MockToolingStore creates a ToolingStore that uses the provided StoreImpl
 // implementation for Download, SnapAction and Assertion methods.
+// For testing.
 func MockToolingStore(sto StoreImpl) *ToolingStore {
 	return &ToolingStore{sto: sto}
 }

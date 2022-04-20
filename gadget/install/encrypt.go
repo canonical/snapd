@@ -115,7 +115,7 @@ type encryptedDeviceWithSetupHook struct {
 	node   string
 }
 
-// sanity
+// expected interface is implemented
 var _ = encryptedDevice(&encryptedDeviceWithSetupHook{})
 
 // createEncryptedDeviceWithSetupHook creates an encrypted device in the

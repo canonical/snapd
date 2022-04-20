@@ -109,7 +109,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.AddTask(t)
 
@@ -160,7 +160,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerSameRevisionNoError(c *C) {
 	c.Assert(err, IsNil)
 
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(model)))
 	chg.AddTask(t)
 
@@ -207,7 +207,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerStoreSwitch(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.Set("device", auth.DeviceState{
 		Brand:           "canonical",
@@ -284,7 +284,7 @@ func (s *deviceMgrSuite) TestSetModelHandlerRereg(c *C) {
 
 	s.state.Lock()
 	t := s.state.NewTask("set-model", "set-model test")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.Set("new-model", string(asserts.Encode(newModel)))
 	chg.Set("device", auth.DeviceState{
 		Brand:           "canonical",
