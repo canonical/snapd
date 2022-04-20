@@ -594,9 +594,9 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	defer st.Unlock()
 	model := s.makeMockInstallModel(c, "dangerous")
 
-	// XXX
 	snaps := []interface{}{
-		map[string]interface{}{"name": "essential-snap"},
+		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+		map[string]interface{}{"name": "mode-snap", "id": "id222222222222222222222222222222", "revision": "3"},
 	}
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	c.Assert(err, IsNil)

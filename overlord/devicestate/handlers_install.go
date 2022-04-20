@@ -711,6 +711,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		return false, err
 	}
 
+	// TODO: use preseedAs for snap revisions
 	copyBlob := func(sn *seed.Snap) error {
 		sq := squashfs.New(sn.Path)
 		opts := &snap.InstallOptions{
