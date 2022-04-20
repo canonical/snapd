@@ -184,3 +184,27 @@ execute: |
     check_env "--with-exposed-home" "x3"
     check_dirs "--with-exposed-home" "x3"
     check_data "--with-exposed-home" "x3" "$data"
+
+    echo "Check migration after remove works"
+    # ensure dirs under ~/.snap/data are created
+    "$NAME".cmd 'true'
+    test -d "$HOME/.snap/data/$NAME"
+
+    echo "Remove snap"
+    snap remove --purge "$NAME"
+    # dir is leftover
+    test -d "$HOME/.snap/data/$NAME"
+
+    echo "Install snap with data under ~/snap"
+    snap pack "$TESTSLIB/snaps/$NAME"
+    snap unset system experimental.hidden-snap-folder
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+    # create dirs under ~/snap to be migrated
+    "$NAME".cmd 'true'
+    test -d "$HOME/snap/$NAME"
+
+    echo "Migration to ~/.snap/data works"
+    snap set system experimental.hidden-snap-folder=true
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+    test -d "$HOME/.snap/data/$NAME"
+    not test -e "$HOME/snap/$NAME"
