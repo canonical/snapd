@@ -19,7 +19,7 @@
 
 package builtin
 
-const acrnSupportSummary = `allows access to the acrn_hsm device`
+const acrnSupportSummary = `allows operating managing the ACRN hypervisor`
 
 const acrnSupportBaseDeclarationSlots = `
   acrn-support:
