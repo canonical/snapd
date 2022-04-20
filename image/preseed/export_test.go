@@ -60,10 +60,3 @@ func MockNewToolingStoreFromModel(f func(model *asserts.Model, fallbackArchitect
 		newToolingStoreFromModel = old
 	}
 }
-
-/*func MockSaveAssertion(f func(*asserts.Database, asserts.Assertion, *asserts.Model) error) (restore func()) {
-	r := testutil.Backup(&SaveAssertion)
-	SaveAssertion = f
-	return r
-}
-*/
