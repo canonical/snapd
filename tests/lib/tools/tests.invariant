@@ -142,6 +142,16 @@ check_broken_snaps() {
 	fi
 }
 
+check_cgroup_scopes() {
+	n="$1" # invariant name
+	find /sys/fs/cgroup -name 'snap.*.scope' 2>&1 > "$TESTSTMP/tests.invariant.$n"
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
+		echo "tests.invariant: leftover cgroup scope files" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -162,6 +172,9 @@ check_invariant() {
 		broken-snaps)
 			check_broken_snaps "$1"
 			;;
+		cgroup-scopes)
+			check_cgroup_scopes "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -170,7 +183,7 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps"
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps cgroup-scopes"
 
 	case "$action" in
 		check)
