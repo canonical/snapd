@@ -144,7 +144,7 @@ check_broken_snaps() {
 
 check_cgroup_scopes() {
 	n="$1" # invariant name
-	find /sys/fs/cgroup -name 'snap.*.scope' 2>&1 > "$TESTSTMP/tests.invariant.$n"
+	find /sys/fs/cgroup -name 'snap.*.scope' > "$TESTSTMP/tests.invariant.$n"
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: leftover cgroup scope files" >&2
 		cat "$TESTSTMP/tests.invariant.$n" >&2
