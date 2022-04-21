@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -51,8 +50,6 @@ type usersSuite struct {
 	deviceMgrBaseSuite
 
 	storetest.Store
-
-	o *overlord.Overlord
 
 	err                   error
 	userInfoResult        *store.User
