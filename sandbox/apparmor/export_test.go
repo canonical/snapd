@@ -19,6 +19,22 @@
 
 package apparmor
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
+var (
+	MaybeSetNumberOfJobs = maybeSetNumberOfJobs
+)
+
+// MockProfilesPath mocks the file read by LoadedProfiles()
+func MockProfilesPath(t *testutil.BaseTest, profiles string) {
+	profilesPath = profiles
+	t.AddCleanup(func() {
+		profilesPath = realProfilesPath
+	})
+}
+
 func MockFsRootPath(path string) (restorer func()) {
 	old := rootPath
 	rootPath = path
