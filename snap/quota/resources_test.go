@@ -116,7 +116,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(5 * quantity.SizeKiB).Build(),
-			`memory limit 5120 is too small: size must be larger than 640KB`,
+			`memory limit 5120 is too small: size must be larger than 640 KiB`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
@@ -147,7 +147,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		{
 			quota.NewResourcesBuilder().WithCPUCount(1).WithCPUPercentage(50).Build(),
 			quota.NewResourcesBuilder().WithMemoryLimit(1).Build(),
-			`memory limit 1 is too small: size must be larger than 640KB`,
+			`memory limit 1 is too small: size must be larger than 640 KiB`,
 		},
 		{
 			quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeMiB).Build(),
@@ -202,7 +202,12 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		{
 			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build(),
 			quota.NewResourcesBuilder().WithJournalSize(5 * quantity.SizeKiB).Build(),
-			`journal size limit 5120 is too small: size must be larger than 64KB`,
+			`journal size limit 5120 is too small: size must be larger than 64 KiB`,
+		},
+		{
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(5 * quantity.SizeGiB).Build(),
+			`journal size quota must be smaller than 4 GiB`,
 		},
 	}
 
@@ -282,6 +287,21 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationPasses(c *C) {
 			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
 			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).WithJournalRate(15, 5).Build(),
 		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).Build(),
+			quota.NewResourcesBuilder().WithJournalSize(quantity.SizeGiB).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithJournalSize(quantity.SizeGiB).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).Build(),
+			quota.NewResourcesBuilder().WithJournalRate(15, 5).Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithJournalRate(15, 5).Build(),
+		},
+		{
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).Build(),
+			quota.NewResourcesBuilder().WithJournalNamespace().Build(),
+			quota.NewResourcesBuilder().WithCPUCount(4).WithCPUPercentage(25).WithJournalNamespace().Build(),
+		},
 	}
 
 	for _, t := range tests {
@@ -314,4 +334,11 @@ func (s *resourcesTestSuite) TestResourceCloneComplete(c *C) {
 		c.Check(fv.IsNil(), Equals, false)
 		c.Check(fv.Pointer(), Not(Equals), fieldPtrs[i])
 	}
+}
+
+func (s *resourcesTestSuite) TestResourceBuilerWithJournalNamespaceOnly(c *C) {
+	r := quota.NewResourcesBuilder().WithJournalNamespace().Build()
+	c.Assert(r.Journal, NotNil)
+	c.Check(r.Journal.Rate, IsNil)
+	c.Check(r.Journal.Size, IsNil)
 }

@@ -169,7 +169,7 @@ func (qr *Resources) validateJournalQuota() error {
 		}
 
 		if qr.Journal.Size.Limit > journalLimitMax {
-			return fmt.Errorf("journal size quota must be smaller than 4GB")
+			return fmt.Errorf("journal size quota must be smaller than %s", journalLimitMax.IECString())
 		}
 	}
 
@@ -257,7 +257,8 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		}
 
 		if newLimits.Memory.Limit <= memoryLimitMin {
-			return fmt.Errorf("memory limit %d is too small: size must be larger than 640KB", newLimits.Memory.Limit)
+			return fmt.Errorf("memory limit %d is too small: size must be larger than %s",
+				newLimits.Memory.Limit, memoryLimitMin.IECString())
 		}
 
 		// we disallow decreasing the memory limit because it is difficult to do
@@ -328,7 +329,8 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 		}
 
 		if newLimits.Journal.Size != nil && newLimits.Journal.Size.Limit < journalLimitMin {
-			return fmt.Errorf("journal size limit %d is too small: size must be larger than 64KB", newLimits.Journal.Size.Limit)
+			return fmt.Errorf("journal size limit %d is too small: size must be larger than %s",
+				newLimits.Journal.Size.Limit, journalLimitMin.IECString())
 		}
 
 		if qr.Journal.Rate != nil && newLimits.Journal.Rate != nil {
