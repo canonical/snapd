@@ -384,7 +384,7 @@ func doCreateTransientScopeJobRemovedSync(conn *dbus.Conn, unitName string, pid 
 				if !ok {
 					continue
 				}
-				// sanity check the signal name, although the
+				// make sure the signal name is as expected, although the
 				// match selectors should ensure we only receive
 				// JobRemoved signals
 				if sig.Name != "org.freedesktop.systemd1.Manager.JobRemoved" {

@@ -86,7 +86,7 @@ func (s *deviceCtxSuite) TestDevicePastSeedingProvided(c *C) {
 	c.Assert(deviceCtx, Equals, deviceCtx1)
 
 	// remodeling is also ok
-	chg := s.st.NewChange("remodel", "dummy remodeling")
+	chg := s.st.NewChange("remodel", "test remodeling")
 	deviceCtx2 := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(nil), Remodeling: true}
 	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) *state.Change {
 		return chg
@@ -150,7 +150,7 @@ func (s *deviceCtxSuite) TestDevicePastSeedingButRemodeling(c *C) {
 	r := snapstatetest.MockDeviceModel(DefaultModel())
 	defer r()
 
-	chg := s.st.NewChange("remodel", "dummy remodeling")
+	chg := s.st.NewChange("remodel", "test remodeling")
 	defer snapstatetest.ReplaceRemodelingHook(func(*state.State) *state.Change {
 		return chg
 	})()

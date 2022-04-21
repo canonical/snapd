@@ -133,7 +133,7 @@ func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 		},
 	}
 
-	// set a dummy sanitize method.
+	// set an empty sanitize method.
 	snap.SanitizePlugsSlots = func(*snap.Info) { called = true }
 
 	parser := testParser(c)
