@@ -33,12 +33,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
@@ -758,6 +760,33 @@ func (s *seed20) Iter(f func(sn *Snap) error) error {
 	for _, sn := range s.snaps {
 		if err := f(sn); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (s *seed20) LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) error {
+	if s.model.Grade() == asserts.ModelDangerous {
+		autoImportAssert := filepath.Join(s.systemDir, "auto-import.assert")
+		if _, err := os.Stat(autoImportAssert); err == nil {
+			af, err := os.Open(autoImportAssert)
+			if err != nil {
+				logger.Noticef("failed to open auto-import assert(%s): %v\n", autoImportAssert, err)
+				return nil
+			}
+			defer af.Close()
+			var ar io.Reader
+			ar = af
+			batch := asserts.NewBatch(nil)
+			_, err = batch.AddStream(ar)
+			if err != nil {
+				logger.Noticef("failed to created auto-import assertion stream: %v\n", err)
+				return nil
+			}
+			if err := commitTo(batch); err != nil {
+				logger.Noticef("failed to commit auto-import assertion: %v\n", err)
+				return nil
+			}
 		}
 	}
 	return nil
