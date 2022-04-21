@@ -280,12 +280,10 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 // does not cover all the non-optional primary key headers or provides
 // too many values.
 func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
-	n := len(assertType.PrimaryKey)
-	nopt := len(assertType.OptionalPrimaryKeyDefaults)
-	ninp := len(primaryKey)
-	if ninp > n || ninp < (n-nopt) {
+	if !assertType.AcceptablePrimaryKey(primaryKey) {
 		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
 	}
+	ninp := len(primaryKey)
 	headers = make(map[string]string, len(assertType.PrimaryKey))
 	for i, name := range assertType.PrimaryKey {
 		var keyVal string
@@ -337,10 +335,8 @@ func keysFromHeaders(keys []string, headers map[string]string, defaults map[stri
 	for i, k := range keys {
 		keyVal := headers[k]
 		if keyVal == "" {
-			defl := defaults[k]
-			if defl != "" {
-				keyVal = defl
-			} else {
+			keyVal = defaults[k]
+			if keyVal == "" {
 				return nil, fmt.Errorf("must provide primary key: %v", k)
 			}
 		}
