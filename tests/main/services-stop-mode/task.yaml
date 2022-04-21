@@ -37,7 +37,9 @@ execute: |
     done
 
     echo "When it is re-installed"
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    # Due to refresh-app-awareness we need to --ignore-running to ignore the running test-snapd-sigterm-service (it
+    # keeps running after sigterm).
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service --ignore-running
     retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     # note that sigterm{,-all} is tested separately
