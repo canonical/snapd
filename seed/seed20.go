@@ -543,7 +543,8 @@ func (s *seed20) considerModelSnap(modelSnap *asserts.ModelSnap, essential bool,
 }
 
 func (s *seed20) LoadMeta(mode string, tm timings.Measurer) error {
-	if err := s.queueEssentialMeta(nil, tm); err != nil {
+	const otherSnapsFollow = true
+	if err := s.queueEssentialMeta(nil, otherSnapsFollow, tm); err != nil {
 		return err
 	}
 	s.mode = mode
@@ -575,7 +576,9 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 		filterEssential = essentialSnapTypesToModelFilter(essentialTypes)
 	}
 
-	if err := s.queueEssentialMeta(filterEssential, tm); err != nil {
+	// only essential snaps
+	const otherSnapsFollow = false
+	if err := s.queueEssentialMeta(filterEssential, otherSnapsFollow, tm); err != nil {
 		return err
 	}
 
@@ -617,7 +620,7 @@ func (s *seed20) resetSnaps() {
 	s.essentialSnapsNum = 0
 }
 
-func (s *seed20) queueEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
+func (s *seed20) queueEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, otherSnapsFollow bool, tm timings.Measurer) error {
 	model := s.Model()
 
 	if err := s.loadMetaFiles(); err != nil {
@@ -629,17 +632,15 @@ func (s *seed20) queueEssentialMeta(filterEssential func(*asserts.ModelSnap) boo
 	essSnaps := model.EssentialSnaps()
 	const essential = true
 
-	// create channels
-	if filterEssential != nil {
-		// LoadEssentialMeta
-		s.snapsToConsiderCh = make(chan snapToConsider, 4)
-	} else {
-		m := len(essSnaps) + len(model.SnapsWithoutEssential()) + len(s.optSnaps)
-		if essSnaps[0].SnapType != "snapd" {
-			m++
-		}
-		s.snapsToConsiderCh = make(chan snapToConsider, m)
+	// create queue channel
+	m := len(essSnaps)
+	if essSnaps[0].SnapType != "snapd" {
+		m++
 	}
+	if otherSnapsFollow {
+		m += len(model.SnapsWithoutEssential()) + len(s.optSnaps)
+	}
+	s.snapsToConsiderCh = make(chan snapToConsider, m)
 
 	// an explicit snapd is the first of all of snaps
 	if essSnaps[0].SnapType != "snapd" {
