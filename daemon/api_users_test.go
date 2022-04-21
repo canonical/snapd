@@ -501,6 +501,40 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
+func (s *userSuite) TestPostUserCreateErrBadRequest(c *check.C) {
+	s.testCreateUserErr(c, false)
+}
+
+func (s *userSuite) TestPostUserCreateErrInternal(c *check.C) {
+	s.testCreateUserErr(c, true)
+}
+
+func (s *userSuite) testCreateUserErr(c *check.C, internal_err bool) {
+	called := 0
+	defer daemon.MockDeviceStateCreateUser(func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) ([]devicestate.UserResponse, bool, error) {
+		called++
+		if internal_err {
+			return nil, internal_err, fmt.Errorf("wat-internal")
+		} else {
+			return nil, internal_err, fmt.Errorf("wat-badrequest")
+		}
+	})()
+
+	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(called, check.Equals, 1)
+	if internal_err {
+		c.Check(rspe.Status, check.Equals, 500)
+		c.Check(rspe.Message, check.Equals, "wat-internal")
+	} else {
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, check.Equals, "wat-badrequest")
+	}
+}
+
 func (s *userSuite) TestNoUserAdminCreateUser(c *check.C) { s.testNoUserAdmin(c, "/v2/create-user") }
 
 func (s *userSuite) TestNoUserAdminPostUser(c *check.C) { s.testNoUserAdmin(c, "/v2/users") }
@@ -559,6 +593,73 @@ func (s *userSuite) TestPostUserBadAction(c *check.C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`unsupported user action "patatas"`))
+}
+
+func (s *userSuite) TestPostUserActionRemoveDelUserErrBadRequest(c *check.C) {
+	s.testpostUserActionRemoveDelUserErr(c, false)
+}
+
+func (s *userSuite) TestPostUserActionRemoveDelUserErrInternal(c *check.C) {
+	s.testpostUserActionRemoveDelUserErr(c, true)
+}
+
+func (s *userSuite) testpostUserActionRemoveDelUserErr(c *check.C, internal_err bool) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	_, err := auth.NewUser(st, "some-user", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	called := 0
+	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, bool, error) {
+		called++
+		if internal_err {
+			return nil, internal_err, fmt.Errorf("wat-internal")
+		} else {
+			return nil, internal_err, fmt.Errorf("wat-badrequest")
+		}
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(called, check.Equals, 1)
+	if internal_err {
+		c.Check(rspe.Status, check.Equals, 500)
+		c.Check(rspe.Message, check.Equals, "wat-internal")
+	} else {
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, check.Equals, "wat-badrequest")
+	}
+}
+
+func (s *userSuite) TestPostUserActionRemove(c *check.C) {
+	expectedId := 10
+	expectedUsername := "some-user"
+	expedtedEmail := "email@test.com"
+
+	called := 0
+	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string) (*auth.UserState, bool, error) {
+		called++
+		removedUser := &auth.UserState{ID: expectedId, Username: expectedUsername, Email: expedtedEmail}
+
+		return removedUser, false, nil
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
+	req, err := http.NewRequest("POST", "/v2/users", buf)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 200)
+	expected := []daemon.UserResponseData{
+		{ID: expectedId, Username: expectedUsername, Email: expedtedEmail},
+	}
+	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{
+		"removed": expected,
+	})
+	c.Check(called, check.Equals, 1)
 }
 
 func (s *userSuite) setupSigner(accountID string, signerPrivKey asserts.PrivateKey) *assertstest.SigningDB {
