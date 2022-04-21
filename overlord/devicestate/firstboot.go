@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -410,8 +411,27 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 		return assertstate.AddBatch(st, batch, nil)
 	}
 
-	if err := deviceSeed.LoadAssertions(assertstate.DB(st), commitTo); err != nil {
+	db := assertstate.DB(st)
+	if err := deviceSeed.LoadAssertions(db, commitTo); err != nil {
 		return nil, err
+	}
+
+	// if model is dangerous, check if there is auto-import.assert and import it
+	if deviceSeed.Model().Grade() == asserts.ModelDangerous {
+		deviceSeed.LoadAutoImportAssertion(commitTo)
+		serial, _ := findSerial(st, nil)
+		u := &userManager{
+			state:    st,
+			safe:     true,
+			assertDb: db,
+			modelAs:  deviceSeed.Model(),
+			serialAs: serial,
+			sudoer:   true,
+		}
+		_, _, err = u.createAllKnownSystemUsers()
+		if err != nil {
+			logger.Noticef("failed to create known users: %v", err)
+		}
 	}
 
 	return deviceSeed, nil
