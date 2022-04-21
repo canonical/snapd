@@ -185,6 +185,13 @@ execute: |
     check_dirs "--with-exposed-home" "x3"
     check_data "--with-exposed-home" "x3" "$data"
 
+    echo "Refresh from core22 base to another core22 base revision"
+    snap install --dangerous "$NAME"_1.0_all.snap
+
+    check_env --with-exposed-home x4
+    check_dirs --with-exposed-home x4
+    check_data --with-exposed-home x4 "$data"
+
     echo "Check fresh install of core22 based snap"
     snap remove --purge "$NAME"
     rm -rf "$HOME"/Snap "$HOME"/.snap/data "$HOME/snap/$NAME"
@@ -198,9 +205,12 @@ execute: |
 
     echo "Check remove of freshly installed core22 based snap"
     snap remove --purge "$NAME"
+    not test -e "$HOME/.snap/data/$NAME/x1"
+    not test -e "$HOME/.snap/data/$NAME/common"
 
     echo "Now re-install"
     snap install --dangerous "$NAME"_1.0_all.snap
+    "$NAME".cmd sh -c 'true'
 
     check_env "--with-exposed-home" "x1"
     check_dirs "--with-exposed-home" "x1"
