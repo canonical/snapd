@@ -366,9 +366,12 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, ch
 }
 
 type snapToConsider struct {
-	i         int
+	// index of snap in seed20.snaps result slice
+	index     int
 	modelSnap *asserts.ModelSnap
 	optSnap   *internal.Snap20
+	// essential is set to true if the snap belongs to
+	// Model.EssentialSnaps() which are shared across all modes
 	essential bool
 }
 
@@ -438,6 +441,7 @@ func (s *seed20) doLoadMeta(tm timings.Measurer) error {
 	}
 	runMode := []string{"run"}
 
+	// relevant snaps have now been queued in the channel
 	n := len(s.snapsToConsiderCh)
 	close(s.snapsToConsiderCh)
 	if n > 0 {
@@ -486,7 +490,7 @@ func (s *seed20) doLoadMeta(tm timings.Measurer) error {
 						cacheEssential(sntoc.modelSnap.SnapType, seedSnap)
 					}
 				}
-				i := sntoc.i
+				i := sntoc.index
 				s.snaps[i] = seedSnap
 				s.modes[i] = modes
 			}
@@ -499,6 +503,8 @@ func (s *seed20) doLoadMeta(tm timings.Measurer) error {
 		err := <-outcomesCh
 		done++
 		if err != nil && firstErr == nil {
+			// we will report the first encountered error
+			// and do a best-effort to stop other jobs via stopCh
 			firstErr = err
 			close(stopCh)
 		}
@@ -507,6 +513,7 @@ func (s *seed20) doLoadMeta(tm timings.Measurer) error {
 	if firstErr != nil {
 		return firstErr
 	}
+	// filter out nil values from skipped snaps
 	osnaps := s.snaps
 	omodes := s.modes
 	s.snaps = s.snaps[:0]
@@ -531,7 +538,7 @@ func (s *seed20) considerModelSnap(modelSnap *asserts.ModelSnap, essential bool,
 	}
 
 	s.snapsToConsiderCh <- snapToConsider{
-		i:         len(s.snapsToConsiderCh),
+		index:     len(s.snapsToConsiderCh),
 		modelSnap: modelSnap,
 		optSnap:   optSnap,
 		essential: essential,
@@ -561,7 +568,7 @@ func (s *seed20) LoadMeta(mode string, tm timings.Measurer) error {
 			}
 
 			s.snapsToConsiderCh <- snapToConsider{
-				i:       len(s.snapsToConsiderCh),
+				index:   len(s.snapsToConsiderCh),
 				optSnap: optSnap,
 			}
 		}
