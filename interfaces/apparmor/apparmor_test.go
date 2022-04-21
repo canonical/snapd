@@ -53,6 +53,30 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 	apparmor.MockProfilesPath(&s.BaseTest, s.profilesFilename)
 }
 
+func (s *appArmorSuite) TestValidateNoAppArmorRegexp(c *C) {
+	for _, testData := range []struct {
+		inputString   string
+		expectedError string
+	}{
+		{"", ""},
+		{"This is f1ne!", ""},
+		{"No questions?", `"No questions\?" contains a reserved apparmor char.*`},
+		{"Brackets[]", `"Brackets\[\]" contains a reserved apparmor char.*`},
+		{"Braces{}", `"Braces{}" contains a reserved apparmor char.*`},
+		{"Star*", `"Star\*" contains a reserved apparmor char.*`},
+		{"hat^", `"hat\^" contains a reserved apparmor char.*`},
+		{`double"quotes`, `"double\\"quotes" contains a reserved apparmor char.*`},
+	} {
+		testLabel := Commentf("input: %s", testData.inputString)
+		err := apparmor.ValidateNoAppArmorRegexp(testData.inputString)
+		if testData.expectedError != "" {
+			c.Check(err, ErrorMatches, testData.expectedError, testLabel)
+		} else {
+			c.Check(err, IsNil, testLabel)
+		}
+	}
+}
+
 // Tests for LoadProfiles()
 
 func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplace(c *C) {
