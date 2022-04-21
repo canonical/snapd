@@ -177,7 +177,7 @@ execute: |
     echo "Update snap to core22"
     # write a file in a default XDG dir so we can check it's migrated
     mkdir "$HOME/snap/$NAME/x2/.config"
-    echo "conf" > "$HOME/snap/$NAME/x2/.config/file"
+    echo "conf-x2" > "$HOME/snap/$NAME/x2/.config/file"
 
     snap install --edge core22
     cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
@@ -193,7 +193,7 @@ execute: |
     not test -d "$HOME/Snap/$NAME/.config"
 
     # check data in a default XDG dir was migrated
-    MATCH "conf" < "$HOME/.snap/data/$NAME/x3/xdg-config/file"
+    MATCH "conf-x2" < "$HOME/.snap/data/$NAME/x3/xdg-config/file"
 
     # write some new data so we can check it's still there after reverting back
     #shellcheck disable=SC2016
@@ -287,7 +287,7 @@ execute: |
     MATCH "already_there" < "$HOME/Snap/$NAME/file"
 
     # the config XDG dir was re-initialized w/ revision "x2"'s .config dir
-    MATCH "conf" < "$HOME/.snap/data/$NAME/x4/xdg-config/file"
+    MATCH "conf-x2" < "$HOME/.snap/data/$NAME/x4/xdg-config/file"
 
     # the other XDG dirs were re-created (x2 didn't have corresponding dirs)
     if [[ -n "$(ls -A "$HOME/.snap/data/$NAME/x4/xdg-cache")" ]]; then
