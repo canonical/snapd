@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -50,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -165,6 +167,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Media:   update.Media,
 		},
 	}
+	snapsup.IgnoreRunning = globalFlags.IgnoreRunning
 	return &snapsup, snapst, nil
 }
 
@@ -301,6 +304,10 @@ func refreshRetain(st *state.State) int {
 	return retain
 }
 
+var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
+	return t == snap.TypeSnapd || t == snap.TypeOS
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -357,7 +364,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
-		if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
+		if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
@@ -689,6 +696,10 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	if snapdenv.Preseeding() {
+		// nothing to do when preseeding
+		return nil
+	}
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -710,7 +721,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			}
 			// TODO: if future changes to wrappers need one more snapd restart,
 			// then it should be handled here as well.
-			if err := generateSnapdWrappers(snapdInfo); err != nil {
+			if err := generateSnapdWrappers(snapdInfo, nil); err != nil {
 				return err
 			}
 		}
@@ -1262,7 +1273,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 	}
 
 	var transactionLane int
-	if flags.Transactional {
+	if flags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
@@ -1303,7 +1314,7 @@ func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]s
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if flags.Transactional {
+		if flags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())
@@ -1541,7 +1552,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
 	var transactionLane int
-	if globalFlags.Transactional {
+	if globalFlags.Transaction == client.TransactionAllSnaps {
 		transactionLane = st.NewLane()
 	}
 	for _, update := range updates {
@@ -1567,7 +1578,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
 		// only affect the culprit snap.
-		if globalFlags.Transactional {
+		if globalFlags.Transaction == client.TransactionAllSnaps {
 			ts.JoinLane(transactionLane)
 		} else {
 			ts.JoinLane(st.NewLane())

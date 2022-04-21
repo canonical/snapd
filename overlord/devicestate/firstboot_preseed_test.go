@@ -85,7 +85,7 @@ func checkPreseedTaskStates(c *C, st *state.State) {
 		}
 	}
 
-	// sanity: check that doneTasks is not declaring more tasks than
+	// validity: check that doneTasks is not declaring more tasks than
 	// actually expected.
 	c.Check(doneTasks, DeepEquals, seenDone)
 }
@@ -253,7 +253,7 @@ func (s *firstbootPreseedingClassic16Suite) TestPreseedOnClassicHappy(c *C) {
 	restore := snapdenv.MockPreseeding(true)
 	defer restore()
 
-	// sanity
+	// precondition
 	c.Assert(release.OnClassic, Equals, true)
 
 	coreFname, _, _ := s.makeCoreSnaps(c, "")
@@ -344,7 +344,7 @@ func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy
 	restorePreseedMode := snapdenv.MockPreseeding(true)
 	defer restorePreseedMode()
 
-	// sanity
+	// precondition
 	c.Assert(release.OnClassic, Equals, true)
 
 	core18Fname, snapdFname, _, _ := s.makeCore18Snaps(c, &core18SnapsOpts{

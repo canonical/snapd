@@ -2110,7 +2110,7 @@ func (s *storeTestSuite) TestFindV1Queries(c *C) {
 		c.Check(r.URL.Path, Matches, ".*/search")
 		c.Check(query.Get("fields"), Equals, "abc,def")
 
-		// write dummy json so that Find doesn't re-try due to json decoder EOF error
+		// write test json so that Find doesn't re-try due to json decoder EOF error
 		io.WriteString(w, "{}")
 
 		switch n {

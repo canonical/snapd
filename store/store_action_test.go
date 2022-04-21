@@ -2529,14 +2529,15 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			"tracking-channel": "stable",
 			"refreshed-date":   helloRefreshedDateStr,
 			"epoch":            iZeroEpoch,
-			"validation-sets":  []interface{}{[]interface{}{"foo", "bar"}, []interface{}{"foo", "baz"}},
+			"validation-sets":  []interface{}{[]interface{}{"foo", "other"}},
 		})
 		c.Assert(req.Actions, HasLen, 1)
 		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
-			"action":       "refresh",
-			"instance-key": helloWorldSnapID,
-			"snap-id":      helloWorldSnapID,
-			"channel":      "stable",
+			"action":          "refresh",
+			"instance-key":    helloWorldSnapID,
+			"snap-id":         helloWorldSnapID,
+			"channel":         "stable",
+			"validation-sets": []interface{}{[]interface{}{"foo", "bar"}, []interface{}{"foo", "baz"}},
 		})
 
 		io.WriteString(w, `{
@@ -2577,14 +2578,16 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 			TrackingChannel: "stable",
 			Revision:        snap.R(1),
 			RefreshedDate:   helloRefreshedDate,
-			ValidationSets:  [][]string{{"foo", "bar"}, {"foo", "baz"}},
+			// not actually set during refresh, but supported by snapAction
+			ValidationSets: [][]string{{"foo", "other"}},
 		},
 	}, []*store.SnapAction{
 		{
-			Action:       "refresh",
-			SnapID:       helloWorldSnapID,
-			Channel:      "stable",
-			InstanceName: "hello-world",
+			Action:         "refresh",
+			SnapID:         helloWorldSnapID,
+			Channel:        "stable",
+			InstanceName:   "hello-world",
+			ValidationSets: [][]string{{"foo", "bar"}, {"foo", "baz"}},
 		},
 	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)

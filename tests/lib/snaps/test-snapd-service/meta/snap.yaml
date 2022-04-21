@@ -47,6 +47,16 @@ apps:
         command: bin/start-stop-mode-sigterm
         daemon: simple
         stop-mode: sigterm-all
+    test-snapd-sigint-service:
+        command: bin/start-stop-mode sigint
+        stop-command: bin/stop-stop-mode sigint
+        daemon: simple
+        stop-mode: sigint
+    test-snapd-sigint-all-service:
+        command: bin/start-stop-mode sigint-all
+        stop-command: bin/stop-stop-mode sigint-all
+        daemon: simple
+        stop-mode: sigint-all
     test-snapd-endure-service:
         command: bin/start-stop-mode endure
         stop-command: bin/stop-stop-mode endure

@@ -104,12 +104,6 @@ execute: |
     #
     # echo "================================="
 
-    # Set refresh app awareness even on core systems, where we do not have
-    # inotify tools, so that we exercise that code path, even if it is not
-    # measured in the test.
-    snap set system experimental.refresh-app-awareness=true
-    tests.cleanup defer snap unset system experimental.refresh-app-awareness
-
     #shellcheck source=tests/lib/pkgdb.sh
     if os.query is-classic && not os.query is-trusty && not os.query is-amazon-linux; then
       . "$TESTSLIB/pkgdb.sh"
@@ -129,7 +123,7 @@ execute: |
     fi
 
     echo "When the snap is refreshed"
-    snap refresh --ignore-running --channel=edge "$SNAP_NAME"
+    snap refresh --channel=edge "$SNAP_NAME"
 
     if [ -f /tmp/inhibit.events ]; then
       echo "During the refresh process, the inhibition lock was established and released"
@@ -139,7 +133,6 @@ execute: |
       tests.cleanup pop  # stop the inotifywait unit
       tests.cleanup pop  # remove inotify-tools
     fi
-    tests.cleanup pop  # unset refresh-app-awareness
 
     echo "Then the new version is listed"
     expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"

@@ -499,9 +499,19 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		desired[i].Dir = filepath.Clean(desired[i].Dir)
 	}
 
-	// Sort both lists by directory name with implicit trailing slash.
-	sort.Sort(byOriginAndMagicDir(current))
-	sort.Sort(byOriginAndMagicDir(desired))
+	dumpMountEntries := func(entries []osutil.MountEntry, pfx string) {
+		logger.Debugf(pfx)
+		for _, en := range entries {
+			logger.Debugf("- %v", en)
+		}
+	}
+	dumpMountEntries(desired, "desired mount entries")
+	// Sort only the desired lists by directory name with implicit trailing
+	// slash and the mount kind.
+	// Note that the current profile is a log of what was applied and should
+	// not be sorted at all.
+	sort.Sort(byOriginAndMountPoint(desired))
+	dumpMountEntries(desired, "desired mount entries (sorted)")
 
 	// Construct a desired directory map.
 	desiredMap := make(map[string]*osutil.MountEntry)
@@ -523,6 +533,8 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 	// Compute reusable entries: those which are equal in current and desired and which
 	// are not prefixed by another entry that changed.
+	// sort them first
+	sort.Sort(byOvernameAndMountPoint(current))
 	for i := range current {
 		dir := current[i].Dir
 		if skipDir != "" && strings.HasPrefix(dir, skipDir) {
@@ -570,11 +582,12 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	var changes []*Change
 
 	// Unmount entries not reused in reverse to handle children before their parent.
-	for i := len(current) - 1; i >= 0; i-- {
-		if reuse[current[i].Dir] {
-			changes = append(changes, &Change{Action: Keep, Entry: current[i]})
+	unmountOrder := currentProfile.Entries
+	for i := len(unmountOrder) - 1; i >= 0; i-- {
+		if reuse[unmountOrder[i].Dir] {
+			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
 		} else {
-			var entry osutil.MountEntry = current[i]
+			var entry osutil.MountEntry = unmountOrder[i]
 			entry.Options = append([]string(nil), entry.Options...)
 			// If the mount entry can potentially host nested mount points then detach
 			// rather than unmount, since detach will always succeed.
@@ -601,24 +614,35 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	// 3. Perform all the remaining desired mounts
 
 	var newDesiredEntries []osutil.MountEntry
+	var newIndependentDesiredEntries []osutil.MountEntry
 	// Indexed by mount point path.
 	addedDesiredEntries := make(map[string]bool)
 	// This function is idempotent, it won't add the same entry twice
 	addDesiredEntry := func(entry osutil.MountEntry) {
 		if !addedDesiredEntries[entry.Dir] {
+			logger.Debugf("adding entry: %s", entry)
 			newDesiredEntries = append(newDesiredEntries, entry)
 			addedDesiredEntries[entry.Dir] = true
 		}
 	}
+	addIndependentDesiredEntry := func(entry osutil.MountEntry) {
+		if !addedDesiredEntries[entry.Dir] {
+			logger.Debugf("adding independent entry: %s", entry)
+			newIndependentDesiredEntries = append(newIndependentDesiredEntries, entry)
+			addedDesiredEntries[entry.Dir] = true
+		}
+	}
 
-	// Create a map of the target directories (mimics) needed for the  visited
+	logger.Debugf("processing mount entries")
+	// Create a map of the target directories (mimics) needed for the visited
 	// entries
 	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
 	for _, entry := range desiredNotReused {
 		if entry.XSnapdOrigin() == "overname" {
-			addDesiredEntry(entry)
+			addIndependentDesiredEntry(entry)
 		}
 
+		// collect all entries, so that we know what mimics are needed
 		parentTargetDir := filepath.Dir(entry.Dir)
 		affectedTargetCreationDirs[parentTargetDir] = append(affectedTargetCreationDirs[parentTargetDir], entry)
 	}
@@ -653,6 +677,10 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 				if !exists {
 					neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
 					entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
+					logger.Debugf("entry that requires %q: %v", neededMimicDir, entry)
+				} else {
+					// entry is independent
+					addIndependentDesiredEntry(entry)
 				}
 			}
 		}
@@ -667,23 +695,26 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 
 		sort.Strings(allMimicCreationDirs)
 
+		logger.Debugf("all mimics:")
+		for _, mimicDir := range allMimicCreationDirs {
+			logger.Debugf("- %v", mimicDir)
+		}
+
 		for _, mimicDir := range allMimicCreationDirs {
 			// make sure to sort the entries for each mimic dir in a consistent
 			// order
 			entries := entriesForMimicDir[mimicDir]
-			sort.Sort(byOriginAndMagicDir(entries))
-
+			sort.Sort(byOriginAndMountPoint(entries))
 			for _, entry := range entries {
 				addDesiredEntry(entry)
 			}
 		}
 	}
 
-	for _, entry := range desiredNotReused {
-		addDesiredEntry(entry)
-	}
-
-	for _, entry := range newDesiredEntries {
+	sort.Sort(byOriginAndMountPoint(newIndependentDesiredEntries))
+	allEntries := append(newIndependentDesiredEntries, newDesiredEntries...)
+	dumpMountEntries(allEntries, "mount entries ordered as they will be applied")
+	for _, entry := range allEntries {
 		changes = append(changes, &Change{Action: Mount, Entry: entry})
 	}
 

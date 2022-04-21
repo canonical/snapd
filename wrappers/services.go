@@ -50,7 +50,7 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
-type interacter interface {
+type Interacter interface {
 	Notify(status string)
 }
 
@@ -76,15 +76,6 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 	return genServiceFile(app, opts)
 }
 
-// max returns the maximum of two integers. Why is this
-// not provided by golang?
-func max(a, b int) int {
-	if a < b {
-		return b
-	}
-	return a
-}
-
 func min(a, b int) int {
 	if b < a {
 		return b
@@ -98,10 +89,11 @@ CPUAccounting=true
 `
 	buf := bytes.NewBufferString(header)
 
-	if grp.CPULimit != nil && grp.CPULimit.Percentage != 0 {
+	count, percentage := grp.GetLocalCPUQuota()
+	if percentage != 0 {
 		// convert the number of cores and the allowed percentage
 		// to the systemd specific format.
-		cpuQuotaSnap := max(grp.CPULimit.Count, 1) * grp.CPULimit.Percentage
+		cpuQuotaSnap := count * percentage
 		cpuQuotaMax := runtime.NumCPU() * 100
 
 		// The CPUQuota setting is only available since systemd 213
@@ -167,7 +159,7 @@ X-Snappy=yes
 	return buf.Bytes()
 }
 
-func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
+func stopUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 	failures, err := cli.ServicesStop(ctx, services)
@@ -177,7 +169,7 @@ func stopUserServices(cli *client.Client, inter interacter, services ...string) 
 	return err
 }
 
-func startUserServices(cli *client.Client, inter interacter, services ...string) error {
+func startUserServices(cli *client.Client, inter Interacter, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 	startFailures, stopFailures, err := cli.ServicesStart(ctx, services)
@@ -190,7 +182,7 @@ func startUserServices(cli *client.Client, inter interacter, services ...string)
 	return err
 }
 
-func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter interacter) error {
+func stopService(sysd systemd.Systemd, app *snap.AppInfo, inter Interacter) error {
 	serviceName := app.ServiceName()
 	tout := serviceStopTimeout(app)
 
@@ -241,7 +233,7 @@ type StartServicesFlags struct {
 // StartServices starts service units for the applications from the snap which
 // are services. Service units will be started in the order provided by the
 // caller.
-func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter interacter, tm timings.Measurer) (err error) {
+func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter Interacter, tm timings.Measurer) (err error) {
 	if flags == nil {
 		flags = &StartServicesFlags{}
 	}
@@ -496,7 +488,7 @@ type EnsureSnapServicesOptions struct {
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
 // This function is idempotent.
-func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (err error) {
+func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter Interacter) (err error) {
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
 
@@ -725,7 +717,7 @@ type AddSnapServicesOptions struct {
 
 // AddSnapServices adds service units for the applications from the snap which
 // are services. The services do not get enabled or started.
-func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) error {
+func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter Interacter) error {
 	m := map[*snap.Info]*SnapServiceOptions{
 		s: {},
 	}
@@ -752,7 +744,7 @@ type StopServicesFlags struct {
 
 // StopServices stops and optionally disables service units for the applications
 // from the snap which are services.
-func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter interacter, tm timings.Measurer) error {
+func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.ServiceStopReason, inter Interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 	if flags == nil {
 		flags = &StopServicesFlags{}
@@ -817,7 +809,7 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 
 // ServicesEnableState returns a map of service names from the given snap,
 // together with their enable/disable status.
-func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
+func ServicesEnableState(s *snap.Info, inter Interacter) (map[string]bool, error) {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	// loop over all services in the snap, querying systemd for the current
@@ -846,7 +838,7 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 // with sub-groups, one must remove all the sub-groups first.
 // This function is idempotent, if the slice file doesn't exist no error is
 // returned.
-func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
+func RemoveQuotaGroup(grp *quota.Group, inter Interacter) error {
 	// TODO: it only works on leaf sub-groups currently
 	if len(grp.SubGroups) != 0 {
 		return fmt.Errorf("internal error: cannot remove quota group with sub-groups")
@@ -872,7 +864,7 @@ func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
 // RemoveSnapServices disables and removes service units for the applications
 // from the snap which are services. The optional flag indicates whether
 // services are removed as part of undoing of first install of a given snap.
-func RemoveSnapServices(s *snap.Info, inter interacter) error {
+func RemoveSnapServices(s *snap.Info, inter Interacter) error {
 	if s.Type() == snap.TypeSnapd {
 		return fmt.Errorf("internal error: removing explicit services for snapd snap is unexpected")
 	}
@@ -1615,7 +1607,7 @@ type RestartServicesFlags struct {
 // TODO: change explicitServices format to be less unusual, more consistent
 // (introduce AppRef?)
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
-	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
+	flags *RestartServicesFlags, inter Interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	unitNames := make([]string, 0, len(svcs))

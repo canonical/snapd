@@ -36,7 +36,11 @@ prepare: |
     partx -u "${LOOP}"
 
     echo "Get the UC20 gadget"
-    snap download --channel=20/edge pc
+    if os.query is-focal; then
+        snap download --channel=20/edge pc
+    elif os.query is-jammy; then
+        snap download --channel=22/edge pc
+    fi
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
@@ -51,14 +55,13 @@ restore: |
     if mountpoint ./mnt; then
         umount ./mnt
     fi
-    # sanity check
+    # precondition check
     mount | NOMATCH /run/mnt
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"
         losetup -d "$LOOP"
         losetup -l | NOMATCH "$LOOP"
     fi
-    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions
@@ -74,7 +77,6 @@ execute: |
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
-    go get ../../lib/uc20-create-partitions
     # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
     #            "$kernel:" style ref in the meta/gadget.yaml
     kerneldir=""

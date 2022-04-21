@@ -23,9 +23,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -45,6 +47,8 @@ const (
 	Hidden       = hidden
 	Home         = home
 	RevertHidden = revertHidden
+	DisableHome  = disableHome
+	RevertFull   = revertFull
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -293,7 +297,7 @@ func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID 
 	}
 }
 
-func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info) error) func() {
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error) func() {
 	old := generateSnapdWrappers
 	generateSnapdWrappers = f
 	return func() {
@@ -353,6 +357,8 @@ var (
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 	RefreshRetain              = refreshRetain
+
+	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )
 
 func MockTimeNow(f func() time.Time) (restore func()) {
@@ -384,6 +390,12 @@ func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, err
 	return func() {
 		snapsToRefresh = old
 	}
+}
+
+func MockExcludeFromRefreshAppAwareness(f func(t snap.Type) bool) (restore func()) {
+	r := testutil.Backup(&excludeFromRefreshAppAwareness)
+	excludeFromRefreshAppAwareness = f
+	return r
 }
 
 func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) (restore func()) {

@@ -15,9 +15,13 @@ prepare: |
 execute: |
     check_canary() {
         test "$($1 -c 'cat /usr/lib/x86_64-linux-gnu/wpe-webkit-1.0/canary')" = content
+        test "$($1 -c 'cat /usr/libexec/wpe-webkit-1.0/canary')" = content
         #shellcheck disable=SC2016
         test "$($1 -c 'cat $SNAP/fooo/deeper/canary')" = content
+        #shellcheck disable=SC2016
+        test "$($1 -c 'cat $SNAP/fooo-top/canary')" = content
         test "$($1 -c 'cat /var/fooo/deeper/canary')" = content
+        test "$($1 -c 'cat /var/fooo-top/canary')" = content
     }
 
     check_canary test-snapd-layout.sh

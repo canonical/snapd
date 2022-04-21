@@ -27,8 +27,16 @@ for sn in $(snap list | awk 'NR>1 {print $1}'); do
 done
 h1 "SNAP CHANGES"
 snap changes --abs-time
-h1 "GADGET SNAP GADGET.YAML"
-cat /snap/"$(snap list | awk '($6 ~ /.*gadget.*$/) {print $1}')"/current/meta/gadget.yaml
+
+GADGET_SNAP="$(snap list | awk '($6 ~ /.*gadget.*$/) {print $1}')"
+if [ -z "$GADGET_SNAP" ]; then
+    # could be a serious bug/problem or otherwise could be just on a classic 
+    # device
+    h1 "NO GADGET SNAP DETECTED"
+else
+    h1 "GADGET SNAP GADGET.YAML"
+    cat /snap/"$(snap list | awk '($6 ~ /.*gadget.*$/) {print $1}')"/current/meta/gadget.yaml
+fi
 
 h1 "SNAP CHANGES (in Doing)"
 # print off the output of snap tasks <chg> for every chg that is in Doing state
@@ -44,7 +52,11 @@ for chg in $(snap changes | tail -n +2 | grep -Po '(?:[0-9]+\s+Error)' | awk '{p
     snap tasks "$chg" --abs-time
 done
 
+h1 "VALIDATION SET ASSERTIONS"
+snap known validation-set
+
 # sudo needed for these commands
+h1 "VALIDATION SETS"; sudo snap validate
 h1 "OFFLINE SNAP CHANGES"; sudo snap debug state --abs-time --changes /var/lib/snapd/state.json
 h1 "SNAPD STACKTRACE"; sudo snap debug stacktraces
 h1 "SNAP SYSTEM CONFIG"; sudo snap get system -d

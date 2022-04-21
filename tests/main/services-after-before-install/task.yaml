@@ -50,7 +50,7 @@ execute: |
         test -n "$inactive_leave"
         test -n "$active_enter"
 
-        # sanity check
+        # precondition check
         test "$active_enter" -gt "$inactive_leave"
         test -n "$inactive_leave"
         test -n "$active_enter"

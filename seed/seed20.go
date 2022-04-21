@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -66,6 +66,8 @@ type seed20 struct {
 	metaFilesLoaded bool
 
 	essCache map[string]*Snap
+
+	mode string
 
 	snaps []*Snap
 	// modes holds a matching applicable modes set for each snap in snaps
@@ -403,14 +405,19 @@ func (s *seed20) addModelSnap(modelSnap *asserts.ModelSnap, essential bool, filt
 	return seedSnap, nil
 }
 
-func (s *seed20) LoadMeta(tm timings.Measurer) error {
+func (s *seed20) LoadMeta(mode string, tm timings.Measurer) error {
 	if err := s.loadEssentialMeta(nil, tm); err != nil {
 		return err
 	}
+	s.mode = mode
 	if err := s.loadModelRestMeta(tm); err != nil {
 		return err
 	}
 
+	if s.mode != AllModes && s.mode != "run" {
+		// extra snaps are only for run mode
+		return nil
+	}
 	// extra snaps
 	runMode := []string{"run"}
 	for {
@@ -429,13 +436,16 @@ func (s *seed20) LoadMeta(tm timings.Measurer) error {
 }
 
 func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
-	filterEssential := essentialSnapTypesToModelFilter(essentialTypes)
+	var filterEssential func(*asserts.ModelSnap) bool
+	if len(essentialTypes) != 0 {
+		filterEssential = essentialSnapTypesToModelFilter(essentialTypes)
+	}
 
 	if err := s.loadEssentialMeta(filterEssential, tm); err != nil {
 		return err
 	}
 
-	if s.essentialSnapsNum != len(essentialTypes) {
+	if len(essentialTypes) != 0 && s.essentialSnapsNum != len(essentialTypes) {
 		// did not find all the explicitly asked essential types
 		return fmt.Errorf("model does not specify all the requested essential snaps: %v", essentialTypes)
 	}
@@ -468,6 +478,7 @@ func (s *seed20) resetSnaps() {
 	}
 
 	s.optSnapsIdx = 0
+	s.mode = AllModes
 	s.snaps = nil
 	s.modes = nil
 	s.essentialSnapsNum = 0
@@ -518,13 +529,39 @@ func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool
 	return nil
 }
 
+func snapModesInclude(snapModes []string, mode string) bool {
+	// mode is explicitly included in the snap modes
+	if strutil.ListContains(snapModes, mode) {
+		return true
+	}
+	if mode == "run" {
+		// run is not an ephemeral mode (as all the others)
+		// and it is not explicitly included in the snap modes
+		return false
+	}
+	// mode is one of the ephemeral modes but was not included
+	// explicitly in the snap modes, now check if the cover-all
+	// "ephemeral" alias is included in the snap modes instead
+	return strutil.ListContains(snapModes, "ephemeral")
+}
+
 func (s *seed20) loadModelRestMeta(tm timings.Measurer) error {
 	model := s.Model()
 
+	var filterMode func(*asserts.ModelSnap) bool
+	if s.mode != AllModes {
+		filterMode = func(modelSnap *asserts.ModelSnap) bool {
+			return snapModesInclude(modelSnap.Modes, s.mode)
+		}
+	}
+
 	const notEssential = false
 	for _, modelSnap := range model.SnapsWithoutEssential() {
-		_, err := s.addModelSnap(modelSnap, notEssential, nil, nil, tm)
+		_, err := s.addModelSnap(modelSnap, notEssential, filterMode, nil, tm)
 		if err != nil {
+			if err == errFiltered {
+				continue
+			}
 			if _, ok := err.(*noSnapDeclarationError); ok && modelSnap.Presence == "optional" {
 				// skipped optional snap is ok
 				continue
@@ -541,6 +578,9 @@ func (s *seed20) EssentialSnaps() []*Snap {
 }
 
 func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
+	if s.mode != AllModes && mode != s.mode {
+		return nil, fmt.Errorf("metadata was loaded only for snaps for mode %s not %s", s.mode, mode)
+	}
 	snaps := s.snaps[s.essentialSnapsNum:]
 	modes := s.modes[s.essentialSnapsNum:]
 	nGuess := len(snaps)
@@ -550,12 +590,9 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 	}
 	res := make([]*Snap, 0, nGuess)
 	for i, snap := range snaps {
-		if !strutil.ListContains(modes[i], mode) {
-			if !ephemeral || !strutil.ListContains(modes[i], "ephemeral") {
-				continue
-			}
+		if snapModesInclude(modes[i], mode) {
+			res = append(res, snap)
 		}
-		res = append(res, snap)
 	}
 	return res, nil
 }
