@@ -160,8 +160,7 @@ func Prepare(opts *Options) error {
 		if model.Base() != "core20" {
 			return fmt.Errorf("cannot preseed the image for a model other than core20")
 		}
-		// TODO: support signing key
-		return preseedCore20(opts.PrepareDir)
+		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey)
 	}
 
 	return nil
