@@ -157,6 +157,9 @@ type Seed interface {
 	// Iter provides a way to iterately perform a function on
 	// each of the snaps for which LoadMeta loaded their metadata.
 	Iter(f func(sn *Snap) error) error
+
+	// Auto import assertion from root of seed if grade is dangerous
+	LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) error
 }
 
 // A SnapHandler can be used to perform any dedicated handling of seed

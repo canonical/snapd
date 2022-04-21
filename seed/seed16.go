@@ -465,3 +465,7 @@ func (s *seed16) Iter(f func(sn *Snap) error) error {
 	}
 	return nil
 }
+
+func (s *seed16) LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) error {
+	return fmt.Errorf("Auto-import from seed is not supported")
+}
