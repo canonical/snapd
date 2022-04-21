@@ -167,7 +167,7 @@ func (b Backend) HideSnapData(snapName string) error {
 			return err
 		} else if exists {
 			if err := os.RemoveAll(newSnapDir); err != nil {
-				return fmt.Errorf("cannot remove existing post-migration snap dir: %v", err)
+				return fmt.Errorf("cannot remove existing snap dir %q: %v", newSnapDir, err)
 			}
 		}
 
