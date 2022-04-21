@@ -454,6 +454,7 @@ func (s *seed20) doLoadMeta(tm timings.Measurer) error {
 	for j := 1; j <= njobs; j++ {
 		jtm := tm.StartSpan(fmt.Sprintf("do-load-meta[%d]", j), fmt.Sprintf("snap metadata loading job #%d", j))
 		go func() {
+			defer jtm.Stop()
 		Consider:
 			for sntoc := range s.snapsToConsiderCh {
 				select {
