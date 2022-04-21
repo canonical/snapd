@@ -7719,11 +7719,6 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 			name: "snapd",
 		},
 		{
-			op:          "run-inhibit-snap-for-unlink",
-			name:        "snapd",
-			inhibitHint: "refresh",
-		},
-		{
 			op:   "copy-data",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/11"),
 			old:  filepath.Join(dirs.SnapMountDir, "snapd/1"),
