@@ -116,7 +116,7 @@ execute: |
 
     echo "Refresh the value of the main pid after restart"
     pid=$(systemctl show snap.test-snapd-service.test-snapd-service.service --property=ExecMainPID | cut -d = -f 2)
-    # sanity check
+    # precondition check
     MATCH "$pid" < "/sys/fs/cgroup/$cgroup/cgroup.procs"
 
     echo "Verify that device access map for the service is present and is pinned to a file"

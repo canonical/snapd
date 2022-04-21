@@ -366,7 +366,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnDisabledSnap(c *C) {
 	c.Assert(err, ErrorMatches, `cannot update disabled snap "some-snap"`)
 }
 
-func dummyInUseCheck(snap.Type) (boot.InUseFunc, error) {
+func inUseCheck(snap.Type) (boot.InUseFunc, error) {
 	return func(string, snap.Revision) bool {
 		return false
 	}, nil
@@ -419,7 +419,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	}
 
 	// And observe that we cannot refresh because the snap is busy.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has running apps \(app\), pids: 1234`)
 
 	// The state records the time of the failed refresh operation.
@@ -469,20 +469,30 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	})
 	defer restore()
 
+	var called bool
+	restore = snapstate.MockExcludeFromRefreshAppAwareness(func(t snap.Type) bool {
+		called = true
+		c.Check(t, Equals, snap.TypeApp)
+		return false
+	})
+	defer restore()
+
 	// Attempt to install revision 2 of the snap, with the IgnoreRunning flag set.
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "pkg", SnapID: "pkg-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IgnoreRunning: true},
+		Type:     "app",
 	}
 
 	// And observe that we do so despite the running app.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
 	c.Assert(err, IsNil)
 
 	// The state confirms that the refresh operation was not postponed.
 	err = snapstate.Get(s.state, "pkg", snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.RefreshInhibitedTime, IsNil)
+	c.Check(called, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
@@ -536,7 +546,7 @@ func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	}
 
 	// And observe that refresh occurred regardless of the running process.
-	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", dummyInUseCheck)
+	_, err := snapstate.DoInstall(s.state, snapst, snapsup, 0, "", inUseCheck)
 	c.Assert(err, IsNil)
 }
 
@@ -1973,6 +1983,11 @@ epoch: 1*
 			name: "mock",
 		},
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "mock",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
 		},
@@ -2091,6 +2106,11 @@ epoch: 1*
 		{
 			op:   "remove-snap-aliases",
 			name: "mock",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "mock",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",

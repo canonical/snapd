@@ -2,6 +2,6 @@ name: basic-iface-hooks-consumer
 version: 1.0
 plugs:
     consumer:
-        interface: dummy
+        interface: empty
         consumer-attr-1: consumer-value-1
         consumer-attr-2: consumer-value-2

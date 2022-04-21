@@ -153,7 +153,7 @@ func (s *snapshotSuite) TestLastSnapshotID(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(setID, check.Equals, uint64(0))
 
-	// create snapshots dir and dummy snapshots
+	// create snapshots dir and test snapshots
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 	for _, name := range []string{
 		"9_some-snap-1.zip", "1234_not-a-snapshot", "12_other-snap.zip", "3_foo.zip",
@@ -1336,7 +1336,7 @@ func createTestExportFile(filename string, flags *createTestExportFlags) error {
 
 		sha := map[string]string{}
 
-		// create dummy archive.tgz
+		// create test archive.tgz
 		archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
 		if err != nil {
 			return err
@@ -1424,13 +1424,13 @@ func makeMockSnapshotZipContent(c *check.C) []byte {
 	buf := bytes.NewBuffer(nil)
 	zipW := zip.NewWriter(buf)
 
-	// create dummy archive.tgz
+	// create test archive.tgz
 	archiveWriter, err := zipW.CreateHeader(&zip.FileHeader{Name: "archive.tgz"})
 	c.Assert(err, check.IsNil)
 	_, err = archiveWriter.Write([]byte("mock archive.tgz content"))
 	c.Assert(err, check.IsNil)
 
-	// create dummy meta.json
+	// create test meta.json
 	archiveWriter, err = zipW.CreateHeader(&zip.FileHeader{Name: "meta.json"})
 	c.Assert(err, check.IsNil)
 	_, err = archiveWriter.Write([]byte("{}"))

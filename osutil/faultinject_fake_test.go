@@ -30,13 +30,13 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type testhelperDummyFaultInjectionSuite struct {
+type testhelperFakeFaultInjectionSuite struct {
 	testutil.BaseTest
 }
 
-var _ = Suite(&testhelperDummyFaultInjectionSuite{})
+var _ = Suite(&testhelperFakeFaultInjectionSuite{})
 
-func (s *testhelperDummyFaultInjectionSuite) SetUpTest(c *C) {
+func (s *testhelperFakeFaultInjectionSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	oldSnappyTesting := os.Getenv("SNAPPY_TESTING")
@@ -44,7 +44,7 @@ func (s *testhelperDummyFaultInjectionSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { os.Unsetenv("SNAPD_FAULT_INJECT") })
 }
 
-func (s *testhelperDummyFaultInjectionSuite) TestDummyFaultInject(c *C) {
+func (s *testhelperFakeFaultInjectionSuite) TestFakeFaultInject(c *C) {
 	os.Setenv("SNAPPY_TESTING", "1")
 
 	os.Setenv("SNAPD_FAULT_INJECT", "tag:reboot,othertag:panic,funtag:reboot")

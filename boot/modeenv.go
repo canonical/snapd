@@ -346,7 +346,7 @@ type modelForSealing struct {
 	modelSignKeyID string
 }
 
-// dummy to verify interface match
+// verify interface match
 var _ secboot.ModelForSealing = (*modelForSealing)(nil)
 
 func (m *modelForSealing) BrandID() string           { return m.brandID }

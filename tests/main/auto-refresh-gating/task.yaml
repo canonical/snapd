@@ -32,7 +32,7 @@ execute: |
   echo "Connecting the two test snaps with content interface"
   snap connect "$SNAP_NAME:content" "$CONTENT_SNAP_NAME:content"
 
-  # sanity check
+  # precondition check
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
   snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
 
@@ -77,7 +77,7 @@ execute: |
 
     echo "Ensure our content snap was held and is still at version 1"
     snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
-    # sanity check for the gating snap.
+    # precondition check for the gating snap.
     snap list | MATCH "$SNAP_NAME +1\.0\.0"
   done
 
@@ -102,7 +102,7 @@ execute: |
 
   echo "Ensure our content snap was refreshed"
   snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
-  # sanity check for the gating snap.
+  # precondition check for the gating snap.
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
 
   systemctl stop snapd.{service,socket}
