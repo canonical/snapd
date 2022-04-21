@@ -161,7 +161,6 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedOpts) error {
 		"system-label":      opts.SystemLabel,
 		"artifact-sha3-384": base64Digest,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"revision":          "0",
 		"snaps":             snaps,
 	}
 
