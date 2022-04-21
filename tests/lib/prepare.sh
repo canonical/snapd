@@ -619,21 +619,15 @@ uc20_build_initramfs_kernel_snap() {
         cp -a /usr/lib/snapd/snap-bootstrap "$skeletondir/main/usr/lib/snapd/snap-bootstrap.real"
         cat <<'EOF' | sed -E "s/^ {8}//" >"$skeletondir/main/usr/lib/snapd/snap-bootstrap"
         #!/bin/sh
-
         set -eux
-
         if [ "$1" != initramfs-mounts ]; then
             exec /usr/lib/snapd/snap-bootstrap.real "$@"
         fi
-
         beforeDate="$(date --utc '+%s')"
-
         /usr/lib/snapd/snap-bootstrap.real "$@"
-
         if [ -d /run/mnt/data/system-data ]; then
             touch /run/mnt/data/system-data/the-tool-ran
         fi
-
         # also copy the time for the clock-epoch to system-data, this is
         # used by a specific test but doesn't hurt anything to do this for
         # all tests
