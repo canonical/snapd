@@ -543,11 +543,11 @@ func (s *seed20) considerModelSnap(modelSnap *asserts.ModelSnap, essential bool,
 }
 
 func (s *seed20) LoadMeta(mode string, tm timings.Measurer) error {
-	if err := s.loadEssentialMeta(nil, tm); err != nil {
+	if err := s.queueEssentialMeta(nil, tm); err != nil {
 		return err
 	}
 	s.mode = mode
-	if err := s.loadModelRestMeta(tm); err != nil {
+	if err := s.queueModelRestMeta(tm); err != nil {
 		return err
 	}
 
@@ -575,7 +575,7 @@ func (s *seed20) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 		filterEssential = essentialSnapTypesToModelFilter(essentialTypes)
 	}
 
-	if err := s.loadEssentialMeta(filterEssential, tm); err != nil {
+	if err := s.queueEssentialMeta(filterEssential, tm); err != nil {
 		return err
 	}
 
@@ -617,7 +617,7 @@ func (s *seed20) resetSnaps() {
 	s.essentialSnapsNum = 0
 }
 
-func (s *seed20) loadEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
+func (s *seed20) queueEssentialMeta(filterEssential func(*asserts.ModelSnap) bool, tm timings.Measurer) error {
 	model := s.Model()
 
 	if err := s.loadMetaFiles(); err != nil {
@@ -670,7 +670,7 @@ func snapModesInclude(snapModes []string, mode string) bool {
 	return strutil.ListContains(snapModes, "ephemeral")
 }
 
-func (s *seed20) loadModelRestMeta(tm timings.Measurer) error {
+func (s *seed20) queueModelRestMeta(tm timings.Measurer) error {
 	model := s.Model()
 
 	var filterMode func(*asserts.ModelSnap) bool
