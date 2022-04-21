@@ -1031,6 +1031,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// Invoke the hard refresh flow. Upon success the returned lock will be
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
+		// XXX: should we skip it if type is snap.TypeSnapd?
 		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, oldInfo)
 		if err != nil {
 			return err

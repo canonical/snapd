@@ -520,6 +520,11 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 
 	expected := fakeOps{
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "foo",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
 		},
@@ -572,8 +577,14 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapdNop(c *C) {
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(20))
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	// backend was not called to unlink the snap
-	c.Check(s.fakeBackend.ops, HasLen, 0)
+	// backend unlink was not called
+	c.Check(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "snapd",
+			inhibitHint: "refresh",
+		}})
 }
 
 func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
