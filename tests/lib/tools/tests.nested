@@ -5,7 +5,7 @@ show_help() {
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
     echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
-    echo "       is-nested [core|classic|uc16|uc18|uc20]"
+    echo "       is-nested [core|classic|uc16|uc18|uc20|uc22]"
     echo "       vm <ACTION>"
     echo "       exec [--user <USER>] [--pwd <PWD>] <CMD>"
     echo "       copy <FILEPATH>"
@@ -165,6 +165,9 @@ is_nested() {
                 ;;
             uc20)
                 nested_is_core_20_system
+                ;;
+            uc22)
+                nested_is_core_22_system
                 ;;
             *)
                 echo "tests.nested: parameter not supported: $1" >&2

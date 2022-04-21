@@ -1,6 +1,6 @@
 summary: Test that time moves forward when the RTC is broken/unavailable in UC20
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   NESTED_IMAGE_ID: core20-initramfs-time-moves-forward
