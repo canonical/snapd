@@ -53,15 +53,6 @@ const (
 
 var runtimeNumCPU = runtime.NumCPU
 
-func MockRuntimeNumCPU(new func() int) (restore func()) {
-	osutil.MustBeTestBinary("MockRuntimeNumCPU only to be used in tests")
-	old := runtimeNumCPU
-	runtimeNumCPU = new
-	return func() {
-		runtimeNumCPU = old
-	}
-}
-
 func maybeSetNumberOfJobs() string {
 	cpus := runtimeNumCPU()
 	// Do not use all CPUs as this may have negative impact when booting.
