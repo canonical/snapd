@@ -20,13 +20,16 @@
 package seed_test
 
 import (
+	"crypto/rand"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -2872,4 +2875,220 @@ func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
 
 	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
 	c.Check(err, ErrorMatches, `cannot validate ".*pc-kernel_1\.snap" for snap "pc-kernel" \(snap-id "pckernel.*"\), hash mismatch with snap-revision`)
+}
+
+func (s *seed20Suite) TestLoadAutoImportAssertionGradeSecuredNoAutoImportAssertion(c *C) {
+	sysLabel := "20191018"
+	seed20 := s.createMinimalSeed(c, "secured", sysLabel)
+	c.Assert(seed20, NotNil)
+	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelSecured)
+
+	// try to load auto import assertions
+	err := seed20.LoadAutoImportAssertion(s.commitTo)
+	c.Assert(err, IsNil)
+	assertions, err := s.findAutoImportAssertion(seed20)
+	c.Assert(err, NotNil)
+	c.Check(err, check.ErrorMatches, "No system user assertion found")
+	c.Assert(assertions, IsNil)
+}
+
+func (s *seed20Suite) TestLoadAutoImportAssertionGradeSecuredAutoImportAssertion(c *C) {
+	sysLabel := "20191018"
+	seed20 := s.createMinimalSeed(c, "secured", sysLabel)
+	c.Assert(seed20, NotNil)
+	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelSecured)
+
+	err := s.writeValidAutoImportAssertion(c, sysLabel, 0644)
+	c.Assert(err, IsNil)
+
+	// try to load auto import assertions
+	err = seed20.LoadAutoImportAssertion(s.commitTo)
+	c.Assert(err, IsNil)
+	assertions, err := s.findAutoImportAssertion(seed20)
+	c.Assert(err, NotNil)
+	c.Check(err, check.ErrorMatches, "No system user assertion found")
+	c.Assert(assertions, IsNil)
+}
+
+func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousNoAutoImportAssertion(c *C) {
+	sysLabel := "20191018"
+	seed20 := s.createMinimalSeed(c, "dangerous", sysLabel)
+	c.Assert(seed20, NotNil)
+	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelDangerous)
+
+	// try to load auto import assertions
+	err := seed20.LoadAutoImportAssertion(s.commitTo)
+	c.Assert(err, IsNil)
+	assertions, err := s.findAutoImportAssertion(seed20)
+	c.Assert(err, NotNil)
+	c.Check(err, check.ErrorMatches, "No system user assertion found")
+	c.Assert(assertions, IsNil)
+}
+
+func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertionErrCommiter(c *C) {
+	// test with broken commiter
+	s.testLoadAutoImportAssertionGradeDangerousAutoImportAssertionErr(c, 0644, func(b *asserts.Batch) error {
+		return fmt.Errorf("nope")
+	})
+}
+
+func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertionErrFilePerm(c *C) {
+	// test with wrong file permissions
+	s.testLoadAutoImportAssertionGradeDangerousAutoImportAssertionErr(c, 0222, s.commitTo)
+}
+
+func (s *seed20Suite) testLoadAutoImportAssertionGradeDangerousAutoImportAssertionErr(c *C, perm fs.FileMode, commitTo func(b *asserts.Batch) error) {
+	sysLabel := "20191018"
+	seed20 := s.createMinimalSeed(c, "dangerous", sysLabel)
+	c.Assert(seed20, NotNil)
+	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelDangerous)
+
+	// write test auto import assertion
+	err := s.writeValidAutoImportAssertion(c, sysLabel, perm)
+	c.Assert(err, IsNil)
+	// try to load auto import assertions
+	err = seed20.LoadAutoImportAssertion(commitTo)
+
+	c.Assert(err, IsNil)
+	assertions, err := s.findAutoImportAssertion(seed20)
+	c.Assert(err, NotNil)
+	c.Check(err, check.ErrorMatches, "No system user assertion found")
+	c.Assert(assertions, IsNil)
+}
+
+func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertion(c *C) {
+	sysLabel := "20191018"
+	seed20 := s.createMinimalSeed(c, "dangerous", sysLabel)
+	c.Assert(seed20, NotNil)
+	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelDangerous)
+
+	err := s.writeValidAutoImportAssertion(c, sysLabel, 0644)
+	c.Assert(err, IsNil)
+
+	// try to load auto import assertions
+	err = seed20.LoadAutoImportAssertion(s.commitTo)
+	c.Assert(err, IsNil)
+	c.Assert(err, IsNil)
+	assertions, err := s.findAutoImportAssertion(seed20)
+	c.Assert(err, IsNil)
+	// validate it's our assertion
+	c.Check(len(assertions), check.Equals, 1)
+	su := assertions[0].(*asserts.SystemUser)
+	c.Check(su.Username(), check.Equals, "guy")
+	c.Check(su.Email(), check.Equals, "foo@bar.com")
+	c.Check(su.Name(), check.Equals, "Boring Guy")
+	c.Check(su.AuthorityID(), check.Equals, "my-brand")
+}
+
+func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousInvalidAutoImportAssertion(c *C) {
+	sysLabel := "20191018"
+	seed20 := s.createMinimalSeed(c, "dangerous", sysLabel)
+	c.Assert(seed20, NotNil)
+	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelDangerous)
+
+	// write test auto import assertion
+	err := s.writeInvalidAutoImportAssertion(c, sysLabel)
+	c.Assert(err, IsNil)
+	// try to load auto import assertions
+	err = seed20.LoadAutoImportAssertion(s.commitTo)
+
+	c.Assert(err, IsNil)
+	assertions, err := s.findAutoImportAssertion(seed20)
+	c.Assert(err, NotNil)
+	c.Check(err, check.ErrorMatches, "No system user assertion found")
+	c.Assert(assertions, IsNil)
+}
+
+func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) seed.Seed {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name":          "my model",
+		"architecture":          "amd64",
+		"base":                  "core20",
+		"grade":                 grade,
+		"system-user-authority": []interface{}{"my-brand", "other-brand"},
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	return seed20
+}
+
+var goodUser = map[string]interface{}{
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foo@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model", "other-model"},
+	"name":         "Boring Guy",
+	"username":     "guy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+func (s *seed20Suite) writeValidAutoImportAssertion(c *C, sysLabel string, perm fs.FileMode) error {
+	systemUsers := []map[string]interface{}{goodUser}
+	// write system user asseerion to system seed root
+	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
+	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, perm)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	enc := asserts.NewEncoder(f)
+	c.Assert(enc, NotNil)
+
+	for _, suMap := range systemUsers {
+		su, err := s.Brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		c.Assert(err, IsNil)
+		su = su.(*asserts.SystemUser)
+		err = enc.Encode(su)
+		c.Assert(err, IsNil)
+	}
+
+	return nil
+}
+
+func (s *seed20Suite) writeInvalidAutoImportAssertion(c *C, sysLabel string) error {
+	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
+	// write random data
+	randomness := make([]byte, 512)
+	rand.Read(randomness)
+	return os.WriteFile(autoImportAssert, randomness, 0644)
+}
+
+// findAutoImportAssertion returns found systemUser assertion
+func (s *seed20Suite) findAutoImportAssertion(seed20 seed.Seed) ([]asserts.Assertion, error) {
+	assertions, err := s.db.FindMany(asserts.SystemUserType, map[string]string{
+		"brand-id": seed20.Model().BrandID(),
+	})
+
+	if asserts.IsNotFound(err) {
+		return nil, fmt.Errorf("No system user assertion found")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return assertions, nil
 }
