@@ -335,10 +335,10 @@ jobs:
           if [ -f "$FAILED_TESTS_FILE" ]; then
               echo "Failed tests file found"
               FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
-          fi
-          if [ -n "$FAILED_TESTS" ]; then
-              echo "Failed tests to run: $FAILED_TESTS"
-              echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+              if [ -n "$FAILED_TESTS" ]; then
+                  echo "Failed tests to run: $FAILED_TESTS"
+                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+              fi
           fi
 
     - name: Run spread tests
@@ -399,10 +399,9 @@ jobs:
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
               if grep -q "Aborted tasks: 0" spread.log; then
                   ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-                  FAILED_TESTS="$(jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | cut -d '-' -f2- | xargs)"
+                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | cut -d '-' -f2- > "$FAILED_TEST_FILE"
 
-                  echo "Failed tests saved for re-execution: $FAILED_TESTS"
-                  echo "$FAILED_TESTS" > "$FAILED_TESTS_FILE"
+                  echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
               else
                   echo "No failed tests saved, this means all the tests will be executed next run"
                   touch "$FAILED_TESTS_FILE"
