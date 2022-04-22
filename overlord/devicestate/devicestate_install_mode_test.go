@@ -565,6 +565,27 @@ func (f *fakeSeed) Iter(func(sn *seed.Snap) error) error {
 	return nil
 }
 
+func (s *deviceMgrInstallModeSuite) mockPreseedAssertion(c *C, model *asserts.Model, sysLabel string, digest string, snaps []interface{}) {
+	headers := map[string]interface{}{
+		"type":              "preseed",
+		"authority-id":      model.AuthorityID(),
+		"series":            "16",
+		"brand-id":          model.BrandID(),
+		"model":             model.Model(),
+		"system-label":      sysLabel,
+		"artifact-sha3-384": digest,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"snaps":             snaps,
+	}
+
+	signer := s.brands.Signing(model.BrandID())
+	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+	assertstatetest.AddMany(s.state, preseedAs)
+}
+
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	st := s.state
 
@@ -604,24 +625,8 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	c.Assert(err, IsNil)
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
 	c.Assert(err, IsNil)
-	headers := map[string]interface{}{
-		"type":              "preseed",
-		"authority-id":      model.AuthorityID(),
-		"series":            "16",
-		"brand-id":          model.BrandID(),
-		"model":             model.Model(),
-		"system-label":      sysLabel,
-		"artifact-sha3-384": digest,
-		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"snaps":             snaps,
-	}
 
-	signer := s.brands.Signing(model.BrandID())
-	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-	if err != nil {
-		panic(err)
-	}
-	assertstatetest.AddMany(st, preseedAs)
+	s.mockPreseedAssertion(c, model, sysLabel, digest, snaps)
 
 	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
@@ -637,7 +642,7 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "mode-snap_3.snap")), Equals, true)
 }
 
-func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataModelMismatch(c *C) {
+func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededSysLabelMismatch(c *C) {
 	st := s.state
 
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
@@ -672,27 +677,11 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataModelMismatch(c *
 	c.Assert(err, IsNil)
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
 	c.Assert(err, IsNil)
-	headers := map[string]interface{}{
-		"type":              "preseed",
-		"authority-id":      model.AuthorityID(),
-		"series":            "16",
-		"brand-id":          model.BrandID(),
-		"model":             "wrong-model",
-		"system-label":      sysLabel,
-		"artifact-sha3-384": digest,
-		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"snaps":             snaps,
-	}
 
-	signer := s.brands.Signing(model.BrandID())
-	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-	if err != nil {
-		panic(err)
-	}
-	assertstatetest.AddMany(st, preseedAs)
+	s.mockPreseedAssertion(c, model, "wrong-syslabel", digest, snaps)
 
 	_, err = devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
-	c.Assert(err, ErrorMatches, `preseed.tgz artifact is present but preseed assertion for brand "my-brand", model "my-model" couldn't be found`)
+	c.Assert(err, ErrorMatches, `preseed.tgz artifact is present but preseed assertion for brand "my-brand", model "my-model" and system label "20220105" couldn't be found`)
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataWrongDigest(c *C) {
@@ -727,26 +716,10 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataWrongDigest(c *C)
 		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
 	}
 
-	headers := map[string]interface{}{
-		"type":              "preseed",
-		"authority-id":      model.AuthorityID(),
-		"series":            "16",
-		"brand-id":          model.BrandID(),
-		"model":             model.Model(),
-		"system-label":      sysLabel,
-		"artifact-sha3-384": "DGOnW4ReT30BEH2FLkwkhcUaUKqqlPxhmV5xu-6YOirDcTgxJkrbR_traaaY1fAE",
-		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"snaps":             snaps,
-	}
+	wrongDigest := "DGOnW4ReT30BEH2FLkwkhcUaUKqqlPxhmV5xu-6YOirDcTgxJkrbR_traaaY1fAE"
+	s.mockPreseedAssertion(c, model, sysLabel, wrongDigest, snaps)
 
-	signer := s.brands.Signing(model.BrandID())
-	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
-	if err != nil {
-		panic(err)
-	}
-	assertstatetest.AddMany(st, preseedAs)
-
-	_, err = devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
+	_, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, ErrorMatches, `invalid preseed artifact digest`)
 }
 

@@ -670,7 +670,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		"system-label": sysLabel,
 	})
 	if asserts.IsNotFound(err) {
-		return false, fmt.Errorf("preseed.tgz artifact is present but preseed assertion for brand %q, model %q couldn't be found", model.BrandID(), model.Model())
+		return false, fmt.Errorf("preseed.tgz artifact is present but preseed assertion for brand %q, model %q and system label %q couldn't be found", model.BrandID(), model.Model(), sysLabel)
 	}
 	if err != nil {
 		return false, fmt.Errorf("internal error: cannot get preseed assertion: %v", err)
