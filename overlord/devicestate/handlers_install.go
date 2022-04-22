@@ -600,8 +600,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 
 	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
 	if err != nil {
-		msg := fmt.Sprintf("failed to apply preseed data: %v", err)
-		logger.Noticef(msg)
+		logger.Noticef("failed to apply preseed data: %v", err)
 		return err
 	}
 	if preseeded {
@@ -676,13 +675,13 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		return false, fmt.Errorf("internal error: cannot get preseed assertion: %v", err)
 	}
 
-	preseedAs := as.(*asserts.Preseed)
 	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	if err != nil {
 		return false, fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
 	}
 
+	preseedAs := as.(*asserts.Preseed)
 	digest, err := base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384())
 	if err != nil {
 		return false, fmt.Errorf("cannot decode preseed artifact digest")

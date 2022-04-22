@@ -268,19 +268,15 @@ var (
 )
 
 func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
-	old := maybeApplyPreseededData
+	r := testutil.Backup(&maybeApplyPreseededData)
 	maybeApplyPreseededData = f
-	return func() {
-		maybeApplyPreseededData = old
-	}
+	return r
 }
 
 func MockSeedOpen(f func(seedDir, label string) (seed.Seed, error)) (restore func()) {
-	old := seedOpen
+	r := testutil.Backup(&seedOpen)
 	seedOpen = f
-	return func() {
-		seedOpen = old
-	}
+	return r
 }
 
 func MockGadgetUpdate(mock func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
