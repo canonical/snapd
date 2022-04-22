@@ -601,7 +601,6 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
 	if err != nil {
 		msg := fmt.Sprintf("failed to apply preseed data: %v", err)
-		t.Logf(msg)
 		logger.Noticef(msg)
 		return err
 	}

@@ -623,7 +623,6 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 		panic(err)
 	}
 	assertstatetest.AddMany(st, preseedAs)
-	// XXX
 
 	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
