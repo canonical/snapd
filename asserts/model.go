@@ -30,11 +30,6 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-type ModelAssertJSON struct {
-	Headers map[string]interface{} `json:"headers,omitempty"`
-	Body    string                 `json:"body,omitempty"`
-}
-
 // TODO: for ModelSnap
 //  * consider moving snap.Type out of snap and using it in ModelSnap
 //    but remember assertions use "core" (never "os") for TypeOS

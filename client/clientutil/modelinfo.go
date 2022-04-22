@@ -54,6 +54,14 @@ var (
 	}
 )
 
+// ModelAssertJSON is a helper to print assertion headers and body.
+// It is used when serializing the assertion without any specific
+// formatting or ordering.
+type ModelAssertJSON struct {
+	Headers map[string]interface{} `json:"headers,omitempty"`
+	Body    string                 `json:"body,omitempty"`
+}
+
 type ModelFormatter interface {
 	LongPublisher(storeAccountID string) string
 	GetEscapedDash() string
@@ -143,7 +151,7 @@ func printVerboseSnapsList(w *tabwriter.Writer, snaps []interface{}) error {
 	return nil
 }
 
-func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAssertionOptions, assertion asserts.Assertion) error {
+func printVerboseModelAssertionHeaders(w *tabwriter.Writer, assertion asserts.Assertion, opts PrintModelAssertionOptions) error {
 	allHeadersMap := assertion.Headers()
 	for _, headerName := range niceOrdering {
 		headerValue, ok := allHeadersMap[headerName]
@@ -196,7 +204,7 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(w, "timestamp:\t%s\n", fmtTime(t, options.AbsTime))
+			fmt.Fprintf(w, "timestamp:\t%s\n", fmtTime(t, opts.AbsTime))
 
 		// long string key we don't want to rewrap but can safely handle
 		// on "reasonable" width terminals
@@ -210,11 +218,11 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 			}
 
 			switch {
-			case options.TermWidth > 86:
+			case opts.TermWidth > 86:
 				fmt.Fprintf(w, "device-key-sha3-384: %s\n", headerString)
-			case options.TermWidth > 66:
+			case opts.TermWidth > 66:
 				fmt.Fprintln(w, "device-key-sha3-384: |")
-				strutil.WordWrapPadded(w, []rune(headerString), "  ", options.TermWidth)
+				strutil.WordWrapPadded(w, []rune(headerString), "  ", opts.TermWidth)
 			}
 		case "snaps":
 			// also flush the writer before continuing so the previous keys
@@ -246,7 +254,7 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 			// it's safe to replace the newlines
 			headerString = strings.ReplaceAll(headerString, "\n", "")
 			fmt.Fprintln(w, "device-key: |")
-			strutil.WordWrapPadded(w, []rune(headerString), "  ", options.TermWidth)
+			strutil.WordWrapPadded(w, []rune(headerString), "  ", opts.TermWidth)
 
 		// The rest of the values should be single strings
 		default:
@@ -260,12 +268,11 @@ func printVerboseAssertionHeaders(w *tabwriter.Writer, options PrintModelAsserti
 	return w.Flush()
 }
 
-// PrintModelAssertionYAML will format the provided serial or model assertion based on the parameters given in
-// YAML format. The output will be written to the provided io.Writer.
-func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter, options PrintModelAssertionOptions, modelAssertion asserts.Model, serialAssertion *asserts.Serial) error {
-
+// PrintModelAssertion will format the provided serial or model assertion based on the parameters given in
+// YAML format, or serialize it raw if Assertion is set. The output will be written to the provided io.Writer.
+func PrintModelAssertion(w *tabwriter.Writer, modelFormatter ModelFormatter, modelAssertion asserts.Model, serialAssertion *asserts.Serial, opts PrintModelAssertionOptions) error {
 	// if assertion was requested we want it raw
-	if options.Assertion {
+	if opts.Assertion {
 		_, err := w.Write(asserts.Encode(&modelAssertion))
 		return err
 	}
@@ -276,7 +283,7 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 	// for the `snap model` case with no options, we don't want colons, we want
 	// to be like `snap version`
 	separator := ":"
-	if !options.Verbose {
+	if !opts.Verbose {
 		separator = ""
 	}
 
@@ -289,7 +296,7 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 	// parenthetical about the device not being registered yet
 	var serial string
 	if serialAssertion == nil {
-		if options.Verbose {
+		if opts.Verbose {
 			// verbose and serial are yamlish, so we need to escape the dash
 			serial = modelFormatter.GetEscapedDash()
 		} else {
@@ -302,7 +309,7 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 
 	// handle brand/brand-id and model/model + display-name differently on just
 	// `snap model` w/o opts
-	if options.Verbose {
+	if opts.Verbose {
 		fmt.Fprintf(w, "brand-id:\t%s\n", brandIDHeader)
 		fmt.Fprintf(w, "model:\t%s\n", modelHeader)
 	} else {
@@ -332,8 +339,8 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 
 	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 
-	if options.Verbose {
-		if err := printVerboseAssertionHeaders(w, options, &modelAssertion); err != nil {
+	if opts.Verbose {
+		if err := printVerboseModelAssertionHeaders(w, &modelAssertion, opts); err != nil {
 			return err
 		}
 	}
@@ -342,10 +349,9 @@ func PrintModelAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter,
 
 // PrintModelAssertionYAML will format the provided serial or model assertion based on the parameters given in
 // YAML format. The output will be written to the provided io.Writer.
-func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter, options PrintModelAssertionOptions, serialAssertion asserts.Serial) error {
-
+func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter, serialAssertion asserts.Serial, opts PrintModelAssertionOptions) error {
 	// if assertion was requested we want it raw
-	if options.Assertion {
+	if opts.Assertion {
 		_, err := w.Write(asserts.Encode(&serialAssertion))
 		return err
 	}
@@ -362,8 +368,8 @@ func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter
 	fmt.Fprintf(w, "model:\t%s\n", modelHeader)
 	fmt.Fprintf(w, "serial:\t%s\n", serial)
 
-	if options.Verbose {
-		if err := printVerboseAssertionHeaders(w, options, &serialAssertion); err != nil {
+	if opts.Verbose {
+		if err := printVerboseModelAssertionHeaders(w, &serialAssertion, opts); err != nil {
 			return err
 		}
 	}
@@ -372,8 +378,7 @@ func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter
 
 // PrintModelAssertionJSON will format the provided serial or model assertion based on the parameters given in
 // JSON format. The output will be written to the provided io.Writer.
-func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter, options PrintModelAssertionOptions, modelAssertion asserts.Model, serialAssertion *asserts.Serial) error {
-
+func PrintModelAssertionJSON(w *tabwriter.Writer, modelAssertion asserts.Model, serialAssertion *asserts.Serial, opts PrintModelAssertionOptions) error {
 	serializeJSON := func(v interface{}) error {
 		marshalled, err := json.MarshalIndent(v, "", "  ")
 		if err != nil {
@@ -387,8 +392,8 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		return w.Flush()
 	}
 
-	if options.Assertion {
-		modelJSON := asserts.ModelAssertJSON{}
+	if opts.Assertion {
+		modelJSON := ModelAssertJSON{}
 		modelJSON.Headers = modelAssertion.Headers()
 		modelJSON.Body = string(modelAssertion.Body())
 		return serializeJSON(modelJSON)
@@ -397,18 +402,6 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 	modelData := make(map[string]interface{})
 	modelData["brand-id"] = modelAssertion.HeaderString("brand-id")
 	modelData["model"] = modelAssertion.HeaderString("model")
-
-	// for the serial header, if there's no serial yet, it's not an error for
-	// model (and we already handled the serial error above) but need to add a
-	// parenthetical about the device not being registered yet
-	var serial string
-	if serialAssertion == nil {
-		// For JSON verbose is always true, so we need to escape the dash
-		serial = modelFormatter.GetEscapedDash()
-		serial += " (device not registered yet)"
-	} else {
-		serial = serialAssertion.HeaderString("serial")
-	}
 
 	grade := modelAssertion.HeaderString("grade")
 	if grade != "" {
@@ -420,7 +413,9 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		modelData["storage-safety"] = storageSafety
 	}
 
-	modelData["serial"] = serial
+	if serialAssertion != nil {
+		modelData["serial"] = serialAssertion.HeaderString("serial")
+	}
 	allHeadersMap := modelAssertion.Headers()
 
 	// always print extra information for JSON
@@ -429,23 +424,7 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelFormatter ModelFormatter,
 		if !ok {
 			continue
 		}
-
-		// switch on which header it is to handle some special cases
-		switch headerName {
-		// long base64 key we can rewrap safely
-		case "device-key":
-			headerString, ok := headerValue.(string)
-			if !ok {
-				return formatInvalidTypeErr(headerName)
-			}
-			// remove the newlines from the string
-			modelData["device-key"] = strings.ReplaceAll(headerString, "\n", "")
-
-		// the default is all the rest of short scalar values, which all
-		// should be strings
-		default:
-			modelData[headerName] = headerValue
-		}
+		modelData[headerName] = headerValue
 	}
 
 	return serializeJSON(modelData)

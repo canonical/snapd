@@ -64,9 +64,13 @@ brand-id: brand-id1
 model: baz-3000
 display-name: Baz 3000
 architecture: amd64
-system-user-authority: *
+system-user-authority:
+  - partner
+  - brand-id1
 base: core20
 store: brand-store
+grade: dangerous
+storage-safety: prefer-unencrypted
 snaps:
   -
     name: baz-linux
@@ -198,7 +202,7 @@ func (s *modelInfoSuite) TestPrintModelYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, nil)
+	err := clientutil.PrintModelAssertion(w, s.formatter, model, nil, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, `brand     brand-id1
 model     Baz 3000 (baz-3000)
@@ -218,7 +222,7 @@ func (s *modelInfoSuite) TestPrintModelWithSerialYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, &serial)
+	err := clientutil.PrintModelAssertion(w, s.formatter, model, &serial, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, `brand     brand-id1
 model     Baz 3000 (baz-3000)
@@ -237,17 +241,21 @@ func (s *modelInfoSuite) TestPrintModelYAMLVerbose(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, nil)
+	err := clientutil.PrintModelAssertion(w, s.formatter, model, nil, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:                 brand-id1
 model:                    baz-3000
+grade:                    dangerous
+storage-safety:           prefer-unencrypted
 serial:                   -- (device not registered yet)
 architecture:             amd64
 base:                     core20
 display-name:             Baz 3000
 store:                    brand-store
-system-user-authority:    *
-timestamp:                %s
+system-user-authority:    
+  - partner
+  - brand-id1
+timestamp:    %s
 snaps:
   - name:               baz-linux
     id:                 bazlinuxidididididididididididid
@@ -276,7 +284,7 @@ snaps:
 `, timeutil.Human(s.ts)))
 }
 
-func (s *modelInfoSuite) TestPrintModelYAMLAssertion(c *C) {
+func (s *modelInfoSuite) TestPrintModelAssertion(c *C) {
 	var buffer bytes.Buffer
 	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
 	model := s.getModel(c, modelExample)
@@ -287,7 +295,7 @@ func (s *modelInfoSuite) TestPrintModelYAMLAssertion(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintModelAssertionYAML(w, s.formatter, options, model, nil)
+	err := clientutil.PrintModelAssertion(w, s.formatter, model, nil, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: model
 authority-id: brand-id1
@@ -324,7 +332,7 @@ func (s *modelInfoSuite) TestPrintSerialYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, options, serial)
+	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, serial, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, `brand-id:    brand-id1
 model:       baz-3000
@@ -332,7 +340,7 @@ serial:      2700
 `)
 }
 
-func (s *modelInfoSuite) TestPrintSerialAssertionYAML(c *C) {
+func (s *modelInfoSuite) TestPrintSerialAssertion(c *C) {
 	var buffer bytes.Buffer
 	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
 	serial := s.getSerial(c, serialExample)
@@ -343,7 +351,7 @@ func (s *modelInfoSuite) TestPrintSerialAssertionYAML(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, options, serial)
+	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, serial, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: serial
 authority-id: brand-id1
@@ -372,7 +380,7 @@ func (s *modelInfoSuite) TestPrintSerialVerboseYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, options, serial)
+	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, serial, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:     brand-id1
 model:        baz-3000
@@ -396,7 +404,7 @@ func (s *modelInfoSuite) TestPrintModelJSON(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertionJSON(w, s.formatter, options, model, nil)
+	err := clientutil.PrintModelAssertionJSON(w, model, nil, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
   "architecture": "amd64",
@@ -410,7 +418,40 @@ func (s *modelInfoSuite) TestPrintModelJSON(c *C) {
     "foo",
     "bar"
   ],
-  "serial": "-- (device not registered yet)",
+  "store": "brand-store",
+  "system-user-authority": "*",
+  "timestamp": "%s"
+}`, s.ts.Format(time.RFC3339)))
+}
+
+func (s *modelInfoSuite) TestPrintModelWithSerialJSON(c *C) {
+	var buffer bytes.Buffer
+	w := tabwriter.NewWriter(&buffer, 0, 5, 4, ' ', 0)
+	model := s.getModel(c, modelExample)
+	serial := s.getSerial(c, serialExample)
+
+	// For JSON verbose is always implictly true
+	options := clientutil.PrintModelAssertionOptions{
+		TermWidth: 80,
+		Verbose:   true,
+		AbsTime:   false,
+		Assertion: false,
+	}
+	err := clientutil.PrintModelAssertionJSON(w, model, &serial, options)
+	c.Assert(err, IsNil)
+	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
+  "architecture": "amd64",
+  "base": "core18",
+  "brand-id": "brand-id1",
+  "display-name": "Baz 3000",
+  "gadget": "brand-gadget",
+  "kernel": "baz-linux",
+  "model": "baz-3000",
+  "required-snaps": [
+    "foo",
+    "bar"
+  ],
+  "serial": "2700",
   "store": "brand-store",
   "system-user-authority": "*",
   "timestamp": "%s"
@@ -429,7 +470,7 @@ func (s *modelInfoSuite) TestPrintModelJSONAssertion(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintModelAssertionJSON(w, s.formatter, options, model, nil)
+	err := clientutil.PrintModelAssertionJSON(w, model, nil, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`{
   "headers": {
