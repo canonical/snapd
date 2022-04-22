@@ -92,6 +92,11 @@ type Seed interface {
 	// It will panic if called before LoadAssertions.
 	Brand() (*asserts.Account, error)
 
+	// SetParallelism suggests that n parallel jobs should be used
+	// to load and verify snap metadata by Load*Meta operations.
+	// The default is one single job.
+	SetParallelism(n int)
+
 	// LoadEssentialMeta loads the seed's snaps metadata for the
 	// essential snaps with types in the essentialTypes set while
 	// verifying them against assertions. It can return ErrNoMeta

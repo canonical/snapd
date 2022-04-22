@@ -137,10 +137,9 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 						RealName: "foo"},
 				}}},
 			loadAssertions: func(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
-				// XXX: this doesn't have effect on the serialized account-keys
-				// batch := asserts.NewBatch(nil)
-				// c.Assert(batch.Add(ts.StoreSigning.TrustedKey), IsNil)
-				// c.Assert(commitTo(batch), IsNil)
+				batch := asserts.NewBatch(nil)
+				c.Assert(batch.Add(ts.StoreSigning.StoreAccountKey("")), IsNil)
+				c.Assert(commitTo(batch), IsNil)
 				return nil
 			},
 		}, nil
@@ -292,7 +291,7 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 			tpe = fmt.Sprintf("%s:%s", as.Type().Name, acckeyAs.AccountID())
 		case asserts.PreseedType:
 			preseedAs := as.(*asserts.Preseed)
-			c.Check(preseedAs.Revision(), Equals, 1)
+			c.Check(preseedAs.Revision(), Equals, 0)
 			c.Check(preseedAs.Series(), Equals, "16")
 			c.Check(preseedAs.AuthorityID(), Equals, "my-brand")
 			c.Check(preseedAs.BrandID(), Equals, "my-brand")
@@ -313,8 +312,7 @@ func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	}
 
 	c.Check(seen, DeepEquals, map[string]bool{
-		"account-key:canonical": true,
-		"account-key:my-brand":  true,
-		"preseed":               true,
+		"account-key:my-brand": true,
+		"preseed":              true,
 	})
 }

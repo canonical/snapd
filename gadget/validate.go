@@ -375,8 +375,20 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 // assets from the kernel.yaml has a reference in the given
 // LaidOutVolume.
 func gadgetVolumeConsumesOneKernelUpdateAsset(pNew *Volume, kernelInfo *kernel.Info) error {
-	notFoundAssets := make([]string, 0, len(kernelInfo.Assets))
-	for assetName, asset := range kernelInfo.Assets {
+	notFoundAssets, _, err := searchConsumedAssets(pNew, kernelInfo.Assets)
+	if err != nil {
+		return err
+	}
+	if len(notFoundAssets) > 0 {
+		sort.Strings(notFoundAssets)
+		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced update %s", strutil.Quoted(notFoundAssets))
+	}
+	return nil
+}
+
+func searchConsumedAssets(pNew *Volume, assets map[string]*kernel.Asset) (missingAssets []string, consumedAny bool, err error) {
+	notFoundAssets := make([]string, 0, len(assets))
+	for assetName, asset := range assets {
 		if !asset.Update {
 			continue
 		}
@@ -389,20 +401,28 @@ func gadgetVolumeConsumesOneKernelUpdateAsset(pNew *Volume, kernelInfo *kernel.I
 				}
 				wantedAsset, _, err := splitKernelRef(pathOrRef)
 				if err != nil {
-					return err
+					return nil, false, err
 				}
 				if assetName == wantedAsset {
 					// found a valid kernel asset,
 					// that is enough
-					return nil
+					return nil, true, nil
 				}
 			}
 		}
 		notFoundAssets = append(notFoundAssets, assetName)
 	}
-	if len(notFoundAssets) > 0 {
-		sort.Strings(notFoundAssets)
-		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced update %s", strutil.Quoted(notFoundAssets))
+
+	return notFoundAssets, false, nil
+}
+
+// gadgetVolumeKernelUpdateAssetsConsumed ensures that at least one kernel
+// assets from the kernel.yaml has a reference in the given
+// LaidOutVolume.
+func gadgetVolumeKernelUpdateAssetsConsumed(pNew *Volume, kernelInfo *kernel.Info) (bool, error) {
+	_, consumedAny, err := searchConsumedAssets(pNew, kernelInfo.Assets)
+	if err != nil {
+		return false, err
 	}
-	return nil
+	return consumedAny, nil
 }

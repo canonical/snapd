@@ -43,7 +43,7 @@ execute: |
     tests.nested exec "retry --wait 1 -n 180 --env NESTED_CORE_REFRESH_CHANNEL=$NESTED_CORE_REFRESH_CHANNEL sh -c 'snap changes | MATCH "Done.*Refresh \"core\" snap from \""${NESTED_CORE_REFRESH_CHANNEL}"\" channel"'"
     tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
 
-    echo "Sanity check, no refresh should be done here but the command shouldn't fail"
+    echo "Precondition check, no refresh should be done here but the command shouldn't fail"
     tests.nested exec "sudo snap refresh"
 
     echo "Revert the core snap"

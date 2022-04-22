@@ -36,7 +36,11 @@ prepare: |
     partx -u "${LOOP}"
 
     echo "Get the UC20 gadget"
-    snap download --channel=20/edge pc
+    if os.query is-focal; then
+        snap download --channel=20/edge pc
+    elif os.query is-jammy; then
+        snap download --channel=22/edge pc
+    fi
     unsquashfs -d gadget-dir pc_*.snap
 
 restore: |
@@ -51,7 +55,7 @@ restore: |
     if mountpoint ./mnt; then
         umount ./mnt
     fi
-    # sanity check
+    # precondition check
     mount | NOMATCH /run/mnt
     if [ -f loop.txt ]; then
         LOOP="$(cat loop.txt)"

@@ -63,7 +63,7 @@ func (s *handlersSuite) TestSetTaskSnapSetupFirstTask(c *C) {
 		UserID:  2,
 	}
 	t.Set("snap-setup", snapsup)
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	// mutate it and rewrite it with the helper
 	snapsup.Channel = "edge"
@@ -101,7 +101,7 @@ func (s *handlersSuite) TestSetTaskSnapSetupLaterTask(c *C) {
 	t2 := s.state.NewTask("next-task-snap", "test2")
 	t2.Set("snap-setup-task", t.ID())
 
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	chg.AddTask(t2)
 

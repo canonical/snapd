@@ -120,6 +120,10 @@ func (s *seed16) Brand() (*asserts.Account, error) {
 	return findBrand(s, s.db)
 }
 
+func (s *seed16) SetParallelism(int) {
+	// ignored
+}
+
 func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
 

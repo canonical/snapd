@@ -535,7 +535,7 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 		return fmt.Errorf("cannot create preseed.tgz: %v", err)
 	}
 
-	if err := writePreseedAssertion(opts, digest); err != nil {
+	if err := writePreseedAssertion(digest, opts); err != nil {
 		return fmt.Errorf("cannot create preseed assertion: %v", err)
 	}
 

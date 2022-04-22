@@ -6,7 +6,7 @@ details: |
 execute: |
   # shellcheck source=tests/lib/names.sh
   . "$TESTSLIB/names.sh"
-  # sanity check
+  # precondition check
   snap list "$core_name"
 
   out=$(! snap refresh "$core_name" --channel bogus 2>&1 1>- )

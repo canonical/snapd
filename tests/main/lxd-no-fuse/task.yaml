@@ -40,7 +40,7 @@ execute: |
         exit 1
     fi
 
-    echo "Remove fuse to trigger the fuse sanity check"
+    echo "Remove fuse to trigger the fuse precondition check"
     lxd.lxc exec my-ubuntu -- apt autoremove -y fuse
 
     echo "Install snapd"

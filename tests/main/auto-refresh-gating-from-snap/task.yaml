@@ -37,7 +37,7 @@ execute: |
   snap connect "$SNAP_NAME:snap-refresh-control"
   snap connect "$NOHOOK_SNAP:snap-refresh-control"
 
-  # sanity check
+  # precondition check
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
   snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
 
@@ -79,7 +79,7 @@ execute: |
 
   echo "Ensure our snaps were not updated"
   snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
-  # sanity check for the gating snap.
+  # precondition check for the gating snap.
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
 
   echo "Request to proceed from the snap (but hold it by the hook)"

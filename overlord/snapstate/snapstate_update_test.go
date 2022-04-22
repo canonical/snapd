@@ -246,6 +246,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"open-snap-file",
 		"setup-snap",
 		"remove-snap-aliases",
+		"run-inhibit-snap-for-unlink",
 		"unlink-snap",
 		"copy-data",
 		"setup-profiles:Doing",
@@ -351,6 +352,11 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -750,6 +756,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"open-snap-file",
 		"setup-snap",
 		"remove-snap-aliases",
+		"run-inhibit-snap-for-unlink",
 		"unlink-snap",
 		"copy-data",
 		"setup-profiles:Doing",
@@ -946,6 +953,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "services-snap",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "services-snap",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -1292,6 +1304,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "services-snap_instance",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "services-snap_instance",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -2163,6 +2180,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -2464,6 +2486,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -8351,9 +8378,9 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithGadget
 				case "core18":
 					baseTsk = tsk
 				}
-				var dummy bool
+				var flag bool
 				// the flag isn't set for any of link-snap tasks
-				c.Assert(tsk.Get("cannot-reboot", &dummy), Equals, state.ErrNoState)
+				c.Assert(tsk.Get("cannot-reboot", &flag), Equals, state.ErrNoState)
 			}
 		}
 	}

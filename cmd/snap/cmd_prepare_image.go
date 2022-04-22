@@ -138,6 +138,9 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	opts.PrepareDir = x.Positional.TargetDir
 	opts.Classic = x.Classic
 
+	if x.PreseedSignKey != "" && !x.Preseed {
+		return fmt.Errorf("--preseed-sign-key cannot be used without --preseed")
+	}
 	opts.Preseed = x.Preseed
 	opts.PreseedSignKey = x.PreseedSignKey
 
