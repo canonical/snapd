@@ -58,6 +58,8 @@ plugs:
     options: p1=3 p2=true p3
   - name: mymodule2
     options: param_1=ok param_2=false
+  - name: expandvar
+    options: opt=$FOO path=$SNAP_COMMON/bar
 apps:
  app:
   plugs: [kmod]
@@ -172,6 +174,7 @@ func (s *KernelModuleLoadInterfaceSuite) TestKModSpec(c *C) {
 	c.Check(spec.ModuleOptions(), DeepEquals, map[string]string{
 		"mymodule1": "p1=3 p2=true p3",
 		"mymodule2": "param_1=ok param_2=false",
+		"expandvar": "opt=$FOO path=/var/snap/consumer/common/bar",
 	})
 	c.Check(spec.DisallowedModules(), DeepEquals, []string{"forbidden"})
 }

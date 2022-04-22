@@ -70,7 +70,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 			Revision: snap.R(33),
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -118,7 +118,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 			Revision: snap.R(33),
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -150,7 +150,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 			Revision: snap.R(33),
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 
@@ -181,7 +181,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 			Revision: snap.R(3),
 		},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -214,7 +214,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 			Revision: snap.R(3),
 		},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -263,7 +263,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
 		},
 		Type: snap.TypeSnapd,
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 

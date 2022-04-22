@@ -8,6 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
+  acrn-support:
+    command: bin/run
+    plugs: [ acrn-support ]
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
@@ -347,6 +350,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  pkcs11:
+    command: bin/run
+    plugs: [ pkcs11 ]
   polkit:
     command: bin/run
     plugs: [ polkit ]
@@ -431,9 +437,9 @@ apps:
   system-trace:
     command: bin/run
     plugs: [ system-trace ]
-  dummy:
+  empty:
     command: bin/run
-    plugs: [ dummy ]
+    plugs: [ empty ]
   tee:
     command: bin/run
     plugs: [ tee ]
@@ -531,6 +537,9 @@ plugs:
   polkit:
     interface: polkit
     action-prefix: io.snapcraft.example
+  shared-memory:
+    interface: shared-memory
+    private: true
   system-files:
     interface: system-files
     read: [/file1]
@@ -539,8 +548,8 @@ plugs:
     interface: personal-files
     read: [$HOME/file1]
     write: [$HOME/dir1]
-  dummy:
-    interface: dummy
+  empty:
+    interface: empty
   sd-control:
     interface: sd-control
     flavor: dual-sd

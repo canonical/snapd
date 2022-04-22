@@ -92,14 +92,11 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	}
 
 	// Error if "read" or "write" are present alongside "source".
-	// TODO: use slot.Lookup() once PR 4510 lands.
-	var unused map[string]interface{}
-	if err := slot.Attr("source", &unused); err == nil {
-		var unused []interface{}
-		if err := slot.Attr("read", &unused); err == nil {
+	if _, found := slot.Lookup("source"); found {
+		if _, found := slot.Lookup("read"); found {
 			return fmt.Errorf(`move the "read" attribute into the "source" section`)
 		}
-		if err := slot.Attr("write", &unused); err == nil {
+		if _, found := slot.Lookup("write"); found {
 			return fmt.Errorf(`move the "write" attribute into the "source" section`)
 		}
 	}

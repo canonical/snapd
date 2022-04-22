@@ -120,6 +120,10 @@ func (s *seed16) Brand() (*asserts.Account, error) {
 	return findBrand(s, s.db)
 }
 
+func (s *seed16) SetParallelism(int) {
+	// ignored
+}
+
 func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[string]*Snap, tm timings.Measurer) (*Snap, error) {
 	path := filepath.Join(s.seedDir, "snaps", sn.File)
 
@@ -349,7 +353,11 @@ func (s *seed16) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measur
 	return s.loadEssentialMeta(essentialTypes, required, added, tm)
 }
 
-func (s *seed16) LoadMeta(tm timings.Measurer) error {
+func (s *seed16) LoadMeta(mode string, tm timings.Measurer) error {
+	if mode != AllModes && mode != "run" {
+		return fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
+	}
+
 	model := s.Model()
 
 	if err := s.loadYaml(); err != nil {

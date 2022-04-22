@@ -83,6 +83,9 @@ execute: |
       # and we get the expected error message
       snap quota grp 2>&1 | MATCH "error: memory usage unavailable"
 
+      # updating quota groups does not work and gives a useful error message
+      snap set-quota --memory=200MB grp 2>&1 | tr -s "\n " " " | MATCH 'error: cannot update quota group: cannot update group "grp": cannot use memory quota: memory cgroup is disabled on this system'
+
       # make sure our snap still has the Slice setting
       MATCH Slice=snap.grp.slice < "$SVC_UNIT"
 
