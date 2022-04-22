@@ -53,7 +53,7 @@ execute: |
     # Since ENV and ATTR elements appear in random order, we first match the
     # rule in its entirety, but without specifying the exact values of ENV and
     # ATTR sub-rules:
-    echo "$UDEV_RULE" | MATCH '^KERNEL=="video\[0-9\]", SUBSYSTEM=="v4l"(, (ENV|ATTR){\w+}=="\w+")+$'
+    echo "$UDEV_RULE" | MATCH '^KERNEL=="video\[0-9\]", SUBSYSTEM=="v4l"(, (ENV|ATTR){\w+}=="\w+")+, TAG\+="snap_devices-plug_cmd"$'
     # Then we match them individually:
     echo "$UDEV_RULE" | MATCH 'ENV{var1}=="foo"'
     echo "$UDEV_RULE" | MATCH 'ENV{var2}=="bar"'

@@ -12,6 +12,7 @@ environment:
 execute: |
     echo "Wait for the system to be seeded first"
     tests.nested exec "sudo snap wait system seed.loaded"
+    tests.nested wait-for device-initialized
 
     tests.nested exec snap model > initial-model
     tests.nested exec snap model --serial > initial-serial
