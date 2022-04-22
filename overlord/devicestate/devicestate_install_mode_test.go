@@ -547,6 +547,8 @@ func (fakeSeed) UsesSnapdSnap() bool {
 	return true
 }
 
+func (fakeSeed) SetParallelism(n int) {}
+
 func (f *fakeSeed) EssentialSnaps() []*seed.Snap {
 	return f.essentialSnaps
 }

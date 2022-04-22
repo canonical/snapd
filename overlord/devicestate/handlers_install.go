@@ -662,6 +662,8 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 	if err != nil {
 		return false, fmt.Errorf("internal error: cannot find model: %v", err)
 	}
+
+	// find preseed assertion, this is going to fail if it doesn't match the model
 	as, err := assertstate.DB(st).Find(asserts.PreseedType, map[string]string{
 		"series":       model.Series(),
 		"brand-id":     model.BrandID(),
@@ -676,6 +678,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 	}
 
 	preseedAs := as.(*asserts.Preseed)
+	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	if err != nil {
 		return false, fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
