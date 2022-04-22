@@ -80,6 +80,22 @@ func updateHomedirsConfig(config string) error {
 		return err
 	}
 
+	// We must reload the apparmor profiles in order for our changes to become
+	// effective. In theory, all profiles are affected; in practice, we are a
+	// bit egoist and only care about snapd.
+	profiles, err := filepath.Glob(filepath.Join(dirs.SnapAppArmorDir, "*"))
+	if err != nil {
+		// This only happens if the pattern is malformed
+		return err
+	}
+
+	// We want to reload the profiles no matter what, so don't even bother
+	// checking if the cached profile is newer
+	aaFlags := apparmor.SkipReadCache
+	if err := apparmor.LoadProfiles(profiles, apparmor.SystemCacheDir, aaFlags); err != nil {
+		return err
+	}
+
 	return nil
 }
 
