@@ -193,7 +193,7 @@ func (s *SnapSuite) TestPublisherEscapes(c *check.C) {
 		pub := &snap.StoreAccount{Username: t.username, DisplayName: t.display}
 		switch {
 		case t.verified && t.starred:
-			panic("invalid test setup: cannot be starred and valided at the same time")
+			panic("invalid test setup: cannot be starred and validated at the same time")
 		case t.verified:
 			pub.Validation = "verified"
 		case t.starred:
