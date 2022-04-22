@@ -39,10 +39,12 @@ func (ux unicodeMixin) addUnicodeChars(esc *escapes) {
 		esc.dash = "–" // that's an en dash (so yaml is happy)
 		esc.uparrow = "↑"
 		esc.tick = "✓"
+		esc.star = "✪"
 	} else {
 		esc.dash = "--" // two dashes keeps yaml happy also
 		esc.uparrow = "^"
-		esc.tick = "*"
+		esc.tick = "**"
+		esc.star = "*"
 	}
 }
 
@@ -130,7 +132,7 @@ type escapes struct {
 	bold  string
 	end   string
 
-	tick, dash, uparrow string
+	tick, dash, uparrow, star string
 }
 
 var (
@@ -169,8 +171,11 @@ func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 		return esc.dash + esc.green + esc.end
 	}
 	badge := ""
-	if storeAccount.Validation == "verified" {
+	switch storeAccount.Validation {
+	case "verified":
 		badge = esc.tick
+	case "starred":
+		badge = esc.star
 	}
 	// NOTE this makes e.g. 'Potato' == 'potato', and 'Potato Team' == 'potato-team',
 	// but 'Potato Team' != 'potatoteam', 'Potato Inc.' != 'potato' (in fact 'Potato Inc.' != 'potato-inc')
@@ -193,8 +198,11 @@ func shortPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 		return "-" + esc.green + esc.end
 	}
 	badge := ""
-	if storeAccount.Validation == "verified" {
+	switch storeAccount.Validation {
+	case "verified":
 		badge = esc.tick
+	case "starred":
+		badge = esc.star
 	}
 	return storeAccount.Username + esc.green + badge + esc.end
 

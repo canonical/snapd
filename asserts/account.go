@@ -58,7 +58,7 @@ func (acc *Account) DisplayName() string {
 }
 
 // Validation returns the level of confidence of the authority in the
-// account's identity, expected to be "unproven" or "verified", and
+// account's identity, expected to be "unproven", "verified" or "starred", and
 // for forward compatibility any value != "unproven" can be considered
 // at least "verified".
 func (acc *Account) Validation() string {
