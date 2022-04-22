@@ -20,11 +20,14 @@
 package devicestate_test
 
 import (
+	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -85,6 +88,16 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 
 	r := release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
 	s.AddCleanup(r)
+
+	// make sure we don't call these by accident
+	s.AddCleanup(devicestate.MockOsutilAddUser(func(name string, opts *osutil.AddUserOptions) error {
+		c.Fatalf("unexpected add user %q call", name)
+		return fmt.Errorf("unexpected add user %q call", name)
+	}))
+	s.AddCleanup(devicestate.MockOsutilDelUser(func(name string, opts *osutil.DelUserOptions) error {
+		c.Fatalf("unexpected del user %q call", name)
+		return fmt.Errorf("unexpected del user %q call", name)
+	}))
 }
 
 func (s *firstBoot20Suite) snapYaml(snp string) string {
@@ -601,4 +614,126 @@ defaults:
 	err = tr.Get("core", "users.create.automatic", &enabled)
 	c.Assert(err, IsNil)
 	c.Check(enabled, Equals, false)
+}
+
+func (s *firstBoot20Suite) TestAutoImportAssertionsFromSeedSecuredNoAutoImport(c *C) {
+	s.testAutoImportAssertionsFromSeedNoUser(c, asserts.ModelSecured, false, 0, false)
+}
+
+func (s *firstBoot20Suite) TestAutoImportAssertionsFromSeedDangerousNoAutoImport(c *C) {
+	s.testAutoImportAssertionsFromSeedNoUser(c, asserts.ModelDangerous, false, 0, false)
+}
+
+func (s *firstBoot20Suite) TestAutoImportAssertionsFromSeedSecured(c *C) {
+	s.testAutoImportAssertionsFromSeedNoUser(c, asserts.ModelSecured, true, 0, false)
+}
+
+func (s *firstBoot20Suite) TestAutoImportAssertionsFromSeedDangerous(c *C) {
+	s.testAutoImportAssertionsFromSeedNoUser(c, asserts.ModelDangerous, true, 1, false)
+}
+
+func (s *firstBoot20Suite) TestAutoImportAssertionsFromSeedDangerousAddUserErr(c *C) {
+	s.testAutoImportAssertionsFromSeedNoUser(c, asserts.ModelDangerous, true, 1, true)
+}
+
+// helper to test handling of auto-import assertion
+// grade: grade of model used in the test
+// withSUAssertion: if auto import assertion should be present
+// addUserCalled: how many times is mocked OsutilAddUser expected to be called
+// addUserFail: should mocked OsutilAddUser fail
+func (s *firstBoot20Suite) testAutoImportAssertionsFromSeedNoUser(c *C, grade asserts.ModelGrade, withSUAssertion bool, addUserCalled int, addUserFail bool) {
+	systemLabel := "20191018"
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: systemLabel,
+		Base:           "core20_1.snap",
+	}
+
+	mockUserHome := c.MkDir()
+
+	called := 0
+	created := map[string]bool{}
+	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		called++
+		if addUserFail {
+			return fmt.Errorf("not-today")
+		} else {
+			c.Check(username, check.Equals, "guy")
+			c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+			c.Check(opts.Sudoer, check.Equals, true)
+			c.Check(opts.Password, check.Equals, "$6$salt$hash")
+			c.Check(opts.ForcePasswordChange, check.Equals, false)
+			created[username] = true
+			return nil
+		}
+	})()
+
+	// make sure we report user as non-existing until created
+	defer devicestate.MockUserLookup(func(username string) (*user.User, error) {
+		if created[username] {
+			return mkUserLookup(mockUserHome)(username)
+		}
+		return nil, fmt.Errorf("not created yet")
+	})()
+
+	s.populateFromSeedCore20(c, &m, withSUAssertion, grade)
+	// ensure AddUser was called addUserCalled times
+	c.Check(called, check.Equals, addUserCalled)
+	// check created user
+	if addUserCalled > 0 && !addUserFail {
+		c.Check(created["guy"], check.Equals, true)
+	} else {
+		c.Check(created["guy"], check.Equals, false)
+	}
+}
+
+// helper to create minimal test seed
+func (s *firstBoot20Suite) populateFromSeedCore20(c *C, m *boot.Modeenv, withSUAssertion bool, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) {
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	s.earlySetup(c, m, modelGrade, "", extraDevModeSnaps...)
+	// create overlord and pick up the modeenv
+	s.startOverlord(c)
+
+	opts := devicestate.PopulateStateFromSeedOptions{
+		Label: m.RecoverySystem,
+		Mode:  m.Mode,
+	}
+
+	if withSUAssertion {
+		s.writeValidAutoImportAssertion(c, m.RecoverySystem)
+	}
+
+	// run the firstboot stuff
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	c.Assert(err, IsNil)
+}
+
+func (s *firstBoot20Suite) writeValidAutoImportAssertion(c *C, sysLabel string) error {
+	systemUsers := []map[string]interface{}{goodUser}
+	// write system user asseerion to system seed root
+	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
+	f, err := os.OpenFile(autoImportAssert, os.O_CREATE|os.O_WRONLY, 0644)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	enc := asserts.NewEncoder(f)
+	c.Assert(enc, NotNil)
+
+	for _, suMap := range systemUsers {
+		su, err := s.Brands.Signing(suMap["authority-id"].(string)).Sign(asserts.SystemUserType, suMap, nil, "")
+		c.Assert(err, IsNil)
+		su = su.(*asserts.SystemUser)
+		err = enc.Encode(su)
+		c.Assert(err, IsNil)
+	}
+
+	return nil
 }
