@@ -613,7 +613,6 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 		"system-label":      sysLabel,
 		"artifact-sha3-384": digest,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
-		"revision":          "1",
 		"snaps":             snaps,
 	}
 
@@ -636,6 +635,119 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "essential-snap_1.snap")), Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.GlobalRootDir, "/snap/mode-snap/3")), Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "mode-snap_3.snap")), Equals, true)
+}
+
+func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataModelMismatch(c *C) {
+	st := s.state
+
+	mockTarCmd := testutil.MockCommand(c, "tar", "")
+	defer mockTarCmd.Restore()
+
+	snapPath1 := filepath.Join(dirs.GlobalRootDir, "essential-snap_1.snap")
+	c.Assert(ioutil.WriteFile(snapPath1, nil, 0644), IsNil)
+
+	restore := devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
+		return &fakeSeed{
+			essentialSnaps: []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1)}}},
+		}, nil
+	})
+	defer restore()
+
+	ubuntuSeedDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed")
+	sysLabel := "20220105"
+	writableDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-data/system-data")
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
+	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	model := s.makeMockInstallModel(c, "dangerous")
+
+	snaps := []interface{}{
+		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+	}
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
+	c.Assert(err, IsNil)
+	headers := map[string]interface{}{
+		"type":              "preseed",
+		"authority-id":      model.AuthorityID(),
+		"series":            "16",
+		"brand-id":          model.BrandID(),
+		"model":             "wrong-model",
+		"system-label":      sysLabel,
+		"artifact-sha3-384": digest,
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"snaps":             snaps,
+	}
+
+	signer := s.brands.Signing(model.BrandID())
+	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+	assertstatetest.AddMany(st, preseedAs)
+
+	_, err = devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
+	c.Assert(err, ErrorMatches, `preseed.tgz artifact is present but preseed assertion for brand "my-brand", model "my-model" couldn't be found`)
+}
+
+func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataWrongDigest(c *C) {
+	st := s.state
+
+	mockTarCmd := testutil.MockCommand(c, "tar", "")
+	defer mockTarCmd.Restore()
+
+	snapPath1 := filepath.Join(dirs.GlobalRootDir, "essential-snap_1.snap")
+	c.Assert(ioutil.WriteFile(snapPath1, nil, 0644), IsNil)
+
+	restore := devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
+		return &fakeSeed{
+			essentialSnaps: []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1)}}},
+		}, nil
+	})
+	defer restore()
+
+	ubuntuSeedDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed")
+	sysLabel := "20220105"
+	writableDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-data/system-data")
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
+	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
+	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	model := s.makeMockInstallModel(c, "dangerous")
+
+	snaps := []interface{}{
+		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
+	}
+
+	headers := map[string]interface{}{
+		"type":              "preseed",
+		"authority-id":      model.AuthorityID(),
+		"series":            "16",
+		"brand-id":          model.BrandID(),
+		"model":             model.Model(),
+		"system-label":      sysLabel,
+		"artifact-sha3-384": "DGOnW4ReT30BEH2FLkwkhcUaUKqqlPxhmV5xu-6YOirDcTgxJkrbR_traaaY1fAE",
+		"timestamp":         time.Now().UTC().Format(time.RFC3339),
+		"snaps":             snaps,
+	}
+
+	signer := s.brands.Signing(model.BrandID())
+	preseedAs, err := signer.Sign(asserts.PreseedType, headers, nil, "")
+	if err != nil {
+		panic(err)
+	}
+	assertstatetest.AddMany(st, preseedAs)
+
+	_, err = devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
+	c.Assert(err, ErrorMatches, `invalid preseed artifact digest`)
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededNoopIfNoArtifact(c *C) {
