@@ -152,7 +152,13 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[stri
 			var si *snap.SideInfo
 			var err error
 			timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
-				si, err = snapasserts.DeriveSideInfo(path, s.db)
+				var snapSHA3_384 string
+				var snapSize uint64
+				snapSHA3_384, snapSize, err = asserts.SnapFileSHA3_384(path)
+				if err != nil {
+					return
+				}
+				si, err = snapasserts.DeriveSideInfoFromDigestAndSize(path, snapSHA3_384, snapSize, s.db)
 			})
 			if asserts.IsNotFound(err) {
 				return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
