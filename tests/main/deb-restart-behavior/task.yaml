@@ -26,23 +26,23 @@ execute: |
     echo "And snapd is still active (as excpeted with --restart-after-upgrade)"
     systemctl is-active snapd.service snapd.socket
     echo "and snapd was not restarted yet"
-    test "$SNAPD_PID" = $(systemctl show --property MainPID snapd.service | cut -f2 -d=)
+    test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     # these parts are only here for completness
     DPKG_MAINTSCRIPT_NAME=preinst DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.preinst upgrade "$OLD_VER"
     echo "And snapd is still active (as excpeted with --restart-after-upgrade)"
     systemctl is-active snapd.service snapd.socket
-    test "$SNAPD_PID" = $(systemctl show --property MainPID snapd.service | cut -f2 -d=)
+    test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     DPKG_MAINTSCRIPT_NAME=postrm DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.postrm upgrade "$NEW_VER"
     echo "And snapd is still active (as excpeted with --restart-after-upgrade)"
     systemctl is-active snapd.service snapd.socket
     echo "and snapd was not restarted yet"
-    test "$SNAPD_PID" = $(systemctl show --property MainPID snapd.service | cut -f2 -d=)
+    test "$SNAPD_PID" = "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
 
     # here snapd is restarted
     DPKG_MAINTSCRIPT_NAME=postinst DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.postinst configure "$OLD_VER"
     echo "And snapd is still active (as excpeted with --restart-after-upgrade)"
     systemctl is-active snapd.service snapd.socket
     echo "and now snapd finally got restarted"
-    test "$SNAPD_PID" != $(systemctl show --property MainPID snapd.service | cut -f2 -d=)
+    test "$SNAPD_PID" != "$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
