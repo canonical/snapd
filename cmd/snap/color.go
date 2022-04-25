@@ -207,7 +207,7 @@ func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 //   right).
 func shortPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 	if storeAccount == nil {
-		return "-" + 	esc.green + esc.end
+		return "-" + esc.green + esc.end
 	}
 	var badge, color string
 	switch storeAccount.Validation {
