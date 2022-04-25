@@ -154,9 +154,9 @@ func (s *SnapSuite) TestPublisherEscapes(c *check.C) {
 		{color: false, unicode: true, username: "potato", display: "Potato", starred: true,
 			short: "potato✪", long: "Potato✪", fill: ""},
 		{color: true, unicode: false, username: "potato", display: "Potato", starred: true,
-			short: "potato\x1b[32m*\x1b[0m", long: "Potato\x1b[32m*\x1b[0m", fill: "\x1b[32m\x1b[0m"},
+			short: "potato\x1b[93m*\x1b[0m", long: "Potato\x1b[93m*\x1b[0m", fill: "\x1b[32m\x1b[0m"},
 		{color: true, unicode: true, username: "potato", display: "Potato", starred: true,
-			short: "potato\x1b[32m✪\x1b[0m", long: "Potato\x1b[32m✪\x1b[0m", fill: "\x1b[32m\x1b[0m"},
+			short: "potato\x1b[93m✪\x1b[0m", long: "Potato\x1b[93m✪\x1b[0m", fill: "\x1b[32m\x1b[0m"},
 		// non-verified, different
 		{color: false, unicode: false, username: "potato", display: "Carrot",
 			short: "potato", long: "Carrot (potato)", fill: ""},
@@ -181,9 +181,9 @@ func (s *SnapSuite) TestPublisherEscapes(c *check.C) {
 		{color: false, unicode: true, username: "potato", display: "Carrot", starred: true,
 			short: "potato✪", long: "Carrot (potato✪)", fill: ""},
 		{color: true, unicode: false, username: "potato", display: "Carrot", starred: true,
-			short: "potato\x1b[32m*\x1b[0m", long: "Carrot (potato\x1b[32m*\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
+			short: "potato\x1b[93m*\x1b[0m", long: "Carrot (potato\x1b[93m*\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
 		{color: true, unicode: true, username: "potato", display: "Carrot", starred: true,
-			short: "potato\x1b[32m✪\x1b[0m", long: "Carrot (potato\x1b[32m✪\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
+			short: "potato\x1b[93m✪\x1b[0m", long: "Carrot (potato\x1b[93m✪\x1b[0m)", fill: "\x1b[32m\x1b[0m"},
 		// some interesting equal-under-folds:
 		{color: false, unicode: false, username: "potato", display: "PoTaTo",
 			short: "potato", long: "PoTaTo", fill: ""},

@@ -128,24 +128,30 @@ var unicodeDescs = mixinDescs{
 }
 
 type escapes struct {
-	green string
-	bold  string
-	end   string
+	green        string
+	brightYellow string
+	bold         string
+	dim          string
+	end          string
 
 	tick, dash, uparrow, star string
 }
 
 var (
 	color = escapes{
-		green: "\033[32m",
-		bold:  "\033[1m",
-		end:   "\033[0m",
+		green:        "\033[32m",
+		brightYellow: "\033[93m",
+		bold:         "\033[1m",
+		dim:          "\033[2m",
+		end:          "\033[0m",
 	}
 
 	mono = escapes{
-		green: "\033[1m",
-		bold:  "\033[1m",
-		end:   "\033[0m",
+		green:        "\033[1m",
+		brightYellow: "\033[2m",
+		bold:         "\033[1m",
+		dim:          "\033[2m",
+		end:          "\033[0m",
 	}
 
 	noesc = escapes{}
@@ -163,26 +169,31 @@ func fillerPublisher(esc *escapes) string {
 // * if the publisher's username and display name match, it's just the display
 //   name; otherwise, it'll include the username in parentheses
 //
-// * if the publisher is verified, it'll include a green check mark; otherwise,
+// * if the publisher is "starred" it'll include a yellow star; if the
+//   publisher is "verified", it'll include a green check mark; otherwise,
 //   it'll include a no-op escape sequence of the same length as the escape
-//   sequence used to make it green (this so that tabwriter gets things right).
+//   sequence used to make it colorful (this so that tabwriter gets things
+//   right).
 func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
+	color := esc.green
 	if storeAccount == nil {
-		return esc.dash + esc.green + esc.end
+		return esc.dash + color + esc.end
 	}
 	badge := ""
 	switch storeAccount.Validation {
 	case "verified":
 		badge = esc.tick
+		color = esc.green
 	case "starred":
 		badge = esc.star
+		color = esc.brightYellow
 	}
 	// NOTE this makes e.g. 'Potato' == 'potato', and 'Potato Team' == 'potato-team',
 	// but 'Potato Team' != 'potatoteam', 'Potato Inc.' != 'potato' (in fact 'Potato Inc.' != 'potato-inc')
 	if strings.EqualFold(strings.Replace(storeAccount.Username, "-", " ", -1), storeAccount.DisplayName) {
-		return storeAccount.DisplayName + esc.green + badge + esc.end
+		return storeAccount.DisplayName + color + badge + esc.end
 	}
-	return fmt.Sprintf("%s (%s%s%s%s)", storeAccount.DisplayName, storeAccount.Username, esc.green, badge, esc.end)
+	return fmt.Sprintf("%s (%s%s%s%s)", storeAccount.DisplayName, storeAccount.Username, color, badge, esc.end)
 }
 
 // shortPublisher returns a string that'll present the publisher of a snap to the
@@ -190,20 +201,25 @@ func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 //
 // * it'll always be just the username
 //
-// * if the publisher is verified, it'll include a green check mark; otherwise,
+// * if the publisher is "starred" it'll include a yellow star; if the
+//   publisher is "verified", it'll include a green check mark; otherwise,
 //   it'll include a no-op escape sequence of the same length as the escape
-//   sequence used to make it green (this so that tabwriter gets things right).
+//   sequence used to make it colorful (this so that tabwriter gets things
+//   right).
 func shortPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
+	color := esc.green
 	if storeAccount == nil {
-		return "-" + esc.green + esc.end
+		return "-" + color + esc.end
 	}
 	badge := ""
 	switch storeAccount.Validation {
 	case "verified":
 		badge = esc.tick
+		color = esc.green
 	case "starred":
 		badge = esc.star
+		color = esc.brightYellow
 	}
-	return storeAccount.Username + esc.green + badge + esc.end
+	return storeAccount.Username + color + badge + esc.end
 
 }
