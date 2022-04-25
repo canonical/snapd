@@ -94,3 +94,15 @@ func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 func (k RecoveryKey) String() string {
 	return sb.RecoveryKey(k).String()
 }
+
+// EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
+// XXX what is the right signature for this?
+func EnsureRecoveryKey(fdeDir string) (RecoveryKey, error) {
+	return RecoveryKey{}, fmt.Errorf("not implemented yet")
+}
+
+// RemoveRecoveryKeys removes any recovery key from all encrypted block devices.
+// XXX what is the right signature for this?
+func RemoveRecoveryKeys(fdeDir string) error {
+	return fmt.Errorf("not implemented yet")
+}

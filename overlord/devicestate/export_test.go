@@ -386,3 +386,15 @@ func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
 		systemForPreseeding = old
 	}
 }
+
+func MockSecbootEnsureRecoveryKey(f func(string) (secboot.RecoveryKey, error)) (restore func()) {
+	restore = testutil.Backup(&secbootEnsureRecoveryKey)
+	secbootEnsureRecoveryKey = f
+	return restore
+}
+
+func MockSecbootRemoveRecoveryKeys(f func(string) error) (restore func()) {
+	restore = testutil.Backup(&secbootRemoveRecoveryKeys)
+	secbootRemoveRecoveryKeys = f
+	return restore
+}

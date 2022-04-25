@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -39,33 +40,35 @@ type deviceMgrRecoveryKeysSuite struct {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) SetUpTest(c *C) {
+	if (secboot.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
+
+func mockSnapFDEFile(c *C, fname string, data []byte) {
+	p := filepath.Join(dirs.SnapFDEDir, fname)
+	err := os.MkdirAll(filepath.Dir(p), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(p, data, 0644)
+	c.Assert(err, IsNil)
 }
 
 func mockSystemRecoveryKeys(c *C, alsoReinstall bool) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
-	rkeyPath := filepath.Join(dirs.SnapFDEDir, "recovery.key")
-	err = os.MkdirAll(filepath.Dir(rkeyPath), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(rkeyPath, []byte(rkeystr), 0644)
-	c.Assert(err, IsNil)
+	mockSnapFDEFile(c, "recovery.key", []byte(rkeystr))
 
 	if alsoReinstall {
 		skeystr := "1234567890123456"
-		c.Assert(err, IsNil)
-		skeyPath := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
-		err = ioutil.WriteFile(skeyPath, []byte(skeystr), 0644)
-		c.Assert(err, IsNil)
+		mockSnapFDEFile(c, "reinstall.key", []byte(skeystr))
 	}
 }
 
 func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) {
-	if (secboot.RecoveryKey{}).String() == "not-implemented" {
-		c.Skip("needs working secboot recovery key")
-	}
 	mockSystemRecoveryKeys(c, true)
 
 	keys, err := s.mgr.EnsureRecoveryKeys()
@@ -75,4 +78,41 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeysBackwardCompat(c *C) 
 		RecoveryKey:  "61665-00531-54469-09783-47273-19035-40077-28287",
 		ReinstallKey: "12849-13363-13877-14391-12345-12849-13363-13877",
 	})
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
+	_, err := s.mgr.EnsureRecoveryKeys()
+	c.Check(err, ErrorMatches, `system does not use disk encryption`)
+
+	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
+	c.Assert(err, IsNil)
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(string) (secboot.RecoveryKey, error) {
+		var rkey secboot.RecoveryKey
+		copy(rkey[:], []byte(rkeystr))
+		return rkey, nil
+	})()
+	mockSnapFDEFile(c, "sealed-keys", nil)
+
+	keys, err := s.mgr.EnsureRecoveryKeys()
+	c.Assert(err, IsNil)
+
+	c.Assert(keys, DeepEquals, &client.SystemRecoveryKeysResponse{
+		RecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287",
+	})
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
+	err := s.mgr.RemoveRecoveryKeys()
+	c.Check(err, ErrorMatches, `system does not use disk encryption`)
+
+	called := false
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(string) error {
+		called = true
+		return nil
+	})()
+	mockSnapFDEFile(c, "sealed-keys", nil)
+
+	err = s.mgr.RemoveRecoveryKeys()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
 }

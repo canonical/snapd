@@ -2045,6 +2045,11 @@ func (h fdeSetupHandler) Error(err error) (bool, error) {
 	return false, nil
 }
 
+var (
+	secbootEnsureRecoveryKey  = secboot.EnsureRecoveryKey
+	secbootRemoveRecoveryKeys = secboot.RemoveRecoveryKeys
+)
+
 // EnsureRecoveryKeys makes sure appropriate recovery keys exist and
 // returns them. Usually a single recovery key is created/used, but
 // older systems might return both a recovery key for ubuntu-data and a
@@ -2071,6 +2076,19 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
-	// XXX secboot.EnsureRecoveryKey(snap.FDEDir)
-	return nil, fmt.Errorf("not implemented")
+	rkey, err := secbootEnsureRecoveryKey(dirs.SnapFDEDir)
+	if err != nil {
+		return nil, err
+	}
+	keys.RecoveryKey = rkey.String()
+	return keys, nil
+}
+
+// RemoveRecoveryKeys removes and disables all recovery keys.
+func (m *DeviceManager) RemoveRecoveryKeys() error {
+	// XXX have a helper somewhere for this? secboot or boot?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
+		return fmt.Errorf("system does not use disk encryption")
+	}
+	return secbootRemoveRecoveryKeys(dirs.SnapFDEDir)
 }

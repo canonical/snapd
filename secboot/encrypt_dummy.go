@@ -24,3 +24,11 @@ package secboot
 func (k RecoveryKey) String() string {
 	return "not-implemented"
 }
+
+func EnsureRecoveryKey(fdeDir string) (RecoveryKey, error) {
+	return RecoveryKey{}, errBuildWithoutSecboot
+}
+
+func RemoveRecoveryKeys(fdeDir string) error {
+	return errBuildWithoutSecboot
+}
