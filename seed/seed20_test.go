@@ -22,6 +22,7 @@ package seed_test
 import (
 	"crypto/rand"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -3036,7 +3037,7 @@ func (s *seed20Suite) writeInvalidAutoImportAssertion(c *C, sysLabel string, per
 	// write random data
 	randomness := make([]byte, 512)
 	rand.Read(randomness)
-	err := os.WriteFile(autoImportAssert, randomness, perm)
+	err := ioutil.WriteFile(autoImportAssert, randomness, perm)
 	c.Assert(err, IsNil)
 }
 
