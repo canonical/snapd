@@ -147,6 +147,7 @@ var chown = sys.Chown
 
 const NoChown = sys.FlagID
 
+// SetModTime sets the given modification time on the created file.
 func (aw *AtomicFile) SetModTime(t time.Time) {
 	aw.mtime = t
 }
@@ -178,7 +179,7 @@ func (aw *AtomicFile) commit() error {
 	}
 
 	if !aw.mtime.IsZero() {
-		if err := os.Chtimes(aw.tmpname, aw.mtime, aw.mtime); err != nil {
+		if err := os.Chtimes(aw.tmpname, time.Now(), aw.mtime); err != nil {
 			return err
 		}
 	}
