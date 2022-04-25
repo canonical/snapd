@@ -796,13 +796,17 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		// the order in essentialTypes is not relevant
 		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
 		// degenerate case
-		{[]snap.Type{}, []*seed.Snap(nil)},
+		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
+		{nil, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
 	}
 
 	for _, t := range tests {
 		// hide the non-requested snaps to make sure they are not
 		// accessed
-		unhide := hideSnaps(c, all, t.onlyTypes)
+		var unhide func()
+		if len(t.onlyTypes) != 0 {
+			unhide = hideSnaps(c, all, t.onlyTypes)
+		}
 
 		seed20, err := seed.Open(s.SeedDir, sysLabel)
 		c.Assert(err, IsNil)
@@ -824,7 +828,9 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(runSnaps, HasLen, 0)
 
-		unhide()
+		if unhide != nil {
+			unhide()
+		}
 
 		// test short-cut helper as well
 		mod, essSnaps, err := seed.ReadSystemEssential(s.SeedDir, sysLabel, t.onlyTypes, s.perfTimings)
@@ -894,7 +900,7 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 		// the order in essentialTypes is not relevant
 		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
 		// degenerate case
-		{[]snap.Type{}, []*seed.Snap(nil)},
+		{[]snap.Type{}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap}},
 	}
 
 	baseLabel := "20210315"
@@ -1996,6 +2002,10 @@ func (s *seed20Suite) TestLoadMetaCore20NotRunSnaps(c *C) {
 }
 
 func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnaps(c *C) {
+	s.testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c, 1)
+}
+
+func (s *seed20Suite) testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c *C, parallelism int) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
@@ -2050,6 +2060,8 @@ func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnaps(c *C) {
 
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
+
+	seed20.SetParallelism(parallelism)
 
 	err = seed20.LoadMeta("install", s.perfTimings)
 	c.Assert(err, IsNil)
@@ -2161,6 +2173,10 @@ func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnaps(c *C) {
 			Channel:  "latest/stable",
 		},
 	})
+}
+
+func (s *seed20Suite) TestLoadMetaCore20PreciseNotRunSnapsParallelism2(c *C) {
+	s.testLoadMetaCore20PreciseNotRunSnapsWithParallelism(c, 2)
 }
 
 func (s *seed20Suite) TestLoadMetaCore20LocalAssertedSnaps(c *C) {
@@ -2336,4 +2352,38 @@ func (s *seed20Suite) TestLoadMetaCore20Iter(c *C) {
 		return nil
 	})
 	c.Assert(err, ErrorMatches, `mock error for snap "core20"`)
+}
+
+func (s *seed20Suite) TestLoadMetaWrongHashSnapParallelism2(c *C) {
+	sysLabel := "20191031"
+	sysDir := s.makeCore20MinimalSeed(c, sysLabel)
+
+	pcKernelRev := s.AssertedSnapRevision("pc-kernel")
+	wrongRev, err := s.StoreSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": strings.Repeat("B", 64),
+		"snap-size":     pcKernelRev.HeaderString("snap-size"),
+		"snap-id":       s.AssertedSnapID("pc-kernel"),
+		"developer-id":  "canonical",
+		"snap-revision": pcKernelRev.HeaderString("snap-revision"),
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.massageAssertions(c, filepath.Join(sysDir, "assertions", "snaps"), func(a asserts.Assertion) asserts.Assertion {
+		if a.Type() == asserts.SnapRevisionType && a.HeaderString("snap-id") == s.AssertedSnapID("pc-kernel") {
+			return wrongRev
+		}
+		return a
+	})
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	seed20.SetParallelism(2)
+
+	err = seed20.LoadMeta(seed.AllModes, s.perfTimings)
+	c.Check(err, ErrorMatches, `cannot validate ".*pc-kernel_1\.snap" for snap "pc-kernel" \(snap-id "pckernel.*"\), hash mismatch with snap-revision`)
 }

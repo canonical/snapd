@@ -212,7 +212,6 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		aaFlags |= skipKernelLoad
 	}
 
-	// We are not using apparmor.LoadProfiles() because it uses other cache.
 	if err := loadProfiles([]string{profilePath}, apparmor_sandbox.SystemCacheDir, aaFlags); err != nil {
 		// When we cannot reload the profile then let's remove the generated
 		// policy. Maybe we have caused the problem so it's better to let other
