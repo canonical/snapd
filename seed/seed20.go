@@ -330,11 +330,11 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 		if err != nil {
 			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
 		}
-		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
 		if err := handler.HandleUnassertedSnap(info.SnapName(), path, tm); err != nil {
 			return nil, err
 		}
 		// suppress channel
+		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
 		channel = ""
 	} else {
 		var err error
@@ -435,6 +435,8 @@ func (s *seed20) doLoadMeta(handler SnapHandler, tm timings.Measurer) error {
 	var cachedEssential func(snType string) *Snap
 	if handler != nil {
 		// ignore caching if not using the default handler
+		// otherwise it would not always be called which could
+		// be unexpected
 		cacheEssential = func(string, *Snap) {}
 		cachedEssential = func(string) *Snap { return nil }
 	} else {

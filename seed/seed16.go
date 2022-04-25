@@ -130,6 +130,9 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 	_, defaultHandler := handler.(defaultSnapHandler)
 
 	seedSnap := cache[path]
+	// not cached, or ignore the cache if a non-default handler
+	// was passed, otherwise it would not be called which could be
+	// unexpected
 	if seedSnap == nil || !defaultHandler {
 		snapChannel := sn.Channel
 		if pinnedTrack != "" {
@@ -158,14 +161,14 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 			var err error
 
 			deriveRev := func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error) {
-				var err error
 				if si == nil {
+					var err error
 					si, err = snapasserts.DeriveSideInfoFromDigestAndSize(path, snapSHA3_384, snapSize, s.db)
+					if err != nil {
+						return snap.Revision{}, err
+					}
 				}
-				if err != nil {
-					return snap.Revision{}, err
-				}
-				return si.Revision, err
+				return si.Revision, nil
 			}
 			timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
 				var snapSHA3_384 string

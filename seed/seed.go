@@ -157,9 +157,9 @@ type Seed interface {
 	Iter(f func(sn *Snap) error) error
 }
 
-// A SnapHandler is optionally responsible to perform any dedicated
-// handling of seed snaps and their digest computation while
-// seed snap metadata loading and verification is being performed.
+// A SnapHandler can be used to perform any dedicated handling of seed
+// snaps and their digest computation while seed snap metadata loading
+// and verification is being performed.
 type SnapHandler interface {
 	// HandleAndDigestAssertedSnap should compute the digest of
 	// the given snap and perform any dedicated
