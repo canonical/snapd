@@ -58,15 +58,10 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 	return sbInitializeLUKS2Container(node, label, key[:], opts)
 }
 
-// AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
-// volume created with FormatEncryptedDevice on the block device given by node.
-// The existing key to the encrypted volume is provided in the key argument.
-//
-// A heuristic memory cost is used.
-func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
+func RecoveryKDF() (*sb.KDFOptions, error) {
 	usableMem, err := osutil.TotalUsableMemory()
 	if err != nil {
-		return fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
+		return nil, fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
 	}
 	// The KDF memory is heuristically calculated by taking the
 	// usable memory and subtracting hardcoded 384MB that is
@@ -83,11 +78,22 @@ func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	if kdfMem < 32*1024 {
 		kdfMem = 32 * 1024
 	}
-	opts := &sb.KDFOptions{
+	return &sb.KDFOptions{
 		MemoryKiB:       kdfMem / 1024,
 		ForceIterations: 4,
-	}
+	}, nil
+}
 
+// AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
+// volume created with FormatEncryptedDevice on the block device given by node.
+// The existing key to the encrypted volume is provided in the key argument.
+//
+// A heuristic memory cost is used.
+func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
+	opts, err := RecoveryKDF()
+	if err != nil {
+		return err
+	}
 	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey), opts)
 }
 

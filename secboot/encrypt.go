@@ -32,7 +32,7 @@ import (
 const (
 	// The encryption key size is set so it has the same entropy as the derived
 	// key.
-	encryptionKeySize = 32
+	EncryptionKeySize = 32
 
 	// XXX: needs to be in sync with
 	//      github.com/snapcore/secboot/crypto.go:"type RecoveryKey"
@@ -50,7 +50,7 @@ var randRead = rand.Read
 type EncryptionKey []byte
 
 func NewEncryptionKey() (EncryptionKey, error) {
-	key := make(EncryptionKey, encryptionKeySize)
+	key := make(EncryptionKey, EncryptionKeySize)
 	// rand.Read() is protected against short reads
 	_, err := randRead(key[:])
 	// On return, n == len(b) if and only if err == nil
