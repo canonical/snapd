@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
@@ -2042,4 +2043,34 @@ func (h fdeSetupHandler) Done() error {
 
 func (h fdeSetupHandler) Error(err error) (bool, error) {
 	return false, nil
+}
+
+// EnsureRecoveryKeys makes sure appropriate recovery keys exist and
+// returns them. Usually a single recovery key is created/used, but
+// older systems might return both a recovery key for ubuntu-data and a
+// reinstall key for ubuntu-save.
+func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	keys := &client.SystemRecoveryKeysResponse{}
+	// backward compatibility
+	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		rkey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
+		if err != nil {
+			return nil, err
+		}
+		keys.RecoveryKey = rkey.String()
+
+		reinstallKey, err := secboot.RecoveryKeyFromFile(reinstallKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		keys.ReinstallKey = reinstallKey.String()
+		return keys, nil
+	}
+	// XXX have a helper somewhere for this? secboot or boot?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
+		return nil, fmt.Errorf("system does not use disk encryption")
+	}
+	// XXX secboot.EnsureRecoveryKey(snap.FDEDir)
+	return nil, fmt.Errorf("not implemented")
 }
