@@ -86,7 +86,10 @@ func CrossCheck(instanceName, snapSHA3_384 string, snapSize uint64, si *snap.Sid
 	return nil
 }
 
-// DeriveSideInfo tries to construct a SideInfo for the given snap using its digest to find the relevant snap assertions with the information in the given database. It will fail with an asserts.NotFoundError if it cannot find them.
+// DeriveSideInfo tries to construct a SideInfo for the given snap
+// using its digest to find the relevant snap assertions with the
+// information in the given database. It will fail with an
+// asserts.NotFoundError if it cannot find them.
 func DeriveSideInfo(snapPath string, db Finder) (*snap.SideInfo, error) {
 	snapSHA3_384, snapSize, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
@@ -96,7 +99,10 @@ func DeriveSideInfo(snapPath string, db Finder) (*snap.SideInfo, error) {
 	return DeriveSideInfoFromDigestAndSize(snapPath, snapSHA3_384, snapSize, db)
 }
 
-// DeriveSideInfoFromDigestAndSize tries to construct a SideInfo for the given snap using the provided digest and size to find the relevant snap assertions with the information in the given database. It will fail with an asserts.NotFoundError if it cannot find them.
+// DeriveSideInfoFromDigestAndSize tries to construct a SideInfo
+// using digest and size as provided for the snap to find the relevant
+// snap assertions with the information in the given database. It will
+// fail with an asserts.NotFoundError if it cannot find them.
 func DeriveSideInfoFromDigestAndSize(snapPath string, snapSHA3_384 string, snapSize uint64, db Finder) (*snap.SideInfo, error) {
 	// get relevant assertions and reconstruct metadata
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
