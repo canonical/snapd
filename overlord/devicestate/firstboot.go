@@ -400,7 +400,9 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 		return nil, err
 	}
 
-	deviceSeed.SetParallelism(runtimeNumCPU())
+	if runtimeNumCPU() > 1 {
+		deviceSeed.SetParallelism(2)
+	}
 
 	// collect and
 	// set device,model from the model assertion

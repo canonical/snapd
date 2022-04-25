@@ -72,7 +72,11 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 	//   the RTC does not have a battery or is otherwise unreliable, etc.
 	now := timeNow()
 
-	model, snaps, newTrustedEarliestTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, now, runtimeNumCPU(), perf)
+	jobs := 1
+	if runtimeNumCPU() > 1 {
+		jobs = 2
+	}
+	model, snaps, newTrustedEarliestTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, now, jobs, perf)
 	if err != nil {
 		return nil, nil, err
 	}
