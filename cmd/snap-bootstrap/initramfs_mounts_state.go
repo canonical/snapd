@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -36,6 +37,7 @@ import (
 
 var (
 	osutilSetTime = osutil.SetTime
+	runtimeNumCPU = runtime.NumCPU
 )
 
 // initramfsMountsState helps tracking the state and progress
@@ -70,7 +72,7 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 	//   the RTC does not have a battery or is otherwise unreliable, etc.
 	now := timeNow()
 
-	model, snaps, newTrustedEarliestTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, now, perf)
+	model, snaps, newTrustedEarliestTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, now, runtimeNumCPU(), perf)
 	if err != nil {
 		return nil, nil, err
 	}

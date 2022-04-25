@@ -22,6 +22,7 @@ package devicestate
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 
 	"github.com/snapcore/snapd/asserts"
@@ -37,7 +38,11 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var errNothingToDo = errors.New("nothing to do")
+var (
+	errNothingToDo = errors.New("nothing to do")
+
+	runtimeNumCPU = runtime.NumCPU
+)
 
 func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
@@ -394,6 +399,8 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 	if err != nil {
 		return nil, err
 	}
+
+	deviceSeed.SetParallelism(runtimeNumCPU())
 
 	// collect and
 	// set device,model from the model assertion
