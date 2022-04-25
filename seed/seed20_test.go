@@ -22,7 +22,6 @@ package seed_test
 import (
 	"crypto/rand"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -2917,7 +2916,7 @@ const (
 	invalid
 )
 
-func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua suAsseertion, perm fs.FileMode, commitTo func(b *asserts.Batch) error) {
+func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade, sua suAsseertion, perm os.FileMode, commitTo func(b *asserts.Batch) error) {
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, string(grade), sysLabel)
 	c.Assert(seed20, NotNil)
@@ -3013,7 +3012,7 @@ var goodUser = map[string]interface{}{
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
 }
 
-func (s *seed20Suite) writeValidAutoImportAssertion(c *C, sysLabel string, perm fs.FileMode) {
+func (s *seed20Suite) writeValidAutoImportAssertion(c *C, sysLabel string, perm os.FileMode) {
 	systemUsers := []map[string]interface{}{goodUser}
 	// write system user asseerion to system seed root
 	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
@@ -3032,7 +3031,7 @@ func (s *seed20Suite) writeValidAutoImportAssertion(c *C, sysLabel string, perm 
 	}
 }
 
-func (s *seed20Suite) writeInvalidAutoImportAssertion(c *C, sysLabel string, perm fs.FileMode) {
+func (s *seed20Suite) writeInvalidAutoImportAssertion(c *C, sysLabel string, perm os.FileMode) {
 	autoImportAssert := filepath.Join(s.SeedDir, "systems", sysLabel, "auto-import.assert")
 	// write random data
 	randomness := make([]byte, 512)
