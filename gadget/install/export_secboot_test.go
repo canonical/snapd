@@ -41,9 +41,9 @@ func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, n
 
 }
 
-func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error) (restore func()) {
-	r := testutil.Backup(&secbootAddRecoveryKey)
-	secbootAddRecoveryKey = f
+func MockKeymgrAddRecoveryKeyToLUKSDeviceUsingKey(f func(node string, rkey secboot.RecoveryKey, key secboot.EncryptionKey) error) (restore func()) {
+	r := testutil.Backup(&keymgrAddRecoveryKeyToLUKSDeviceUsingKey)
+	keymgrAddRecoveryKeyToLUKSDeviceUsingKey = f
 	return r
 }
 
