@@ -32,6 +32,15 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 )
 
+// For mocking in tests
+var (
+	osOpenFile = os.OpenFile
+	osStat     = os.Stat
+
+	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
+	apparmorLoadProfiles          = apparmor.LoadProfiles
+)
+
 var (
 	// No path located under any of these top-level directories can be used.
 	// This is not a security measure (the configuration can only be changed by
@@ -65,7 +74,7 @@ func init() {
 
 func updateHomedirsConfig(config string) error {
 	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system.info")
-	f, err := os.OpenFile(configPath, os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := osOpenFile(configPath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -76,7 +85,7 @@ func updateHomedirsConfig(config string) error {
 	}
 
 	homedirs := strings.Split(config, ",")
-	if err := apparmor.UpdateHomedirsTunable(homedirs); err != nil {
+	if err := apparmorUpdateHomedirsTunable(homedirs); err != nil {
 		return err
 	}
 
@@ -92,7 +101,7 @@ func updateHomedirsConfig(config string) error {
 	// We want to reload the profiles no matter what, so don't even bother
 	// checking if the cached profile is newer
 	aaFlags := apparmor.SkipReadCache
-	if err := apparmor.LoadProfiles(profiles, apparmor.SystemCacheDir, aaFlags); err != nil {
+	if err := apparmorLoadProfiles(profiles, apparmor.SystemCacheDir, aaFlags); err != nil {
 		return err
 	}
 
@@ -158,7 +167,7 @@ func validateHomedirsConfiguration(tr config.Conf) error {
 			return fmt.Errorf("path %q unsupported: must start with one of: %s", dir, formattedList)
 		}
 
-		info, err := os.Stat(dir)
+		info, err := osStat(dir)
 		if err != nil {
 			// TODO: actually decide if this should be returned as an error;
 			// there's no harm in letting this pass even if the directory does

@@ -20,11 +20,14 @@
 package configcore
 
 import (
+	"os"
 	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -54,6 +57,30 @@ func MockChownPath(f func(string, sys.UserID, sys.GroupID) error) func() {
 	return func() {
 		sysChownPath = old
 	}
+}
+
+func MockOpenFile(f func(string, int, os.FileMode) (*os.File, error)) func() {
+	r := testutil.Backup(&osOpenFile)
+	osOpenFile = f
+	return r
+}
+
+func MockStat(f func(string) (os.FileInfo, error)) func() {
+	r := testutil.Backup(&osStat)
+	osStat = f
+	return r
+}
+
+func MockApparmorUpdateHomedirsTunable(f func([]string) error) func() {
+	r := testutil.Backup(&apparmorUpdateHomedirsTunable)
+	apparmorUpdateHomedirsTunable = f
+	return r
+}
+
+func MockApparmorLoadProfiles(f func([]string, string, apparmor.AaParserFlags) error) func() {
+	r := testutil.Backup(&apparmorLoadProfiles)
+	apparmorLoadProfiles = f
+	return r
 }
 
 type ConnectivityCheckStore = connectivityCheckStore
