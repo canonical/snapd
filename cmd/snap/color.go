@@ -131,7 +131,6 @@ type escapes struct {
 	green        string
 	brightYellow string
 	bold         string
-	dim          string
 	end          string
 
 	tick, dash, uparrow, star string
@@ -142,15 +141,13 @@ var (
 		green:        "\033[32m",
 		brightYellow: "\033[93m",
 		bold:         "\033[1m",
-		dim:          "\033[2m",
 		end:          "\033[0m",
 	}
 
 	mono = escapes{
-		green:        "\033[1m",
-		brightYellow: "\033[2m",
+		green:        "\033[1m", // bold
+		brightYellow: "\033[2m", // dim
 		bold:         "\033[1m",
-		dim:          "\033[2m",
 		end:          "\033[0m",
 	}
 
@@ -175,11 +172,10 @@ func fillerPublisher(esc *escapes) string {
 //   sequence used to make it colorful (this so that tabwriter gets things
 //   right).
 func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
-	color := esc.green
 	if storeAccount == nil {
-		return esc.dash + color + esc.end
+		return esc.dash + esc.green + esc.end
 	}
-	badge := ""
+	var badge, color string
 	switch storeAccount.Validation {
 	case "verified":
 		badge = esc.tick
@@ -187,6 +183,9 @@ func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 	case "starred":
 		badge = esc.star
 		color = esc.brightYellow
+	default:
+		// no-op escape sequence so that things line-up
+		color = esc.green
 	}
 	// NOTE this makes e.g. 'Potato' == 'potato', and 'Potato Team' == 'potato-team',
 	// but 'Potato Team' != 'potatoteam', 'Potato Inc.' != 'potato' (in fact 'Potato Inc.' != 'potato-inc')
@@ -207,11 +206,10 @@ func longPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 //   sequence used to make it colorful (this so that tabwriter gets things
 //   right).
 func shortPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
-	color := esc.green
 	if storeAccount == nil {
-		return "-" + color + esc.end
+		return "-" + 	esc.green + esc.end
 	}
-	badge := ""
+	var badge, color string
 	switch storeAccount.Validation {
 	case "verified":
 		badge = esc.tick
@@ -219,6 +217,9 @@ func shortPublisher(esc *escapes, storeAccount *snap.StoreAccount) string {
 	case "starred":
 		badge = esc.star
 		color = esc.brightYellow
+	default:
+		// no-op escape sequence so that things line-up
+		color = esc.green
 	}
 	return storeAccount.Username + color + badge + esc.end
 
