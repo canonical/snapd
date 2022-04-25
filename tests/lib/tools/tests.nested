@@ -6,6 +6,7 @@ show_help() {
     echo "       build-image IMAGE-TYPE"
     echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
     echo "       is-nested [core|classic|uc16|uc18|uc20|uc22]"
+    echo "       show [ATTRIBUTE]"
     echo "       vm <ACTION>"
     echo "       exec [--user <USER>] [--pwd <PWD>] <CMD>"
     echo "       copy <FILEPATH>"
@@ -44,6 +45,9 @@ show_help() {
     echo "IMAGE-TYPES:"
     echo "  core: work with a core image"
     echo "  classic: work with a classic image"
+    echo ""
+    echo "ATTRIBUTE:"
+    echo "  version: the version of the system i.e. 16, 18, 20, 22"
     echo ""
     echo "ACTION:"
     echo "  start: starts a stopped vm"
@@ -171,6 +175,23 @@ is_nested() {
                 ;;
             *)
                 echo "tests.nested: parameter not supported: $1" >&2
+                exit 1
+                ;;
+        esac
+    fi
+}
+
+show() {
+    if [ $# -eq 0 ]; then
+        echo "tests.nested: attribute to show is required" >&2
+        exit 1
+    else
+        case "$1" in
+            version)
+                nested_get_version
+                ;;
+            *)
+                echo "tests.nested: attribute not supported: $1" >&2
                 exit 1
                 ;;
         esac
