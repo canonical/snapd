@@ -20,13 +20,17 @@ package keymgr_test
 
 import (
 	"bytes"
+	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keymgr"
 	"github.com/snapcore/snapd/testutil"
@@ -45,6 +49,10 @@ func TestT(t *testing.T) {
 	TestingT(t)
 }
 
+const mockedMeminfo = `MemTotal:         929956 kB
+CmaTotal:         131072 kB
+`
+
 func (s *keymgrSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -54,6 +62,53 @@ func (s *keymgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.rootDir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	c.Assert(os.MkdirAll(dirs.RunDir, 0755), IsNil)
+
+	mockedMeminfoFile := filepath.Join(c.MkDir(), "meminfo")
+	err := ioutil.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644)
+	c.Assert(err, IsNil)
+	s.AddCleanup(osutil.MockProcMeminfo(mockedMeminfoFile))
+}
+
+func (s *keymgrSuite) mockCryptsetupForAddKey(c *C) *testutil.MockCmd {
+	cmd := testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`
+while [ "$#" -gt 1 ]; do
+  case "$1" in
+    --key-file)
+      cat "$2" > %s
+      shift 2
+      ;;
+    *)
+      shift 1
+      ;;
+  esac
+done
+`, filepath.Join(s.rootDir, "unlock.key")))
+	return cmd
+}
+
+func (s *keymgrSuite) verifyCryptsetupAddKey(c *C, cmd *testutil.MockCmd, unlockKey []byte) {
+	c.Assert(cmd, NotNil)
+	calls := cmd.Calls()
+	c.Assert(calls, HasLen, 3)
+	c.Assert(calls[0], DeepEquals, []string{
+		"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "1",
+	})
+	c.Assert(calls[1], HasLen, 16)
+	c.Assert(calls[1][5], testutil.Contains, s.rootDir)
+	calls[1][5] = "<fifo>"
+	c.Assert(calls[1], DeepEquals, []string{
+		"cryptsetup", "luksAddKey", "--type", "luks2",
+		"--key-file", "<fifo>",
+		"--pbkdf", "argon2i",
+		"--pbkdf-force-iterations", "4",
+		"--pbkdf-memory", "202834",
+		"--key-slot", "1",
+		"/dev/foobar", "-",
+	})
+	c.Assert(calls[2], DeepEquals, []string{
+		"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/foobar",
+	})
+	c.Check(filepath.Join(s.rootDir, "unlock.key"), testutil.FileEquals, unlockKey)
 }
 
 func (s *keymgrSuite) TestAddRecoveryKeyToDevice(c *C) {
@@ -68,44 +123,28 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDevice(c *C) {
 	})
 	defer restore()
 
-	cmd := testutil.MockCommand(c, "cryptsetup", `
-while [ "$#" -gt 1 ]; do
-  case "$1" in
-    --key-file)
-      cat "$2"
-      shift 2
-      ;;
-    *)
-      shift 1
-      ;;
-  esac
-done
-`)
+	cmd := s.mockCryptsetupForAddKey(c)
 	defer cmd.Restore()
 	rkey := secboot.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	err := keymgr.AddRecoveryKeyToLUKSDevice("/dev/foobar", rkey)
 	c.Assert(err, IsNil)
 	c.Assert(getCalls, Equals, 1)
-	calls := cmd.Calls()
-	c.Assert(calls, HasLen, 3)
-	c.Assert(calls[0], DeepEquals, []string{
-		"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "1",
+	s.verifyCryptsetupAddKey(c, cmd, []byte(unlockKey))
+}
+
+func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUsingExistingKey(c *C) {
+	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		return nil, fmt.Errorf("unexpected call")
 	})
-	c.Assert(calls[1], HasLen, 16)
-	c.Assert(calls[1][5], testutil.Contains, s.rootDir)
-	calls[1][5] = "<fifo>"
-	c.Assert(calls[1], DeepEquals, []string{
-		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
-		"--pbkdf", "argon2i",
-		"--pbkdf-force-iterations", "4",
-		"--pbkdf-memory", "1048576",
-		"--key-slot", "1",
-		"/dev/foobar", "-",
-	})
-	c.Assert(calls[2], DeepEquals, []string{
-		"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/foobar",
-	})
+	defer restore()
+
+	cmd := s.mockCryptsetupForAddKey(c)
+	defer cmd.Restore()
+	rkey := secboot.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	key := bytes.Repeat([]byte{1}, 32)
+	err := keymgr.AddRecoveryKeyToLUKSDeviceUsingKey("/dev/foobar", rkey, secboot.EncryptionKey(key))
+	c.Assert(err, IsNil)
+	s.verifyCryptsetupAddKey(c, cmd, []byte(key))
 }
 
 func (s *keymgrSuite) TestRemoveRecoveryKeyFromDevice(c *C) {
