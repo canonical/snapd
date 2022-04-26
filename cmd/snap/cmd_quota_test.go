@@ -296,7 +296,6 @@ func (s *quotaSuite) TestSetQuotaCpuHappy(c *check.C) {
 	// ensure that --cpu still works with cgroup version 1
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "--cpu=2x50%", "foo"})
 	c.Check(err, check.IsNil)
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
 }
@@ -337,7 +336,6 @@ snaps:
   - snap-a
   - snap-b
 `[1:])
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 }
@@ -368,7 +366,6 @@ current:
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 0))
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 
@@ -382,9 +379,7 @@ current:
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 500))
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 2)
-	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 }
 
 func (s *quotaSuite) TestGetCpuQuotaGroupSimple(c *check.C) {
@@ -416,9 +411,7 @@ current:
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 16))
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
-	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 
 	s.stdout.Reset()
 	s.stderr.Reset()
@@ -430,9 +423,7 @@ current:
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 500))
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 2)
-	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 }
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNew(c *check.C) {
@@ -464,7 +455,6 @@ func (s *quotaSuite) TestSetQuotaGroupCreateNew(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
 }
@@ -515,9 +505,7 @@ func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPatte
 	_, err := main.Parser(main.Client()).ParseArgs(cmdArgs)
 	c.Assert(err, check.ErrorMatches, errPattern)
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
-	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 }
 
 func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
@@ -556,7 +544,6 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 1)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
 
@@ -589,7 +576,6 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 2)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 2)
 }
@@ -615,8 +601,6 @@ func (s *quotaSuite) TestRemoveQuotaGroup(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 0)
-	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 0)
 	c.Check(s.quotaPostHandlerCalls, check.Equals, 1)
 }
 
@@ -666,8 +650,6 @@ fff      aaa     memory=1000B
 bbb      zzz     memory=1000B                    memory=400B
 `[1:])
 	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 1)
-	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 0)
-	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 }
 
 func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {
@@ -681,8 +663,6 @@ func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
 	c.Assert(err, check.ErrorMatches, `internal error: inconsistent groups received, unknown subgroup "ccc"`)
 	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 1)
-	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 0)
-	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 }
 
 func (s *quotaSuite) TestNoQuotaGroups(c *check.C) {
@@ -698,6 +678,4 @@ func (s *quotaSuite) TestNoQuotaGroups(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "No quota groups defined.\n")
 	c.Check(s.quotaGetGroupsHandlerCalls, check.Equals, 1)
-	c.Check(s.quotaGetGroupHandlerCalls, check.Equals, 0)
-	c.Check(s.quotaPostHandlerCalls, check.Equals, 0)
 }
