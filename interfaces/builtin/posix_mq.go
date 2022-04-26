@@ -174,11 +174,11 @@ func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name stri
 func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (string, error) {
 	var path string
 
-	if pathAttr, isSet := attrs.Lookup("path"); isSet {
+	if pathAttr, isSet := attrs.Lookup("posix-mq"); isSet {
 		if pathStr, ok := pathAttr.(string); ok {
 			path = pathStr
 		} else {
-			return "", fmt.Errorf(`posix-mq slot "path" attribute must be a string, not %v`, pathAttr)
+			return "", fmt.Errorf(`posix-mq slot "posix-mq" attribute must be a string, not %v`, pathAttr)
 		}
 	} else {
 		// Path defaults to name if unspecified
@@ -200,15 +200,15 @@ func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (st
 
 func (iface *posixMQInterface) validatePath(name, path string) error {
 	if !posixMQNamePattern.MatchString(path) {
-		return fmt.Errorf(`posix-mq "path" attribute must conform to the POSIX message queue name specifications (see "man mq_overview"): %v`, path)
+		return fmt.Errorf(`posix-mq path must conform to the POSIX message queue name specifications (see "man mq_overview"): %v`, path)
 	}
 
 	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
-		return fmt.Errorf(`posix-mq "path" attribute is invalid: %v"`, path)
+		return fmt.Errorf(`posix-mq path is invalid: %v"`, path)
 	}
 
 	if !cleanSubPath(path) {
-		return fmt.Errorf(`posix-mq "path" attribute is not a clean path: %v"`, path)
+		return fmt.Errorf(`posix-mq path is not clean: %v"`, path)
 	}
 
 	return nil
