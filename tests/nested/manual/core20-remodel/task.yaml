@@ -60,7 +60,7 @@ execute: |
     tests.nested exec snap list "test-snapd-tools-core$VERSION"
     # the snap is pulled in from the store, so it should be located in shared
     # snaps directory
-    tests.nested exec find /run/mnt/ubuntu-seed/snaps -name "test-snapd-tools-core$VERSION_*.snap" | MATCH "test-snapd-tools-core$VERSION"
+    tests.nested exec find /run/mnt/ubuntu-seed/snaps -name "test-snapd-tools-core${VERSION}_*.snap" | MATCH "test-snapd-tools-core$VERSION"
 
     boot_id="$(tests.nested boot-id)"
 
