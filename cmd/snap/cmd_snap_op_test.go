@@ -1825,6 +1825,44 @@ func (s *SnapSuite) TestRefreshChannelDuplicationError(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
 }
 
+func (s *SnapOpSuite) TestNotInstalledError(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "Snap was not installed",
+				"kind": "snap-not-installed",
+				"status-code": 400
+				}}`)
+	})
+
+	for _, t := range []struct {
+		cmd string
+		err bool
+	}{
+		{cmd: "refresh foo", err: true},
+		{cmd: "switch --channel stable foo", err: true},
+		{cmd: "enable foo", err: true},
+		{cmd: "disable foo", err: true},
+		{cmd: "list foo", err: true},
+		{cmd: "save foo", err: true},
+		{cmd: "remove foo", err: false},
+	} {
+		var assert check.Checker
+		var msg string
+
+		if t.err {
+			assert = check.Not(check.IsNil)
+		} else {
+			assert = check.IsNil
+			msg = "not "
+		}
+		_, err := snap.Parser(snap.Client()).ParseArgs(strings.Fields(t.cmd))
+		comment := check.Commentf("command %q should %sreturn an error due to a non-existent snap but got %v", t.cmd, msg, err)
+		c.Check(err, assert, comment)
+	}
+}
+
 func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")

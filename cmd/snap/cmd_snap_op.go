@@ -132,7 +132,7 @@ func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 
 	changeID, err := x.client.Remove(name, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "remove", err, opts)
 		if err != nil {
 			return err
 		}
@@ -502,7 +502,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 		changeID, err = x.client.Install(snapName, opts)
 	}
 	if err != nil {
-		msg, err := errorToCmdMessage(nameOrPath, err, opts)
+		msg, err := errorToCmdMessage(nameOrPath, "install", err, opts)
 		if err != nil {
 			return err
 		}
@@ -559,7 +559,7 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		if err, ok := err.(*client.Error); ok {
 			snapName, _ = err.Value.(string)
 		}
-		msg, err := errorToCmdMessage(snapName, err, opts)
+		msg, err := errorToCmdMessage(snapName, "install", err, opts)
 		if err != nil {
 			return err
 		}
@@ -704,7 +704,7 @@ func (x *cmdRefresh) refreshMany(snaps []string, opts *client.SnapOptions) error
 func (x *cmdRefresh) refreshOne(name string, opts *client.SnapOptions) error {
 	changeID, err := x.client.Refresh(name, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "refresh", err, opts)
 		if err != nil {
 			return err
 		}
@@ -912,7 +912,7 @@ func (x *cmdTry) Execute([]string) error {
 
 	changeID, err := x.client.Try(path, opts)
 	if err != nil {
-		msg, err := errorToCmdMessage(name, err, opts)
+		msg, err := errorToCmdMessage(name, "try", err, opts)
 		if err != nil {
 			return err
 		}
