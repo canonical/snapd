@@ -74,7 +74,7 @@ prepare: |
   VERSION="$(tests.nested show version)"
 
   # download the new kernel to try and refresh to, triggering a reseal
-  snap download pc-kernel --channel=22/candidate --basename=new-kernel
+  snap download pc-kernel --channel="$VERSION/candidate" --basename=new-kernel
 
   # build the image and start the VM up
   tests.nested build-image core
