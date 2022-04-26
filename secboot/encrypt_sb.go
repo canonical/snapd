@@ -61,5 +61,5 @@ func FormatEncryptedDevice(key keys.EncryptionKey, label, node string) error {
 // volume created with FormatEncryptedDevice on the block device given by node.
 // The existing key to the encrypted volume is provided in the key argument.
 func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) error {
-	return keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(node, rkey, key)
+	return keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(rkey, key, node)
 }
