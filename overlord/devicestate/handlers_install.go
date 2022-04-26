@@ -701,9 +701,6 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 	}
 
 	preseedAs, err := readPreseedAssertion(st, model, ubuntuSeedDir, sysLabel)
-	if asserts.IsNotFound(err) {
-		return false, fmt.Errorf("preseed.tgz artifact is present but preseed assertion for brand %q, model %q and system label %q couldn't be found", model.BrandID(), model.Model(), sysLabel)
-	}
 	if err != nil {
 		return false, err
 	}
@@ -775,7 +772,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		}
 		if ps.Revision != ssnap.SideInfo.Revision.N {
 			rev := snap.Revision{N: ps.Revision}
-			return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", ssnap.SnapName(), rev, ssnap.SideInfo.Revision)
+			return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", ssnap.SnapName(), ssnap.SideInfo.Revision, rev)
 		}
 		if ps.SnapID != ssnap.SideInfo.SnapID {
 			return fmt.Errorf("snap %q has wrong snap id %q (expected: %q)", ssnap.SnapName(), ssnap.SideInfo.SnapID, ps.SnapID)

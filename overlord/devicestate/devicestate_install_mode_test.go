@@ -696,11 +696,11 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataSnapMismatch(c *C
 		snapID   string
 		err      string
 	}{
-		{"essential-snap", "2", "id111111111111111111111111111111", `snap "essential-snap" has wrong revision 2 \(expected: 1\)`},
+		{"essential-snap", "2", "id111111111111111111111111111111", `snap "essential-snap" has wrong revision 1 \(expected: 2\)`},
 		{"essential-snap", "1", "id000000000000000000000000000000", `snap "essential-snap" has wrong snap id "id111111111111111111111111111111" \(expected: "id000000000000000000000000000000"\)`},
-		{"mode-snap", "4", "id222222222222222222222222222222", `snap "mode-snap" has wrong revision 4 \(expected: 3\)`},
+		{"mode-snap", "4", "id222222222222222222222222222222", `snap "mode-snap" has wrong revision 3 \(expected: 4\)`},
 		{"mode-snap", "3", "id000000000000000000000000000000", `snap "mode-snap" has wrong snap id "id222222222222222222222222222222" \(expected: "id000000000000000000000000000000"\)`},
-		{"mode-snap2", "3", "id000000000000000000000000000000", `snap "mode-snap2" has wrong revision 3 \(expected: unset\)`},
+		{"mode-snap2", "3", "id000000000000000000000000000000", `snap "mode-snap2" has wrong revision unset \(expected: 3\)`},
 		{"extra-snap", "1", "id000000000000000000000000000000", `seed has 3 snaps but 4 snaps are required by preseed assertion`},
 	} {
 
