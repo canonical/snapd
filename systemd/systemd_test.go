@@ -1953,6 +1953,57 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
 	c.Check(stamp.IsZero(), Equals, true)
 }
 
+func (s *SystemdTestSuite) TestSystemdRunError(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "fail"; exit 11`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"bad-cmd", "arg1"}, nil)
+	c.Check(output, IsNil)
+	c.Assert(err, ErrorMatches, `cannot run \["bad-cmd" "arg1"\]: fail`)
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappy(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output" && >&2 echo "to stderr"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, nil)
+	c.Check(string(output), Equals, "happy output\nto stderr\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "happy-cmd", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunHappyWithStdin(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "some output" && cat - `)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{Stdin: bytes.NewBufferString("stdin input\n")}
+	output, err := sysd.Run([]string{"cmd-with-stdin", "arg1"}, opts)
+	c.Check(string(output), Equals, "some output\nstdin input\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "cmd-with-stdin", "arg1"},
+	})
+}
+
+func (s *SystemdTestSuite) TestSystemdRunKeyringMode(c *C) {
+	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output"`)
+	defer sr.Restore()
+
+	sysd := New(SystemMode, s.rep)
+	opts := &RunOptions{KeyringMode: KeyringModePrivate}
+	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, opts)
+	c.Check(string(output), Equals, "happy output\n")
+	c.Check(err, IsNil)
+	c.Check(sr.Calls(), DeepEquals, [][]string{
+		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--property=KeyringMode=private", "--", "happy-cmd", "arg1"},
+	})
+}
+
 type systemdErrorSuite struct{}
 
 var _ = Suite(&systemdErrorSuite{})

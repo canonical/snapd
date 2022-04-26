@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store/tooling"
 )
 
 type cmdDownload struct {
@@ -71,7 +72,7 @@ func init() {
 	}})
 }
 
-func fetchSnapAssertionsDirect(tsto *image.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
+func fetchSnapAssertionsDirect(tsto *tooling.ToolingStore, snapPath string, snapInfo *snap.Info) (string, error) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   sysdb.Trusted(),
@@ -116,8 +117,8 @@ func printInstallHint(assertPath, snapPath string) {
 // for testing
 var downloadDirect = downloadDirectImpl
 
-func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error {
-	tsto, err := image.NewToolingStore()
+func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error {
+	tsto, err := tooling.NewToolingStore()
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func downloadDirectImpl(snapName string, revision snap.Revision, dlOpts image.Do
 }
 
 func (x *cmdDownload) downloadFromStore(snapName string, revision snap.Revision) error {
-	dlOpts := image.DownloadSnapOptions{
+	dlOpts := tooling.DownloadSnapOptions{
 		TargetDir: x.TargetDir,
 		Basename:  x.Basename,
 		Channel:   x.Channel,

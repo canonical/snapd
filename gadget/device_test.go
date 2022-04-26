@@ -55,52 +55,6 @@ func (d *deviceSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (d *deviceSuite) setupMockSysfs(c *C) {
-	// setup everything for 'writable'
-	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0p1"), []byte(""), 0644)
-	c.Assert(err, IsNil)
-	err = os.Symlink("../../fakedevice0p1", filepath.Join(d.dir, "/dev/disk/by-label/writable"))
-	c.Assert(err, IsNil)
-	// make parent device
-	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0"), []byte(""), 0644)
-	c.Assert(err, IsNil)
-	// and fake /sys/block structure
-	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
-	c.Assert(err, IsNil)
-}
-
-func (d *deviceSuite) setupMockSysfsForDevMapper(c *C) {
-	// setup a mock /dev/mapper environment (incomplete we have no "happy"
-	// test; use a complex setup that mimics LVM in LUKS:
-	// /dev/mapper/data_crypt (symlink)
-	//   ⤷ /dev/dm-1 (LVM)
-	//      ⤷ /dev/dm-0 (LUKS)
-	//         ⤷ /dev/fakedevice0 (actual device)
-	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/dm-0"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/dm-1"), nil, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice0"), []byte(""), 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d.dir, "/dev/fakedevice"), []byte(""), 0644)
-	c.Assert(err, IsNil)
-	// symlinks added by dm/udev are relative
-	err = os.Symlink("../dm-1", filepath.Join(d.dir, "/dev/mapper/data_crypt"))
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/dm-1/slaves/"), 0755)
-	c.Assert(err, IsNil)
-	// sys symlinks are relative too
-	err = os.Symlink("../../dm-0", filepath.Join(d.dir, "/sys/block/dm-1/slaves/dm-0"))
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/dm-0/slaves/"), 0755)
-	c.Assert(err, IsNil)
-	// real symlink would point to ../../../../<bus, eg. pci>/<addr>/block/fakedevice/fakedevice0
-	err = os.Symlink("../../../../fakedevice/fakedevice0", filepath.Join(d.dir, "/sys/block/dm-0/slaves/fakedevice0"))
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice/fakedevice0"), 0755)
-	c.Assert(err, IsNil)
-}
-
 func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 	names := []struct {
 		escaped   string
@@ -311,5 +265,3 @@ func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
 	c.Check(err, ErrorMatches, `cannot read device link: failed`)
 	c.Check(found, Equals, "")
 }
-
-var writableMountInfoFmt = `26 27 8:3 / /writable rw,relatime shared:7 - ext4 %s/dev/fakedevice0p1 rw,data=ordered`
