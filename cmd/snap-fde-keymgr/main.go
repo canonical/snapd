@@ -35,6 +35,7 @@ import (
 var osStdin io.Reader = os.Stdin
 
 type commonDeviceMixin struct {
+	// TODO: support for multiple devices in the command line
 	Device string `long:"device" description:"encrypted device" required:"yes"`
 }
 
@@ -69,7 +70,7 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create recovery key: %v", err)
 	}
-	if err := keymgrAddRecoveryKeyToLUKSDevice(c.Device, recoveryKey); err != nil {
+	if err := keymgrAddRecoveryKeyToLUKSDevice(recoveryKey, c.Device); err != nil {
 		return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
 	}
 	if err := ioutil.WriteFile(c.KeyFile, recoveryKey[:], 0600); err != nil {
@@ -100,7 +101,7 @@ func (c *cmdChangeEncryptionKey) Execute(args []string) error {
 	if err := dec.Decode(&newEncryptionKeyData); err != nil {
 		return fmt.Errorf("cannot obtain new encryption key: %v", err)
 	}
-	if err := keymgrChangeLUKSDeviceEncryptionKey(c.Device, newEncryptionKeyData.Key); err != nil {
+	if err := keymgrChangeLUKSDeviceEncryptionKey(newEncryptionKeyData.Key, c.Device); err != nil {
 		return fmt.Errorf("cannot change LUKS device encryption key: %v", err)
 	}
 	return nil

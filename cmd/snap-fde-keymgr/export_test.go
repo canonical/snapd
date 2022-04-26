@@ -27,7 +27,7 @@ import (
 
 var Run = run
 
-func MockAddRecoveryKeyToLUKS(f func(dev string, recoveryKey keys.RecoveryKey) error) (restore func()) {
+func MockAddRecoveryKeyToLUKS(f func(recoveryKey keys.RecoveryKey, dev string) error) (restore func()) {
 	restore = testutil.Backup(&keymgrAddRecoveryKeyToLUKSDevice)
 	keymgrAddRecoveryKeyToLUKSDevice = f
 	return restore
@@ -39,7 +39,7 @@ func MockRemoveRecoveryKeyFromLUKS(f func(dev string) error) (restore func()) {
 	return restore
 }
 
-func MockChangeLUKSEncryptionKey(f func(dev string, newKey keys.EncryptionKey) error) (restore func()) {
+func MockChangeLUKSEncryptionKey(f func(newKey keys.EncryptionKey, dev string) error) (restore func()) {
 	restore = testutil.Backup(&keymgrChangeLUKSDeviceEncryptionKey)
 	keymgrChangeLUKSDeviceEncryptionKey = f
 	return restore

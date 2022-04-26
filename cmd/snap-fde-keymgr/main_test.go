@@ -42,7 +42,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 	dev := ""
 	rkey := keys.RecoveryKey{}
 	addCalls := 0
-	restore := main.MockAddRecoveryKeyToLUKS(func(luksDev string, recoveryKey keys.RecoveryKey) error {
+	restore := main.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
 		addCalls++
 		dev = luksDev
 		rkey = recoveryKey
@@ -113,7 +113,7 @@ func (s *mainSuite) TestChangeEncryptionKey(c *C) {
 	dev := ""
 	changeCalls := 0
 	var key []byte
-	restore = main.MockChangeLUKSEncryptionKey(func(luksDev string, newKey keys.EncryptionKey) error {
+	restore = main.MockChangeLUKSEncryptionKey(func(newKey keys.EncryptionKey, luksDev string) error {
 		changeCalls++
 		dev = luksDev
 		key = newKey
