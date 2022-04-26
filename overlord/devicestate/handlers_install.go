@@ -648,6 +648,45 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	return nil
 }
 
+func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, sysLabel string) (*asserts.Preseed, error) {
+	f, err := os.Open(filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read preseed assertion: %v", err)
+	}
+
+	tmpDb := assertstate.TemporaryDB(st)
+	batch := asserts.NewBatch(nil)
+	_, err = batch.AddStream(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var preseedAs *asserts.Preseed
+	err = batch.CommitToAndObserve(tmpDb, func(as asserts.Assertion) {
+		if as.Type() == asserts.PreseedType {
+			preseedAs = as.(*asserts.Preseed)
+		}
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	switch {
+	case preseedAs == nil:
+		return nil, fmt.Errorf("internal error: preseed assertion file is present but preseed assertion not found")
+	case preseedAs.SystemLabel() != sysLabel:
+		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)
+	case preseedAs.Model() != model.Model():
+		return nil, fmt.Errorf("preseeed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
+	case preseedAs.BrandID() != model.BrandID():
+		return nil, fmt.Errorf("preseed assertion brand %q doesn't match model brand %q", preseedAs.BrandID(), model.BrandID())
+	case preseedAs.Series() != model.Series():
+		return nil, fmt.Errorf("preseed assertion series %q doesn't match model series %q", preseedAs.Series(), model.Series())
+	}
+
+	return preseedAs, nil
+}
+
 var seedOpen = seed.Open
 
 var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
@@ -661,18 +700,12 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		return false, fmt.Errorf("internal error: cannot find model: %v", err)
 	}
 
-	// find preseed assertion, this is going to fail if it doesn't match the model
-	as, err := assertstate.DB(st).Find(asserts.PreseedType, map[string]string{
-		"series":       model.Series(),
-		"brand-id":     model.BrandID(),
-		"model":        model.Model(),
-		"system-label": sysLabel,
-	})
+	preseedAs, err := readPreseedAssertion(st, model, ubuntuSeedDir, sysLabel)
 	if asserts.IsNotFound(err) {
 		return false, fmt.Errorf("preseed.tgz artifact is present but preseed assertion for brand %q, model %q and system label %q couldn't be found", model.BrandID(), model.Model(), sysLabel)
 	}
 	if err != nil {
-		return false, fmt.Errorf("internal error: cannot get preseed assertion: %v", err)
+		return false, err
 	}
 
 	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
@@ -681,7 +714,6 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		return false, fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
 	}
 
-	preseedAs := as.(*asserts.Preseed)
 	digest, err := base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384())
 	if err != nil {
 		return false, fmt.Errorf("cannot decode preseed artifact digest")
@@ -708,7 +740,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 	if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
 		return false, err
 	}
-	if err := deviceSeed.LoadMeta("", tm); err != nil {
+	if err := deviceSeed.LoadMeta("run", tm); err != nil {
 		return false, err
 	}
 

@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -565,7 +564,7 @@ func (f *fakeSeed) Iter(func(sn *seed.Snap) error) error {
 	return nil
 }
 
-func (s *deviceMgrInstallModeSuite) mockPreseedAssertion(c *C, model *asserts.Model, sysLabel string, digest string, snaps []interface{}) {
+func (s *deviceMgrInstallModeSuite) mockPreseedAssertion(c *C, model *asserts.Model, preseedAsPath, sysLabel string, digest string, snaps []interface{}) {
 	headers := map[string]interface{}{
 		"type":              "preseed",
 		"authority-id":      model.AuthorityID(),
@@ -583,7 +582,12 @@ func (s *deviceMgrInstallModeSuite) mockPreseedAssertion(c *C, model *asserts.Mo
 	if err != nil {
 		panic(err)
 	}
-	assertstatetest.AddMany(s.state, preseedAs)
+
+	f, err := os.Create(preseedAsPath)
+	defer f.Close()
+	c.Assert(err, IsNil)
+	enc := asserts.NewEncoder(f)
+	c.Assert(enc.Encode(preseedAs), IsNil)
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
@@ -626,7 +630,8 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
 	c.Assert(err, IsNil)
 
-	s.mockPreseedAssertion(c, model, sysLabel, digest, snaps)
+	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
+	s.mockPreseedAssertion(c, model, preseedAsPath, sysLabel, digest, snaps)
 
 	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
@@ -678,10 +683,11 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededSysLabelMismatch(c *C
 	digest, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384)
 	c.Assert(err, IsNil)
 
-	s.mockPreseedAssertion(c, model, "wrong-syslabel", digest, snaps)
+	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
+	s.mockPreseedAssertion(c, model, preseedAsPath, "wrong-label", digest, snaps)
 
 	_, err = devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
-	c.Assert(err, ErrorMatches, `preseed.tgz artifact is present but preseed assertion for brand "my-brand", model "my-model" and system label "20220105" couldn't be found`)
+	c.Assert(err, ErrorMatches, `preseed assertion system label "wrong-label" doesn't match system label "20220105"`)
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataWrongDigest(c *C) {
@@ -717,7 +723,8 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataWrongDigest(c *C)
 	}
 
 	wrongDigest := "DGOnW4ReT30BEH2FLkwkhcUaUKqqlPxhmV5xu-6YOirDcTgxJkrbR_traaaY1fAE"
-	s.mockPreseedAssertion(c, model, sysLabel, wrongDigest, snaps)
+	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
+	s.mockPreseedAssertion(c, model, preseedAsPath, sysLabel, wrongDigest, snaps)
 
 	_, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, ErrorMatches, `invalid preseed artifact digest`)
