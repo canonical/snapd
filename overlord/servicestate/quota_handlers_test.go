@@ -641,7 +641,7 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 
 	// trying to create a quota with too low of a memory limit fails
 	err = s.callDoQuotaControl(&qc2)
-	c.Assert(err, ErrorMatches, `memory limit 4096 is too small: size must be larger than 640KB`)
+	c.Assert(err, ErrorMatches, `memory limit 4096 is too small: size must be larger than 640 KiB`)
 
 	// but with an adequately sized memory limit, and a snap that exists, we can
 	// create it
