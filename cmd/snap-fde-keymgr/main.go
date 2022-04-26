@@ -87,29 +87,63 @@ func validateAuthorizations(authorizations []string) error {
 	return nil
 }
 
+func writeIfNotExists(p string, data []byte) (alreadyExists bool, err error) {
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		if os.IsExist(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return false, err
+	}
+	return false, f.Close()
+}
+
 func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	recoveryKey, err := keys.NewRecoveryKey()
 	if err != nil {
 		return fmt.Errorf("cannot create recovery key: %v", err)
 	}
-	// TODO make this idempotent, possible solution is:
-	// 1. write the key file if none is present
-	// 2. if the key file was present, read it back
-	// 3. add the key
-	// 4. if adding failed with keyslot already in used and the file was
-	// present assume it's correct
 	if len(c.Authorizations) != len(c.Devices) {
 		return fmt.Errorf("cannot add recovery keys: mismatch in the number of devices and authorizations")
 	}
 	if err := validateAuthorizations(c.Authorizations); err != nil {
 		return fmt.Errorf("cannot add recovery keys with invalid authorizations: %v", err)
 	}
+	// write the key to the file, if the file already exists it is possible
+	// that we are being called again after an unexpected reboot or a
+	// similar event
+	alreadyExists, err := writeIfNotExists(c.KeyFile, recoveryKey[:])
+	if err != nil {
+		return fmt.Errorf("cannot write recovery key to file: %v", err)
+	}
+	if alreadyExists {
+		// we already have the recovery key, read it back
+		maybeKey, err := ioutil.ReadFile(c.KeyFile)
+		if err != nil {
+			return fmt.Errorf("cannot read existing recovery key file: %v", err)
+		}
+		// TODO: verify that the size if non 0 and try again otherwise?
+		if len(maybeKey) != len(recoveryKey) {
+			return fmt.Errorf("cannot use existing recovery key of size %v", len(maybeKey))
+		}
+		copy(recoveryKey[:], maybeKey[:])
+	}
+	// add the recovery key to each device; keys are always added to the
+	// same keyslot, so when the key existed on disk, assume that the key
+	// was already added to the device in case we hit an error with keyslot
+	// being already used
 	for i, dev := range c.Devices {
 		authz := c.Authorizations[i]
 		switch {
 		case authz == "keyring":
 			if err := keymgrAddRecoveryKeyToLUKSDevice(recoveryKey, dev); err != nil {
-				return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
+				if !alreadyExists || !keymgr.IsKeyslotAlreadyUsed(err) {
+					return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
+				}
 			}
 		case strings.HasPrefix(authz, "file:"):
 			authzKey, err := ioutil.ReadFile(authz[len("file:"):])
@@ -117,12 +151,11 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 				return fmt.Errorf("cannot load authorization key: %v", err)
 			}
 			if err := keymgrAddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey, authzKey, dev); err != nil {
-				return fmt.Errorf("cannot add recovery key to LUKS device using authorization key: %v", err)
+				if !alreadyExists || !keymgr.IsKeyslotAlreadyUsed(err) {
+					return fmt.Errorf("cannot add recovery key to LUKS device using authorization key: %v", err)
+				}
 			}
 		}
-	}
-	if err := ioutil.WriteFile(c.KeyFile, recoveryKey[:], 0600); err != nil {
-		return fmt.Errorf("cannot write recovery key to file: %v", err)
 	}
 	return nil
 }
