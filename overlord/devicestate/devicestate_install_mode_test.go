@@ -661,7 +661,8 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataSnapMismatch(c *C
 	restore := devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeed{
 			essentialSnaps: []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1), SnapID: "id111111111111111111111111111111"}}},
-			modeSnaps:      []*seed.Snap{{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}}},
+			modeSnaps: []*seed.Snap{{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}},
+				{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap2"}}},
 		}, nil
 	})
 	defer restore()
@@ -695,12 +696,14 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataSnapMismatch(c *C
 		{"essential-snap", "1", "id000000000000000000000000000000", `snap "essential-snap" has wrong snap id "id111111111111111111111111111111" \(expected: "id000000000000000000000000000000"\)`},
 		{"mode-snap", "4", "id222222222222222222222222222222", `snap "mode-snap" has wrong revision 4 \(expected: 3\)`},
 		{"mode-snap", "3", "id000000000000000000000000000000", `snap "mode-snap" has wrong snap id "id222222222222222222222222222222" \(expected: "id000000000000000000000000000000"\)`},
-		{"extra-snap", "1", "id000000000000000000000000000000", `seed has 2 snaps but 3 snaps are required by preseed assertion`},
+		{"mode-snap2", "3", "id000000000000000000000000000000", `snap "mode-snap2" has wrong revision 3 \(expected: unset\)`},
+		{"extra-snap", "1", "id000000000000000000000000000000", `seed has 3 snaps but 4 snaps are required by preseed assertion`},
 	} {
 
 		preseedAsSnaps := []interface{}{
 			map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
 			map[string]interface{}{"name": "mode-snap", "id": "id222222222222222222222222222222", "revision": "3"},
+			map[string]interface{}{"name": "mode-snap2"},
 		}
 
 		var found bool
@@ -725,6 +728,7 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataSnapMismatch(c *C
 	preseedAsSnaps := []interface{}{
 		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
 		map[string]interface{}{"name": "other-snap", "id": "id333222222222222222222222222222", "revision": "2"},
+		map[string]interface{}{"name": "mode-snap2"},
 	}
 	s.mockPreseedAssertion(c, model, preseedAsPath, sysLabel, digest, preseedAsSnaps)
 	_, err = devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
