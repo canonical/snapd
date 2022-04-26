@@ -612,7 +612,7 @@ func (s *imageSuite) loadSeed(c *C, seeddir string) (essSnaps []*seed.Snap, runS
 	err = sd.LoadAssertions(db, commitTo)
 	c.Assert(err, IsNil)
 
-	err = sd.LoadMeta(seed.AllModes, timings.New(nil))
+	err = sd.LoadMeta(seed.AllModes, nil, timings.New(nil))
 	c.Assert(err, IsNil)
 
 	essSnaps = sd.EssentialSnaps()
