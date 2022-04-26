@@ -31,8 +31,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keymgr"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -125,7 +125,7 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDevice(c *C) {
 
 	cmd := s.mockCryptsetupForAddKey(c)
 	defer cmd.Restore()
-	rkey := secboot.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	rkey := keys.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	err := keymgr.AddRecoveryKeyToLUKSDevice("/dev/foobar", rkey)
 	c.Assert(err, IsNil)
 	c.Assert(getCalls, Equals, 1)
@@ -140,9 +140,9 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUsingExistingKey(c *C) {
 
 	cmd := s.mockCryptsetupForAddKey(c)
 	defer cmd.Restore()
-	rkey := secboot.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	rkey := keys.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	key := bytes.Repeat([]byte{1}, 32)
-	err := keymgr.AddRecoveryKeyToLUKSDeviceUsingKey("/dev/foobar", rkey, secboot.EncryptionKey(key))
+	err := keymgr.AddRecoveryKeyToLUKSDeviceUsingKey("/dev/foobar", rkey, keys.EncryptionKey(key))
 	c.Assert(err, IsNil)
 	s.verifyCryptsetupAddKey(c, cmd, []byte(key))
 }

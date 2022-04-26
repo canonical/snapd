@@ -27,8 +27,8 @@ import (
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keyring"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/secboot/luks2"
 )
 
@@ -102,7 +102,7 @@ func sbKDFToLuksKDF(o *sb.KDFOptions) luks2.KDFOptions {
 // AddRecoveryKeyToLUKSDevice adds a recovery key to a LUKS2 device. It the
 // devuce unlock key from the user keyring to authorize the change. The
 // recoveyry key is added to keyslot 1.
-func AddRecoveryKeyToLUKSDevice(dev string, recoveryKey secboot.RecoveryKey) error {
+func AddRecoveryKeyToLUKSDevice(dev string, recoveryKey keys.RecoveryKey) error {
 	currKey, err := getEncryptionKeyFromUserKeyring(dev)
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func AddRecoveryKeyToLUKSDevice(dev string, recoveryKey secboot.RecoveryKey) err
 // the operation.
 //
 // A heuristic memory cost is used.
-func AddRecoveryKeyToLUKSDeviceUsingKey(dev string, recoveryKey secboot.RecoveryKey, currKey secboot.EncryptionKey) error {
+func AddRecoveryKeyToLUKSDeviceUsingKey(dev string, recoveryKey keys.RecoveryKey, currKey keys.EncryptionKey) error {
 	opts, err := recoveryKDF()
 	if err != nil {
 		return err
@@ -163,9 +163,9 @@ func RemoveRecoveryKeyFromLUKSDevice(dev string) error {
 // ChangeLUKSDeviceEncryptionKey changes the main encryption key of the device.
 // Uses an existing unlock key of that device, which is present in the kernel
 // user keyring. Once complete the user keyring contains the new encryption key.
-func ChangeLUKSDeviceEncryptionKey(dev string, newKey secboot.EncryptionKey) error {
-	if len(newKey) != secboot.EncryptionKeySize {
-		return fmt.Errorf("cannot use a key of size different than %v", secboot.EncryptionKeySize)
+func ChangeLUKSDeviceEncryptionKey(dev string, newKey keys.EncryptionKey) error {
+	if len(newKey) != keys.EncryptionKeySize {
+		return fmt.Errorf("cannot use a key of size different than %v", keys.EncryptionKeySize)
 	}
 
 	// TODO: just remove the key we think is a recovery key (luks keyslot 1)
