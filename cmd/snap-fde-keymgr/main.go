@@ -100,9 +100,7 @@ type newKey struct {
 }
 
 func (c *cmdChangeEncryptionKey) Execute(args []string) error {
-	// TODO: encryption key from stdin
 	var newEncryptionKeyData newKey
-	// TODO read from stdin
 	dec := json.NewDecoder(osStdin)
 	if err := dec.Decode(&newEncryptionKeyData); err != nil {
 		return fmt.Errorf("cannot obtain new encryption key: %v", err)
