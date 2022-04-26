@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -563,8 +564,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	myKey := keys.EncryptionKey{}
+	myKey2 := keys.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
 		myKey2[i] = byte(128 + i)
@@ -906,8 +907,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	myKey := keys.EncryptionKey{}
+	myKey2 := keys.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
 		myKey2[i] = byte(128 + i)

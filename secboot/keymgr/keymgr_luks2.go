@@ -26,8 +26,9 @@ import (
 
 	sb "github.com/snapcore/secboot"
 
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot/keyring"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/secboot/luks2"
 )
 
@@ -63,37 +64,58 @@ func isKeyslotNotActive(err error) bool {
 	return match
 }
 
-func sbKDFToLuksKDF(o *sb.KDFOptions) luks2.KDFOptions {
-	return luks2.KDFOptions{
-		TargetDuration:  o.TargetDuration,
-		MemoryKiB:       o.MemoryKiB,
-		ForceIterations: o.ForceIterations,
-		Parallel:        o.Parallel,
+func recoveryKDF() (*luks2.KDFOptions, error) {
+	usableMem, err := osutil.TotalUsableMemory()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
 	}
+	// The KDF memory is heuristically calculated by taking the
+	// usable memory and subtracting hardcoded 384MB that is
+	// needed to keep the system working. Half of that is the mem
+	// we want to use for the KDF. Doing it this way avoids the expensive
+	// benchmark from cryptsetup. The recovery key is already 128bit
+	// strong so we don't need to be super precise here.
+	kdfMem := (int(usableMem) - 384*1024*1024) / 2
+	// max 1 GB
+	if kdfMem > 1024*1024*1024 {
+		kdfMem = (1024 * 1024 * 1024)
+	}
+	// min 32 KB
+	if kdfMem < 32*1024 {
+		kdfMem = 32 * 1024
+	}
+	return &luks2.KDFOptions{
+		MemoryKiB:       kdfMem / 1024,
+		ForceIterations: 4,
+	}, nil
 }
 
 // AddRecoveryKeyToLUKSDevice adds a recovery key to a LUKS2 device. It the
 // devuce unlock key from the user keyring to authorize the change. The
 // recoveyry key is added to keyslot 1.
-func AddRecoveryKeyToLUKSDevice(dev string, recoveryKey secboot.RecoveryKey) error {
-	opts, err := secboot.RecoveryKDF()
-	if err != nil {
-		return err
-	}
-
+func AddRecoveryKeyToLUKSDevice(recoveryKey keys.RecoveryKey, dev string) error {
 	currKey, err := getEncryptionKeyFromUserKeyring(dev)
 	if err != nil {
 		return err
 	}
 
-	if err := luks2.KillSlot(dev, recoveryKeySlot, currKey[:]); err != nil {
-		if !isKeyslotNotActive(err) {
-			return fmt.Errorf("cannot kill existing slot: %v", err)
-		}
+	return AddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey, currKey, dev)
+}
+
+// AddRecoveryKeyToLUKSDeviceUsingKey adds a recovery key rkey to the existing
+// LUKS encrypted volume on the block device given by node. The existing key to
+// the encrypted volume is provided in the key argument and used to authorize
+// the operation.
+//
+// A heuristic memory cost is used.
+func AddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey keys.RecoveryKey, currKey keys.EncryptionKey, dev string) error {
+	opts, err := recoveryKDF()
+	if err != nil {
+		return err
 	}
-	// TODO: fixup options?
+
 	options := luks2.AddKeyOptions{
-		KDFOptions: sbKDFToLuksKDF(opts),
+		KDFOptions: *opts,
 		Slot:       recoveryKeySlot,
 	}
 	if err := luks2.AddKey(dev, currKey, recoveryKey[:], &options); err != nil {
@@ -126,9 +148,9 @@ func RemoveRecoveryKeyFromLUKSDevice(dev string) error {
 // ChangeLUKSDeviceEncryptionKey changes the main encryption key of the device.
 // Uses an existing unlock key of that device, which is present in the kernel
 // user keyring. Once complete the user keyring contains the new encryption key.
-func ChangeLUKSDeviceEncryptionKey(dev string, newKey secboot.EncryptionKey) error {
-	if len(newKey) != secboot.EncryptionKeySize {
-		return fmt.Errorf("cannot use a key of size different than %v", secboot.EncryptionKeySize)
+func ChangeLUKSDeviceEncryptionKey(newKey keys.EncryptionKey, dev string) error {
+	if len(newKey) != keys.EncryptionKeySize {
+		return fmt.Errorf("cannot use a key of size different than %v", keys.EncryptionKeySize)
 	}
 
 	// TODO: just remove the key we think is a recovery key (luks keyslot 1)
@@ -155,7 +177,7 @@ func ChangeLUKSDeviceEncryptionKey(dev string, newKey secboot.EncryptionKey) err
 		Slot:       tempKeySlot,
 	}
 	if err := luks2.AddKey(dev, currKey[:], newKey, &options); err != nil {
-		return fmt.Errorf("cannot add key: %w", err)
+		return fmt.Errorf("cannot add temporary key: %v", err)
 	}
 
 	// now it should be possible to kill the original keyslot by using the
@@ -168,15 +190,15 @@ func ChangeLUKSDeviceEncryptionKey(dev string, newKey secboot.EncryptionKey) err
 	options.Slot = encryptionKeySlot
 	// add the new key to keyslot 0
 	if err := luks2.AddKey(dev, newKey, newKey, &options); err != nil {
-		return fmt.Errorf("cannot add key: %w", err)
+		return fmt.Errorf("cannot add key: %v", err)
 	}
 	// and kill the aux slot
 	if err := luks2.KillSlot(dev, tempKeySlot, newKey); err != nil {
-		return fmt.Errorf("cannot kill aux slot: %w", err)
+		return fmt.Errorf("cannot kill temporary key slot: %v", err)
 	}
 	// TODO needed?
 	if err := luks2.SetSlotPriority(dev, encryptionKeySlot, luks2.SlotPriorityHigh); err != nil {
-		return fmt.Errorf("cannot change keyslot priority: %w", err)
+		return fmt.Errorf("cannot change keyslot priority: %v", err)
 	}
 
 	// XXX what about aux key?

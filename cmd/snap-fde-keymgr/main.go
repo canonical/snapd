@@ -28,13 +28,14 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keymgr"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var osStdin io.Reader = os.Stdin
 
 type commonDeviceMixin struct {
+	// TODO: support for multiple devices in the command line
 	Device string `long:"device" description:"encrypted device" required:"yes"`
 }
 
@@ -65,11 +66,17 @@ var (
 )
 
 func (c *cmdAddRecoveryKey) Execute(args []string) error {
-	recoveryKey, err := secboot.NewRecoveryKey()
+	recoveryKey, err := keys.NewRecoveryKey()
 	if err != nil {
 		return fmt.Errorf("cannot create recovery key: %v", err)
 	}
-	if err := keymgrAddRecoveryKeyToLUKSDevice(c.Device, recoveryKey); err != nil {
+	// TODO make this idempotent, possible solution is:
+	// 1. write the key file if none is present
+	// 2. if the key firl was present, read it back
+	// 3. add the key
+	// 4. if adding failed with keyslot already in used and the file was
+	// present assume it's correct
+	if err := keymgrAddRecoveryKeyToLUKSDevice(recoveryKey, c.Device); err != nil {
 		return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
 	}
 	if err := ioutil.WriteFile(c.KeyFile, recoveryKey[:], 0600); err != nil {
@@ -100,7 +107,7 @@ func (c *cmdChangeEncryptionKey) Execute(args []string) error {
 	if err := dec.Decode(&newEncryptionKeyData); err != nil {
 		return fmt.Errorf("cannot obtain new encryption key: %v", err)
 	}
-	if err := keymgrChangeLUKSDeviceEncryptionKey(c.Device, newEncryptionKeyData.Key); err != nil {
+	if err := keymgrChangeLUKSDeviceEncryptionKey(newEncryptionKeyData.Key, c.Device); err != nil {
 		return fmt.Errorf("cannot change LUKS device encryption key: %v", err)
 	}
 	return nil
