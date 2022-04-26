@@ -35,3 +35,5 @@ func MockAddKeyToUserKeyring(f func(key []byte, devicePath, purpose, prefix stri
 	keyringAddKeyToUserKeyring = f
 	return restore
 }
+
+var RecoveryKDF = recoveryKDF
