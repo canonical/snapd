@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -63,7 +63,7 @@ func mockSystemRecoveryKeys(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
+func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysAsRootHappy(c *C) {
 	if (secboot.RecoveryKey{}).String() == "not-implemented" {
 		c.Skip("needs working secboot recovery key")
 	}
@@ -83,7 +83,7 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 	})
 }
 
-func (s *recoveryKeysSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
+func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysAsUserErrors(c *C) {
 	s.daemon(c)
 	mockSystemRecoveryKeys(c)
 
