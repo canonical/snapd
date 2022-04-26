@@ -20,7 +20,9 @@
 package daemon_test
 
 import (
+	"bytes"
 	"encoding/hex"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -30,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -95,4 +98,71 @@ func (s *recoveryKeysSuite) TestGetSystemRecoveryKeysAsUserErrors(c *C) {
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, Equals, 403)
+}
+
+func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysActionRemove(c *C) {
+	s.daemon(c)
+
+	called := 0
+	defer daemon.MockDeviceManagerRemoveRecoveryKeys(func() error {
+		called++
+		return nil
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"remove"}`)
+	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
+	c.Assert(err, IsNil)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
+	c.Check(called, Equals, 1)
+}
+
+func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysAsUserErrors(c *C) {
+	s.daemon(c)
+	mockSystemRecoveryKeys(c)
+
+	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", nil)
+	c.Assert(err, IsNil)
+
+	// being properly authorized as user is not enough, needs root
+	s.asUserAuth(c, req)
+	rec := httptest.NewRecorder()
+	s.serveHTTP(c, rec, req)
+	c.Assert(rec.Code, Equals, 403)
+}
+
+func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysBadAction(c *C) {
+	s.daemon(c)
+
+	called := 0
+	defer daemon.MockDeviceManagerRemoveRecoveryKeys(func() error {
+		called++
+		return nil
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"unknown"}`)
+	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, DeepEquals, daemon.BadRequest(`unsupported recovery keys action "unknown"`))
+	c.Check(called, Equals, 0)
+}
+
+func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysActionRemoveError(c *C) {
+	s.daemon(c)
+
+	called := 0
+	defer daemon.MockDeviceManagerRemoveRecoveryKeys(func() error {
+		called++
+		return errors.New("boom")
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"remove"}`)
+	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", buf)
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, DeepEquals, daemon.InternalError("boom"))
+	c.Check(called, Equals, 1)
 }
