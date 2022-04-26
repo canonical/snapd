@@ -740,7 +740,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 	if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
 		return false, err
 	}
-	if err := deviceSeed.LoadMeta("run", tm); err != nil {
+	if err := deviceSeed.LoadMeta("run", nil, tm); err != nil {
 		return false, err
 	}
 
