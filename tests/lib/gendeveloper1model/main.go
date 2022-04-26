@@ -28,7 +28,6 @@
 //
 // {
 //     "type": "model",
-//     "series": "16",
 //     "brand-id": "developer1",
 //     "model": "my-model",
 //     "architecture": "amd64",
@@ -58,7 +57,13 @@ func main() {
 		log.Fatalf("failed to decode model headers data: %v", err)
 	}
 
-	clModel, err := devSigning.Sign(asserts.ModelType, headers, nil, "")
+	typCand, _ := headers["type"]
+	typ := asserts.ModelType
+	if typCand == "system-user" {
+		typ = asserts.SystemUserType
+	}
+
+	clModel, err := devSigning.Sign(typ, headers, nil, "")
 	if err != nil {
 		log.Fatalf("failed to sign the model: %v", err)
 	}
