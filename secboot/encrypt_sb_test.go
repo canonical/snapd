@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
@@ -39,7 +40,7 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 		{initErr: errors.New("some error"), err: "some error"},
 	} {
 		// create empty key to prevent blocking on lack of system entropy
-		myKey := secboot.EncryptionKey{}
+		myKey := keys.EncryptionKey{}
 		for i := range myKey {
 			myKey[i] = byte(i)
 		}

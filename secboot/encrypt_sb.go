@@ -23,6 +23,8 @@ package secboot
 
 import (
 	sb "github.com/snapcore/secboot"
+
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
@@ -36,7 +38,7 @@ const metadataKiBSize = 2048     // 2MB
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the volume
 // is provided using the key argument.
-func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
+func FormatEncryptedDevice(key keys.EncryptionKey, label, node string) error {
 	opts := &sb.InitializeLUKS2ContainerOptions{
 		// use a lower, but still reasonable size that should give us
 		// enough room
@@ -52,8 +54,4 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 		},
 	}
 	return sbInitializeLUKS2Container(node, label, key[:], opts)
-}
-
-func (k RecoveryKey) String() string {
-	return sb.RecoveryKey(k).String()
 }
