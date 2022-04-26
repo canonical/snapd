@@ -773,7 +773,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		if !ok {
 			return fmt.Errorf("snap %q not present in the preseed assertion", ssnap.SnapName())
 		}
-		if ps.Revision > 0 && ps.Revision != ssnap.SideInfo.Revision.N {
+		if ps.Revision != ssnap.SideInfo.Revision.N {
 			rev := snap.Revision{N: ps.Revision}
 			return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", ssnap.SnapName(), rev, ssnap.SideInfo.Revision)
 		}
