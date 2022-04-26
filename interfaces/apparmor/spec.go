@@ -331,8 +331,8 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 }
 
 // AddExtraLayouts adds additional apparmor snippets based on the provided layouts.
-// The function is in part identical to AddLayout, except that it directly emits
-// the extra layouts.
+// The function is in part identical to AddLayout, except that it considers only the
+// layouts passed as parameters instead of those declared in the snap.Info structure.
 // XXX: Should we just combine this into AddLayout instead of this separate
 // function?
 func (spec *Specification) AddExtraLayouts(si *snap.Info, layouts []snap.Layout) {
