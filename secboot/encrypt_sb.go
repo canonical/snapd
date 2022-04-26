@@ -24,6 +24,7 @@ package secboot
 import (
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/secboot/keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
@@ -54,4 +55,11 @@ func FormatEncryptedDevice(key keys.EncryptionKey, label, node string) error {
 		},
 	}
 	return sbInitializeLUKS2Container(node, label, key[:], opts)
+}
+
+// AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
+// volume created with FormatEncryptedDevice on the block device given by node.
+// The existing key to the encrypted volume is provided in the key argument.
+func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) error {
+	return keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(node, rkey, key)
 }
