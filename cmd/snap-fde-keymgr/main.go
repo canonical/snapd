@@ -70,6 +70,12 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create recovery key: %v", err)
 	}
+	// TODO make this idempotent, possible solution is:
+	// 1. write the key file if none is present
+	// 2. if the key firl was present, read it back
+	// 3. add the key
+	// 4. if adding failed with keyslot already in used and the file was
+	// present assume it's correct
 	if err := keymgrAddRecoveryKeyToLUKSDevice(recoveryKey, c.Device); err != nil {
 		return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
 	}
