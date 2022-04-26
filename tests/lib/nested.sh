@@ -251,7 +251,7 @@ nested_create_assertions_disk() {
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
         VERSION="$(nested_get_version)"
-        AUTO_IMPORT_ASSERT="$(echo $NESTED_CUSTOM_AUTO_IMPORT_ASSERTION | sed "s/{VERSION}/$VERSION/g")"
+        AUTO_IMPORT_ASSERT="$(echo "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" | sed "s/{VERSION}/$VERSION/g")"
     else
         local per_model_auto
         per_model_auto="$(nested_model_authority).auto-import.assert"
