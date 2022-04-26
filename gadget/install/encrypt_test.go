@@ -151,7 +151,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		defer restore()
 
 		calls := 0
-		restore = install.MockKeymgrAddRecoveryKeyToLUKSDeviceUsingKey(func(node string, rkey secboot.RecoveryKey, key secboot.EncryptionKey) error {
+		restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(rkey, DeepEquals, s.mockedRecoveryKey)

@@ -32,12 +32,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/secboot/keymgr"
 )
 
 var (
-	secbootFormatEncryptedDevice             = secboot.FormatEncryptedDevice
-	keymgrAddRecoveryKeyToLUKSDeviceUsingKey = keymgr.AddRecoveryKeyToLUKSDeviceUsingKey
+	secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
+	secbootAddRecoveryKey        = secboot.AddRecoveryKey
 )
 
 // encryptedDeviceCryptsetup represents a encrypted block device.
@@ -81,7 +80,7 @@ func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key secboot.Encryption
 }
 
 func (dev *encryptedDeviceLUKS) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
-	return keymgrAddRecoveryKeyToLUKSDeviceUsingKey(dev.parent.Node, rkey, key)
+	return secbootAddRecoveryKey(key, rkey, dev.parent.Node)
 }
 
 func (dev *encryptedDeviceLUKS) Node() string {

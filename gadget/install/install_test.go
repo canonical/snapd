@@ -377,14 +377,14 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 
 	var saveRecoveryKey, dataRecoveryKey secboot.RecoveryKey
 
-	addRecoveryKeyCall := 0
-	restore = install.MockKeymgrAddRecoveryKeyToLUKSDeviceUsingKey(func(node string, rkey secboot.RecoveryKey, key secboot.EncryptionKey) error {
+	secbootAddRecoveryKeyCall := 0
+	restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.AddRecoveryKey when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
 		}
-		addRecoveryKeyCall++
-		switch addRecoveryKeyCall {
+		secbootAddRecoveryKeyCall++
+		switch secbootAddRecoveryKeyCall {
 		case 1:
 			c.Assert(key, HasLen, 32)
 			c.Assert(key, DeepEquals, savePrimaryKey)
@@ -398,7 +398,7 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			c.Assert(node, Equals, "/dev/mmcblk0p4")
 			dataRecoveryKey = rkey
 		default:
-			c.Errorf("unexpected call to add recovery key (%d)", addRecoveryKeyCall)
+			c.Errorf("unexpected call to secboot.AddRecoveryKey (%d)", secbootAddRecoveryKeyCall)
 			return fmt.Errorf("test broken")
 		}
 
@@ -476,10 +476,10 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	c.Assert(umountCall, Equals, 3)
 	if opts.encryption {
 		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 2)
-		c.Assert(addRecoveryKeyCall, Equals, 2)
+		c.Assert(secbootAddRecoveryKeyCall, Equals, 2)
 	} else {
 		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 0)
-		c.Assert(addRecoveryKeyCall, Equals, 0)
+		c.Assert(secbootAddRecoveryKeyCall, Equals, 0)
 	}
 
 	// check the disk-mapping.json that was written as well
