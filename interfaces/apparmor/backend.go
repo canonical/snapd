@@ -622,7 +622,7 @@ func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) 
 
 	globs := []string{snapConfineProfileName(snapName, rev)}
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, globs, nil)
-	// XXX: UnloadProfiles() does not unload profiles from the kernel, but
+	// XXX: unloadProfiles() does not unload profiles from the kernel, but
 	// only removes profiles from the cache
 	// always try to unload the affected profile
 	errUnload := unloadProfiles(removed, apparmor_sandbox.CacheDir)
