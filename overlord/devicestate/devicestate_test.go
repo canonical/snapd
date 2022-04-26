@@ -59,7 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -1573,7 +1573,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 	})
 	st.Unlock()
 
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := keys.EncryptionKey{1, 2, 3, 4}
 
 	var hookCalled []string
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {

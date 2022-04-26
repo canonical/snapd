@@ -21,6 +21,7 @@ package install
 
 import (
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type Options struct {
@@ -32,8 +33,8 @@ type Options struct {
 
 // EncryptionKeySet is a set of encryption keys.
 type EncryptionKeySet struct {
-	Key         secboot.EncryptionKey
-	RecoveryKey secboot.RecoveryKey
+	Key         keys.EncryptionKey
+	RecoveryKey keys.RecoveryKey
 }
 
 // InstalledSystemSideData carries side data of an installed system, eg. secrets
