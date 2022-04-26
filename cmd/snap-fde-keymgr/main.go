@@ -28,8 +28,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keymgr"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var osStdin io.Reader = os.Stdin
@@ -65,7 +65,7 @@ var (
 )
 
 func (c *cmdAddRecoveryKey) Execute(args []string) error {
-	recoveryKey, err := secboot.NewRecoveryKey()
+	recoveryKey, err := keys.NewRecoveryKey()
 	if err != nil {
 		return fmt.Errorf("cannot create recovery key: %v", err)
 	}

@@ -21,13 +21,13 @@ package main
 import (
 	"io"
 
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
 var Run = run
 
-func MockAddRecoveryKeyToLUKS(f func(dev string, recoveryKey secboot.RecoveryKey) error) (restore func()) {
+func MockAddRecoveryKeyToLUKS(f func(dev string, recoveryKey keys.RecoveryKey) error) (restore func()) {
 	restore = testutil.Backup(&keymgrAddRecoveryKeyToLUKSDevice)
 	keymgrAddRecoveryKeyToLUKSDevice = f
 	return restore
@@ -39,7 +39,7 @@ func MockRemoveRecoveryKeyFromLUKS(f func(dev string) error) (restore func()) {
 	return restore
 }
 
-func MockChangeLUKSEncryptionKey(f func(dev string, newKey secboot.EncryptionKey) error) (restore func()) {
+func MockChangeLUKSEncryptionKey(f func(dev string, newKey keys.EncryptionKey) error) (restore func()) {
 	restore = testutil.Backup(&keymgrChangeLUKSDeviceEncryptionKey)
 	keymgrChangeLUKSDeviceEncryptionKey = f
 	return restore

@@ -26,7 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap-fde-keymgr"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,9 +40,9 @@ func TestT(t *testing.T) {
 
 func (s *mainSuite) TestAddKey(c *C) {
 	dev := ""
-	rkey := secboot.RecoveryKey{}
+	rkey := keys.RecoveryKey{}
 	addCalls := 0
-	restore := main.MockAddRecoveryKeyToLUKS(func(luksDev string, recoveryKey secboot.RecoveryKey) error {
+	restore := main.MockAddRecoveryKeyToLUKS(func(luksDev string, recoveryKey keys.RecoveryKey) error {
 		addCalls++
 		dev = luksDev
 		rkey = recoveryKey
@@ -58,7 +58,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(addCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
-	c.Check(rkey, Not(DeepEquals), secboot.RecoveryKey{})
+	c.Check(rkey, Not(DeepEquals), keys.RecoveryKey{})
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
 
 	oldKey := rkey
@@ -113,7 +113,7 @@ func (s *mainSuite) TestChangeEncryptionKey(c *C) {
 	dev := ""
 	changeCalls := 0
 	var key []byte
-	restore = main.MockChangeLUKSEncryptionKey(func(luksDev string, newKey secboot.EncryptionKey) error {
+	restore = main.MockChangeLUKSEncryptionKey(func(luksDev string, newKey keys.EncryptionKey) error {
 		changeCalls++
 		dev = luksDev
 		key = newKey
