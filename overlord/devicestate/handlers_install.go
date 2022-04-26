@@ -697,7 +697,7 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 
 	model, err := findModel(st)
 	if err != nil {
-		return false, fmt.Errorf("internal error: cannot find model: %v", err)
+		return false, fmt.Errorf("preseed error: cannot find model: %v", err)
 	}
 
 	preseedAs, err := readPreseedAssertion(st, model, ubuntuSeedDir, sysLabel)
