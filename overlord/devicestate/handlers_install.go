@@ -763,17 +763,48 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		return nil
 	}
 
-	ess := deviceSeed.EssentialSnaps()
-	for _, esnap := range ess {
-		if err := copyBlob(esnap); err != nil {
-			return false, err
-		}
+	preseedSnaps := make(map[string]*asserts.PreseedSnap)
+	for _, ps := range preseedAs.Snaps() {
+		preseedSnaps[ps.Name] = ps
 	}
+
+	checkSnap := func(ssnap *seed.Snap) error {
+		ps, ok := preseedSnaps[ssnap.SnapName()]
+		if !ok {
+			return fmt.Errorf("snap %q not present in the preseed assertion", ssnap.SnapName())
+		}
+		if ps.Revision > 0 && ps.Revision != ssnap.SideInfo.Revision.N {
+			rev := snap.Revision{N: ps.Revision}
+			return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", ssnap.SnapName(), rev, ssnap.SideInfo.Revision)
+		}
+		if ps.SnapID != ssnap.SideInfo.SnapID {
+			return fmt.Errorf("snap %q has wrong snap id %q (expected: %q)", ssnap.SnapName(), ssnap.SideInfo.SnapID, ps.SnapID)
+		}
+		return nil
+	}
+
+	esnaps := deviceSeed.EssentialSnaps()
 	msnaps, err := deviceSeed.ModeSnaps("run")
 	if err != nil {
 		return false, err
 	}
+	if len(msnaps)+len(esnaps) != len(preseedSnaps) {
+		return false, fmt.Errorf("seed has %d snaps but %d snaps are required by preseed assertion", len(msnaps)+len(esnaps), len(preseedSnaps))
+	}
+
+	for _, esnap := range esnaps {
+		if err := checkSnap(esnap); err != nil {
+			return false, err
+		}
+		if err := copyBlob(esnap); err != nil {
+			return false, err
+		}
+	}
+
 	for _, ssnap := range msnaps {
+		if err := checkSnap(ssnap); err != nil {
+			return false, err
+		}
 		if err := copyBlob(ssnap); err != nil {
 			return false, err
 		}
