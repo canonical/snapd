@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -54,7 +55,7 @@ func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gad
 	return gadget.ChangeApply, nil
 }
 
-func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
+func (o *simpleObserver) ChosenEncryptionKey(key keys.EncryptionKey) {}
 
 type uc20Constraints struct{}
 

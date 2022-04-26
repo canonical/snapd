@@ -222,3 +222,7 @@ func (s *emulation) Mount(what, where string, options ...string) error {
 func (s *emulation) Umount(whatOrWhere string) error {
 	return &notImplementedError{"Umount"}
 }
+
+func (s *emulation) Run(command []string, opts *RunOptions) ([]byte, error) {
+	return nil, &notImplementedError{"Run"}
+}

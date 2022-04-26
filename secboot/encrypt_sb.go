@@ -27,6 +27,7 @@ import (
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
@@ -40,7 +41,7 @@ const metadataKiBSize = 2048     // 2MB
 // FormatEncryptedDevice initializes an encrypted volume on the block device
 // given by node, setting the specified label. The key used to unlock the volume
 // is provided using the key argument.
-func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
+func FormatEncryptedDevice(key keys.EncryptionKey, label, node string) error {
 	opts := &sb.InitializeLUKS2ContainerOptions{
 		// use a lower, but still reasonable size that should give us
 		// enough room
@@ -63,7 +64,7 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 // The existing key to the encrypted volume is provided in the key argument.
 //
 // A heuristic memory cost is used.
-func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
+func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) error {
 	usableMem, err := osutil.TotalUsableMemory()
 	if err != nil {
 		return fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
@@ -89,8 +90,4 @@ func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	}
 
 	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey), opts)
-}
-
-func (k RecoveryKey) String() string {
-	return sb.RecoveryKey(k).String()
 }

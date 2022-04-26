@@ -79,7 +79,8 @@ func runFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error)
 		}
 	}
 
-	// TODO: put this into a new "systemd/run" package
+	// TODO: use the new systemd.Run() interface once it supports
+	//       running without dbus (i.e. supports running without --pipe)
 	cmd := exec.Command(
 		"systemd-run",
 		"--collect",
