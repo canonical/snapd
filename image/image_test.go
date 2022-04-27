@@ -3274,6 +3274,7 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 		preseedCalled = true
 		c.Assert(dir, Equals, "/a/dir")
 		c.Assert(key, Equals, "foo")
+		c.Assert(aaDir, Equals, "/custom/aa/features")
 		return nil
 	})
 	defer restorePreseedCore20()
@@ -3287,6 +3288,8 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 		Preseed:        true,
 		PrepareDir:     "/a/dir",
 		PreseedSignKey: "foo",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
 	})
 	c.Assert(err, IsNil)
 	c.Check(preseedCalled, Equals, true)
