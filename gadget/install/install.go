@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -153,12 +154,12 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}
 
 	makeKeySet := func() (*EncryptionKeySet, error) {
-		key, err := secboot.NewEncryptionKey()
+		key, err := keys.NewEncryptionKey()
 		if err != nil {
 			return nil, fmt.Errorf("cannot create encryption key: %v", err)
 		}
 
-		rkey, err := secboot.NewRecoveryKey()
+		rkey, err := keys.NewRecoveryKey()
 		if err != nil {
 			return nil, fmt.Errorf("cannot create recovery key: %v", err)
 		}

@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -698,8 +699,8 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			PCRPolicyCounterHandle: 42,
 		}
 
-		myKey := secboot.EncryptionKey{}
-		myKey2 := secboot.EncryptionKey{}
+		myKey := keys.EncryptionKey{}
+		myKey2 := keys.EncryptionKey{}
 		for i := range myKey {
 			myKey[i] = byte(i)
 			myKey2[i] = byte(128 + i)
@@ -1098,7 +1099,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 	myKeys := []secboot.SealKeyRequest{
 		{
-			Key:     secboot.EncryptionKey{},
+			Key:     keys.EncryptionKey{},
 			KeyFile: "keyfile",
 		},
 	}
@@ -1349,9 +1350,9 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		return json.Marshal(res)
 	}
 
-	key1 := secboot.EncryptionKey{1, 2, 3, 4}
-	key2 := secboot.EncryptionKey{5, 6, 7, 8}
-	auxKey := secboot.AuxKey{9, 10, 11, 12}
+	key1 := keys.EncryptionKey{1, 2, 3, 4}
+	key2 := keys.EncryptionKey{5, 6, 7, 8}
+	auxKey := keys.AuxKey{9, 10, 11, 12}
 	key1Fn := filepath.Join(tmpdir, "key1.key")
 	key2Fn := filepath.Join(tmpdir, "key2.key")
 	auxKeyFn := filepath.Join(tmpdir, "aux-key")
@@ -1392,8 +1393,8 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
 		return nil, fmt.Errorf("hook failed")
 	}
 
-	key := secboot.EncryptionKey{1, 2, 3, 4}
-	auxKey := secboot.AuxKey{5, 6, 7, 8}
+	key := keys.EncryptionKey{1, 2, 3, 4}
+	auxKey := keys.AuxKey{5, 6, 7, 8}
 	keyFn := filepath.Join(tmpdir, "key.key")
 	auxKeyFn := filepath.Join(tmpdir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
@@ -1410,12 +1411,12 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
 	c.Check(auxKeyFn, testutil.FileAbsent)
 }
 
-func makeMockDiskKey() secboot.EncryptionKey {
-	return secboot.EncryptionKey{0, 1, 2, 3, 4, 5}
+func makeMockDiskKey() keys.EncryptionKey {
+	return keys.EncryptionKey{0, 1, 2, 3, 4, 5}
 }
 
-func makeMockAuxKey() secboot.AuxKey {
-	return secboot.AuxKey{6, 7, 8, 9}
+func makeMockAuxKey() keys.AuxKey {
+	return keys.AuxKey{6, 7, 8, 9}
 }
 
 func makeMockUnencryptedPayload() []byte {
