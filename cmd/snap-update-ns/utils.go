@@ -180,7 +180,7 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 	made := true
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
-	if err := sysMkdirat(dirFd, name, uint32(perm.Perm())); err != nil {
+	if err := sysMkdirat(dirFd, name, uint32(perm)); err != nil {
 		switch err {
 		case syscall.EEXIST:
 			made = false
@@ -239,7 +239,7 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 	// we know if we need to chown it) but fall back to just opening an
 	// existing one.
 
-	newFd, err := sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, uint32(perm.Perm()))
+	newFd, err := sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, uint32(perm))
 	if err != nil {
 		switch err {
 		case syscall.EEXIST:
