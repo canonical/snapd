@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var systemRecoveryKeysCmd = &Command{
@@ -38,13 +38,13 @@ var systemRecoveryKeysCmd = &Command{
 func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Response {
 	var rsp client.SystemRecoveryKeysResponse
 
-	rkey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
+	rkey, err := keys.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
 	if err != nil {
 		return InternalError(err.Error())
 	}
 	rsp.RecoveryKey = rkey.String()
 
-	reinstallKey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "reinstall.key"))
+	reinstallKey, err := keys.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "reinstall.key"))
 	if err != nil {
 		return InternalError(err.Error())
 	}

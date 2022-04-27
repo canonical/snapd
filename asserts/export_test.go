@@ -104,7 +104,7 @@ func MockTimeNow(t time.Time) (restore func()) {
 	}
 }
 
-// define dummy assertion types to use in the tests
+// define test assertion types to use in the tests
 
 type TestOnly struct {
 	assertionBase
@@ -253,22 +253,6 @@ func init() {
 	typeRegistry[TestOnlyRevType.Name] = TestOnlyRevType
 	typeRegistry[TestOnlySeqType.Name] = TestOnlySeqType
 	maxSupportedFormat[TestOnlySeqType.Name] = 2
-}
-
-func AddOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string) (restore func()) {
-	oldPrimaryKey := assertType.PrimaryKey
-	assertType.PrimaryKey = append(assertType.PrimaryKey, key)
-	if assertType.OptionalPrimaryKeyDefaults == nil {
-		assertType.OptionalPrimaryKeyDefaults = make(map[string]string)
-	}
-	assertType.OptionalPrimaryKeyDefaults[key] = defaultValue
-	return func() {
-		assertType.PrimaryKey = oldPrimaryKey
-		delete(assertType.OptionalPrimaryKeyDefaults, key)
-		if len(assertType.OptionalPrimaryKeyDefaults) == 0 {
-			assertType.OptionalPrimaryKeyDefaults = nil
-		}
-	}
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests

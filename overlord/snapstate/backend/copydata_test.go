@@ -685,6 +685,49 @@ func (s *copydataSuite) TestHideSnapDataSkipNoData(c *C) {
 	c.Assert(matches[0], Equals, newSnapDir)
 }
 
+func (s *copydataSuite) TestHideSnapDataOverwrite(c *C) {
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+
+	// mock user home
+	homedir := filepath.Join(s.tempdir, "home", "user")
+	usr, err := user.Current()
+	c.Assert(err, IsNil)
+	usr.HomeDir = homedir
+
+	restore := backend.MockAllUsers(func(*dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	// writes a file canary.home file to the rev dir of the "hello" snap
+	s.populateHomeData(c, "user", snap.R(10))
+
+	// write data to be overwritten
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	snapDir := info.UserDataDir(homedir, opts)
+	c.Assert(os.MkdirAll(snapDir, 0700), IsNil)
+
+	revFile := filepath.Join(snapDir, "canary.home")
+	c.Assert(ioutil.WriteFile(revFile, []byte("stuff"), 0600), IsNil)
+
+	otherFile := filepath.Join(snapDir, "file")
+	c.Assert(ioutil.WriteFile(otherFile, []byte("stuff"), 0600), IsNil)
+
+	c.Assert(s.be.HideSnapData("hello"), IsNil)
+
+	// check versioned file was moved and previous contents were overwritten
+	data, err := ioutil.ReadFile(revFile)
+	c.Assert(err, IsNil)
+	c.Assert(data, DeepEquals, []byte("10\n"))
+
+	_, err = os.Stat(otherFile)
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
+
+	// check old '~/snap' folder was removed
+	_, err = os.Stat(snap.SnapDir(homedir, nil))
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true)
+}
+
 func (s *copydataSuite) TestUndoHideSnapData(c *C) {
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 

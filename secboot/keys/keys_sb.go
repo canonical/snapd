@@ -1,9 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build nosecboot
-// +build nosecboot
+//go:build !nosecboot
+// +build !nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,8 +19,12 @@
  *
  */
 
-package secboot
+package keys
+
+import (
+	sb "github.com/snapcore/secboot"
+)
 
 func (k RecoveryKey) String() string {
-	return "not-implemented"
+	return sb.RecoveryKey(k).String()
 }

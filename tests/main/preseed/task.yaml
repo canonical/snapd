@@ -43,7 +43,7 @@ execute: |
   echo "Running pre-seeding"
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
-  # sanity, core snap mounted by snap-preseed got unmounted
+  # precondition, core snap mounted by snap-preseed got unmounted
   mount | NOMATCH "snap-preseed"
 
   snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 > tasks.log

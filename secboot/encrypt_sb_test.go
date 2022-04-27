@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
@@ -42,7 +43,7 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 		{initErr: errors.New("some error"), err: "some error"},
 	} {
 		// create empty key to prevent blocking on lack of system entropy
-		myKey := secboot.EncryptionKey{}
+		myKey := keys.EncryptionKey{}
 		for i := range myKey {
 			myKey[i] = byte(i)
 		}
@@ -95,12 +96,12 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		{addErr: errors.New("some error"), err: "some error"},
 	} {
 		// create empty key to prevent blocking on lack of system entropy
-		myKey := secboot.EncryptionKey{}
+		myKey := keys.EncryptionKey{}
 		for i := range myKey {
 			myKey[i] = byte(i)
 		}
 
-		myRecoveryKey := secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
+		myRecoveryKey := keys.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 
 		calls := 0
 		restore := secboot.MockSbAddRecoveryKeyToLUKS2Container(func(devicePath string, key []byte, recoveryKey sb.RecoveryKey, opts *sb.KDFOptions) error {

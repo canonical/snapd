@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -346,10 +347,10 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml)
 	c.Assert(err, IsNil)
 
-	var savePrimaryKey, dataPrimaryKey secboot.EncryptionKey
+	var savePrimaryKey, dataPrimaryKey keys.EncryptionKey
 
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
@@ -375,10 +376,10 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	})
 	defer restore()
 
-	var saveRecoveryKey, dataRecoveryKey secboot.RecoveryKey
+	var saveRecoveryKey, dataRecoveryKey keys.RecoveryKey
 
 	secbootAddRecoveryKeyCall := 0
-	restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
+	restore = install.MockSecbootAddRecoveryKey(func(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.AddRecoveryKey when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
@@ -843,7 +844,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
 	c.Assert(err, IsNil)
 
-	restore = install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
 		c.Error("unexpected call to secboot.FormatEncryptedDevice")
 		return fmt.Errorf("unexpected call")
 	})

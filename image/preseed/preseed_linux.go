@@ -20,6 +20,7 @@
 package preseed
 
 import (
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -33,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -97,8 +97,6 @@ func checkChroot(preseedChroot string) error {
 	return nil
 }
 
-var seedOpen = seed.Open
-
 var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, baseSnap string, err error) {
 	seed, err := seedOpen(seedDir, sysLabel)
 	if err != nil {
@@ -112,6 +110,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	model := seed.Model()
 
 	tm := timings.New(nil)
+
 	if err := seed.LoadEssentialMeta(nil, tm); err != nil {
 		return "", "", err
 	}
@@ -458,20 +457,20 @@ type preseedFilePatterns struct {
 	Include []string `json:"include"`
 }
 
-func createPreseedArtifact(opts *preseedOpts) error {
+func createPreseedArtifact(opts *preseedOpts) (digest []byte, err error) {
 	artifactPath := filepath.Join(opts.PrepareImageDir, "system-seed", "systems", opts.SystemLabel, "preseed.tgz")
 	systemData := filepath.Join(opts.WritableDir, "system-data")
 
-	patternsFile := filepath.Join(systemData, "var/lib/snapd/preseed-export.json")
+	patternsFile := filepath.Join(opts.PreseedChrootDir, "usr/lib/snapd/preseed.json")
 	pf, err := os.Open(patternsFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var patterns preseedFilePatterns
 	dec := json.NewDecoder(pf)
 	if err := dec.Decode(&patterns); err != nil {
-		return err
+		return nil, err
 	}
 
 	args := []string{"-czf", artifactPath, "-p", "-C", systemData}
@@ -483,12 +482,12 @@ func createPreseedArtifact(opts *preseedOpts) error {
 		// handle globs explicitly.
 		matches, err := filepath.Glob(filepath.Join(systemData, incl))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, m := range matches {
 			relPath, err := filepath.Rel(systemData, m)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			args = append(args, relPath)
 		}
@@ -496,9 +495,11 @@ func createPreseedArtifact(opts *preseedOpts) error {
 
 	cmd := exec.Command("tar", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%v (%s)", err, out)
+		return nil, fmt.Errorf("%v (%s)", err, out)
 	}
-	return nil
+
+	sha3_384, _, err := osutil.FileDigest(artifactPath, crypto.SHA3_384)
+	return sha3_384, err
 }
 
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
@@ -533,8 +534,13 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
 	}
 
-	if err := createPreseedArtifact(opts); err != nil {
+	digest, err := createPreseedArtifact(opts)
+	if err != nil {
 		return fmt.Errorf("cannot create preseed.tgz: %v", err)
+	}
+
+	if err := writePreseedAssertion(digest, opts); err != nil {
+		return fmt.Errorf("cannot create preseed assertion: %v", err)
 	}
 
 	return nil
@@ -543,7 +549,7 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 // Core20 runs preseeding of UC20 system prepared by prepare-image in prepareImageDir
 // and stores the resulting preseed preseed.tgz file in system-seed/systems/<systemlabel>/preseed.tgz.
 // Expects single systemlabel under systems directory.
-func Core20(prepareImageDir, aaFeaturesDir string) error {
+func Core20(prepareImageDir, preseedSignKey, aaFeaturesDir string) error {
 	var err error
 	prepareImageDir, err = filepath.Abs(prepareImageDir)
 	if err != nil {
@@ -555,6 +561,8 @@ func Core20(prepareImageDir, aaFeaturesDir string) error {
 		return err
 	}
 	defer cleanup()
+
+	popts.PreseedSignKey = preseedSignKey
 	return runUC20PreseedMode(popts)
 }
 

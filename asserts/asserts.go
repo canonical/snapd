@@ -29,6 +29,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type typeFlags int
@@ -106,6 +108,17 @@ func (at *AssertionType) MaxSupportedFormat() int {
 // See SequenceMember.
 func (at *AssertionType) SequenceForming() bool {
 	return at.flags&sequenceForming != 0
+}
+
+// AcceptablePrimaryKey returns whether the given key could be an acceptable primary key for this type, allowing for the omission of optional primary key headers.
+func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
+	n := len(at.PrimaryKey)
+	nopt := len(at.OptionalPrimaryKeyDefaults)
+	ninp := len(key)
+	if ninp > n || ninp < (n-nopt) {
+		return false
+	}
+	return true
 }
 
 // Understood assertion types.
@@ -208,6 +221,23 @@ func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore f
 	}
 }
 
+func MockOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string) (restore func()) {
+	osutil.MustBeTestBinary("mocking new assertion optional primary keys can be done only from tests")
+	oldPrimaryKey := assertType.PrimaryKey
+	oldOptionalPrimaryKeyDefaults := assertType.OptionalPrimaryKeyDefaults
+	newOptionalPrimaryKeyDefaults := make(map[string]string, len(oldOptionalPrimaryKeyDefaults)+1)
+	for k, defl := range oldOptionalPrimaryKeyDefaults {
+		newOptionalPrimaryKeyDefaults[k] = defl
+	}
+	assertType.PrimaryKey = append(assertType.PrimaryKey, key)
+	assertType.OptionalPrimaryKeyDefaults = newOptionalPrimaryKeyDefaults
+	newOptionalPrimaryKeyDefaults[key] = defaultValue
+	return func() {
+		assertType.PrimaryKey = oldPrimaryKey
+		assertType.OptionalPrimaryKeyDefaults = oldOptionalPrimaryKeyDefaults
+	}
+}
+
 var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
 	SystemUserType:      systemUserFormatAnalyze,
@@ -247,16 +277,23 @@ func SuggestFormat(assertType *AssertionType, headers map[string]interface{}, bo
 
 // HeadersFromPrimaryKey constructs a headers mapping from the
 // primaryKey values and the assertion type, it errors if primaryKey
-// has the wrong length.
+// does not cover all the non-optional primary key headers or provides
+// too many values.
 func HeadersFromPrimaryKey(assertType *AssertionType, primaryKey []string) (headers map[string]string, err error) {
-	if len(primaryKey) != len(assertType.PrimaryKey) {
+	if !assertType.AcceptablePrimaryKey(primaryKey) {
 		return nil, fmt.Errorf("primary key has wrong length for %q assertion", assertType.Name)
 	}
+	ninp := len(primaryKey)
 	headers = make(map[string]string, len(assertType.PrimaryKey))
 	for i, name := range assertType.PrimaryKey {
-		keyVal := primaryKey[i]
-		if keyVal == "" {
-			return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+		var keyVal string
+		if i < ninp {
+			keyVal = primaryKey[i]
+			if keyVal == "" {
+				return nil, fmt.Errorf("primary key %q header cannot be empty", name)
+			}
+		} else {
+			keyVal = assertType.OptionalPrimaryKeyDefaults[name]
 		}
 		headers[name] = keyVal
 	}
@@ -287,21 +324,50 @@ func HeadersFromSequenceKey(assertType *AssertionType, sequenceKey []string) (he
 
 // PrimaryKeyFromHeaders extracts the tuple of values from headers
 // corresponding to a primary key under the assertion type, it errors
-// if there are missing primary key headers.
+// if there are missing primary key headers unless they are optional
+// in which case it fills in their default values.
 func PrimaryKeyFromHeaders(assertType *AssertionType, headers map[string]string) (primaryKey []string, err error) {
-	return keysFromHeaders(assertType.PrimaryKey, headers)
+	return keysFromHeaders(assertType.PrimaryKey, headers, assertType.OptionalPrimaryKeyDefaults)
 }
 
-func keysFromHeaders(keys []string, headers map[string]string) (keyValues []string, err error) {
+func keysFromHeaders(keys []string, headers map[string]string, defaults map[string]string) (keyValues []string, err error) {
 	keyValues = make([]string, len(keys))
 	for i, k := range keys {
 		keyVal := headers[k]
 		if keyVal == "" {
-			return nil, fmt.Errorf("must provide primary key: %v", k)
+			keyVal = defaults[k]
+			if keyVal == "" {
+				return nil, fmt.Errorf("must provide primary key: %v", k)
+			}
 		}
 		keyValues[i] = keyVal
 	}
 	return keyValues, nil
+}
+
+// ReducePrimaryKey produces a primary key prefix by omitting any
+// suffix of optional primary key headers default values.
+// Too short or long primary keys are returned as is.
+func ReducePrimaryKey(assertType *AssertionType, primaryKey []string) []string {
+	n := len(assertType.PrimaryKey)
+	nopt := len(assertType.OptionalPrimaryKeyDefaults)
+	ninp := len(primaryKey)
+	if ninp > n || ninp < (n-nopt) {
+		return primaryKey
+	}
+	reduced := make([]string, n-nopt, n)
+	copy(reduced, primaryKey[:n-nopt])
+	rest := ninp - (n - nopt)
+	for i := ninp - 1; i >= n-nopt; i-- {
+		defl := assertType.OptionalPrimaryKeyDefaults[assertType.PrimaryKey[i]]
+		if primaryKey[i] != defl {
+			break
+		}
+		// it matches the default value, leave it out
+		rest--
+	}
+	reduced = append(reduced, primaryKey[n-nopt:n-nopt+rest]...)
+	return reduced
 }
 
 // Ref expresses a reference to an assertion.
@@ -313,14 +379,25 @@ type Ref struct {
 func (ref *Ref) String() string {
 	pkStr := "-"
 	n := len(ref.Type.PrimaryKey)
-	if n != len(ref.PrimaryKey) {
+	nopt := len(ref.Type.OptionalPrimaryKeyDefaults)
+	ninp := len(ref.PrimaryKey)
+	if ninp > n || ninp < (n-nopt) {
 		pkStr = "???"
 	} else if n > 0 {
-		pkStr = ref.PrimaryKey[n-1]
+		pkStr = ref.PrimaryKey[n-nopt-1]
 		if n > 1 {
 			sfx := []string{pkStr + ";"}
-			for i, k := range ref.Type.PrimaryKey[:n-1] {
+			for i, k := range ref.Type.PrimaryKey[:n-nopt-1] {
 				sfx = append(sfx, fmt.Sprintf("%s:%s", k, ref.PrimaryKey[i]))
+			}
+			// optional primary keys
+			for i := n - nopt; i < ninp; i++ {
+				v := ref.PrimaryKey[i]
+				k := ref.Type.PrimaryKey[i]
+				defl := ref.Type.OptionalPrimaryKeyDefaults[k]
+				if v != defl {
+					sfx = append(sfx, fmt.Sprintf("%s:%s", k, v))
+				}
 			}
 			pkStr = strings.Join(sfx, " ")
 		}
@@ -330,7 +407,7 @@ func (ref *Ref) String() string {
 
 // Unique returns a unique string representing the reference that can be used as a key in maps.
 func (ref *Ref) Unique() string {
-	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ref.PrimaryKey, "/"))
+	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ReducePrimaryKey(ref.Type, ref.PrimaryKey), "/"))
 }
 
 // Resolve resolves the reference using the given find function.

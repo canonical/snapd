@@ -33,7 +33,7 @@ execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # ensure we have a good starting place
 
-        # sanity
+        # precondition
         test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
         # go to known good starting place

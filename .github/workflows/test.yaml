@@ -7,6 +7,10 @@ on:
     # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master","release/**" ]
 
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
@@ -369,6 +373,7 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
+        - ubuntu-22.04-64
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace

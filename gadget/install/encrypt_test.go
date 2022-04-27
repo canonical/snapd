@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel/fde"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -42,8 +42,8 @@ type encryptSuite struct {
 
 	mockCryptsetup *testutil.MockCmd
 
-	mockedEncryptionKey secboot.EncryptionKey
-	mockedRecoveryKey   secboot.RecoveryKey
+	mockedEncryptionKey keys.EncryptionKey
+	mockedRecoveryKey   keys.RecoveryKey
 }
 
 var _ = Suite(&encryptSuite{})
@@ -67,11 +67,11 @@ func (s *encryptSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
 
 	// create empty key to prevent blocking on lack of system entropy
-	s.mockedEncryptionKey = secboot.EncryptionKey{}
+	s.mockedEncryptionKey = keys.EncryptionKey{}
 	for i := range s.mockedEncryptionKey {
 		s.mockedEncryptionKey[i] = byte(i)
 	}
-	s.mockedRecoveryKey = secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
+	s.mockedRecoveryKey = keys.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 }
 
 func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
@@ -105,7 +105,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
 		calls := 0
-		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(label, Equals, "some-label-enc")
@@ -145,13 +145,13 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		s.mockCryptsetup = testutil.MockCommand(c, "cryptsetup", "")
 		s.AddCleanup(s.mockCryptsetup.Restore)
 
-		restore := install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+		restore := install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
 			return nil
 		})
 		defer restore()
 
 		calls := 0
-		restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
+		restore = install.MockSecbootAddRecoveryKey(func(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(rkey, DeepEquals, s.mockedRecoveryKey)
