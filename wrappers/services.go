@@ -142,7 +142,7 @@ func formatLogNamespaceSlice(grp *quota.Group) string {
 	if grp.JournalLimit == nil {
 		return ""
 	}
-	return fmt.Sprintf("LogNamespace=%s\n", grp.Name)
+	return fmt.Sprintf("LogNamespace=snap-%s\n", grp.Name)
 }
 
 // generateGroupSliceFile generates a systemd slice unit definition for the
@@ -171,16 +171,18 @@ func formatJournalSizeConf(grp *quota.Group) string {
 	if grp.JournalLimit.Size == 0 {
 		return ""
 	}
-	return fmt.Sprintf("SystemMaxUse=%d\n", grp.JournalLimit.Size)
+	return fmt.Sprintf(`SystemMaxUse=%[1]d
+RuntimeMaxUse=%[1]d
+`, grp.JournalLimit.Size)
 }
 
 func formatJournalRateConf(grp *quota.Group) string {
 	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
 		return ""
 	}
-	return fmt.Sprintf(`RateLimitIntervalSec=%d
+	return fmt.Sprintf(`RateLimitIntervalSec=%ds
 RateLimitBurst=%d
-`, grp.JournalLimit.RateCount, grp.JournalLimit.RatePeriod)
+`, grp.JournalLimit.RatePeriod, grp.JournalLimit.RateCount)
 }
 
 func generateJournaldConfFile(grp *quota.Group) []byte {
@@ -529,6 +531,7 @@ type ensureSnapServicesContext struct {
 	sysd                     systemd.Systemd
 	systemDaemonReloadNeeded bool
 	userDaemonReloadNeeded   bool
+	journalCtlReloadNeeded   bool
 	// modifiedUnits is the set of units that were modified and the previous
 	// state of the unit before modification that we can roll back to if there
 	// are any issues.
@@ -569,6 +572,11 @@ func (es *ensureSnapServicesContext) restore() {
 				es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
 			}
 		}
+		if es.journalCtlReloadNeeded {
+			if e := es.sysd.Restart([]string{"systemd-journald.service"}); e != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to restart systemd-journald due to previous failure: %v", e))
+			}
+		}
 	}
 }
 
@@ -588,6 +596,11 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 	if es.userDaemonReloadNeeded {
 		if err := userDaemonReload(); err != nil {
 			return err
+		}
+		if es.journalCtlReloadNeeded {
+			if err := es.sysd.Restart([]string{"systemd-journald.service"}); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -747,40 +760,42 @@ func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGr
 	return nil
 }
 
-func ensureSnapJournaldUnits(context *ensureSnapServicesContext, quotaGroups *quota.QuotaGroupSet) error {
-	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
+func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.QuotaGroupSet) error {
+	handleJournalModification := func(grp *quota.Group, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
 		}
 
 		if modifiedFile {
-			if context.observeChange != nil {
+			// suppress any event and restart if we actually did not do anything
+			// as it seems modifiedFile is set even when the file does not exist
+			// and when the new content is nil.
+			if (old == nil || len(old.Content) == 0) && len(content) == 0 {
+				return nil
+			}
+
+			if es.observeChange != nil {
 				var oldContent []byte
 				if old != nil {
 					oldContent = old.Content
 				}
-				context.observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+				es.observeChange(nil, grp, "journald", grp.Name, string(oldContent), string(content))
 			}
 
-			context.modifiedFiles[path] = old
-
-			// also mark that we need to reload the system instance of systemd
-			// TODO: also handle reloading the user instance of systemd when
-			// needed
-			context.modifiedSystem = true
+			es.modifiedUnits[path] = old
+			es.journalCtlReloadNeeded = true
 		}
 
 		return nil
 	}
 
-	// now make sure that all of the slice units exist
 	for _, grp := range quotaGroups.AllQuotaGroups() {
 		contents := generateJournaldConfFile(grp)
-		journalConfFileName := grp.JournalFileName()
+		fileName := grp.JournalFileName()
 
-		journalConfPath := filepath.Join(dirs.SnapSystemdDir, journalConfFileName)
-		if err := handleSliceModification(grp, journalConfPath, contents); err != nil {
+		journalConfPath := filepath.Join(dirs.SnapSystemdDir, fileName)
+		if err := handleJournalModification(grp, journalConfPath, contents); err != nil {
 			return err
 		}
 	}
@@ -830,8 +845,11 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		return err
 	}
 
-	err = context.ensureSnapSlices(quotaGroups)
-	if err != nil {
+	if err := context.ensureSnapSlices(quotaGroups); err != nil {
+		return err
+	}
+
+	if err := context.ensureSnapJournaldUnits(quotaGroups); err != nil {
 		return err
 	}
 
