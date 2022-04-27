@@ -677,7 +677,7 @@ func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, 
 	case preseedAs.SystemLabel() != sysLabel:
 		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)
 	case preseedAs.Model() != model.Model():
-		return nil, fmt.Errorf("preseeed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
+		return nil, fmt.Errorf("preseed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
 	case preseedAs.BrandID() != model.BrandID():
 		return nil, fmt.Errorf("preseed assertion brand %q doesn't match model brand %q", preseedAs.BrandID(), model.BrandID())
 	case preseedAs.Series() != model.Series():
