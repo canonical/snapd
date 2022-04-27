@@ -25,10 +25,10 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 )
 
-func EnsureRecoveryKey(fdeDir string) (keys.RecoveryKey, error) {
+func EnsureRecoveryKey(string, []string) (keys.RecoveryKey, error) {
 	return keys.RecoveryKey{}, errBuildWithoutSecboot
 }
 
-func RemoveRecoveryKeys(fdeDir string) error {
+func RemoveRecoveryKeys(map[string]string) error {
 	return errBuildWithoutSecboot
 }

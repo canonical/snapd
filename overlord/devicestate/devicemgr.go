@@ -2056,9 +2056,13 @@ var (
 // older systems might return both a recovery key for ubuntu-data and a
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	fdeDir := dirs.SnapFDEDir
+	if m.SystemMode(SysHasModeenv) == "install" {
+		fdeDir = boot.InstallHostFDEDataDir
+	}
 	sysKeys := &client.SystemRecoveryKeysResponse{}
 	// backward compatibility
-	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
 	if osutil.FileExists(reinstallKeyFile) {
 		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
 		if err != nil {
@@ -2074,10 +2078,15 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		return sysKeys, nil
 	}
 	// XXX have a helper somewhere for this? gadget or secboot?
-	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+	if !osutil.FileExists(filepath.Join(fdeDir, "marker")) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
-	rkey, err := secbootEnsureRecoveryKey(dirs.SnapFDEDir)
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	mountPoints := []string{dataMountPoints[0], boot.InitramfsUbuntuSaveDir}
+	rkey, err := secbootEnsureRecoveryKey(filepath.Join(fdeDir, "recovery.key"), mountPoints)
 	if err != nil {
 		return nil, err
 	}
@@ -2091,5 +2100,18 @@ func (m *DeviceManager) RemoveRecoveryKeys() error {
 	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
-	return secbootRemoveRecoveryKeys(dirs.SnapFDEDir)
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	mountPointToKey := make(map[string]string, 2)
+	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	mountPointToKey[dataMountPoints[0]] = rkey
+	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		mountPointToKey[boot.InitramfsUbuntuSaveDir] = reinstallKeyFile
+	} else {
+		mountPointToKey[boot.InitramfsUbuntuSaveDir] = rkey
+	}
+	return secbootRemoveRecoveryKeys(mountPointToKey)
 }

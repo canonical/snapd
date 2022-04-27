@@ -388,13 +388,13 @@ func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
 	}
 }
 
-func MockSecbootEnsureRecoveryKey(f func(string) (keys.RecoveryKey, error)) (restore func()) {
+func MockSecbootEnsureRecoveryKey(f func(recoveryKeyFile string, mountPoints []string) (keys.RecoveryKey, error)) (restore func()) {
 	restore = testutil.Backup(&secbootEnsureRecoveryKey)
 	secbootEnsureRecoveryKey = f
 	return restore
 }
 
-func MockSecbootRemoveRecoveryKeys(f func(string) error) (restore func()) {
+func MockSecbootRemoveRecoveryKeys(f func(mountPointToRecoverKeyFile map[string]string) error) (restore func()) {
 	restore = testutil.Backup(&secbootRemoveRecoveryKeys)
 	secbootRemoveRecoveryKeys = f
 	return restore

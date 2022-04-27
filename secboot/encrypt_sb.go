@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -93,12 +93,15 @@ func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) 
 }
 
 // EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
-// XXX what is the right signature for this?
-func EnsureRecoveryKey(fdeDir string) (keys.RecoveryKey, error) {
-     return keys.RecoveryKey{}, fmt.Errorf("not implemented yet")
+// It takes the path where to store the key and mount points for the
+// encrypted devices to operate on.
+func EnsureRecoveryKey(recoveryKeyFile string, mountPoints []string) (keys.RecoveryKey, error) {
+	return keys.RecoveryKey{}, fmt.Errorf("not implemented yet")
 }
+
 // RemoveRecoveryKeys removes any recovery key from all encrypted block devices.
-// XXX what is the right signature for this?
-func RemoveRecoveryKeys(fdeDir string) error {
-      return fmt.Errorf("not implemented yet")
+// It takes a map from the mount points for the encrypted devices to where
+// their recovery key is stored, mount points might share the latter.
+func RemoveRecoveryKeys(mountPointToRecoveryKeyFile map[string]string) error {
+	return fmt.Errorf("not implemented yet")
 }
