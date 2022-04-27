@@ -136,6 +136,27 @@ func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
 	})
 }
 
+// Ensure that we are not masking out the sticky bit when creating directories
+func (s *utilsSuite) TestSecureMkdirAllAllowsStickyBit(c *C) {
+	s.sys.InsertFault(`mkdirat 3 "dev" 01777`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "shm" 01777`, syscall.EEXIST)
+	c.Assert(update.MkdirAll("/dev/shm/snap.foo", 01777, 0, 0, nil), IsNil)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dev" 01777`, E: syscall.EEXIST},
+		{C: `openat 3 "dev" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `mkdirat 4 "shm" 01777`, E: syscall.EEXIST},
+		{C: `openat 4 "shm" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `close 4`},
+		{C: `close 3`},
+		{C: `mkdirat 5 "snap.foo" 01777`},
+		{C: `openat 5 "snap.foo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `fchown 3 0 0`},
+		{C: `close 3`},
+		{C: `close 5`},
+	})
+}
+
 // Ensure that trespassing for prefix is matched using clean base path.
 func (s *utilsSuite) TestTrespassingMatcher(c *C) {
 	// We mounted tmpfs at "/path".
