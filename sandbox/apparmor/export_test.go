@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	MaybeSetNumberOfJobs = maybeSetNumberOfJobs
+	NumberOfJobsParam = numberOfJobsParam
 )
 
 func MockRuntimeNumCPU(new func() int) (restore func()) {
