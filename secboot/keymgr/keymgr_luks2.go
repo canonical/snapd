@@ -132,11 +132,11 @@ func AddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey keys.RecoveryKey, currKey ke
 // RemoveRecoveryKeyFromLUKSDevice removes an existing recovery key a LUKS2
 // device.
 func RemoveRecoveryKeyFromLUKSDevice(dev string) error {
-	// TODO: just remove the key we think is a recovery key (luks keyslot 1)
 	currKey, err := getEncryptionKeyFromUserKeyring(dev)
 	if err != nil {
 		return err
 	}
+	// just remove the key we think is a recovery key (luks keyslot 1)
 	if err := luks2.KillSlot(dev, recoveryKeySlot, currKey); err != nil {
 		if !isKeyslotNotActive(err) {
 			return fmt.Errorf("cannot kill recovery key slot: %v", err)
@@ -153,7 +153,6 @@ func ChangeLUKSDeviceEncryptionKey(newKey keys.EncryptionKey, dev string) error 
 		return fmt.Errorf("cannot use a key of size different than %v", keys.EncryptionKeySize)
 	}
 
-	// TODO: just remove the key we think is a recovery key (luks keyslot 1)
 	currKey, err := getEncryptionKeyFromUserKeyring(dev)
 	if err != nil {
 		return err
@@ -201,14 +200,13 @@ func ChangeLUKSDeviceEncryptionKey(newKey keys.EncryptionKey, dev string) error 
 		return fmt.Errorf("cannot change keyslot priority: %v", err)
 	}
 
-	// XXX what about aux key?
 	const keyringPurposeDiskUnlock = "unlock"
 	const keyringPrefix = "ubuntu-fde"
-	// TODO: make the key permanent in the keyring
+	// TODO: make the key permanent in the keyring, investigate why timeout
+	// is set to a very large number of weeks, but not tagged as perm in
+	// /proc/keys
 	if err := keyringAddKeyToUserKeyring(newKey, dev, keyringPurposeDiskUnlock, keyringPrefix); err != nil {
 		return fmt.Errorf("cannot add key to user keyring: %v", err)
 	}
-
-	// TODO: update the keyring?
 	return nil
 }
