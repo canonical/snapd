@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var _ = Suite(&deviceMgrRecoveryKeysSuite{})
@@ -40,7 +40,7 @@ type deviceMgrRecoveryKeysSuite struct {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) SetUpTest(c *C) {
-	if (secboot.RecoveryKey{}).String() == "not-implemented" {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
 		c.Skip("needs working secboot recovery key")
 	}
 
@@ -86,8 +86,8 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
-	defer devicestate.MockSecbootEnsureRecoveryKey(func(string) (secboot.RecoveryKey, error) {
-		var rkey secboot.RecoveryKey
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(string) (keys.RecoveryKey, error) {
+		var rkey keys.RecoveryKey
 		copy(rkey[:], []byte(rkeystr))
 		return rkey, nil
 	})()

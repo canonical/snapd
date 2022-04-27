@@ -1,7 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
+// +build !nosecboot
 
 /*
- * Copyright (C) 2019-2022 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,22 +19,12 @@
  *
  */
 
-package secboot_test
+package keys
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+	sb "github.com/snapcore/secboot"
 )
 
-func TestSecboot(t *testing.T) { TestingT(t) }
-
-type encryptSuite struct {
-	dir string
-}
-
-var _ = Suite(&encryptSuite{})
-
-func (s *encryptSuite) SetUpTest(c *C) {
-	s.dir = c.MkDir()
+func (k RecoveryKey) String() string {
+	return sb.RecoveryKey(k).String()
 }

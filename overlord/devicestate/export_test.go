@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -387,7 +388,7 @@ func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
 	}
 }
 
-func MockSecbootEnsureRecoveryKey(f func(string) (secboot.RecoveryKey, error)) (restore func()) {
+func MockSecbootEnsureRecoveryKey(f func(string) (keys.RecoveryKey, error)) (restore func()) {
 	restore = testutil.Backup(&secbootEnsureRecoveryKey)
 	secbootEnsureRecoveryKey = f
 	return restore

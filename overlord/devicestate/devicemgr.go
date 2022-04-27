@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -2055,22 +2056,22 @@ var (
 // older systems might return both a recovery key for ubuntu-data and a
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
-	keys := &client.SystemRecoveryKeysResponse{}
+	sysKeys := &client.SystemRecoveryKeysResponse{}
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
 	if osutil.FileExists(reinstallKeyFile) {
-		rkey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
+		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
 		if err != nil {
 			return nil, err
 		}
-		keys.RecoveryKey = rkey.String()
+		sysKeys.RecoveryKey = rkey.String()
 
-		reinstallKey, err := secboot.RecoveryKeyFromFile(reinstallKeyFile)
+		reinstallKey, err := keys.RecoveryKeyFromFile(reinstallKeyFile)
 		if err != nil {
 			return nil, err
 		}
-		keys.ReinstallKey = reinstallKey.String()
-		return keys, nil
+		sysKeys.ReinstallKey = reinstallKey.String()
+		return sysKeys, nil
 	}
 	// XXX have a helper somewhere for this? secboot or boot?
 	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
@@ -2080,8 +2081,8 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 	if err != nil {
 		return nil, err
 	}
-	keys.RecoveryKey = rkey.String()
-	return keys, nil
+	sysKeys.RecoveryKey = rkey.String()
+	return sysKeys, nil
 }
 
 // RemoveRecoveryKeys removes and disables all recovery keys.

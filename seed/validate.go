@@ -96,7 +96,7 @@ func ValidateFromYaml(seedYamlFile string) error {
 	}
 
 	tm := timings.New(nil)
-	if err := seed.LoadMeta(AllModes, tm); err != nil {
+	if err := seed.LoadMeta(AllModes, nil, tm); err != nil {
 		if missingErr, ok := err.(*essentialSnapMissingError); ok {
 			if seed.Model().Classic() && missingErr.SnapName == "core" {
 				err = fmt.Errorf("essential snap core or snapd must be part of the seed")
