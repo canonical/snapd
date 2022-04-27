@@ -26,6 +26,9 @@ execute: |
     echo "shared-memory plugs with 'private: true' set are autoconnected"
     snap connections shm-private | MATCH "shared-memory +shm-private:shmem-private +:shared-memory +-"
 
+    echo "The private /dev/shm directory has the correct permissions"
+    shm-private.cmd stat -c %a /dev/shm | MATCH '^1777$'
+
     echo "The snap can create arbitrary named segments under /dev/shm"
     shm-private.cmd touch /dev/shm/root-segment
     tests.session -u test exec shm-private.cmd touch /dev/shm/user-segment
@@ -41,3 +44,9 @@ execute: |
     echo "The private shm segments are stored in a subdirectory of /dev/shm"
     test -f /dev/shm/snap.shm-private/root-segment
     test -f /dev/shm/snap.shm-private/user-segment
+
+    echo "Mount namespace updates create directory with correct permissions"
+    snap disconnect shm-private:shmem-private
+    rm -rf /dev/shm/snap.shm-private
+    snap connect shm-private:shmem-private
+    shm-private.cmd stat -c %a /dev/shm | MATCH '^1777$'
