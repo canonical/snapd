@@ -617,7 +617,8 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	restore := devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeed{
 			essentialSnaps: []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1), SnapID: "id111111111111111111111111111111"}}},
-			modeSnaps:      []*seed.Snap{{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}}},
+			modeSnaps: []*seed.Snap{{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}},
+				{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap-unasserted"}}},
 		}, nil
 	})
 	defer restore()
@@ -637,6 +638,7 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	snaps := []interface{}{
 		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
 		map[string]interface{}{"name": "mode-snap", "id": "id222222222222222222222222222222", "revision": "3"},
+		map[string]interface{}{"name": "mode-snap-unasserted"},
 	}
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	c.Assert(err, IsNil)
@@ -658,6 +660,8 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "essential-snap_1.snap")), Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.GlobalRootDir, "/snap/mode-snap/3")), Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "mode-snap_3.snap")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.GlobalRootDir, "/snap/mode-snap-unasserted/x1")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "mode-snap-unasserted_x1.snap")), Equals, true)
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataSnapMismatch(c *C) {
