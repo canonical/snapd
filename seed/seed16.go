@@ -193,6 +193,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 			// TODO: consider whether to use this if we have links?
 			sideInfo.EditedContact = sn.Contact
 		}
+		origPath := path
 		if newPath != "" {
 			path = newPath
 		}
@@ -200,7 +201,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 
 		seedSnap.SideInfo = &sideInfo
 		if cache != nil {
-			cache[path] = seedSnap
+			cache[origPath] = seedSnap
 		}
 	}
 
