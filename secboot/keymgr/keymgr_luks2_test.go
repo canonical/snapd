@@ -483,14 +483,14 @@ func (s *keymgrSuite) TestRecoveryKDF(c *C) {
 		ForceIterations: 4,
 	})
 
-	const lotsOfMem = `MemTotal:         32871900 kB
+	const lotsOfMem = `MemTotal:         2097152 kB
 CmaTotal:         131072 kB
 `
 	c.Assert(ioutil.WriteFile(mockedMeminfoFile, []byte(lotsOfMem), 0644), IsNil)
 	opts, err = keymgr.RecoveryKDF()
 	c.Assert(err, IsNil)
 	c.Assert(opts, DeepEquals, &luks2.KDFOptions{
-		MemoryKiB:       1048576,
+		MemoryKiB:       786432,
 		ForceIterations: 4,
 	})
 
