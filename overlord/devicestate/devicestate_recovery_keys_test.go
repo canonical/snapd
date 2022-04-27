@@ -91,7 +91,7 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 		copy(rkey[:], []byte(rkeystr))
 		return rkey, nil
 	})()
-	mockSnapFDEFile(c, "sealed-keys", nil)
+	mockSnapFDEFile(c, "marker", nil)
 
 	keys, err := s.mgr.EnsureRecoveryKeys()
 	c.Assert(err, IsNil)
@@ -110,7 +110,7 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 		called = true
 		return nil
 	})()
-	mockSnapFDEFile(c, "sealed-keys", nil)
+	mockSnapFDEFile(c, "marker", nil)
 
 	err = s.mgr.RemoveRecoveryKeys()
 	c.Assert(err, IsNil)

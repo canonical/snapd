@@ -2073,8 +2073,8 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 		sysKeys.ReinstallKey = reinstallKey.String()
 		return sysKeys, nil
 	}
-	// XXX have a helper somewhere for this? secboot or boot?
-	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
 	rkey, err := secbootEnsureRecoveryKey(dirs.SnapFDEDir)
@@ -2087,8 +2087,8 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 
 // RemoveRecoveryKeys removes and disables all recovery keys.
 func (m *DeviceManager) RemoveRecoveryKeys() error {
-	// XXX have a helper somewhere for this? secboot or boot?
-	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
 	return secbootRemoveRecoveryKeys(dirs.SnapFDEDir)
