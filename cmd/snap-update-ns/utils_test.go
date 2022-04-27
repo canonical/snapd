@@ -140,7 +140,7 @@ func (s *utilsSuite) TestSecureMkdirAllLevel3(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllAllowsStickyBit(c *C) {
 	s.sys.InsertFault(`mkdirat 3 "dev" 01777`, syscall.EEXIST)
 	s.sys.InsertFault(`mkdirat 4 "shm" 01777`, syscall.EEXIST)
-	c.Assert(update.MkdirAll("/dev/shm/snap.foo", 01777, 0, 0, nil), IsNil)
+	c.Assert(update.MkdirAll("/dev/shm/snap.foo", 0777|os.ModeSticky, 0, 0, nil), IsNil)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "dev" 01777`, E: syscall.EEXIST},

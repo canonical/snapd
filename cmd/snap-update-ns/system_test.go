@@ -79,10 +79,10 @@ func (s *systemSuite) TestAssumptions(c *C) {
 	c.Check(as.ModeForPath("/tmp"), Equals, os.FileMode(0755))
 	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp"), Equals, os.FileMode(0755))
 	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server"), Equals, os.FileMode(0700))
-	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/tmp"), Equals, os.FileMode(01777))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/tmp"), Equals, os.FileMode(0777)|os.ModeSticky)
 	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/foo"), Equals, os.FileMode(0755))
-	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/tmp/.X11-unix"), Equals, os.FileMode(01777))
-	c.Check(as.ModeForPath("/dev/shm/snap.some-snap"), Equals, os.FileMode(01777))
+	c.Check(as.ModeForPath("/var/lib/snapd/hostfs/tmp/snap.x11-server/tmp/.X11-unix"), Equals, os.FileMode(0777)|os.ModeSticky)
+	c.Check(as.ModeForPath("/dev/shm/snap.some-snap"), Equals, os.FileMode(0777)|os.ModeSticky)
 
 	// Instances can, in addition, access /snap/$SNAP_INSTANCE_NAME
 	upCtx = update.NewSystemProfileUpdateContext("foo_instance", false)
