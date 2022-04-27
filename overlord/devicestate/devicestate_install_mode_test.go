@@ -919,11 +919,14 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededAssertionMissing(c *C
 
 	s.makeMockInstallModel(c, "dangerous")
 
+	_, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
+	c.Assert(err, ErrorMatches, `cannot read preseed assertion:.*`)
+
 	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
 	// empty "preseed" assertion file
 	c.Assert(ioutil.WriteFile(preseedAsPath, nil, 0644), IsNil)
 
-	_, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
+	_, err = devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, ErrorMatches, `internal error: preseed assertion file is present but preseed assertion not found`)
 }
 

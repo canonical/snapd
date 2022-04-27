@@ -654,6 +654,8 @@ func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, 
 		return nil, fmt.Errorf("cannot read preseed assertion: %v", err)
 	}
 
+	// main seed assertions are loaded in the assertion db of install mode; add preseed assertion from
+	// systems/<label>/preseed file on top of it via a temporary db.
 	tmpDb := assertstate.TemporaryDB(st)
 	batch := asserts.NewBatch(nil)
 	_, err = batch.AddStream(f)
