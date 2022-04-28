@@ -244,3 +244,20 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 	c.Check(passedFlags, Equals, apparmor.SkipReadCache)
 	c.Assert(err, IsNil)
 }
+
+func (s *homedirsSuite) TestConfigureHomedirsEmptyHappy(c *C) {
+	var passedHomeDirs []string
+	restore := configcore.MockApparmorUpdateHomedirsTunable(func(paths []string) error {
+		passedHomeDirs = paths
+		return nil
+	})
+	defer restore()
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"homedirs": "",
+		},
+	})
+	c.Check(passedHomeDirs, HasLen, 0)
+	c.Assert(err, IsNil)
+}

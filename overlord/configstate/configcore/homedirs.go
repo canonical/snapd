@@ -84,7 +84,10 @@ func updateHomedirsConfig(config string) error {
 		return err
 	}
 
-	homedirs := strings.Split(config, ",")
+	var homedirs []string
+	if len(config) > 0 {
+		homedirs = strings.Split(config, ",")
+	}
 	if err := apparmorUpdateHomedirsTunable(homedirs); err != nil {
 		return err
 	}
