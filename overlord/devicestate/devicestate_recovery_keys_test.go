@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -133,6 +134,13 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
 	})
 }
 
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyRecoverMode(c *C) {
+	devicestate.SetSystemMode(s.mgr, "recover")
+
+	_, err := s.mgr.EnsureRecoveryKeys()
+	c.Check(err, ErrorMatches, `cannot ensure recovery keys from system mode "recover"`)
+}
+
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 	err := s.mgr.RemoveRecoveryKeys()
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
@@ -171,4 +179,13 @@ func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) 
 	err := s.mgr.RemoveRecoveryKeys()
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysOtherModes(c *C) {
+	for _, mode := range []string{"recover", "install"} {
+		devicestate.SetSystemMode(s.mgr, mode)
+
+		err := s.mgr.RemoveRecoveryKeys()
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot remove recovery keys from system mode %q`, mode))
+	}
 }

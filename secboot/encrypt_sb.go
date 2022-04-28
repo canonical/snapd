@@ -22,6 +22,8 @@
 package secboot
 
 import (
+	"fmt"
+
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/secboot/keymgr"

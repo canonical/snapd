@@ -2057,14 +2057,17 @@ var (
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
 	fdeDir := dirs.SnapFDEDir
-	if m.SystemMode(SysHasModeenv) == "install" {
+	mode := m.SystemMode(SysAny)
+	if mode == "install" {
 		fdeDir = boot.InstallHostFDEDataDir
+	} else if mode != "run" {
+		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
 	}
 	sysKeys := &client.SystemRecoveryKeysResponse{}
 	// backward compatibility
 	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
 	if osutil.FileExists(reinstallKeyFile) {
-		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
+		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(fdeDir, "recovery.key"))
 		if err != nil {
 			return nil, err
 		}
@@ -2096,6 +2099,10 @@ func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse
 
 // RemoveRecoveryKeys removes and disables all recovery keys.
 func (m *DeviceManager) RemoveRecoveryKeys() error {
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return fmt.Errorf("cannot remove recovery keys from system mode %q", mode)
+	}
 	// XXX have a helper somewhere for this? gadget or secboot?
 	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		return fmt.Errorf("system does not use disk encryption")
