@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -330,20 +331,20 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	if trustedInstallObserver != nil {
 		// validity check
-		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil || installedSystem.KeysForRoles[gadget.SystemSave] == nil {
+		if len(installedSystem.KeyForRole) == 0 || installedSystem.KeyForRole[gadget.SystemData] == nil || installedSystem.KeyForRole[gadget.SystemSave] == nil {
 			return fmt.Errorf("internal error: system encryption keys are unset")
 		}
-		dataKeySet := installedSystem.KeysForRoles[gadget.SystemData]
-		saveKeySet := installedSystem.KeysForRoles[gadget.SystemSave]
+		dataEncryptionKey := installedSystem.KeyForRole[gadget.SystemData]
+		saveEncryptionKey := installedSystem.KeyForRole[gadget.SystemSave]
 
 		// make note of the encryption keys
-		trustedInstallObserver.ChosenEncryptionKeys(dataKeySet.Key, saveKeySet.Key)
+		trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
 
 		// keep track of recovery assets
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
 		}
-		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
+		if err := saveKeys(installedSystem.KeyForRole); err != nil {
 			return err
 		}
 		// write markers containing a secret to pair data and save
@@ -472,34 +473,19 @@ func writeMarkers() error {
 	return nil
 }
 
-func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
-	dataKeySet := keysForRoles[gadget.SystemData]
-
+func saveKeys(keyForRole map[string]keys.EncryptionKey) error {
+	saveEncryptionKey := keyForRole[gadget.SystemSave]
+	if saveEncryptionKey == nil {
+		// no system-save support
+		return nil
+	}
 	// ensure directory for keys exists
 	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
 		return err
 	}
-
-	// Write the recovery key
-	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
-	if err := dataKeySet.RecoveryKey.Save(recoveryKeyFile); err != nil {
-		return fmt.Errorf("cannot store recovery key: %v", err)
-	}
-
-	saveKeySet := keysForRoles[gadget.SystemSave]
-	if saveKeySet == nil {
-		// no system-save support
-		return nil
-	}
-
 	saveKey := filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key")
-	reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key")
-
-	if err := saveKeySet.Key.Save(saveKey); err != nil {
+	if err := saveEncryptionKey.Save(saveKey); err != nil {
 		return fmt.Errorf("cannot store system save key: %v", err)
-	}
-	if err := saveKeySet.RecoveryKey.Save(reinstallSaveKey); err != nil {
-		return fmt.Errorf("cannot store reinstall key: %v", err)
 	}
 	return nil
 }
