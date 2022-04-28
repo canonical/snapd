@@ -85,6 +85,12 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	classic := false
 	s.deviceMgrBaseSuite.setupBaseTest(c, classic)
 
+	// restore dirs after os-release mock is cleaned up
+	s.AddCleanup(func() { dirs.SetRootDir(dirs.GlobalRootDir) })
+	s.AddCleanup(release.MockReleaseInfo(&release.OS{ID: "ubuntu"}))
+	// reload directory paths to match our mocked os-release
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
 	s.ConfigureTargetSystemOptsPassed = nil
 	s.ConfigureTargetSystemErr = nil
 	restore := devicestate.MockSysconfigConfigureTargetSystem(func(mod *asserts.Model, opts *sysconfig.Options) error {
