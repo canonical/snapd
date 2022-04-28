@@ -154,10 +154,14 @@ func findBrand(seed Seed, db asserts.RODatabase) (*asserts.Account, error) {
 
 type defaultSnapHandler struct{}
 
-func (h defaultSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) error {
-	return nil
+func (h defaultSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
+	return path, nil
 }
 
-func (h defaultSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, _ *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, uint64, error) {
-	return asserts.SnapFileSHA3_384(path)
+func (h defaultSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, _ *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
+	sha3_384, size, err := asserts.SnapFileSHA3_384(path)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return path, sha3_384, size, err
 }

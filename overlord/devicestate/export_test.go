@@ -264,7 +264,21 @@ var (
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
+
+	MaybeApplyPreseededData = maybeApplyPreseededData
 )
+
+func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
+	r := testutil.Backup(&maybeApplyPreseededData)
+	maybeApplyPreseededData = f
+	return r
+}
+
+func MockSeedOpen(f func(seedDir, label string) (seed.Seed, error)) (restore func()) {
+	r := testutil.Backup(&seedOpen)
+	seedOpen = f
+	return r
+}
 
 func MockGadgetUpdate(mock func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate

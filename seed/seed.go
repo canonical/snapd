@@ -168,11 +168,15 @@ type SnapHandler interface {
 	// snapRev is provided by UC20+ seeds.
 	// deriveRev is provided by UC16/18 seeds, it can be used
 	// to get early access to the snap revision based on the digest.
-	HandleAndDigestAssertedSnap(name, path string, essentialType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error), tm timings.Measurer) (snapSHA3_384 string, snapSize uint64, err error)
+	// A different path can be returned if the snap has been copied
+	// elsewhere.
+	HandleAndDigestAssertedSnap(name, path string, essentialType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error), tm timings.Measurer) (newPath, snapSHA3_384 string, snapSize uint64, err error)
 
 	// HandleUnassertedSnap should perfrom any dedicated handling
 	// for the given unasserted snap.
-	HandleUnassertedSnap(name, path string, tm timings.Measurer) error
+	// A different path can be returned if the snap has been copied
+	// elsewhere.
+	HandleUnassertedSnap(name, path string, tm timings.Measurer) (newPath string, err error)
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
