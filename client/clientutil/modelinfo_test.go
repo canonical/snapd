@@ -202,7 +202,7 @@ func (s *modelInfoSuite) TestPrintModelYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertion(w, s.formatter, model, nil, options)
+	err := clientutil.PrintModelAssertion(w, model, nil, s.formatter, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, `brand     brand-id1
 model     Baz 3000 (baz-3000)
@@ -222,7 +222,7 @@ func (s *modelInfoSuite) TestPrintModelWithSerialYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertion(w, s.formatter, model, &serial, options)
+	err := clientutil.PrintModelAssertion(w, model, &serial, s.formatter, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, `brand     brand-id1
 model     Baz 3000 (baz-3000)
@@ -241,7 +241,7 @@ func (s *modelInfoSuite) TestPrintModelYAMLVerbose(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintModelAssertion(w, s.formatter, model, nil, options)
+	err := clientutil.PrintModelAssertion(w, model, nil, s.formatter, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:                 brand-id1
 model:                    baz-3000
@@ -295,7 +295,7 @@ func (s *modelInfoSuite) TestPrintModelAssertion(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintModelAssertion(w, s.formatter, model, nil, options)
+	err := clientutil.PrintModelAssertion(w, model, nil, s.formatter, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: model
 authority-id: brand-id1
@@ -332,7 +332,7 @@ func (s *modelInfoSuite) TestPrintSerialYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, serial, options)
+	err := clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, `brand-id:    brand-id1
 model:       baz-3000
@@ -351,7 +351,7 @@ func (s *modelInfoSuite) TestPrintSerialAssertion(c *C) {
 		AbsTime:   false,
 		Assertion: true,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, serial, options)
+	err := clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`type: serial
 authority-id: brand-id1
@@ -380,7 +380,7 @@ func (s *modelInfoSuite) TestPrintSerialVerboseYAML(c *C) {
 		AbsTime:   false,
 		Assertion: false,
 	}
-	err := clientutil.PrintSerialAssertionYAML(w, s.formatter, serial, options)
+	err := clientutil.PrintSerialAssertionYAML(w, serial, s.formatter, options)
 	c.Assert(err, IsNil)
 	c.Check(buffer.String(), Equals, fmt.Sprintf(`brand-id:     brand-id1
 model:        baz-3000
@@ -418,6 +418,7 @@ func (s *modelInfoSuite) TestPrintModelJSON(c *C) {
     "foo",
     "bar"
   ],
+  "serial": null,
   "store": "brand-store",
   "system-user-authority": "*",
   "timestamp": "%s"

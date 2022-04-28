@@ -54,23 +54,38 @@ var (
 	}
 )
 
-// ModelAssertJSON is a helper to print assertion headers and body.
-// It is used when serializing the assertion without any specific
-// formatting or ordering.
+// ModelAssertJSON is used to represent a model assertion as-is in JSON.
 type ModelAssertJSON struct {
 	Headers map[string]interface{} `json:"headers,omitempty"`
 	Body    string                 `json:"body,omitempty"`
 }
 
+// ModelFormatter is a helper interface to format special model elements
+// like the publisher, which needs additional formatting. The formatting
+// varies based on where this code needs to be used, which is why this
+// interface is defined.
 type ModelFormatter interface {
+	// LongPublisher returns the publisher as a nicely formatted string.
 	LongPublisher(storeAccountID string) string
+	// GetEscapedDash returns either a double dash which is YAML safe, or the
+	// special unicode dash character.
 	GetEscapedDash() string
 }
 
 type PrintModelAssertionOptions struct {
+	// TermWidth is the width of the terminal for the output. This is used to format
+	// the device keys in a more readable way.
 	TermWidth int
-	AbsTime   bool
-	Verbose   bool
+	// AbsTime determines how the timestamps are formatted, if set the timestamp
+	// will be formatted as RFC3339, otherwise as a human readable time.
+	AbsTime bool
+	// Verbose prints additional information about the provided assertion,
+	// which includes most of the assertion headers. This is implicitly always
+	// true when printing in JSON.
+	Verbose bool
+	// Assertion controls whether the provided assertion will be serialized
+	// without any prior processing, which means if set, it will serialize
+	// the entire assertion as-is.
 	Assertion bool
 }
 
@@ -270,7 +285,7 @@ func printVerboseModelAssertionHeaders(w *tabwriter.Writer, assertion asserts.As
 
 // PrintModelAssertion will format the provided serial or model assertion based on the parameters given in
 // YAML format, or serialize it raw if Assertion is set. The output will be written to the provided io.Writer.
-func PrintModelAssertion(w *tabwriter.Writer, modelFormatter ModelFormatter, modelAssertion asserts.Model, serialAssertion *asserts.Serial, opts PrintModelAssertionOptions) error {
+func PrintModelAssertion(w *tabwriter.Writer, modelAssertion asserts.Model, serialAssertion *asserts.Serial, modelFormatter ModelFormatter, opts PrintModelAssertionOptions) error {
 	// if assertion was requested we want it raw
 	if opts.Assertion {
 		_, err := w.Write(asserts.Encode(&modelAssertion))
@@ -349,7 +364,7 @@ func PrintModelAssertion(w *tabwriter.Writer, modelFormatter ModelFormatter, mod
 
 // PrintModelAssertionYAML will format the provided serial or model assertion based on the parameters given in
 // YAML format. The output will be written to the provided io.Writer.
-func PrintSerialAssertionYAML(w *tabwriter.Writer, modelFormatter ModelFormatter, serialAssertion asserts.Serial, opts PrintModelAssertionOptions) error {
+func PrintSerialAssertionYAML(w *tabwriter.Writer, serialAssertion asserts.Serial, modelFormatter ModelFormatter, opts PrintModelAssertionOptions) error {
 	// if assertion was requested we want it raw
 	if opts.Assertion {
 		_, err := w.Write(asserts.Encode(&serialAssertion))
@@ -415,6 +430,8 @@ func PrintModelAssertionJSON(w *tabwriter.Writer, modelAssertion asserts.Model, 
 
 	if serialAssertion != nil {
 		modelData["serial"] = serialAssertion.HeaderString("serial")
+	} else {
+		modelData["serial"] = nil
 	}
 	allHeadersMap := modelAssertion.Headers()
 
