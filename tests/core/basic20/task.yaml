@@ -101,7 +101,7 @@ execute: |
     MODEL="$(snap model --verbose | grep '^model' | awk '{ print $2 }')"
     BRAND_ID="$(snap model --verbose | grep '^brand-id:' | awk '{print $2}')"
     if [ "$(snap known account "username=$BRAND_ID" | grep '^validation:' | awk '{print $2}')" != "unproven" ]; then
-        BRAND_ID="$BRAND_ID\*"
+        BRAND_ID="$BRAND_ID\*\*"
     fi
     snap recovery --unicode=never | MATCH "[0-9]+ +$BRAND_ID +$MODEL +current"
 
