@@ -21,6 +21,7 @@ package quota
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/sandbox/cgroup"
@@ -61,9 +62,8 @@ type ResourceJournalSize struct {
 
 type ResourceJournalRate struct {
 	// Count is the maximum number of journald messages per Period.
-	Count int `json:"count"`
-	// Period is the time period in microseconds.
-	PeriodUsec uint64 `json:"period-usec"`
+	Count  int           `json:"count"`
+	Period time.Duration `json:"period"`
 }
 
 // ResourceJournal represents the available journal quotas. It's structured
@@ -176,8 +176,8 @@ func (qr *Resources) validateJournalQuota() error {
 	}
 
 	if qr.Journal.Rate != nil {
-		if qr.Journal.Rate.Count <= 0 || qr.Journal.Rate.PeriodUsec == 0 {
-			return fmt.Errorf("journal quota must have a rate count and period larger than zero")
+		if qr.Journal.Rate.Count <= 0 || qr.Journal.Rate.Period.Microseconds() == 0 {
+			return fmt.Errorf("journal quota must have a rate count larger than zero and period larger than zero microseconds")
 		}
 	}
 	return nil
@@ -337,8 +337,8 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 
 		if qr.Journal.Rate != nil && newLimits.Journal.Rate != nil {
 			count := newLimits.Journal.Rate.Count
-			period := newLimits.Journal.Rate.PeriodUsec
-			if count == 0 && period == 0 {
+			period := newLimits.Journal.Rate.Period
+			if count == 0 && period.Microseconds() == 0 {
 				return fmt.Errorf("cannot remove journal rate limit from quota group")
 			}
 		}
@@ -368,7 +368,7 @@ func (qr *Resources) clone() Resources {
 			resourcesCopy.Journal.Size = &ResourceJournalSize{Limit: qr.Journal.Size.Limit}
 		}
 		if qr.Journal.Rate != nil {
-			resourcesCopy.Journal.Rate = &ResourceJournalRate{Count: qr.Journal.Rate.Count, PeriodUsec: qr.Journal.Rate.PeriodUsec}
+			resourcesCopy.Journal.Rate = &ResourceJournalRate{Count: qr.Journal.Rate.Count, Period: qr.Journal.Rate.Period}
 		}
 	}
 	return resourcesCopy
