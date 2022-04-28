@@ -31,15 +31,9 @@ type Options struct {
 	EncryptionType secboot.EncryptionType
 }
 
-// EncryptionKeySet is a set of encryption keys.
-type EncryptionKeySet struct {
-	Key         keys.EncryptionKey
-	RecoveryKey keys.RecoveryKey
-}
-
 // InstalledSystemSideData carries side data of an installed system, eg. secrets
 // to access its partitions.
 type InstalledSystemSideData struct {
 	// KeysForRoles contains key sets for the relevant structure roles.
-	KeysForRoles map[string]*EncryptionKeySet
+	KeyForRole map[string]keys.EncryptionKey
 }
