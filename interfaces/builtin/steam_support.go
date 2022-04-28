@@ -70,10 +70,59 @@ mount options=(rw, rbind) /oldroot/usr/lib/os-release -> /newroot/run/host/os-re
 
 # Bubblewrap performs remounts on directories it binds under /newroot
 # to fix up the options (since options other than MS_REC are ignored
-# when performing a bind mount). Ideally we'd write a rule that
-# requires the remount option in combination with any other, but
-# AppArmor doesn't currently support that.
-mount options in (rw, ro, nosuid, nodev, noexec, remount, bind, silent, relatime) -> /newroot/{,**},
+# when performing a bind mount). Ideally we could do something like:
+#   remount options=(bind, silent, nosuid, *) /newroot/{,**},
+#
+# But that is not supported by AppArmor. So we enumerate the possible
+# combinations of options Bubblewrap might use.
+remount options=(bind, silent, nosuid, rw) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noexec) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noexec) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noexec, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noexec, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noexec, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noexec, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noexec, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noexec, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noexec, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noexec, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, relatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, relatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, noexec, relatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, rw, nodev, noexec, relatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noexec) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noexec) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noexec, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noexec, noatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noexec, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noexec, relatime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noexec, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noexec, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noexec, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noexec, noatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, relatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, relatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, noexec, relatime, nodiratime) /newroot/{,**},
+remount options=(bind, silent, nosuid, ro, nodev, noexec, relatime, nodiratime) /newroot/{,**},
 
 /newroot/** rwkl,
 /bindfile* rw,
