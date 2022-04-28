@@ -1,6 +1,9 @@
 summary: Ensure "dh_systemd_start --restart-after-upgrade" works
 
-systems: [ubuntu-1*-64, ubuntu-2*-64]
+systems:
+  # not on 16.04, dh_systemd_start --restart-after-upgrade is broken there
+  - ubuntu-18.04-*
+  - ubuntu-2*
 
 execute: |
     #shellcheck source=tests/lib/systemd.sh
