@@ -124,7 +124,11 @@ func (fs *FakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Mea
 	return fs.LoadMetaErr
 }
 
-func (fs *FakeSeed) LoadMeta(mode string, tm timings.Measurer) error {
+func (fs *FakeSeed) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler seed.SnapHandler, tm timings.Measurer) error {
+	return fs.LoadMetaErr
+}
+
+func (fs *FakeSeed) LoadMeta(mode string, handler seed.SnapHandler, tm timings.Measurer) error {
 	return fs.LoadMetaErr
 }
 

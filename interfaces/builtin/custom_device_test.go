@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -507,7 +508,9 @@ apps:
 
 		// The last line of the snippet is about snap-device-helper
 		actionLine := snippets[rulesCount]
-		c.Assert(actionLine, Matches, `^TAG=="snap_consumer_app", RUN\+="/usr/lib/snapd/snap-device-helper .*`, testLabel)
+		c.Assert(actionLine, Matches,
+			fmt.Sprintf(`^TAG=="snap_consumer_app", RUN\+="%s/snap-device-helper .*`, dirs.DistroLibExecDir),
+			testLabel)
 	}
 }
 
