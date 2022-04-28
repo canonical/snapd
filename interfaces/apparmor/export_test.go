@@ -23,27 +23,15 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var (
 	NsProfile                       = nsProfile
 	ProfileGlobs                    = profileGlobs
 	SnapConfineFromSnapProfile      = snapConfineFromSnapProfile
-	LoadProfiles                    = loadProfiles
-	UnloadProfiles                  = unloadProfiles
-	MaybeSetNumberOfJobs            = maybeSetNumberOfJobs
 	DefaultCoreRuntimeTemplateRules = defaultCoreRuntimeTemplateRules
 	DefaultOtherBaseTemplateRules   = defaultOtherBaseTemplateRules
 )
-
-func MockRuntimeNumCPU(new func() int) (restore func()) {
-	old := runtimeNumCPU
-	runtimeNumCPU = new
-	return func() {
-		runtimeNumCPU = old
-	}
-}
 
 // MockIsRootWritableOverlay mocks the real implementation of osutil.IsRootWritableOverlay
 func MockIsRootWritableOverlay(new func() (string, error)) (restore func()) {
@@ -62,14 +50,6 @@ func MockProcSelfExe(symlink string) (restore func()) {
 		os.Remove(procSelfExe)
 		procSelfExe = old
 	}
-}
-
-// MockProfilesPath mocks the file read by LoadedProfiles()
-func MockProfilesPath(t *testutil.BaseTest, profiles string) {
-	profilesPath = profiles
-	t.AddCleanup(func() {
-		profilesPath = realProfilesPath
-	})
 }
 
 // MockTemplate replaces apprmor template.
