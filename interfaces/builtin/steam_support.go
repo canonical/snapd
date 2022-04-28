@@ -42,11 +42,11 @@ const steamSupportConnectedPlugAppArmor = `
 @{PROC}/sys/kernel/overflowgid r,
 @{PROC}/sys/kernel/sched_autogroup_enabled r,
 @{PROC}/pressure/io r,
-@{PROC}/@{pid}/uid_map rw,
-@{PROC}/@{pid}/gid_map rw,
-@{PROC}/@{pid}/setgroups rw,
-@{PROC}/@{pid}/mounts r,
-@{PROC}/@{pid}/mountinfo r,
+owner @{PROC}/@{pid}/uid_map rw,
+owner @{PROC}/@{pid}/gid_map rw,
+owner @{PROC}/@{pid}/setgroups rw,
+owner @{PROC}/@{pid}/mounts r,
+owner @{PROC}/@{pid}/mountinfo r,
 
 # Create and pivot to the intermediate root
 mount options=(rw, rslave) -> /,
