@@ -191,7 +191,7 @@ func (s *resourcesTestSuite) TestQuotaChangeValidationFails(c *C) {
 		},
 		{
 			quota.NewResourcesBuilder().WithJournalRate(1, 1).Build(),
-			quota.NewResourcesBuilder().WithJournalRate(-2, -2).Build(),
+			quota.NewResourcesBuilder().WithJournalRate(-2, 0).Build(),
 			`journal quota must have a rate count and period larger than zero`,
 		},
 		{

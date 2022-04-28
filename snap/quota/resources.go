@@ -60,8 +60,10 @@ type ResourceJournalSize struct {
 }
 
 type ResourceJournalRate struct {
-	Count  int `json:"count"`
-	Period int `json:"period"`
+	// Count is the maximum number of journald messages per Period.
+	Count int `json:"count"`
+	// Period is the time period in microseconds.
+	PeriodUsec uint64 `json:"period-usec"`
 }
 
 // ResourceJournal represents the available journal quotas. It's structured
@@ -174,7 +176,7 @@ func (qr *Resources) validateJournalQuota() error {
 	}
 
 	if qr.Journal.Rate != nil {
-		if qr.Journal.Rate.Count <= 0 || qr.Journal.Rate.Period <= 0 {
+		if qr.Journal.Rate.Count <= 0 || qr.Journal.Rate.PeriodUsec == 0 {
 			return fmt.Errorf("journal quota must have a rate count and period larger than zero")
 		}
 	}
@@ -335,7 +337,7 @@ func (qr *Resources) ValidateChange(newLimits Resources) error {
 
 		if qr.Journal.Rate != nil && newLimits.Journal.Rate != nil {
 			count := newLimits.Journal.Rate.Count
-			period := newLimits.Journal.Rate.Period
+			period := newLimits.Journal.Rate.PeriodUsec
 			if count == 0 && period == 0 {
 				return fmt.Errorf("cannot remove journal rate limit from quota group")
 			}
@@ -366,7 +368,7 @@ func (qr *Resources) clone() Resources {
 			resourcesCopy.Journal.Size = &ResourceJournalSize{Limit: qr.Journal.Size.Limit}
 		}
 		if qr.Journal.Rate != nil {
-			resourcesCopy.Journal.Rate = &ResourceJournalRate{Count: qr.Journal.Rate.Count, Period: qr.Journal.Rate.Period}
+			resourcesCopy.Journal.Rate = &ResourceJournalRate{Count: qr.Journal.Rate.Count, PeriodUsec: qr.Journal.Rate.PeriodUsec}
 		}
 	}
 	return resourcesCopy

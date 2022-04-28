@@ -45,7 +45,7 @@ type ResourcesBuilder struct {
 	JournalSizeLimitSet bool
 
 	JournalRateCountLimit  int
-	JournalRatePeriodLimit int
+	JournalRatePeriodLimit uint64
 	JournalRateSet         bool
 }
 
@@ -90,9 +90,9 @@ func (rb *ResourcesBuilder) WithJournalSize(limit quantity.Size) *ResourcesBuild
 	return rb
 }
 
-func (rb *ResourcesBuilder) WithJournalRate(count, period int) *ResourcesBuilder {
+func (rb *ResourcesBuilder) WithJournalRate(count int, periodUsec uint64) *ResourcesBuilder {
 	rb.JournalRateCountLimit = count
-	rb.JournalRatePeriodLimit = period
+	rb.JournalRatePeriodLimit = periodUsec
 	rb.JournalRateSet = true
 	return rb
 }
@@ -129,8 +129,8 @@ func (rb *ResourcesBuilder) Build() Resources {
 		}
 		if rb.JournalRateSet {
 			quotaResources.Journal.Rate = &ResourceJournalRate{
-				Count:  rb.JournalRateCountLimit,
-				Period: rb.JournalRatePeriodLimit,
+				Count:      rb.JournalRateCountLimit,
+				PeriodUsec: rb.JournalRatePeriodLimit,
 			}
 		}
 	}
