@@ -167,6 +167,11 @@ mount options=(rw, rbind) /oldroot/run/dbus/system_bus_socket -> /newroot/run/db
 mount options=(rw, rbind) /oldroot/run/systemd/resolve/io.systemd.Resolve -> /newroot/run/systemd/resolve/io.systemd.Resolve,
 mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
 
+# Allow masking of certain directories in the sandbox
+mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/home/*/snap/steam/common/.local/share/vulkan/implicit_layer.d/,
+mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/run/pressure-vessel/ldso/,
+mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/tmp/.X11-unix/,
+
 # Pivot from the intermediate root to sandbox root
 mount options in (rw, silent, rprivate) -> /oldroot/,
 umount /oldroot/,
