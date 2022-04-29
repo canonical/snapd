@@ -37,8 +37,9 @@ var (
 	osOpenFile = os.OpenFile
 	osStat     = os.Stat
 
-	apparmorUpdateHomedirsTunable = apparmor.UpdateHomedirsTunable
-	apparmorLoadProfiles          = apparmor.LoadProfiles
+	apparmorUpdateHomedirsTunable        = apparmor.UpdateHomedirsTunable
+	apparmorLoadProfiles                 = apparmor.LoadProfiles
+	apparmorSnapConfineDistroProfilePath = apparmor.SnapConfineDistroProfilePath
 )
 
 var (
@@ -99,6 +100,14 @@ func updateHomedirsConfig(config string) error {
 	if err != nil {
 		// This only happens if the pattern is malformed
 		return err
+	}
+
+	// We also need to reload the profile of snap-confine; it could come from
+	// the core snap, in which case the glob above will already include it, or
+	// from the distribution package, in which case it's under
+	// /etc/apparmor.d/.
+	if snapConfineProfile := apparmorSnapConfineDistroProfilePath(); snapConfineProfile != "" {
+		profiles = append(profiles, snapConfineProfile)
 	}
 
 	// We want to reload the profiles no matter what, so don't even bother

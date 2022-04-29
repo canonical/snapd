@@ -223,16 +223,24 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 		profiles = append(profiles, path)
 	}
 
+	const snapConfineProfile = "/etc/apparmor.d/some.where.snap-confine"
+	restore := configcore.MockApparmorSnapConfineDistroProfilePath(func() string {
+		return snapConfineProfile
+	})
+	defer restore()
+	profiles = append(profiles, snapConfineProfile)
+
 	var passedProfiles []string
 	var passedCacheDir string
 	var passedFlags apparmor.AaParserFlags
-	restore := configcore.MockApparmorLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
+	restore = configcore.MockApparmorLoadProfiles(func(paths []string, cacheDir string, flags apparmor.AaParserFlags) error {
 		passedProfiles = paths
 		passedCacheDir = cacheDir
 		passedFlags = flags
 		return nil
 	})
 	defer restore()
+
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{

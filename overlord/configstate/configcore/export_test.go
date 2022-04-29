@@ -83,6 +83,12 @@ func MockApparmorLoadProfiles(f func([]string, string, apparmor.AaParserFlags) e
 	return r
 }
 
+func MockApparmorSnapConfineDistroProfilePath(f func() string) func() {
+	r := testutil.Backup(&apparmorSnapConfineDistroProfilePath)
+	apparmorSnapConfineDistroProfilePath = f
+	return r
+}
+
 type ConnectivityCheckStore = connectivityCheckStore
 
 func MockSnapstateStore(f func(st *state.State, deviceCtx snapstate.DeviceContext) ConnectivityCheckStore) func() {
