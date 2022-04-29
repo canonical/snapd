@@ -692,6 +692,7 @@ func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, 
 
 var seedOpen = seed.Open
 
+// TODO: consider reusing this kind of handler for UC20 seeding
 type preseedSnapHandler struct {
 	writableDir string
 }
@@ -749,6 +750,8 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 
 	sq := squashfs.New(targetPath)
 	opts := &snap.InstallOptions{MustNotCrossDevices: true}
+	// since Install target path is the same as source path passed to squashfs.New,
+	// Install isn't going to copy the blob, but we call it to set up mount directory etc.
 	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
 		return "", "", 0, fmt.Errorf("cannot install snap %q: %v", name, err)
 	}
