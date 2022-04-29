@@ -40,6 +40,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
@@ -48,6 +49,11 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "show-key" {
+		fmt.Printf("%s", assertstest.DevKey)
+		return
+	}
+
 	devKey, _ := assertstest.ReadPrivKey(assertstest.DevKey)
 	devSigning := assertstest.NewSigningDB("developer1", devKey)
 
