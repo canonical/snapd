@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -232,4 +233,33 @@ func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
 
 	cpus = 1
 	c.Check(apparmor.NumberOfJobsParam(), Equals, "-j1")
+}
+
+func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
+	var existingFiles []string
+	restore := apparmor.MockFileExists(func(filePath string) bool {
+		return strutil.ListContains(existingFiles, filePath)
+	})
+	defer restore()
+
+	restore = testutil.Backup(&apparmor.ConfDir)
+	apparmor.ConfDir = "/a/b/c"
+	defer restore()
+
+	for _, testData := range []struct {
+		existingFiles []string
+		expectedPath  string
+	}{
+		{[]string{}, ""},
+		{[]string{"/a/b/c/usr.lib.snapd.snap-confine.real"}, "/a/b/c/usr.lib.snapd.snap-confine.real"},
+		{[]string{"/a/b/c/usr.lib.snapd.snap-confine"}, "/a/b/c/usr.lib.snapd.snap-confine"},
+		{
+			[]string{"/a/b/c/usr.lib.snapd.snap-confine.real", "/a/b/c/usr.lib.snapd.snap-confine"},
+			"/a/b/c/usr.lib.snapd.snap-confine.real",
+		},
+	} {
+		existingFiles = testData.existingFiles
+		path := apparmor.SnapConfineDistroProfilePath()
+		c.Check(path, Equals, testData.expectedPath, Commentf("Existing: %q", existingFiles))
+	}
 }
