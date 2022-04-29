@@ -198,8 +198,11 @@ func SnapConfineDistroProfilePath() string {
 	// For historical reasons we may have a filename that ends with .real or
 	// not.  If we do then we prefer the file ending with the name .real as
 	// that is the more recent name we use.
-	// TODO: fix for distros using /usr/libexec/snapd
-	for _, profileName := range []string{"usr.lib.snapd.snap-confine.real", "usr.lib.snapd.snap-confine"} {
+	for _, profileName := range []string{
+		"usr.lib.snapd.snap-confine.real",
+		"usr.lib.snapd.snap-confine",
+		"usr.libexec.snapd.snap-confine",
+	} {
 		maybeProfilePath := filepath.Join(ConfDir, profileName)
 		if osutilFileExists(maybeProfilePath) {
 			return maybeProfilePath

@@ -253,6 +253,7 @@ func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
 		{[]string{}, ""},
 		{[]string{"/a/b/c/usr.lib.snapd.snap-confine.real"}, "/a/b/c/usr.lib.snapd.snap-confine.real"},
 		{[]string{"/a/b/c/usr.lib.snapd.snap-confine"}, "/a/b/c/usr.lib.snapd.snap-confine"},
+		{[]string{"/a/b/c/usr.libexec.snapd.snap-confine"}, "/a/b/c/usr.libexec.snapd.snap-confine"},
 		{
 			[]string{"/a/b/c/usr.lib.snapd.snap-confine.real", "/a/b/c/usr.lib.snapd.snap-confine"},
 			"/a/b/c/usr.lib.snapd.snap-confine.real",
