@@ -717,14 +717,24 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 
 	logger.Debugf("copying: %q to %q; mount dir=%q", path, targetPath, mountDir)
 
+	finfo, err := os.Stat(path)
+	if err != nil {
+		return "", "", 0, err
+	}
+
 	srcFile, err := os.Open(path)
 	if err != nil {
 		return "", "", 0, err
 	}
+	defer srcFile.Close()
+
 	destFile, err := osutil.NewAtomicFile(targetPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return "", "", 0, fmt.Errorf("cannot create atomic file: %v", err)
 	}
+	defer destFile.Cancel()
+
+	destFile.SetModTime(finfo.ModTime())
 
 	h := crypto.SHA3_384.New()
 	w := io.MultiWriter(h, destFile)

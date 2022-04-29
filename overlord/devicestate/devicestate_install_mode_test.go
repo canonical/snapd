@@ -747,7 +747,7 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, snaps)
 
 	// restore root dir, otherwise paths referencing GlobalRootDir, such as from placeInfo.MountFile() get confused
-	// in the test. Normally we run in a chroot where this is not an issue.
+	// in the test.
 	dirs.SetRootDir("/")
 	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
