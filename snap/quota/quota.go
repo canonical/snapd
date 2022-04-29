@@ -58,7 +58,7 @@ type GroupQuotaCPU struct {
 }
 
 // GroupQuotaJournal contains the supported limits for journald. Any limit set here
-// applies only the quota group itself. Journal limits will not be inherited by the
+// applies only to the quota group itself. Journal limits will not be inherited by the
 // sub-groups as this behaviour is not supported by systemd.
 type GroupQuotaJournal struct {
 	// Size is the maximum allowed size of the journal for the group.

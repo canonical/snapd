@@ -1289,3 +1289,38 @@ func (ts *quotaTestSuite) TestCombinedCpuPercentageWithLowCoreCount(c *C) {
 	// by the quota
 	c.Check(subgrp2.GetCPUQuotaPercentage(), Equals, 200)
 }
+
+func (ts *quotaTestSuite) TestJournalQuotasSetCorrectly(c *C) {
+	grp1, err := quota.NewGroup("groot1", quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp1.JournalLimit, NotNil)
+
+	grp2, err := quota.NewGroup("groot2", quota.NewResourcesBuilder().WithJournalRate(15, 5).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp2.JournalLimit, NotNil)
+	c.Check(grp2.JournalLimit.RateCount, Equals, 15)
+	c.Check(grp2.JournalLimit.RatePeriod, Equals, 5)
+
+	grp3, err := quota.NewGroup("groot3", quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp3.JournalLimit, NotNil)
+	c.Check(grp3.JournalLimit.Size, Equals, quantity.SizeMiB)
+}
+
+func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
+	grp1, err := quota.NewGroup("groot1", quota.NewResourcesBuilder().WithMemoryLimit(quantity.SizeGiB).Build())
+	c.Assert(err, IsNil)
+	c.Assert(grp1.JournalLimit, IsNil)
+
+	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(grp1.JournalLimit, NotNil)
+	c.Check(grp1.JournalLimit.Size, Equals, quantity.Size(0))
+	c.Check(grp1.JournalLimit.RateCount, Equals, 0)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, 0)
+
+	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalRate(15, 5).WithJournalSize(quantity.SizeMiB).Build())
+	c.Assert(grp1.JournalLimit, NotNil)
+	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
+	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, 5)
+}
