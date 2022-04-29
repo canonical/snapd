@@ -439,7 +439,7 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
-		return false, fmt.Errorf("internal error: command line component cannot be updated on non UC20+ devices")
+		return false, fmt.Errorf("internal error: command line component cannot be updated on pre-UC20 devices")
 	}
 	opts := &bootloader.Options{
 		Role: bootloader.RoleRunMode,

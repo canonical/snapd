@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,7 +69,7 @@ func (s *installSuite) TestInstallRunError(c *C) {
 	c.Check(sys, IsNil)
 
 	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil))
-	c.Assert(err, ErrorMatches, `cannot run install mode on non-UC20\+ system`)
+	c.Assert(err, ErrorMatches, `cannot run install mode on pre-UC20 system`)
 	c.Check(sys, IsNil)
 }
 

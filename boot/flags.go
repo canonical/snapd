@@ -35,7 +35,7 @@ import (
 )
 
 var (
-	errNotUC20 = fmt.Errorf("cannot get boot flags on non-UC20+ device")
+	errNotUC20 = fmt.Errorf("cannot get boot flags on pre-UC20 device")
 
 	understoodBootFlags = []string{
 		// the factory boot flag is set to indicate that this is a

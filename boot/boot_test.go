@@ -3603,7 +3603,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateNonUC20(c *C) {
 	})
 
 	reboot, err := boot.UpdateCommandLineForGadgetComponent(nonUC20dev, sf)
-	c.Assert(err, ErrorMatches, `internal error: command line component cannot be updated on non UC20\+ devices`)
+	c.Assert(err, ErrorMatches, `internal error: command line component cannot be updated on pre-UC20 devices`)
 	c.Assert(reboot, Equals, false)
 }
 

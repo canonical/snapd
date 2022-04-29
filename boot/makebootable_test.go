@@ -454,7 +454,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	model := boottest.MakeMockModel()
 
 	err := boot.MakeRunnableSystem(model, nil, nil)
-	c.Assert(err, ErrorMatches, `internal error: cannot make non-UC20\+ system runnable`)
+	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20(c *C) {

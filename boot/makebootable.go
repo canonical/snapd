@@ -301,7 +301,7 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 // running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	if model.Grade() == asserts.ModelGradeUnset {
-		return fmt.Errorf("internal error: cannot make non-UC20+ system runnable")
+		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to

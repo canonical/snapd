@@ -674,7 +674,7 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 	}
 	dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
-	c.Assert(err, ErrorMatches, `cannot create a system for non-UC20\+ model`)
+	c.Assert(err, ErrorMatches, `cannot create a system for pre-UC20 model`)
 	c.Check(dir, Equals, "")
 }
 

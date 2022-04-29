@@ -49,13 +49,13 @@ func (s *bootFlagsSuite) TestBootFlagsFamilyClassic(c *C) {
 	defer bootloader.ForceError(nil)
 
 	_, err := boot.NextBootFlags(classicDev)
-	c.Assert(err, ErrorMatches, `cannot get boot flags on non-UC20\+ device`)
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 
 	err = boot.SetNextBootFlags(classicDev, "", []string{"foo"})
-	c.Assert(err, ErrorMatches, `cannot get boot flags on non-UC20\+ device`)
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 
 	_, err = boot.BootFlags(classicDev)
-	c.Assert(err, ErrorMatches, `cannot get boot flags on non-UC20\+ device`)
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 }
 
 func (s *bootFlagsSuite) TestBootFlagsFamilyUC16(c *C) {
@@ -66,13 +66,13 @@ func (s *bootFlagsSuite) TestBootFlagsFamilyUC16(c *C) {
 	defer bootloader.ForceError(nil)
 
 	_, err := boot.NextBootFlags(coreDev)
-	c.Assert(err, ErrorMatches, `cannot get boot flags on non-UC20\+ device`)
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 
 	err = boot.SetNextBootFlags(coreDev, "", []string{"foo"})
-	c.Assert(err, ErrorMatches, `cannot get boot flags on non-UC20\+ device`)
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 
 	_, err = boot.BootFlags(coreDev)
-	c.Assert(err, ErrorMatches, `cannot get boot flags on non-UC20\+ device`)
+	c.Assert(err, ErrorMatches, `cannot get boot flags on pre-UC20 device`)
 }
 
 func setupRealGrub(c *C, rootDir, baseDir string, opts *bootloader.Options) bootloader.Bootloader {
