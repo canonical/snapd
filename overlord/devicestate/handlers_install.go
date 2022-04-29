@@ -718,11 +718,6 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 
 	logger.Debugf("copying: %q to %q; mount dir=%q", path, targetPath, mountDir)
 
-	finfo, err := os.Stat(path)
-	if err != nil {
-		return "", "", 0, err
-	}
-
 	srcFile, err := os.Open(path)
 	if err != nil {
 		return "", "", 0, err
@@ -734,6 +729,11 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essT
 		return "", "", 0, fmt.Errorf("cannot create atomic file: %v", err)
 	}
 	defer destFile.Cancel()
+
+	finfo, err := srcFile.Stat()
+	if err != nil {
+		return "", "", 0, err
+	}
 
 	destFile.SetModTime(finfo.ModTime())
 
