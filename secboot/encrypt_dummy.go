@@ -1,7 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build nosecboot
+// +build nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +19,16 @@
  *
  */
 
-package daemon
+package secboot
 
 import (
-	"net/http"
-
-	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
-var systemRecoveryKeysCmd = &Command{
-	Path:       "/v2/system-recovery-keys",
-	GET:        getSystemRecoveryKeys,
-	ReadAccess: rootAccess{},
+func EnsureRecoveryKey(string, []string) (keys.RecoveryKey, error) {
+	return keys.RecoveryKey{}, errBuildWithoutSecboot
 }
 
-func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Response {
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	keys, err := c.d.overlord.DeviceManager().EnsureRecoveryKeys()
-	if err != nil {
-		return InternalError(err.Error())
-	}
-
-	return SyncResponse(keys)
+func RemoveRecoveryKeys(map[string]string) error {
+	return errBuildWithoutSecboot
 }
