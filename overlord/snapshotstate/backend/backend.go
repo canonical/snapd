@@ -31,6 +31,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -259,6 +260,10 @@ func isSnapshotFilename(filePath string) (ok bool, setID uint64) {
 
 // EstimateSnapshotSize calculates estimated size of the snapshot.
 func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirOptions) (uint64, error) {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
 	var total uint64
 	calculateSize := func(path string, finfo os.FileInfo, err error) error {
 		if finfo.Mode().IsRegular() {
@@ -303,6 +308,10 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, opts *dirs.SnapDirO
 
 // Save a snapshot
 func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, opts *dirs.SnapDirOptions) (*client.Snapshot, error) {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
 	}
@@ -336,8 +345,10 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	w := zip.NewWriter(aw)
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
 	savingUserData := false
+
 	baseDataDir := snap.BaseDataDir(si.InstanceName())
-	if err := addSnapDirToZip(ctx, snapshot, w, "root", archiveName, baseDataDir, savingUserData, snapshotOptions.ExcludePaths); err != nil {
+	rootUsr := &user.User{Username: "root", HomeDir: filepath.Join(dirs.GlobalRootDir, "root")}
+	if err := addSnapDirToZip(ctx, snapshot, w, rootUsr, archiveName, baseDataDir, savingUserData, snapshotOptions.ExcludePaths, opts); err != nil {
 		return nil, err
 	}
 
@@ -349,7 +360,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	savingUserData = true
 	for _, usr := range users {
 		snapDataDir := filepath.Dir(si.UserDataDir(usr.HomeDir, opts))
-		if err := addSnapDirToZip(ctx, snapshot, w, usr.Username, userArchiveName(usr), snapDataDir, savingUserData, snapshotOptions.ExcludePaths); err != nil {
+		if err := addSnapDirToZip(ctx, snapshot, w, usr, userArchiveName(usr), snapDataDir, savingUserData, snapshotOptions.ExcludePaths, opts); err != nil {
 			return nil, err
 		}
 	}
@@ -390,8 +401,12 @@ var isTesting = snapdenv.Testing()
 // addSnapDirToZip adds the 'common' and the 'rev' revisioned dir under 'snapDir'
 // to the snapshot. If one doesn't exist, it's ignored. If none exists, the
 // operation is skipped.
-func addSnapDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, username, entry, snapDir string, savingUserData bool, excludePaths []string) error {
-	paths, err := pathsForSnapshot(snapDir, snapshot)
+func addSnapDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, usr *user.User, entry, snapDir string, savingUserData bool, excludePaths []string, opts *dirs.SnapDirOptions) error {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
+	paths, err := pathsForSnapshot(snapDir, snapshot, usr, savingUserData, opts)
 	if err != nil {
 		return err
 	}
@@ -433,7 +448,7 @@ func addSnapDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writ
 		expExcludePaths = append(expExcludePaths, expandedPath)
 	}
 
-	return addToZip(ctx, snapshot, w, username, entry, paths, expExcludePaths)
+	return addToZip(ctx, snapshot, w, usr.Username, entry, paths, expExcludePaths)
 }
 
 // addToZip adds 'paths' to the snapshot. tar will change into the paths' parent
@@ -503,7 +518,7 @@ func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, use
 
 // pathsForSnapshot returns a list of absolute paths under 'snapDir' that should
 // be included in the snapshot (based on what directories exist).
-func pathsForSnapshot(snapDir string, snapshot *client.Snapshot) ([]string, error) {
+func pathsForSnapshot(snapDir string, snapshot *client.Snapshot, usr *user.User, savingUserData bool, opts *dirs.SnapDirOptions) ([]string, error) {
 	dirExists := func(path string) (bool, error) {
 		exists, isDir, err := osutil.DirExists(path)
 		if err != nil {
@@ -531,6 +546,10 @@ func pathsForSnapshot(snapDir string, snapshot *client.Snapshot) ([]string, erro
 		} else if ok {
 			snapshotPaths = append(snapshotPaths, subPath)
 		}
+	}
+
+	if savingUserData && opts.MigratedToExposedHome {
+		snapshotPaths = append(snapshotPaths, snap.UserExposedHomeDir(usr.HomeDir, snapshot.Snap))
 	}
 
 	return snapshotPaths, nil

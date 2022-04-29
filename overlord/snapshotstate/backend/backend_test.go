@@ -569,8 +569,8 @@ func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
 	defer restore()
 	savingUserData := false
 	// note as the zip is nil this would panic if it didn't bail
-	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil), check.IsNil)
-	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, nil), check.IsNil)
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, &user.User{}, "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil, nil), check.IsNil)
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, &user.User{}, "an/entry", "/etc/passwd", savingUserData, nil, nil), check.IsNil)
 	c.Check(buf.String(), check.Matches, "(?m).* is does not exist.*")
 }
 
@@ -586,7 +586,7 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
 	savingUserData := false
-	c.Assert(backend.AddSnapDirToZip(ctx, &client.Snapshot{Revision: rev}, z, "", "an/entry", s.root, savingUserData, nil), check.ErrorMatches, ".* context canceled")
+	c.Assert(backend.AddSnapDirToZip(ctx, &client.Snapshot{Revision: rev}, z, &user.User{}, "an/entry", s.root, savingUserData, nil, nil), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
@@ -603,7 +603,7 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 		Revision: rev,
 	}
 	savingUserData := false
-	c.Assert(backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, savingUserData, nil), check.IsNil)
+	c.Assert(backend.AddSnapDirToZip(context.Background(), snapshot, z, &user.User{}, "an/entry", s.root, savingUserData, nil, nil), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(snapshot.SHA3_384, check.HasLen, 1)
@@ -681,7 +681,7 @@ func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 	} {
 		testLabel := check.Commentf("%s/%v", testData.excludes, testData.savingUserData)
 
-		err := backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, testData.savingUserData, testData.excludes)
+		err := backend.AddSnapDirToZip(context.Background(), snapshot, z, &user.User{}, "an/entry", s.root, testData.savingUserData, testData.excludes, nil)
 		c.Check(err, check.ErrorMatches, "tar failed.*")
 		c.Check(tarArgs, check.DeepEquals, testData.expectedArgs, testLabel)
 	}
@@ -707,6 +707,60 @@ func (s *snapshotSuite) TestHappyRoundtripNoRev(c *check.C) {
 		}
 	}
 	s.testHappyRoundtrip(c, "../common/marker")
+}
+
+func (s *snapshotSuite) TestSnapshotExposedHome(c *check.C) {
+	restoreMigrated := true
+	s.testSnapshotExposedHome(c, restoreMigrated)
+}
+
+func (s *snapshotSuite) TestSnapshotIgnoreExposeHomeIfNotMigrateOnRestore(c *check.C) {
+	restoreMigrated := false
+	s.testSnapshotExposedHome(c, restoreMigrated)
+}
+
+func (s *snapshotSuite) testSnapshotExposedHome(c *check.C, restoreMigrated bool) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	logger.SimpleSetup()
+
+	epoch := snap.E("42*")
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "hello-snap", Revision: snap.R(42), SnapID: "hello-id"}, Version: "v1.33", Epoch: epoch}
+	cfg := map[string]interface{}{"some-setting": false}
+	shID := uint64(12)
+
+	// put a file under ~/Snap in both the user's and the root's dir
+	homeDir := filepath.Join(dirs.GlobalRootDir, "home", "snapuser")
+	err := os.MkdirAll(info.UserExposedHomeDir(homeDir), 0700)
+	c.Assert(err, check.IsNil)
+
+	homeFile := filepath.Join(info.UserExposedHomeDir(homeDir), "foo")
+	err = ioutil.WriteFile(homeFile, []byte("foo"), 0600)
+	c.Assert(err, check.IsNil)
+
+	// take snapshot
+	users := []string{"snapuser"}
+	opts := &dirs.SnapDirOptions{MigratedToExposedHome: true}
+	snapshot, err := backend.Save(context.TODO(), shID, info, cfg, users, opts)
+	c.Assert(err, check.IsNil)
+
+	// remove ~/Snap/
+	err = os.RemoveAll(filepath.Join(homeDir, dirs.ExposedSnapHomeDir))
+	c.Assert(err, check.IsNil)
+	shr, err := backend.Open(backend.Filename(snapshot), backend.ExtractFnameSetID)
+	c.Assert(err, check.IsNil)
+
+	// restore with or without the MigratedExposed flag depending on the arg
+	var restoreOpts *dirs.SnapDirOptions
+	if restoreMigrated {
+		restoreOpts = opts
+	}
+	_, err = shr.Restore(context.Background(), snap.R(42), users, logger.Debugf, restoreOpts)
+	c.Assert(err, check.IsNil)
+
+	// if the migration opts are set on restore, the file was restored
+	c.Assert(osutil.FileExists(homeFile), check.Equals, restoreMigrated)
 }
 
 func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
@@ -777,7 +831,12 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 		rs, err := shr.Restore(context.TODO(), snap.R(0), nil, logger.Debugf, nil)
 		c.Assert(err, check.IsNil, comm)
 		rs.Cleanup()
-		c.Check(diff().Run(), check.IsNil, comm)
+
+		diffCmd := diff()
+		data, err := diffCmd.CombinedOutput()
+
+		c.Check(err, check.IsNil, comm)
+		c.Log(string(data))
 
 		// dirty it -> no longer like it was
 		c.Check(ioutil.WriteFile(filepath.Join(info.DataDir(), marker), []byte("scribble\n"), 0644), check.IsNil, comm)

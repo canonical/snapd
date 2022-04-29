@@ -198,6 +198,10 @@ type Logf func(format string, args ...interface{})
 // or the one in the snapshot) with that contained in the snapshot. It keeps
 // track of the old data in the task so it can be undone (or cleaned up).
 func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames []string, logf Logf, opts *dirs.SnapDirOptions) (rs *RestoreState, e error) {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
 	rs = &RestoreState{}
 	defer func() {
 		if e != nil {
@@ -224,6 +228,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 		}
 
 		var dest string
+		var homedir string
 		isUser := isUserArchive(entry)
 		username := "root"
 		uid := sys.UserID(osutil.NoChown)
@@ -249,6 +254,8 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 			}
 
 			dest = si.UserDataDir(usr.HomeDir, opts)
+			homedir = usr.HomeDir
+
 			fi, err := os.Stat(usr.HomeDir)
 			if err != nil {
 				if osutil.IsDirNotExist(err) {
@@ -366,6 +373,18 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 
 		for _, dir := range []string{"common", revdir} {
 			if err := moveFile(rs, dir, tempdir, parent); err != nil {
+				return rs, err
+			}
+		}
+
+		if opts.MigratedToExposedHome && homedir != "" {
+			targetDir := filepath.Join(homedir, dirs.ExposedSnapHomeDir)
+			if err := osutil.MkdirAllChown(targetDir, 0700, uid, gid); err != nil {
+				return rs, err
+			}
+
+			// restore the snap's subdir of ~/Snap
+			if err := moveFile(rs, r.Snap, tempdir, targetDir); err != nil {
 				return rs, err
 			}
 		}
