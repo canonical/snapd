@@ -41,12 +41,6 @@ func MockSecbootFormatEncryptedDevice(f func(key keys.EncryptionKey, label, node
 
 }
 
-func MockSecbootAddRecoveryKey(f func(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) error) (restore func()) {
-	r := testutil.Backup(&secbootAddRecoveryKey)
-	secbootAddRecoveryKey = f
-	return r
-}
-
 func MockBootRunFDESetupHook(f func(req *fde.SetupRequest) ([]byte, error)) (restore func()) {
 	r := testutil.Backup(&boot.RunFDESetupHook)
 	boot.RunFDESetupHook = f

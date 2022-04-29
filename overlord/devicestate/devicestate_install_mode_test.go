@@ -208,10 +208,7 @@ type encTestCase struct {
 
 var (
 	dataEncryptionKey = keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	dataRecoveryKey   = keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', 10, 11, 12, 13, 14, 15, 16, 17}
-
-	saveKey      = keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	reinstallKey = keys.RecoveryKey{'r', 'e', 'i', 'n', 's', 't', 'a', 'l', 'l', 11, 12, 13, 14, 15, 16, 17}
+	saveKey           = keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 )
 
 func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade string, tc encTestCase) error {
@@ -235,21 +232,15 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 		brOpts = options
 		installSealingObserver = obs
 		installRunCalled++
-		var keysForRoles map[string]*install.EncryptionKeySet
+		var keyForRole map[string]keys.EncryptionKey
 		if tc.encrypt {
-			keysForRoles = map[string]*install.EncryptionKeySet{
-				gadget.SystemData: {
-					Key:         dataEncryptionKey,
-					RecoveryKey: dataRecoveryKey,
-				},
-				gadget.SystemSave: {
-					Key:         saveKey,
-					RecoveryKey: reinstallKey,
-				},
+			keyForRole = map[string]keys.EncryptionKey{
+				gadget.SystemData: dataEncryptionKey,
+				gadget.SystemSave: saveKey,
 			}
 		}
 		return &install.InstalledSystemSideData{
-			KeysForRoles: keysForRoles,
+			KeyForRole: keyForRole,
 		}, nil
 	})
 	defer restore()
@@ -1257,7 +1248,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallDangerousWithTPM(c *C) {
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousBypassEncryption(c *C) {
@@ -1280,7 +1270,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallSignedWithTPM(c *C) {
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallSignedBypassEncryption(c *C) {
@@ -1298,7 +1287,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPM(c *C) {
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousEncryptionWithTPMNoTrustedAssets(c *C) {
@@ -1306,7 +1294,6 @@ func (s *deviceMgrInstallModeSuite) TestInstallDangerousEncryptionWithTPMNoTrust
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: false,
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallDangerousNoEncryptionWithTrustedAssets(c *C) {
@@ -1321,9 +1308,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 		tpm: true, bypass: false, encrypt: true, trustedBootloader: true,
 	})
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key"), testutil.FileEquals, reinstallKey[:])
 	marker, err := ioutil.ReadFile(filepath.Join(boot.InstallHostFDEDataDir, "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
@@ -1420,7 +1405,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionValidityChecksNoSystemD
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
-			KeysForRoles: map[string]*install.EncryptionKeySet{},
+			KeyForRole: map[string]keys.EncryptionKey{},
 		}, nil
 	})
 	defer restore()
