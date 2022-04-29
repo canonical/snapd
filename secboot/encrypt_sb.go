@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,8 @@
 package secboot
 
 import (
+	"fmt"
+
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/secboot/keymgr"
@@ -62,4 +64,18 @@ func FormatEncryptedDevice(key keys.EncryptionKey, label, node string) error {
 // The existing key to the encrypted volume is provided in the key argument.
 func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) error {
 	return keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(rkey, key, node)
+}
+
+// EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
+// It takes the path where to store the key and mount points for the
+// encrypted devices to operate on.
+func EnsureRecoveryKey(recoveryKeyFile string, mountPoints []string) (keys.RecoveryKey, error) {
+	return keys.RecoveryKey{}, fmt.Errorf("not implemented yet")
+}
+
+// RemoveRecoveryKeys removes any recovery key from all encrypted block devices.
+// It takes a map from the mount points for the encrypted devices to where
+// their recovery key is stored, mount points might share the latter.
+func RemoveRecoveryKeys(mountPointToRecoveryKeyFile map[string]string) error {
+	return fmt.Errorf("not implemented yet")
 }
