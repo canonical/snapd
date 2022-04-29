@@ -608,21 +608,23 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 func (s *secbootSuite) TestSealKey(c *C) {
 	mockErr := errors.New("some error")
 
-	for _, tc := range []struct {
-		tpmErr               error
-		tpmEnabled           bool
-		missingFile          bool
-		badSnapFile          bool
-		skipProvision        bool
-		addEFISbPolicyErr    error
-		addEFIBootManagerErr error
-		addSystemdEFIStubErr error
-		addSnapModelErr      error
-		provisioningErr      error
-		sealErr              error
-		provisioningCalls    int
-		sealCalls            int
-		expectedErr          string
+	for idx, tc := range []struct {
+		tpmErr                error
+		tpmEnabled            bool
+		tpmPartialReprovision bool
+		writeLockoutAuth      bool
+		missingFile           bool
+		badSnapFile           bool
+		skipProvision         bool
+		addEFISbPolicyErr     error
+		addEFIBootManagerErr  error
+		addSystemdEFIStubErr  error
+		addSnapModelErr       error
+		provisioningErr       error
+		sealErr               error
+		provisioningCalls     int
+		sealCalls             int
+		expectedErr           string
 	}{
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
@@ -634,9 +636,17 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, provisioningErr: mockErr, provisioningCalls: 1, expectedErr: "cannot provision TPM: some error"},
 		{tpmEnabled: true, sealErr: mockErr, provisioningCalls: 1, sealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, skipProvision: true, provisioningCalls: 0, sealCalls: 1, expectedErr: ""},
-		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1, expectedErr: ""},
+		// reprovisioning
+		{tpmEnabled: true, tpmPartialReprovision: true, expectedErr: "cannot read existing lockout auth: .*"},
+
+		// happy cases
+		{tpmEnabled: true, skipProvision: true, provisioningCalls: 0, sealCalls: 1},
+		{tpmEnabled: true, provisioningCalls: 1, sealCalls: 1},
+		// reprovisioning
+		{tpmEnabled: true, tpmPartialReprovision: true, writeLockoutAuth: true, provisioningCalls: 1, sealCalls: 1},
 	} {
+		c.Logf("tc: %v", idx)
+
 		tmpDir := c.MkDir()
 		var mockBF []bootloader.BootFile
 		for _, name := range []string{"a", "b", "c", "d"} {
@@ -696,7 +706,13 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			TPMPolicyAuthKeyFile:   filepath.Join(tmpDir, "policy-auth-key-file"),
 			TPMLockoutAuthFile:     filepath.Join(tmpDir, "lockout-auth-file"),
 			TPMProvision:           !tc.skipProvision,
+			TPMPartialReprovision:  tc.tpmPartialReprovision,
 			PCRPolicyCounterHandle: 42,
+		}
+
+		lockoutAuthData := []byte{'l', 'o', 'c', 'k', 'o', 'u', 't', 1, 1, 1, 1, 1, 1, 1, 1, 1}
+		if tc.writeLockoutAuth {
+			c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "lockout-auth-file"), lockoutAuthData, 0644), IsNil)
 		}
 
 		myKey := keys.EncryptionKey{}
@@ -786,6 +802,18 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
 		defer restore()
 
+		releaseResourcesCalls := 0
+		secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+			releaseResourcesCalls++
+			if tc.tpmPartialReprovision {
+				c.Check(handle, Equals, tpm2.Handle(myParams.PCRPolicyCounterHandle))
+			} else {
+				c.Fail()
+				return fmt.Errorf("unexpected call")
+			}
+			return nil
+		})
+
 		// mock adding EFI secure boot policy profile
 		var pcrProfile *sb_tpm2.PCRProtectionProfile
 		addEFISbPolicyCalls := 0
@@ -863,11 +891,16 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock provisioning
 		provisioningCalls := 0
-		restore = secboot.MockProvisionTPM(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte) error {
+		restore = secboot.MockProvisionTPM(func(t *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, newLockoutAuth []byte, currentLockoutAuth []byte) error {
 			provisioningCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(mode, Equals, sb_tpm2.ProvisionModeFull)
 			c.Assert(myParams.TPMLockoutAuthFile, testutil.FilePresent)
+			if tc.tpmPartialReprovision {
+				c.Assert(currentLockoutAuth, DeepEquals, lockoutAuthData)
+			} else {
+				c.Assert(currentLockoutAuth, IsNil)
+			}
 			return tc.provisioningErr
 		})
 		defer restore()
@@ -897,12 +930,16 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			c.Assert(addSystemdEfiStubCalls, Equals, 2)
 			c.Assert(addSnapModelCalls, Equals, 2)
 			c.Assert(osutil.FileExists(myParams.TPMPolicyAuthKeyFile), Equals, true)
+			if tc.tpmPartialReprovision {
+				c.Assert(releaseResourcesCalls, Equals, 1)
+			} else {
+				c.Assert(releaseResourcesCalls, Equals, 0)
+			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
 		c.Assert(provisioningCalls, Equals, tc.provisioningCalls)
 		c.Assert(sealCalls, Equals, tc.sealCalls)
-
 	}
 }
 
@@ -990,6 +1027,11 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		// mock TPM connection
 		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
 		defer restore()
+
+		secboot.MockTPMReleaseResources(func(tpm *sb_tpm2.Connection, handle tpm2.Handle) error {
+			c.Fail()
+			return fmt.Errorf("unexpected call")
+		})
 
 		// mock TPM enabled check
 		restore = secboot.MockIsTPMEnabled(func(t *sb_tpm2.Connection) bool {

@@ -100,6 +100,13 @@ type SealKeysParams struct {
 	TPMLockoutAuthFile string
 	// Whether we should provision the TPM
 	TPMProvision bool
+	// Only meaningful when used in conjunction with TPMProvision. Assumes a
+	// partial reprovisioniong of the TPM which was previously already
+	// provisioned by secboot. Existing lockout authorization data from
+	// TPMLockoutAuthFile will be used to authorize provisioning and will
+	// get overwritten in the process. The resource handles identified by
+	// PCRPolicyCounterHandle will be released before allocating them again
+	TPMPartialReprovision bool
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
 }
