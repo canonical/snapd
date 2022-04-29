@@ -1,8 +1,8 @@
-# Interfaces static information
+# Interfaces declarations
 
-## BaseDeclaration{Plugs,Slots}
+## Plug and slot declarations
 
-The snap-declarations are mainly used to control what plugs or slots a snap is
+These declarations are mainly used to control what plugs or slots a snap is
 allowed to use, and if a snap is allowed to use a plug/slot, what other
 slots/plugs should connect to that plug/slot on this snap.
 
@@ -19,27 +19,45 @@ Each of these keys can either have a static value of true/false or can be a
 more complex object/list which then is “evaluated” by snapd on a device to
 determine the actual value, be it true or false.
 
-Note that the declarations defined in the snapd interfaces can be overridden by
-“store assertions”, which make it possible for the snap store to alter the
-behaviour hardcoded in snapd; for example, a store assertion is typically used
-to grant auto-connection to some plugs of a specific application where this is
-deemed reasonable or safe (for example, auto-connecting the `camera` interface
-in a web-streaming application).
+
+### Base declarations and snap declarations
+
+The declarations defined in the snapd interfaces source code are called “base
+declarations” and can be overridden in the “snap declarations” in the snap
+store by means of “store assertions”, which make it possible for a store to
+alter the behaviour hardcoded in snapd; for example, a store assertion is
+typically used to grant auto-connection to some plugs of a specific application
+where this is deemed reasonable or safe (for example, auto-connecting the
+`camera` interface in a web-streaming application).
 
 The default value of the `allow-*` keys when not otherwise specified is `true`
 and the default value of `deny-*` keys when not otherwise specified is `false`.
 Matching `deny-*` constraints override/take precedence over `allow-*`
-constraints.
+constraints specified in the same declaration. The order of evaluation of rules
+is the following (execution stops as soon as a matching rule is found, meaning
+that the topmost elements in this list have higher priority):
+
+- `deny-*` keys in plug snap-declaration rule
+- `allow-*` keys in plug snap-declaration rule
+- `deny-*` keys in slot snap-declaration rule
+- `allow-*` keys in slot snap-declaration rule
+- `deny-*` keys in plug base-declaration rule
+- `allow-*` keys in plug base-declaration rule
+- `deny-*` keys in slot base-declaration rule
+- `allow-*` keys in slot base-declaration rule
+
+In other words, snap-declaration (store) rules have priority over
+base-declaration rules; then, plug rules have priority over slot rules, and
+finally deny rules have priority over allow rules.
 
 
 ### allow-installation
 
-The `allow-installation` key is the first key that is evaluated when the snap
-is being installed. If this evaluates to false, the snap cannot be installed if
-an interface plug or slot for which `allow-installation` evaluated to `false`
-exists in the snap. An example would be the `snapd-control` interface, which
-has in the base-declaration the static `allow-installation: false` rule for
-plugs:
+The `allow-installation` key is evaluated when the snap is being installed. If
+this evaluates to false, the snap cannot be installed if an interface plug or
+slot for which `allow-installation` evaluated to `false` exists in the snap. An
+example would be the `snapd-control` interface, which has in the
+base-declaration the static `allow-installation: false` rule for plugs:
 
     snapd-control:
       allow-installation: false
@@ -57,8 +75,7 @@ cannot be used at all without a snap-declaration assertion.
 
 ### allow-connection
 
-The `allow-connection` key is the next key to be evaluated after the snap is
-allowed to be installed. This key controls whether a connection is permitted at
+The `allow-connection` key controls whether a connection is permitted at
 all and usually is used to ensure that only “compatible” plugs and slots are
 connected to each other. A great example is the content interface, where the
 following (abbreviated) rule from the base-declaration is used to ensure that a
@@ -106,6 +123,9 @@ evaluating automatic connection of interface plugs and slots. If this key
 evaluates to `true`, then this plug/slot combination is considered a valid
 candidate for automatic connection.
 
+Automatic connection will happen normally only if there is one single candidate
+pairing with a slot for a given plug.
+
 
 ### Supported rules
 
@@ -122,10 +142,10 @@ slot-side `allow-connection` constraint can only specify plug-snap-type,
 plug-snap-id, plug-snap-publisher).
 
 For the `plug-snap-type` and `slot-snap-type` rules there are three possible
-values: `core`, `gadget`, and `app`. The `core` snap type refers to whichever
-snap is providing snapd on the system, either the `core` snap or `snapd` snap
-(`core` snap on most UC16 devices, `snapd` snap on most UC18+ systems, and
-either on classic systems depending on re-exec logic).
+values: `core`, `gadget`, `kernel` and `app`. The `core` snap type refers to
+whichever snap is providing snapd on the system, either the `core` snap or
+`snapd` snap (typically `core` snap on UC16 devices, `snapd` snap on UC18+
+systems, and either on classic systems depending on re-exec logic).
 
 The `on-store`, `on-brand`, and `on-model` rules are not generally hardcoded in
 the snapd interfaces, but are specified in store assertions; they are known as
@@ -277,13 +297,15 @@ starting with `$`.
 
 The special forms starting with `$` currently consist of:
 
-- `$SLOT_PUBLISHER_ID`, `$PLUG_PUBLISHER_ID`: these are respectively used from
-  the plug side and slot side of a declaration to refer to the publisher-id of
-  the other side of the connection.
-- `$PLUG()`, `$SLOT()`: similar to the above, but used for attributes instead
-  of publisher-ids.
-- `$MISSING`: matches only when the attribute set to `$MISSING` is not
-  specified in the snap.
+- `$SLOT_PUBLISHER_ID`, `$PLUG_PUBLISHER_ID`: these can be specified in the
+  `plug-publisher-id` and `slot-publisher-id` constraints respectively and are
+  used from the plug side and slot side of a declaration to refer to the
+  publisher-id of the other side of the connection.
+- `$PLUG()`, `$SLOT()`: similar to the above, but used in the `plug-attributes`
+  and `slot-attributes` constraints for specifying attributes instead of
+  publisher-ids.
+- `$MISSING`: used in the `plug-attributes` and `slot-attributes` constraints
+  to match when the attribute set to `$MISSING` is not specified in the snap.
 
 For example, these features are used in the base-declaration for the `content`
 interface to express that connection is only allowed when the attribute value
