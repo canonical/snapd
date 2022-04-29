@@ -399,7 +399,7 @@ jobs:
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
               if grep -q "Aborted tasks: 0" spread.log; then
                   ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | cut -d '-' -f2- > "$FAILED_TESTS_FILE"
+                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
 
                   echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
               else
@@ -541,7 +541,7 @@ jobs:
               # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
               if grep -q "Aborted tasks: 0" spread.log; then
                   ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | cut -d '-' -f2- > "$FAILED_TESTS_FILE"
+                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
 
                   echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
               else
