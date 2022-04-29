@@ -72,7 +72,7 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	}
 	// TODO make this idempotent, possible solution is:
 	// 1. write the key file if none is present
-	// 2. if the key firl was present, read it back
+	// 2. if the key file was present, read it back
 	// 3. add the key
 	// 4. if adding failed with keyslot already in used and the file was
 	// present assume it's correct

@@ -76,12 +76,10 @@ func recoveryKDF() (*luks2.KDFOptions, error) {
 	// benchmark from cryptsetup. The recovery key is already 128bit
 	// strong so we don't need to be super precise here.
 	kdfMem := (int(usableMem) - 384*1024*1024) / 2
-	// max 1 GB
+	// at most 1 GB, but at least 32 kB
 	if kdfMem > 1024*1024*1024 {
 		kdfMem = (1024 * 1024 * 1024)
-	}
-	// min 32 KB
-	if kdfMem < 32*1024 {
+	} else if kdfMem < 32*1024 {
 		kdfMem = 32 * 1024
 	}
 	return &luks2.KDFOptions{
@@ -119,11 +117,11 @@ func AddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey keys.RecoveryKey, currKey ke
 		Slot:       recoveryKeySlot,
 	}
 	if err := luks2.AddKey(dev, currKey, recoveryKey[:], &options); err != nil {
-		return fmt.Errorf("cannot add key: %w", err)
+		return fmt.Errorf("cannot add key: %v", err)
 	}
 
 	if err := luks2.SetSlotPriority(dev, encryptionKeySlot, luks2.SlotPriorityHigh); err != nil {
-		return fmt.Errorf("cannot change keyslot priority: %w", err)
+		return fmt.Errorf("cannot change keyslot priority: %v", err)
 	}
 
 	return nil
@@ -183,7 +181,7 @@ func ChangeLUKSDeviceEncryptionKey(newKey keys.EncryptionKey, dev string) error 
 	// new key for authorization
 	if err := luks2.KillSlot(dev, encryptionKeySlot, newKey); err != nil {
 		if !isKeyslotNotActive(err) {
-			return fmt.Errorf("cannot kill existing slot: %w", err)
+			return fmt.Errorf("cannot kill existing slot: %v", err)
 		}
 	}
 	options.Slot = encryptionKeySlot
