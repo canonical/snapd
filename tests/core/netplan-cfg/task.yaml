@@ -2,7 +2,12 @@ summary: Ensure that netplan config integration works
 
 # TODO: enable for all ubuntu core versions once netplan.io got SRUed
 #       into the older versions of ubuntu
-systems: [ubuntu-core-20-*]
+systems:
+  - ubuntu-core-20-*
+  - ubuntu-core-22-*
+
+# TODO: re-enable the test once https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1967084 is fixed
+manual: true
 
 prepare: |
     snap install jq

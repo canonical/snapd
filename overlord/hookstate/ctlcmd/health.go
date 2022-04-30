@@ -126,7 +126,7 @@ func (c *healthCommand) Execute([]string) error {
 
 	// if 'health' is there we've either already added an OnDone (and the
 	// following Set("health"), or we're in the set-health hook itself
-	// (which sets it to a dummy entry for this purpose).
+	// (which sets it to a fake entry for this purpose).
 	if err := ctx.Get("health", &v); err == state.ErrNoState {
 		ctx.OnDone(func() error {
 			return healthstate.SetFromHookContext(ctx)

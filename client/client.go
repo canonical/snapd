@@ -762,7 +762,7 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 
 type SystemRecoveryKeysResponse struct {
 	RecoveryKey  string `json:"recovery-key"`
-	ReinstallKey string `json:"reinstall-key"`
+	ReinstallKey string `json:"reinstall-key,omitempty"`
 }
 
 func (client *Client) SystemRecoveryKeys(result interface{}) error {

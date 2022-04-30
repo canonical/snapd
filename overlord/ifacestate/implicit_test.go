@@ -41,7 +41,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	hotplugSlots := map[string]*ifacestate.HotplugSlotInfo{
 		"foo": {
 			Name:        "foo",
-			Interface:   "dummy",
+			Interface:   "empty",
 			StaticAttrs: map[string]interface{}{"attr": "value"},
 			HotplugKey:  "1234",
 		}}
@@ -69,7 +69,7 @@ func (implicitSuite) TestAddImplicitSlotsOnCore(c *C) {
 	// Ensure hotplug slots were added
 	slot := info.Slots["foo"]
 	c.Assert(slot, NotNil)
-	c.Assert(slot.Interface, Equals, "dummy")
+	c.Assert(slot.Interface, Equals, "empty")
 	c.Assert(slot.Attrs, DeepEquals, map[string]interface{}{"attr": "value"})
 	c.Assert(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 }

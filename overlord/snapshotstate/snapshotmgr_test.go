@@ -59,7 +59,7 @@ func (snapshotSuite) TestManager(c *check.C) {
 	})
 }
 
-func mockDummySnapshot(c *check.C) (restore func()) {
+func mockFakeSnapshot(c *check.C) (restore func()) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "foo.zip"))
 	c.Assert(err, check.IsNil)
 
@@ -87,7 +87,7 @@ func (snapshotSuite) TestEnsureForgetsSnapshots(c *check.C) {
 	})
 	defer restoreOsRemove()
 
-	restore := mockDummySnapshot(c)
+	restore := mockFakeSnapshot(c)
 	defer restore()
 
 	st := state.New(nil)
@@ -175,7 +175,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	})
 	defer restoreOsRemove()
 
-	restore := mockDummySnapshot(c)
+	restore := mockFakeSnapshot(c)
 	defer restore()
 
 	st := state.New(nil)
@@ -215,7 +215,7 @@ func (snapshotSuite) testEnsureForgetSnapshotsConflict(c *check.C, snapshotOp st
 	c.Check(removeCalled, check.Equals, 0)
 
 	if tsk != nil {
-		// sanity check of the test setup: snapshot gets removed once conflict goes away
+		// validity check of the test setup: snapshot gets removed once conflict goes away
 		tsk.SetStatus(state.DoneStatus)
 	} else {
 		c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 1), check.Equals, snapshotOp)

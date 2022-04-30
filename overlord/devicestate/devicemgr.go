@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
@@ -51,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -99,7 +101,8 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
-	ensureInstalledRan bool
+	ensureInstalledRan    bool
+	ensureFactoryResetRan bool
 
 	ensureTriedRecoverySystemRan bool
 
@@ -169,6 +172,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("factory-reset-run-system", m.doFactoryResetRunSystem, nil)
 	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
@@ -556,6 +560,23 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
 	}
+	if device.KeyID == "" && model.Grade() != "" {
+		// UC20+ devices support factory reset
+		serial, err := m.maybeRestoreAfterReset(device)
+		if err != nil {
+			return err
+		}
+		if serial != nil {
+			device.KeyID = serial.DeviceKey().ID()
+			device.Serial = serial.Serial()
+			if err := m.setDevice(device); err != nil {
+				return fmt.Errorf("cannot set device for restored serial and key: %v", err)
+			}
+			logger.Noticef("restored serial %v for %v/%v signed with key %v",
+				device.Serial, device.Brand, device.Model, device.KeyID)
+			return nil
+		}
+	}
 
 	// have some backoff between full retries
 	if m.ensureOperationalShouldBackoff(time.Now()) {
@@ -597,6 +618,52 @@ func (m *DeviceManager) ensureOperational() error {
 	perfTimings.Save(m.state)
 
 	return nil
+}
+
+// maybeRestoreAfterReset attempts to restore the serial assertion with a
+// matching key in a post-factory reset scenario. It is possible that it is
+// called when the device was unregistered, but when doing so, the device key is
+// removed.
+func (m *DeviceManager) maybeRestoreAfterReset(device *auth.DeviceState) (*asserts.Serial, error) {
+	// there should be a serial assertion for the current model
+	serials, err := assertstate.DB(m.state).FindMany(asserts.SerialType, map[string]string{
+		"brand-id": device.Brand,
+		"model":    device.Model,
+	})
+	if err != nil {
+		if asserts.IsNotFound(err) {
+			// no serial assertion
+			return nil, nil
+		}
+		return nil, err
+	}
+	for _, serial := range serials {
+		serialAs := serial.(*asserts.Serial)
+		deviceKeyID := serialAs.DeviceKey().ID()
+		logger.Debugf("processing candidate serial assertion for %v/%v signed with key %v",
+			device.Brand, device.Model, deviceKeyID)
+		// serial assertion is signed with the device key, its ID is in
+		// the header; factory-reset would have restored the serial
+		// assertion and a matching device key, OTOH when the device is
+		// unregistered we explicitly remove the key, hence should this
+		// code process such serial assertion, there will be no matching
+		// key for it
+		err = m.withKeypairMgr(func(kpmgr asserts.KeypairManager) error {
+			_, err := kpmgr.Get(deviceKeyID)
+			return err
+		})
+		if err != nil {
+			if asserts.IsKeyNotFound(err) {
+				// there is no key matching this serial assertion,
+				// perhaps device was unregistered at some point
+				continue
+			}
+			return nil, err
+		}
+		return serialAs, nil
+	}
+	// none of the assertions has a matching key
+	return nil, nil
 }
 
 var startTime time.Time
@@ -1028,10 +1095,6 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.changeInFlight("install-system") {
-		return nil
-	}
-
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
@@ -1088,6 +1151,50 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
+
+	state.TagTimingsWithChange(perfTimings, chg)
+	perfTimings.Save(m.state)
+
+	return nil
+}
+
+func (m *DeviceManager) ensureFactoryReset() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		return nil
+	}
+
+	if m.ensureFactoryResetRan {
+		return nil
+	}
+
+	if m.SystemMode(SysHasModeenv) != "factory-reset" {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
+
+	m.ensureFactoryResetRan = true
+
+	factoryReset := m.state.NewTask("factory-reset-run-system", i18n.G("Perform factory reset of the system"))
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	restartSystem.WaitFor(factoryReset)
+
+	// TODO: add factory-reset hooks?
+
+	chg := m.state.NewChange("factory-reset", i18n.G("Perform factory reset"))
+	chg.AddAll(state.NewTaskSet(factoryReset, restartSystem))
 
 	state.TagTimingsWithChange(perfTimings, chg)
 	perfTimings.Save(m.state)
@@ -1292,6 +1399,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureTriedRecoverySystem(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureFactoryReset(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1933,4 +2044,81 @@ func (h fdeSetupHandler) Done() error {
 
 func (h fdeSetupHandler) Error(err error) (bool, error) {
 	return false, nil
+}
+
+var (
+	secbootEnsureRecoveryKey  = secboot.EnsureRecoveryKey
+	secbootRemoveRecoveryKeys = secboot.RemoveRecoveryKeys
+)
+
+// EnsureRecoveryKeys makes sure appropriate recovery keys exist and
+// returns them. Usually a single recovery key is created/used, but
+// older systems might return both a recovery key for ubuntu-data and a
+// reinstall key for ubuntu-save.
+func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
+	fdeDir := dirs.SnapFDEDir
+	mode := m.SystemMode(SysAny)
+	if mode == "install" {
+		fdeDir = boot.InstallHostFDEDataDir
+	} else if mode != "run" {
+		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
+	}
+	sysKeys := &client.SystemRecoveryKeysResponse{}
+	// backward compatibility
+	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(fdeDir, "recovery.key"))
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.RecoveryKey = rkey.String()
+
+		reinstallKey, err := keys.RecoveryKeyFromFile(reinstallKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.ReinstallKey = reinstallKey.String()
+		return sysKeys, nil
+	}
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(fdeDir, "marker")) {
+		return nil, fmt.Errorf("system does not use disk encryption")
+	}
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	mountPoints := []string{dataMountPoints[0], boot.InitramfsUbuntuSaveDir}
+	rkey, err := secbootEnsureRecoveryKey(filepath.Join(fdeDir, "recovery.key"), mountPoints)
+	if err != nil {
+		return nil, err
+	}
+	sysKeys.RecoveryKey = rkey.String()
+	return sysKeys, nil
+}
+
+// RemoveRecoveryKeys removes and disables all recovery keys.
+func (m *DeviceManager) RemoveRecoveryKeys() error {
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return fmt.Errorf("cannot remove recovery keys from system mode %q", mode)
+	}
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
+		return fmt.Errorf("system does not use disk encryption")
+	}
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	mountPointToKey := make(map[string]string, 2)
+	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	mountPointToKey[dataMountPoints[0]] = rkey
+	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		mountPointToKey[boot.InitramfsUbuntuSaveDir] = reinstallKeyFile
+	} else {
+		mountPointToKey[boot.InitramfsUbuntuSaveDir] = rkey
+	}
+	return secbootRemoveRecoveryKeys(mountPointToKey)
 }

@@ -21,20 +21,10 @@ package gadget
 
 import (
 	"errors"
-
-	"github.com/snapcore/snapd/gadget/quantity"
 )
 
 var errNotImplemented = errors.New("not implemented")
 
 func FindDeviceForStructure(ps *LaidOutStructure) (string, error) {
-	return "", errNotImplemented
-}
-
-func findDeviceForStructureWithFallback(ps *LaidOutStructure) (string, quantity.Offset, error) {
-	return "", 0, errNotImplemented
-}
-
-func findMountPointForStructure(ps *LaidOutStructure) (string, error) {
 	return "", errNotImplemented
 }

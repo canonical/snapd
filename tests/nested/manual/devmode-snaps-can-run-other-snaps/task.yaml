@@ -24,6 +24,7 @@ environment:
 prepare: |
   # install lxd so we can build the snapd snap
   snap install lxd --channel="$LXD_SNAP_CHANNEL"
+  tests.cleanup defer snap remove lxd
 
   snap install snapcraft --channel=4.x/candidate --classic
   tests.cleanup defer snap remove --purge snapcraft

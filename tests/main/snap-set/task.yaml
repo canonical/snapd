@@ -29,7 +29,7 @@ execute: |
         exit 1
     fi
 
-    echo "Sanity check before we unset the value with null"
+    echo "Precondition check before we unset the value with null"
     if ! obtained=$(snap get snapctl-hooks foo); then
         echo "Expected snap get to be able to retrieve set value"
         exit 1

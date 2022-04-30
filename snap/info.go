@@ -911,7 +911,7 @@ func (st StopModeType) KillSignal() string {
 // Validate ensures that the StopModeType has an valid value.
 func (st StopModeType) Validate() error {
 	switch st {
-	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all", "sigint", "sigint-all":
 		// valid
 		return nil
 	}

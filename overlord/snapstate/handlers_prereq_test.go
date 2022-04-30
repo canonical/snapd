@@ -100,7 +100,7 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 			Revision: snap.R(33),
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
 
 	s.se.Ensure()
@@ -124,7 +124,7 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 		Base:               "none",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -170,7 +170,7 @@ func (s *prereqSuite) TestDoPrereqManyTransactional(c *C) {
 	// Set lane to make sure new tasks will match this one
 	lane := s.state.NewLane()
 	t.JoinLane(lane)
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -215,7 +215,7 @@ func (s *prereqSuite) TestDoPrereqTransactionalFailTooManyLanes(c *C) {
 	// There should be only one lane in a transactional change
 	t.JoinLane(s.state.NewLane())
 	t.JoinLane(s.state.NewLane())
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -249,7 +249,7 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 		Base:               "some-base",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}, "prereq2": {"other-content"}},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -364,7 +364,7 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 		},
 	})
 
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(prereqTask)
 	chg.AddTask(tCore)
 
@@ -386,13 +386,13 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 		}
 	}
 
-	// sanity check, exactly two calls to link-snap due to retry error on 1st call
+	// validity check, exactly two calls to link-snap due to retry error on 1st call
 	c.Check(calls, Equals, 2)
 
 	c.Check(tCore.Status(), Equals, state.DoneStatus)
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 
-	// sanity
+	// validity
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
@@ -422,7 +422,7 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 		Base:               "some-base",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}, "prereq2": {"other-content"}},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -489,7 +489,7 @@ func (s *prereqSuite) TestDoPrereqNothingToDoForBase(c *C) {
 			},
 			Type: typ,
 		})
-		s.state.NewChange("dummy", "...").AddTask(t)
+		s.state.NewChange("sample", "...").AddTask(t)
 		s.state.Unlock()
 
 		s.se.Ensure()
@@ -513,7 +513,7 @@ func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
 			Revision: snap.R(1),
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
 
 	s.se.Ensure()
@@ -545,7 +545,7 @@ func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
 		},
 		Base: "core16",
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
 
 	s.se.Ensure()
@@ -571,7 +571,7 @@ func (s *prereqSuite) testDoPrereqNoCorePullsInSnaps(c *C, base string) {
 		},
 		Base: base,
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
 
 	s.se.Ensure()
@@ -635,7 +635,7 @@ func (s *prereqSuite) TestDoPrereqBaseIsNotBase(c *C) {
 		Base:               "app-snap",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -664,7 +664,7 @@ func (s *prereqSuite) TestDoPrereqBaseNoRevision(c *C) {
 		Base:               "some-base",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -692,7 +692,7 @@ func (s *prereqSuite) TestDoPrereqNoRevision(c *C) {
 		Channel:            "beta",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}},
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 
@@ -720,7 +720,7 @@ func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {
 		Base:    "core18",
 		Channel: "beta",
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 	s.state.Unlock()
 

@@ -48,7 +48,6 @@ const sharedMemorySummary = `allows two snaps to use predefined shared memory ob
 // unless a slot was also granted at some point.
 const sharedMemoryBaseDeclarationPlugs = `
   shared-memory:
-    allow-installation: true
     allow-connection:
       -
         plug-attributes:

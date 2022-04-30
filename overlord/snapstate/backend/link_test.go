@@ -60,6 +60,7 @@ type linkSuiteCommon struct {
 
 func (s *linkSuiteCommon) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
@@ -219,6 +220,36 @@ type: kernel
 	reboot, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Check(reboot, DeepEquals, boot.RebootInfo{})
+}
+
+func (s *linkSuite) TestLinkSnapdSnapCallsWrappersWithPreseedingFlag(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	var called bool
+	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error {
+		c.Check(opts.Preseeding, Equals, true)
+		called = true
+		return nil
+	})
+	defer restoreAddSnapdSnapWrappers()
+
+	be := backend.NewForPreseedMode()
+	coreDev := boottest.MockUC20Device("run", nil)
+
+	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
+	const yaml = `name: snapd
+version: 1.0
+type: snapd
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	_, err := be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, true)
 }
 
 func (s *linkSuite) TestLinkDoIdempotent(c *C) {

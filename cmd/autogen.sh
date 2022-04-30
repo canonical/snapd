@@ -14,7 +14,7 @@ if [ ! -e VERSION ]; then
 	( cd .. && ./mkversion.sh )
 fi
 
-# Sanity check, are we in the right directory?
+# Precondition check, are we in the right directory?
 test -f configure.ac
 
 # Regenerate the build system

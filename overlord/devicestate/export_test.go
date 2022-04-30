@@ -34,8 +34,10 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -262,7 +264,21 @@ var (
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
+
+	MaybeApplyPreseededData = maybeApplyPreseededData
 )
+
+func MockMaybeApplyPreseededData(f func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (bool, error)) (restore func()) {
+	r := testutil.Backup(&maybeApplyPreseededData)
+	maybeApplyPreseededData = f
+	return r
+}
+
+func MockSeedOpen(f func(seedDir, label string) (seed.Seed, error)) (restore func()) {
+	r := testutil.Backup(&seedOpen)
+	seedOpen = f
+	return r
+}
 
 func MockGadgetUpdate(mock func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
@@ -328,6 +344,12 @@ func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device st
 	}
 }
 
+func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
+	restore = testutil.Backup(&installFactoryReset)
+	installFactoryReset = f
+	return restore
+}
+
 func MockCloudInitStatus(f func() (sysconfig.CloudInitState, error)) (restore func()) {
 	old := cloudInitStatus
 	cloudInitStatus = f
@@ -378,4 +400,16 @@ func MockSystemForPreseeding(f func() (string, error)) (restore func()) {
 	return func() {
 		systemForPreseeding = old
 	}
+}
+
+func MockSecbootEnsureRecoveryKey(f func(recoveryKeyFile string, mountPoints []string) (keys.RecoveryKey, error)) (restore func()) {
+	restore = testutil.Backup(&secbootEnsureRecoveryKey)
+	secbootEnsureRecoveryKey = f
+	return restore
+}
+
+func MockSecbootRemoveRecoveryKeys(f func(mountPointToRecoverKeyFile map[string]string) error) (restore func()) {
+	restore = testutil.Backup(&secbootRemoveRecoveryKeys)
+	secbootRemoveRecoveryKeys = f
+	return restore
 }

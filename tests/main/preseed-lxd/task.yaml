@@ -103,7 +103,7 @@ execute: |
   lxc exec my-ubuntu -- "$GOHOME"/preseed-prepare.sh "$IMAGE_MOUNTPOINT"
   lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"
 
-  echo "Sanity check of mount units"
+  echo "Precondition check of mount units"
   # preseeded image is mounted on the host, so we can directly inspect
   # preseeding artifacts.
   MATCH "Type=squashfs$" < "$IMAGE_MOUNTPOINT"/etc/systemd/system/snap-lxd-*.mount
@@ -145,7 +145,7 @@ execute: |
     exit 1
   fi
 
-  echo "Sanity check that mount overrides were generated inside the container"
+  echo "Precondition check that mount overrides were generated inside the container"
   lxc exec my-ubuntu-preseeded -- find /var/run/systemd/generator/ -name container.conf > overrides.log
   MATCH "/var/run/systemd/generator/snap-core20.*mount.d/container.conf" < overrides.log
   MATCH "/var/run/systemd/generator/snap-snapd-.*mount.d/container.conf" < overrides.log
