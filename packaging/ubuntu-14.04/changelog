@@ -1,3 +1,29 @@
+snapd (2.55.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1965808
+    - tests: do not run mount-order-regression test on i386
+    - c/snap-seccomp: update syscalls
+    - o/snapstate: overwrite ~/.snap subdir when migrating
+    - o/assertstate: fix handling of validation set tracking update in
+      enforcing mode
+    - packaging: restart our units only after the upgrade
+    - interfaces: add a steam-support interface
+    - features: enable refresh-app-awareness by default
+    - i/b/custom_device: fix generation of udev rules
+    - interfaces/system-packages-doc: allow read-only access to
+      /usr/share/gtk-doc
+    - interfaces/system-packages-doc: allow read-only access to
+      /usr/share/xubuntu-docs
+    - interfaces/builtin/network-control: also allow for mstp and bchat
+      devices too
+    - interfaces/builtin: update apparmor profile to allow creating
+      mimic over /usr/share
+    - data/selinux: allow snap-update-ns to mount on top of /var/snap
+      inside the mount ns
+    - interfaces/cpu-control: fix apparmor rules of paths with CPU ID
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 30 Apr 2022 10:04:39 +0200
+
 snapd (2.55.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1965808
