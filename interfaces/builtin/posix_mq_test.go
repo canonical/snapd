@@ -38,20 +38,24 @@ version: 1.0
 slots:
   test-rw:
     interface: posix-mq
+    path: /test-rw
     permissions:
       - read
       - write
 
   test-default:
     interface: posix-mq
+    path: /test-default
 
   test-ro:
     interface: posix-mq
+    path: /test-ro
     permissions:
       - read
 
   test-all-perms:
     interface: posix-mq
+    path: /test-all-perms
     permissions:
       - create
       - delete
@@ -60,19 +64,20 @@ slots:
 
   test-invalid-path-1:
     interface: posix-mq
-    posix-mq: ../../test-invalid
+    path: ../../test-invalid
 
   test-invalid-path-2:
     interface: posix-mq
-    posix-mq: /test-invalid-2"[
+    path: /test-invalid-2"[
 
   test-invalid-path-3:
     interface: posix-mq
-    posix-mq:
+    path:
       - this-is-not-a-string
 
   test-invalid-perms-1:
     interface: posix-mq
+    path: /test-invalid-perms-1
     permissions:
       - create
       - delete
@@ -80,6 +85,7 @@ slots:
 
   test-invalid-perms-2:
       interface: posix-mq
+      path: /test-invalid-perms-2
       permissions: not-a-list
 
 apps:
