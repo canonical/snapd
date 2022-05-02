@@ -49,6 +49,7 @@ func (s *resourcesTestSuite) TestQuotaValidationFails(c *C) {
 		{quota.NewResourcesBuilder().WithCPUCount(2).WithCPUPercentage(100).WithAllowedCPUs([]int{0}).Build(), `cpu usage 200% is larger than the maximum allowed for provided set \[0\] of 100%`},
 		{quota.NewResourcesBuilder().WithJournalRate(0, 1).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
 		{quota.NewResourcesBuilder().WithJournalRate(1, 0).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
+		{quota.NewResourcesBuilder().WithJournalRate(1, time.Nanosecond).Build(), `journal quota must have a rate count larger than zero and period at least 1 microsecond \(minimum resolution\)`},
 		{quota.NewResourcesBuilder().WithJournalSize(0).Build(), `journal size quota must have a limit set`},
 	}
 
