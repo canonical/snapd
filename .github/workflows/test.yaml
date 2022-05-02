@@ -175,6 +175,10 @@ jobs:
               # and skip with other versions
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
+          else
+              # misspell and infessassign do not build with Go 1.13
+              export SKIP_MISSPELL=1
+              export SKIP_INEFFASSIGN=1
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
