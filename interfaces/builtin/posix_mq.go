@@ -181,8 +181,7 @@ func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (st
 			return "", fmt.Errorf(`posix-mq slot "path" attribute must be a string, not %v`, pathAttr)
 		}
 	} else {
-		// Path defaults to name if unspecified
-		path = name
+		return "", fmt.Errorf(`posix-mq slot requires the "path" attribute`)
 	}
 
 	// Path must begin with a /
@@ -228,6 +227,20 @@ func (iface *posixMQInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	if err := iface.checkPosixMQAppArmorSupport(); err != nil {
 		return err
+	}
+
+	posixMQAttr, isSet := slot.Attrs["posix-mq"]
+	posixMQ, ok := posixMQAttr.(string)
+	if isSet && !ok {
+		return fmt.Errorf(`posix-mq "posix-mq" attribute must be a string, not %v`,
+			slot.Attrs["posix-mq"])
+	}
+	if posixMQ == "" {
+		if slot.Attrs == nil {
+			slot.Attrs = make(map[string]interface{})
+		}
+		// posix-mq defaults to "slot" name if unspecified
+		slot.Attrs["posix-mq"] = slot.Name
 	}
 
 	// Only ensure that the given permissions are valid, don't use them here
