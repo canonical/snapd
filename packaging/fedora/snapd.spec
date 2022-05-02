@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.55.3
+Version:        2.55.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -980,6 +980,29 @@ fi
 
 
 %changelog
+* Sat Apr 30 2022 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.55.4
+ - tests: do not run mount-order-regression test on i386
+ - c/snap-seccomp: update syscalls
+ - o/snapstate: overwrite ~/.snap subdir when migrating
+ - o/assertstate: fix handling of validation set tracking update in
+   enforcing mode
+ - packaging: restart our units only after the upgrade
+ - interfaces: add a steam-support interface
+ - features: enable refresh-app-awareness by default
+ - i/b/custom_device: fix generation of udev rules
+ - interfaces/system-packages-doc: allow read-only access to
+   /usr/share/gtk-doc
+ - interfaces/system-packages-doc: allow read-only access to
+   /usr/share/xubuntu-docs
+ - interfaces/builtin/network-control: also allow for mstp and bchat
+   devices too
+ - interfaces/builtin: update apparmor profile to allow creating
+   mimic over /usr/share
+ - data/selinux: allow snap-update-ns to mount on top of /var/snap
+   inside the mount ns
+ - interfaces/cpu-control: fix apparmor rules of paths with CPU ID
+
 * Fri Apr 08 2022 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.55.3
  - cmd/snap-update-ns: apply content mounts before layouts
