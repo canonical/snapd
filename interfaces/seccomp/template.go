@@ -147,6 +147,7 @@ fork
 ftime
 futex
 futex_time64
+futex_waitv
 get_mempolicy
 get_robust_list
 get_thread_area

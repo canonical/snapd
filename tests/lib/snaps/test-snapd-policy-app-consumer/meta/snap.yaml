@@ -425,6 +425,9 @@ apps:
   ssh-public-keys:
     command: bin/run
     plugs: [ ssh-public-keys ]
+  steam-support:
+    command: bin/run
+    plugs: [ steam-support ]
   storage-framework-service:
     command: bin/run
     plugs: [ storage-framework-service ]

@@ -678,6 +678,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionSteamSupportOverride(c *C) {
+	cand := s.connectCand(c, "steam-support", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"steam-support\"")
+
+	plugsSlots := `
+plugs:
+  steam-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionOverrideMultiple(c *C) {
 	plugsSlots := `
 plugs:
@@ -781,6 +799,7 @@ var (
 		"sd-control":                {"core"},
 		"serial-port":               {"core", "gadget"},
 		"spi":                       {"core", "gadget"},
+		"steam-support":             {"core"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
@@ -904,6 +923,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
+		"steam-support":         true,
 		"system-files":          true,
 		"tee":                   true,
 		"uinput":                true,
@@ -1153,6 +1173,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"snap-refresh-control":  true,
 		"snap-themes-control":   true,
 		"snapd-control":         true,
+		"steam-support":         true,
 		"system-files":          true,
 		"tee":                   true,
 		"udisks2":               true,
