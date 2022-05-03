@@ -1,0 +1,46 @@
+summary: Ensure that desktop files are launched via the privileged launcher.
+
+details: |
+    The desktop-launch interface allows a snap to launch other snaps via
+    the desktop files they provide to the host system.
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    if ! tests.session has-session-systemd-and-dbus; then
+        exit 0
+    fi
+    tests.session -u test prepare
+    tests.session -u test exec systemctl --user \
+      set-environment XDG_DATA_DIRS=/usr/share:/var/lib/snapd/desktop
+
+restore: |
+    if ! tests.session has-session-systemd-and-dbus; then
+        exit 0
+    fi
+    tests.session -u test restore
+    rm -f ~test/snap/test-app/current/launch-data.txt
+
+execute: |
+    if ! tests.session has-session-systemd-and-dbus; then
+        exit 0
+    fi
+
+    echo "Install the application snap"
+    "$TESTSTOOLS"/snaps-state install-local test-app
+    echo "The snap installs a desktop file"
+    [ -f /var/lib/snapd/desktop/applications/test-app_test-app.desktop ]
+
+    echo "Install the launcher snap"
+    "$TESTSTOOLS"/snaps-state install-local test-launcher
+
+    echo "Connect the desktop-launch interface"
+    snap connect test-launcher:desktop-launch
+
+    echo "launch desktop file via the privileged launcher"
+    tests.session -u test exec test-launcher \
+        test-app
+
+    echo "The app snap records that it has been launched"
+    launch_data=~test/snap/test-app/current/launch-data.txt
+    retry -n 5 --wait 1 test -s "$launch_data"

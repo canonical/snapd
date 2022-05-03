@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=test-app
+Comment=A desktop file for test-app
+Exec=test-app arg-before %U arg-after
