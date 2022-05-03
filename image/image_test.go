@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1226,7 +1226,7 @@ func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
 			CloudInitUserData: "cloud-init-user-data",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot support with UC20 model requested customizations: console-conf disable, cloud-init user-data`)
+	c.Assert(err, ErrorMatches, `cannot support with UC20\+ model requested customizations: console-conf disable, cloud-init user-data`)
 }
 
 func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {

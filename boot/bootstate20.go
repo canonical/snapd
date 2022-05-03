@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -560,7 +560,7 @@ func toBootStateUpdate20(update bootStateUpdate) (u20 *bootStateUpdate20, err er
 	if update != nil {
 		var ok bool
 		if u20, ok = update.(*bootStateUpdate20); !ok {
-			return nil, fmt.Errorf("internal error, cannot thread %T with update for UC20", update)
+			return nil, fmt.Errorf("internal error, cannot thread %T with update for UC20+", update)
 		}
 	}
 	if u20 == nil {
