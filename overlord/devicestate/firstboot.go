@@ -38,11 +38,9 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var (
-	errNothingToDo = errors.New("nothing to do")
+var errNothingToDo = errors.New("nothing to do")
 
-	runtimeNumCPU = runtime.NumCPU
-)
+var runtimeNumCPU = runtime.NumCPU
 
 func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
@@ -401,6 +399,8 @@ var loadDeviceSeed = func(st *state.State, sysLabel string) (deviceSeed seed.See
 	}
 
 	if runtimeNumCPU() > 1 {
+		// XXX set parallelism experimentally to 2 as I/O
+		// itself becomes a bottleneck ultimately
 		deviceSeed.SetParallelism(2)
 	}
 
