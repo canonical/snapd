@@ -3270,10 +3270,11 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	defer restoreSetupSeed()
 
 	var preseedCalled bool
-	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key string) error {
+	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key, aaDir string) error {
 		preseedCalled = true
 		c.Assert(dir, Equals, "/a/dir")
 		c.Assert(key, Equals, "foo")
+		c.Assert(aaDir, Equals, "/custom/aa/features")
 		return nil
 	})
 	defer restorePreseedCore20()
@@ -3287,6 +3288,8 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 		Preseed:        true,
 		PrepareDir:     "/a/dir",
 		PreseedSignKey: "foo",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
 	})
 	c.Assert(err, IsNil)
 	c.Check(preseedCalled, Equals, true)
