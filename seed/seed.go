@@ -34,6 +34,8 @@ import (
 var (
 	ErrNoAssertions = errors.New("no seed assertions")
 	ErrNoMeta       = errors.New("no seed metadata")
+
+	open = Open
 )
 
 // Snap holds the details of a snap in a seed.
@@ -219,19 +221,24 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 // ReadSystemEssentialAndBetterEarliestTime retrieves in one go
 // information about the model and essential snaps of the given types
 // for the Core 20 recovery system seed specified by seedDir and label
-// (which cannot be empty).
+// (which cannot be empty). numJobs specifies the suggested number of
+// jobs to run in parallel (0 disables parallelism).
 // It can operate even if current system time is unreliable by taking
 // a earliestTime lower bound for current time.
 // It returns as well an improved lower bound by considering
 // appropriate assertions in the seed.
-func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTypes []snap.Type, earliestTime time.Time, tm timings.Measurer) (*asserts.Model, []*Snap, time.Time, error) {
+func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTypes []snap.Type, earliestTime time.Time, numJobs int, tm timings.Measurer) (*asserts.Model, []*Snap, time.Time, error) {
 	if label == "" {
 		return nil, nil, time.Time{}, fmt.Errorf("system label cannot be empty")
 	}
-	seed20, err := Open(seedDir, label)
+	seed20, err := open(seedDir, label)
 	if err != nil {
 		return nil, nil, time.Time{}, err
 
+	}
+
+	if numJobs > 0 {
+		seed20.SetParallelism(numJobs)
 	}
 
 	improve := func(a asserts.Assertion) {

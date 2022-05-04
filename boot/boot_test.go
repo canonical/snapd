@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -3603,7 +3603,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateNonUC20(c *C) {
 	})
 
 	reboot, err := boot.UpdateCommandLineForGadgetComponent(nonUC20dev, sf)
-	c.Assert(err, ErrorMatches, "internal error: command line component cannot be updated on non UC20 devices")
+	c.Assert(err, ErrorMatches, `internal error: command line component cannot be updated on pre-UC20 devices`)
 	c.Assert(reboot, Equals, false)
 }
 

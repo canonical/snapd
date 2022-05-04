@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -69,7 +70,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
