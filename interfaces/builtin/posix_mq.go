@@ -213,13 +213,36 @@ func (iface *posixMQInterface) validatePath(name, path string) error {
 	return nil
 }
 
+func (iface *posixMQInterface) checkPosixMQAttr(name string, attrs *map[string]interface{}) error {
+
+	posixMQAttr, isSet := (*attrs)["posix-mq"]
+	posixMQ, ok := posixMQAttr.(string)
+	if isSet && !ok {
+		return fmt.Errorf(`posix-mq "posix-mq" attribute must be a string, not %v`,
+			(*attrs)["posix-mq"])
+	}
+	if posixMQ == "" {
+		if *attrs == nil {
+			*attrs = make(map[string]interface{})
+		}
+		// posix-mq attribute defaults to name if unspecified
+		(*attrs)["posix-mq"] = name
+	}
+
+	return nil
+}
+
 func (iface *posixMQInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if err := iface.checkPosixMQAppArmorSupport(); err != nil {
 		return err
 	}
 
-	// Plugs don't have any arguments to validate; everything is configured
-	// by the slot
+	if err := iface.checkPosixMQAttr(plug.Name, &plug.Attrs); err != nil {
+		return err
+	}
+
+	// Plugs don't have any path or permission arguments to validate;
+	// everything is configured by the slot
 
 	return nil
 }
@@ -229,18 +252,8 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return err
 	}
 
-	posixMQAttr, isSet := slot.Attrs["posix-mq"]
-	posixMQ, ok := posixMQAttr.(string)
-	if isSet && !ok {
-		return fmt.Errorf(`posix-mq "posix-mq" attribute must be a string, not %v`,
-			slot.Attrs["posix-mq"])
-	}
-	if posixMQ == "" {
-		if slot.Attrs == nil {
-			slot.Attrs = make(map[string]interface{})
-		}
-		// posix-mq defaults to "slot" name if unspecified
-		slot.Attrs["posix-mq"] = slot.Name
+	if err := iface.checkPosixMQAttr(slot.Name, &slot.Attrs); err != nil {
+		return err
 	}
 
 	// Only ensure that the given permissions are valid, don't use them here
