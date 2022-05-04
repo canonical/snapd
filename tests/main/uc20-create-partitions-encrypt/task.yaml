@@ -113,12 +113,14 @@ execute: |
 
     echo "Check that the ubuntu-data key files were created"
     test "$(stat --printf=%s unsealed-key)" -eq 32
-    # recovery key is 16 bytes long
-    test "$(stat --printf=%s recovery-key)" -eq 16
     echo "Check that the ubuntu-save key files were created"
     test "$(stat --printf=%s save-key)" -eq 32
+
+    # TODO restore these checks once keys can be created on-demand at runtime
     # recovery key is 16 bytes long
-    test "$(stat --printf=%s reinstall-key)" -eq 16
+    # test "$(stat --printf=%s recovery-key)" -eq 16
+    # reinstall key is 16 bytes long
+    # test "$(stat --printf=%s reinstall-key)" -eq 16
 
     echo "Check that the partitions are created"
     sfdisk -d "$LOOP" | MATCH "^${LOOP}p1 .*size=\s*2048, type=21686148-6449-6E6F-744E-656564454649,.*BIOS Boot"
