@@ -304,7 +304,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
-	snapSHA3_384, _, err := handler.HandleAndDigestAssertedSnap(snapName, snapPath, essType, snapRev, nil, tm)
+	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedSnap(snapName, snapPath, essType, snapRev, nil, tm)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -312,6 +312,10 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, essType snap.Typ
 	if snapSHA3_384 != snapRev.SnapSHA3_384() {
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), hash mismatch with snap-revision", snapPath, snapName, snapID)
 
+	}
+
+	if newPath != "" {
+		snapPath = newPath
 	}
 
 	return snapPath, snapRev, snapDecl, nil
@@ -330,11 +334,15 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, essType snap.Type, optSnap *
 		if err != nil {
 			return nil, fmt.Errorf("cannot read unasserted snap: %v", err)
 		}
-		if err := handler.HandleUnassertedSnap(info.SnapName(), path, tm); err != nil {
+		newPath, err := handler.HandleUnassertedSnap(info.SnapName(), path, tm)
+		if err != nil {
 			return nil, err
 		}
-		// suppress channel
+		if newPath != "" {
+			path = newPath
+		}
 		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
+		// suppress channel
 		channel = ""
 	} else {
 		var err error

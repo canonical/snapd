@@ -37,13 +37,11 @@ import (
 
 var (
 	secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
-	secbootAddRecoveryKey        = secboot.AddRecoveryKey
 )
 
 // encryptedDeviceCryptsetup represents a encrypted block device.
 type encryptedDevice interface {
 	Node() string
-	AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey) error
 	Close() error
 }
 
@@ -78,10 +76,6 @@ func newEncryptedDeviceLUKS(part *gadget.OnDiskStructure, key keys.EncryptionKey
 	}
 
 	return dev, nil
-}
-
-func (dev *encryptedDeviceLUKS) AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey) error {
-	return secbootAddRecoveryKey(key, rkey, dev.parent.Node)
 }
 
 func (dev *encryptedDeviceLUKS) Node() string {
@@ -172,8 +166,4 @@ func (dev *encryptedDeviceWithSetupHook) Close() error {
 
 func (dev *encryptedDeviceWithSetupHook) Node() string {
 	return dev.node
-}
-
-func (dev *encryptedDeviceWithSetupHook) AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey) error {
-	return fmt.Errorf("recovery keys are not supported on devices that use the device-setup hook")
 }

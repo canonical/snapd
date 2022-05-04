@@ -374,7 +374,7 @@ func (s *reRefreshSuite) TestFilterReturnsFalseIfEpochEqualZero(c *C) {
 }
 
 func (s *refreshSuite) TestMaybeRestoreValidationSetsAndRevertSnaps(c *C) {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -392,7 +392,7 @@ func (s *refreshSuite) TestMaybeRestoreValidationSetsAndRevertSnaps(c *C) {
 
 func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRevert(c *C) {
 	var enforcedValidationSetsCalled int
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		enforcedValidationSetsCalled++
 
 		vs := snapasserts.NewValidationSets()
@@ -520,7 +520,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 
 func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertJustValidationSetsRestore(c *C) {
 	var enforcedValidationSetsCalled int
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		enforcedValidationSetsCalled++
 
 		vs := snapasserts.NewValidationSets()

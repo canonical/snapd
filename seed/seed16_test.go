@@ -1033,6 +1033,87 @@ func (s *seed16Suite) TestLoadMetaCore18SnapHandler(c *C) {
 	})
 }
 
+func (s *seed16Suite) TestLoadMetaCore18SnapHandlerChangePath(c *C) {
+	localRequired18Seed := &seed.InternalSnap16{
+		Name:       "required18",
+		Unasserted: true,
+		DevMode:    true,
+	}
+	s.makeSeed(c, map[string]interface{}{
+		"base":           "core18",
+		"kernel":         "pc-kernel=18",
+		"gadget":         "pc=18",
+		"required-snaps": []interface{}{"core", "required18"},
+	}, snapdSeed, core18Seed, kernel18Seed, gadget18Seed, localRequired18Seed)
+
+	err := s.seed16.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	h := newTestSnapHandler(s.SeedDir)
+	h.pathPrefix = "saved"
+
+	err = s.seed16.LoadMeta(seed.AllModes, h, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	essSnaps := s.seed16.EssentialSnaps()
+	c.Check(essSnaps, HasLen, 4)
+
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:          "saved" + s.expectedPath("snapd"),
+			SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+			EssentialType: snap.TypeSnapd,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
+		}, {
+			Path:          "saved" + s.expectedPath("core18"),
+			SideInfo:      &s.AssertedSnapInfo("core18").SideInfo,
+			EssentialType: snap.TypeBase,
+			Essential:     true,
+			Required:      true,
+			Channel:       "stable",
+		}, {
+			Path:          "saved" + s.expectedPath("pc-kernel"),
+			SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+			EssentialType: snap.TypeKernel,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
+		}, {
+			Path:          s.expectedPath("pc"),
+			SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+			EssentialType: snap.TypeGadget,
+			Essential:     true,
+			Required:      true,
+			Channel:       "18",
+		},
+	})
+
+	runSnaps, err := s.seed16.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 1)
+
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     filepath.Join("saved", s.SeedDir, "snaps", "required18_1.0_all.snap"),
+			SideInfo: &snap.SideInfo{RealName: "required18"},
+			Required: true,
+			DevMode:  true,
+		},
+	})
+
+	c.Check(h.asserted, DeepEquals, map[string]string{
+		"snapd":     "snaps/snapd_1.0_all.snap:snapd:1",
+		"pc-kernel": "snaps/pc-kernel_1.0_all.snap:kernel:1",
+		"core18":    "snaps/core18_1.0_all.snap:base:1",
+		"pc":        "snaps/pc_1.0_all.snap:gadget:1",
+	})
+	c.Check(h.unasserted, DeepEquals, map[string]string{
+		"required18": "snaps/required18_1.0_all.snap",
+	})
+}
+
 func (s *seed16Suite) TestLoadMetaCore18StoreInfo(c *C) {
 	s.makeSeed(c, map[string]interface{}{
 		"base":   "core18",

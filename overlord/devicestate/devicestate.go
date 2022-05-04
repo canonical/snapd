@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -879,7 +879,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	if current.Grade() != new.Grade() {
 		if current.Grade() == asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
 			// a case of pre-UC20 -> UC20 remodel
-			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+			return nil, fmt.Errorf("cannot remodel from pre-UC20 to UC20+ models")
 		}
 		return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
 	}

@@ -144,15 +144,17 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 			}
 		}
 		seedSnap = &Snap{
-			Path:    path,
 			Channel: snapChannel,
 			Classic: sn.Classic,
 			DevMode: sn.DevMode,
 		}
 
 		var sideInfo snap.SideInfo
+		var newPath string
 		if sn.Unasserted {
-			if err := handler.HandleUnassertedSnap(sn.Name, path, tm); err != nil {
+			var err error
+			newPath, err = handler.HandleUnassertedSnap(sn.Name, path, tm)
+			if err != nil {
 				return nil, err
 			}
 			sideInfo.RealName = sn.Name
@@ -173,7 +175,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 			timings.Run(tm, "derive-side-info", fmt.Sprintf("hash and derive side info for snap %q", sn.Name), func(nested timings.Measurer) {
 				var snapSHA3_384 string
 				var snapSize uint64
-				snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedSnap(sn.Name, path, essType, nil, deriveRev, tm)
+				newPath, snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedSnap(sn.Name, path, essType, nil, deriveRev, tm)
 				if err != nil {
 					return
 				}
@@ -191,10 +193,15 @@ func (s *seed16) addSnap(sn *internal.Snap16, essType snap.Type, pinnedTrack str
 			// TODO: consider whether to use this if we have links?
 			sideInfo.EditedContact = sn.Contact
 		}
+		origPath := path
+		if newPath != "" {
+			path = newPath
+		}
+		seedSnap.Path = path
 
 		seedSnap.SideInfo = &sideInfo
 		if cache != nil {
-			cache[path] = seedSnap
+			cache[origPath] = seedSnap
 		}
 	}
 

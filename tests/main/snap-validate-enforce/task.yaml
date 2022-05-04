@@ -84,3 +84,15 @@ execute: |
   snap validate | MATCH "^$ACCOUNT_ID/testenforce1 +enforce +2 +valid"
   snap validate | MATCH "^$ACCOUNT_ID/testenforce2 +enforce +1 +valid"
   snap list | MATCH "test-snapd-validation-set-enforcing +2\.0\.0 +2 +latest/edge"
+
+  echo "Check that enforcing can be updated to pin and un-pin and pin at a different sequence"
+  snap validate --enforce "$ACCOUNT_ID"/testenforce1=1
+  snap validate | MATCH "^$ACCOUNT_ID/testenforce1=1 +enforce +2 +valid"
+  snap validate --enforce "$ACCOUNT_ID"/testenforce1
+  snap validate | MATCH "^$ACCOUNT_ID/testenforce1 +enforce +2 +valid"
+  snap validate --enforce "$ACCOUNT_ID"/testenforce1=2
+  snap validate | MATCH "^$ACCOUNT_ID/testenforce1=2 +enforce +2 +valid"
+  snap validate --enforce "$ACCOUNT_ID"/testenforce1=1
+  snap validate | MATCH "^$ACCOUNT_ID/testenforce1=1 +enforce +2 +valid"
+  snap validate --enforce "$ACCOUNT_ID"/testenforce1=3 2>&1 | MATCH "error: cannot find validation set assertion: validation-set \(3; series:16 account-id:$ACCOUNT_ID name:testenforce1\) not found"
+  snap validate | MATCH "^$ACCOUNT_ID/testenforce1=1 +enforce +2 +valid"
