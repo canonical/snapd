@@ -1,0 +1,35 @@
+summary: Test that connections are kept after failed refresh or snap try
+
+# the test relies on home getting auto-connected, so exclude core
+systems: [-ubuntu-core-*]
+
+prepare: |
+  "$TESTSTOOLS"/snaps-state install-local test-snap-v1
+
+execute: |
+  # home gets auto-connected
+  snap connect test-snap:system-observe
+  snap connect test-snap:hardware-observe
+
+  echo "Verify that interfaces of the snap are connected"
+  snap connections | MATCH "^home +test-snap:home +:home"
+  snap connections | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
+  snap connections | MATCH "^system-observe +test-snap:system-observe +:system-observe"
+
+  echo "The snap fails to refresh"
+  "$TESTSTOOLS"/snaps-state install-local test-snap-v2 2>&1 | MATCH 'Run configure hook of "test-snap" snap if present'
+
+  echo "Interfaces are still connected"
+  snap connections | MATCH "^home +test-snap:home +:home"
+  snap connections | MATCH "^system-observe +test-snap:system-observe +:system-observe"
+  snap connections | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
+
+  snap try test-snap-v2 2>&1 | MATCH 'Run configure hook of "test-snap" snap if present'
+
+  echo "Interfaces are still connected"
+  snap connections | MATCH "^home +test-snap:home +:home"
+  snap connections | MATCH "^system-observe +test-snap:system-observe +:system-observe"
+  snap connections | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
+
+  echo "Network plug is not present since it's provided by test-snap-v2 (and it failed to install)"
+  snap connections | NOMATCH "^network +test-snap:network"
