@@ -27,7 +27,7 @@ execute: |
     NAME=core
     VERSION=$CORE_GIT_VERSION
     REV=$NUMBER_REV
-    PUBLISHER="canonical\\*"
+    PUBLISHER="canonical\\*\\*"
     TRACKING=-
     NOTES=core
 

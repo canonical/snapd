@@ -33,6 +33,10 @@ execute: |
         skip='SKIP_GOFMT=1'
     fi
 
+    if os.query is-xenial || os.query is-trusty || os.query is-bionic || os.query is-focal || ! os.query is-ubuntu; then
+        skip="${skip:-} SKIP_MISSPELL=1 SKIP_INEFFASSIGN=1"
+    fi
+
     if [[ -n "${SKIP_NAKEDRET:-}" ]]; then
         skip="${skip:-} SKIP_NAKEDRET=1"
     fi

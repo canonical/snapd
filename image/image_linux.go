@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -73,7 +73,7 @@ func (custo *Customizations) validate(model *asserts.Model) error {
 	kind := "UC16/18"
 	switch {
 	case core20:
-		kind = "UC20"
+		kind = "UC20+"
 		// TODO:UC20: consider supporting these with grade dangerous?
 		unsupportedConsoleConfDisable()
 		if custo.CloudInitUserData != "" {
@@ -160,7 +160,7 @@ func Prepare(opts *Options) error {
 		if model.Base() != "core20" {
 			return fmt.Errorf("cannot preseed the image for a model other than core20")
 		}
-		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey)
+		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey, opts.AppArmorKernelFeaturesDir)
 	}
 
 	return nil

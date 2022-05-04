@@ -34,6 +34,8 @@ import (
 var (
 	ErrNoAssertions = errors.New("no seed assertions")
 	ErrNoMeta       = errors.New("no seed metadata")
+
+	open = Open
 )
 
 // Snap holds the details of a snap in a seed.
@@ -168,11 +170,15 @@ type SnapHandler interface {
 	// snapRev is provided by UC20+ seeds.
 	// deriveRev is provided by UC16/18 seeds, it can be used
 	// to get early access to the snap revision based on the digest.
-	HandleAndDigestAssertedSnap(name, path string, essentialType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error), tm timings.Measurer) (snapSHA3_384 string, snapSize uint64, err error)
+	// A different path can be returned if the snap has been copied
+	// elsewhere.
+	HandleAndDigestAssertedSnap(name, path string, essentialType snap.Type, snapRev *asserts.SnapRevision, deriveRev func(snapSHA3_384 string, snapSize uint64) (snap.Revision, error), tm timings.Measurer) (newPath, snapSHA3_384 string, snapSize uint64, err error)
 
 	// HandleUnassertedSnap should perfrom any dedicated handling
 	// for the given unasserted snap.
-	HandleUnassertedSnap(name, path string, tm timings.Measurer) error
+	// A different path can be returned if the snap has been copied
+	// elsewhere.
+	HandleUnassertedSnap(name, path string, tm timings.Measurer) (newPath string, err error)
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
@@ -215,19 +221,24 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 // ReadSystemEssentialAndBetterEarliestTime retrieves in one go
 // information about the model and essential snaps of the given types
 // for the Core 20 recovery system seed specified by seedDir and label
-// (which cannot be empty).
+// (which cannot be empty). numJobs specifies the suggested number of
+// jobs to run in parallel (0 disables parallelism).
 // It can operate even if current system time is unreliable by taking
 // a earliestTime lower bound for current time.
 // It returns as well an improved lower bound by considering
 // appropriate assertions in the seed.
-func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTypes []snap.Type, earliestTime time.Time, tm timings.Measurer) (*asserts.Model, []*Snap, time.Time, error) {
+func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTypes []snap.Type, earliestTime time.Time, numJobs int, tm timings.Measurer) (*asserts.Model, []*Snap, time.Time, error) {
 	if label == "" {
 		return nil, nil, time.Time{}, fmt.Errorf("system label cannot be empty")
 	}
-	seed20, err := Open(seedDir, label)
+	seed20, err := open(seedDir, label)
 	if err != nil {
 		return nil, nil, time.Time{}, err
 
+	}
+
+	if numJobs > 0 {
+		seed20.SetParallelism(numJobs)
 	}
 
 	improve := func(a asserts.Assertion) {
