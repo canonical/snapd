@@ -33,8 +33,8 @@ execute: |
         apt update -qq
     else
         # 16.04 is ESM so get the latest version from the official archive
-        # (we can't get the very first version because it it's so old it
-        #  cannot run our test snaps)
+        # (we can't get the very first version because it's so old it
+        # cannot run our test snaps)
         apt install -y snapd
     fi
     declare -A EXPECTED_SNAPD_VERSIONS=(
