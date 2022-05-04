@@ -386,15 +386,13 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 			return 0, nil, nil, err
 		}
 	} else {
-		var snapst snapstate.SnapState
+		installedSnaps, err := snapstate.All(st)
+		if err != nil {
+			return 0, nil, nil, err
+		}
 
 		for _, name := range instanceNames {
-			err := snapstate.Get(st, name, &snapst)
-			if err != nil && err != state.ErrNoState {
-				return 0, nil, nil, err
-			}
-
-			if !snapst.IsInstalled() {
+			if _, ok := installedSnaps[name]; !ok {
 				return 0, nil, nil, &snap.NotInstalledError{Snap: name}
 			}
 		}
