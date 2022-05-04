@@ -102,7 +102,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot run install mode on non-UC20+ system")
+		return nil, fmt.Errorf("cannot run install mode on pre-UC20 system")
 	}
 
 	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
@@ -279,7 +279,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot run factory-reset mode on non-UC20+ system")
+		return nil, fmt.Errorf("cannot run factory-reset mode on pre-UC20 system")
 	}
 
 	if options.EncryptionType != secboot.EncryptionTypeNone {

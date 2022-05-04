@@ -55,6 +55,8 @@ type preseedOpts struct {
 	SystemLabel      string
 	WritableDir      string
 	PreseedSignKey   string
+	// optional path to AppArmor kernel features directory
+	AppArmorKernelFeaturesDir string
 }
 
 type targetSnapdInfo struct {

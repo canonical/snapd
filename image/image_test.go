@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1226,7 +1226,7 @@ func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
 			CloudInitUserData: "cloud-init-user-data",
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot support with UC20 model requested customizations: console-conf disable, cloud-init user-data`)
+	c.Assert(err, ErrorMatches, `cannot support with UC20\+ model requested customizations: console-conf disable, cloud-init user-data`)
 }
 
 func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
@@ -3270,10 +3270,11 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 	defer restoreSetupSeed()
 
 	var preseedCalled bool
-	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key string) error {
+	restorePreseedCore20 := image.MockPreseedCore20(func(dir, key, aaDir string) error {
 		preseedCalled = true
 		c.Assert(dir, Equals, "/a/dir")
 		c.Assert(key, Equals, "foo")
+		c.Assert(aaDir, Equals, "/custom/aa/features")
 		return nil
 	})
 	defer restorePreseedCore20()
@@ -3287,6 +3288,8 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 		Preseed:        true,
 		PrepareDir:     "/a/dir",
 		PreseedSignKey: "foo",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
 	})
 	c.Assert(err, IsNil)
 	c.Check(preseedCalled, Equals, true)

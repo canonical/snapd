@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
@@ -56,6 +58,8 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/seed/seedtest"
+	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
@@ -600,42 +604,130 @@ func (s *deviceMgrInstallModeSuite) mockPreseedAssertion(c *C, brandID, modelNam
 	}
 }
 
+func (s *deviceMgrInstallModeSuite) setupCore20Seed(ts *seedtest.TestingSeed20, c *C) *asserts.Model {
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+        - name: ubuntu-seed
+          role: system-seed
+          type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+          size: 1G
+        - name: ubuntu-data
+          role: system-data
+          type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+          size: 2G
+`
+	makeSnap := func(yamlKey string) {
+		var files [][]string
+		if yamlKey == "pc=20" {
+			files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
+		}
+		ts.MakeAssertedSnap(c, seedtest.SampleSnapYaml[yamlKey], files, snap.R(1), "canonical", ts.StoreSigning.Database)
+	}
+
+	makeSnap("snapd")
+	makeSnap("pc-kernel=20")
+	makeSnap("core20")
+	makeSnap("pc=20")
+	optSnapPath := snaptest.MakeTestSnapWithFiles(c, seedtest.SampleSnapYaml["optional20-a"], nil)
+
+	model := map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              ts.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              ts.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   ts.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   ts.AssertedSnapID("core20"),
+				"type": "base",
+			}},
+	}
+
+	return ts.MakeSeed(c, "20220401", "my-brand", "my-model", model, []*seedwriter.OptionsSnap{{Path: optSnapPath}})
+}
+
+type dumpDirContents struct {
+	c   *C
+	dir string
+}
+
+func (d *dumpDirContents) CheckCommentString() string {
+	cmd := exec.Command("find", d.dir)
+	data, err := cmd.CombinedOutput()
+	d.c.Assert(err, IsNil)
+	return fmt.Sprintf("writable dir contents:\n%s", data)
+}
+
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	st := s.state
 
 	mockTarCmd := testutil.MockCommand(c, "tar", "")
 	defer mockTarCmd.Restore()
 
-	snapPath1 := filepath.Join(dirs.GlobalRootDir, "essential-snap_1.snap")
-	snapPath2 := filepath.Join(dirs.GlobalRootDir, "mode-snap_3.snap")
-	c.Assert(ioutil.WriteFile(snapPath1, nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(snapPath2, nil, 0644), IsNil)
+	ubuntuSeedDir := dirs.SnapSeedDir
+	sysLabel := "20220401"
+	writableDir := filepath.Join(c.MkDir(), "run/mnt/ubuntu-data/system-data")
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
 
-	restore := devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
-		return &fakeSeed{
-			essentialSnaps: []*seed.Snap{{Path: snapPath1, SideInfo: &snap.SideInfo{RealName: "essential-snap", Revision: snap.R(1), SnapID: "id111111111111111111111111111111"}}},
-			modeSnaps: []*seed.Snap{{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap", Revision: snap.R(3), SnapID: "id222222222222222222222222222222"}},
-				{Path: snapPath2, SideInfo: &snap.SideInfo{RealName: "mode-snap-unasserted"}}},
-		}, nil
-	})
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
 	defer restore()
 
-	ubuntuSeedDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed")
-	sysLabel := "20220105"
-	writableDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-data/system-data")
-	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
-	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
+	// now create a minimal uc20 seed dir with snaps/assertions
+	ss := &seedtest.SeedSnaps{
+		StoreSigning: s.storeSigning,
+		Brands:       s.brands,
+	}
+
+	seed20 := &seedtest.TestingSeed20{
+		SeedSnaps: *ss,
+		SeedDir:   ubuntuSeedDir,
+	}
+
+	model := s.setupCore20Seed(seed20, c)
+
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
 	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 
 	st.Lock()
 	defer st.Unlock()
-	model := s.makeMockInstallModel(c, "dangerous")
+
+	c.Assert(devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+		// no serial in install mode
+	}), IsNil)
+
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	assertstatetest.AddMany(st, model)
 
 	snaps := []interface{}{
-		map[string]interface{}{"name": "essential-snap", "id": "id111111111111111111111111111111", "revision": "1"},
-		map[string]interface{}{"name": "mode-snap", "id": "id222222222222222222222222222222", "revision": "3"},
-		map[string]interface{}{"name": "mode-snap-unasserted"},
+		map[string]interface{}{"name": "snapd", "id": seed20.AssertedSnapID("snapd"), "revision": "1"},
+		map[string]interface{}{"name": "core20", "id": seed20.AssertedSnapID("core20"), "revision": "1"},
+		map[string]interface{}{"name": "pc-kernel", "id": seed20.AssertedSnapID("pc-kernel"), "revision": "1"},
+		map[string]interface{}{"name": "pc", "id": seed20.AssertedSnapID("pc"), "revision": "1"},
+		map[string]interface{}{"name": "optional20-a"},
 	}
 	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
 	c.Assert(err, IsNil)
@@ -645,6 +737,14 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
 	s.mockPreseedAssertion(c, model.BrandID(), model.Model(), "16", preseedAsPath, sysLabel, digest, snaps)
 
+	// set a specific mod time on one of the snaps to verify it's preserved when the blob gets copied.
+	pastTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	c.Assert(os.Chtimes(filepath.Join(ubuntuSeedDir, "snaps", "snapd_1.snap"), pastTime, pastTime), IsNil)
+
+	// restore root dir, otherwise paths referencing GlobalRootDir, such as from placeInfo.MountFile() get confused
+	// in the test.
+	dirs.SetRootDir("/")
 	preseeded, err := devicestate.MaybeApplyPreseededData(st, ubuntuSeedDir, sysLabel, writableDir)
 	c.Assert(err, IsNil)
 	c.Check(preseeded, Equals, true)
@@ -653,12 +753,24 @@ func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededData(c *C) {
 		{"tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact},
 	})
 
-	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.GlobalRootDir, "/snap/essential-snap/1")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "essential-snap_1.snap")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.GlobalRootDir, "/snap/mode-snap/3")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "mode-snap_3.snap")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.GlobalRootDir, "/snap/mode-snap-unasserted/x1")), Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, "mode-snap-unasserted_x1.snap")), Equals, true)
+	for _, seedSnap := range []struct {
+		name string
+		blob string
+	}{
+		{"snapd/1", "snapd_1.snap"},
+		{"core20/1", "core20_1.snap"},
+		{"pc-kernel/1", "pc-kernel_1.snap"},
+		{"pc/1", "pc_1.snap"},
+		{"optional20-a/x1", "optional20-a_x1.snap"},
+	} {
+		c.Assert(osutil.FileExists(filepath.Join(writableDir, "/snap", seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
+		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, seedSnap.blob)), Equals, true, &dumpDirContents{c, writableDir})
+	}
+
+	// verify that modtime of the copied snap blob was preserved
+	finfo, err := os.Stat(filepath.Join(writableDir, dirs.SnapBlobDir, "snapd_1.snap"))
+	c.Assert(err, IsNil)
+	c.Check(finfo.ModTime().Equal(pastTime), Equals, true)
 }
 
 func (s *deviceMgrInstallModeSuite) TestMaybeApplyPreseededDataSnapMismatch(c *C) {

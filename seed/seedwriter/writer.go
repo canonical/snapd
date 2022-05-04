@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -251,7 +251,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	if model.Grade() != asserts.ModelGradeUnset {
 		// Core 20
 		if opts.Label == "" {
-			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
+			return nil, fmt.Errorf("internal error: cannot write UC20+ seed without Options.Label set")
 		}
 		if err := asserts.IsValidSystemLabel(opts.Label); err != nil {
 			return nil, err

@@ -25,6 +25,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -677,6 +678,77 @@ func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, 
 
 var seedOpen = seed.Open
 
+// TODO: consider reusing this kind of handler for UC20 seeding
+type preseedSnapHandler struct {
+	writableDir string
+}
+
+func (p *preseedSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
+	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: -1})
+	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
+	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
+
+	sq := squashfs.New(path)
+	opts := &snap.InstallOptions{MustNotCrossDevices: true}
+	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
+		return "", fmt.Errorf("cannot install snap %q: %v", name, err)
+	}
+
+	return targetPath, nil
+}
+
+func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, snapRev *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
+	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: snapRev.SnapRevision()})
+	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
+	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
+
+	logger.Debugf("copying: %q to %q; mount dir=%q", path, targetPath, mountDir)
+
+	srcFile, err := os.Open(path)
+	if err != nil {
+		return "", "", 0, err
+	}
+	defer srcFile.Close()
+
+	destFile, err := osutil.NewAtomicFile(targetPath, 0644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return "", "", 0, fmt.Errorf("cannot create atomic file: %v", err)
+	}
+	defer destFile.Cancel()
+
+	finfo, err := srcFile.Stat()
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	destFile.SetModTime(finfo.ModTime())
+
+	h := crypto.SHA3_384.New()
+	w := io.MultiWriter(h, destFile)
+
+	size, err := io.CopyBuffer(w, srcFile, make([]byte, 2*1024*1024))
+	if err != nil {
+		return "", "", 0, err
+	}
+	if err := destFile.Commit(); err != nil {
+		return "", "", 0, fmt.Errorf("cannot copy snap %q: %v", name, err)
+	}
+
+	sq := squashfs.New(targetPath)
+	opts := &snap.InstallOptions{MustNotCrossDevices: true}
+	// since Install target path is the same as source path passed to squashfs.New,
+	// Install isn't going to copy the blob, but we call it to set up mount directory etc.
+	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
+		return "", "", 0, fmt.Errorf("cannot install snap %q: %v", name, err)
+	}
+
+	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
+	if err != nil {
+		return "", "", 0, fmt.Errorf("cannot encode snap %q digest: %v", path, err)
+	}
+	return targetPath, sha3_384, uint64(size), nil
+}
+
 var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
 	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
 	if !osutil.FileExists(preseedArtifact) {
@@ -715,37 +787,23 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 
 	logger.Noticef("copying snaps")
 
-	deviceSeed, err := seedOpen(dirs.SnapSeedDir, sysLabel)
+	deviceSeed, err := seedOpen(ubuntuSeedDir, sysLabel)
 	if err != nil {
 		return false, err
 	}
 	tm := timings.New(nil)
 
-	// XXX: this is expensive, but we need snap revisions. Any way around this?
 	if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
 		return false, err
 	}
-	if err := deviceSeed.LoadMeta("run", nil, tm); err != nil {
+
+	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755); err != nil {
 		return false, err
 	}
 
-	// TODO: use preseedAs for snap revisions
-	copyBlob := func(sn *seed.Snap) error {
-		sq := squashfs.New(sn.Path)
-		opts := &snap.InstallOptions{
-			MustNotCrossDevices: true,
-		}
-		pinfo := sn.PlaceInfo()
-		if pinfo.SnapRevision().Unset() {
-			pinfo = snap.MinimalPlaceInfo(pinfo.InstanceName(), snap.R(-1))
-		}
-		targetPath := filepath.Join(writableDir, pinfo.MountFile())
-		mountDir := filepath.Join(writableDir, pinfo.MountDir())
-		logger.Debugf("copying: %q to %q; mount dir=%q", sn.Path, targetPath, mountDir)
-		if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
-			return err
-		}
-		return nil
+	snapHandler := &preseedSnapHandler{writableDir: writableDir}
+	if err := deviceSeed.LoadMeta("run", snapHandler, tm); err != nil {
+		return false, err
 	}
 
 	preseedSnaps := make(map[string]*asserts.PreseedSnap)
@@ -781,16 +839,10 @@ var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, wri
 		if err := checkSnap(esnap); err != nil {
 			return false, err
 		}
-		if err := copyBlob(esnap); err != nil {
-			return false, err
-		}
 	}
 
 	for _, ssnap := range msnaps {
 		if err := checkSnap(ssnap); err != nil {
-			return false, err
-		}
-		if err := copyBlob(ssnap); err != nil {
 			return false, err
 		}
 	}

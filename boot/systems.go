@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -44,7 +44,7 @@ func dropFromRecoverySystemsList(systemsList []string, systemLabel string) (newL
 // variables state is inconsistent.
 func ClearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	m, err := loadModeenv()
@@ -105,7 +105,7 @@ func ClearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 // caller should request switching to the given recovery system.
 func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	m, err := loadModeenv()
@@ -380,7 +380,7 @@ func InspectTryRecoverySystemOutcome(dev snap.Device) (outcome TryRecoverySystem
 // attempt to restore the previous state is made
 func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystems []string) (err error) {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	if !strutil.ListContains(triedSystems, systemLabel) {
@@ -422,7 +422,7 @@ func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystem
 // this call *DOES NOT* clear the boot environment variables.
 func DropRecoverySystem(dev snap.Device, systemLabel string) error {
 	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20+")
 	}
 
 	m, err := loadModeenv()
