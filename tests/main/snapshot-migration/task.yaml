@@ -1,0 +1,86 @@
+summary: Check that the snapshot functionality interacts well with core22 migration
+
+environment:
+    # tar invoked when creating snapshots triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+    NAME: test-snapd-tools
+
+prepare: |
+    cp -rf "$TESTSLIB/snaps/$NAME" "$PWD/$NAME"
+    snap pack "$PWD/$NAME"
+    snap install --dangerous "$NAME"_1.0_all.snap
+
+restore: |
+    snap remove --purge "$NAME"
+
+execute: |
+    echo "Test save snapshot in <core22 and restore after migration"
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "foo" > "$SNAP_USER_DATA"/foo'
+
+    SET_ID=$( snap save "$NAME" | cut -d\  -f1 | tail -n1 )
+    snap saved --id="$SET_ID" | grep "$NAME"
+
+    echo "Refresh to a core22 based revision and restore"
+    echo -e "\nbase: core22" >> "$PWD/$NAME/meta/snap.yaml"
+    snap pack "$PWD/$NAME"
+    snap install --dangerous "$NAME"_1.0_all.snap
+
+    test -e "$HOME/.snap/data/$NAME/x2/foo"
+    test -e "$HOME/Snap/$NAME/foo"
+
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "bar" > "$SNAP_USER_DATA"/bar'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "bar" > "$HOME"/bar'
+
+    echo "Restore to previous snapshot"
+    snap restore "$SET_ID"
+
+    test -e "$HOME/.snap/data/$NAME/x2/foo"
+    not test -e "$HOME/.snap/data/$NAME/x2/bar"
+    not test -e "$HOME/snap/$NAME"
+    # snapshot doesn't have a ~/Snap subdir so nothing is replaced
+    test -e "$HOME/Snap/$NAME/foo"
+    test -e "$HOME/Snap/$NAME/bar"
+
+    echo "Test save snapshot after migration and restore after reverting to <core22"
+    rm "$HOME/Snap/$NAME/"{foo,bar} "$HOME/.snap/data/$NAME/x2/foo" "$HOME/.snap/data/$NAME/x1/foo"
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "foo" > "$SNAP_USER_DATA"/foo'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "foo" > "$HOME"/foo'
+
+    SET_ID=$( snap save "$NAME" | cut -d\  -f1 | tail -n1 )
+    snap saved --id="$SET_ID" | grep "$NAME"
+
+    echo "Revert snap to previous revision"
+    snap revert "$NAME"
+    rm "$HOME/Snap/$NAME/foo"
+
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "foo" > "$SNAP_USER_DATA"/foo'
+    snap restore "$SET_ID"
+
+    test -e "$HOME/snap/$NAME/x1/foo"
+    not test -e "$HOME/snap/$NAME/x1/bar"
+    # the ~/Snap subdir in the snapshot is ignored bc the revision is <core22
+    not test -e "$HOME/Snap/$NAME/foo"
+
+    echo "Test save snapshot and restore in a core22 revision"
+    snap revert --revision=x2 "$NAME"
+    rm -f "$HOME/Snap/$NAME/"* "$HOME/.snap/data/$NAME/x2/"*
+
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "foo" > "$SNAP_USER_DATA"/foo'
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "foo" > "$HOME"/foo'
+
+    SET_ID=$( snap save "$NAME" | cut -d\  -f1 | tail -n1 )
+    snap saved --id="$SET_ID" | grep "$NAME"
+
+    rm "$HOME/Snap/$NAME/foo" "$HOME/.snap/data/$NAME/x2/foo"
+    snap restore "$SET_ID"
+
+    test -e "$HOME/.snap/data/$NAME/x2/foo"
+    test -e "$HOME/Snap/$NAME/foo"
