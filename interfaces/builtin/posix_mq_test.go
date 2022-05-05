@@ -477,19 +477,20 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
 func (s *PosixMQInterfaceSuite) TestPathValidationPosixMQ(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath1SlotInfo)
-	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches,
+		`posix-mq "path" attribute must conform to the POSIX message queue name specifications \(see "man mq_overview"\): /../../test-invalid`)
 }
 
 func (s *PosixMQInterfaceSuite) TestPathValidationAppArmorRegex(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath2SlotInfo)
-	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
 }
 
 func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
 	spec := &apparmor.Specification{}
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath3SlotInfo)
-	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `posix-mq slot "path" attribute must be a string, not \[this-is-not-a-string\]`)
 }
 
 func (s *PosixMQInterfaceSuite) testInvalidPerms1(c *C) {
@@ -501,7 +502,7 @@ func (s *PosixMQInterfaceSuite) testInvalidPerms1(c *C) {
 	// The plug should fail to connect as it receives the given list of
 	// invalid permissions
 	err = spec.AddConnectedPlug(s.iface, s.testInvalidPerms1Plug, s.testInvalidPerms1Slot)
-	c.Assert(err, NotNil)
+	c.Assert(err, IsNil)
 }
 
 func (s *PosixMQInterfaceSuite) TestName(c *C) {
@@ -519,7 +520,8 @@ func (s *PosixMQInterfaceSuite) TestFeatureDetection(c *C) {
 	// Ensure that the interface fails if the mqueue feature is not present
 	restore := apparmor_sandbox.MockFeatures([]string{}, nil, []string{}, nil)
 	defer restore()
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testReadWriteSlotInfo), NotNil)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testReadWriteSlotInfo), ErrorMatches,
+		`AppArmor does not support POSIX message queues - cannot setup or connect interfaces`)
 }
 
 func (s *PosixMQInterfaceSuite) checkSlotPosixMQAttr(c *C, slot *snap.SlotInfo) {
@@ -547,12 +549,18 @@ func (s *PosixMQInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(s.testLabelSlotInfo.Attrs["posix-mq"], Equals, "this-is-a-test-label")
 
 	// These should return errors due to invalid configuration
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath1SlotInfo), NotNil)
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath2SlotInfo), NotNil)
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath3SlotInfo), NotNil)
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms1SlotInfo), NotNil)
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms2SlotInfo), NotNil)
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.testInvalidLabelSlotInfo), NotNil)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath1SlotInfo), ErrorMatches,
+		`posix-mq "path" attribute must conform to the POSIX message queue name specifications \(see "man mq_overview"\): /../../test-invalid`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath2SlotInfo), ErrorMatches,
+		`posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPath3SlotInfo), ErrorMatches,
+		`posix-mq slot "path" attribute must be a string, not \[this-is-not-a-string\]`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms1SlotInfo), ErrorMatches,
+		`posix-mq slot permission "break-everything" not valid, must be one of \[open read write create delete\]`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidPerms2SlotInfo), ErrorMatches,
+		`posix-mq slot "permissions" attribute must be a list of strings, not not-a-list`)
+	c.Check(interfaces.BeforePrepareSlot(s.iface, s.testInvalidLabelSlotInfo), ErrorMatches,
+		`posix-mq "posix-mq" attribute must be a string, not \[broken\]`)
 }
 
 func (s *PosixMQInterfaceSuite) TestSanitizePlug(c *C) {
@@ -573,7 +581,8 @@ func (s *PosixMQInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testLabelPlugInfo), IsNil)
 	c.Check(s.testLabelPlugInfo.Attrs["posix-mq"], Equals, "this-is-a-test-label")
 
-	c.Assert(interfaces.BeforePreparePlug(s.iface, s.testInvalidLabelPlugInfo), NotNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, s.testInvalidLabelPlugInfo), ErrorMatches,
+		`posix-mq "posix-mq" attribute must be a string, not \[this-is-a-broken-test-label\]`)
 }
 
 func (s *PosixMQInterfaceSuite) TestInterfaces(c *C) {
