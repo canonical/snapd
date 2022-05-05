@@ -180,9 +180,9 @@ func formatJournalRateConf(grp *quota.Group) string {
 	if grp.JournalLimit.RateCount == 0 || grp.JournalLimit.RatePeriod == 0 {
 		return ""
 	}
-	return fmt.Sprintf(`RateLimitIntervalSec=%ds
+	return fmt.Sprintf(`RateLimitIntervalSec=%dus
 RateLimitBurst=%d
-`, grp.JournalLimit.RatePeriod, grp.JournalLimit.RateCount)
+`, grp.JournalLimit.RatePeriod.Microseconds(), grp.JournalLimit.RateCount)
 }
 
 func generateJournaldConfFile(grp *quota.Group) []byte {
