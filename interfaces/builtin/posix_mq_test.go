@@ -493,7 +493,7 @@ func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
 	c.Check(err, ErrorMatches, `posix-mq slot "path" attribute must be a string, not \[this-is-not-a-string\]`)
 }
 
-func (s *PosixMQInterfaceSuite) testInvalidPerms1(c *C) {
+func (s *PosixMQInterfaceSuite) TestInvalidPerms1(c *C) {
 	spec := &apparmor.Specification{}
 	// The slot should function correctly here as it receives the full list
 	// of built-in permissions, not what's listed in the configuration
@@ -502,7 +502,8 @@ func (s *PosixMQInterfaceSuite) testInvalidPerms1(c *C) {
 	// The plug should fail to connect as it receives the given list of
 	// invalid permissions
 	err = spec.AddConnectedPlug(s.iface, s.testInvalidPerms1Plug, s.testInvalidPerms1Slot)
-	c.Assert(err, IsNil)
+	c.Check(err, ErrorMatches,
+		`posix-mq slot permission "break-everything" not valid, must be one of \[open read write create delete\]`)
 }
 
 func (s *PosixMQInterfaceSuite) TestName(c *C) {
