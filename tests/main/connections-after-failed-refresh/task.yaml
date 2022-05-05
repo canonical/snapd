@@ -17,14 +17,20 @@ execute: |
   snap connections | MATCH "^system-observe +test-snap:system-observe +:system-observe"
 
   echo "The snap fails to refresh"
-  "$TESTSTOOLS"/snaps-state install-local test-snap-v2 2>&1 | MATCH 'Run configure hook of "test-snap" snap if present'
+  if "$TESTSTOOLS"/snaps-state install-local test-snap-v2 ; then
+    echo "Expected test-snap-v2 installation to fail"
+    exit 1
+  fi
 
   echo "Interfaces are still connected"
   snap connections | MATCH "^home +test-snap:home +:home"
   snap connections | MATCH "^system-observe +test-snap:system-observe +:system-observe"
   snap connections | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
 
-  snap try test-snap-v2 2>&1 | MATCH 'Run configure hook of "test-snap" snap if present'
+  if snap try test-snap-v2 ; then
+    echo "Expected test-snap-v2 try to fail"
+    exit 1
+  fi
 
   echo "Interfaces are still connected"
   snap connections | MATCH "^home +test-snap:home +:home"
