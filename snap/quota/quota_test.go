@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -1295,11 +1296,11 @@ func (ts *quotaTestSuite) TestJournalQuotasSetCorrectly(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(grp1.JournalLimit, NotNil)
 
-	grp2, err := quota.NewGroup("groot2", quota.NewResourcesBuilder().WithJournalRate(15, 5).Build())
+	grp2, err := quota.NewGroup("groot2", quota.NewResourcesBuilder().WithJournalRate(15, time.Second).Build())
 	c.Assert(err, IsNil)
 	c.Assert(grp2.JournalLimit, NotNil)
 	c.Check(grp2.JournalLimit.RateCount, Equals, 15)
-	c.Check(grp2.JournalLimit.RatePeriod, Equals, 5)
+	c.Check(grp2.JournalLimit.RatePeriod, Equals, time.Second)
 
 	grp3, err := quota.NewGroup("groot3", quota.NewResourcesBuilder().WithJournalSize(quantity.SizeMiB).Build())
 	c.Assert(err, IsNil)
@@ -1316,11 +1317,11 @@ func (ts *quotaTestSuite) TestJournalQuotasUpdatesCorrectly(c *C) {
 	c.Assert(grp1.JournalLimit, NotNil)
 	c.Check(grp1.JournalLimit.Size, Equals, quantity.Size(0))
 	c.Check(grp1.JournalLimit.RateCount, Equals, 0)
-	c.Check(grp1.JournalLimit.RatePeriod, Equals, 0)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Duration(0))
 
-	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalRate(15, 5).WithJournalSize(quantity.SizeMiB).Build())
+	grp1.UpdateQuotaLimits(quota.NewResourcesBuilder().WithJournalRate(15, time.Microsecond*5).WithJournalSize(quantity.SizeMiB).Build())
 	c.Assert(grp1.JournalLimit, NotNil)
 	c.Check(grp1.JournalLimit.Size, Equals, quantity.SizeMiB)
 	c.Check(grp1.JournalLimit.RateCount, Equals, 15)
-	c.Check(grp1.JournalLimit.RatePeriod, Equals, 5)
+	c.Check(grp1.JournalLimit.RatePeriod, Equals, time.Microsecond*5)
 }

@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"runtime"
 	"sort"
+	"time"
 
 	// TODO: move this to snap/quantity? or similar
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -71,8 +72,8 @@ type GroupQuotaJournal struct {
 	// RateCount/RatePeriod determines the maximum rate of journal writes for
 	// the group. The count is the number of journal messages that can be written
 	// in each period. 0 Values here means there is no limit currently set.
-	RateCount  int `json:"rate-count,omitempty"`
-	RatePeriod int `json:"rate-period,omitempty"`
+	RateCount  int           `json:"rate-count,omitempty"`
+	RatePeriod time.Duration `json:"rate-period,omitempty"`
 }
 
 // Group is a quota group of snaps, services or sub-groups that are all subject
