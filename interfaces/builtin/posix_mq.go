@@ -132,19 +132,19 @@ func (iface *posixMQInterface) validatePermissionList(perms []string, name strin
 
 func (iface *posixMQInterface) validatePermissionsAttr(permsAttr interface{}) ([]string, error) {
 	var perms []string
+	permsList, ok := permsAttr.([]interface{})
 
-	// Ensure that the permissions attribute is a list
-	if permsList, ok := permsAttr.([]interface{}); ok {
-		// Ensure that each permission in the list is a string
-		for _, i := range permsList {
-			if perm, ok := i.(string); ok {
-				perms = append(perms, perm)
-			} else {
-				return nil, fmt.Errorf(`each posix-mq slot permission must be a string, not %v`, permsAttr)
-			}
-		}
-	} else {
+	if !ok {
 		return nil, fmt.Errorf(`posix-mq slot "permissions" attribute must be a list of strings, not %v`, permsAttr)
+	}
+
+	// Ensure that each permission in the list is a string
+	for _, i := range permsList {
+		perm, ok := i.(string)
+		if !ok {
+			return nil, fmt.Errorf(`each posix-mq slot permission must be a string, not %v`, permsAttr)
+		}
+		perms = append(perms, perm)
 	}
 
 	return perms, nil
@@ -214,12 +214,10 @@ func (iface *posixMQInterface) validatePath(name, path string) error {
 }
 
 func (iface *posixMQInterface) checkPosixMQAttr(name string, attrs *map[string]interface{}) error {
-
 	posixMQAttr, isSet := (*attrs)["posix-mq"]
 	posixMQ, ok := posixMQAttr.(string)
 	if isSet && !ok {
-		return fmt.Errorf(`posix-mq "posix-mq" attribute must be a string, not %v`,
-			(*attrs)["posix-mq"])
+		return fmt.Errorf(`posix-mq "posix-mq" attribute must be a string, not %v`, (*attrs)["posix-mq"])
 	}
 	if posixMQ == "" {
 		if *attrs == nil {
@@ -270,36 +268,46 @@ func (iface *posixMQInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 }
 
 func (iface *posixMQInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	if !implicitSystemPermanentSlot(slot) {
-		if path, err := iface.getPath(slot, slot.Name); err == nil {
-			// Slots always have all permissions enabled for the
-			// given message queue path
-			aaPerms := strings.Join(posixMQPlugPermissions, " ")
-			spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue management
+	if implicitSystemPermanentSlot(slot) {
+		return nil
+	}
+
+	path, err := iface.getPath(slot, slot.Name)
+	if err != nil {
+		return err
+	}
+
+	// Slots always have all permissions enabled for the
+	// given message queue path
+	aaPerms := strings.Join(posixMQPlugPermissions, " ")
+	spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue management
   mqueue (%s) "%s",
 `, aaPerms, path))
-		} else {
-			return err
-		}
-	}
+
 	return nil
 }
 
 func (iface *posixMQInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if path, err := iface.getPath(slot, slot.Name()); err == nil {
-		if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
-			// Always allow "open"
-			perms = append(perms, "open")
-			aaPerms := strings.Join(perms, " ")
-			spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue plug communication
-  mqueue (%s) "%s",
-`, aaPerms, path))
-		} else {
-			return err
-		}
-	} else {
+	path, err := iface.getPath(slot, slot.Name())
+	if err != nil {
 		return err
 	}
+
+	perms, err := iface.getPermissions(slot, slot.Name())
+	if err != nil {
+		return err
+	}
+
+	// Always allow "open"
+	if !strutil.ListContains(perms, "open") {
+		perms = append(perms, "open")
+	}
+
+	aaPerms := strings.Join(perms, " ")
+	spec.AddSnippet(fmt.Sprintf(`  # POSIX Message Queue plug communication
+  mqueue (%s) "%s",
+`, aaPerms, path))
+
 	return nil
 }
 
@@ -309,33 +317,31 @@ func (iface *posixMQInterface) SecCompPermanentSlot(spec *seccomp.Specification,
 }
 
 func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if perms, err := iface.getPermissions(slot, slot.Name()); err == nil {
-		var syscalls = []string{
-			// Always allow these functions
-			"mq_open",
-			"mq_getsetattr",
-		}
-		for _, perm := range perms {
-			switch perm {
-			case "read":
-				syscalls = append(syscalls, "mq_timedreceive")
-				syscalls = append(syscalls, "mq_notify")
-				break
-			case "write":
-				syscalls = append(syscalls, "mq_timedsend")
-				break
-			case "delete":
-				syscalls = append(syscalls, "mq_unlink")
-				break
-			default:
-				// No syscall needed
-				continue
-			}
-		}
-		spec.AddSnippet(strings.Join(syscalls, "\n"))
-	} else {
+	perms, err := iface.getPermissions(slot, slot.Name())
+	if err != nil {
 		return err
 	}
+
+	var syscalls = []string{
+		// Always allow these functions
+		"mq_open",
+		"mq_getsetattr",
+	}
+
+	for _, perm := range perms {
+		// Only these permissions have associated syscalls
+		switch perm {
+		case "read":
+			syscalls = append(syscalls, "mq_timedreceive")
+			syscalls = append(syscalls, "mq_notify")
+		case "write":
+			syscalls = append(syscalls, "mq_timedsend")
+		case "delete":
+			syscalls = append(syscalls, "mq_unlink")
+		}
+	}
+	spec.AddSnippet(strings.Join(syscalls, "\n"))
+
 	return nil
 }
 
