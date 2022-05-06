@@ -678,6 +678,24 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionPosixMQOverride(c *C) {
+	cand := s.connectCand(c, "posix-mq", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection not allowed by plug rule of interface \"posix-mq\"")
+
+	plugsSlots := `
+plugs:
+  posix-mq:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionSteamSupportOverride(c *C) {
 	cand := s.connectCand(c, "steam-support", "", "")
 	_, err := cand.CheckAutoConnect()
@@ -818,6 +836,7 @@ var (
 		"docker":          nil,
 		"lxd":             nil,
 		"pkcs11":          nil,
+		"posix-mq":        nil,
 		"shared-memory":   nil,
 	}
 
@@ -978,6 +997,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"maliit":                    true,
 		"mir":                       true,
 		"online-accounts-service":   true,
+		"posix-mq":                  true,
 		"raw-volume":                true,
 		"shared-memory":             true,
 		"storage-framework-service": true,
@@ -1167,6 +1187,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"packagekit-control":    true,
 		"personal-files":        true,
 		"pkcs11":                true,
+		"posix-mq":              true,
 		"polkit":                true,
 		"sd-control":            true,
 		"shared-memory":         true,
