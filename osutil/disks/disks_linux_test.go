@@ -2045,7 +2045,7 @@ func (s *diskSuite) TestPartitionUUIDFromMopuntPointErrs(c *C) {
 	defer restore()
 
 	_, err = disks.PartitionUUIDFromMountPoint("/run/mnt/point", nil)
-	c.Assert(err, ErrorMatches, "cannot get required partition UUID udev property for device /dev/vda4")
+	c.Assert(err, ErrorMatches, "cannot get required udev partition UUID property for device /dev/vda4")
 }
 
 func (s *diskSuite) TestPartitionUUIDFromMountPointPlain(c *C) {

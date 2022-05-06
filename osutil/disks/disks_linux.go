@@ -958,7 +958,7 @@ func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, erro
 	partUUID := props["ID_PART_ENTRY_UUID"]
 	if partUUID == "" {
 		partDev := filepath.Join("/dev", props["DEVNAME"])
-		return "", fmt.Errorf("cannot get required partition UUID udev property for device %s", partDev)
+		return "", fmt.Errorf("cannot get required udev partition UUID property for device %s", partDev)
 	}
 	return partUUID, nil
 }
