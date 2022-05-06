@@ -174,15 +174,15 @@ func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name stri
 func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (string, error) {
 	var path string
 
-	if pathAttr, isSet := attrs.Lookup("path"); isSet {
-		if pathStr, ok := pathAttr.(string); ok {
-			path = pathStr
-		} else {
-			return "", fmt.Errorf(`posix-mq slot "path" attribute must be a string, not %v`, pathAttr)
-		}
-	} else {
+	pathAttr, isSet := attrs.Lookup("path")
+	if !isSet {
 		return "", fmt.Errorf(`posix-mq slot requires the "path" attribute`)
 	}
+	pathStr, ok := pathAttr.(string)
+	if !ok {
+		return "", fmt.Errorf(`posix-mq slot "path" attribute must be a string, not %v`, pathAttr)
+	}
+	path = pathStr
 
 	// Path must begin with a /
 	if path[0] != '/' {
@@ -207,7 +207,7 @@ func (iface *posixMQInterface) validatePath(name, path string) error {
 	}
 
 	if !cleanSubPath(path) {
-		return fmt.Errorf(`posix-mq "path" attribute is not a clean path: %v"`, path)
+		return fmt.Errorf(`posix-mq "path" attribute is not a clean path: %q`, path)
 	}
 
 	return nil
