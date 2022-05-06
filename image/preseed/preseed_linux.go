@@ -119,7 +119,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 		fmt.Fprintf(Stdout, "ubuntu classic preseeding")
 	} else {
 		if model.Base() == "core20" {
-			fmt.Fprintf(Stdout, "UC20 preseeding\n")
+			fmt.Fprintf(Stdout, "UC20+ preseeding\n")
 		} else {
 			// TODO: support uc20+
 			return "", "", fmt.Errorf("preseeding of ubuntu core with base %s is not supported", model.Base())
@@ -217,7 +217,7 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 
 	var mounted []string
 
-	umountCmd := func(mnt string) {
+	doUnmount := func(mnt string) {
 		cmd := exec.Command("umount", mnt)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, mnt, out)
@@ -227,7 +227,7 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 	cleanupMounts = func() {
 		for i := len(mounted) - 1; i > 0; i-- {
 			mnt := mounted[i]
-			umountCmd(mnt)
+			doUnmount(mnt)
 		}
 
 		entries, err := osutil.LoadMountInfo()
@@ -238,13 +238,13 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 		// cleanup after handle-writable-paths
 		for _, ent := range entries {
 			if ent.MountDir != tmpPreseedChrootDir && strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
-				umountCmd(ent.MountDir)
+				doUnmount(ent.MountDir)
 			}
 		}
 
 		// finally, umount the base snap
 		if len(mounted) > 0 {
-			umountCmd(mounted[0])
+			doUnmount(mounted[0])
 		}
 	}
 
@@ -534,7 +534,7 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
-	fmt.Fprintf(Stdout, "starting to preseed UC20 system: %s\n", opts.PreseedChrootDir)
+	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
