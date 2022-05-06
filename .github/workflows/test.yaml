@@ -449,7 +449,7 @@ jobs:
       uses: pat-s/always-upload-cache@v2.1.5
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-nested-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
 
     - name: Check cached test results
       id: cached-results
@@ -508,7 +508,6 @@ jobs:
 
     - name: Cache successful run
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
 
     - name: Discard spread workers
