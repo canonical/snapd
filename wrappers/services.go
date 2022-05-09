@@ -489,7 +489,7 @@ type ensureSnapServicesContext struct {
 	// note: is not used when preseeding is set in opts.Preseeding
 	sysd systemd.Systemd
 	// modifiedSystem/modifiedUser keeps track of whether a systemd
-	// daemon reload is neccessary, either for the system level and/or user level.
+	// daemon reload is necessary, either for the system level and/or user level.
 	modifiedSystem bool
 	modifiedUser   bool
 	// modifiedFiles is the set of units that were modified and the previous
