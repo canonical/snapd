@@ -225,6 +225,8 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 	}
 
 	cleanupMounts = func() {
+		// unmount all the mounts but the first one, which is the base
+		// and it is cleaned up last
 		for i := len(mounted) - 1; i > 0; i-- {
 			mnt := mounted[i]
 			doUnmount(mnt)
