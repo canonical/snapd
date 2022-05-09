@@ -1,7 +1,7 @@
-summary: Test that UC20 can boot with gadget provided cloud.conf for all grades
+summary: Test that UC2* can boot with gadget provided cloud.conf for all grades
 
 # TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed
@@ -22,7 +22,7 @@ environment:
 
   # use the testrootorg auto-import assertion
   # TODO: commit the Go code used to create this assertion from the json file
-  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
 
   # three variants, for dangerous, signed, and secured grades
   MODEL_GRADE/secured: secured
@@ -31,7 +31,7 @@ environment:
   # TODO: enable after creating an associated auto-import assertion + model
   # MODEL_GRADE/dangerous: dangerous
 
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-${MODEL_GRADE}.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-${MODEL_GRADE}.model
   NESTED_IMAGE_ID: gadget-cloud-conf-testkeys-${MODEL_GRADE}
 
   # for the fake store
@@ -71,7 +71,10 @@ prepare: |
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-  snap download --basename=pc --channel="20/edge" pc
+  # Get the nested system version
+  VERSION="$(tests.nested show version)"
+
+  snap download --basename=pc --channel="$VERSION/edge" pc
   unsquashfs -d pc-gadget pc.snap
 
   # delay all refreshes for a week from now, as otherwise refreshes for our
