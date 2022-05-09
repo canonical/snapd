@@ -456,10 +456,10 @@ func addToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, use
 		tarArgs = append(tarArgs, fmt.Sprintf("--exclude=%s", path))
 	}
 
-	// use --directory so that the file is added without its parent dirs
+	// use --directory so that the directory is added without its parent dirs
 	for _, path := range paths {
-		parent, file := filepath.Split(path)
-		tarArgs = append(tarArgs, "--directory", parent, file)
+		parent, dir := filepath.Split(path)
+		tarArgs = append(tarArgs, "--directory", parent, dir)
 	}
 
 	var sz osutil.Sizer
