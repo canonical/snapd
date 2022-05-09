@@ -30,5 +30,6 @@ func EnsureRecoveryKey(string, []string) (keys.RecoveryKey, error) {
 }
 
 func RemoveRecoveryKeys(map[string]string) error {
+func ChangeEncryptionKey(node string, key keys.EncryptionKey) error {
 	return errBuildWithoutSecboot
 }
