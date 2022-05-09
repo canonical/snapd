@@ -626,7 +626,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
 		WithJournalSize(10*quantity.SizeMiB).
-		WithJournalRate(15, 5).
+		WithJournalRate(15, 5*time.Second).
 		Build()
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
@@ -666,7 +666,7 @@ WantedBy=multi-user.target
 [Journal]
 SystemMaxUse=10485760
 RuntimeMaxUse=10485760
-RateLimitIntervalSec=5s
+RateLimitIntervalSec=5000000us
 RateLimitBurst=15
 `
 
