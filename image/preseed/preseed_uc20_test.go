@@ -256,9 +256,9 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir s
 		{"umount", filepath.Join(preseedTmpDir, "var/tmp")},
 		{"umount", filepath.Join(preseedTmpDir, "run")},
 		{"umount", filepath.Join(tmpDir, "target-core-mounted-here")},
-		{"umount", preseedTmpDir},
 		// from handle-writable-paths
 		{"umount", filepath.Join(preseedTmpDir, "somepath")},
+		{"umount", preseedTmpDir},
 	}
 
 	if customAppArmorFeaturesDir != "" {
