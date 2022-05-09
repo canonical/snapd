@@ -510,24 +510,27 @@ func (es ensureSnapServicesContext) restore() {
 		if state == nil {
 			// we don't have anything to rollback to, so just remove the
 			// file
-			if e := os.Remove(file); e != nil {
-				es.inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", file, e))
+			if err := os.Remove(file); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", file, err))
 			}
 		} else {
 			// rollback the file to the previous state
-			if e := osutil.EnsureFileState(file, state); e != nil {
-				es.inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, e))
+			if err := osutil.EnsureFileState(file, state); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, err))
 			}
 		}
 	}
-	if es.modifiedSystem && !es.opts.Preseeding {
-		if e := es.sysd.DaemonReload(); e != nil {
-			es.inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
+
+	if !es.opts.Preseeding {
+		if es.modifiedSystem {
+			if err := es.sysd.DaemonReload(); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", err))
+			}
 		}
-	}
-	if es.modifiedUser && !es.opts.Preseeding {
-		if e := userDaemonReload(); e != nil {
-			es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", e))
+		if es.modifiedUser {
+			if err := userDaemonReload(); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
+			}
 		}
 	}
 }
