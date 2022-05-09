@@ -471,7 +471,7 @@ type EnsureSnapServicesOptions struct {
 	RequireMountedSnapdSnap bool
 }
 
-// ensureSnapServicesContext is the context for the EnsureSnapServices.
+// ensureSnapServicesContext is the context for EnsureSnapServices.
 // EnsureSnapServices supports transactional update/write of systemd service
 // files and slice files. A part of this is to support rollback of files and
 // also keep track of whether a restart of systemd daemon is required. To encapsulate
