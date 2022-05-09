@@ -474,12 +474,10 @@ type EnsureSnapServicesOptions struct {
 // ensureSnapServicesContext is the context for EnsureSnapServices.
 // EnsureSnapServices supports transactional update/write of systemd service
 // files and slice files. A part of this is to support rollback of files and
-// also keep track of whether a restart of systemd daemon is required. To encapsulate
-// some of this functionality, the following structure has been defined which keeps
-// state and arguments required to easier allow a splitup of the code.
+// also keep track of whether a restart of systemd daemon is required.
 type ensureSnapServicesContext struct {
 	// snaps, observeChange, opts and inter are the arguments
-	// taken in in EnsureSnapServices. They are here to allow sub-functions
+	// taken by EnsureSnapServices. They are here to allow sub-functions
 	// to easier access these, and keep parameter lists shorter.
 	snaps         map[*snap.Info]*SnapServiceOptions
 	observeChange ObserveChangeCallback
