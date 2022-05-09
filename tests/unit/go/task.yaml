@@ -63,10 +63,13 @@ execute: |
                 ./run-checks --unit"
         fi
     else
+        # on 14.04 we need to use a fork of libseccomp-golang
+        sed -i 's|\"github.com/seccomp/libseccomp-golang\"|\"github.com/mvo5/libseccomp-golang\"|' \
+            /tmp/static-unit-tests/src/github.com/snapcore/snapd/cmd/snap-seccomp/*.go
+
         if [ "$VARIANT" = "static" ] ; then
             # 14.04 only
             su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-                sed -i 's|\"github.com/seccomp/libseccomp-golang\"|\"github.com/mvo5/libseccomp-golang\"|' cmd/snap-seccomp/*.go && \
                 PATH=$PATH \
                 GOPATH=/tmp/static-unit-tests \
                 ${skip:-} \
