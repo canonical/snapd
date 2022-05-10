@@ -196,6 +196,15 @@ func quotaValuesToResources(values client.QuotaValues) quota.Resources {
 	if values.Threads != 0 {
 		resourcesBuilder.WithThreadLimit(values.Threads)
 	}
+	if values.Journal != nil {
+		resourcesBuilder.WithJournalNamespace()
+		if values.Journal.Size != 0 {
+			resourcesBuilder.WithJournalSize(values.Journal.Size)
+		}
+		if values.Journal.RateCount != 0 && values.Journal.RatePeriod != 0 {
+			resourcesBuilder.WithJournalRate(values.Journal.RateCount, values.Journal.RatePeriod)
+		}
+	}
 	return resourcesBuilder.Build()
 }
 

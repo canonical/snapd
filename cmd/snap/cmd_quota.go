@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -90,6 +91,10 @@ The threads limit for a quota group can be increased but not decreased. To
 decrease the threads limit for a quota group, the entire group must be removed
 with the remove-quota command and recreated with a lower limit.
 
+The journal limits can be increased and decreased after being set on a group.
+Setting a journal limit will cause the snaps in the group to be put into the same
+journal namespace. This will affect the behaviour of the log command.
+
 New quotas can be set on existing quota groups, but existing quotas cannot be removed
 from a quota group, without removing and recreating the entire group.
 
@@ -125,12 +130,14 @@ func init() {
 type cmdSetQuota struct {
 	waitMixin
 
-	MemoryMax  string `long:"memory" optional:"true"`
-	CPUMax     string `long:"cpu" optional:"true"`
-	CPUSet     string `long:"cpu-set" optional:"true"`
-	ThreadsMax string `long:"threads" optional:"true"`
-	Parent     string `long:"parent" optional:"true"`
-	Positional struct {
+	MemoryMax        string `long:"memory" optional:"true"`
+	CPUMax           string `long:"cpu" optional:"true"`
+	CPUSet           string `long:"cpu-set" optional:"true"`
+	ThreadsMax       string `long:"threads" optional:"true"`
+	JournalSizeMax   string `long:"journal-size" optional:"true"`
+	JournalRateLimit string `long:"journal-rate-limit" optional:"true"`
+	Parent           string `long:"parent" optional:"true"`
+	Positional       struct {
 		GroupName string              `positional-arg-name:"<group-name>" required:"true"`
 		Snaps     []installedSnapName `positional-arg-name:"<snap>" optional:"true"`
 	} `positional-args:"yes"`
@@ -163,6 +170,31 @@ func parseCpuQuota(cpuMax string) (count int, percentage int, err error) {
 		return 0, 0, parseError(cpuMax)
 	}
 	return count, percentage, nil
+}
+
+func parseJournalRateQuota(journalRateLimit string) (count int, period time.Duration, err error) {
+	// the rate limit is a string of the form N/P, where N is the number of
+	// messages and P is the period as a time string (e.g 5s)
+	parseError := func(input string) error {
+		return fmt.Errorf("cannot parse journal rate limit string %q", input)
+	}
+
+	parts := strings.Split(journalRateLimit, "/")
+	if len(parts) != 2 {
+		return 0, 0, parseError(journalRateLimit)
+	}
+
+	count, err = strconv.Atoi(parts[0])
+	if err != nil || count == 0 {
+		return 0, 0, parseError(journalRateLimit)
+	}
+
+	period, err = time.ParseDuration(parts[1])
+	if err != nil || period == 0 {
+		return 0, 0, parseError(journalRateLimit)
+	}
+
+	return count, period, nil
 }
 
 func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
@@ -215,11 +247,32 @@ func (x *cmdSetQuota) parseQuotas() (*client.QuotaValues, error) {
 		quotaValues.Threads = int(value)
 	}
 
+	if x.JournalSizeMax != "" || x.JournalRateLimit != "" {
+		quotaValues.Journal = &client.QuotaJournalValues{}
+		if x.JournalSizeMax != "" {
+			value, err := strutil.ParseByteSize(x.JournalSizeMax)
+			if err != nil {
+				return nil, err
+			}
+			quotaValues.Journal.Size = quantity.Size(value)
+		}
+
+		if x.JournalRateLimit != "" {
+			count, period, err := parseJournalRateQuota(x.JournalRateLimit)
+			if err != nil {
+				return nil, err
+			}
+			quotaValues.Journal.RateCount = count
+			quotaValues.Journal.RatePeriod = period
+		}
+	}
+
 	return &quotaValues, nil
 }
 
 func (x *cmdSetQuota) hasQuotaSet() bool {
-	return x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" || x.ThreadsMax != ""
+	return x.MemoryMax != "" || x.CPUMax != "" || x.CPUSet != "" ||
+		x.ThreadsMax != "" || x.JournalSizeMax != "" || x.JournalRateLimit != ""
 }
 
 func (x *cmdSetQuota) Execute(args []string) (err error) {

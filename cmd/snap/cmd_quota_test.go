@@ -203,10 +203,12 @@ func makeChangesHandler(c *check.C) func(w http.ResponseWriter, r *http.Request)
 
 func (s *quotaSuite) TestParseQuotas(c *check.C) {
 	for _, testData := range []struct {
-		maxMemory  string
-		cpuMax     string
-		cpuSet     string
-		threadsMax string
+		maxMemory        string
+		cpuMax           string
+		cpuSet           string
+		threadsMax       string
+		journalSizeMax   string
+		journalRateLimit string
 
 		// Use the JSON representation of the quota, as it's easier to handle in the test data
 		quotas string
@@ -217,6 +219,11 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuMax: "40%", quotas: `{"cpu":{"percentage":40}}`},
 		{cpuSet: "1,3", quotas: `{"cpu-set":{"cpus":[1,3]}}`},
 		{threadsMax: "2", quotas: `{"threads":2}`},
+		{journalSizeMax: "16MB", quotas: `{"journal":{"size":16000000}}`},
+		{journalRateLimit: "10/15s", quotas: `{"journal":{"rate-count":10,"rate-period":15000000000}}`},
+		{journalRateLimit: "1500/15ms", quotas: `{"journal":{"rate-count":1500,"rate-period":15000000}}`},
+		{journalRateLimit: "1/15us", quotas: `{"journal":{"rate-count":1,"rate-period":15000}}`},
+
 		// Error cases
 		{cpuMax: "ASD", err: `cannot parse cpu quota string "ASD"`},
 		{cpuMax: "0x100%", err: `cannot parse cpu quota string "0x100%"`},
@@ -229,8 +236,12 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 		{cpuSet: "0,-2", err: `cannot parse CPU set value "-2"`},
 		{threadsMax: "xxx", err: `cannot use threads value "xxx"`},
 		{threadsMax: "-3", err: `cannot use threads value "-3"`},
+		{journalRateLimit: "0", err: `cannot parse journal rate limit string "0"`},
+		{journalRateLimit: "x/5m", err: `cannot parse journal rate limit string "x\/5m"`},
+		{journalRateLimit: "1/wow", err: `cannot parse journal rate limit string "1\/wow"`},
 	} {
-		quotas, err := main.ParseQuotaValues(testData.maxMemory, testData.cpuMax, testData.cpuSet, testData.threadsMax)
+		quotas, err := main.ParseQuotaValues(testData.maxMemory, testData.cpuMax,
+			testData.cpuSet, testData.threadsMax, testData.journalSizeMax, testData.journalRateLimit)
 		testLabel := check.Commentf("%v", testData)
 		if testData.err == "" {
 			c.Check(err, check.IsNil, testLabel)
