@@ -13,13 +13,12 @@ _load_config() {
     CFG_FILE="$(remote.setup get-config-path)"
     if [ ! -f "$CFG_FILE" ]; then
         echo "remote.push: config file \"$CFG_FILE\" not found, please run remote.setup command first"
-        return 0
+        return 1
     fi
     . "$CFG_FILE"
 }
 
 _get_pass() {
-    local SSH_PASS
     if [ -n "$TESTS_REMOTE_PASS" ]; then
         echo "sshpass -p $TESTS_REMOTE_PASS"
     fi

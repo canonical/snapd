@@ -38,6 +38,7 @@ cleanup() {
                     fi
                 done
                 if [ "$keep" -eq 0 ]; then
+                    # remove regular snaps right away; collect base snaps for removal in the second step below?
                     if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
                         if [ -z "$remove_bases" ]; then
                             remove_bases="$snap"
