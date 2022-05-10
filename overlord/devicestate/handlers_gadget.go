@@ -209,7 +209,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
-	snapstate.RestartSystem(t)
+	snapstate.RestartSystem(t, nil)
 
 	return nil
 }
@@ -284,7 +284,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// kernel command line
 
 	// kernel command line was updated, request a reboot to make it effective
-	snapstate.RestartSystem(t)
+	snapstate.RestartSystem(t, nil)
 	return nil
 }
 
@@ -321,6 +321,6 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	t.SetStatus(state.UndoneStatus)
 
 	// kernel command line was updated, request a reboot to make it effective
-	snapstate.RestartSystem(t)
+	snapstate.RestartSystem(t, nil)
 	return nil
 }

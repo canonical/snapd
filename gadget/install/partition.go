@@ -22,7 +22,9 @@ package install
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -31,16 +33,33 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	ensureNodesExist = ensureNodesExistImpl
 )
 
+// reloadPartitionTable reloads the partition table depending on what the gadget
+// says - if the gadget has a special marker file, then we will use a special
+// reload mechanism, implemented for a specific device.
+func reloadPartitionTable(gadgetRoot string, device string) error {
+	if osutil.FileExists(filepath.Join(gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan")) {
+		// TODO: remove this method when we are able to, this exists for a very
+		// specific device + kernel combination which is not compatible with
+		// using partx and so instead we must use this rescan trick
+		return reloadPartitionTableWithDeviceRescan(device)
+	} else {
+		// use partx like normal
+		return reloadPartitionTableWithPartx(device)
+	}
+}
+
 // createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
+func createMissingPartitions(gadgetRoot string, dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) ([]gadget.OnDiskStructure, error) {
 	buf, created, err := buildPartitionList(dl, pv)
 	if err != nil {
 		return nil, err
@@ -62,8 +81,15 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) 
 	}
 
 	// Re-read the partition table
-	if err := reloadPartitionTable(dl.Device); err != nil {
+	if err := reloadPartitionTable(gadgetRoot, dl.Device); err != nil {
 		return nil, err
+	}
+
+	// run udevadm settle to wait for udev events that may have been triggered
+	// by reloading the partition table to be processed, as we need the udev
+	// database to be freshly updated
+	if out, err := exec.Command("udevadm", "settle", "--timeout=180").CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("cannot wait for udev to settle after reloading partition table: %v", osutil.OutputErr(out, err))
 	}
 
 	// Make sure the devices for the partitions we created are available
@@ -100,7 +126,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 		}
 	}
 
-	// The partition index
+	// The partition / disk index - note that it will start at 1, we increment
+	// it before we use it in the loop below
 	pIndex := 0
 
 	// Write new partition data in named-fields format
@@ -134,18 +161,20 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume) (sfdi
 
 		ptype := partitionType(dl.Schema, p.Type)
 
-		// Can we use the index here? Get the largest existing partition number and
-		// build from there could be safer if the disk partitions are not consecutive
-		// (can this actually happen in our images?)
+		// synthesize the node name and on disk structure
 		node := deviceName(dl.Device, pIndex)
+		ps := gadget.OnDiskStructure{
+			LaidOutStructure: p,
+			Node:             node,
+			DiskIndex:        pIndex,
+			Size:             quantity.Size(newSizeInSectors * sectorSize),
+		}
+
+		// format sfdisk input for creating this partition
 		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q\n", node,
 			startInSectors, newSizeInSectors, ptype, s.Name)
 
-		toBeCreated = append(toBeCreated, gadget.OnDiskStructure{
-			LaidOutStructure: p,
-			Node:             node,
-			Size:             quantity.Size(newSizeInSectors * sectorSize),
-		})
+		toBeCreated = append(toBeCreated, ps)
 	}
 
 	return buf, toBeCreated, nil
@@ -176,7 +205,7 @@ func deviceName(name string, index int) string {
 }
 
 // removeCreatedPartitions removes partitions added during a previous install.
-func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
+func removeCreatedPartitions(gadgetRoot string, lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) error {
 	sfdiskIndexes := make([]string, 0, len(dl.Structure))
 	// up to 3 possible partitions are creatable and thus removable:
 	// ubuntu-data, ubuntu-boot, and ubuntu-save
@@ -200,9 +229,8 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 	}
 
 	// Reload the partition table - note that this specifically does not trigger
-	// udev events to remove the deleted devices, see the doc-comment in
-	// reloadPartitionTable for more details
-	if err := reloadPartitionTable(dl.Device); err != nil {
+	// udev events to remove the deleted devices, see the doc-comment below
+	if err := reloadPartitionTable(gadgetRoot, dl.Device); err != nil {
 		return err
 	}
 
@@ -237,6 +265,30 @@ func removeCreatedPartitions(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume) 
 	return nil
 }
 
+func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVolume, roles []string) []gadget.OnDiskStructure {
+	roleForOffset := map[quantity.Offset]*gadget.LaidOutStructure{}
+	for idx, gs := range lv.LaidOutStructure {
+		if gs.Role != "" {
+			roleForOffset[gs.StartOffset] = &lv.LaidOutStructure[idx]
+		}
+	}
+
+	var parts []gadget.OnDiskStructure
+	for _, part := range dl.Structure {
+		gs := roleForOffset[part.StartOffset]
+		if gs == nil || gs.Role == "" || !strutil.ListContains(roles, gs.Role) {
+			continue
+		}
+		// now that we have a match, override the laid out structure
+		// such that the fields reflect what was declared in the gadget,
+		// the on-disk-structure already has the right size as read from
+		// the partition table
+		part.LaidOutStructure = *gs
+		parts = append(parts, part)
+	}
+	return parts
+}
+
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
 func ensureNodesExistImpl(dss []gadget.OnDiskStructure, timeout time.Duration) error {
@@ -261,9 +313,37 @@ func ensureNodesExistImpl(dss []gadget.OnDiskStructure, timeout time.Duration) e
 	return nil
 }
 
-// reloadPartitionTable instructs the kernel to re-read the partition
+// reloadPartitionTableWithDeviceRescan instructs the kernel to re-read the
+// partition table of a given block device via a workaround proposed for a
+// specific device in the form of executing the equivalent of:
+// bash -c "echo 1 > /sys/block/sd?/device/rescan"
+func reloadPartitionTableWithDeviceRescan(device string) error {
+	disk, err := disks.DiskFromDeviceName(device)
+	if err != nil {
+		return err
+	}
+
+	rescanFile := filepath.Join(disk.KernelDevicePath(), "device", "rescan")
+
+	logger.Noticef("reload partition table via rescan file %s for device %s as indicated by gadget", rescanFile, device)
+	f, err := os.OpenFile(rescanFile, os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// this could potentially fail with strange sysfs errno's since rescan isn't
+	// a real file
+	if _, err := f.WriteString("1\n"); err != nil {
+		return fmt.Errorf("unable to trigger reload with rescan file: %v", err)
+	}
+
+	return nil
+}
+
+// reloadPartitionTableWithPartx instructs the kernel to re-read the partition
 // table of a given block device.
-func reloadPartitionTable(device string) error {
+func reloadPartitionTableWithPartx(device string) error {
 	// Re-read the partition table using the BLKPG ioctl, which doesn't
 	// remove existing partitions, only appends new partitions with the right
 	// size and offset. As long as we provide consistent partitioning from

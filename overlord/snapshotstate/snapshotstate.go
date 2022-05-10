@@ -110,7 +110,7 @@ func EstimateSnapshotSize(st *state.State, instanceName string, users []string) 
 		return 0, err
 	}
 
-	opts, err := snapstate.GetSnapDirOptions(st)
+	opts, err := getSnapDirOpts(st, cur.InstanceName())
 	if err != nil {
 		return 0, err
 	}
@@ -384,6 +384,17 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 		instanceNames, err = allActiveSnapNames(st)
 		if err != nil {
 			return 0, nil, nil, err
+		}
+	} else {
+		installedSnaps, err := snapstate.All(st)
+		if err != nil {
+			return 0, nil, nil, err
+		}
+
+		for _, name := range instanceNames {
+			if _, ok := installedSnaps[name]; !ok {
+				return 0, nil, nil, &snap.NotInstalledError{Snap: name}
+			}
 		}
 	}
 

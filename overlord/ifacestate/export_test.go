@@ -22,6 +22,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -166,6 +167,14 @@ func MockWriteSystemKey(fn func() error) func() {
 	old := writeSystemKey
 	writeSystemKey = fn
 	return func() { writeSystemKey = old }
+}
+
+func MockSnapstateFinishRestart(f func(task *state.Task, snapsup *snapstate.SnapSetup) error) (restore func()) {
+	old := snapstateFinishRestart
+	snapstateFinishRestart = f
+	return func() {
+		snapstateFinishRestart = old
+	}
 }
 
 func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {

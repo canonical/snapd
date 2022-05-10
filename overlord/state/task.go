@@ -200,6 +200,12 @@ func (t *Task) Status() Status {
 func (t *Task) SetStatus(new Status) {
 	t.state.writing()
 	old := t.status
+	if new == DoneStatus && old == AbortStatus {
+		// if the task is in AbortStatus (because some other task ran in parallel and had an error so the change is
+		// aborted) and DoneStatus was requested (which can happen if the task handler sets its status explicitly)
+		// then keep it at aborted so it can transition to Undo.
+		return
+	}
 	t.status = new
 	if !old.Ready() && new.Ready() {
 		t.readyTime = timeNow()

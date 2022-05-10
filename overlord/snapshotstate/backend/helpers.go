@@ -164,7 +164,7 @@ var userWrapper = pickUserWrapper()
 // If neither runuser nor sudo are found on the path, exec.Command is also used
 // directly. This will result in tar running as root in this situation (so it
 // will fail if on NFS; I don't think there's an attack vector though).
-func tarAsUser(username string, args ...string) *exec.Cmd {
+var tarAsUser = func(username string, args ...string) *exec.Cmd {
 	if sysGeteuid() == 0 && username != "root" {
 		if userWrapper != "" {
 			uwArgs := make([]string, len(args)+5)

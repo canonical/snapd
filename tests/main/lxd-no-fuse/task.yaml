@@ -1,4 +1,4 @@
-summary: Check that we give a useful error when fuse is missing in lxd
+summary: Check that we can install snaps when fuse is missing in lxd
 
 # we just need a single system to verify this
 systems: [ubuntu-18.04-64]
@@ -40,7 +40,7 @@ execute: |
         exit 1
     fi
 
-    echo "Remove fuse to trigger the fuse sanity check"
+    echo "Remove fuse to trigger the fuse precondition check"
     lxd.lxc exec my-ubuntu -- apt autoremove -y fuse
 
     echo "Install snapd"
@@ -48,9 +48,5 @@ execute: |
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
     lxd.lxc exec my-ubuntu -- apt install -y "$GOHOME"/snapd_*.deb
 
-    echo "And validate that we get a useful error"
-    if lxd.lxc exec my-ubuntu snap install test-snapd-sh 2> err.txt; then
-        echo "snap install should fail but it did not?"
-        exit 1
-    fi
-    MATCH 'The "fuse" filesystem is required' < err.txt
+    echo "And validate snaps can be installed because fuse comes with core as a snapd dependency"
+    lxd.lxc exec my-ubuntu snap install test-snapd-sh | MATCH "test-snapd-sh .* installed"

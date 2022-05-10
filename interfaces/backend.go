@@ -70,6 +70,12 @@ type ConfinementOptions struct {
 type SecurityBackendOptions struct {
 	// Preseed flag is set when snapd runs in preseed mode.
 	Preseed bool
+	// CoreSnapInfo is the current revision of the core snap (if it is
+	// installed)
+	CoreSnapInfo *snap.Info
+	// SnapdSnapInfo is the current revision of the snapd snap (if it is
+	// installed)
+	SnapdSnapInfo *snap.Info
 }
 
 // SecurityBackend abstracts interactions between the interface system and the

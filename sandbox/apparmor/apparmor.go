@@ -35,6 +35,19 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// ValidateNoAppArmorRegexp will check that the given string does not
+// contain AppArmor regular expressions (AARE), double quotes or \0.
+// Note that to check the inverse of this, that is that a string has
+// valid AARE, one should use interfaces/utils.NewPathPattern().
+func ValidateNoAppArmorRegexp(s string) error {
+	const AARE = `?*[]{}^"` + "\x00"
+
+	if strings.ContainsAny(s, AARE) {
+		return fmt.Errorf("%q contains a reserved apparmor char from %s", s, AARE)
+	}
+	return nil
+}
+
 // LevelType encodes the kind of support for apparmor
 // found on this system.
 type LevelType int
@@ -332,6 +345,9 @@ func probeParserFeatures() ([]string, error) {
 	}
 	if tryAppArmorParserFeature(parser, "capability audit_read,") {
 		features = append(features, "cap-audit-read")
+	}
+	if tryAppArmorParserFeature(parser, "mqueue,") {
+		features = append(features, "mqueue")
 	}
 	sort.Strings(features)
 	return features, nil

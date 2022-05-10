@@ -46,7 +46,7 @@ const networkControlConnectedPlugAppArmor = `
 #
 # Allow access to the safe members of the systemd-resolved D-Bus API:
 #
-#   https://www.freedesktop.org/wiki/Software/systemd/resolved/
+#   https://www.freedesktop.org/software/systemd/man/org.freedesktop.resolve1.html
 #
 # This API may be used directly over the D-Bus system bus or it may be used
 # indirectly via the nss-resolve plugin:
@@ -59,7 +59,14 @@ dbus send
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
      member="Resolve{Address,Hostname,Record,Service}"
-     peer=(name="org.freedesktop.resolve1"),
+     peer=(name="org.freedesktop.resolve1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/resolve1"
+     interface="org.freedesktop.resolve1.Manager"
+     member="SetLink{DefaultRoute,DNSOverTLS,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
+     peer=(label=unconfined),
 
 #include <abstractions/ssl_certs>
 
@@ -204,8 +211,8 @@ capability setuid,
 # are virtual and don't show up in /dev
 /dev/net/tun rw,
 
-# Access to sysfs interfaces for tun/tap device settings.
-/sys/devices/virtual/net/tap*/** rw,
+# Access to sysfs interfaces for tun/tap/mstp/bchat device settings.
+/sys/devices/virtual/net/{tap*,mstp*,bchat*}/** rw,
 
 # access to bridge sysfs interfaces for bridge settings
 /sys/devices/virtual/net/*/bridge/* rw,

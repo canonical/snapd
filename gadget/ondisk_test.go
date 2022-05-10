@@ -131,7 +131,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 					PartitionLabel:   "Recovery",
 					Major:            42,
 					Minor:            2,
-					StructureIndex:   2,
+					DiskIndex:        2,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					// The filesystem label will be properly decoded
@@ -147,7 +147,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 					PartitionLabel: "BIOS\x20Boot",
 					Major:          42,
 					Minor:          1,
-					StructureIndex: 1,
+					DiskIndex:      1,
 				},
 			},
 		},
@@ -177,10 +177,10 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 						Filesystem: "",
 					},
 					StartOffset: 0x100000,
-					Index:       1,
 				},
-				Size: 0x100000,
-				Node: "/dev/node1",
+				DiskIndex: 1,
+				Size:      0x100000,
+				Node:      "/dev/node1",
 			},
 			{
 				LaidOutStructure: gadget.LaidOutStructure{
@@ -193,10 +193,10 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 						Filesystem: "vfat",
 					},
 					StartOffset: 0x200000,
-					Index:       2,
 				},
-				Size: 0x4b000000,
-				Node: "/dev/node2",
+				DiskIndex: 2,
+				Size:      0x4b000000,
+				Node:      "/dev/node2",
 			},
 		},
 	})
@@ -221,7 +221,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
 					PartitionLabel:   "BIOS Boot",
 					Major:            42,
 					Minor:            1,
-					StructureIndex:   1,
+					DiskIndex:        1,
 				},
 				{
 					KernelDeviceNode: "/dev/node2",
@@ -232,7 +232,7 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
 					PartitionLabel:   "Recovery",
 					Major:            42,
 					Minor:            2,
-					StructureIndex:   2,
+					DiskIndex:        2,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					FilesystemLabel:  "ubuntu-seed",
@@ -264,10 +264,10 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
 						Filesystem: "",
 					},
 					StartOffset: 0x800000,
-					Index:       1,
 				},
-				Size: 0x800000,
-				Node: "/dev/node1",
+				DiskIndex: 1,
+				Size:      0x800000,
+				Node:      "/dev/node1",
 			},
 			{
 				LaidOutStructure: gadget.LaidOutStructure{
@@ -280,10 +280,10 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
 						Filesystem: "vfat",
 					},
 					StartOffset: 0x1000000,
-					Index:       2,
 				},
-				Size: 0x258000000,
-				Node: "/dev/node2",
+				DiskIndex: 2,
+				Size:      0x258000000,
+				Node:      "/dev/node2",
 			},
 		},
 	})
@@ -308,7 +308,7 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 					PartitionLabel:   "ubuntu-seed",
 					Major:            42,
 					Minor:            1,
-					StructureIndex:   1,
+					DiskIndex:        1,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "FF44-B807",
 					FilesystemLabel:  "ubuntu-seed",
@@ -321,7 +321,7 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 					PartitionLabel:   "ubuntu-boot",
 					Major:            42,
 					Minor:            2,
-					StructureIndex:   2,
+					DiskIndex:        2,
 					FilesystemType:   "vfat",
 					FilesystemUUID:   "A644-B807",
 					FilesystemLabel:  "ubuntu-boot",
@@ -334,7 +334,7 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 					PartitionLabel:   "ubuntu-save",
 					Major:            42,
 					Minor:            3,
-					StructureIndex:   3,
+					DiskIndex:        3,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8781-433a",
 					FilesystemLabel:  "ubuntu-save",
@@ -347,7 +347,7 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 					PartitionLabel:   "ubuntu-data",
 					Major:            42,
 					Minor:            4,
-					StructureIndex:   4,
+					DiskIndex:        4,
 					FilesystemType:   "ext4",
 					FilesystemUUID:   "8123-433a",
 					FilesystemLabel:  "ubuntu-data",
@@ -379,10 +379,10 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 						Filesystem: "vfat",
 					},
 					StartOffset: 4096 * 512,
-					Index:       1,
 				},
-				Size: 2457600 * 512,
-				Node: "/dev/node1",
+				DiskIndex: 1,
+				Size:      2457600 * 512,
+				Node:      "/dev/node1",
 			},
 			{
 				LaidOutStructure: gadget.LaidOutStructure{
@@ -394,10 +394,10 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 						Filesystem: "vfat",
 					},
 					StartOffset: (4096 + 2457600) * 512,
-					Index:       2,
 				},
-				Size: 1048576 * 512,
-				Node: "/dev/node2",
+				DiskIndex: 2,
+				Size:      1048576 * 512,
+				Node:      "/dev/node2",
 			},
 			{
 				LaidOutStructure: gadget.LaidOutStructure{
@@ -409,10 +409,10 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 						Filesystem: "ext4",
 					},
 					StartOffset: (4096 + 2457600 + 1048576) * 512,
-					Index:       3,
 				},
-				Size: 1048576 * 512,
-				Node: "/dev/node3",
+				DiskIndex: 3,
+				Size:      1048576 * 512,
+				Node:      "/dev/node3",
 			},
 			{
 				LaidOutStructure: gadget.LaidOutStructure{
@@ -424,11 +424,46 @@ func (s *ondiskTestSuite) TestDeviceInfoMBR(c *C) {
 						Filesystem: "ext4",
 					},
 					StartOffset: (4096 + 2457600 + 1048576 + 1048576) * 512,
-					Index:       4,
 				},
-				Size: 1048576 * 512,
-				Node: "/dev/node4",
+				DiskIndex: 4,
+				Size:      1048576 * 512,
+				Node:      "/dev/node4",
 			},
 		},
+	})
+}
+
+func (s *ondiskTestSuite) TestOnDiskStructureFromPartition(c *C) {
+
+	p := disks.Partition{
+		PartitionUUID:    "abcdef-01234",
+		PartitionLabel:   "foobar",
+		PartitionType:    "83",
+		SizeInBytes:      1024,
+		StartInBytes:     1024 * 1024,
+		FilesystemLabel:  "foobarfs",
+		FilesystemType:   "ext4",
+		DiskIndex:        2,
+		KernelDeviceNode: "/dev/sda2",
+	}
+
+	res, err := gadget.OnDiskStructureFromPartition(p)
+	c.Assert(err, IsNil)
+
+	c.Assert(res, DeepEquals, gadget.OnDiskStructure{
+		LaidOutStructure: gadget.LaidOutStructure{
+			VolumeStructure: &gadget.VolumeStructure{
+				Name:       "foobar",
+				Type:       "83",
+				Label:      "foobarfs",
+				Size:       1024,
+				ID:         "abcdef-01234",
+				Filesystem: "ext4",
+			},
+			StartOffset: 1024 * 1024,
+		},
+		DiskIndex: 2,
+		Size:      1024,
+		Node:      "/dev/sda2",
 	})
 }

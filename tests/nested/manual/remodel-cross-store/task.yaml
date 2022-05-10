@@ -1,0 +1,97 @@
+summary: verify a simple UC20 remodel
+
+details: |
+    Execute a cross-store remodel scenario under the test-snapd brand. The
+    original model uses the same test-snapd-whitebox device view store, while the
+    target model uses test-snapd-remodel store. The new model requires additional
+    snaps that are present in the test-snapd-remodel store.
+
+# ubuntu-22.04-64: enable when test-snapd-remodel-pc is release on 22/stable
+systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+
+environment:
+    NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert
+    NESTED_IMAGE_ID: uc20-remodel-testing-cross-store
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_USE_CLOUD_INIT: false
+    NESTED_REPACK_KERNEL_SNAP: false
+    NESTED_REPACK_GADGET_SNAP: false
+    NESTED_REPACK_BASE_SNAP: false
+    SNAPD_TEST_BRAND: test-snapd
+    # store we are remodeling from
+    SNAPD_STORE_WHITEBOX: CQvkdMjgbapk821Po2cF
+    # store we are remodeling to
+    SNAPD_STORE_REMODEL: Ceith6aiSahditeoyizi
+    # device serial, this should match the sub-store mapping rules in the serial
+    # vault. Since this test and remodel-simple are using the same original model,
+    # due to limitations of the snap-store/serial-vault, the serial used in this
+    # test must be different than in remodel-simple.
+    SERIAL: 1234-snapd-remodel-testing-cross-store
+
+prepare: |
+    variant="$(tests.nested show version)"
+
+    # TODO: once the gadget snap is published to the brand store, we should
+    # download it here and add the test specific bits
+    cp -av "$TESTSLIB/snaps/test-snapd-remodel-pc-$variant" test-snapd-remodel-pc
+    test -n "$SERIAL"
+    echo "$SERIAL" > test-snapd-remodel-pc/serial
+    snap pack test-snapd-remodel-pc
+
+    REMODEL_SNAP=$(ls test-snapd-remodel-pc_*.snap)
+    mv "$REMODEL_SNAP" "$(tests.nested get extra-snaps-path)"
+
+    export UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth"
+    export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-pc-$variant.model"
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+    variant="$(tests.nested show version)"
+    boot_id="$(tests.nested boot-id)"
+
+    # wait until device is initialized and has a serial
+    tests.nested wait-for device-initialized
+
+    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
+    tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
+    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
+
+    # the new model requires test-snapd-tools-core* snap to be present, make
+    # sure that the snap isn't installed yet
+    tests.nested exec "snap list" | NOMATCH test-snapd-tools
+
+    tests.nested copy "$TESTSLIB/assertions/test-snapd-remodel-pc-cross-store-$variant.model"
+    CHANGE_ID="$(tests.nested exec "sudo snap remodel --no-wait test-snapd-remodel-pc-cross-store-$variant.model")"
+    test -n "$CHANGE_ID"
+    # very long retry wait for the change to be in stable state, once it's
+    # stable it does not mean that the change was successful yet
+    retry -n 100 --wait 5 sh -c "tests.nested exec sudo snap changes | grep -E '^${CHANGE_ID}\s+(Done|Undone|Error)'"
+    # check that now
+    tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
+
+    current_boot_id="$( tests.nested boot-id )"
+    if [ "$variant" = "20" ] || [ "$variant" = "22" ]; then
+        # we should have rebooted a couple of times (at least twice for the recovery
+        # system and the base), so boot-id should be different
+        test "$boot_id" != "$current_boot_id"
+    else
+        # but there is no reboot on UC18
+        test "$boot_id" == "$current_boot_id"
+    fi
+
+    # we are remodeling within the same store
+    tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
+    # new model
+    tests.nested exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc-cross-store$'
+    # new store
+    tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_REMODEL\$"
+    # but the same serial
+    tests.nested exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
+
+    # new snap is installed
+    tests.nested exec "snap list test-snapd-tools-core${variant}"
+    # and it's possible to run hello-world
+    tests.nested exec "test-snapd-tools-core${variant}.cmd echo 'Hello World'" | MATCH 'Hello World'

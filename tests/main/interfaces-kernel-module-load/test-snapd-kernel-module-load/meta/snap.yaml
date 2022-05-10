@@ -8,10 +8,10 @@ plugs:
         modules:
             - name: mymodule
               load: denied
-            - name: parport_pc
+            - name: bfq
               load: on-boot
-              options: io=0x3bc,0x278 irq=none
+              options: slice_idle_us=20 strict_guarantees=1
             - name: other_module
               load: denied
-            - name: pcspkr
+            - name: arc4
               load: on-boot

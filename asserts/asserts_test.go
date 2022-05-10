@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,9 +51,11 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"account",
 		"account-key",
 		"account-key-request",
+		// XXX "authority-delegation",
 		"base-declaration",
 		"device-session-request",
 		"model",
+		"preseed",
 		"repair",
 		"serial",
 		"serial-request",
@@ -78,7 +80,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 func (as *assertsSuite) TestMaxSupportedFormats(c *C) {
 	snapDeclMaxFormat := asserts.SnapDeclarationType.MaxSupportedFormat()
 	systemUserMaxFormat := asserts.SystemUserType.MaxSupportedFormat()
-	// sanity
+	// validity
 	c.Check(snapDeclMaxFormat >= 4, Equals, true)
 	c.Check(systemUserMaxFormat >= 1, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(1), DeepEquals, map[string]int{
@@ -136,6 +138,40 @@ func (as *assertsSuite) TestPrimaryKeyHelpers(c *C) {
 	c.Check(err, ErrorMatches, `must provide primary key: pk2`)
 }
 
+func (as *assertsSuite) TestPrimaryKeyHelpersOptionalPrimaryKeys(c *C) {
+	// optional primary key headers
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	pk, err := asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1"})
+	c.Assert(err, IsNil)
+	c.Check(pk, DeepEquals, []string{"k1", "o1-defl"})
+
+	pk, err = asserts.PrimaryKeyFromHeaders(asserts.TestOnlyType, map[string]string{"primary-key": "k1", "opt1": "B"})
+	c.Assert(err, IsNil)
+	c.Check(pk, DeepEquals, []string{"k1", "B"})
+
+	hdrs, err := asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1", "B"})
+	c.Assert(err, IsNil)
+	c.Check(hdrs, DeepEquals, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "B",
+	})
+
+	hdrs, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"k1"})
+	c.Assert(err, IsNil)
+	c.Check(hdrs, DeepEquals, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "o1-defl",
+	})
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, nil)
+	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
+
+	_, err = asserts.HeadersFromPrimaryKey(asserts.TestOnlyType, []string{"pk", "opt1", "what"})
+	c.Check(err, ErrorMatches, `primary key has wrong length for "test-only" assertion`)
+}
+
 func (as *assertsSuite) TestRef(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
@@ -188,6 +224,110 @@ func (as *assertsSuite) TestRefResolveError(c *C) {
 	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
 }
 
+func (as *assertsSuite) TestReducePrimaryKey(c *C) {
+	// optional primary key headers
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+
+	tests := []struct {
+		pk      []string
+		reduced []string
+	}{
+		{nil, nil},
+		{[]string{"k1"}, []string{"k1"}},
+		{[]string{"k1", "k2"}, []string{"k1", "k2"}},
+		{[]string{"k1", "k2", "A"}, []string{"k1", "k2", "A"}},
+		{[]string{"k1", "k2", "o1-defl"}, []string{"k1", "k2"}},
+		{[]string{"k1", "k2", "A", "o2-defl"}, []string{"k1", "k2", "A"}},
+		{[]string{"k1", "k2", "A", "B"}, []string{"k1", "k2", "A", "B"}},
+		{[]string{"k1", "k2", "o1-defl", "B"}, []string{"k1", "k2", "o1-defl", "B"}},
+		{[]string{"k1", "k2", "o1-defl", "o2-defl"}, []string{"k1", "k2"}},
+		{[]string{"k1", "k2", "o1-defl", "o2-defl", "what"}, []string{"k1", "k2", "o1-defl", "o2-defl", "what"}},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.ReducePrimaryKey(asserts.TestOnly2Type, t.pk), DeepEquals, t.reduced)
+	}
+}
+
+func (as *assertsSuite) TestRefOptionalPrimaryKeys(c *C) {
+	// optional primary key headers
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "o1-defl"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "o1-defl", "o2-defl"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "A"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/A")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt1:A)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "A", "o2-defl"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/A")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt1:A)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "o1-defl", "B"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/o1-defl/B")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt2:B)`)
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz", "A", "B"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz/A/B")
+	c.Check(ref.String(), Equals, `test-only-2 (xyz; pk1:abc opt1:A opt2:B)`)
+}
+
+func (as *assertsSuite) TestAcceptablePrimaryKey(c *C) {
+	// optional primary key headers
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt1", "o1-defl")()
+	defer asserts.MockOptionalPrimaryKey(asserts.TestOnly2Type, "opt2", "o2-defl")()
+
+	tests := []struct {
+		pk []string
+		ok bool
+	}{
+		{nil, false},
+		{[]string{"k1"}, false},
+		{[]string{"k1", "k2"}, true},
+		{[]string{"k1", "k2", "A"}, true},
+		{[]string{"k1", "k2", "o1-defl"}, true},
+		{[]string{"k1", "k2", "A", "B"}, true},
+		{[]string{"k1", "k2", "o1-defl", "o2-defl", "what"}, false},
+	}
+
+	for _, t := range tests {
+		c.Check(asserts.TestOnly2Type.AcceptablePrimaryKey(t.pk), Equals, t.ok)
+	}
+}
+
 func (as *assertsSuite) TestAtRevisionString(c *C) {
 	ref := asserts.Ref{
 		Type:       asserts.AccountType,
@@ -224,6 +364,47 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Format(), Equals, 0)
 	c.Check(a.Body(), IsNil)
+	c.Check(a.Header("header1"), IsNil)
+	c.Check(a.HeaderString("header1"), Equals, "")
+	c.Check(a.AuthorityID(), Equals, "auth-id1")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
+}
+
+const exampleEmptyBodyOptionalPrimaryKeySet = "type: test-only\n" +
+	"authority-id: auth-id1\n" +
+	"primary-key: abc\n" +
+	"opt1: A\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+	"\n\n" +
+	"AXNpZw=="
+
+func (as *assertsSuite) TestDecodeOptionalPrimaryKeys(c *C) {
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.TestOnlyType)
+	_, ok := a.(*asserts.TestOnly)
+	c.Check(ok, Equals, true)
+	c.Check(a.Revision(), Equals, 0)
+	c.Check(a.Format(), Equals, 0)
+	c.Check(a.Body(), IsNil)
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+	c.Check(a.Header("header1"), IsNil)
+	c.Check(a.HeaderString("header1"), Equals, "")
+	c.Check(a.AuthorityID(), Equals, "auth-id1")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
+
+	a, err = asserts.Decode([]byte(exampleEmptyBodyOptionalPrimaryKeySet))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.TestOnlyType)
+	_, ok = a.(*asserts.TestOnly)
+	c.Check(ok, Equals, true)
+	c.Check(a.Revision(), Equals, 0)
+	c.Check(a.Format(), Equals, 0)
+	c.Check(a.Body(), IsNil)
+	c.Check(a.HeaderString("opt1"), Equals, "A")
 	c.Check(a.Header("header1"), IsNil)
 	c.Check(a.HeaderString("header1"), Equals, "")
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
@@ -365,6 +546,7 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", `assertion: "authority-id" header is mandatory`},
 		{"authority-id: auth-id\n", "authority-id: \n", `assertion: "authority-id" header should not be empty`},
+		{"authority-id: auth-id\n", "authority-id: auth-id\nsignatory-id: \n", `assertion: "signatory-id" header should not be empty`},
 		{keyIDHdr, "", `assertion: "sign-key-sha3-384" header is mandatory`},
 		{keyIDHdr, "sign-key-sha3-384: \n", `assertion: "sign-key-sha3-384" header should not be empty`},
 		{keyIDHdr, "sign-key-sha3-384: $\n", `assertion: "sign-key-sha3-384" header cannot be decoded: .*`},
@@ -382,7 +564,7 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"primary-key: abc\n", "", `assertion test-only: "primary-key" header is mandatory`},
 		{"primary-key: abc\n", "primary-key:\n  - abc\n", `assertion test-only: "primary-key" header must be a string`},
 		{"primary-key: abc\n", "primary-key: a/c\n", `assertion test-only: "primary-key" primary key header cannot contain '/'`},
-		{"abcde", "ab\xffde", "body is not utf8"},
+		{"abcde", "ab\xffde", "assertion body is not utf8"},
 	}
 
 	for _, test := range invalidAssertTests {
@@ -402,6 +584,16 @@ func (as *assertsSuite) TestDecodeNoAuthorityInvalid(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
+
+	invalid = "type: test-only-no-authority\n" +
+		"signatory-id: auth-id1\n" +
+		"hdr: FOO\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"openpgp c2ln"
+
+	_, err = asserts.Decode([]byte(invalid))
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have signatory-id set`)
 }
 
 func checkContent(c *C, a asserts.Assertion, encoded string) {
@@ -675,7 +867,7 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 	c.Check(cont1, DeepEquals, cont0)
 }
 
-func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
+func (as *assertsSuite) TestSignFormatValidityEmptyBody(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -687,7 +879,42 @@ func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
+func (as *assertsSuite) TestSignFormatValiditySignatoryId(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+		"signatory-id": "delegated-auth-id",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b := asserts.Encode(a)
+	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
+authority-id: auth-id1
+signatory-id: delegated-auth-id
+`)), Equals, true)
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
+}
+
+func (as *assertsSuite) TestSignFormatValiditySignatoryIdCoalesce(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+		"signatory-id": "auth-id1",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b := asserts.Encode(a)
+	c.Check(bytes.Contains(b, []byte("signatory-id:")), Equals, false)
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
+}
+
+func (as *assertsSuite) TestSignFormatValidityNonEmptyBody(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -702,7 +929,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 	c.Check(decoded.Body(), DeepEquals, body)
 }
 
-func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
+func (as *assertsSuite) TestSignFormatValiditySupportMultilineHeaderValues(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -754,6 +981,69 @@ func (as *assertsSuite) TestSignFormatAndRevision(c *C) {
 	c.Check(a1.Revision(), Equals, 11)
 	c.Check(a1.Format(), Equals, 1)
 	c.Check(a1.SupportedFormat(), Equals, true)
+}
+
+func (as *assertsSuite) TestSignFormatOptionalPrimaryKeys(c *C) {
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "k1",
+		"header1":      "a",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b := asserts.Encode(a)
+	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
+authority-id: auth-id1
+primary-key: k1
+header1:`)), Equals, true)
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
+
+	// defaults are always normalized away
+	headers = map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "k1",
+		"opt1":         "o1-defl",
+		"header1":      "a",
+	}
+	a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b = asserts.Encode(a)
+	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
+authority-id: auth-id1
+primary-key: k1
+header1:`)), Equals, true)
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "k1",
+		"opt1":         "A",
+		"header1":      "a",
+	}
+	a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	b = asserts.Encode(a)
+	c.Check(bytes.HasPrefix(b, []byte(`type: test-only
+authority-id: auth-id1
+primary-key: k1
+opt1: A
+header1:`)), Equals, true)
+	c.Check(a.HeaderString("opt1"), Equals, "A")
+
+	_, err = asserts.Decode(b)
+	c.Check(err, IsNil)
 }
 
 func (as *assertsSuite) TestSignBodyIsUTF8Text(c *C) {
@@ -923,6 +1213,13 @@ func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
 			"hdr":          "FOO",
 		}, nil, testPrivKey1)
 	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
+
+	_, err = asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
+		map[string]interface{}{
+			"signatory-id": "auth-id1",
+			"hdr":          "FOO",
+		}, nil, testPrivKey1)
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have signatory-id set`)
 }
 
 func (ss *serialSuite) TestSignatureCheckError(c *C) {
@@ -940,6 +1237,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	withAuthority := []string{
 		"account",
 		"account-key",
+		// XXX "authority-delegation",
 		"base-declaration",
 		"store",
 		"snap-declaration",
@@ -947,6 +1245,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"snap-revision",
 		"snap-developer",
 		"model",
+		"preseed",
 		"serial",
 		"system-user",
 		"validation",

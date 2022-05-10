@@ -23,8 +23,7 @@ execute: |
         if tests.nested is-enabled secboot; then
             MINIMAL_MEM=512
         else
-            # TODO: revert to 384MB once lp:1954545 is fixed
-            MINIMAL_MEM=416
+            MINIMAL_MEM=384
         fi
         NESTED_SPREAD_SYSTEM=ubuntu-core-20-64
     elif tests.nested is-nested uc18; then

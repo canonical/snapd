@@ -76,7 +76,8 @@ execute: |
 
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    # Due to refresh-app-awareness we need --ignore-running as test-snapd-sigterm-service keeps running after sigterm.
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service --ignore-running
     # shellcheck disable=SC2119
     if "$TESTSTOOLS"/journal-state get-log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"

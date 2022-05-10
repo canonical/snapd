@@ -151,8 +151,8 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	}
 
 	table := []tableT{
-		{"dummy-export", client.SnapshotExportMediaType, 200},
-		{"dummy-export", "application/x-tar", 400},
+		{"test-export", client.SnapshotExportMediaType, 200},
+		{"test-export", "application/x-tar", 400},
 		{"", "", 400},
 	}
 

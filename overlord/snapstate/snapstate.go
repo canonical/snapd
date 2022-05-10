@@ -27,12 +27,14 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -49,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -66,15 +69,17 @@ const (
 )
 
 const (
-	DownloadAndChecksDoneEdge = state.TaskSetEdge("download-and-checks-done")
-	BeginEdge                 = state.TaskSetEdge("begin")
-	BeforeHooksEdge           = state.TaskSetEdge("before-hooks")
-	HooksEdge                 = state.TaskSetEdge("hooks")
-	BeforeMaybeRebootEdge     = state.TaskSetEdge("before-maybe-reboot")
-	MaybeRebootEdge           = state.TaskSetEdge("maybe-reboot")
-	MaybeRebootWaitEdge       = state.TaskSetEdge("maybe-reboot-wait")
-	AfterMaybeRebootWaitEdge  = state.TaskSetEdge("after-maybe-reboot-wait")
+	BeginEdge                        = state.TaskSetEdge("begin")
+	BeforeHooksEdge                  = state.TaskSetEdge("before-hooks")
+	HooksEdge                        = state.TaskSetEdge("hooks")
+	BeforeMaybeRebootEdge            = state.TaskSetEdge("before-maybe-reboot")
+	MaybeRebootEdge                  = state.TaskSetEdge("maybe-reboot")
+	MaybeRebootWaitEdge              = state.TaskSetEdge("maybe-reboot-wait")
+	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
+	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
 )
+
+const snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 
 var ErrNothingToDo = errors.New("nothing to do")
 
@@ -162,6 +167,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 			Media:   update.Media,
 		},
 	}
+	snapsup.IgnoreRunning = globalFlags.IgnoreRunning
 	return &snapsup, snapst, nil
 }
 
@@ -256,6 +262,52 @@ func optedIntoSnapdSnap(st *state.State) (bool, error) {
 	return experimentalAllowSnapd, nil
 }
 
+// refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
+// It deals with potentially wrong type due to lax validation.
+func refreshRetain(st *state.State) int {
+	var val interface{}
+	// due to lax validation of refresh.retain on set we might end up having a string representing a number here; handle it gracefully
+	// for backwards compatibility.
+	err := config.NewTransaction(st).Get("core", "refresh.retain", &val)
+	var retain int
+	if err == nil {
+		switch v := val.(type) {
+		// this is the expected value; confusingly, since we pass interface{} to Get(), we get json.Number type; if int reference was passed,
+		// we would get an int instead of json.Number.
+		case json.Number:
+			retain, err = strconv.Atoi(string(v))
+		// not really expected when requesting interface{}.
+		case int:
+			retain = v
+		// we can get string here due to lax validation of refresh.retain on Set in older releases.
+		case string:
+			retain, err = strconv.Atoi(v)
+		default:
+			logger.Noticef("internal error: refresh.retain system option has unexpected type: %T", v)
+		}
+	}
+
+	// this covers error from Get() and strconv above.
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("internal error: refresh.retain system option is not valid: %v", err)
+	}
+
+	// not set, use default value
+	if retain == 0 {
+		// on classic we only keep 2 copies by default
+		if release.OnClassic {
+			retain = 2
+		} else {
+			retain = 3
+		}
+	}
+	return retain
+}
+
+var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
+	return t == snap.TypeSnapd || t == snap.TypeOS
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -312,7 +364,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
-		if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
+		if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
@@ -486,15 +538,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
-		var retain int
-		if err := config.NewTransaction(st).Get("core", "refresh.retain", &retain); err != nil {
-			// on classic we only keep 2 copies by default
-			if release.OnClassic {
-				retain = 2
-			} else {
-				retain = 3
-			}
-		}
+		retain := refreshRetain(st)
 
 		// if we're not using an already present revision, account for the one being added
 		if snapst.LastIndex(targetRevision) == -1 {
@@ -566,14 +610,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
-	ts.AddAllWithEdges(installSet)
+	// if snap is being installed from the store, then the last task before
+	// any system modifications are done is check validate-snap, otherwise
+	// it's the prepare-snap
 	if checkAsserts != nil {
-		ts.MarkEdge(checkAsserts, DownloadAndChecksDoneEdge)
+		installSet.MarkEdge(checkAsserts, LastBeforeLocalModificationsEdge)
+	} else {
+		installSet.MarkEdge(prepare, LastBeforeLocalModificationsEdge)
 	}
-
 	if flags&skipConfigure != 0 {
 		return installSet, nil
 	}
+
+	ts.AddAllWithEdges(installSet)
 
 	// we do not support configuration for bases or the "snapd" snap yet
 	if snapsup.Type != snap.TypeBase && snapsup.Type != snap.TypeSnapd {
@@ -647,6 +696,10 @@ var generateSnapdWrappers = backend.GenerateSnapdWrappers
 // For snapd snap updates this will also rerun wrappers generation to fully
 // catch up with any change.
 func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
+	if snapdenv.Preseeding() {
+		// nothing to do when preseeding
+		return nil
+	}
 	if ok, _ := restart.Pending(task.State()); ok {
 		// don't continue until we are in the restarted snapd
 		task.Logf("Waiting for automatic snapd restart...")
@@ -668,7 +721,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 			}
 			// TODO: if future changes to wrappers need one more snapd restart,
 			// then it should be handled here as well.
-			if err := generateSnapdWrappers(snapdInfo); err != nil {
+			if err := generateSnapdWrappers(snapdInfo, nil); err != nil {
 				return err
 			}
 		}
@@ -739,7 +792,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // It considers how the Change the task belongs to is configured
 // (system-restart-immediate) to choose whether request an immediate
 // restart or not.
-func RestartSystem(task *state.Task) {
+func RestartSystem(task *state.Task, rebootInfo *boot.RebootInfo) {
 	chg := task.Change()
 	var immediate bool
 	if chg != nil {
@@ -753,7 +806,7 @@ func RestartSystem(task *state.Task) {
 	if immediate {
 		rst = restart.RestartSystemNow
 	}
-	restart.Request(task.State(), rst)
+	restart.Request(task.State(), rst, rebootInfo)
 }
 
 func contentAttr(attrer interfaces.Attrer) string {
@@ -851,7 +904,13 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		if err != nil {
 			return err
 		}
-		if !flag {
+		// The snapd-desktop-integration snap is allowed to
+		// use user daemons, irrespective of the feature flag
+		// state.
+		//
+		// TODO: remove the special case once
+		// experimental.user-daemons is the default
+		if !flag && info.SnapID != snapdDesktopIntegrationSnapID {
 			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 		}
 		if !release.SystemctlSupportsUserUnits() {
@@ -1003,7 +1062,9 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 // Install returns a set of tasks for installing a snap.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications.
 func Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
 	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, "")
 }
@@ -1012,7 +1073,9 @@ func Install(ctx context.Context, st *state.State, name string, opts *RevisionOp
 // It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications.
 func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
@@ -1159,7 +1222,11 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+func InstallMany(st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+	if flags == nil {
+		flags = &Flags{}
+	}
+
 	// need to have a model set before trying to talk the store
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
@@ -1205,13 +1272,16 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		return nil, nil, err
 	}
 
+	var transactionLane int
+	if flags.Transaction == client.TransactionAllSnaps {
+		transactionLane = st.NewLane()
+	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
 		info := sar.Info
 		var snapst SnapState
-		var flags Flags
 
-		flags, err := ensureInstallPreconditions(st, info, flags, &snapst)
+		validatedFlags, err := ensureInstallPreconditions(st, info, *flags, &snapst)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1228,7 +1298,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 			Prereq:             getKeys(providerContentAttrs),
 			PrereqContentAttrs: providerContentAttrs,
 			UserID:             userID,
-			Flags:              flags.ForSnapSetup(),
+			Flags:              validatedFlags.ForSnapSetup(),
 			DownloadInfo:       &info.DownloadInfo,
 			SideInfo:           &info.SideInfo,
 			Type:               info.Type(),
@@ -1240,7 +1310,15 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		if err != nil {
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
+		if flags.Transaction == client.TransactionAllSnaps {
+			ts.JoinLane(transactionLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 		tasksets = append(tasksets, ts)
 	}
 
@@ -1473,6 +1551,10 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
+	var transactionLane int
+	if globalFlags.Transaction == client.TransactionAllSnaps {
+		transactionLane = st.NewLane()
+	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
 		if err != nil {
@@ -1492,16 +1574,28 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 			return nil, nil, err
 		}
-		ts.JoinLane(st.NewLane())
+		// If transactional, use a single lane for all snaps, so when
+		// one fails the changes for all affected snaps will be
+		// undone. Otherwise, have different lanes per snap so failures
+		// only affect the culprit snap.
+		if globalFlags.Transaction == client.TransactionAllSnaps {
+			ts.JoinLane(transactionLane)
+		} else {
+			ts.JoinLane(st.NewLane())
+		}
 
 		// because of the sorting of updates we fill prereqs
 		// first (if branch) and only then use it to setup
 		// waits (else branch)
-		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+		typ := update.Type()
+		if typ == snap.TypeOS || typ == snap.TypeBase || typ == snap.TypeSnapd {
 			// prereq types come first in updates, we
 			// also assume bases don't have hooks, otherwise
 			// they would need to wait on core or snapd
 			prereqs[update.InstanceName()] = ts
+			if typ == snap.TypeBase {
+				waitPrereq(ts, "snapd")
+			}
 		} else {
 			// prereqs were processed already, wait for
 			// them as necessary for the other kind of
@@ -1523,7 +1617,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			}
 		}
 		// keep track of kernel/gadget/base updates
-		switch update.Type() {
+		switch typ {
 		case snap.TypeKernel:
 			kernelTs = ts
 		case snap.TypeGadget:
@@ -1553,9 +1647,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		kernelTs.WaitAll(gadgetTs)
 	}
 
-	if deviceCtx.Model().Base() != "" {
+	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
 		// reordering of kernel and base tasks is supported only on
 		// UC18+ devices
+		// this can only be done safely when the gadget is not a part of
+		// the same update, otherwise there will be a circular
+		// dependency, where gadget waits for base, kernel waits for
+		// gadget, but base waits for some of the kernel tasks
 		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
 			return nil, nil, err
 		}
@@ -1879,7 +1977,10 @@ type RevisionOptions struct {
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet can contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications. If no such edge is set, then none of the tasks introduce
+// system modifications.
 func Update(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
 	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "")
 }
@@ -1888,7 +1989,10 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 // It will query for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
-// The returned TaskSet will contain a DownloadAndChecksDoneEdge.
+// The returned TaskSet can contain a LastBeforeLocalModificationsEdge
+// identifying the last task before the first task that introduces system
+// modifications. If no such edge is set, then none of the tasks introduce
+// system modifications.
 func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
@@ -2381,8 +2485,8 @@ func LinkNewBaseOrKernel(st *state.State, name string) (*state.TaskSet, error) {
 	linkSnap.Set("snap-setup-task", prepareSnap.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
-	// we need this for remodel
-	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	// prepare-snap is the last task that carries no system modifications
+	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	return ts, nil
 }
 
@@ -2427,6 +2531,14 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	linkSnap.Set("snap-setup-task", snapSetupTask.ID())
 	linkSnap.WaitFor(prev)
 	ts.AddTask(linkSnap)
+	// make sure that remodel can identify which tasks introduce actual
+	// changes to the system and order them correctly
+	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {
+		// no task in the task set is marked as last before system
+		// modifications are introduced, so we need to mark the last
+		// task in the set, as tasks introduced here modify system state
+		ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+	}
 	return ts, nil
 }
 
@@ -2474,9 +2586,9 @@ func SwitchToNewGadget(st *state.State, name string) (*state.TaskSet, error) {
 	gadgetCmdline.WaitFor(gadgetUpdate)
 	gadgetCmdline.Set("snap-setup-task", prepareSnap.ID())
 
-	// we need this for remodel
 	ts := state.NewTaskSet(prepareSnap, gadgetUpdate, gadgetCmdline)
-	ts.MarkEdge(prepareSnap, DownloadAndChecksDoneEdge)
+	// prepare-snap is the last task that carries no system modifications
+	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	return ts, nil
 }
 
@@ -2501,6 +2613,14 @@ func AddGadgetAssetsTasks(st *state.State, ts *state.TaskSet) (*state.TaskSet, e
 	gadgetCmdline.Set("snap-setup-task", snapSetupTask.ID())
 	gadgetCmdline.WaitFor(gadgetUpdate)
 	ts.AddTask(gadgetCmdline)
+	// make sure that remodel can identify which tasks introduce actual
+	// changes to the system and order them correctly
+	if edgeTask := ts.MaybeEdge(LastBeforeLocalModificationsEdge); edgeTask == nil {
+		// no task in the task set is marked as last before system
+		// modifications are introduced, so we need to mark the last
+		// task in the set, as tasks introduced here modify system state
+		ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
+	}
 	return ts, nil
 }
 
@@ -2637,7 +2757,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// check if this snap is required by any validation set in enforcing mode
-	enforcedSets, err := EnforcedValidationSets(st)
+	enforcedSets, err := EnforcedValidationSets(st, nil)
 	if err != nil {
 		return err
 	}
@@ -3474,7 +3594,7 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	return func() { osutilCheckFreeSpace = old }
 }
 
-func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.ValidationSets, error)) func() {
+func MockEnforcedValidationSets(f func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
 	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old := EnforcedValidationSets
@@ -3482,4 +3602,18 @@ func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.Validation
 	return func() {
 		EnforcedValidationSets = old
 	}
+}
+
+// only useful for procuring a buggy behavior in the tests
+var enforcedSingleRebootForGadgetKernelBase = false
+
+func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := enforcedSingleRebootForGadgetKernelBase
+	enforcedSingleRebootForGadgetKernelBase = val
+	return func() {
+		enforcedSingleRebootForGadgetKernelBase = old
+	}
+
 }

@@ -98,7 +98,7 @@ func (s *SnapSuite) TestPortalInfo(c *C) {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, mockInfoJSONWithApps)
+			fmt.Fprint(w, mockInfoJSONWithApps)
 		case 1:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/connections")
@@ -158,7 +158,7 @@ func (s *SnapSuite) TestPortalInfoNoAppInfo(c *C) {
 		case 0:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/snaps/hello")
-			fmt.Fprintln(w, mockInfoJSONWithApps)
+			fmt.Fprint(w, mockInfoJSONWithApps)
 		case 1:
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/v2/connections")
