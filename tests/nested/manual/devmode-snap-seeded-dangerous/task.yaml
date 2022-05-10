@@ -8,17 +8,20 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
+  VERSION="$(tests.nested show version)"
+
   echo "Build a devmode snap to be included in the seed"
-  snap pack uc20-devmode --filename="$(tests.nested get extra-snaps-path)/devmode.snap"
+  snap pack "uc${VERSION}-devmode" --filename="$(tests.nested get extra-snaps-path)/devmode.snap"
 
   tests.nested build-image core
   tests.nested create-vm core
 
 execute: |
   echo "Check that the devmode snap is installed"
-  tests.nested exec "snap list test-snapd-devmode-core20"
-  tests.nested exec "snap info --verbose test-snapd-devmode-core20" | MATCH "confinement:\s+devmode"
-  tests.nested exec "snap info --verbose test-snapd-devmode-core20" | MATCH "devmode:\s+true"
+  VERSION="$(tests.nested show version)"
+  tests.nested exec "snap list test-snapd-devmode-core$VERSION"
+  tests.nested exec "snap info --verbose test-snapd-devmode-core$VERSION" | MATCH "confinement:\s+devmode"
+  tests.nested exec "snap info --verbose test-snapd-devmode-core$VERSION" | MATCH "devmode:\s+true"
   
   echo "Check that the devmode snap can be run"
-  tests.nested exec test-snapd-devmode-core20
+  tests.nested exec "test-snapd-devmode-core$VERSION"

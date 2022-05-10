@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -2055,40 +2056,69 @@ var (
 // older systems might return both a recovery key for ubuntu-data and a
 // reinstall key for ubuntu-save.
 func (m *DeviceManager) EnsureRecoveryKeys() (*client.SystemRecoveryKeysResponse, error) {
-	keys := &client.SystemRecoveryKeysResponse{}
-	// backward compatibility
-	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
-	if osutil.FileExists(reinstallKeyFile) {
-		rkey, err := secboot.RecoveryKeyFromFile(filepath.Join(dirs.SnapFDEDir, "recovery.key"))
-		if err != nil {
-			return nil, err
-		}
-		keys.RecoveryKey = rkey.String()
-
-		reinstallKey, err := secboot.RecoveryKeyFromFile(reinstallKeyFile)
-		if err != nil {
-			return nil, err
-		}
-		keys.ReinstallKey = reinstallKey.String()
-		return keys, nil
+	fdeDir := dirs.SnapFDEDir
+	mode := m.SystemMode(SysAny)
+	if mode == "install" {
+		fdeDir = boot.InstallHostFDEDataDir
+	} else if mode != "run" {
+		return nil, fmt.Errorf("cannot ensure recovery keys from system mode %q", mode)
 	}
-	// XXX have a helper somewhere for this? secboot or boot?
-	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
+	sysKeys := &client.SystemRecoveryKeysResponse{}
+	// backward compatibility
+	reinstallKeyFile := filepath.Join(fdeDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		rkey, err := keys.RecoveryKeyFromFile(filepath.Join(fdeDir, "recovery.key"))
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.RecoveryKey = rkey.String()
+
+		reinstallKey, err := keys.RecoveryKeyFromFile(reinstallKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		sysKeys.ReinstallKey = reinstallKey.String()
+		return sysKeys, nil
+	}
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(fdeDir, "marker")) {
 		return nil, fmt.Errorf("system does not use disk encryption")
 	}
-	rkey, err := secbootEnsureRecoveryKey(dirs.SnapFDEDir)
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	mountPoints := []string{dataMountPoints[0], boot.InitramfsUbuntuSaveDir}
+	rkey, err := secbootEnsureRecoveryKey(filepath.Join(fdeDir, "recovery.key"), mountPoints)
 	if err != nil {
 		return nil, err
 	}
-	keys.RecoveryKey = rkey.String()
-	return keys, nil
+	sysKeys.RecoveryKey = rkey.String()
+	return sysKeys, nil
 }
 
 // RemoveRecoveryKeys removes and disables all recovery keys.
 func (m *DeviceManager) RemoveRecoveryKeys() error {
-	// XXX have a helper somewhere for this? secboot or boot?
-	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "sealed-keys")) {
+	mode := m.SystemMode(SysAny)
+	if mode != "run" {
+		return fmt.Errorf("cannot remove recovery keys from system mode %q", mode)
+	}
+	// XXX have a helper somewhere for this? gadget or secboot?
+	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		return fmt.Errorf("system does not use disk encryption")
 	}
-	return secbootRemoveRecoveryKeys(dirs.SnapFDEDir)
+	dataMountPoints, err := boot.HostUbuntuDataForMode(m.SystemMode(SysHasModeenv))
+	if err != nil {
+		return fmt.Errorf("cannot determine ubuntu-data mount point: %v", err)
+	}
+	mountPointToKey := make(map[string]string, 2)
+	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	mountPointToKey[dataMountPoints[0]] = rkey
+	reinstallKeyFile := filepath.Join(dirs.SnapFDEDir, "reinstall.key")
+	if osutil.FileExists(reinstallKeyFile) {
+		mountPointToKey[boot.InitramfsUbuntuSaveDir] = reinstallKeyFile
+	} else {
+		mountPointToKey[boot.InitramfsUbuntuSaveDir] = rkey
+	}
+	return secbootRemoveRecoveryKeys(mountPointToKey)
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/timings"
 )
 
 var trusted = sysdb.Trusted()
@@ -149,4 +150,18 @@ func findBrand(seed Seed, db asserts.RODatabase) (*asserts.Account, error) {
 		return nil, fmt.Errorf("internal error: %v", err)
 	}
 	return a.(*asserts.Account), nil
+}
+
+type defaultSnapHandler struct{}
+
+func (h defaultSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
+	return path, nil
+}
+
+func (h defaultSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, _ *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
+	sha3_384, size, err := asserts.SnapFileSHA3_384(path)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return path, sha3_384, size, err
 }

@@ -8,6 +8,8 @@ details: |
 systems:
   # there is no gnome-3-38-2004 for i386
   - -ubuntu-18.04-32
+  - -ubuntu-core-16-32
+  - -ubuntu-core-18-32
 
 environment:
     SNAP_NAME: test-content-layout-consumer

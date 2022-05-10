@@ -3,7 +3,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -68,7 +69,7 @@ func (s *installSuite) TestInstallRunError(c *C) {
 	c.Check(sys, IsNil)
 
 	sys, err = install.Run(&gadgettest.ModelCharacteristics{}, c.MkDir(), "", "", install.Options{}, nil, timings.New(nil))
-	c.Assert(err, ErrorMatches, `cannot run install mode on non-UC20\+ system`)
+	c.Assert(err, ErrorMatches, `cannot run install mode on pre-UC20 system`)
 	c.Check(sys, IsNil)
 }
 
@@ -346,10 +347,10 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), gadgettest.RaspiSimplifiedYaml)
 	c.Assert(err, IsNil)
 
-	var savePrimaryKey, dataPrimaryKey secboot.EncryptionKey
+	var saveEncryptionKey, dataEncryptionKey keys.EncryptionKey
 
 	secbootFormatEncryptedDeviceCall := 0
-	restore = install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
 		if !opts.encryption {
 			c.Error("unexpected call to secboot.FormatEncryptedDevice when encryption is off")
 			return fmt.Errorf("no encryption functions should be called")
@@ -360,45 +361,14 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 			c.Assert(key, HasLen, 32)
 			c.Assert(label, Equals, "ubuntu-save-enc")
 			c.Assert(node, Equals, "/dev/mmcblk0p3")
-			savePrimaryKey = key
+			saveEncryptionKey = key
 		case 2:
 			c.Assert(key, HasLen, 32)
 			c.Assert(label, Equals, "ubuntu-data-enc")
 			c.Assert(node, Equals, "/dev/mmcblk0p4")
-			dataPrimaryKey = key
+			dataEncryptionKey = key
 		default:
 			c.Errorf("unexpected call to secboot.FormatEncryptedDevice (%d)", secbootFormatEncryptedDeviceCall)
-			return fmt.Errorf("test broken")
-		}
-
-		return nil
-	})
-	defer restore()
-
-	var saveRecoveryKey, dataRecoveryKey secboot.RecoveryKey
-
-	secbootAddRecoveryKeyCall := 0
-	restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
-		if !opts.encryption {
-			c.Error("unexpected call to secboot.AddRecoveryKey when encryption is off")
-			return fmt.Errorf("no encryption functions should be called")
-		}
-		secbootAddRecoveryKeyCall++
-		switch secbootAddRecoveryKeyCall {
-		case 1:
-			c.Assert(key, HasLen, 32)
-			c.Assert(key, DeepEquals, savePrimaryKey)
-			c.Assert(rkey, HasLen, 16)
-			c.Assert(node, Equals, "/dev/mmcblk0p3")
-			saveRecoveryKey = rkey
-		case 2:
-			c.Assert(key, HasLen, 32)
-			c.Assert(key, DeepEquals, dataPrimaryKey)
-			c.Assert(rkey, HasLen, 16)
-			c.Assert(node, Equals, "/dev/mmcblk0p4")
-			dataRecoveryKey = rkey
-		default:
-			c.Errorf("unexpected call to secboot.AddRecoveryKey (%d)", secbootAddRecoveryKeyCall)
 			return fmt.Errorf("test broken")
 		}
 
@@ -417,15 +387,9 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	if opts.encryption {
 		c.Check(sys, Not(IsNil))
 		c.Assert(sys, DeepEquals, &install.InstalledSystemSideData{
-			KeysForRoles: map[string]*install.EncryptionKeySet{
-				gadget.SystemData: {
-					Key:         dataPrimaryKey,
-					RecoveryKey: dataRecoveryKey,
-				},
-				gadget.SystemSave: {
-					Key:         savePrimaryKey,
-					RecoveryKey: saveRecoveryKey,
-				},
+			KeyForRole: map[string]keys.EncryptionKey{
+				gadget.SystemData: dataEncryptionKey,
+				gadget.SystemSave: saveEncryptionKey,
 			},
 		})
 	} else {
@@ -476,10 +440,8 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 	c.Assert(umountCall, Equals, 3)
 	if opts.encryption {
 		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 2)
-		c.Assert(secbootAddRecoveryKeyCall, Equals, 2)
 	} else {
 		c.Assert(secbootFormatEncryptedDeviceCall, Equals, 0)
-		c.Assert(secbootAddRecoveryKeyCall, Equals, 0)
 	}
 
 	// check the disk-mapping.json that was written as well
@@ -843,7 +805,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	gadgetRoot, err := gadgettest.WriteGadgetYaml(c.MkDir(), opts.gadgetYaml)
 	c.Assert(err, IsNil)
 
-	restore = install.MockSecbootFormatEncryptedDevice(func(key secboot.EncryptionKey, label, node string) error {
+	restore = install.MockSecbootFormatEncryptedDevice(func(key keys.EncryptionKey, label, node string) error {
 		c.Error("unexpected call to secboot.FormatEncryptedDevice")
 		return fmt.Errorf("unexpected call")
 	})

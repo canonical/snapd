@@ -250,7 +250,9 @@ nested_create_assertions_disk() {
     # use custom assertion if set
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
-        AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        AUTO_IMPORT_ASSERT="$(echo "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" | sed "s/{VERSION}/$VERSION/g")"
     else
         local per_model_auto
         per_model_auto="$(nested_model_authority).auto-import.assert"
@@ -541,10 +543,24 @@ nested_download_image() {
     fi
 }
 
+nested_get_version() {
+    if nested_is_core_16_system; then
+        echo "16"
+    elif nested_is_core_18_system; then
+        echo "18"
+    elif nested_is_core_20_system; then
+        echo "20"
+    elif nested_is_core_22_system; then
+        echo "22"
+    fi
+}
+
 nested_get_model() {
     # use custom model if defined
     if [ -n "$NESTED_CUSTOM_MODEL" ]; then
-        echo "$NESTED_CUSTOM_MODEL"
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        echo "$NESTED_CUSTOM_MODEL" | sed "s/{VERSION}/$VERSION/g"
         return
     fi
     case "$SPREAD_SYSTEM" in
@@ -649,10 +665,7 @@ nested_create_core_vm() {
                     fi
 
                 elif nested_is_core_20_system || nested_is_core_22_system; then
-                    VERSION=20
-                    if nested_is_core_22_system; then
-                        VERSION=22
-                    fi
+                    VERSION="$(nested_get_version)"
                     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
                         echo "Repacking kernel snap"
                         snap download --basename=pc-kernel --channel="$VERSION/edge" pc-kernel
@@ -747,9 +760,9 @@ EOF
                     fi
 
                     if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
-                        snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                        repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
-                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+                        snap download --channel="$CORE_CHANNEL" --basename="core$VERSION" "core$VERSION"
+                        repack_core_snap_with_tweaks "core$VERSION.snap" "new-core$VERSION.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core$VERSION.snap"
                     fi
 
                     # sign the snapd snap with fakestore if requested

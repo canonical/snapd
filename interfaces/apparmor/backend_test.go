@@ -168,7 +168,7 @@ func (s *backendSuite) SetUpTest(c *C) {
 	// Mock away any real apparmor interaction
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
 
-	apparmor.MockRuntimeNumCPU(func() int { return 99 })
+	apparmor_sandbox.MockRuntimeNumCPU(func() int { return 99 })
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	s.AddCleanup(restore)
 

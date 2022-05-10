@@ -21,16 +21,18 @@ package devicestate_test
 
 import (
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var _ = Suite(&deviceMgrRecoveryKeysSuite{})
@@ -40,12 +42,12 @@ type deviceMgrRecoveryKeysSuite struct {
 }
 
 func (s *deviceMgrRecoveryKeysSuite) SetUpTest(c *C) {
-	if (secboot.RecoveryKey{}).String() == "not-implemented" {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
 		c.Skip("needs working secboot recovery key")
 	}
+	s.deviceMgrBaseSuite.setupBaseTest(c, false)
 
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
+	devicestate.SetSystemMode(s.mgr, "run")
 }
 
 func mockSnapFDEFile(c *C, fname string, data []byte) {
@@ -86,12 +88,15 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
 	c.Assert(err, IsNil)
-	defer devicestate.MockSecbootEnsureRecoveryKey(func(string) (secboot.RecoveryKey, error) {
-		var rkey secboot.RecoveryKey
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, mountPoints []string) (keys.RecoveryKey, error) {
+		c.Check(keyFile, Equals, filepath.Join(dirs.SnapFDEDir, "recovery.key"))
+		c.Check(mountPoints, DeepEquals, []string{boot.InitramfsDataDir, boot.InitramfsUbuntuSaveDir})
+
+		var rkey keys.RecoveryKey
 		copy(rkey[:], []byte(rkeystr))
 		return rkey, nil
 	})()
-	mockSnapFDEFile(c, "sealed-keys", nil)
+	mockSnapFDEFile(c, "marker", nil)
 
 	keys, err := s.mgr.EnsureRecoveryKeys()
 	c.Assert(err, IsNil)
@@ -101,18 +106,86 @@ func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKey(c *C) {
 	})
 }
 
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyInstallMode(c *C) {
+	devicestate.SetSystemMode(s.mgr, "install")
+
+	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
+	c.Assert(err, IsNil)
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, mountPoints []string) (keys.RecoveryKey, error) {
+		c.Check(keyFile, Equals, filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"))
+		c.Check(mountPoints, DeepEquals, []string{filepath.Dir(boot.InstallHostWritableDir), boot.InitramfsUbuntuSaveDir})
+
+		var rkey keys.RecoveryKey
+		copy(rkey[:], []byte(rkeystr))
+		return rkey, nil
+	})()
+
+	p := filepath.Join(boot.InstallHostFDEDataDir, "marker")
+	err = os.MkdirAll(filepath.Dir(p), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(p, nil, 0644)
+	c.Assert(err, IsNil)
+
+	keys, err := s.mgr.EnsureRecoveryKeys()
+	c.Assert(err, IsNil)
+
+	c.Assert(keys, DeepEquals, &client.SystemRecoveryKeysResponse{
+		RecoveryKey: "61665-00531-54469-09783-47273-19035-40077-28287",
+	})
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestEnsureRecoveryKeyRecoverMode(c *C) {
+	devicestate.SetSystemMode(s.mgr, "recover")
+
+	_, err := s.mgr.EnsureRecoveryKeys()
+	c.Check(err, ErrorMatches, `cannot ensure recovery keys from system mode "recover"`)
+}
+
 func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeys(c *C) {
 	err := s.mgr.RemoveRecoveryKeys()
 	c.Check(err, ErrorMatches, `system does not use disk encryption`)
 
 	called := false
-	defer devicestate.MockSecbootRemoveRecoveryKeys(func(string) error {
+	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(m2k map[string]string) error {
 		called = true
+		c.Check(m2k, DeepEquals, map[string]string{
+			boot.InitramfsDataDir:       rkey,
+			boot.InitramfsUbuntuSaveDir: rkey,
+		})
 		return nil
 	})()
-	mockSnapFDEFile(c, "sealed-keys", nil)
+	mockSnapFDEFile(c, "marker", nil)
 
 	err = s.mgr.RemoveRecoveryKeys()
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, true)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysBackwardCompat(c *C) {
+	called := false
+	rkey := filepath.Join(dirs.SnapFDEDir, "recovery.key")
+	defer devicestate.MockSecbootRemoveRecoveryKeys(func(m2k map[string]string) error {
+		called = true
+		c.Check(m2k, DeepEquals, map[string]string{
+			boot.InitramfsDataDir:       rkey,
+			boot.InitramfsUbuntuSaveDir: filepath.Join(dirs.SnapFDEDir, "reinstall.key"),
+		})
+		return nil
+	})()
+	mockSnapFDEFile(c, "marker", nil)
+	mockSnapFDEFile(c, "reinstall.key", nil)
+
+	err := s.mgr.RemoveRecoveryKeys()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *deviceMgrRecoveryKeysSuite) TestRemoveRecoveryKeysOtherModes(c *C) {
+	for _, mode := range []string{"recover", "install"} {
+		devicestate.SetSystemMode(s.mgr, mode)
+
+		err := s.mgr.RemoveRecoveryKeys()
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot remove recovery keys from system mode %q`, mode))
+	}
 }
