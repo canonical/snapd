@@ -67,6 +67,10 @@ var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
+func PartitionUUIDFromMountPoint(mountpoint string, opts *Options) (string, error) {
+	return "", osutil.ErrDarwin
+}
+
 func PartitionUUID(node string) (string, error) {
 	return "", osutil.ErrDarwin
 }
