@@ -27,42 +27,42 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type dummyInterface struct{}
+type emptyInterface struct{}
 
-const dummyInterfaceSummary = `allows testing without providing any additional permissions`
-const dummyInterfaceBaseDeclarationSlots = `
-  dummy:
+const emptyInterfaceSummary = `allows testing without providing any additional permissions`
+const emptyInterfaceBaseDeclarationSlots = `
+  empty:
     allow-installation:
       slot-snap-type:
         - app
     deny-auto-connection: true
 `
 
-func (iface *dummyInterface) String() string {
+func (iface *emptyInterface) String() string {
 	return iface.Name()
 }
 
-// Name returns the name of the dummy interface.
-func (iface *dummyInterface) Name() string {
-	return "dummy"
+// Name returns the name of the empty interface.
+func (iface *emptyInterface) Name() string {
+	return "empty"
 }
 
-func (iface *dummyInterface) StaticInfo() interfaces.StaticInfo {
+func (iface *emptyInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary:              dummyInterfaceSummary,
-		BaseDeclarationSlots: dummyInterfaceBaseDeclarationSlots,
+		Summary:              emptyInterfaceSummary,
+		BaseDeclarationSlots: emptyInterfaceBaseDeclarationSlots,
 	}
 }
 
-func (iface *dummyInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+func (iface *emptyInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return nil
 }
 
-func (iface *dummyInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
+func (iface *emptyInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	return nil
 }
 
-func (iface *dummyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
+func (iface *emptyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) error {
 	var value string
 	if err := plug.Attr("before-connect", &value); err != nil {
 		return err
@@ -71,7 +71,7 @@ func (iface *dummyInterface) BeforeConnectPlug(plug *interfaces.ConnectedPlug) e
 	return plug.SetAttr("before-connect", value)
 }
 
-func (iface *dummyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
+func (iface *emptyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) error {
 	var num int64
 	if err := slot.Attr("producer-num-1", &num); err != nil {
 		return err
@@ -84,18 +84,18 @@ func (iface *dummyInterface) BeforeConnectSlot(slot *interfaces.ConnectedSlot) e
 	return slot.SetAttr("before-connect", value)
 }
 
-func (iface *dummyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *emptyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	return nil
 }
 
-func (iface *dummyInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *emptyInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	return nil
 }
 
-func (iface *dummyInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+func (iface *emptyInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
 func init() {
-	registerIface(&dummyInterface{})
+	registerIface(&emptyInterface{})
 }

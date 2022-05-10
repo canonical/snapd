@@ -66,10 +66,11 @@ execute: |
     if os.query is-ubuntu; then
         # XXX: why is this needed?
         mkdir -p /var/lib/snapd/void
-        # during a pkg upgrade snapd is stopped
+        # the prerm does not do much anymore but we keep it here to simulate
+        # a package upgrade
         DPKG_MAINTSCRIPT_NAME=prerm DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.prerm upgrade 2.44
-        # run the postinst
-        DPKG_MAINTSCRIPT_NAME=postinst DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.postinst configure | MATCH "Found incorrect seed"
+        # run the postinst snapd is restarted
+        DPKG_MAINTSCRIPT_NAME=postinst DPKG_MAINTSCRIPT_PACKAGE=snapd /var/lib/dpkg/info/snapd.postinst configure 2.44 | MATCH "Found incorrect seed"
         echo "Check that the seed dir got renamed"
         test -d /var/lib/snapd/seed.disabled
         if test -d /var/lib/snapd/seed/seed; then

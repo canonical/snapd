@@ -162,8 +162,16 @@ func (b Backend) HideSnapData(snapName string) error {
 			return fmt.Errorf("cannot create snap dir %q: %w", hiddenSnapDir, err)
 		}
 
-		// move the snap's dir
 		newSnapDir := snap.UserSnapDir(usr.HomeDir, snapName, hiddenDirOpts)
+		if exists, _, err := osutil.DirExists(newSnapDir); err != nil {
+			return err
+		} else if exists {
+			if err := os.RemoveAll(newSnapDir); err != nil {
+				return fmt.Errorf("cannot remove existing snap dir %q: %v", newSnapDir, err)
+			}
+		}
+
+		// move the snap's dir
 		if err := osutil.AtomicRename(oldSnapDir, newSnapDir); err != nil {
 			return fmt.Errorf("cannot move %q to %q: %w", oldSnapDir, newSnapDir, err)
 		}

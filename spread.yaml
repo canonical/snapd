@@ -121,6 +121,10 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 6
                   storage: 20G
+            - ubuntu-core-22-64:
+                  image: ubuntu-22.04-64
+                  workers: 6
+                  storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
@@ -208,6 +212,10 @@ backends:
                   image: ubuntu-2110-64-virt-enabled
                   storage: 20G
                   workers: 3
+            - ubuntu-22.04-64:
+                  image: ubuntu-2204-64-virt-enabled
+                  storage: 20G
+                  workers: 6
 
     qemu-nested:
         memory: 4G
@@ -272,6 +280,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-21.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-10-64:
@@ -858,7 +869,7 @@ suites:
         summary: Tests for snapd upgrade
         # Test cases are not yet ported to openSUSE that is why we keep
         # it disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems: [-ubuntu-core-*, -opensuse-*, -ubuntu-secboot-*]
         prepare-each: |
             # FIXME: this should really use prepare-restore.sh --prepare-suite-each
@@ -891,7 +902,7 @@ suites:
         summary: Suite to run unit tests (non-go and different go runtimes)
         # Test cases are not yet ported to Fedora/openSUSE/Arch that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         systems:
             [
                 -ubuntu-core-*,
@@ -937,7 +948,7 @@ suites:
         manual: true
         # Test cases are not yet ported to Fedora/openSUSE/Arch/AMZN2 that is why
         # we keep them disabled. A later PR will enable most tests and
-        # drop this blacklist.
+        # drop the list of excluded systems.
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
@@ -950,7 +961,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -994,7 +1005,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1041,7 +1052,7 @@ suites:
     tests/nested/core/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line

@@ -20,6 +20,7 @@
 package preseed
 
 import (
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -33,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -97,8 +97,6 @@ func checkChroot(preseedChroot string) error {
 	return nil
 }
 
-var seedOpen = seed.Open
-
 var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, baseSnap string, err error) {
 	seed, err := seedOpen(seedDir, sysLabel)
 	if err != nil {
@@ -112,6 +110,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 	model := seed.Model()
 
 	tm := timings.New(nil)
+
 	if err := seed.LoadEssentialMeta(nil, tm); err != nil {
 		return "", "", err
 	}
@@ -120,7 +119,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 		fmt.Fprintf(Stdout, "ubuntu classic preseeding")
 	} else {
 		if model.Base() == "core20" {
-			fmt.Fprintf(Stdout, "UC20 preseeding")
+			fmt.Fprintf(Stdout, "UC20+ preseeding\n")
 		} else {
 			// TODO: support uc20+
 			return "", "", fmt.Errorf("preseeding of ubuntu core with base %s is not supported", model.Base())
@@ -203,7 +202,7 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	return &targetSnapdInfo{path: snapdPath, version: whichVer}, nil
 }
 
-func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlob, baseSnapBlob, writable string) (cleanupMounts func(), err error) {
+func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlob, baseSnapBlob, aaFeaturesDir, writable string) (cleanupMounts func(), err error) {
 	underPreseed := func(path string) string {
 		return filepath.Join(tmpPreseedChrootDir, path)
 	}
@@ -218,13 +217,19 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 
 	var mounted []string
 
+	doUnmount := func(mnt string) {
+		cmd := exec.Command("umount", mnt)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, mnt, out)
+		}
+	}
+
 	cleanupMounts = func() {
-		for i := len(mounted) - 1; i >= 0; i-- {
+		// unmount all the mounts but the first one, which is the base
+		// and it is cleaned up last
+		for i := len(mounted) - 1; i > 0; i-- {
 			mnt := mounted[i]
-			cmd := exec.Command("umount", mnt)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, mnt, out)
-			}
+			doUnmount(mnt)
 		}
 
 		entries, err := osutil.LoadMountInfo()
@@ -234,12 +239,14 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 		}
 		// cleanup after handle-writable-paths
 		for _, ent := range entries {
-			if strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
-				cmd := exec.Command("umount", ent.MountDir)
-				if out, err := cmd.CombinedOutput(); err != nil {
-					fmt.Fprintf(Stdout, "cannot unmount: %v\n'umount %s' failed with: %s", err, ent.MountDir, out)
-				}
+			if ent.MountDir != tmpPreseedChrootDir && strings.HasPrefix(ent.MountDir, tmpPreseedChrootDir) {
+				doUnmount(ent.MountDir)
 			}
+		}
+
+		// finally, umount the base snap
+		if len(mounted) > 0 {
+			doUnmount(mounted[0])
 		}
 	}
 
@@ -306,6 +313,10 @@ func prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapBlo
 		{"--bind", filepath.Join(prepareImageDir, "system-seed"), underPreseed("var/lib/snapd/seed")},
 	}
 
+	if aaFeaturesDir != "" {
+		mounts = append(mounts, []string{"--bind", aaFeaturesDir, underPreseed("sys/kernel/security/apparmor/features")})
+	}
+
 	for _, mountArgs := range mounts {
 		cmd := exec.Command("mount", mountArgs...)
 		if out, err = cmd.CombinedOutput(); err != nil {
@@ -336,7 +347,7 @@ var makeWritableTempDir = func() (string, error) {
 	return ioutil.TempDir("", "writable-")
 }
 
-func prepareCore20Chroot(prepareImageDir string) (preseed *preseedOpts, cleanup func(), err error) {
+func prepareCore20Chroot(prepareImageDir, aaFeaturesDir string) (preseed *preseedOpts, cleanup func(), err error) {
 	sysDir := filepath.Join(prepareImageDir, "system-seed")
 	sysLabel, err := systemForPreseeding(sysDir)
 	if err != nil {
@@ -363,7 +374,7 @@ func prepareCore20Chroot(prepareImageDir string) (preseed *preseedOpts, cleanup 
 		return nil, nil, fmt.Errorf("cannot prepare uc20 chroot: %v", err)
 	}
 
-	cleanupMounts, err := prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapPath, baseSnapPath, writableTmpDir)
+	cleanupMounts, err := prepareCore20Mountpoints(prepareImageDir, tmpPreseedChrootDir, snapdSnapPath, baseSnapPath, aaFeaturesDir, writableTmpDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot prepare uc20 mountpoints: %v", err)
 	}
@@ -454,20 +465,20 @@ type preseedFilePatterns struct {
 	Include []string `json:"include"`
 }
 
-func createPreseedArtifact(opts *preseedOpts) error {
+func createPreseedArtifact(opts *preseedOpts) (digest []byte, err error) {
 	artifactPath := filepath.Join(opts.PrepareImageDir, "system-seed", "systems", opts.SystemLabel, "preseed.tgz")
 	systemData := filepath.Join(opts.WritableDir, "system-data")
 
-	patternsFile := filepath.Join(systemData, "var/lib/snapd/preseed-export.json")
+	patternsFile := filepath.Join(opts.PreseedChrootDir, "usr/lib/snapd/preseed.json")
 	pf, err := os.Open(patternsFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var patterns preseedFilePatterns
 	dec := json.NewDecoder(pf)
 	if err := dec.Decode(&patterns); err != nil {
-		return err
+		return nil, err
 	}
 
 	args := []string{"-czf", artifactPath, "-p", "-C", systemData}
@@ -479,12 +490,12 @@ func createPreseedArtifact(opts *preseedOpts) error {
 		// handle globs explicitly.
 		matches, err := filepath.Glob(filepath.Join(systemData, incl))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for _, m := range matches {
 			relPath, err := filepath.Rel(systemData, m)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			args = append(args, relPath)
 		}
@@ -492,9 +503,11 @@ func createPreseedArtifact(opts *preseedOpts) error {
 
 	cmd := exec.Command("tar", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%v (%s)", err, out)
+		return nil, fmt.Errorf("%v (%s)", err, out)
 	}
-	return nil
+
+	sha3_384, _, err := osutil.FileDigest(artifactPath, crypto.SHA3_384)
+	return sha3_384, err
 }
 
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
@@ -523,14 +536,19 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 	cmd.Env = append(cmd.Env, "SNAPD_PRESEED=1")
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
-	fmt.Fprintf(Stdout, "starting to preseed UC20 system: %s", opts.PreseedChrootDir)
+	fmt.Fprintf(Stdout, "starting to preseed UC20+ system: %s\n", opts.PreseedChrootDir)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running snapd in preseed mode: %v\n", err)
 	}
 
-	if err := createPreseedArtifact(opts); err != nil {
+	digest, err := createPreseedArtifact(opts)
+	if err != nil {
 		return fmt.Errorf("cannot create preseed.tgz: %v", err)
+	}
+
+	if err := writePreseedAssertion(digest, opts); err != nil {
+		return fmt.Errorf("cannot create preseed assertion: %v", err)
 	}
 
 	return nil
@@ -539,18 +557,20 @@ func runUC20PreseedMode(opts *preseedOpts) error {
 // Core20 runs preseeding of UC20 system prepared by prepare-image in prepareImageDir
 // and stores the resulting preseed preseed.tgz file in system-seed/systems/<systemlabel>/preseed.tgz.
 // Expects single systemlabel under systems directory.
-func Core20(prepareImageDir string) error {
+func Core20(prepareImageDir, preseedSignKey, aaFeaturesDir string) error {
 	var err error
 	prepareImageDir, err = filepath.Abs(prepareImageDir)
 	if err != nil {
 		return err
 	}
 
-	popts, cleanup, err := prepareCore20Chroot(prepareImageDir)
+	popts, cleanup, err := prepareCore20Chroot(prepareImageDir, aaFeaturesDir)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
+
+	popts.PreseedSignKey = preseedSignKey
 	return runUC20PreseedMode(popts)
 }
 

@@ -1,5 +1,10 @@
 summary: Check basic functionality when memory cgroup is disabled
 
+# external backends fails because a signed gadget cannot be replaced
+# with an unsigned one
+# TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed
+backends: [-external]
+
 # only run on UC20+ to use the convenient cmdline.extra file
 systems: [ubuntu-core-2*]
 
@@ -37,7 +42,6 @@ execute: |
     echo "Skipping non-grub device test"
     exit 0
   fi
-
   case "$SPREAD_REBOOT" in 
     0)
       # ensure memory cgroups is enabled to start

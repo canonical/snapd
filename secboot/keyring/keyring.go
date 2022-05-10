@@ -1,9 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !faultinject
-// +build !faultinject
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,10 +17,22 @@
  *
  */
 
-package osutil
+package keyring
 
-// MaybeInjectFault is a dummy implementation for builds with fault injection
-// disabled.
-func MaybeInjectFault(tag string) {
-	// dummy
+import (
+	"golang.org/x/sys/unix"
+)
+
+const (
+	userKeyType = "user"
+	userKeyring = -4
+)
+
+func formatDesc(devicePath, purpose, prefix string) string {
+	return prefix + ":" + devicePath + ":" + purpose
+}
+
+func AddKeyToUserKeyring(key []byte, devicePath, purpose, prefix string) error {
+	_, err := unix.AddKey(userKeyType, formatDesc(devicePath, purpose, prefix), key, userKeyring)
+	return err
 }

@@ -34,7 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// sanity - piboot implements the required interfaces
+// ensure piboot implements the required interfaces
 var (
 	_ Bootloader                             = (*piboot)(nil)
 	_ ExtractedRecoveryKernelImageBootloader = (*piboot)(nil)

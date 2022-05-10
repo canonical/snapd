@@ -304,6 +304,10 @@ func refreshRetain(st *state.State) int {
 	return retain
 }
 
+var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
+	return t == snap.TypeSnapd || t == snap.TypeOS
+}
+
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
@@ -360,7 +364,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 		snapsup.PlugsOnly = snapsup.PlugsOnly && (len(info.Slots) == 0)
 
-		if experimentalRefreshAppAwareness && !snapsup.Flags.IgnoreRunning {
+		if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
 			// Note that because we are modifying the snap state inside
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
@@ -2753,7 +2757,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 	}
 
 	// check if this snap is required by any validation set in enforcing mode
-	enforcedSets, err := EnforcedValidationSets(st)
+	enforcedSets, err := EnforcedValidationSets(st, nil)
 	if err != nil {
 		return err
 	}
@@ -3590,7 +3594,7 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	return func() { osutilCheckFreeSpace = old }
 }
 
-func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.ValidationSets, error)) func() {
+func MockEnforcedValidationSets(f func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error)) func() {
 	osutil.MustBeTestBinary("mocking can be done only in tests")
 
 	old := EnforcedValidationSets

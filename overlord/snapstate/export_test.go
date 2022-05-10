@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -356,6 +357,8 @@ var (
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 	RefreshRetain              = refreshRetain
+
+	ExcludeFromRefreshAppAwareness = excludeFromRefreshAppAwareness
 )
 
 func MockTimeNow(f func() time.Time) (restore func()) {
@@ -387,6 +390,12 @@ func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, err
 	return func() {
 		snapsToRefresh = old
 	}
+}
+
+func MockExcludeFromRefreshAppAwareness(f func(t snap.Type) bool) (restore func()) {
+	r := testutil.Backup(&excludeFromRefreshAppAwareness)
+	excludeFromRefreshAppAwareness = f
+	return r
 }
 
 func MockAddCurrentTrackingToValidationSetsStack(f func(st *state.State) error) (restore func()) {

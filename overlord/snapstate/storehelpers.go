@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -40,7 +41,7 @@ var currentSnaps = currentSnapsImpl
 // EnforcedValidationSets allows to hook getting of validation sets in enforce
 // mode into installation/refresh/removal of snaps. It gets hooked from
 // assertstate.
-var EnforcedValidationSets func(st *state.State) (*snapasserts.ValidationSets, error)
+var EnforcedValidationSets func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
@@ -251,7 +252,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 	var requiredValSets []string
 
 	if !flags.IgnoreValidation {
-		enforcedSets, err := EnforcedValidationSets(st)
+		enforcedSets, err := EnforcedValidationSets(st, nil)
 		if err != nil {
 			return store.SnapActionResult{}, err
 		}
@@ -337,7 +338,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 	}
 
 	if !flags.IgnoreValidation {
-		enforcedSets, err := EnforcedValidationSets(st)
+		enforcedSets, err := EnforcedValidationSets(st, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -466,7 +467,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 
 	var storeFlags store.SnapActionFlags
 	if !flags.IgnoreValidation {
-		enforcedSets, err := EnforcedValidationSets(st)
+		enforcedSets, err := EnforcedValidationSets(st, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -602,7 +603,7 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	ignoreValidationByInstanceName := make(map[string]bool)
 	nCands := 0
 
-	enforcedSets, err := EnforcedValidationSets(st)
+	enforcedSets, err := EnforcedValidationSets(st, nil)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -740,7 +741,7 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		return nil, err
 	}
 
-	enforcedSets, err := EnforcedValidationSets(st)
+	enforcedSets, err := EnforcedValidationSets(st, nil)
 	if err != nil {
 		return nil, err
 	}

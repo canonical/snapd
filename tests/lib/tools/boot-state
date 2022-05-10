@@ -147,6 +147,8 @@ boot_path() {
         echo "/boot/grub/"
     elif [ -f /boot/grub2/grubenv ]; then
         echo "/boot/grub2/"
+    elif [ -f /boot/piboot/piboot.conf ]; then
+        echo "/boot/piboot/"
     else
         echo "boot-state: cannot determine boot path" >&2
         ls -alR /boot

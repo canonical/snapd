@@ -1,10 +1,12 @@
 summary: verify a simple UC20 remodel
+
 details: |
     Execute a cross-store remodel scenario under the test-snapd brand. The
     original model uses the same test-snapd-whitebox device view store, while the
     target model uses test-snapd-remodel store. The new model requires additional
     snaps that are present in the test-snapd-remodel store.
 
+# ubuntu-22.04-64: enable when test-snapd-remodel-pc is release on 22/stable
 systems: [ubuntu-18.04-64, ubuntu-20.04-64]
 
 environment:
@@ -28,10 +30,7 @@ environment:
     SERIAL: 1234-snapd-remodel-testing-cross-store
 
 prepare: |
-    variant=18
-    if tests.nested is-nested uc20; then
-        variant=20
-    fi
+    variant="$(tests.nested show version)"
 
     # TODO: once the gadget snap is published to the brand store, we should
     # download it here and add the test specific bits
@@ -49,11 +48,7 @@ prepare: |
     tests.nested create-vm core
 
 execute: |
-    variant=18
-    if tests.nested is-nested uc20; then
-        variant=20
-    fi
-
+    variant="$(tests.nested show version)"
     boot_id="$(tests.nested boot-id)"
 
     # wait until device is initialized and has a serial
@@ -78,7 +73,7 @@ execute: |
     tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
 
     current_boot_id="$( tests.nested boot-id )"
-    if [ "$variant" = "20" ]; then
+    if [ "$variant" = "20" ] || [ "$variant" = "22" ]; then
         # we should have rebooted a couple of times (at least twice for the recovery
         # system and the base), so boot-id should be different
         test "$boot_id" != "$current_boot_id"

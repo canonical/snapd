@@ -74,7 +74,9 @@ func (x *cmdRecovery) showKeys(w io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(w, "recovery:\t%s\n", srk.RecoveryKey)
-	fmt.Fprintf(w, "reinstall:\t%s\n", srk.ReinstallKey)
+	if srk.ReinstallKey != "" {
+		fmt.Fprintf(w, "reinstall:\t%s\n", srk.ReinstallKey)
+	}
 	return nil
 }
 
