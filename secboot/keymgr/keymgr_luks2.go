@@ -134,6 +134,12 @@ func RemoveRecoveryKeyFromLUKSDevice(dev string) error {
 	if err != nil {
 		return err
 	}
+	return RemoveRecoveryKeyFromLUKSDeviceUsingKey(currKey, dev)
+}
+
+// RemoveRecoveryKeyFromLUKSDeviceUsingKey removes an existing recovery key a
+// LUKS2 using the provided key to authorize the operation.
+func RemoveRecoveryKeyFromLUKSDeviceUsingKey(currKey keys.EncryptionKey, dev string) error {
 	// just remove the key we think is a recovery key (luks keyslot 1)
 	if err := luks2.KillSlot(dev, recoveryKeySlot, currKey); err != nil {
 		if !isKeyslotNotActive(err) {
