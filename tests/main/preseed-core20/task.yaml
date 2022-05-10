@@ -52,7 +52,7 @@ execute: |
   SNAPD_SNAP=$(ls /tmp/snapd*.snap)
 
   # XXX: confusingly, the name of our test key is actually " (test)".
-  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap=$SNAPD_SNAP model.assertion $PREPARE_IMAGE_DIR
+  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" model.assertion "$PREPARE_IMAGE_DIR"
 
   SYSLABEL=$(ls "$PREPARE_IMAGE_DIR"/system-seed/systems/)
   PRESEEDAS="$PREPARE_IMAGE_DIR/system-seed/systems/$SYSLABEL/preseed"
@@ -97,6 +97,7 @@ execute: |
   MATCH "^etc/systemd/system/snapd.system-shutdown.service" < files.log
   MATCH "^etc/systemd/system/snapd.core-fixup.service" < files.log
   MATCH "^etc/systemd/system/snap-pc-.*.mount" < files.log
+  MATCH "^etc/systemd/system/snap-pc.*kernel-.*.mount" < files.log
   MATCH "^etc/systemd/system/usr-lib-snapd.mount" < files.log
   MATCH "^etc/systemd/system/snapd.spread-tests-run-mode-tweaks.service" < files.log
   MATCH "^etc/systemd/system/dbus-fi.w1.wpa_supplicant1.service" < files.log
