@@ -336,8 +336,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	w := zip.NewWriter(aw)
 	defer w.Close() // note this does not close the file descriptor (that's done by hand on the atomic writer, above)
 	savingUserData := false
-	baseDataDir := snap.BaseDataDir(si.InstanceName())
-	if err := addSnapDirToZip(ctx, snapshot, w, "root", archiveName, baseDataDir, savingUserData, snapshotOptions.ExcludePaths); err != nil {
+	if err := addSnapDirToZip(ctx, snapshot, w, "root", archiveName, si.DataDir(), savingUserData, snapshotOptions.ExcludePaths); err != nil {
 		return nil, err
 	}
 
