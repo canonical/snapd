@@ -28,11 +28,11 @@ prepare: |
   setup_fake_store "$STORE_DIR"
 
   # sign the model assertion
-  gendeveloper1model < "$TESTSLIB"/assertions/developer1-20-dangerous.json > model.assertion
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-20-dangerous.json > model.assertion
 
   echo "Creating a new key without a password"
   mkdir -p ~/.snap/gnupg
-  gendeveloper1model show-key | gpg --homedir=~/.snap/gnupg --import
+  gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
 
 restore: |
   #shellcheck source=tests/lib/preseed.sh

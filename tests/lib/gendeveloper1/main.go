@@ -17,12 +17,12 @@
  *
  */
 
-// The ``gendevmodel'' tool can be used generate model assertions for use in
+// The ``gendeveloper1'' tool can be used generate model assertions for use in
 // tests. It reads the assetion headers in form of a JSON from stdin, and
 // outputs a model assertion, signed by the test key to stdout.
 //
 // Usage:
-//       gendeveloper1model < headers.json > assertion.model
+//       gendeveloper1 sign-model < headers.json > assertion.model
 //
 // Example input:
 //
@@ -49,9 +49,17 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "show-key" {
+	if len(os.Args) != 2 {
+		fmt.Fprintf(os.Stderr, "command argument missing\n")
+		os.Exit(1)
+	}
+	if os.Args[1] == "show-key" {
 		fmt.Printf("%s", assertstest.DevKey)
 		return
+	}
+	if os.Args[1] != "sign-model" {
+		fmt.Fprintf(os.Stderr, "unknown command %q, use show-key or sign-model\n", os.Args[1])
+		os.Exit(1)
 	}
 
 	devKey, _ := assertstest.ReadPrivKey(assertstest.DevKey)

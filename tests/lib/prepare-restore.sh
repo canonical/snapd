@@ -561,7 +561,7 @@ prepare_project() {
     go install ./tests/lib/systemd-escape
 
     # Build the tool for signing model assertions
-    go install ./tests/lib/gendeveloper1model
+    go install ./tests/lib/gendeveloper1
 
     # and the U20 create partitions wrapper
     go install ./tests/lib/uc20-create-partitions
