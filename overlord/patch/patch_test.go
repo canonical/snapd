@@ -370,7 +370,7 @@ func (s *patchSuite) TestDifferentSnapdVersionPatchLevel6(c *C) {
 	s.testMaybeResetPatchLevel6(c, "snapd-version-1", "snapd-version-2", []int{61, 62})
 }
 
-func (s *patchSuite) TestSanity(c *C) {
+func (s *patchSuite) TestValidity(c *C) {
 	patches := patch.PatchesForTest()
 	levels := make([]int, 0, len(patches))
 	for l := range patches {

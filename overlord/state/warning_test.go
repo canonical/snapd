@@ -99,7 +99,7 @@ func (stateSuite) TestUnmarshalErrors(c *check.C) {
 	}
 
 	for _, t := range []T1{
-		// sanity check
+		// validity check
 		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, nil},
 		// remove one field at a time:
 		{`{                "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningMessage},

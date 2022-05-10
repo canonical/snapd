@@ -75,9 +75,9 @@ reset_classic() {
     fi
 
     # Clean root home
-    rm -rf /root/snap /root/.snap/gnupg /root/.{bash_history,local,cache,config}
+    rm -rf /root/snap /root/.snap/gnupg /root/.{bash_history,local,cache,config} /root/.snap/data
     # Clean test home
-    rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config}
+    rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config} /home/test/.snap/data
     # Clean /tmp
     rm -f /tmp/core* /tmp/ubuntu-core*
 
@@ -189,7 +189,7 @@ reset_all_snap() {
     fi
 
     # Exit in case there is a snap in broken state after restoring the snapd state
-    if snap list | grep -E "broken$"; then
+    if snap list --all | grep -E "broken$"; then
         echo "snap in broken state"
         exit 1
     fi
@@ -214,11 +214,7 @@ reset_all_snap() {
 # 2021-04-23T20:11:20Z INFO Waiting for automatic snapd restart...
 # snapd 2.49.2 installed
 #
-
-snap list --all | grep disabled | while read -r name _ revision _ ; do
-    snap remove "$name" --revision="$revision"
-done
-
+remove_disabled_snaps
 
 # When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
 # In that case we just cleanup the environment by removing installed snaps as

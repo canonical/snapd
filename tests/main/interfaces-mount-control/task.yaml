@@ -1,0 +1,139 @@
+summary: Test for the mount-control interface
+
+environment:
+    MOUNT_SRC: /var/tmp/test-snapd-mount-control
+    SNAP_COMMON: /var/snap/test-snapd-mount-control/common
+    SNAP_NAME: test-snapd-mount-control
+    MOUNT_DEST: $SNAP_COMMON/target
+
+prepare: |
+    mkdir -p "$MOUNT_SRC/dir1"
+    echo "Something" > "$MOUNT_SRC/file1"
+
+restore: |
+    rm connect_error.log
+    rm -rf "$MOUNT_SRC"
+
+execute: |
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # first pass: install the snap and try basic mount operations
+        echo "First verify that a snap with a malicious manifest cannot be connected"
+        "$TESTSTOOLS"/snaps-state install-local test-mount-control-invalid
+        snap connect test-mount-control-invalid:mntctl 2> connect_error.log || true
+        if os.query is-trusty; then
+            echo "On Trusty, we should fail anyway due to systemd being too old"
+            MATCH "systemd version 204 is too old" < connect_error.log
+            exit 0
+        fi
+
+        MATCH 'mount-control "where" pattern is not clean' < connect_error.log
+
+        echo "Installing the test snap"
+
+        "$TESTSTOOLS"/snaps-state install-local "${SNAP_NAME}"
+
+        echo "Connecting the mount-control interface"
+        snap connect "${SNAP_NAME}":mntctl
+
+        echo "Verify that the snap can perform a mount"
+        mkdir -p "$MOUNT_DEST"
+        "${SNAP_NAME}".cmd mount -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
+
+        echo "Verify that the mount has been performed"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+
+        echo "and that it's only in the snap's namespace"
+        NOMATCH "$MOUNT_DEST" < /proc/self/mountinfo
+
+        echo "Ensure that the mounted files are visible"
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        echo "Unmount via the system command umount(8)"
+        "${SNAP_NAME}".cmd umount "$MOUNT_DEST"
+        if "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo; then
+            echo "Unmount failed"
+            exit 1
+        fi
+        "${SNAP_NAME}".cmd test "!" -e "$MOUNT_DEST/file1"
+
+        echo "Verify that a mount with a specific FS type can be created"
+        "${SNAP_NAME}".cmd mount -o rw -t tmpfs none "$MOUNT_DEST"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST.*tmpfs" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd umount "$MOUNT_DEST"
+
+        if [ "$(snap debug confinement)" = partial ] ; then
+            echo "Early exit on systems where strict confinement does not work"
+            exit 0
+        fi
+
+        if os.query is-opensuse && ! os.query is-opensuse-tumbleweed; then
+            echo "Early exit in OpenSUSE as confinement is disabled"
+            exit 0
+        fi
+
+        echo "Verify that a mount not matching the allowed pattern will fail"
+        if "${SNAP_NAME}".cmd mount -o bind,rw "$MOUNT_SRC" "/tmp/"; then
+            echo "Mount succeeded despite not matching the allowed pattern"
+            exit 1
+        fi
+
+        echo "Verify that a mount not matching the allowed options will fail"
+        if "${SNAP_NAME}".cmd mount -o sync "$MOUNT_SRC" "$MOUNT_DEST"; then
+            echo "Mount succeeded despite not matching the allowed options"
+            exit 1
+        fi
+
+        echo "Verify that a mount not matching the allowed FS type will fail"
+        mkdir -p /media/somedir
+        if "${SNAP_NAME}".cmd mount -t debugfs "/dev/sda" "/media/somedir"; then
+            echo "Mount succeeded despite not matching the allowed FS type"
+            exit 1
+        fi
+        journalctl -t audit | grep 'fstype="debugfs"' | MATCH 'info="failed type match"'
+        rmdir /media/somedir
+
+        echo "Verify that a maliciously crafted path cannot bypass the allowed pattern"
+        if "${SNAP_NAME}".cmd mount -o bind,rw "$MOUNT_SRC" "$SNAP_COMMON/.."; then
+            echo "Malicious pattern was not blocked"
+            exit 1
+        fi
+
+        echo "Now create the same mount using snapctl"
+        "${SNAP_NAME}".cmd snapctl mount -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
+
+        echo "Verify the mount"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        echo "Unmount via snapctl"
+        "${SNAP_NAME}".cmd snapctl umount "$MOUNT_DEST"
+
+        # Now try to create a persistent mount, but for a target which doesn't
+        # have the `persistent` flag set in the plug rules: it must fail
+        echo "Attempt persistent mount not allowed by plug specification"
+        "${SNAP_NAME}".cmd snapctl mount --persistent -o bind,rw /usr/share "$MOUNT_DEST" 2>&1 \
+            | MATCH 'snap "test-snapd-mount-control" lacks permissions to create the requested mount'
+
+        # Do the same, but for an allowed target: this should work
+        echo "Create a persistent mount"
+        "${SNAP_NAME}".cmd snapctl mount --persistent -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
+
+        echo "Verify that the persistent mount is also immediately available"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        REBOOT
+    else
+        # after reboot
+
+        echo "Verify that the persistent mount is still active"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        echo "Remove the persistent mount"
+        "${SNAP_NAME}".cmd snapctl umount "$MOUNT_DEST"
+
+        echo "Verify that the mount is gone"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo && exit 1
+        "${SNAP_NAME}".cmd test "!" -e "$MOUNT_DEST/file1"
+    fi

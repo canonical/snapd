@@ -305,7 +305,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 
 	// sysd.Status() makes sure that we get only the units we asked
 	// for and raises an error otherwise
-	sts, err := sysd.Status(serviceNames...)
+	sts, err := sysd.Status(serviceNames)
 	if err != nil {
 		return fmt.Errorf("cannot get status of services of app %q: %v", appInfo.Name, err)
 	}

@@ -227,7 +227,7 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		userID = user.ID
 	}
-	installed, tasksets, err := snapstateInstallMany(st, toInstall, userID)
+	installed, tasksets, err := snapstateInstallMany(st, toInstall, userID, &snapstate.Flags{})
 	if err != nil {
 		return InternalError("cannot install themes: %s", err)
 	}

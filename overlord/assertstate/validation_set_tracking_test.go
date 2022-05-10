@@ -246,7 +246,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	vs3 := s.mockAssert(c, "baz", "5", "invalid")
 	c.Assert(assertstate.Add(s.st, vs3), IsNil)
 
-	valsets, err := assertstate.EnforcedValidationSets(s.st)
+	valsets, err := assertstate.EnforcedValidationSets(s.st, nil)
 	c.Assert(err, IsNil)
 
 	// foo and bar are in conflict, use this as an indirect way of checking

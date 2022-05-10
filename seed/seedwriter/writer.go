@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2021 Canonical Ltd
+ * Copyright (C) 2019-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -252,9 +251,9 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 	if model.Grade() != asserts.ModelGradeUnset {
 		// Core 20
 		if opts.Label == "" {
-			return nil, fmt.Errorf("internal error: cannot write Core 20 seed without Options.Label set")
+			return nil, fmt.Errorf("internal error: cannot write UC20+ seed without Options.Label set")
 		}
-		if err := internal.ValidateUC20SeedSystemLabel(opts.Label); err != nil {
+		if err := asserts.IsValidSystemLabel(opts.Label); err != nil {
 			return nil, err
 		}
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
@@ -855,7 +854,7 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 }
 
 func (w *Writer) checkBase(info *snap.Info, modes []string) error {
-	// Sanity check, note that we could support this case
+	// Validity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
 	if info.Type() == snap.TypeGadget && !w.model.Classic() && info.Base != w.model.Base() {

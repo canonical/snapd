@@ -43,8 +43,8 @@ import (
 type modelSuite struct {
 	baseBootenvSuite
 
-	oldUc20dev boot.Device
-	newUc20dev boot.Device
+	oldUc20dev snap.Device
+	newUc20dev snap.Device
 
 	runKernelBf      bootloader.BootFile
 	recoveryKernelBf bootloader.BootFile

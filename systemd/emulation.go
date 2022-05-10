@@ -51,41 +51,41 @@ func (s *emulation) Backend() Backend {
 }
 
 func (s *emulation) DaemonReload() error {
-	return &notImplementedError{"DaemonReload"}
+	return nil
 }
 
 func (s *emulation) DaemonReexec() error {
 	return &notImplementedError{"DaemonReexec"}
 }
 
-func (s *emulation) Enable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "enable", service)
+func (s *emulation) EnableNoReload(services []string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "enable"}, services...)...)
 	return err
 }
 
-func (s *emulation) Disable(service string) error {
-	_, err := systemctlCmd("--root", s.rootDir, "disable", service)
+func (s *emulation) DisableNoReload(services []string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "disable"}, services...)...)
 	return err
 }
 
-func (s *emulation) Start(service ...string) error {
-	return &notImplementedError{"Start"}
+func (s *emulation) Start(services []string) error {
+	return nil
 }
 
-func (s *emulation) StartNoBlock(service ...string) error {
-	return &notImplementedError{"StartNoBlock"}
+func (s *emulation) StartNoBlock(services []string) error {
+	return nil
 }
 
-func (s *emulation) Stop(service string, timeout time.Duration) error {
-	return &notImplementedError{"Stop"}
+func (s *emulation) Stop(services []string, timeout time.Duration) error {
+	return nil
 }
 
 func (s *emulation) Kill(service, signal, who string) error {
 	return &notImplementedError{"Kill"}
 }
 
-func (s *emulation) Restart(service string, timeout time.Duration) error {
-	return &notImplementedError{"Restart"}
+func (s *emulation) Restart(services []string, timeout time.Duration) error {
+	return nil
 }
 
 func (s *emulation) ReloadOrRestart(service string) error {
@@ -96,7 +96,7 @@ func (s *emulation) RestartAll(service string) error {
 	return &notImplementedError{"RestartAll"}
 }
 
-func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
+func (s *emulation) Status(units []string) ([]*UnitStatus, error) {
 	return nil, &notImplementedError{"Status"}
 }
 
@@ -221,4 +221,8 @@ func (s *emulation) Mount(what, where string, options ...string) error {
 
 func (s *emulation) Umount(whatOrWhere string) error {
 	return &notImplementedError{"Umount"}
+}
+
+func (s *emulation) Run(command []string, opts *RunOptions) ([]byte, error) {
+	return nil, &notImplementedError{"Run"}
 }

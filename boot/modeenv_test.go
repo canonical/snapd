@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -91,7 +92,7 @@ func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
 	c.Assert(err, IsNil)
 }
 
-func (s *modeenvSuite) TestWasReadSanity(c *C) {
+func (s *modeenvSuite) TestWasReadValidity(c *C) {
 	modeenv := &boot.Modeenv{}
 	c.Check(modeenv.WasRead(), Equals, false)
 }
@@ -869,4 +870,16 @@ try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm
 	c.Check(tryModelForSealing.Series(), Equals, "16")
 	c.Check(boot.ModelUniqueID(tryModelForSealing), Equals,
 		"developer1/testkeys-snapd-secured-core-20-amd64,secured,EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+}
+
+func (s *modeenvSuite) TestModeenvAccessFailsDuringPreseeding(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	_, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be read during preseeding`)
+
+	var modeenv boot.Modeenv
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: modeenv cannot be written during preseeding`)
 }

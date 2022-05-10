@@ -1,0 +1,43 @@
+summary: smoke test for the spread checker tool
+
+systems: [ ubuntu-20.04-64 ]
+
+prepare: |
+    apt install -y python3-yamlordereddictloader
+
+restore: |
+    apt remove -y python3-yamlordereddictloader
+
+execute: |
+    check-test-format -h | MATCH "usage: check-test-format"
+
+    # Check the format of the spread tests in this project
+    check-test-format "$PROJECT_PATH/tests"
+
+    # Check failing tasks
+    cp "$PWD/tasks/task1" "$PWD/tasks/task.yaml"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "Keys 'execute' and 'prepare' do not follow the desired order"
+    rm "$PWD/tasks/task.yaml"
+
+    cp "$PWD/tasks/task2" "$PWD/tasks/task.yaml"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "Keys 'execute' and 'restore' do not follow the desired order"
+    rm "$PWD/tasks/task.yaml"
+
+    cp "$PWD/tasks/task3" "$PWD/tasks/task.yaml"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "Keys 'systems' and 'backends' do not follow the desired order"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "Key 'execute' is mandatory"
+    rm "$PWD/tasks/task.yaml"
+
+    cp "$PWD/tasks/task4" "$PWD/tasks/task.yaml"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "Keys 'environment' and 'systems' do not follow the desired order"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "Key 'execute' is mandatory"
+    rm "$PWD/tasks/task.yaml"
+
+    cp "$PWD/tasks/task5" "$PWD/tasks/task.yaml"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "key 'unsupported' is not among the supported keys"
+    rm "$PWD/tasks/task.yaml"
+
+    cp "$PWD/tasks/task6" "$PWD/tasks/task.yaml"
+    echo "newtext" >> "$PWD/tasks/task.yaml"
+    check-test-format "$PWD/tasks" 2>&1 | MATCH "Invalid task format, checks failed for task"
+    rm "$PWD/tasks/task.yaml"

@@ -1,7 +1,7 @@
 summary: Check that a broken kernel snap automatically rolls itself back
 
 # TODO:UC20: write equivalent test for base snap failover
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 prepare: |
   echo "Build a broken kernel snap where the initramfs panic's"
@@ -14,7 +14,11 @@ prepare: |
   # TODO:UC20: this doesn't work for some reason when we copy it from the 
   #            running system, we should look into that, but for now just 
   #            re-download the snap
-  snap download pc-kernel --channel=20/edge --basename=pc-kernel
+  version=20
+  if tests.nested is-nested uc22; then
+    version=22
+  fi
+  snap download pc-kernel --channel="$version/edge" --basename=pc-kernel
   uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
   mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 

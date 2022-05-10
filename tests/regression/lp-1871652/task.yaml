@@ -28,9 +28,12 @@ prepare: |
     # Overwrite the snap binary inside the container with the one from this
     # system. Given that snapd on the system has just been built from source it
     # will have the custom 1337 version string.
-    # NOTE: This step is only necessary while snapd in the store is older than the fix.
+    # NOTE: For SRU validation snapd is not built from source, so version does not match 1337
+    # NOTE: This step is only necessary while snapd in the store is older than the fix
     lxc file push /usr/bin/snap bionic/usr/bin/snap
-    lxc exec bionic -- snap version | MATCH 1337
+    if [ ! "$SRU_VALIDATION" = 1 ]; then
+        lxc exec bionic -- snap version | MATCH 1337
+    fi
 
     # Hide real snap binary, ensuring we run the patched one we copied above.
     # I considered unmounting the core snap instead but this upsets parts of

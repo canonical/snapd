@@ -41,6 +41,7 @@ const (
 	// SquashfsMagic is the equivalent of SQUASHFS_MAGIC
 	SquashfsMagic = 0x73717368
 	// Ext4Magic is the equivalent of EXT4_SUPER_MAGIC
+	//nolint:deadcode
 	Ext4Magic = 0xef53
 	// TmpfsMagic is the equivalent of TMPFS_MAGIC
 	TmpfsMagic = 0x01021994
@@ -127,6 +128,23 @@ func OpenPath(path string) (int, error) {
 	return fd, nil
 }
 
+// syscallMode returns the syscall-specific mode bits from Go's portable mode bits.
+// This is a copy of the same helper in Go's os package.
+func syscallMode(i os.FileMode) (o uint32) {
+	o |= uint32(i.Perm())
+	if i&os.ModeSetuid != 0 {
+		o |= syscall.S_ISUID
+	}
+	if i&os.ModeSetgid != 0 {
+		o |= syscall.S_ISGID
+	}
+	if i&os.ModeSticky != 0 {
+		o |= syscall.S_ISVTX
+	}
+	// No mapping for Go's ModeTemporary (plan9 only).
+	return o
+}
+
 // MkPrefix creates all the missing directories in a given base path and
 // returns the file descriptor to the leaf directory as well as the restricted
 // flag. This function is a base for secure variants of mkdir, touch and
@@ -179,7 +197,7 @@ func MkDir(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Use
 	made := true
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 
-	if err := sysMkdirat(dirFd, name, uint32(perm.Perm())); err != nil {
+	if err := sysMkdirat(dirFd, name, syscallMode(perm)); err != nil {
 		switch err {
 		case syscall.EEXIST:
 			made = false
@@ -238,7 +256,7 @@ func MkFile(dirFd int, dirName string, name string, perm os.FileMode, uid sys.Us
 	// we know if we need to chown it) but fall back to just opening an
 	// existing one.
 
-	newFd, err := sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, uint32(perm.Perm()))
+	newFd, err := sysOpenat(dirFd, name, openFlags|syscall.O_CREAT|syscall.O_EXCL, syscallMode(perm))
 	if err != nil {
 		switch err {
 		case syscall.EEXIST:

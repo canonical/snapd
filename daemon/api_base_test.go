@@ -294,6 +294,9 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 }
 
 func (s *apiBaseSuite) resetDaemon() {
+	if s.d != nil {
+		s.d.Overlord().Stop()
+	}
 	s.d = nil
 }
 
@@ -369,7 +372,7 @@ func (m *fakeSnapManager) Ensure() error {
 	return nil
 }
 
-// sanity
+// expected interface is implemented
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {

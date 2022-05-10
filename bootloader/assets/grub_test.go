@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -34,9 +35,24 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type grubAssetsTestSuite struct{}
+type grubAssetsTestSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&grubAssetsTestSuite{})
+
+func (s *grubAssetsTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	// By default assume amd64 in the tests: there are specialized
+	// tests for other arches
+	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	snippets := []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	}
+	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
+	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
+}
 
 func (s *grubAssetsTestSuite) testGrubConfigContains(c *C, name string, keys ...string) {
 	a := assets.Internal(name)
@@ -73,6 +89,27 @@ func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetEditions(c *C) {
 	}{
 		{"grub.cfg:static-cmdline", 1, []byte("console=ttyS0 console=tty1 panic=-1")},
 		{"grub-recovery.cfg:static-cmdline", 1, []byte("console=ttyS0 console=tty1 panic=-1")},
+	} {
+		snip := assets.SnippetForEdition(tc.asset, tc.edition)
+		c.Assert(snip, NotNil)
+		c.Check(snip, DeepEquals, tc.snip)
+	}
+}
+
+func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetEditionsForArm64(c *C) {
+	r := archtest.MockArchitecture("arm64")
+	defer r()
+	// Make sure to revert later to the prev arch snippets
+	r = assets.MockCleanState()
+	defer r()
+	assets.RegisterGrubSnippets()
+	for _, tc := range []struct {
+		asset   string
+		edition uint
+		snip    []byte
+	}{
+		{"grub.cfg:static-cmdline", 1, []byte("panic=-1")},
+		{"grub-recovery.cfg:static-cmdline", 1, []byte("panic=-1")},
 	} {
 		snip := assets.SnippetForEdition(tc.asset, tc.edition)
 		c.Assert(snip, NotNil)

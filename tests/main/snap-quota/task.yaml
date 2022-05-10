@@ -26,9 +26,13 @@ execute: |
   snap set-quota group-one --parent=group-top1 --memory=100MB hello-world
   snap set-quota group-two --parent=group-top1 --memory=2MB test-snapd-tools
 
-  echo "Creating some more nested empty quota groups"
-  snap set-quota group-sub-one --parent=group-one --memory=10KB
-  snap set-quota group-sub-sub-one --parent=group-sub-one --memory=5KB
+  echo "Creating a nested empty quota groups which fails"
+  snap set-quota group-sub-one --parent=group-one --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'cannot mix sub groups with snaps in the same group'
+
+  echo "Creating some empty quota sub groups"
+  snap set-quota group-three --parent=group-top1 --memory=15MB
+  snap set-quota group-sub-three --parent=group-three --memory=4MB
+  snap set-quota group-sub-sub-three --parent=group-sub-three --memory=1MB
 
   echo "Trying to add snap to more than one group fails"
   snap set-quota group-bad --memory=1MB hello-world 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'error: cannot create quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
@@ -42,12 +46,13 @@ execute: |
   MATCH "     2\s+group-top1\s+memory=400MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
   MATCH "     3\s+group-one\s+group-top1\s+memory=100MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
   # this line could be either for memory=0 in the current column, in which case
-  # it is omitted entirely, or it could be memory=4096 on some systems where 
-  # empty cgroups have 4K memory usage even on empty cgroups
-  MATCH "     4\s+group-sub-one\s+group-one\s+memory=10.0kB(\s*|\s*memory=4096B)\s*$" < quotas.txt
-  MATCH "     5\s+group-sub-sub-one\s+group-sub-one\s+memory=5000B\s*$" < quotas.txt
-  MATCH "     6\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
-  MATCH "     7\s+group-top2\s+memory=500MB\s*$" < quotas.txt
+  # it is omitted entirely, or it could be either 4096 or 12.3kB on some systems where 
+  # empty cgroups have memory usage even on empty cgroups
+  MATCH "     4\s+group-three\s+group-top1\s+memory=15.0MB(\s*|\s*memory=[0-9.a-zA-Z]+)\s*$" < quotas.txt
+  MATCH "     5\s+group-sub-three\s+group-three\s+memory=4.00MB(\s*|\s*memory=4096B|\s*memory=12.3kB)\s*$" < quotas.txt
+  MATCH "     6\s+group-sub-sub-three\s+group-sub-three\s+memory=1.00MB\s*$" < quotas.txt
+  MATCH "     7\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
+  MATCH "     8\s+group-top2\s+memory=500MB\s*$" < quotas.txt
 
   echo "Checking quota group details"
   snap quota group-one | cat -n > details.txt
@@ -57,11 +62,9 @@ execute: |
   MATCH "     4\s+memory:\s+100MB$" < details.txt
   MATCH "     5\s+current:$" < details.txt
   MATCH "     6\s+memory:\s+[0-9.a-zA-Z]+B$" < details.txt
-  MATCH "     7\s+subgroups:$" < details.txt
-  MATCH "     8\s+- group-sub-one$" < details.txt
-  MATCH "     9\s+snaps:$" < details.txt
-  MATCH "    10\s+-\s+hello-world$" < details.txt
-  MATCH "    11\s+-\s+go-example-webserver$" < details.txt
+  MATCH "     7\s+snaps:$" < details.txt
+  MATCH "     8\s+-\s+hello-world$" < details.txt
+  MATCH "     9\s+-\s+go-example-webserver$" < details.txt
 
   echo "Checking that quota groups can be removed"
   snap remove-quota group-two

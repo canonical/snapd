@@ -1,5 +1,6 @@
 summary: verify that new snapd's do not break old snap-bootstrap/kernel initrds
 
+# ubuntu-22.04-64: enable on uc22 once pc-kernel is on 22/candidate channel
 systems: [ubuntu-20.04-64]
 
 # we have two variants here:
@@ -12,7 +13,7 @@ systems: [ubuntu-20.04-64]
 # the encrypted partitions
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/ubuntu-core-20-amd64.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/ubuntu-core-{VERSION}-amd64.model
 
   # don't bundle the snapd snap via nested.sh's machinery, instead we will
   # side-load our snapd snap built from this branch into the image via
@@ -69,8 +70,11 @@ prepare: |
   snap pack pc-kernel-snap --filename=pc-kernel.snap
   mv pc-kernel.snap "$(tests.nested get extra-snaps-path)" 
 
+  # Get the nested system version
+  VERSION="$(tests.nested show version)"
+
   # download the new kernel to try and refresh to, triggering a reseal
-  snap download pc-kernel --channel=20/candidate --basename=new-kernel
+  snap download pc-kernel --channel="$VERSION/candidate" --basename=new-kernel
 
   # build the image and start the VM up
   tests.nested build-image core

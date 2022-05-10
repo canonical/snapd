@@ -1,6 +1,6 @@
 summary: Transition to recover mode with things missing so we use degraded mode
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   DEGRADED_JSON: /run/snapd/snap-bootstrap/degraded.json
@@ -12,6 +12,7 @@ execute: |
 
   echo "Install jq in the host environment"
   snap install jq
+  tests.cleanup defer snap remove jq
 
   echo "Move the run key for ubuntu-save out of the way so we use the fallback key to unlock ubuntu-save"
   tests.nested exec "sudo mv /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key /run/mnt/data/system-data/var/lib/snapd/device/fde/ubuntu-save.key.bk"

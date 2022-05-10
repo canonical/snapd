@@ -330,6 +330,18 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
     /* create /sys/fs/bpf/snap as root */
     sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
+    /* we expect bpffs to be mounted at /sys/fs/bpf, which should have been done
+     * by systemd, but some systems out there are a weird mix of older userland
+     * and new kernels, in which case the assumptions about the state of the
+     * system no longer hold and we may need to mount bpffs ourselves */
+    if (!bpf_path_is_bpffs("/sys/fs/bpf")) {
+        debug("/sys/fs/bpf is not a bpffs mount");
+        /* bpffs isn't mounted at the usual place, or die if that fails */
+        bpf_mount_bpffs("/sys/fs/bpf");
+        debug("bpffs mounted at /sys/fs/bpf");
+    }
+
     if (mkdir("/sys/fs/bpf/snap", 0700) < 0) {
         if (errno != EEXIST) {
             die("cannot create /sys/fs/bpf/snap directory");
@@ -393,6 +405,9 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         /* first collect all keys in the map */
         sc_cgroup_v2_device_key *existing_keys SC_CLEANUP(_sc_cleanup_v2_device_key) =
             calloc(max_entries, sizeof(sc_cgroup_v2_device_key));
+        if (existing_keys == NULL) {
+            die("cannot allocate keys map");
+        }
         /* 'current' key is zeroed, such that no entry can match it and thus
          * we'll iterate over the keys from the beginning */
         sc_cgroup_v2_device_key key = {0};
