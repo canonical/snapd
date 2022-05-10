@@ -31,7 +31,7 @@ prepare: |
   gendeveloper1model < "$TESTSLIB"/assertions/developer1-20-dangerous.json > model.assertion
 
   echo "Creating a new key without a password"
-  expect -f create-key.exp
+  mkdir -p ~/.snap/gnupg
   gendeveloper1model show-key | gpg --homedir=~/.snap/gnupg --import
 
 restore: |
