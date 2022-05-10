@@ -136,7 +136,7 @@ func (s *pibootTestSuite) TestPibootSetEnvWriteOnlyIfChanged(c *C) {
 	s.testPibootSetEnvWriteOnlyIfChanged(c, fromInitramfs)
 }
 
-func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
+func (s *pibootTestSuite) testExtractKernelAssets(c *C, dtbDir string) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
@@ -146,7 +146,7 @@ func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -180,7 +180,13 @@ func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
 	c.Check(readmeFn, testutil.FilePresent)
 }
 
-func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+func (s *pibootTestSuite) TestExtractKernelAssets(c *C) {
+	// armhf and arm64 kernel snaps store dtbs in different places
+	s.testExtractKernelAssets(c, "dtbs")
+	s.testExtractKernelAssets(c, "dtbs/broadcom")
+}
+
+func (s *pibootTestSuite) testExtractRecoveryKernelAssets(c *C, dtbDir string) {
 	opts := bootloader.Options{PrepareImageTime: true,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
@@ -190,7 +196,7 @@ func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -227,6 +233,12 @@ func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
 	// Check that file required by piboot is created
 	readmeFn := filepath.Join(assetsDir, "overlays", "README")
 	c.Check(readmeFn, testutil.FilePresent)
+}
+
+func (s *pibootTestSuite) TestExtractRecoveryKernelAssets(c *C) {
+	// armhf and arm64 kernel snaps store dtbs in different places
+	s.testExtractRecoveryKernelAssets(c, "dtbs")
+	s.testExtractRecoveryKernelAssets(c, "dtbs/broadcom")
 }
 
 func (s *pibootTestSuite) TestPibootUC20OptsPlacement(c *C) {
@@ -538,7 +550,7 @@ func (s *pibootTestSuite) TestSetBootVarsFromInitramfs(c *C) {
 	})
 }
 
-func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
+func (s *pibootTestSuite) testExtractKernelAssetsAndRemove(c *C, dtbDir string) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
 	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
@@ -549,7 +561,7 @@ func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
-		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{filepath.Join(dtbDir, "foo.dtb"), "g'day, I'm foo.dtb"},
 		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
 		// must be last
 		{"meta/kernel.yaml", "version: 4.2"},
@@ -591,4 +603,94 @@ func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+}
+
+func (s *pibootTestSuite) TestExtractKernelAssetsAndRemove(c *C) {
+	// armhf and arm64 kernel snaps store dtbs in different places
+	s.testExtractKernelAssetsAndRemove(c, "dtbs")
+	s.testExtractKernelAssetsAndRemove(c, "dtbs/broadcom")
+}
+
+func (s *pibootTestSuite) testExtractKernelAssetsOnRPi4CheckEeprom(c *C, rpiRevisionCode, eepromTimeStamp []byte, errExpected bool) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRunMode, NoSlashBoot: true}
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
+	r = bootloader.MockRPi4Files(c, s.rootdir, rpiRevisionCode, eepromTimeStamp)
+	defer r()
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+	c.Assert(p, NotNil)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/broadcom/foo.dtb", "g'day, I'm foo.dtb"},
+		{"dtbs/overlays/bar.dtbo", "hello, I'm bar.dtbo"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = p.ExtractKernelAssets(info, snapf)
+	if errExpected {
+		c.Check(err.Error(), Equals,
+			"your EEPROM does not support tryboot, please upgrade to a newer one before installing Ubuntu Core - see http://forum.snapcraft.io/t/29455 for more details")
+		return
+	}
+
+	c.Assert(err, IsNil)
+
+	// this is where the kernel/initrd is unpacked
+	kernelAssetsDir := filepath.Join(s.rootdir, "piboot", "ubuntu", "ubuntu-kernel_42.snap")
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		destPath := def[0]
+		if strings.HasPrefix(destPath, "dtbs/broadcom/") {
+			destPath = strings.TrimPrefix(destPath, "dtbs/broadcom/")
+		} else if strings.HasPrefix(destPath, "dtbs/") {
+			destPath = strings.TrimPrefix(destPath, "dtbs/")
+		}
+		fullFn := filepath.Join(kernelAssetsDir, destPath)
+		c.Check(fullFn, testutil.FileEquals, def[1])
+	}
+
+	// remove
+	err = p.RemoveKernelAssets(info)
+	c.Assert(err, IsNil)
+
+	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+}
+
+func (s *pibootTestSuite) TestExtractKernelAssetsOnRPi4CheckEeprom(c *C) {
+	// Rev code is RPi4, eeprom supports tryboot
+	expectFailure := false
+	s.testExtractKernelAssetsOnRPi4CheckEeprom(c,
+		[]byte{0x00, 0xc0, 0x31, 0x11},
+		[]byte{0x61, 0xf0, 0x09, 0x91},
+		expectFailure)
+	// Rev code is RPi4, eeprom does not support tryboot
+	expectFailure = true
+	s.testExtractKernelAssetsOnRPi4CheckEeprom(c,
+		[]byte{0x00, 0xc0, 0x31, 0x11},
+		[]byte{0x60, 0x53, 0x15, 0x32},
+		expectFailure)
+	// Rev code is RPi3
+	expectFailure = false
+	s.testExtractKernelAssetsOnRPi4CheckEeprom(c,
+		[]byte{0x00, 0xa0, 0x20, 0x82},
+		[]byte{},
+		expectFailure)
 }

@@ -76,6 +76,9 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 	err = os.MkdirAll(varCommonData, 0755)
 	c.Assert(err, IsNil)
 
+	rootCommonDir := filepath.Join(s.tempdir, "root", "snap", "hello", "common")
+	c.Assert(os.MkdirAll(rootCommonDir, 0700), IsNil)
+
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	err = s.be.RemoveSnapCommonData(info, nil)
@@ -84,6 +87,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 	c.Assert(osutil.FileExists(filepath.Dir(homeCommonData)), Equals, true)
 	c.Assert(osutil.FileExists(varCommonData), Equals, false)
 	c.Assert(osutil.FileExists(filepath.Dir(varCommonData)), Equals, true)
+	c.Assert(osutil.FileExists(rootCommonDir), Equals, false)
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDir(c *C) {

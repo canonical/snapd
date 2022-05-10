@@ -254,8 +254,8 @@ func (d *Daemon) Init() error {
 // as readonlyOK.
 //
 // This is useful to report errors to the client when the daemon
-// cannot work because e.g. a sanity check failed or the system is out
-// of diskspace.
+// cannot work because e.g. a snapd squashfs precondition check failed
+// or the system is out of diskspace.
 //
 // When the system is fine again calling "DegradedMode(nil)" is enough
 // to put the daemon into full operation again.

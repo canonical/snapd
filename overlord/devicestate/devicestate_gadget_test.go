@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -254,7 +255,7 @@ func (s *deviceMgrGadgetSuite) setupGadgetUpdate(c *C, modelGrade, gadgetYamlCon
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg = s.state.NewChange("dummy", "...")
+	chg = s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 
 	return chg, tsk
@@ -502,7 +503,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreNotDuringFirstboot(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -559,7 +560,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreBadGadgetYaml(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -610,7 +611,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreParanoidChecks(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -639,7 +640,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnClassicErrorsOut(c *C) {
 	s.state.Set("seeded", true)
 
 	t := s.state.NewTask("update-gadget-assets", "update gadget")
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -705,10 +706,28 @@ volumes:
 		{"content.img", "updated content"},
 	})
 
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.LaidOutVolume) (map[string]map[int]gadget.StructureLocation, error) {
+		return map[string]map[int]gadget.StructureLocation{
+			"pc": {
+				0: {
+					Device: "/dev/foo",
+					Offset: quantity.OffsetMiB,
+				},
+			},
+		}, nil
+	})
+	defer r()
+
 	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
+
+		c.Assert(loc, Equals, gadget.StructureLocation{
+			Device:         "/dev/foo",
+			Offset:         quantity.OffsetMiB,
+			RootMountPoint: "",
+		})
 
 		c.Assert(ps.Name, Equals, "foo")
 		c.Assert(rootDir, Equals, updateInfo.MountDir())
@@ -736,7 +755,7 @@ volumes:
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -927,7 +946,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreHybridFirstboot(c *C) {
 		SideInfo: si,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
 
 	s.state.Unlock()
@@ -1016,7 +1035,7 @@ volumes:
 		SideInfo: siNext,
 		Type:     snap.TypeKernel,
 	})
-	chg = s.state.NewChange("dummy", "...")
+	chg = s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 
 	return chg, tsk
@@ -1135,7 +1154,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		SideInfo: &updateSi,
 		Type:     snap.TypeGadget,
 	})
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	s.state.Unlock()
 
@@ -1445,7 +1464,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	})
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(tsk)
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.AddTask(terr)
 	chg.Set("system-restart-immediate", true)
@@ -1554,7 +1573,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 	})
 	terr := s.state.NewTask("error-trigger", "provoking total undo")
 	terr.WaitFor(tsk)
-	chg := s.state.NewChange("dummy", "...")
+	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(tsk)
 	chg.AddTask(terr)
 	s.state.Unlock()

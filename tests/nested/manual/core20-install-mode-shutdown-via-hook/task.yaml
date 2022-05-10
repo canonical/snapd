@@ -4,7 +4,7 @@ details: |
     This test checks support for shutting down the device at the end of install
     mode via the install-device hook
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
     NESTED_IMAGE_ID: core20-install-device
@@ -22,7 +22,8 @@ prepare: |
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     echo "Grab and prepare the gadget snap"
-    snap download --basename=pc --channel="20/edge" pc
+    VERSION="$(tests.nested show version)"
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"

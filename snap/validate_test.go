@@ -518,6 +518,8 @@ func (s *ValidateSuite) TestAppStopMode(c *C) {
 		{"sigusr1-all", true},
 		{"sigusr2", true},
 		{"sigusr2-all", true},
+		{"sigint", true},
+		{"sigint-all", true},
 		// bad
 		{"invalid-thing", false},
 	} {

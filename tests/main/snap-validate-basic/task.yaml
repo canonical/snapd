@@ -27,7 +27,7 @@ prepare : |
   snap ack key.assert
   # validation-set assertion ack'ed locally (but not available in the store)
   snap ack vs1.assert
-  # sanity check
+  # precondition check
   snap known validation-set | MATCH "name: hello-world"
 
 execute: |

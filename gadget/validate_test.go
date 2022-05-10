@@ -905,34 +905,44 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 	}
 
 	for _, tc := range []struct {
-		volumeContent []gadget.VolumeContent
-		kinfo         *kernel.Info
-		expectedErr   string
+		volumeContent  []gadget.VolumeContent
+		kinfo          *kernel.Info
+		consumed       bool
+		consumedErr    string
+		consumesOneErr string
 	}{
 		// happy case: trivial
-		{contentNoKernelRef, kInfoNoRefs, ""},
+		{contentNoKernelRef, kInfoNoRefs, false, "", ""},
 
 		// happy case: if kernel asset has "Update: false"
-		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, ""},
+		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, false, "", ""},
 
 		// unhappy case: kernel has one or more unresolved references in gadget
-		{contentNoKernelRef, kInfoOneRef, `gadget does not consume any of the kernel assets needing synced update "ref"`},
-		{contentNoKernelRef, kInfoTwoRefs, `gadget does not consume any of the kernel assets needing synced update "ref", "ref2"`},
+		{contentNoKernelRef, kInfoOneRef, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref\""},
+		{contentNoKernelRef, kInfoTwoRefs, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref\", \"ref2\""},
 
 		// unhappy case: gadget needs different asset than kernel provides
-		{contentOneKernelRef, kInfoOneRefDifferentName, `gadget does not consume any of the kernel assets needing synced update "ref-other"`},
+		{contentOneKernelRef, kInfoOneRefDifferentName, false, "", "gadget does not consume any of the kernel assets needing synced update \"ref-other\""},
 
 		// happy case: exactly one matching kernel ref
-		{contentOneKernelRef, kInfoOneRef, ""},
+		{contentOneKernelRef, kInfoOneRef, true, "", ""},
 		// happy case: one matching, one missing kernel ref, still considered fine
-		{contentTwoKernelRefs, kInfoTwoRefs, ""},
+		{contentTwoKernelRefs, kInfoTwoRefs, true, "", ""},
 	} {
 		lv.Structure[0].Content = tc.volumeContent
-		err := gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
-		if tc.expectedErr == "" {
+		consumed, err := gadget.GadgetVolumeKernelUpdateAssetsConsumed(lv.Volume, tc.kinfo)
+		if tc.consumedErr == "" {
+			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
+			c.Check(consumed, Equals, tc.consumed)
+		} else {
+			c.Check(err, ErrorMatches, tc.consumedErr, Commentf("should fail %v", tc.volumeContent))
+		}
+
+		err = gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
+		if tc.consumesOneErr == "" {
 			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
 		} else {
-			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("should fail %v", tc.volumeContent))
+			c.Check(err, ErrorMatches, tc.consumesOneErr, Commentf("should fail %v", tc.volumeContent))
 		}
 	}
 }

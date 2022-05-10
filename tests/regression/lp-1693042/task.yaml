@@ -4,7 +4,7 @@ details: |
   When attempting to refresh to a bogus channel, detect it and fail.
 
 execute: |
-  # sanity check
+  # precondition check
   core_name="$(snaps.name core)"
   snap list "$core_name"
 

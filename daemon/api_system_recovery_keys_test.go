@@ -31,7 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var _ = Suite(&recoveryKeysSuite{})
@@ -64,7 +64,7 @@ func mockSystemRecoveryKeys(c *C) {
 }
 
 func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
-	if (secboot.RecoveryKey{}).String() == "not-implemented" {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
 		c.Skip("needs working secboot recovery key")
 	}
 
