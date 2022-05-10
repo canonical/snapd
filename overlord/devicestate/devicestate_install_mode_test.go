@@ -570,6 +570,10 @@ func (f *fakeSeed) Iter(func(sn *seed.Snap) error) error {
 	return nil
 }
 
+func (fs *fakeSeed) LoadAutoImportAssertion(commitTo func(*asserts.Batch) error) error {
+	return nil
+}
+
 func (s *deviceMgrInstallModeSuite) mockPreseedAssertion(c *C, brandID, modelName, series, preseedAsPath, sysLabel string, digest string, snaps []interface{}) {
 	headers := map[string]interface{}{
 		"type":              "preseed",
