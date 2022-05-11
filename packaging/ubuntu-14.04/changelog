@@ -1,3 +1,18 @@
+snapd (2.55.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1965808
+    - snapstate: do not auto-migrate to ~/Snap for core22 just yet
+    - cmd/snap-seccomp: add copy_file_range to
+      syscallsWithNegArgsMaskHi32
+    - cmd/snap-update-ns: correctly set sticky bit on created
+      directories where applicable
+    - .github: Skip misspell and ineffassign on go 1.13
+    - tests: add lz4 dependency for jammy to avoid issues repacking
+      kernel
+    - interfaces: posix-mq: add new interface
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 11 May 2022 06:38:24 +0200
+
 snapd (2.55.4~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1965808
