@@ -4,7 +4,7 @@
 
 Signed model assertions for use in the spread tests can be generated using
 `gendeveloper1` tool. The assertion is signed by `developer1` key, which is
-built-into the snapd binary used during the tests. h
+built-into the snapd binary used during the tests.
 
 To build the tool:
 
