@@ -49,7 +49,7 @@ execute: |
   SNAPD_SNAP=$(ls /tmp/snapd*.snap)
 
   # XXX: confusingly, the name of our test key is actually " (test)".
-  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" 2>&1 > preseed.log
+  snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable --snap="$SNAPD_SNAP" "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
 
   echo "Make sure no umount errors were reported during preseeding cleanup"
   NOMATCH "umount.*failed" < preseed.log
