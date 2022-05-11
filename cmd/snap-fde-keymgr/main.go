@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -34,23 +35,24 @@ import (
 
 var osStdin io.Reader = os.Stdin
 
-type commonDeviceMixin struct {
+type commonMultiDeviceMixin struct {
 	// TODO: support for multiple devices in the command line
-	Device string `long:"device" description:"encrypted device" required:"yes"`
+	Device        []string `long:"device" description:"encrypted device (can be more than one)" required:"yes"`
+	Authorization []string `long:"authorization" description:"authorization source (for each device, either 'keyring' or 'file:<key-file>')" required:"yes"`
 }
 
 type cmdAddRecoveryKey struct {
-	commonDeviceMixin
-	KeyFile string `long:"key-file" description:"path to recovery key file" required:"yes"`
+	commonMultiDeviceMixin
+	KeyFile string `long:"key-file" description:"path recovery key file will be written at" required:"yes"`
 }
 
 type cmdRemoveRecoveryKey struct {
-	commonDeviceMixin
-	KeyFile string `long:"key-file" description:"path to recovery key file" required:"yes"`
+	commonMultiDeviceMixin
+	KeyFile []string `long:"key-file" description:"path to recovery key file(s) to be removed" required:"yes"`
 }
 
 type cmdChangeEncryptionKey struct {
-	commonDeviceMixin
+	Device string `long:"device" description:"encrypted device" required:"yes"`
 }
 
 type options struct {
@@ -60,9 +62,11 @@ type options struct {
 }
 
 var (
-	keymgrAddRecoveryKeyToLUKSDevice      = keymgr.AddRecoveryKeyToLUKSDevice
-	keymgrRemoveRecoveryKeyFromLUKSDevice = keymgr.RemoveRecoveryKeyFromLUKSDevice
-	keymgrChangeLUKSDeviceEncryptionKey   = keymgr.ChangeLUKSDeviceEncryptionKey
+	keymgrAddRecoveryKeyToLUKSDevice              = keymgr.AddRecoveryKeyToLUKSDevice
+	keymgrAddRecoveryKeyToLUKSDeviceUsingKey      = keymgr.AddRecoveryKeyToLUKSDeviceUsingKey
+	keymgrRemoveRecoveryKeyFromLUKSDevice         = keymgr.RemoveRecoveryKeyFromLUKSDevice
+	keymgrRemoveRecoveryKeyFromLUKSDeviceUsingKey = keymgr.RemoveRecoveryKeyFromLUKSDeviceUsingKey
+	keymgrChangeLUKSDeviceEncryptionKey           = keymgr.ChangeLUKSDeviceEncryptionKey
 )
 
 func (c *cmdAddRecoveryKey) Execute(args []string) error {
@@ -76,8 +80,24 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	// 3. add the key
 	// 4. if adding failed with keyslot already in used and the file was
 	// present assume it's correct
-	if err := keymgrAddRecoveryKeyToLUKSDevice(recoveryKey, c.Device); err != nil {
-		return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
+	if len(c.Authorization) != len(c.Device) {
+		return fmt.Errorf("cannot add recovery key with mismatched devices and authorization")
+	}
+	for i, dev := range c.Device {
+		authz := c.Authorization[i]
+		if authz == "keyring" {
+			if err := keymgrAddRecoveryKeyToLUKSDevice(recoveryKey, dev); err != nil {
+				return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
+			}
+		} else if strings.HasPrefix(authz, "file:") {
+			authzKey, err := ioutil.ReadFile(authz[len("file:"):])
+			if err != nil {
+				return fmt.Errorf("cannot load authorization key: %v", err)
+			}
+			if err := keymgrAddRecoveryKeyToLUKSDeviceUsingKey(recoveryKey, authzKey, dev); err != nil {
+				return fmt.Errorf("cannot add recovery key to LUKS device using authorization key: %v", err)
+			}
+		}
 	}
 	if err := ioutil.WriteFile(c.KeyFile, recoveryKey[:], 0600); err != nil {
 		return fmt.Errorf("cannot write recovery key to file: %v", err)
@@ -86,11 +106,29 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 }
 
 func (c *cmdRemoveRecoveryKey) Execute(args []string) error {
-	if err := keymgrRemoveRecoveryKeyFromLUKSDevice(c.Device); err != nil {
-		return fmt.Errorf("cannot remove recovery key from LUKS device: %v", err)
+	if len(c.Authorization) != len(c.Device) {
+		return fmt.Errorf("cannot remove recovery key with mismatched devices and authorization")
 	}
-	if err := os.Remove(c.KeyFile); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot remove recovery key file: %v", err)
+	for i, dev := range c.Device {
+		authz := c.Authorization[i]
+		if authz == "keyring" {
+			if err := keymgrRemoveRecoveryKeyFromLUKSDevice(dev); err != nil {
+				return fmt.Errorf("cannot remove recovery key from LUKS device: %v", err)
+			}
+		} else if strings.HasPrefix(authz, "file:") {
+			authzKey, err := ioutil.ReadFile(authz[len("file:"):])
+			if err != nil {
+				return fmt.Errorf("cannot load authorization key: %v", err)
+			}
+			if err := keymgrRemoveRecoveryKeyFromLUKSDeviceUsingKey(authzKey, dev); err != nil {
+				return fmt.Errorf("cannot remove recovery key from device using authorization key: %v", err)
+			}
+		}
+	}
+	for _, kf := range c.KeyFile {
+		if err := os.Remove(kf); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot remove recovery key file: %v", err)
+		}
 	}
 	return nil
 }
