@@ -150,11 +150,13 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
+
     - name: Install ShellCheck as a snap
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
+
     - name: Get C vendoring
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
@@ -192,6 +194,7 @@ jobs:
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
+
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -222,6 +225,7 @@ jobs:
           - withbootassetstesting
           - nosecboot
           - faultinject
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -339,6 +343,7 @@ jobs:
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
 
     - name: Upload the coverage results
+      if: ${{ matrix.gochannel != 'latest/stable' }}
       uses: actions/upload-artifact@v2
       with:
         path: ".coverage/coverage*.cov"
@@ -387,7 +392,7 @@ jobs:
         path: .coverage/
 
     - name: Merge coverage results
-      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
+      if: ${{ steps.cached-results.outputs.already-ran != 'true' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         go install github.com/makholm/covertool
@@ -398,7 +403,7 @@ jobs:
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
-      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
+      if: ${{ steps.cached-results.outputs.already-ran != 'true' }}
       with:
         fail_ci_if_error: true
         flags: unittests
