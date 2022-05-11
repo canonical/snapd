@@ -7,6 +7,10 @@ on:
     # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master","release/**" ]
 
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
@@ -154,7 +158,7 @@ jobs:
       with:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
         # to use the latest version
-        version: v1.40.0
+        version: v1.45.2
         working-directory: ./src/github.com/snapcore/snapd
         # show only new issues
         # use empty path prefix to make annotations work
@@ -289,6 +293,7 @@ jobs:
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
+        - ubuntu-core-22-64
         - ubuntu-secboot-20.04-64
     steps:
     - name: Cleanup job workspace
@@ -296,25 +301,50 @@ jobs:
       run: |
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
+
     - name: Checkout code
       uses: actions/checkout@v2
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: actions/cache@v1
+      uses: pat-s/always-upload-cache@v2.1.5
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+
     - name: Check cached test results
       id: cached-results
       run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
+          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          mkdir -p "$TEST_RESULTS_DIR"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
+          CACHE_RESULT_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-success"
           echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
+
+          # Save the var with the failed tests file
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+
+    - name: Check failed tests to run
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all') && steps.cached-results.outputs.already-ran != 'true'"
+      run: |
+          # Save previous failed test results in FAILED_TESTS env var
+          FAILED_TESTS=""
+          if [ -f "$FAILED_TESTS_FILE" ]; then
+              echo "Failed tests file found"
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+              if [ -n "$FAILED_TESTS" ]; then
+                  echo "Failed tests to run: $FAILED_TESTS"
+                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+              fi
+          fi
+
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && steps.cached-results.outputs.already-ran != 'true'"
       env:
@@ -322,14 +352,23 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
+
+          # Save previous failed test results in FAILED_TESTS env var
+          RUN_TESTS="google:${{ matrix.system }}:tests/..."
+          if [ -n "$FAILED_TESTS" ]; then
+              RUN_TESTS="$FAILED_TESTS"
+          fi
+
+          # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread -abend google:${{ matrix.system }}:tests/... | tee spread.log)
+          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
+
     - name: Cache successful run
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
+
     - name: Discard spread workers
       if: always()
       run: |
@@ -337,6 +376,7 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+
     - name: report spread errors
       if: always()
       run: |
@@ -353,6 +393,27 @@ jobs:
         else
             echo "No spread log found, skipping errors reporting"
         fi
+
+    - name: save spread results
+      if: always()
+      run: |
+          if [ -f spread.log ]; then
+              echo "Running spread log analyzer"
+
+              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
+              if grep -q "Aborted tasks: 0" spread.log; then
+                  ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | grep "google:" | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
+
+                  echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
+              else
+                  echo "No failed tests saved, this means all the tests will be executed next run"
+                  touch "$FAILED_TESTS_FILE"
+              fi
+          else
+              echo "No spread log found, saving empty list of failed tests"
+              touch "$FAILED_TESTS_FILE"
+          fi
 
   spread-nested:
     needs: [unit-tests]
@@ -372,28 +433,55 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
+        - ubuntu-22.04-64
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
       run: |
           rm -rf "${{ github.workspace }}"
           mkdir "${{ github.workspace }}"
+
     - name: Checkout code
       uses: actions/checkout@v2
+
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: actions/cache@v1
+      uses: pat-s/always-upload-cache@v2.1.5
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-nested-results"
+        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
+
     - name: Check cached test results
       id: cached-results
       run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-nested-success"
+          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          mkdir -p "$TEST_RESULTS_DIR"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
+          CACHE_RESULT_STAMP="$TEST_RESULTS_DIR/${{ matrix.system }}-success"
           echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
+
+          # Save the var with the failed tests file
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
+
+    - name: Check failed tests to run
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all') && steps.cached-results.outputs.already-ran != 'true'"
+      run: |
+          # Save previous failed test results in FAILED_TESTS env var
+          FAILED_TESTS=""
+          if [ -f "$FAILED_TESTS_FILE" ]; then
+              echo "Failed tests file found"
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+              if [ -n "$FAILED_TESTS" ]; then
+                  echo "Failed tests to run: $FAILED_TESTS"
+                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+              fi
+          fi
+
+
     - name: Run spread tests
       # run if the commit is pushed to the release/* branch or there is a 'Run
       # nested' label set on the PR
@@ -403,16 +491,25 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
+
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
+
+          RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
+          if [ -n "$FAILED_TESTS" ]; then
+              RUN_TESTS="$FAILED_TESTS"
+          fi
+
+          # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread -abend google-nested:${{ matrix.system }}:tests/nested/... | tee spread.log)
+          (set -o pipefail; spread -abend $RUN_TESTS | tee spread.log)
+
     - name: Cache successful run
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         touch "$CACHE_RESULT_STAMP"
+
     - name: Discard spread workers
       if: always()
       run: |
@@ -420,6 +517,7 @@ jobs:
         for r in .spread-reuse.*.yaml; do
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
+
     - name: report spread errors
       if: always()
       run: |
@@ -436,3 +534,25 @@ jobs:
         else
             echo "No spread log found, skipping errors reporting"
         fi
+
+    - name: save spread results
+      if: always()
+      run: |
+          if [ -f spread.log ]; then
+              echo "Running spread log analyzer"
+
+              # Aborted cannot be used to determine if we need to re-run all because it could be a aborted an entire suite
+              if grep -q "Aborted tasks: 0" spread.log; then
+                  ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
+                  jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | select( .level == "task" or .level == "tasks" ) | .detail.lines[]' spread-results.json | grep "google-nested:" | cut -d '-' -f2- | tr '\n' ' ' > "$FAILED_TESTS_FILE"
+
+                  echo "Failed tests saved for re-execution: $(cat $FAILED_TESTS_FILE)"
+              else
+                  echo "No failed tests saved, this means all the tests will be executed next run"
+                  touch "$FAILED_TESTS_FILE"
+              fi
+          else
+              echo "No spread log found, saving empty list of failed tests"
+              touch "$FAILED_TESTS_FILE"
+          fi
+

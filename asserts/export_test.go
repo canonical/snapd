@@ -104,7 +104,7 @@ func MockTimeNow(t time.Time) (restore func()) {
 	}
 }
 
-// define dummy assertion types to use in the tests
+// define test assertion types to use in the tests
 
 type TestOnly struct {
 	assertionBase
@@ -118,7 +118,7 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 
-var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly, 0}
+var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, nil, assembleTestOnly, 0}
 
 type TestOnly2 struct {
 	assertionBase
@@ -128,7 +128,7 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 	return &TestOnly2{assert}, nil
 }
 
-var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2, 0}
+var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, nil, assembleTestOnly2, 0}
 
 // TestOnlyDecl is a test-only assertion that mimics snap-declaration
 // relations with other assertions.
@@ -154,7 +154,7 @@ func assembleTestOnlyDecl(assert assertionBase) (Assertion, error) {
 	return &TestOnlyDecl{assert}, nil
 }
 
-var TestOnlyDeclType = &AssertionType{"test-only-decl", []string{"id"}, assembleTestOnlyDecl, 0}
+var TestOnlyDeclType = &AssertionType{"test-only-decl", []string{"id"}, nil, assembleTestOnlyDecl, 0}
 
 // TestOnlyRev is a test-only assertion that mimics snap-revision
 // relations with other assertions.
@@ -185,7 +185,7 @@ func assembleTestOnlyRev(assert assertionBase) (Assertion, error) {
 	return &TestOnlyRev{assert}, nil
 }
 
-var TestOnlyRevType = &AssertionType{"test-only-rev", []string{"h"}, assembleTestOnlyRev, 0}
+var TestOnlyRevType = &AssertionType{"test-only-rev", []string{"h"}, nil, assembleTestOnlyRev, 0}
 
 // TestOnlySeq is a test-only assertion that is sequence-forming.
 type TestOnlySeq struct {
@@ -212,7 +212,7 @@ func assembleTestOnlySeq(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-var TestOnlySeqType = &AssertionType{"test-only-seq", []string{"n", "sequence"}, assembleTestOnlySeq, sequenceForming}
+var TestOnlySeqType = &AssertionType{"test-only-seq", []string{"n", "sequence"}, nil, assembleTestOnlySeq, sequenceForming}
 
 type TestOnlyNoAuthority struct {
 	assertionBase
@@ -225,7 +225,7 @@ func assembleTestOnlyNoAuthority(assert assertionBase) (Assertion, error) {
 	return &TestOnlyNoAuthority{assert}, nil
 }
 
-var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, assembleTestOnlyNoAuthority, noAuthority}
+var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, nil, assembleTestOnlyNoAuthority, noAuthority}
 
 type TestOnlyNoAuthorityPK struct {
 	assertionBase
@@ -235,7 +235,7 @@ func assembleTestOnlyNoAuthorityPK(assert assertionBase) (Assertion, error) {
 	return &TestOnlyNoAuthorityPK{assert}, nil
 }
 
-var TestOnlyNoAuthorityPKType = &AssertionType{"test-only-no-authority-pk", []string{"pk"}, assembleTestOnlyNoAuthorityPK, noAuthority}
+var TestOnlyNoAuthorityPKType = &AssertionType{"test-only-no-authority-pk", []string{"pk"}, nil, assembleTestOnlyNoAuthorityPK, noAuthority}
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType

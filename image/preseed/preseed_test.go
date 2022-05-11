@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -58,12 +60,25 @@ func (s *preseedSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-type Fake16Seed struct {
+type FakeSeed struct {
 	AssertsModel      *asserts.Model
 	Essential         []*seed.Snap
+	SnapsForMode      map[string][]*seed.Snap
 	LoadMetaErr       error
 	LoadAssertionsErr error
 	UsesSnapd         bool
+	loadAssertions    func(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error
+}
+
+func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
+	if apparmorDir {
+		c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
+	}
+	mockMountInfo := `912 920 0:57 / ${rootDir}/proc rw,nosuid,nodev,noexec,relatime - proc proc rw
+914 913 0:7 / ${rootDir}/sys/kernel/security rw,nosuid,nodev,noexec,relatime master:8 - securityfs securityfs rw
+915 920 0:58 / ${rootDir}/dev rw,relatime - tmpfs none rw,size=492k,mode=755,uid=100000,gid=100000
+`
+	return osutil.MockMountInfo(strings.Replace(mockMountInfo, "${rootDir}", rootDir, -1))
 }
 
 // Fake implementation of seed.Seed interface
@@ -81,15 +96,18 @@ func mockClassicModel() *asserts.Model {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Model)
 }
 
-func (fs *Fake16Seed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+func (fs *FakeSeed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+	if fs.loadAssertions != nil {
+		return fs.loadAssertions(db, commitTo)
+	}
 	return fs.LoadAssertionsErr
 }
 
-func (fs *Fake16Seed) Model() *asserts.Model {
+func (fs *FakeSeed) Model() *asserts.Model {
 	return fs.AssertsModel
 }
 
-func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
+func (fs *FakeSeed) Brand() (*asserts.Account, error) {
 	headers := map[string]interface{}{
 		"type":         "account",
 		"account-id":   "brand",
@@ -100,31 +118,37 @@ func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
 }
 
-func (fs *Fake16Seed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
-	panic("unexpected")
-}
+func (fs *FakeSeed) SetParallelism(int) {}
 
-func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
+func (fs *FakeSeed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
 	return fs.LoadMetaErr
 }
 
-func (fs *Fake16Seed) UsesSnapdSnap() bool {
+func (fs *FakeSeed) LoadEssentialMetaWithSnapHandler(essentialTypes []snap.Type, handler seed.SnapHandler, tm timings.Measurer) error {
+	return fs.LoadMetaErr
+}
+
+func (fs *FakeSeed) LoadMeta(mode string, handler seed.SnapHandler, tm timings.Measurer) error {
+	return fs.LoadMetaErr
+}
+
+func (fs *FakeSeed) UsesSnapdSnap() bool {
 	return fs.UsesSnapd
 }
 
-func (fs *Fake16Seed) EssentialSnaps() []*seed.Snap {
+func (fs *FakeSeed) EssentialSnaps() []*seed.Snap {
 	return fs.Essential
 }
 
-func (fs *Fake16Seed) ModeSnaps(mode string) ([]*seed.Snap, error) {
-	return nil, nil
+func (fs *FakeSeed) ModeSnaps(mode string) ([]*seed.Snap, error) {
+	return fs.SnapsForMode[mode], nil
 }
 
-func (fs *Fake16Seed) NumSnaps() int {
+func (fs *FakeSeed) NumSnaps() int {
 	return 0
 }
 
-func (fs *Fake16Seed) Iter(f func(sn *seed.Snap) error) error {
+func (fs *FakeSeed) Iter(f func(sn *seed.Snap) error) error {
 	return nil
 }
 
@@ -132,7 +156,7 @@ func (s *preseedSuite) TestSystemSnapFromSeed(c *C) {
 	tmpDir := c.MkDir()
 
 	restore := preseed.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
-		return &Fake16Seed{
+		return &FakeSeed{
 			AssertsModel: mockClassicModel(),
 			Essential:    []*seed.Snap{{Path: "/some/path/core", SideInfo: &snap.SideInfo{RealName: "core"}}},
 		}, nil
@@ -148,7 +172,7 @@ func (s *preseedSuite) TestSystemSnapFromSnapdSeed(c *C) {
 	tmpDir := c.MkDir()
 
 	restore := preseed.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) {
-		return &Fake16Seed{
+		return &FakeSeed{
 			AssertsModel: mockClassicModel(),
 			Essential:    []*seed.Snap{{Path: "/some/path/snapd.snap", SideInfo: &snap.SideInfo{RealName: "snapd"}}},
 			UsesSnapd:    true,
@@ -174,7 +198,7 @@ func (s *preseedSuite) TestSystemSnapFromSeedOpenError(c *C) {
 func (s *preseedSuite) TestSystemSnapFromSeedErrors(c *C) {
 	tmpDir := c.MkDir()
 
-	fakeSeed := &Fake16Seed{}
+	fakeSeed := &FakeSeed{}
 	fakeSeed.AssertsModel = mockClassicModel()
 
 	restore := preseed.MockSeedOpen(func(rootDir, label string) (seed.Seed, error) { return fakeSeed, nil })
@@ -301,15 +325,18 @@ func (s *preseedSuite) TestCreatePreseedArtifact(c *C) {
 "exclude": ["/etc/bar/x*"],
 "include": ["/etc/bar/a", "/baz/*"]
 }`
-	c.Assert(os.MkdirAll(filepath.Join(writableDir, "system-data/var/lib/snapd"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableDir, "system-data/var/lib/snapd/preseed-export.json"), []byte(exportFileContents), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/usr/lib/snapd"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "/usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(prepareDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	opts := &preseed.PreseedOpts{
-		PrepareImageDir: prepareDir,
-		WritableDir:     writableDir,
-		SystemLabel:     "20220203",
+		PreseedChrootDir: tmpDir,
+		PrepareImageDir:  prepareDir,
+		WritableDir:      writableDir,
+		SystemLabel:      "20220203",
 	}
-	c.Assert(preseed.CreatePreseedArtifact(opts), Equals, nil)
+	_, err := preseed.CreatePreseedArtifact(opts)
+	c.Assert(err, IsNil)
 	c.Check(mockTar.Calls(), DeepEquals, [][]string{
 		{"tar", "-czf", filepath.Join(tmpDir, "prepare-dir/system-seed/systems/20220203/preseed.tgz"), "-p", "-C",
 			filepath.Join(writableDir, "system-data"), "--exclude", "/etc/bar/x*", "etc/bar/a", "baz/b"},

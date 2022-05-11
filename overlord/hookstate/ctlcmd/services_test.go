@@ -110,7 +110,7 @@ version: 1.0
 summary: test-snap
 apps:
  normal-app:
-  command: bin/dummy
+  command: bin/test
  test-service:
   command: bin/service
   daemon: simple

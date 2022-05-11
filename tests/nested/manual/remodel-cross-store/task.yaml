@@ -1,10 +1,12 @@
 summary: verify a simple UC20 remodel
+
 details: |
     Execute a cross-store remodel scenario under the test-snapd brand. The
     original model uses the same test-snapd-whitebox device view store, while the
     target model uses test-snapd-remodel store. The new model requires additional
     snaps that are present in the test-snapd-remodel store.
 
+# ubuntu-22.04-64: enable when test-snapd-remodel-pc is release on 22/stable
 systems: [ubuntu-18.04-64, ubuntu-20.04-64]
 
 environment:
@@ -13,6 +15,9 @@ environment:
     NESTED_ENABLE_TPM: false
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_USE_CLOUD_INIT: false
+    NESTED_REPACK_KERNEL_SNAP: false
+    NESTED_REPACK_GADGET_SNAP: false
+    NESTED_REPACK_BASE_SNAP: false
     SNAPD_TEST_BRAND: test-snapd
     # store we are remodeling from
     SNAPD_STORE_WHITEBOX: CQvkdMjgbapk821Po2cF
@@ -25,17 +30,7 @@ environment:
     SERIAL: 1234-snapd-remodel-testing-cross-store
 
 prepare: |
-    # shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB"/nested.sh
-    UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-    variant=18
-    if os.query is-focal; then
-        variant=20
-    fi
-    IMAGE_NAME="$(nested_get_image_name core)"
-    # fetch the snapd snap from edge and repack the deb into the snap
-    snap download --channel="latest/edge" snapd
-    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
+    variant="$(tests.nested show version)"
 
     # TODO: once the gadget snap is published to the brand store, we should
     # download it here and add the test specific bits
@@ -44,43 +39,20 @@ prepare: |
     echo "$SERIAL" > test-snapd-remodel-pc/serial
     snap pack test-snapd-remodel-pc
 
-    UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth" \
-        "$UBUNTU_IMAGE" snap "$TESTSLIB/assertions/test-snapd-remodel-pc-$variant.model" \
-            --snap test-snapd-remodel-pc_*.snap \
-            --snap "$PWD/snapd-from-deb.snap" \
-            --output-dir "$NESTED_IMAGES_DIR"
-    # ubuntu-image dropped the --output parameter, so we have to rename
-    # the image ourselves, the images are named after volumes listed in
-    # gadget.yaml
-    find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
-        if [ -e "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
-            echo "Image $IMAGE_NAME file already present"
-            exit 1
-        fi
-        mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-    done
+    REMODEL_SNAP=$(ls test-snapd-remodel-pc_*.snap)
+    mv "$REMODEL_SNAP" "$(tests.nested get extra-snaps-path)"
 
-    nested_create_assertions_disk
-    nested_start_core_vm
-
-restore: |
-    # shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB"/nested.sh
-    nested_shutdown
+    export UBUNTU_STORE_AUTH_DATA_FILENAME="$TESTSLIB/remodel-store-viewer.auth"
+    export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-pc-$variant.model"
+    tests.nested build-image core
+    tests.nested create-vm core
 
 execute: |
-    # shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB"/nested.sh
-
-    variant=18
-    if os.query is-focal; then
-        variant=20
-    fi
-
+    variant="$(tests.nested show version)"
     boot_id="$(tests.nested boot-id)"
 
     # wait until device is initialized and has a serial
-    nested_wait_for_device_initialized_change
+    tests.nested wait-for device-initialized
 
     tests.nested exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
     tests.nested exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_WHITEBOX\$"
@@ -100,8 +72,8 @@ execute: |
     # check that now
     tests.nested exec sudo snap changes | MATCH "^${CHANGE_ID}\s+Done"
 
-    current_boot_id="$( nested_get_boot_id )"
-    if [ "$variant" = "20" ]; then
+    current_boot_id="$( tests.nested boot-id )"
+    if [ "$variant" = "20" ] || [ "$variant" = "22" ]; then
         # we should have rebooted a couple of times (at least twice for the recovery
         # system and the base), so boot-id should be different
         test "$boot_id" != "$current_boot_id"

@@ -61,6 +61,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -4232,13 +4233,44 @@ func (s *snapmgrTestSuite) TestFinishRestartBasics(c *C) {
 	c.Check(err, FitsTypeOf, &state.Retry{})
 }
 
+func (s *snapmgrTestSuite) TestFinishRestartNoopWhenPreseeding(c *C) {
+	r := release.MockOnClassic(true)
+	defer r()
+
+	restorePreseeding := snapdenv.MockPreseeding(true)
+	defer restorePreseeding()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.NewTask("auto-connect", "...")
+
+	// not restarting
+	si := &snap.SideInfo{RealName: "some-app"}
+	snaptest.MockSnap(c, "name: some-app\nversion: 1", si)
+	snapsup := &snapstate.SnapSetup{SideInfo: si}
+	err := snapstate.FinishRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	restart.MockPending(st, restart.RestartDaemon)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, IsNil)
+
+	// verification: retry when not preseeding
+	snapdenv.MockPreseeding(false)
+	err = snapstate.FinishRestart(task, snapsup)
+	c.Check(err, FitsTypeOf, &state.Retry{})
+}
+
 func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()
 
 	var generateWrappersCalled bool
-	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info) error {
+	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error {
 		c.Assert(snapInfo.SnapName(), Equals, "snapd")
+		c.Assert(opts, IsNil)
 		generateWrappersCalled = true
 		return nil
 	})
@@ -7952,28 +7984,28 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 
 	// try a kernel snap first
 	si := &snap.SideInfo{RealName: "some-kernel", Revision: snap.R(2)}
-	tPrepare := s.state.NewTask("prepare-snap", "dummy task")
+	tPrepare := s.state.NewTask("prepare-snap", "test task")
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     "kernel",
 	}
 	tPrepare.Set("snap-setup", snapsup)
-	tDummy := s.state.NewTask("dummy-task", "dummy task")
-	ts := state.NewTaskSet(tPrepare, tDummy)
+	testTask := s.state.NewTask("test-task", "test task")
+	ts := state.NewTaskSet(tPrepare, testTask)
 
 	tsNew, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(nonReLinkKinds)))
-	// since this is the kernel, we have our task + dummy task + update-gadget-assets + link-snap
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap", "test-task"}, kindsToSet(nonReLinkKinds)))
+	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]
 	tLink := tasks[3]
 	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
 	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{
-		tDummy,
+		testTask,
 	})
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
@@ -7989,7 +8021,7 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 
 	// try with base snap
 	si = &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
-	tPrepare = s.state.NewTask("prepare-snap", "dummy task")
+	tPrepare = s.state.NewTask("prepare-snap", "test task")
 	tPrepare.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     "base",
@@ -8081,21 +8113,21 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	defer s.state.Unlock()
 
 	si := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(3)}
-	tPrepare := s.state.NewTask("prepare-snap", "dummy task")
+	tPrepare := s.state.NewTask("prepare-snap", "test task")
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: si,
 		Type:     "gadget",
 	}
 	tPrepare.Set("snap-setup", snapsup)
-	tDummy := s.state.NewTask("dummy-task", "dummy task")
-	ts := state.NewTaskSet(tPrepare, tDummy)
+	testTask := s.state.NewTask("test-task", "test task")
+	ts := state.NewTaskSet(tPrepare, testTask)
 
 	tsNew, err := snapstate.AddGadgetAssetsTasks(s.state, ts)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap", "dummy-task"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
-	// since this is the gadget, we have our task + dummy task + update assets + update cmdline
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeGadget, 0, 0, []string{"prepare-snap", "test-task"}, kindsToSet(append(nonReLinkKinds, "link-snap"))))
+	// since this is the gadget, we have our task + test task + update assets + update cmdline
 	c.Assert(tasks, HasLen, 4)
 	tUpdateGadgetAssets := tasks[2]
 	tUpdateGadgetCmdline := tasks[3]
@@ -8103,7 +8135,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from gadget "some-gadget" (3) for remodel`)
 	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{
 		// waits for the last task in the set
-		tDummy,
+		testTask,
 	})
 	c.Assert(tUpdateGadgetCmdline.Kind(), Equals, "update-gadget-cmdline")
 	c.Assert(tUpdateGadgetCmdline.Summary(), Equals, `Update kernel command line from gadget "some-gadget" (3) for remodel`)

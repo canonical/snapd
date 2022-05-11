@@ -1,6 +1,6 @@
-summary: Test that UC20 can use cloud-init config on ubuntu-seed with grade signed.
+summary: Test that UC2* can use cloud-init config on ubuntu-seed with grade signed.
 
-systems: [ubuntu-20.04-64]
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
   # three variants
@@ -30,9 +30,9 @@ environment:
 
   # use the testrootorg auto-import assertion
   # TODO: commit the Go code used to create this assertion from the json file
-  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
+  NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-{VERSION}-auto-import.assert
 
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-signed.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-signed.model
   NESTED_IMAGE_ID: grade-signed-cloud-init-maas-$GADGET_DATASOURCE
 
   # for the fake store
@@ -50,6 +50,8 @@ prepare: |
   fi
 
   snap install remarshal jq
+  tests.cleanup defer snap remove remarshal
+  tests.cleanup defer snap remove jq
 
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
@@ -77,9 +79,12 @@ prepare: |
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
+  # Get the nested system version
+  VERSION="$(tests.nested show version)"
+
   # modify and repack gadget snap to add a defaults section and use our own
   # prepare-device hook to use the fakedevicesvc
-  snap download --basename=pc --channel="20/edge" pc
+  snap download --basename=pc --channel="$VERSION/edge" pc
   unsquashfs -d pc-gadget pc.snap
 
   # delay all refreshes for a week from now, as otherwise refreshes for our

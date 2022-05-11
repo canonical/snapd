@@ -1151,6 +1151,7 @@ func (s *RelativeOffset) UnmarshalYAML(unmarshal func(interface{}) error) error 
 
 // IsCompatible checks whether the current and an update are compatible. Returns
 // nil or an error describing the incompatibility.
+// TODO: make this reasonably consistent with Update for multi-volume scenarios
 func IsCompatible(current, new *Info) error {
 	// XXX: the only compatibility we have now is making sure that the new
 	// layout can be used on an existing volume

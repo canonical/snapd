@@ -121,7 +121,7 @@ func MockDeviceContext(deviceCtx snapstate.DeviceContext) (restore func()) {
 	// remodeling
 	r2 := ReplaceRemodelingHook(func(s *state.State) *state.Change {
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
-			return s.NewChange("dummy", "dummy remodeling change")
+			return s.NewChange("sample", "test remodeling change")
 		}
 
 		return nil

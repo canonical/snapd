@@ -143,8 +143,8 @@ nested_uc20_transition_to_system_mode() {
     local recovery_system="$1"
     local mode="$2"
 
-    if ! nested_is_core_20_system; then
-        echo "Transition can be done just on uc20 system, exiting..."
+    if ! nested_is_core_20_system && ! nested_is_core_22_system; then
+        echo "Transition can be done just on uc20 and uc22 systems, exiting..."
         exit 1
     fi
 
@@ -250,7 +250,9 @@ nested_create_assertions_disk() {
     # use custom assertion if set
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
-        AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        AUTO_IMPORT_ASSERT="$(echo "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" | sed "s/{VERSION}/$VERSION/g")"
     else
         local per_model_auto
         per_model_auto="$(nested_model_authority).auto-import.assert"
@@ -389,6 +391,10 @@ nested_is_classic_system() {
     test "$NESTED_TYPE" = "classic"
 }
 
+nested_is_core_22_system() {
+    os.query is-jammy
+}
+
 nested_is_core_20_system() {
     os.query is-focal
 }
@@ -414,7 +420,7 @@ nested_refresh_to_new_core() {
             nested_exec "snap info core" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         fi
 
-        if nested_is_core_18_system || nested_is_core_20_system; then
+        if nested_is_core_18_system || nested_is_core_20_system || nested_is_core_22_system; then
             nested_exec "sudo snap refresh snapd --${NEW_CHANNEL}"
             nested_exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
@@ -474,7 +480,10 @@ nested_get_image_name() {
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION="16"
 
-    if nested_is_core_20_system; then
+
+    if nested_is_core_22_system; then
+        VERSION="22"
+    elif nested_is_core_20_system; then
         VERSION="20"
     elif nested_is_core_18_system; then
         VERSION="18"
@@ -534,10 +543,24 @@ nested_download_image() {
     fi
 }
 
+nested_get_version() {
+    if nested_is_core_16_system; then
+        echo "16"
+    elif nested_is_core_18_system; then
+        echo "18"
+    elif nested_is_core_20_system; then
+        echo "20"
+    elif nested_is_core_22_system; then
+        echo "22"
+    fi
+}
+
 nested_get_model() {
     # use custom model if defined
     if [ -n "$NESTED_CUSTOM_MODEL" ]; then
-        echo "$NESTED_CUSTOM_MODEL"
+        VERSION="$(nested_get_version)"
+        # shellcheck disable=SC2001
+        echo "$NESTED_CUSTOM_MODEL" | sed "s/{VERSION}/$VERSION/g"
         return
     fi
     case "$SPREAD_SYSTEM" in
@@ -549,6 +572,9 @@ nested_get_model() {
             ;;
         ubuntu-20.04-64)
             echo "$TESTSLIB/assertions/nested-20-amd64.model"
+            ;;
+        ubuntu-22.04-64)
+            echo "$TESTSLIB/assertions/nested-22-amd64.model"
             ;;
         *)
             echo "unsupported system"
@@ -611,10 +637,12 @@ nested_create_core_vm() {
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if nested_is_core_16_system; then
+                    echo "Repacking core snap"
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
                 elif nested_is_core_18_system; then
+                    echo "Repacking snapd snap"
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
@@ -624,38 +652,45 @@ nested_create_core_vm() {
                     if [ -d "$(nested_get_extra_snaps_path)" ]; then
                         CORE18_SNAP=$(find extra-snaps -name 'core18*.snap')
                     fi
-                    if [ -z "$CORE18_SNAP" ]; then
+                    if [ -z "$CORE18_SNAP" ] && [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+                        echo "Repacking core18 snap"
                         snap download --channel="$CORE_CHANNEL" --basename=core18 core18
                         repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
                         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core18.snap"
+                        rm core18.snap
                     fi
 
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
                         make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
                     fi
 
-                elif nested_is_core_20_system; then
-                    snap download --basename=pc-kernel --channel="20/edge" pc-kernel
+                elif nested_is_core_20_system || nested_is_core_22_system; then
+                    VERSION="$(nested_get_version)"
+                    if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
+                        echo "Repacking kernel snap"
+                        snap download --basename=pc-kernel --channel="$VERSION/edge" pc-kernel
 
-                    # set the unix bump time if the NESTED_* var is set, 
-                    # otherwise leave it empty
-                    local epochBumpTime
-                    epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-                    if [ -n "$epochBumpTime" ]; then
-                        epochBumpTime="--epoch-bump-time=$epochBumpTime"
-                    fi
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                    rm -f "$PWD/pc-kernel.snap"
+                        # set the unix bump time if the NESTED_* var is set, 
+                        # otherwise leave it empty
+                        local epochBumpTime
+                        epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                        if [ -n "$epochBumpTime" ]; then
+                            epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                        fi
 
-                    # Prepare the pc kernel snap
-                    KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
+                        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
+                        rm -f "$PWD/pc-kernel.snap"
 
-                    chmod 0600 "$KERNEL_SNAP"
-                    EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+                        # Prepare the pc kernel snap
+                        KERNEL_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
 
-                    # sign the pc-kernel snap with fakestore if requested
-                    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        chmod 0600 "$KERNEL_SNAP"
+                        EXTRA_FUNDAMENTAL="--snap $KERNEL_SNAP"
+
+                        # sign the pc-kernel snap with fakestore if requested
+                        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+                            make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        fi
                     fi
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -665,14 +700,15 @@ nested_create_core_vm() {
                         GADGET_SNAP=$(find extra-snaps -name 'pc_*.snap')
                     fi
                     # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
-                    if [ -z "$GADGET_SNAP" ]; then
+                    if [ -z "$GADGET_SNAP" ] && [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
+                        echo "Repacking pc snap"
                         # Get the snakeoil key and cert
                         local KEY_NAME SNAKEOIL_KEY SNAKEOIL_CERT
                         KEY_NAME=$(nested_get_snakeoil_key)
                         SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
                         SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-                        snap download --basename=pc --channel="20/edge" pc
+                        snap download --basename=pc --channel="$VERSION/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
                         case "${NESTED_UBUNTU_SAVE:-}" in
@@ -713,7 +749,7 @@ EOF
                         make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
                     fi
 
-                    # repack the snapd snap
+                    echo "Repacking snapd snap"
                     snap download --channel="latest/edge" snapd
                     "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
@@ -723,14 +759,19 @@ EOF
                         make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
                     fi
 
-                    # which channel?
-                    snap download --channel="$CORE_CHANNEL" --basename=core20 core20
-                    repack_core_snap_with_tweaks "core20.snap" "new-core20.snap"
-                    EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core20.snap"
+                    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+                        snap download --channel="$CORE_CHANNEL" --basename="core$VERSION" "core$VERSION"
+                        repack_core_snap_with_tweaks "core$VERSION.snap" "new-core$VERSION.snap"
+                        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/new-core$VERSION.snap"
+                    fi
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+                        CORE_SNAP_IP=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+                        if nested_is_core_22_system; then
+                            CORE_SNAP_IP=amcUKQILKXHHTlmSa7NMdnXSx02dNeeT
+                        fi
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core${VERSION}.snap" "$CORE_SNAP_IP"
                     fi
 
                 else
@@ -780,7 +821,7 @@ EOF
 
     # Configure the user for the vm
     if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-        if nested_is_core_20_system; then
+        if nested_is_core_20_system || nested_is_core_22_system; then
             nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
         else
             nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
@@ -944,8 +985,8 @@ nested_force_stop_vm() {
 nested_force_start_vm() {
     # if the nested-vm is using a swtpm, we need to wait until the file exists
     # because the file disappears temporarily after qemu exits
-    if systemctl show nested-vm -p ExecStart | grep -q swtpm-mvo; then
-        retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
+    if systemctl show nested-vm -p ExecStart | grep -q test-snapd-swtpm; then
+        retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
     fi
     systemctl start nested-vm
 }
@@ -974,7 +1015,7 @@ nested_start_core_vm_unit() {
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
     PARAM_USB="-usb"
     PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
@@ -993,7 +1034,7 @@ nested_start_core_vm_unit() {
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
-        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
 
     # save logs from previous runs
@@ -1041,12 +1082,19 @@ nested_start_core_vm_unit() {
         # storage to
         PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
-    if nested_is_core_20_system; then
+    if nested_is_core_20_system || nested_is_core_22_system; then
         # use a bundle EFI bios by default
         PARAM_BIOS="-bios /usr/share/ovmf/OVMF.fd"
         local OVMF_CODE OVMF_VARS
         OVMF_CODE="secboot"
         OVMF_VARS="ms"
+
+        if nested_is_core_22_system; then
+            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_CODE.secboot.fd
+            mv OVMF_CODE.secboot.fd /usr/share/OVMF/OVMF_CODE.secboot.fd
+            wget https://storage.googleapis.com/snapd-spread-tests/dependencies/OVMF_VARS.snakeoil.fd
+            mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
+        fi
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
         if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             OVMF_VARS="snakeoil"
@@ -1055,24 +1103,23 @@ nested_start_core_vm_unit() {
         if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
             PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
         fi
-        
         if nested_is_secure_boot_enabled; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
-            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
+            PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly=on -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
             PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list swtpm-mvo >/dev/null; then
+            if snap list test-snapd-swtpm >/dev/null; then
                 # reset the tpm state
-                rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo > /dev/null
+                rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
+                snap restart test-snapd-swtpm > /dev/null
             else
-                snap install swtpm-mvo --beta
+                snap install test-snapd-swtpm --beta
             fi
             # wait for the tpm sock file to exist
-            retry -n 10 --wait 1 test -S /var/snap/swtpm-mvo/current/swtpm-sock
-            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/swtpm-mvo/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+            retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
+            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
         fi
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1"
     else
@@ -1270,7 +1317,7 @@ nested_start_classic_vm() {
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CPU PARAM_CD PARAM_RANDOM PARAM_SNAPSHOT
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
-    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
+    PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
     PARAM_USB="-usb"
     PARAM_CPU=""
     PARAM_CD="${NESTED_PARAM_CD:-}"
@@ -1308,7 +1355,7 @@ nested_start_classic_vm() {
         # XXX: remove once we no longer support xenial hosts
         PARAM_SERIAL="-serial file:${NESTED_LOGS_DIR}/serial.log"
     else
-        PARAM_SERIAL="-chardev socket,telnet,host=localhost,server,port=7777,nowait,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
+        PARAM_SERIAL="-chardev socket,telnet=on,host=localhost,server=on,port=7777,wait=off,id=char0,logfile=${NESTED_LOGS_DIR}/serial.log,logappend=on -serial chardev:char0"
     fi
     PARAM_BIOS=""
     PARAM_TPM=""

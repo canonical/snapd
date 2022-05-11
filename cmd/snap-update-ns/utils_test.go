@@ -1047,7 +1047,7 @@ func (s *realSystemSuite) TestSecureMksymlinkAllForReal(c *C) {
 }
 
 func (s *utilsSuite) TestCleanTrailingSlash(c *C) {
-	// This is a sanity test for the use of filepath.Clean in secureMk{dir,file}All
+	// This is a validity test for the use of filepath.Clean in secureMk{dir,file}All
 	c.Assert(filepath.Clean("/path/"), Equals, "/path")
 	c.Assert(filepath.Clean("path/"), Equals, "path")
 	c.Assert(filepath.Clean("path/."), Equals, "path")

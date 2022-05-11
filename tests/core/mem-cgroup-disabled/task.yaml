@@ -1,5 +1,10 @@
 summary: Check basic functionality when memory cgroup is disabled
 
+# external backends fails because a signed gadget cannot be replaced
+# with an unsigned one
+# TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed
+backends: [-external]
+
 # only run on UC20+ to use the convenient cmdline.extra file
 systems: [ubuntu-core-2*]
 
@@ -37,7 +42,6 @@ execute: |
     echo "Skipping non-grub device test"
     exit 0
   fi
-
   case "$SPREAD_REBOOT" in 
     0)
       # ensure memory cgroups is enabled to start
@@ -82,6 +86,9 @@ execute: |
 
       # and we get the expected error message
       snap quota grp 2>&1 | MATCH "error: memory usage unavailable"
+
+      # updating quota groups does not work and gives a useful error message
+      snap set-quota --memory=200MB grp 2>&1 | tr -s "\n " " " | MATCH 'error: cannot update quota group: cannot update group "grp": cannot use memory quota: memory cgroup is disabled on this system'
 
       # make sure our snap still has the Slice setting
       MATCH Slice=snap.grp.slice < "$SVC_UNIT"

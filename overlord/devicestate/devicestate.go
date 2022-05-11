@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -135,7 +135,7 @@ func canAutoRefresh(st *state.State) (bool, error) {
 		return true, nil
 	}
 
-	// Check model exists, for sanity. We always have a model, either
+	// Check model exists, for validity. We always have a model, either
 	// seeded or a generic one that ships with snapd.
 	_, err := findModel(st)
 	if err == state.ErrNoState {
@@ -230,7 +230,7 @@ func checkGadgetValid(st *state.State, snapInfo, _ *snap.Info, snapf snap.Contai
 		return nil
 	}
 
-	// do basic validity checks on the gadget against its model constraints
+	// do basic precondition checks on the gadget against its model constraints
 	_, err := gadget.ReadInfoFromSnapFile(snapf, deviceCtx.Model())
 	return err
 }
@@ -879,7 +879,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	if current.Grade() != new.Grade() {
 		if current.Grade() == asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
 			// a case of pre-UC20 -> UC20 remodel
-			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+			return nil, fmt.Errorf("cannot remodel from pre-UC20 to UC20+ models")
 		}
 		return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
 	}
@@ -1031,7 +1031,7 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
-	// sanity check, the directory should not exist yet
+	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
 	if err != nil {

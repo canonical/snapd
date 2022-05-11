@@ -21,6 +21,7 @@ package disks_test
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -235,6 +236,9 @@ func (s *gptSuite) TestReadFileFail(c *C) {
 }
 
 func (s *gptSuite) TestCalculateSize(c *C) {
+	if _, err := exec.LookPath("blockdev"); err != nil && errors.Is(err, exec.ErrNotFound) {
+		c.Skip("blockdev command not available")
+	}
 	calculated, err := disks.CalculateLastUsableLBA(s.image)
 	c.Assert(err, IsNil)
 	gptHeader, err := disks.ReadGPTHeader(s.image)
@@ -244,6 +248,9 @@ func (s *gptSuite) TestCalculateSize(c *C) {
 }
 
 func (s *gptSuite) TestCalculateSizeResized(c *C) {
+	if _, err := exec.LookPath("blockdev"); err != nil && errors.Is(err, exec.ErrNotFound) {
+		c.Skip("blockdev command not available")
+	}
 	err := exec.Command("truncate", "--size", "256M", s.image).Run()
 	c.Assert(err, IsNil)
 

@@ -730,7 +730,7 @@ func complainAction() seccomp.ScmpAction {
 	}
 
 	// Because ActLog is functionally ActAllow with logging, if we don't
-	// support ActLog, fallback to ActLog.
+	// support ActLog, fallback to ActAllow.
 	return seccomp.ActAllow
 }
 

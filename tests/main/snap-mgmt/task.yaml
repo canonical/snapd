@@ -74,12 +74,24 @@ prepare: |
         test "$(find /etc/systemd/system -name 'snap.*.slice' | wc -l)" -gt 0
     fi
 
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    if [ -e pkg-removed ]; then
+        distro_install_build_snapd
+        rm pkg-removed
+    fi
+
+debug: |
+    systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
+
 execute: |
     echo "Stop snapd before purging"
     systemctl stop snapd.service snapd.socket
 
     echo "A purge will really purge things"
     snapd.tool exec snap-mgmt --purge
+    touch pkg-removed
 
     echo "Data directories are empty"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"

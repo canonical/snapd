@@ -192,3 +192,30 @@ reinstall:  1234
 	c.Check(s.Stderr(), Equals, "")
 	c.Check(n, Equals, 1)
 }
+
+func (s *SnapSuite) TestRecoveryShowRecoveryKeyAloneHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/system-recovery-keys")
+			c.Check(r.URL.RawQuery, Equals, "")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"recovery-key": "61665-00531-54469-09783-47273-19035-40077-28287"}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, `recovery:  61665-00531-54469-09783-47273-19035-40077-28287
+`)
+	c.Check(s.Stderr(), Equals, "")
+	c.Check(n, Equals, 1)
+}

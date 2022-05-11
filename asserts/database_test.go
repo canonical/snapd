@@ -1510,6 +1510,99 @@ func (safs *signAddFindSuite) TestFindMaxFormat(c *C) {
 	c.Check(err, ErrorMatches, `cannot find "test-only" assertions for format 3 higher than supported format 1`)
 }
 
+func (safs *signAddFindSuite) TestFindOptionalPrimaryKeys(c *C) {
+	r := asserts.MockOptionalPrimaryKey(asserts.TestOnlyType, "opt1", "o1-defl")
+	defer r()
+
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "k1",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "k2",
+		"opt1":         "A",
+	}
+	a2, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a2)
+	c.Assert(err, IsNil)
+
+	a, err := safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.HeaderString("primary-key"), Equals, "k1")
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	a, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "o1-defl",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.HeaderString("primary-key"), Equals, "k1")
+	c.Check(a.HeaderString("opt1"), Equals, "o1-defl")
+
+	a, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k2",
+		"opt1":        "A",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.HeaderString("primary-key"), Equals, "k2")
+	c.Check(a.HeaderString("opt1"), Equals, "A")
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k3",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k3",
+		},
+	})
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k2",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k2",
+		},
+	})
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k2",
+		"opt1":        "B",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k2",
+			"opt1":        "B",
+		},
+	})
+
+	_, err = safs.db.Find(asserts.TestOnlyType, map[string]string{
+		"primary-key": "k1",
+		"opt1":        "B",
+	})
+	c.Check(err, DeepEquals, &asserts.NotFoundError{
+		Type: asserts.TestOnlyType,
+		Headers: map[string]string{
+			"primary-key": "k1",
+			"opt1":        "B",
+		},
+	})
+}
+
 func (safs *signAddFindSuite) TestWithStackedBackstore(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",

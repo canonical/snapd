@@ -8,6 +8,9 @@ apps:
   account-control:
     command: bin/run
     plugs: [ account-control ]
+  acrn-support:
+    command: bin/run
+    plugs: [ acrn-support ]
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
@@ -440,9 +443,9 @@ apps:
   system-trace:
     command: bin/run
     plugs: [ system-trace ]
-  dummy:
+  empty:
     command: bin/run
-    plugs: [ dummy ]
+    plugs: [ empty ]
   tee:
     command: bin/run
     plugs: [ tee ]
@@ -551,8 +554,8 @@ plugs:
     interface: personal-files
     read: [$HOME/file1]
     write: [$HOME/dir1]
-  dummy:
-    interface: dummy
+  empty:
+    interface: empty
   sd-control:
     interface: sd-control
     flavor: dual-sd

@@ -917,9 +917,9 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 		Current:  si.Revision,
 	}
 	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
-		return &snapstate.BusySnapError{SnapInfo: si}
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
-	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 	c.Check(notificationCount, Equals, 1)
 }
 
@@ -949,9 +949,9 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	}
 
 	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
-		return &snapstate.BusySnapError{SnapInfo: si}
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
-	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 	c.Check(notificationCount, Equals, 1)
 }
 

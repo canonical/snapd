@@ -500,6 +500,18 @@ func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	c.Check(taskset.Tasks(), check.HasLen, 0)
 }
 
+func (snapshotSuite) TestSaveSnapNotInstalled(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	setID, saved, taskset, err := snapshotstate.Save(st, []string{"foo"}, nil)
+	c.Assert(err, check.ErrorMatches, `snap "foo" is not installed`)
+	c.Check(setID, check.Equals, uint64(0))
+	c.Check(saved, check.HasLen, 0)
+	c.Check(taskset, check.IsNil)
+}
+
 func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
 		return map[string]*snapstate.SnapState{
@@ -527,17 +539,23 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
 }
 
-func (snapshotSuite) TestSaveOneSnap(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
+	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[string]*snapstate.SnapState, error) {
 		// snapstate.All isn't called when a snap name is passed in
 		return nil, errors.New("bzzt")
-	}
-
-	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+	})()
 
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	snapstate.Set(st, "a-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "a-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
 
 	setID, saved, taskset, err := snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"})
 	c.Assert(err, check.IsNil)
@@ -652,7 +670,7 @@ func (snapshotSuite) TestSaveIntegrationFails(c *check.C) {
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -735,18 +753,18 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 3)
 
 	// task 0 (for "one-snap") will have been undone
-	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // sanity check: task 0 is one-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"one-snap"`) // validity check: task 0 is one-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.UndoneStatus)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `(?ms)\S+ ERROR cannot create archive:
 /bin/tar: common/common-too-snap: .* Permission denied
 /bin/tar: Exiting with failure status due to previous errors`)
 
 	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
-	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
+	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // validity check: task 2 is tri-snap's
 	c.Check(tasks[2].Status(), check.Equals, state.ErrorStatus, check.Commentf("if this ever fails, duplicate the fake tar sleeps please"))
 	// sometimes you'll get one, sometimes you'll get the other (depending on ordering of events)
 	c.Check(strings.Join(tasks[2].Log(), "\n"), check.Matches, `\S+ ERROR( tar failed:)? context canceled`)
@@ -762,7 +780,7 @@ func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, ex
 		c.Skip("this test cannot run as root (runuser will fail)")
 	}
 	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
-	// sanity check: no files in snapshot dir
+	// precondition check: no files in snapshot dir
 	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
@@ -835,7 +853,7 @@ exec /bin/tar "$@"
 	c.Assert(tasks, check.HasLen, 1)
 
 	// task 1 (for "too-snap") will have errored
-	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // validity check: task 1 is too-snap's
 	c.Check(tasks[0].Status(), check.Equals, state.ErrorStatus)
 	c.Check(strings.Join(tasks[0].Log(), "\n"), check.Matches, expectedErr)
 

@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
@@ -103,7 +104,7 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenv(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// make sure relevant locations exist
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,
@@ -128,7 +129,7 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	return sealKeyToModeenvUsingSecboot(key, saveKey, modeenv)
 }
 
-func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
+func runKeySealRequests(key keys.EncryptionKey) []secboot.SealKeyRequest {
 	return []secboot.SealKeyRequest{
 		{
 			Key:     key,
@@ -138,7 +139,7 @@ func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
 	}
 }
 
-func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealKeyRequest {
+func fallbackKeySealRequests(key, saveKey keys.EncryptionKey) []secboot.SealKeyRequest {
 	return []secboot.SealKeyRequest{
 		{
 			Key:     key,
@@ -153,14 +154,14 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	}
 }
 
-func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey keys.EncryptionKey, modeenv *Modeenv) error {
 	// XXX: Move the auxKey creation to a more generic place, see
 	// PR#10123 for a possible way of doing this. However given
 	// that the equivalent key for the TPM case is also created in
 	// sealKeyToModeenvUsingTPM more symetric to create the auxKey
 	// here and when we also move TPM to use the auxKey to move
 	// the creation of it.
-	auxKey, err := secboot.NewAuxKey()
+	auxKey, err := keys.NewAuxKey()
 	if err != nil {
 		return fmt.Errorf("cannot create aux key: %v", err)
 	}
@@ -181,7 +182,7 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, modee
 	return nil
 }
 
-func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -264,7 +265,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, modeenv *M
 	return nil
 }
 
-func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
+func sealRunObjectKeys(key keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return fmt.Errorf("cannot prepare for key sealing: %v", err)
@@ -290,7 +291,7 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 	return nil
 }
 
-func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
+func sealFallbackObjectKeys(key, saveKey keys.EncryptionKey, pbc predictableBootChains, authKey *ecdsa.PrivateKey, roleToBlName map[bootloader.Role]string) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := sealKeyModelParams(pbc, roleToBlName)
 	if err != nil {

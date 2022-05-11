@@ -129,13 +129,13 @@ func (*apparmorSuite) TestMockAppArmorFeatures(c *C) {
 	restore()
 
 	// Complete parser features but apparmor is unusable because of missing required kernel features.
-	// The dummy feature is there to pretend that apparmor in the kernel is not entirely disabled.
-	restore = apparmor.MockFeatures([]string{"dummy-feature"}, nil, apparmor.RequiredParserFeatures, nil)
+	// The test feature is there to pretend that apparmor in the kernel is not entirely disabled.
+	restore = apparmor.MockFeatures([]string{"test-feature"}, nil, apparmor.RequiredParserFeatures, nil)
 	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unusable)
 	c.Check(apparmor.Summary(), Equals, "apparmor is enabled but required kernel features are missing: file")
 	features, err = apparmor.KernelFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"dummy-feature"})
+	c.Check(features, DeepEquals, []string{"test-feature"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, apparmor.RequiredParserFeatures)

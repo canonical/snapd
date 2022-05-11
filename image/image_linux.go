@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -34,9 +34,11 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/store/tooling"
 
 	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	"github.com/snapcore/snapd/image/preseed"
+	"github.com/snapcore/snapd/osutil"
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -50,6 +52,8 @@ import (
 var (
 	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
+
+	preseedCore20 = preseed.Core20
 )
 
 func (custo *Customizations) validate(model *asserts.Model) error {
@@ -69,7 +73,7 @@ func (custo *Customizations) validate(model *asserts.Model) error {
 	kind := "UC16/18"
 	switch {
 	case core20:
-		kind = "UC20"
+		kind = "UC20+"
 		// TODO:UC20: consider supporting these with grade dangerous?
 		unsupportedConsoleConfDisable()
 		if custo.CloudInitUserData != "" {
@@ -94,7 +98,7 @@ func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
 }
 
-var newToolingStoreFromModel = NewToolingStoreFromModel
+var newToolingStoreFromModel = tooling.NewToolingStoreFromModel
 
 func Prepare(opts *Options) error {
 	var model *asserts.Model
@@ -144,7 +148,22 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	return setupSeed(tsto, model, opts)
+	if err := setupSeed(tsto, model, opts); err != nil {
+		return err
+	}
+
+	if opts.Preseed {
+		// TODO: support UC22
+		if model.Classic() {
+			return fmt.Errorf("cannot preseed the image for a classic model")
+		}
+		if model.Base() != "core20" {
+			return fmt.Errorf("cannot preseed the image for a model other than core20")
+		}
+		return preseedCore20(opts.PrepareDir, opts.PreseedSignKey, opts.AppArmorKernelFeaturesDir)
+	}
+
+	return nil
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -245,7 +264,7 @@ func makeLabel(now time.Time) string {
 	return now.UTC().Format("20060102")
 }
 
-func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
+var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Options) error {
 	if model.Classic() != opts.Classic {
 		return fmt.Errorf("internal error: classic model but classic mode not set")
 	}
@@ -358,7 +377,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	var curSnaps []*CurrentSnap
+	var curSnaps []*tooling.CurrentSnap
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
 		if err != nil && !asserts.IsNotFound(err) {
@@ -380,7 +399,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		sn.ARefs = aRefs
 
 		if info.ID() != "" {
-			curSnaps = append(curSnaps, &CurrentSnap{
+			curSnaps = append(curSnaps, &tooling.CurrentSnap{
 				SnapName: info.SnapName(),
 				SnapID:   info.ID(),
 				Revision: info.Revision,
@@ -411,14 +430,14 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			}
 			return sn.Path, nil
 		}
-		snapToDownloadOptions := make([]SnapToDownload, len(toDownload))
+		snapToDownloadOptions := make([]tooling.SnapToDownload, len(toDownload))
 		for i, sn := range toDownload {
 			byName[sn.SnapName()] = sn
 			snapToDownloadOptions[i].Snap = sn
 			snapToDownloadOptions[i].Channel = sn.Channel
 			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 		}
-		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, DownloadManyOptions{
+		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 			BeforeDownloadFunc: beforeDownload,
 			EnforceValidation:  opts.Customizations.Validation == "enforce",
 		})
@@ -441,7 +460,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			aRefs := f.Refs()[prev:]
 			sn.ARefs = aRefs
 
-			curSnaps = append(curSnaps, &CurrentSnap{
+			curSnaps = append(curSnaps, &tooling.CurrentSnap{
 				SnapName: sn.Info.SnapName(),
 				SnapID:   sn.Info.ID(),
 				Revision: sn.Info.Revision,

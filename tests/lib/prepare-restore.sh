@@ -563,6 +563,9 @@ prepare_project() {
     # Build the tool for signing model assertions
     go install ./tests/lib/gendeveloper1model
 
+    # and the U20 create partitions wrapper
+    go install ./tests/lib/uc20-create-partitions
+
     # On core systems, the journal service is configured once the final core system
     # is created and booted what is done during the first test suite preparation
     if os.query is-classic; then

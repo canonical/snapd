@@ -45,7 +45,7 @@ execute: |
         exit
     fi
 
-    echo "Sanity check for the fake store"
+    echo "Precondition check for the fake store"
     snap refresh 2>&1 | MATCH "All snaps up to date."
 
     echo "When the store is configured to make them refreshable"
