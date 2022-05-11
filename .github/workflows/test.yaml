@@ -83,6 +83,7 @@ jobs:
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
       GITHUB_PULL_REQUEST: ${{ github.event.number }}
+
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -90,6 +91,7 @@ jobs:
         gochannel:
           - 1.13
           - latest/stable
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -127,9 +129,7 @@ jobs:
       id: cache-snapd-test-results
       uses: actions/cache@v1
       with:
-        path: "${{ github.workspace }}/.test-results"
-        # must include matrix or things get racy, i.e. when latest/edge
-        # finishes after 1.9 it overrides the results from 1.9
+        path: "${{ github.workspace }}/.test-results"        
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.gochannel }}-results"
 
     - name: Check cached test results
@@ -180,11 +180,12 @@ jobs:
         # only-new-issues: true
 
     - name: get changed files
-      id: changed-files
+      id: changedfiles
       uses: jitterbit/get-changed-files@v1
       run: |
-        echo "CHANGED_FILES=${{ steps.changed-files.outputs.all }}" >> $GITHUB_ENV
-        echo "changed files = ${{ steps.changed-files.outputs.all }}"
+          CHANGED_FILES="${{ steps.changedfiles.outputs.added_modified }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
 
     - name: Run static checks
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -205,8 +206,8 @@ jobs:
 
     - name: Cache successful run
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
+          mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+          touch "$CACHE_RESULT_STAMP"
 
   unit-tests:
     needs: [static-checks]
@@ -272,8 +273,6 @@ jobs:
       uses: actions/cache@v1
       with:
         path: "${{ github.workspace }}/.test-results"
-        # must include matrix or things get racy, i.e. when latest/edge
-        # finishes after 1.9 it overrides the results from 1.9
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.gochannel }}-${{ matrix.unit-scenario }}-results"
 
     - name: Check cached test results
@@ -302,14 +301,17 @@ jobs:
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j2
+
     - name: Build Go
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           go build github.com/snapcore/snapd/...
+
     - name: Test C
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+
     - name: Reset code coverage data
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
