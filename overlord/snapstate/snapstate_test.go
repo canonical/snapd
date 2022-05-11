@@ -2361,6 +2361,8 @@ func (s *snapmgrTestSuite) TestUndoRevertDoHiddenMigration(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertFromCore22WithSetFlagKeepMigration(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2425,6 +2427,8 @@ func (s *snapmgrTestSuite) TestRevertFromCore22WithSetFlagKeepMigration(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertToCore22WithoutFlagSet(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2491,6 +2495,8 @@ func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedFullMigration(c *C) {
 }
 
 func (s *snapmgrTestSuite) testRevertToCore22AfterRevertedMigration(c *C, migrationState *dirs.SnapDirOptions) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8150,6 +8156,8 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	testCases := []struct {
 		oldBase  string
 		newBase  string

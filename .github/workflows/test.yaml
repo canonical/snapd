@@ -332,7 +332,7 @@ jobs:
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
 
     - name: Check failed tests to run
-      if: "contains(github.event.pull_request.labels.*.name, 'Run failed') && steps.cached-results.outputs.already-ran != 'true'"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           # Save previous failed test results in FAILED_TESTS env var
           FAILED_TESTS=""
@@ -468,7 +468,7 @@ jobs:
           echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/${{ matrix.system }}-failed-tests" >> $GITHUB_ENV
 
     - name: Check failed tests to run
-      if: "contains(github.event.pull_request.labels.*.name, 'Run failed') && steps.cached-results.outputs.already-ran != 'true'"
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all') && steps.cached-results.outputs.already-ran != 'true'"
       run: |
           # Save previous failed test results in FAILED_TESTS env var
           FAILED_TESTS=""

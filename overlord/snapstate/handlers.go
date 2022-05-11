@@ -1323,41 +1323,59 @@ const (
 )
 
 func triggeredMigration(oldBase, newBase string, opts *dirMigrationOptions) migration {
-	// we're refreshing to a core22 revision
-	if atLeastCore22(newBase) {
-		if opts.MigratedToHidden && !opts.MigratedToExposedHome {
-			// ~/.snap migration already happened so initialize ~/Snap only
-			return home
-		}
+	if !opts.MigratedToHidden && opts.UseHidden {
+		// flag is set and not migrated yet
+		return hidden
+	}
 
-		if !opts.MigratedToHidden {
-			//  nothing was migrated yet, so migrate to ~/.snap and ~/Snap
-			return full
-		}
-	} else {
-		// going back from core22
-		if atLeastCore22(oldBase) {
-			if opts.MigratedToExposedHome && opts.MigratedToHidden && !opts.UseHidden {
-				return revertFull
-			}
-
-			if opts.MigratedToExposedHome && opts.MigratedToHidden && opts.UseHidden {
-				return disableHome
-			}
-		} else {
-			if !opts.MigratedToHidden && opts.UseHidden {
-				// flag is set and not migrated yet
-				return hidden
-			}
-
-			if opts.MigratedToHidden && !opts.UseHidden {
-				// migration was done but flag was unset
-				return revertHidden
-			}
-		}
+	if opts.MigratedToHidden && !opts.UseHidden {
+		// migration was done but flag was unset
+		return revertHidden
 	}
 
 	return none
+
+	/* TODO:Snap-folder:
+	             after a discussion during the May 2022 sprint with Copenhagen
+		     it was decided to not do the migration to ~/Snap for all
+		     snaps with "base: core22" but instead add an opt-in mechanism
+
+				// we're refreshing to a core22 revision
+				if atLeastCore22(newBase) {
+					if opts.MigratedToHidden && !opts.MigratedToExposedHome {
+						// ~/.snap migration already happened so initialize ~/Snap only
+						return home
+					}
+
+					if !opts.MigratedToHidden {
+						//  nothing was migrated yet, so migrate to ~/.snap and ~/Snap
+						return full
+					}
+				} else {
+					// going back from core22
+					if atLeastCore22(oldBase) {
+						if opts.MigratedToExposedHome && opts.MigratedToHidden && !opts.UseHidden {
+							return revertFull
+						}
+
+						if opts.MigratedToExposedHome && opts.MigratedToHidden && opts.UseHidden {
+							return disableHome
+						}
+					} else {
+						if !opts.MigratedToHidden && opts.UseHidden {
+							// flag is set and not migrated yet
+							return hidden
+						}
+
+						if opts.MigratedToHidden && !opts.UseHidden {
+							// migration was done but flag was unset
+							return revertHidden
+						}
+					}
+				}
+
+				return none
+	*/
 }
 
 // atLeastCore22 returns true if 'base' is core22 or newer. Returns
