@@ -178,6 +178,8 @@ exit 1
 	defer cmd.Restore()
 	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
 	c.Assert(err, ErrorMatches, "cannot add key: cryptsetup failed with: Other error, cryptsetup boom")
+	// should match the keyslot full error too
+	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, false)
 }
 
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceOccupiedSlot(c *C) {
@@ -215,6 +217,8 @@ exit 1
 	c.Assert(calls, HasLen, 1)
 	c.Assert(calls[0], HasLen, 16)
 	c.Assert(calls[0][:2], DeepEquals, []string{"cryptsetup", "luksAddKey"})
+	// should match the keyslot full error too
+	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, true)
 }
 
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUsingExistingKey(c *C) {
