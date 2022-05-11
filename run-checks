@@ -216,9 +216,10 @@ if [ "$STATIC" = 1 ]; then
             echo "Checking all the bash files"
             INITIAL_FILES="$( ( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' )"
         fi
-        FILTERED_FILES="$( echo $INITIAL_FILES  | grep -v "$exclude_tools_path" )"
+        FILTERED_FILES="$( echo "$INITIAL_FILES"  | grep -v "$exclude_tools_path" )"
         if [ -n "$FILTERED_FILES" ]; then
             echo "Running shellcheck for files: $FILTERED_FILES"
+            # shellcheck disable=SC2086
             shellcheck -x $FILTERED_FILES
         else
             echo "Skipping shellcheck, no files to check"
@@ -234,6 +235,7 @@ if [ "$STATIC" = 1 ]; then
         unset regexp
         # also run spread-shellcheck
         if [ -n "$CHANGED_FILES" ]; then
+            # shellcheck disable=SC2086
             ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $CHANGED_FILES --exclude "$exclude_tools_path"
         else
             ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
