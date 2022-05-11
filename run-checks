@@ -208,9 +208,9 @@ if [ "$STATIC" = 1 ]; then
             INITIAL_FILES="$CHANGED_FILES"
         else
             echo "Checking all the bash files"
-            INITIAL_FILES="$(git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ))"
+            INITIAL_FILES="$(( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N)"
         fi
-        FILTERED_FILES="$(echo $INITIAL_FILES | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' | grep -v "$exclude_tools_path")"
+        FILTERED_FILES="$(echo $INITIAL_FILES | awk -F": " '$2~/shell.script/{print $1}' | grep -v "$exclude_tools_path")"
         if [ -n "$FILTERED_FILES" ]; then
             echo "Running shellcheck for files: $FILTERED_FILES"
             shellcheck -x $FILTERED_FILES
