@@ -205,17 +205,18 @@ if [ "$STATIC" = 1 ]; then
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"
-            CHECK_FILES="$CHANGED_FILES"
+            INITIAL_FILES="$CHANGED_FILES"
         else
             echo "Checking all the bash files"
-            CHECK_FILES="$(git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ))"
+            INITIAL_FILES="$(git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ))"
+        fi
+        FILTERED_FILES = $(echo $INITIAL_FILES | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' | grep -v "$exclude_tools_path")
+        if [ -n "$FILTERED_FILES" ]; then
+            shellcheck -x $FILTERED_FILES
+        else
+            echo "Skipping shellcheck, no files to check"
         fi
 
-        echo $CHECK_FILES |
-            xargs -0 file -N |
-            awk -F": " '$2~/shell.script/{print $1}' |
-            grep -v "$exclude_tools_path" |
-            xargs shellcheck -x
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
         if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
             echo "Using GOPATH as if it were a single entry and not a list:"
