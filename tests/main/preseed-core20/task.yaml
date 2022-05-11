@@ -32,9 +32,6 @@ prepare: |
   gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
 
 restore: |
-  #shellcheck source=tests/lib/preseed.sh
-  . "$TESTSLIB/preseed.sh"
-
   rm -rf "$PREPARE_IMAGE_DIR"
 
   #shellcheck source=tests/lib/store.sh
