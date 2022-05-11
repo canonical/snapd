@@ -140,6 +140,7 @@ jobs:
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
+
     - name: Install Debian dependencies
       if: steps.cached-results.outputs.cached-results != 'true'
       run: |
@@ -177,6 +178,13 @@ jobs:
         skip-build-cache: true
         # XXX: does no work with working-directory
         # only-new-issues: true
+
+    - name: get changed files
+      id: changed-files
+      uses: jitterbit/get-changed-files@v1
+      run: |
+        echo "CHANGED_FILES=${{ steps.changed-files.outputs.all }}" >> $GITHUB_ENV
+        echo "changed files = ${{ steps.changed-files.outputs.all }}"
 
     - name: Run static checks
       if: steps.cached-results.outputs.already-ran != 'true'

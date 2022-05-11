@@ -203,8 +203,15 @@ if [ "$STATIC" = 1 ]; then
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo "Checking shell scripts..."
-        ( git ls-files -z 2>/dev/null ||
-                find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ) |
+        if [ -n "$CHANGED_FILES" ]; then
+            echo "Checking just the changed bash files"
+            CHECK_FILES="$CHANGED_FILES"
+        else
+            echo "Checking all the bash files"
+            CHECK_FILES="$(git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0 ))"
+        fi
+
+        echo $CHECK_FILES |
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
             grep -v "$exclude_tools_path" |
@@ -218,7 +225,11 @@ if [ "$STATIC" = 1 ]; then
         fi
         unset regexp
         # also run spread-shellcheck
-        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
+        if [ -n "$CHANGED_FILES" ]; then
+            ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $CHANGED_FILES --exclude "$exclude_tools_path"
+        else
+            ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
+        fi
     fi
 
     if [ -z "${SKIP_MISSPELL-}" ]; then
