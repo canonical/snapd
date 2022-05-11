@@ -205,12 +205,18 @@ if [ "$STATIC" = 1 ]; then
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"
-            INITIAL_FILES="$CHANGED_FILES"
+            INITIAL_FILES=""
+            for changed_file in $CHANGED_FILES; do
+                file_match="$(file "$changed_file" | awk -F": " '$2~/shell.script/{print $1}')"
+                if [ -n "$file_match" ]; then
+                    INITIAL_FILES="$INITIAL_FILES $changed_file"
+                fi
+            done
         else
             echo "Checking all the bash files"
-            INITIAL_FILES="$(( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N)"
+            INITIAL_FILES="$(( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}')"
         fi
-        FILTERED_FILES="$(echo $INITIAL_FILES | awk -F": " '$2~/shell.script/{print $1}' | grep -v "$exclude_tools_path")"
+        FILTERED_FILES="$(echo $INITIAL_FILES  | grep -v "$exclude_tools_path")"
         if [ -n "$FILTERED_FILES" ]; then
             echo "Running shellcheck for files: $FILTERED_FILES"
             shellcheck -x $FILTERED_FILES
