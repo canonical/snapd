@@ -179,13 +179,13 @@ jobs:
         # XXX: does no work with working-directory
         # only-new-issues: true
 
-    - name: get changed files
+    - name: Get changed files
       id: changed-files
-      uses: jitterbit/get-changed-files@v1
+      uses: tj-actions/changed-files@v19
 
     - name: save changes files
       run: |
-          CHANGED_FILES="${{ steps.changedf-iles.outputs.added_modified }}"
+          CHANGED_FILES="${{ steps.changedf-iles.outputs.all_changed_files }}"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
