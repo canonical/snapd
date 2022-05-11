@@ -141,6 +141,16 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
 
+    - name: Get changed files
+      id: changed-files
+      uses: tj-actions/changed-files@v19
+
+    - name: save changes files
+      run: |
+          CHANGED_FILES="${{ steps.changedf-iles.outputs.all_changed_files }}"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "The changed files found are: $CHANGED_FILES"
+
     - name: Install Debian dependencies
       if: steps.cached-results.outputs.cached-results != 'true'
       run: |
@@ -159,7 +169,8 @@ jobs:
           sudo snap install shellcheck
 
     - name: Get C vendoring
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
@@ -178,16 +189,6 @@ jobs:
         skip-build-cache: true
         # XXX: does no work with working-directory
         # only-new-issues: true
-
-    - name: Get changed files
-      id: changed-files
-      uses: tj-actions/changed-files@v19
-
-    - name: save changes files
-      run: |
-          CHANGED_FILES="${{ steps.changedf-iles.outputs.all_changed_files }}"
-          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
-          echo "The changed files found are: $CHANGED_FILES"
 
     - name: Run static checks
       if: steps.cached-results.outputs.already-ran != 'true'
