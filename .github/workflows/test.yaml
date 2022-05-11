@@ -144,6 +144,7 @@ jobs:
       if: steps.cached-results.outputs.cached-results != 'true'
       run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
     # golang latest ensures things work on the edge
     - name: Install the go snap
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -303,25 +304,25 @@ jobs:
           rm -rf ${{ github.workspace }}/.coverage/
 
     - name: Test Go
-      if: matrix.unit-scenario == normal && steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'normal' && steps.cached-results.outputs.already-ran != 'true' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
 
     - name: Test Go (SNAPD_DEBUG=1)
-      if: matrix.unit-scenario == snapd_debug && steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'snapd_debug' && steps.cached-results.outputs.already-ran != 'true' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
 
     - name: Test Go (withbootassetstesting)
-      if: matrix.unit-scenario == withbootassetstesting && steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'withbootassetstesting' && steps.cached-results.outputs.already-ran != 'true' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
 
     - name: Test Go (nosecboot)
-      if: matrix.unit-scenario == nosecboot && steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'nosecboot' && steps.cached-results.outputs.already-ran != 'true' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         echo "Dropping github.com/snapcore/secboot"
@@ -332,7 +333,7 @@ jobs:
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
 
     - name: Test Go (faultinject)
-      if: matrix.unit-scenario == faultinject && steps.cached-results.outputs.already-ran != 'true'
+      if: ${{ matrix.unit-scenario == 'faultinject' && steps.cached-results.outputs.already-ran != 'true' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
