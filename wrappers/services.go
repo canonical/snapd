@@ -485,11 +485,9 @@ type ensureSnapServicesContext struct {
 	inter         Interacter
 
 	// note: is not used when preseeding is set in opts.Preseeding
-	sysd systemd.Systemd
-	// modifiedSystemServices/modifiedUserServices keeps track of whether a systemd
-	// daemon reload is necessary, either for the system level and/or user level.
-	modifiedSystemServices bool
-	modifiedUserServices   bool
+	sysd                     systemd.Systemd
+	systemDaemonReloadNeeded bool
+	userDaemonReloadNeeded   bool
 	// modifiedUnits is the set of units that were modified and the previous
 	// state of the unit before modification that we can roll back to if there
 	// are any issues.
@@ -503,7 +501,7 @@ type ensureSnapServicesContext struct {
 
 // restore is a helper function which should be called in case any errors happen
 // during the write/update of systemd files
-func (es ensureSnapServicesContext) restore() {
+func (es *ensureSnapServicesContext) restore() {
 	for file, state := range es.modifiedUnits {
 		if state == nil {
 			// we don't have anything to rollback to, so just remove the
@@ -520,12 +518,12 @@ func (es ensureSnapServicesContext) restore() {
 	}
 
 	if !es.opts.Preseeding {
-		if es.modifiedSystemServices {
+		if es.systemDaemonReloadNeeded {
 			if err := es.sysd.DaemonReload(); err != nil {
 				es.inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", err))
 			}
 		}
-		if es.modifiedUserServices {
+		if es.userDaemonReloadNeeded {
 			if err := userDaemonReload(); err != nil {
 				es.inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", err))
 			}
@@ -533,20 +531,20 @@ func (es ensureSnapServicesContext) restore() {
 	}
 }
 
-// reloadModified uses the modifiedSystemServices/modifiedUserServices to determine whether a reload
+// reloadModified uses the modifiedSystemServices/userDaemonReloadNeeded to determine whether a reload
 // is required from systemd to take the new systemd files into effect. This is a NOP
 // if opts.Preseeding is set
-func (es ensureSnapServicesContext) reloadModified() error {
+func (es *ensureSnapServicesContext) reloadModified() error {
 	if es.opts.Preseeding {
 		return nil
 	}
 
-	if es.modifiedSystemServices {
+	if es.systemDaemonReloadNeeded {
 		if err := es.sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
-	if es.modifiedUserServices {
+	if es.userDaemonReloadNeeded {
 		if err := userDaemonReload(); err != nil {
 			return err
 		}
@@ -554,9 +552,9 @@ func (es ensureSnapServicesContext) reloadModified() error {
 	return nil
 }
 
-// ensureSnapAppsSystemdServices takes care of writing .service files for all services
+// ensureSnapSystemdUnits takes care of writing .service files for all services
 // registered in snap.Info apps.
-func ensureSnapAppsSystemdServices(context *ensureSnapServicesContext, snapInfo *snap.Info, opts *AddSnapServicesOptions) error {
+func (es *ensureSnapServicesContext) ensureSnapSystemdUnits(snapInfo *snap.Info, opts *AddSnapServicesOptions) error {
 	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -564,22 +562,22 @@ func ensureSnapAppsSystemdServices(context *ensureSnapServicesContext, snapInfo 
 		}
 
 		if modifiedFile {
-			if context.observeChange != nil {
+			if es.observeChange != nil {
 				var oldContent []byte
 				if old != nil {
 					oldContent = old.Content
 				}
-				context.observeChange(app, nil, unitType, name, string(oldContent), string(content))
+				es.observeChange(app, nil, unitType, name, string(oldContent), string(content))
 			}
-			context.modifiedUnits[path] = old
+			es.modifiedUnits[path] = old
 
 			// also mark that we need to reload either the system or
 			// user instance of systemd
 			switch app.DaemonScope {
 			case snap.SystemDaemon:
-				context.modifiedSystemServices = true
+				es.systemDaemonReloadNeeded = true
 			case snap.UserDaemon:
-				context.modifiedUserServices = true
+				es.userDaemonReloadNeeded = true
 			}
 		}
 
@@ -634,17 +632,17 @@ func ensureSnapAppsSystemdServices(context *ensureSnapServicesContext, snapInfo 
 // ensureSnapsSystemdServices takes care of writing .service files for all apps in the provided snaps
 // list, and also returns a quota group set that represents all quota groups for the set of snaps
 // provided if they are a part of any.
-func ensureSnapsSystemdServices(context *ensureSnapServicesContext) (*quota.QuotaGroupSet, error) {
+func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaGroupSet, error) {
 	neededQuotaGrps := &quota.QuotaGroupSet{}
 
-	for s, snapSvcOpts := range context.snaps {
+	for s, snapSvcOpts := range es.snaps {
 		if s.Type() == snap.TypeSnapd {
 			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 		}
 
 		// always use RequireMountedSnapdSnap options from the global options
 		genServiceOpts := &AddSnapServicesOptions{
-			RequireMountedSnapdSnap: context.opts.RequireMountedSnapdSnap,
+			RequireMountedSnapdSnap: es.opts.RequireMountedSnapdSnap,
 		}
 		if snapSvcOpts != nil {
 			// and if there are per-snap options specified, use that for
@@ -661,14 +659,14 @@ func ensureSnapsSystemdServices(context *ensureSnapServicesContext) (*quota.Quot
 			}
 		}
 
-		if err := ensureSnapAppsSystemdServices(context, s, genServiceOpts); err != nil {
+		if err := es.ensureSnapSystemdUnits(s, genServiceOpts); err != nil {
 			return nil, err
 		}
 	}
 	return neededQuotaGrps, nil
 }
 
-func ensureSnapSlices(context *ensureSnapServicesContext, quotaGroups *quota.QuotaGroupSet) error {
+func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGroupSet) error {
 	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
@@ -676,20 +674,20 @@ func ensureSnapSlices(context *ensureSnapServicesContext, quotaGroups *quota.Quo
 		}
 
 		if modifiedFile {
-			if context.observeChange != nil {
+			if es.observeChange != nil {
 				var oldContent []byte
 				if old != nil {
 					oldContent = old.Content
 				}
-				context.observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+				es.observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
 			}
 
-			context.modifiedUnits[path] = old
+			es.modifiedUnits[path] = old
 
 			// also mark that we need to reload the system instance of systemd
 			// TODO: also handle reloading the user instance of systemd when
 			// needed
-			context.modifiedSystemServices = true
+			es.systemDaemonReloadNeeded = true
 		}
 
 		return nil
@@ -746,12 +744,12 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		context.restore()
 	}()
 
-	quotaGroups, err := ensureSnapsSystemdServices(context)
+	quotaGroups, err := context.ensureSnapsSystemdServices()
 	if err != nil {
 		return err
 	}
 
-	err = ensureSnapSlices(context, quotaGroups)
+	err = context.ensureSnapSlices(quotaGroups)
 	if err != nil {
 		return err
 	}
