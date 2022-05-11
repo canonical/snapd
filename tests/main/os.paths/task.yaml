@@ -4,9 +4,9 @@ backends: [google, qemu]
 
 execute: |
     # Check help
-    os.paths | MATCH "usage: snap-mount-dir, media-dir, libexec-dir"
-    os.paths -h | MATCH "usage: snap-mount-dir, media-dir, libexec-dir"
-    os.paths --help | MATCH "usage: snap-mount-dir, media-dir, libexec-dir"
+    os.paths | MATCH "usage: os.paths snap-mount-dir, media-dir, libexec-dir"
+    os.paths -h | MATCH "usage: os.paths snap-mount-dir, media-dir, libexec-dir"
+    os.paths --help | MATCH "usage: os.paths snap-mount-dir, media-dir, libexec-dir"
 
     # Validate the ubuntu systems
     case "$SPREAD_SYSTEM" in
