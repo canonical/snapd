@@ -180,10 +180,12 @@ jobs:
         # only-new-issues: true
 
     - name: get changed files
-      id: changedfiles
+      id: changed-files
       uses: jitterbit/get-changed-files@v1
+
+    - name: save changes files
       run: |
-          CHANGED_FILES="${{ steps.changedfiles.outputs.added_modified }}"
+          CHANGED_FILES="${{ steps.changedf-iles.outputs.added_modified }}"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
