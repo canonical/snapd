@@ -233,13 +233,21 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+
         # also run spread-shellcheck
+        FILTERED_FILES="spread.yaml"
         if [ -n "$CHANGED_FILES" ]; then
             # shellcheck disable=SC2086
-            ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $CHANGED_FILES --exclude "$exclude_tools_path"
+            for changed_file in $CHANGED_FILES; do
+                if [[ $changed_file == */task.yaml ]]; then
+                    FILTERED_FILES="$FILTERED_FILES $changed_file"
+                fi
+            done
         else
-            ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
+            FILTERED_FILES="$FILTERED_FILES tests"
         fi
+        # shellcheck disable=SC2086
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path"
     fi
 
     if [ -z "${SKIP_MISSPELL-}" ]; then
