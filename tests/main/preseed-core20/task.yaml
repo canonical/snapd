@@ -102,7 +102,6 @@ execute: |
   MATCH "^etc/systemd/system/usr-lib-snapd.mount" < files.log
   MATCH "^etc/systemd/system/snapd.spread-tests-run-mode-tweaks.service" < files.log
   MATCH "^etc/systemd/system/dbus-fi.w1.wpa_supplicant1.service" < files.log
-  MATCH "^etc/systemd/system/snap-pc.*.mount" < files.log
   MATCH "^etc/systemd/system/snapd.snap-repair.timer" < files.log
   MATCH "^etc/systemd/system/sshd-keygen@.service.d/disable-sshd-keygen-if-cloud-init-active.conf" < files.log
   MATCH "^etc/systemd/system/snapd.service.wants/usr-lib-snapd.mount" < files.log
