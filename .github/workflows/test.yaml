@@ -119,12 +119,6 @@ jobs:
       run: |
           sudo apt update
 
-    - name: Download Debian dependencies
-      if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
-      run: |
-          sudo apt clean
-          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
@@ -288,6 +282,11 @@ jobs:
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
+
+    - name: Install Debian dependencies
+      if: steps.cached-results.outputs.cached-results != 'true'
+      run: |
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
     # golang latest ensures things work on the edge
     - name: Install the go snap
