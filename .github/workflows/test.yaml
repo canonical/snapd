@@ -362,10 +362,16 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
 
+    - name: Check coverage files
+      run: |
+        ls -al
+        ls -al .coverage || true
+
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
       uses: actions/upload-artifact@v2
       with:
+        name: coverage-files
         path: ".coverage/coverage*.cov"
 
     - name: Cache successful run
@@ -408,7 +414,7 @@ jobs:
     - name: Download the coverage files
       uses: actions/download-artifact@v3
       with:
-        name: '*.cov'
+        name: coverage-files
         path: .coverage/
 
     - name: Merge coverage results
