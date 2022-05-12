@@ -324,15 +324,6 @@ jobs:
     needs: [unit-tests]
     runs-on: ubuntu-20.04
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-      with:
-        # needed for git commit history
-        fetch-depth: 0
-        # NOTE: checkout the code in a fixed location, even for forks, as this
-        # is relevant for go's import system.
-        path: ./src/github.com/snapcore/snapd
-
     - name: Download the coverage files
       uses: actions/download-artifact@v3
       with:
@@ -342,7 +333,7 @@ jobs:
     - name: Merge coverage results
       if: ${{ steps.cached-results.outputs.already-ran != 'true' }}
       run: |
-        go install github.com/makholm/covertool
+        go install github.com/makholm/covertool@latest
         covertool merge -o .coverage/all.cov .coverage/coverage*.cov
 
     - name: Upload coverage to Codecov
