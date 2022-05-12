@@ -364,15 +364,15 @@ jobs:
 
     - name: Check coverage files
       run: |
-        ls -al
-        ls -al .coverage || true
+        ls -al ${{ github.workspace }}/src/github.com/snapcore/snapd
+        ls -al ${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage || true
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
       uses: actions/upload-artifact@v2
       with:
         name: coverage-files
-        path: ".coverage/coverage*.cov"
+        path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
 
     - name: Cache successful run
       run: |
