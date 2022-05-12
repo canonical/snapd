@@ -43,8 +43,9 @@ execute: |
 
     echo "And a very specific query works too"
     # and returns a single result
-    expected='^Name +Version +Publisher +Notes +Summary\ntest-snapd-python-webserver +.*\n$'
-    snap find python based example webserver test-snapd | grep -Pzq "$expected"
+    snap find python based example webserver test-snapd | tail -n -1 > aggregate.out
+    test "$(wc -l < aggregate.out)" = "1"
+    MATCH '^test-snapd-python-webserver +.*$' < aggregate.out
 
     echo "List of snaps in a section works"
     # NOTE: this shows featured snaps which change all the time, do not
