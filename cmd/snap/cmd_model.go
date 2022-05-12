@@ -49,32 +49,11 @@ model assertion.
 	errNoMainAssertion    = errors.New(i18n.G("device not ready yet (no assertions found)"))
 	errNoSerial           = errors.New(i18n.G("device not registered yet (no serial assertion found)"))
 	errNoVerboseAssertion = errors.New(i18n.G("cannot use --verbose with --assertion"))
-
-	// this list is a "nice" "human" "readable" "ordering" of headers to print
-	// off, sorted in lexical order with meta headers and primary key headers
-	// removed, and big nasty keys such as device-key-sha3-384 and
-	// device-key at the bottom
-	// it also contains both serial and model assertion headers, but we
-	// follow the same code path for both assertion types and some of the
-	// headers are shared between the two, so it still works out correctly
-	niceOrdering = [...]string{
-		"architecture",
-		"base",
-		"classic",
-		"display-name",
-		"gadget",
-		"kernel",
-		"revision",
-		"store",
-		"system-user-authority",
-		"timestamp",
-		"required-snaps", // for uc16 and uc18 models
-		"snaps",          // for uc20 models
-		"device-key-sha3-384",
-		"device-key",
-	}
 )
 
+// cmdModelFormatter implements the interface required by clientutil.Print*
+// functions, as it formats the output it requires some extra information from
+// environment its called from.
 type cmdModelFormatter struct {
 	client *client.Client
 	esc    *escapes
@@ -85,8 +64,6 @@ func (mf cmdModelFormatter) GetEscapedDash() string {
 }
 
 func (mf cmdModelFormatter) LongPublisher(storeAccountID string) string {
-	// for the model command (not --serial) we want to show a publisher
-	// style display of "brand" instead of just "brand-id"
 	storeAccount, err := mf.client.StoreAccount(storeAccountID)
 	if err != nil {
 		return ""
@@ -163,16 +140,6 @@ func (x *cmdModel) Execute(args []string) error {
 	}
 
 	w := tabWriter()
-	modelFormatter := cmdModelFormatter{
-		esc:    x.getEscapes(),
-		client: x.client,
-	}
-	opts := clientutil.PrintModelAssertionOptions{
-		TermWidth: termWidth,
-		AbsTime:   x.AbsTime,
-		Verbose:   x.Verbose,
-		Assertion: x.Assertion,
-	}
 
 	if x.Serial && client.IsAssertionNotFoundError(serialErr) {
 		// for serial assertion, the primary keys are output (model and
@@ -185,6 +152,16 @@ func (x *cmdModel) Execute(args []string) error {
 		return errNoSerial
 	}
 
+	modelFormatter := cmdModelFormatter{
+		esc:    x.getEscapes(),
+		client: x.client,
+	}
+	opts := clientutil.PrintModelAssertionOptions{
+		TermWidth: termWidth,
+		AbsTime:   x.AbsTime,
+		Verbose:   x.Verbose,
+		Assertion: x.Assertion,
+	}
 	if x.Serial {
 		if err := clientutil.PrintSerialAssertionYAML(w, *serialAssertion, modelFormatter, opts); err != nil {
 			return err
