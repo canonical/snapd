@@ -45,7 +45,7 @@ jobs:
         name: snap-files
         path: "*.snap"
 
-  build-deps:
+  cache-build-deps:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout code
@@ -68,6 +68,12 @@ jobs:
       run: |
           sudo apt clean
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
+    - name: upload Debian dependencies
+      uses: actions/upload-artifact@v2
+      with:
+        name: debian-dependencies
+        path: /var/cache/apt/*
 
   static-checks:
     runs-on: ubuntu-20.04
@@ -104,6 +110,12 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+    - name: Download Debian dependencies
+      uses: actions/download-artifact@v3
+      with:
+        name: debian-dependencies
+        path: /var/cache/apt/
 
     - name: Install Debian dependencies
       run: |
@@ -211,6 +223,12 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+
+    - name: Download Debian dependencies
+      uses: actions/download-artifact@v3
+      with:
+        name: debian-dependencies
+        path: /var/cache/apt/
 
     - name: Install Debian dependencies
       run: |
