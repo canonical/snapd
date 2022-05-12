@@ -362,11 +362,6 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
 
-    - name: Check coverage files
-      run: |
-        ls -al ${{ github.workspace }}/src/github.com/snapcore/snapd
-        ls -al ${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage || true
-
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
       uses: actions/upload-artifact@v2
@@ -420,8 +415,7 @@ jobs:
     - name: Merge coverage results
       if: ${{ steps.cached-results.outputs.already-ran != 'true' }}
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        go install github.com/makholm/covertool
+        go get github.com/makholm/covertool
         covertool merge -o .coverage/all.cov .coverage/coverage*.cov
 
     - name: Upload coverage to Codecov
