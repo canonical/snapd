@@ -7,8 +7,6 @@ show_help() {
 }
 
 cleanup() {
-    skip_snaps=$@
-
     snap_mount_dir="$(os.paths snap-mount-dir)"
     remove_bases=""
     skip_bases=""
@@ -26,7 +24,8 @@ cleanup() {
             *)
                 # Check if a snap should be kept, there's a list of those in spread.yaml.
                 local keep=0
-                for skip_snap in $skip_snaps; do
+                # shellcheck disable=SC2068
+                for skip_snap in $@; do
                     if [ "$snap" = "$skip_snap" ]; then
                         # Skip the snap base removal as well
                         snap_base=$(grep "base:" "$snap_mount_dir/$snap/current/meta/snap.yaml" | awk '{ print $2 }')
