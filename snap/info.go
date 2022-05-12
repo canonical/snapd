@@ -94,6 +94,9 @@ type PlaceInfo interface {
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
 	XdgRuntimeDirs() string
+
+	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
+	UserExposedHomeDir(home string) string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
