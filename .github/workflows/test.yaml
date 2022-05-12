@@ -289,11 +289,6 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
 
-    - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-results != 'true'
-      run: |
-          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-
     # golang latest ensures things work on the edge
     - name: Install the go snap
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -415,7 +410,7 @@ jobs:
     - name: Merge coverage results
       if: ${{ steps.cached-results.outputs.already-ran != 'true' }}
       run: |
-        go get github.com/makholm/covertool
+        go install github.com/makholm/covertool
         covertool merge -o .coverage/all.cov .coverage/coverage*.cov
 
     - name: Upload coverage to Codecov
