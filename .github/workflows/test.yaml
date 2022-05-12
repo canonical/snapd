@@ -20,37 +20,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Cache snapd snap build status
-      id: cache-snapd-build-status
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-results"
-    - name: Check cached snap build
-      id: cached-results
-      run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/snap-build-success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              has_cached_snap=0
-              while read name; do
-                  has_cached_snap=1
-                  # bring back artifacts from the cache
-                  cp -v "$name" "${{ github.workspace }}"
-              done < <(find "$(dirname $CACHE_RESULT_STAMP)" -name "*.snap")
-              if [ "$has_cached_snap" = "1" ]; then
-                  # we have restored an artifact from the cache
-                  echo "::set-output name=already-ran::true"
-              fi
-          fi
+
     - name: Build snapd snap
-      if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 4.x/candidate
+
     - name: Cache and check built artifact
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
         unsquashfs snapd*.snap meta/snap.yaml usr/lib/snapd/info
         if cat squashfs-root/meta/snap.yaml | grep -q "version:.*dirty.*"; then
           echo "PR produces dirty snapd snap version"
@@ -61,16 +38,36 @@ jobs:
           cat squashfs-root/usr/lib/snapd/info
           exit 1
         fi
-        cp -v *.snap "$(dirname $CACHE_RESULT_STAMP)/"
+
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v2
       with:
         name: snap-files
         path: "*.snap"
-    - name: Mark successful snap build
+
+  build-deps:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        # needed for git commit history
+        fetch-depth: 0
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
       run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+        # golang latest ensures things work on the edge
+
+    - name: Download Debian dependencies
+      run: |
+          sudo apt clean
+          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
   static-checks:
     runs-on: ubuntu-20.04
@@ -108,47 +105,27 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"        
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.gochannel }}-results"
-
-    - name: Check cached test results
-      id: cached-results
-      run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
-          fi
-
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo apt update
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
     # golang latest ensures things work on the edge
     - name: Install the go snap
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
 
     - name: Install ShellCheck as a snap
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
 
     - name: Get C vendoring
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
     - name: golangci-lint
-      if: ${{ matrix.gochannel == 'latest/stable' && steps.cached-results.outputs.already-ran != 'true' }}
+      if: ${{ matrix.gochannel == 'latest/stable' }}
       uses: golangci/golangci-lint-action@v2
       with:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
@@ -167,20 +144,17 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      if: steps.cached-results.outputs.already-ran != 'true'
       uses: tj-actions/changed-files@v19
       with:
         path: ./src/github.com/snapcore/snapd
 
     - name: Save changes files
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
     - name: Run static checks
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
           # run gofmt checks only with Go 1.13
@@ -195,11 +169,6 @@ jobs:
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
-
-    - name: Cache successful run
-      run: |
-          mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-          touch "$CACHE_RESULT_STAMP"
 
   unit-tests:
     needs: [static-checks]
@@ -243,81 +212,58 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.gochannel }}-${{ matrix.unit-scenario }}-results"
-
-    - name: Check cached test results
-      id: cached-results
-      run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
-          fi
-
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo apt update
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
     # golang latest ensures things work on the edge
     - name: Install the go snap
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
 
     - name: Build C
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
           ./autogen.sh
           make -j2
 
     - name: Get deps
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
 
     - name: Build Go
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           go build github.com/snapcore/snapd/...
 
     - name: Test C
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
 
     - name: Reset code coverage data
-      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           rm -rf ${{ github.workspace }}/.coverage/
 
     - name: Test Go
-      if: ${{ matrix.unit-scenario == 'normal' && steps.cached-results.outputs.already-ran != 'true' }}
+      if: ${{ matrix.unit-scenario == 'normal' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
 
     - name: Test Go (SNAPD_DEBUG=1)
-      if: ${{ matrix.unit-scenario == 'snapd_debug' && steps.cached-results.outputs.already-ran != 'true' }}
+      if: ${{ matrix.unit-scenario == 'snapd_debug' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 SNAPD_DEBUG=1 ./run-checks --unit
 
     - name: Test Go (withbootassetstesting)
-      if: ${{ matrix.unit-scenario == 'withbootassetstesting' && steps.cached-results.outputs.already-ran != 'true' }}
+      if: ${{ matrix.unit-scenario == 'withbootassetstesting' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
 
     - name: Test Go (nosecboot)
-      if: ${{ matrix.unit-scenario == 'nosecboot' && steps.cached-results.outputs.already-ran != 'true' }}
+      if: ${{ matrix.unit-scenario == 'nosecboot' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         echo "Dropping github.com/snapcore/secboot"
@@ -328,7 +274,7 @@ jobs:
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
 
     - name: Test Go (faultinject)
-      if: ${{ matrix.unit-scenario == 'faultinject' && steps.cached-results.outputs.already-ran != 'true' }}
+      if: ${{ matrix.unit-scenario == 'faultinject' }}
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
@@ -340,15 +286,9 @@ jobs:
         name: coverage-files
         path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
 
-    - name: Cache successful run
-      run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
-
   code-coverage:
     needs: [unit-tests]
     runs-on: ubuntu-20.04
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -358,24 +298,6 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
-
-    - name: Cache snapd test results
-      id: cache-snapd-test-results
-      uses: actions/cache@v1
-      with:
-        path: "${{ github.workspace }}/.test-results"
-        # must include matrix or things get racy, i.e. when latest/edge
-        # finishes after 1.9 it overrides the results from 1.9
-        key: "${{ github.run_id }}-${{ github.job }}-results"
-
-    - name: Check cached test results
-      id: cached-results
-      run: |
-          CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/success"
-          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
-          if [ -e "$CACHE_RESULT_STAMP" ]; then
-              echo "::set-output name=already-ran::true"
-          fi
 
     - name: Download the coverage files
       uses: actions/download-artifact@v3
@@ -401,8 +323,3 @@ jobs:
         name: codecov-umbrella
         files: .coverage/all.cov
         verbose: true
-
-    - name: Cache successful run
-      run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
