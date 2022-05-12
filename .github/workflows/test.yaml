@@ -323,6 +323,15 @@ jobs:
   code-coverage:
     needs: [unit-tests]
     runs-on: ubuntu-20.04
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     steps:
     - name: Download the coverage files
       uses: actions/download-artifact@v3
