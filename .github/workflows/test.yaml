@@ -108,10 +108,6 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
-    - name: Run "apt update"
-      run: |
-          sudo apt update
-
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
@@ -128,6 +124,12 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
 
+    - name: Install Debian dependencies
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          sudo apt update
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
     # golang latest ensures things work on the edge
     - name: Install the go snap
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -141,12 +143,13 @@ jobs:
           sudo snap install shellcheck
 
     - name: Get C vendoring
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
     - name: golangci-lint
+      if: ${{ matrix.gochannel == 'latest/stable' && steps.cached-results.outputs.already-ran != 'true' }}
       uses: golangci/golangci-lint-action@v2
-      if: ${{ matrix.gochannel == 'latest/stable' }}
       with:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
         # to use the latest version
@@ -164,11 +167,13 @@ jobs:
 
     - name: Get changed files
       id: changed-files
+      if: steps.cached-results.outputs.already-ran != 'true'
       uses: tj-actions/changed-files@v19
       with:
         path: ./src/github.com/snapcore/snapd
 
     - name: Save changes files
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
@@ -238,23 +243,6 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
-    - name: Cache Debian dependencies
-      id: cache-deb-downloads
-      uses: actions/cache@v1
-      with:
-        path: /var/cache/apt
-        key: var-cache-apt-{{ hashFiles('**/debian/control') }}
-
-    - name: Run "apt update"
-      run: |
-          sudo apt update
-
-    - name: Download Debian dependencies
-      if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
-      run: |
-          sudo apt clean
-          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
@@ -272,8 +260,9 @@ jobs:
           fi
 
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-results != 'true'
+      if: steps.cached-results.outputs.already-ran != 'true'
       run: |
+          sudo apt update
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
     # golang latest ensures things work on the edge
