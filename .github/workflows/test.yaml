@@ -307,10 +307,14 @@ jobs:
           ./autogen.sh
           make -j2
 
+    - name: Get deps
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
+
     - name: Build Go
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          ./src/github.com/snapcore/snapd/get-deps.sh
           go build github.com/snapcore/snapd/...
 
     - name: Test C
