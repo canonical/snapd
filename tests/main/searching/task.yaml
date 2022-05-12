@@ -41,6 +41,12 @@ execute: |
     expected='(?s)Name +Version +Publisher +Notes +Summary *\n(.*?\n)?test-snapd-tools +.*? *\n.*'
     snap find test-snapd- | grep -Pzq "$expected"
 
+    echo "And a very specific query works too"
+    # and returns a single result
+    snap find python based example webserver test-snapd | tail -n -1 > aggregate.out
+    test "$(wc -l < aggregate.out)" = "1"
+    MATCH '^test-snapd-python-webserver +.*$' < aggregate.out
+
     echo "List of snaps in a section works"
     # NOTE: this shows featured snaps which change all the time, do not
     # make any assumptions about the contents
