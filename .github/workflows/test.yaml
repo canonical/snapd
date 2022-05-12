@@ -67,6 +67,7 @@ jobs:
     - name: Download Debian dependencies
       run: |
           sudo apt clean
+          sudo apt update
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
     - name: upload Debian dependencies
@@ -77,6 +78,7 @@ jobs:
 
   static-checks:
     runs-on: ubuntu-20.04
+    needs: [cache-build-deps]
     env:
       GOPATH: ${{ github.workspace }}
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
