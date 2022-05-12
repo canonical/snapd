@@ -36,14 +36,13 @@ import (
 var osStdin io.Reader = os.Stdin
 
 type commonMultiDeviceMixin struct {
-	// TODO: support for multiple devices in the command line
 	Device        []string `long:"device" description:"encrypted device (can be more than one)" required:"yes"`
 	Authorization []string `long:"authorization" description:"authorization source (for each device, either 'keyring' or 'file:<key-file>')" required:"yes"`
 }
 
 type cmdAddRecoveryKey struct {
 	commonMultiDeviceMixin
-	KeyFile string `long:"key-file" description:"path recovery key file will be written at" required:"yes"`
+	KeyFile string `long:"key-file" description:"path for generated recovery key file" required:"yes"`
 }
 
 type cmdRemoveRecoveryKey struct {
@@ -81,7 +80,7 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	// 4. if adding failed with keyslot already in used and the file was
 	// present assume it's correct
 	if len(c.Authorization) != len(c.Device) {
-		return fmt.Errorf("cannot add recovery key with mismatched devices and authorization")
+		return fmt.Errorf("cannot add recovery key: mismatch in the number of devices and authorizations")
 	}
 	for i, dev := range c.Device {
 		authz := c.Authorization[i]
@@ -107,7 +106,7 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 
 func (c *cmdRemoveRecoveryKey) Execute(args []string) error {
 	if len(c.Authorization) != len(c.Device) {
-		return fmt.Errorf("cannot remove recovery key with mismatched devices and authorization")
+		return fmt.Errorf("cannot remove recovery key: mismatch in the number of devices and authorizations")
 	}
 	for i, dev := range c.Device {
 		authz := c.Authorization[i]

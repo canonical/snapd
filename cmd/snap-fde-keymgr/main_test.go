@@ -119,7 +119,7 @@ func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
 		"--device", "/dev/vda5",
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
-	c.Assert(err, ErrorMatches, "cannot add recovery key with mismatched devices and authorization")
+	c.Assert(err, ErrorMatches, "cannot add recovery key: mismatch in the number of devices and authorizations")
 }
 
 func (s *mainSuite) TestRemoveKey(c *C) {
@@ -192,7 +192,7 @@ func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
 		"--device", "/dev/vda5",
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
-	c.Assert(err, ErrorMatches, "cannot remove recovery key with mismatched devices and authorization")
+	c.Assert(err, ErrorMatches, "cannot remove recovery key: mismatch in the number of devices and authorizations")
 }
 
 func (s *mainSuite) TestChangeEncryptionKey(c *C) {
