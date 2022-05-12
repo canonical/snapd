@@ -108,13 +108,6 @@ jobs:
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
 
-    - name: Cache Debian dependencies
-      id: cache-deb-downloads
-      uses: actions/cache@v1
-      with:
-        path: /var/cache/apt
-        key: var-cache-apt-{{ hashFiles('**/debian/control') }}
-
     - name: Run "apt update"
       run: |
           sudo apt update
@@ -134,11 +127,6 @@ jobs:
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
-
-    - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-results != 'true'
-      run: |
-          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
     # golang latest ensures things work on the edge
     - name: Install the go snap
