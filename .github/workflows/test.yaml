@@ -72,13 +72,13 @@ jobs:
 
     - name: Copy dependencies
       run: |
-        sudo cp -rf /var/cache/apt/ ./cached-apt/
+        sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
       uses: actions/upload-artifact@v2
       with:
         name: debian-dependencies
-        path: ./cached-apt/*
+        path: ./cached-apt.tar
 
   static-checks:
     runs-on: ubuntu-20.04
@@ -121,11 +121,12 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: debian-dependencies
-        path: ./cached-apt/
+        path: ./debian-deps/
 
     - name: Copy dependencies
       run: |
-        sudo cp -rf ./cached-apt/* /var/cache/apt/
+        test -f ./debian-deps/cached-apt.tar
+        sudo tar xvf ./debian-deps/cached-apt.tar -C /
 
     - name: Install Debian dependencies
       run: |
@@ -238,11 +239,12 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: debian-dependencies
-        path: ./cached-apt/
+        path: ./debian-deps/
 
     - name: Copy dependencies
       run: |
-        sudo cp -rf ./cached-apt/* /var/cache/apt/
+        test -f ./debian-deps/cached-apt.tar
+        sudo tar xvf ./debian-deps/cached-apt.tar -C /
 
     - name: Install Debian dependencies
       run: |
