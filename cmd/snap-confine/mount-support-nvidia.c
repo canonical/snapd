@@ -38,10 +38,6 @@
 
 #define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
-// note: if the parent dir changes to something other than
-// the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
-// and sc_mkdir_and_mount_and_glob_files might need updating, as they currently
-// assume that the parent directory of SC_LIB exists.
 #define SC_LIB "/var/lib/snapd/lib"
 #define SC_LIBGL_DIR   SC_LIB "/gl"
 #define SC_LIBGL32_DIR SC_LIB "/gl32"
@@ -591,8 +587,8 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	}
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	int res = mkdir(SC_LIB, 0755);
-	if (res != 0 && errno != EEXIST) {
+	int res = sc_nonfatal_mkpath(SC_LIB, 0755);
+	if (res != 0) {
 		die("cannot create " SC_LIB);
 	}
 	if (res == 0 && (chown(SC_LIB, 0, 0) < 0)) {
