@@ -40,6 +40,9 @@ restore: |
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$STORE_DIR"
 
+debug: |
+  cat preseed.log || true
+
 execute: |
   # have snap use the fakestore for assertions (but nothing else)
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
