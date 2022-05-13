@@ -153,14 +153,6 @@ execute: |
     umount ./mnt
     cryptsetup close /dev/mapper/test
 
-    # TODO: convert the test to use snap-fde-keymgr add-recovery-key/remove-recovery-key
-    # Test the recovery key
-    # echo "Ensure that we can open the encrypted ubuntu-data device using the recovery key"
-    # cryptsetup open --key-file recovery-key "${LOOP}p5" test-recovery
-    # mount /dev/mapper/test-recovery ./mnt
-    # umount ./mnt
-    # cryptsetup close /dev/mapper/test-recovery
-
     # Test the save key
     echo "Ensure that we can open the encrypted ubuntu-save device using the run mode key"
     cryptsetup open --key-file save-key "${LOOP}p4" test-save
@@ -169,14 +161,62 @@ execute: |
     cryptsetup close /dev/mapper/test-save
 
     # TODO: convert the test to use snap-fde-keymgr add-recovery-key/remove-recovery-key
-    # Test the reinstall key
-    # echo "Ensure that we can open the encrypted ubuntu-save device using the reinstall key"
-    # cryptsetup open --key-file reinstall-key "${LOOP}p4" test-reinstall
-    # mount /dev/mapper/test-reinstall ./mnt
-    # umount ./mnt
-    # cryptsetup close /dev/mapper/test-reinstall
+    echo "Add a recovery key to ubuntu-data and ubuntu-save"
+    systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+        /usr/lib/snapd/snap-fde-keymgr add-recovery-key \
+            --key-file "$PWD/recovery-key" \
+            --devices "${LOOP}p5" --authorizations "file:$PWD/unsealed-key" \
+            --devices "${LOOP}p4" --authorizations "file:$PWD/save-key"
+
+    # Test the recovery key
+    echo "Ensure that we can open the encrypted ubuntu-data device using the recovery key"
+    cryptsetup open --key-file recovery-key "${LOOP}p5" test-data
+    mount /dev/mapper/test-data ./mnt
+    umount ./mnt
+    cryptsetup close /dev/mapper/test-data
+
+
+    echo "Ensure that we can open the encrypted ubuntu-save device using the recovery key"
+    cryptsetup open --key-file recovery-key "${LOOP}p4" test-save
+    mount /dev/mapper/test-save ./mnt
+    umount ./mnt
+    cryptsetup close /dev/mapper/test-save
+
+    # make a copy of the recovery key, as we'll use it later
+    cp -av recovery-key recovery-key-copy
+
+    echo "Ensure that adding recovery keys again does not fail, and does not change the key"
+    cryptsetup luksDump "${LOOP}p4" > loop-p4-dump
+    cryptsetup luksDump "${LOOP}p5" > loop-p5-dump
+    # this shouldn't fail
+    systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+        /usr/lib/snapd/snap-fde-keymgr add-recovery-key \
+            --key-file "$PWD/recovery-key" \
+            --devices "${LOOP}p5" --authorizations "file:$PWD/unsealed-key" \
+            --devices "${LOOP}p4" --authorizations "file:$PWD/save-key"
+    # the recovery key file is still the same
+    cmp recovery-key recovery-key-copy
+    cryptsetup luksDump "${LOOP}p4" > loop-p4-dump-after
+    cryptsetup luksDump "${LOOP}p5" > loop-p5-dump-after
+    # the dumps are identical
+    diff -u loop-p4-dump loop-p4-dump-after
+    diff -u loop-p5-dump loop-p5-dump-after
+
+    echo "Remove the recovery key from ubuntu-data and ubuntu-save"
+    # remove-recovery-key removes the file, so make a copy of it
+    cp -av recovery-key recovery-key-copy
+    systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
+        /usr/lib/snapd/snap-fde-keymgr remove-recovery-key \
+            --key-file "$PWD/recovery-key-copy" \
+            --devices "${LOOP}p5" --authorizations "file:$PWD/unsealed-key" \
+            --devices "${LOOP}p4" --authorizations "file:$PWD/save-key"
+    # the file was removed
+    test ! -f recovery-key-copy
+    echo "The recovery key can no longer open ubuntu-save or ubuntu-data"
 
     echo "Check the disk-mapping.json has expected contents"
+    not cryptsetup open --key-file recovery-key "${LOOP}p5" test-data
+    not cryptsetup open --key-file recovery-key "${LOOP}p4" test-save
 
     LOOP_BASENAME="$(basename "$LOOP")"
 
