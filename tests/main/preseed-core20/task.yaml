@@ -4,7 +4,9 @@ details: |
   This test checks that preseeding of UC20 image with snap-preseed
   command works.
 
-systems: [ubuntu-2*]
+# TODO: test on 21.10 / 22.04; they fail because new build of snapd cannot
+# be run in core20-based chroot due to old libc.
+systems: [ubuntu-20.04*]
 
 environment:
   PREPARE_IMAGE_DIR: uc20image
