@@ -40,7 +40,8 @@
 
 // note: if the parent dir changes to something other than
 // the current /var/lib/snapd/lib then sc_mkdir_and_mount_and_bind
-// and sc_mkdir_and_mount_and_bind need updating.
+// and sc_mkdir_and_mount_and_glob_files might need updating, as they currently
+// assume that the parent directory of SC_LIB exists.
 #define SC_LIB "/var/lib/snapd/lib"
 #define SC_LIBGL_DIR   SC_LIB "/gl"
 #define SC_LIBGL32_DIR SC_LIB "/gl32"
