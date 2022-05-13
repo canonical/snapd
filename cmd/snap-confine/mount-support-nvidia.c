@@ -35,14 +35,14 @@
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "mount-support.h"
 
 #define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
 
-#define SC_LIB "/var/lib/snapd/lib"
-#define SC_LIBGL_DIR   SC_LIB "/gl"
-#define SC_LIBGL32_DIR SC_LIB "/gl32"
-#define SC_VULKAN_DIR  SC_LIB "/vulkan"
-#define SC_GLVND_DIR  SC_LIB "/glvnd"
+#define SC_LIBGL_DIR   SC_EXTRA_LIB_DIR "/gl"
+#define SC_LIBGL32_DIR SC_EXTRA_LIB_DIR "/gl32"
+#define SC_VULKAN_DIR  SC_EXTRA_LIB_DIR "/vulkan"
+#define SC_GLVND_DIR  SC_EXTRA_LIB_DIR "/glvnd"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
 #define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
@@ -587,9 +587,9 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 	}
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	int res = sc_nonfatal_mkpath(SC_LIB, 0755);
+	int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755);
 	if (res != 0) {
-		die("cannot create " SC_LIB);
+		die("cannot create " SC_EXTRA_LIB_DIR);
 	}
 	if (res == 0 && (chown(SC_LIB, 0, 0) < 0)) {
 		// Adjust the ownership only if we created the directory.
