@@ -124,6 +124,9 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/mali[0-9]* rw,
 /dev/dma_buf_te rw,
 
+# NXP i.MX driver
+/dev/galcore rw,
+
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
 /etc/OpenCL/vendors/** r,
@@ -174,6 +177,7 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="pvr_sync"`,
 	`KERNEL=="mali[0-9]*"`,
 	`KERNEL=="dma_buf_te"`,
+	`KERNEL=="galcore"`,
 }
 
 func init() {
