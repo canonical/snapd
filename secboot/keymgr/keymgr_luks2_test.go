@@ -153,6 +153,35 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceNoUnlockKey(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
+func (s *keymgrSuite) TestAddRecoveryKeyToDeviceCryptsetupFail(c *C) {
+	unlockKey := "1234abcd"
+	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		return []byte(unlockKey), nil
+	})
+	defer restore()
+
+	cmd := testutil.MockCommand(c, "cryptsetup", `
+while [ "$#" -gt 1 ]; do
+  case "$1" in
+    --key-file)
+      cat "$2" > /dev/null
+      shift 2
+      ;;
+    *)
+      shift 1
+      ;;
+  esac
+done
+echo "Other error, cryptsetup boom"
+exit 1
+`)
+	defer cmd.Restore()
+	err := keymgr.AddRecoveryKeyToLUKSDevice(mockRecoveryKey, "/dev/foobar")
+	c.Assert(err, ErrorMatches, "cannot add key: cryptsetup failed with: Other error, cryptsetup boom")
+	// should match the keyslot full error too
+	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, false)
+}
+
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceOccupiedSlot(c *C) {
 	unlockKey := "1234abcd"
 	getCalls := 0
@@ -188,6 +217,8 @@ exit 1
 	c.Assert(calls, HasLen, 1)
 	c.Assert(calls[0], HasLen, 16)
 	c.Assert(calls[0][:2], DeepEquals, []string{"cryptsetup", "luksAddKey"})
+	// should match the keyslot full error too
+	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, true)
 }
 
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUsingExistingKey(c *C) {
