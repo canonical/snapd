@@ -19,10 +19,21 @@
 
 package timings
 
+import (
+	"fmt"
+)
+
 // Run creates, starts and then stops a nested Span under parent Measurer. The nested
 // Span is passed to the measured function and can used to create further spans.
 func Run(meas Measurer, label, summary string, f func(nestedTiming Measurer)) {
 	nested := meas.StartSpan(label, summary)
 	f(nested)
 	nested.Stop()
+}
+
+// StartupTimestampMsg produce snap startup timings message.
+func StartupTimestampMsg(stage string) string {
+	now := timeNow()
+	return fmt.Sprintf(`{"stage":"%s", "time":"%v.%06d"}`,
+		stage, now.Unix(), (now.UnixNano()/1e3)%1000000)
 }
