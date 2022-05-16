@@ -522,15 +522,19 @@ func (s *specSuite) TestApparmorExtraLayouts(c *C) {
 	}
 
 	s.spec.AddExtraLayouts(snapInfo, extraLayouts)
-	c.Assert(s.spec.Snippets(), HasLen, 0)
 
 	updateNS := s.spec.UpdateNS()
+
+	// verify that updateNS does indeed add all the additional layout
+	// lines. This just so happens to be 10 in this case because of reverse
+	// traversal for the path /usr/home/test
 	c.Assert(updateNS, HasLen, 10)
 
 	// make sure the extra layout is added
 	c.Assert(updateNS[0], Equals, "  # Layout /test: bind /usr/home/test\n")
 	c.Assert(updateNS[1], Equals, "  mount options=(rbind, rw) \"/usr/home/test/\" -> \"/test/\",\n")
 	c.Assert(updateNS[2], Equals, "  mount options=(rprivate) -> \"/test/\",\n")
+	// lines 3..9 is the traversal of the prefix for /usr/home/test
 }
 
 func (s *specSuite) TestUsesPtraceTrace(c *C) {

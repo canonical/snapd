@@ -289,24 +289,24 @@ func (spec *Specification) emitLayout(si *snap.Info, layout *snap.Layout) {
 //   the data)
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
-func (spec *Specification) AddLayout(si *snap.Info) {
-	if len(si.Layout) == 0 {
+func (spec *Specification) AddLayout(snapInfo *snap.Info) {
+	if len(snapInfo.Layout) == 0 {
 		return
 	}
 
 	// Walk the layout elements in deterministic order, by mount point name.
-	paths := make([]string, 0, len(si.Layout))
-	for path := range si.Layout {
+	paths := make([]string, 0, len(snapInfo.Layout))
+	for path := range snapInfo.Layout {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
 
 	// Get tags describing all apps and hooks.
-	tags := make([]string, 0, len(si.Apps)+len(si.Hooks))
-	for _, app := range si.Apps {
+	tags := make([]string, 0, len(snapInfo.Apps)+len(snapInfo.Hooks))
+	for _, app := range snapInfo.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
-	for _, hook := range si.Hooks {
+	for _, hook := range snapInfo.Hooks {
 		tags = append(tags, hook.SecurityTag())
 	}
 
@@ -317,7 +317,7 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 	}
 	for _, tag := range tags {
 		for _, path := range paths {
-			snippet := snippetFromLayout(si.Layout[path])
+			snippet := snippetFromLayout(snapInfo.Layout[path])
 			spec.snippets[tag] = append(spec.snippets[tag], snippet)
 		}
 		sort.Strings(spec.snippets[tag])
@@ -325,8 +325,8 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 
 	// Append update-ns snippets that allow constructing the layout.
 	for _, path := range paths {
-		layout := si.Layout[path]
-		spec.emitLayout(si, layout)
+		layout := snapInfo.Layout[path]
+		spec.emitLayout(snapInfo, layout)
 	}
 }
 
