@@ -35,5 +35,5 @@ func Run(meas Measurer, label, summary string, f func(nestedTiming Measurer)) {
 func StartupTimestampMsg(stage string) string {
 	now := timeNow()
 	return fmt.Sprintf(`{"stage":"%s", "time":"%v.%06d"}`,
-		stage, now.Unix(), (now.UnixNano()/1e3)%1000000)
+		stage, now.Unix(), (now.UnixNano()/1e3)%1e6)
 }
