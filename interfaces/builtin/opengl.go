@@ -125,6 +125,7 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 /dev/dma_buf_te rw,
 
 # NXP i.MX driver
+# https://github.com/Freescale/kernel-module-imx-gpu-viv
 /dev/galcore rw,
 
 # OpenCL ICD files
