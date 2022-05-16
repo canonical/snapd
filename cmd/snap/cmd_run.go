@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
+	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/x11"
 )
 
@@ -236,6 +237,8 @@ func (x *cmdRun) Execute(args []string) error {
 		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
 		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.HookName, strings.Join(args, " "))
 	}
+
+	logger.Debugf("-- snap startup %s", timings.StartupTimestampMsg("start"))
 
 	if err := maybeWaitForSecurityProfileRegeneration(x.client); err != nil {
 		return err
@@ -1223,6 +1226,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	}
+	logger.Debugf("-- snap startup %s", timings.StartupTimestampMsg("snap to snap-confine"))
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.Gdb {
