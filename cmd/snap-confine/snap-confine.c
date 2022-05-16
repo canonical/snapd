@@ -30,6 +30,7 @@
 #include <sys/capability.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "../libsnap-confine-private/apparmor-support.h"
@@ -286,6 +287,14 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	debug("the process has been placed in the special void directory");
 }
 
+static void log_startup_phase(const char *stage)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	debug("-- snap startup {\"stage\":\"%s\", \"time\":\"%lu.%06lu\"}",
+	      stage, tv.tv_sec, tv.tv_usec);
+}
+
 /**
  *  sc_cleanup_preserved_process_state releases system resources.
 **/
@@ -306,6 +315,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 
 int main(int argc, char **argv)
 {
+	log_startup_phase("snap-confine enter");
 	// Use our super-defensive parser to figure out what we've been asked to do.
 	sc_error *err = NULL;
 	struct sc_args *args SC_CLEANUP(sc_cleanup_args) = NULL;
@@ -385,6 +395,8 @@ int main(int argc, char **argv)
 		    " permission escalation attacks");
 	}
 
+	log_startup_phase("snap-confine mount namespace start");
+
 	/* perform global initialization of mount namespace support for non-classic
 	 * snaps or both classic and non-classic when parallel-instances feature is
 	 * enabled */
@@ -427,6 +439,9 @@ int main(int argc, char **argv)
 							real_uid,
 							real_gid, saved_gid);
 	}
+
+	log_startup_phase("snap-confine mount namespace finish");
+
 	// Temporarily drop privileges back to the calling user until we can
 	// permanently drop (which we can't do just yet due to seccomp, see
 	// below).
@@ -539,6 +554,7 @@ int main(int argc, char **argv)
 	}
 	// Restore process state that was recorded earlier.
 	sc_restore_process_state(&proc_state);
+	log_startup_phase("snap-confine to snap-exec");
 	execv(invocation.executable, (char *const *)&argv[0]);
 	perror("execv failed");
 	return 1;
