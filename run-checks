@@ -206,13 +206,7 @@ if [ "$STATIC" = 1 ]; then
         echo "Checking shell scripts..."
         if [ -n "$CHANGED_FILES" ]; then
             echo "Checking just the changed bash files"
-            INITIAL_FILES=""
-            for changed_file in $CHANGED_FILES; do
-                file_match="$(file "$changed_file" | awk -F": " '$2~/shell.script/{print $1}')"
-                if [ -n "$file_match" ]; then
-                    INITIAL_FILES="$INITIAL_FILES $changed_file"
-                fi
-            done
+            INITIAL_FILES="$( file -N "$CHANGED_FILES" | awk -F": " '$2~/shell.script/{print $1}' )"
         else
             echo "Checking all the bash files"
             INITIAL_FILES="$( ( git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}' )"

@@ -341,6 +341,10 @@ jobs:
 
     - name: Merge coverage results
       run: |
+        echo "List the coverage files downloaded"
+        ls -l .coverage/
+
+        echo "Install covertool and merge the results"
         go install github.com/makholm/covertool@latest
         covertool merge -o .coverage/all.cov .coverage/coverage*.cov
 
