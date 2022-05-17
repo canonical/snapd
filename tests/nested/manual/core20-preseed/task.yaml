@@ -38,6 +38,8 @@ restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
+  rm -rf ~/.snap/gnupg
+
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
