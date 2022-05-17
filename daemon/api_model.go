@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -51,11 +52,6 @@ var devicestateRemodel = devicestate.Remodel
 
 type postModelData struct {
 	NewModel string `json:"new-model"`
-}
-
-type modelAssertJSON struct {
-	Headers map[string]interface{} `json:"headers,omitempty"`
-	Body    string                 `json:"body,omitempty"`
 }
 
 func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -115,7 +111,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		modelJSON := modelAssertJSON{}
+		modelJSON := clientutil.ModelAssertJSON{}
 
 		modelJSON.Headers = model.Headers()
 		if !opts.headersOnly {
@@ -155,7 +151,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		serialJSON := modelAssertJSON{}
+		serialJSON := clientutil.ModelAssertJSON{}
 
 		serialJSON.Headers = serial.Headers()
 		if !opts.headersOnly {

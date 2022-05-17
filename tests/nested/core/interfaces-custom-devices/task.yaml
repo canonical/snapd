@@ -8,8 +8,9 @@ systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 prepare: |
     # Add our interface to the gadget snap
+    VERSION="$(tests.nested show version)"
     rm -rf pc-gadget
-    snap download --basename=pc --channel="20/edge" pc
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
     cat >> pc-gadget/meta/snap.yaml << EOF
     slots:

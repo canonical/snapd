@@ -102,7 +102,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot run install mode on non-UC20+ system")
+		return nil, fmt.Errorf("cannot run install mode on pre-UC20 system")
 	}
 
 	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model)
@@ -153,25 +153,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	makeKeySet := func() (*EncryptionKeySet, error) {
-		key, err := keys.NewEncryptionKey()
-		if err != nil {
-			return nil, fmt.Errorf("cannot create encryption key: %v", err)
-		}
-
-		rkey, err := keys.NewRecoveryKey()
-		if err != nil {
-			return nil, fmt.Errorf("cannot create recovery key: %v", err)
-		}
-		return &EncryptionKeySet{
-			Key:         key,
-			RecoveryKey: rkey,
-		}, nil
-	}
 	roleNeedsEncryption := func(role string) bool {
 		return role == gadget.SystemData || role == gadget.SystemSave
 	}
-	var keysForRoles map[string]*EncryptionKeySet
+	var keyForRole map[string]keys.EncryptionKey
 
 	partsEncrypted := map[string]gadget.StructureEncryptionParameters{}
 
@@ -191,9 +176,13 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 		}
 
 		if encrypt && roleNeedsEncryption(part.Role) {
-			var keys *EncryptionKeySet
+			var encryptionKey keys.EncryptionKey
+			var err error
 			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				keys, err = makeKeySet()
+				encryptionKey, err = keys.NewEncryptionKey()
+				if err != nil {
+					err = fmt.Errorf("cannot create encryption key: %v", err)
+				}
 			})
 			if err != nil {
 				return nil, err
@@ -203,14 +192,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 			switch options.EncryptionType {
 			case secboot.EncryptionTypeLUKS:
 				timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(&part, keys.Key, part.Label)
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-					err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey)
+					dataPart, err = newEncryptedDeviceLUKS(&part, encryptionKey, part.Label)
 				})
 				if err != nil {
 					return nil, err
@@ -221,7 +203,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 				}
 			case secboot.EncryptionTypeDeviceSetupHook:
 				timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s using device-setup-hook", roleOrLabelOrName(part)), func(timings.Measurer) {
-					dataPart, err = createEncryptedDeviceWithSetupHook(&part, keys.Key, part.Name)
+					dataPart, err = createEncryptedDeviceWithSetupHook(&part, encryptionKey, part.Name)
 				})
 				if err != nil {
 					return nil, err
@@ -236,10 +218,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 
 			// update the encrypted device node
 			part.Node = dataPart.Node()
-			if keysForRoles == nil {
-				keysForRoles = map[string]*EncryptionKeySet{}
+			if keyForRole == nil {
+				keyForRole = map[string]keys.EncryptionKey{}
 			}
-			keysForRoles[part.Role] = keys
+			keyForRole[part.Role] = encryptionKey
 			logger.Noticef("encrypted device %v", part.Node)
 		}
 
@@ -284,7 +266,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options 
 	}
 
 	return &InstalledSystemSideData{
-		KeysForRoles: keysForRoles,
+		KeyForRole: keyForRole,
 	}, nil
 }
 
@@ -297,7 +279,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 
 	if model.Grade() == asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot run factory-reset mode on non-UC20+ system")
+		return nil, fmt.Errorf("cannot run factory-reset mode on pre-UC20 system")
 	}
 
 	if options.EncryptionType != secboot.EncryptionTypeNone {

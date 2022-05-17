@@ -33,6 +33,8 @@ import (
 var (
 	GlobalRootDir string
 
+	RunDir string
+
 	SnapMountDir string
 
 	DistroLibExecDir string
@@ -368,6 +370,7 @@ func SetRootDir(rootdir string) {
 	// freedesktop.org specifications
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
 	SnapDesktopIconsDir = filepath.Join(rootdir, snappyDir, "desktop", "icons")
+	RunDir = filepath.Join(rootdir, "/run")
 	SnapRunDir = filepath.Join(rootdir, "/run/snapd")
 	SnapRunNsDir = filepath.Join(SnapRunDir, "/ns")
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")

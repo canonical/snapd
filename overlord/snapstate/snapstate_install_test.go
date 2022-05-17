@@ -3947,7 +3947,7 @@ func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presenc
 		flags = &snapstate.Flags{}
 	}
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -4052,7 +4052,7 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 }
 
 func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, snapOnePresence, snapOneRequiredRev, snapTwoPresence, snapTwoRequiredRev string) error {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		snapOne := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -4151,7 +4151,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 }
 
 func (s *validationSetsSuite) testInstallSnapRequiredByValidationSetWithBase(c *C, presenceForBase string) error {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -5175,6 +5175,8 @@ type: base
 }
 
 func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5218,6 +5220,8 @@ func (s *snapmgrTestSuite) TestUndoMigrateOnInstallWithCore22OnExposedMigration(
 }
 
 func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFile bool, prepFail prepFailFunc) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 

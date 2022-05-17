@@ -1323,55 +1323,17 @@ const (
 )
 
 func triggeredMigration(oldBase, newBase string, opts *dirMigrationOptions) migration {
-	// we're refreshing to a core22 revision
-	if atLeastCore22(newBase) {
-		if opts.MigratedToHidden && !opts.MigratedToExposedHome {
-			// ~/.snap migration already happened so initialize ~/Snap only
-			return home
-		}
+	if !opts.MigratedToHidden && opts.UseHidden {
+		// flag is set and not migrated yet
+		return hidden
+	}
 
-		if !opts.MigratedToHidden {
-			//  nothing was migrated yet, so migrate to ~/.snap and ~/Snap
-			return full
-		}
-	} else {
-		// going back from core22
-		if atLeastCore22(oldBase) {
-			if opts.MigratedToExposedHome && opts.MigratedToHidden && !opts.UseHidden {
-				return revertFull
-			}
-
-			if opts.MigratedToExposedHome && opts.MigratedToHidden && opts.UseHidden {
-				return disableHome
-			}
-		} else {
-			if !opts.MigratedToHidden && opts.UseHidden {
-				// flag is set and not migrated yet
-				return hidden
-			}
-
-			if opts.MigratedToHidden && !opts.UseHidden {
-				// migration was done but flag was unset
-				return revertHidden
-			}
-		}
+	if opts.MigratedToHidden && !opts.UseHidden {
+		// migration was done but flag was unset
+		return revertHidden
 	}
 
 	return none
-}
-
-// atLeastCore22 returns true if 'base' is core22 or newer. Returns
-// false if it's older or it cannot be determined.
-func atLeastCore22(base string) bool {
-	if !strings.HasPrefix(base, "core") {
-		return false
-	}
-
-	if num, err := strconv.Atoi(base[4:]); err != nil || num < 22 {
-		return false
-	}
-
-	return true
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -3702,7 +3664,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 // of the refreshed snaps to their previous revisions to satisfy the restored
 // validation sets tracking.
 var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSnaps []string) ([]*state.TaskSet, error) {
-	enforcedSets, err := EnforcedValidationSets(st)
+	enforcedSets, err := EnforcedValidationSets(st, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -3735,7 +3697,7 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 	// this may fail which is fine, but it tells us which snaps are
 	// at invalid revisions and need reverting.
 	// note: we need to fetch enforced sets again because of RestoreValidationSetsTracking.
-	enforcedSets, err = EnforcedValidationSets(st)
+	enforcedSets, err = EnforcedValidationSets(st, nil)
 	if err != nil {
 		return nil, err
 	}

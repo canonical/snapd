@@ -32,10 +32,13 @@ execute: |
     tests.nested exec "! snap list test-snapd-sh"
 
     echo "Ensure 'snap debug show-keys' works as root"
-    tests.nested exec "sudo snap recovery --show-keys" | MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
-    tests.nested exec "sudo snap recovery --show-keys" | MATCH 'reinstall:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
+    # TODO restore these checks once it is possible to add recovery keys at runtime
+
+    # tests.nested exec "sudo snap recovery --show-keys || true" 2>&1 | MATCH 'error: cannot open recovery key'
+    # tests.nested exec "sudo snap recovery --show-keys" | MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
+    # tests.nested exec "sudo snap recovery --show-keys" | MATCH 'reinstall:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}'
     echo "But not as user (normal file permissions prevent this)"
-    if tests.nested exec "snap recovery --show-key"; then
+    if tests.nested exec "snap recovery --show-keys"; then
         echo "snap recovery --show-key should not work as a user"
         exit 1
     fi

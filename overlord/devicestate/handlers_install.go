@@ -20,8 +20,12 @@
 package devicestate
 
 import (
+	"bytes"
 	"compress/gzip"
+	"crypto"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,11 +40,16 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
@@ -323,20 +332,20 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 	if trustedInstallObserver != nil {
 		// validity check
-		if installedSystem.KeysForRoles == nil || installedSystem.KeysForRoles[gadget.SystemData] == nil || installedSystem.KeysForRoles[gadget.SystemSave] == nil {
+		if len(installedSystem.KeyForRole) == 0 || installedSystem.KeyForRole[gadget.SystemData] == nil || installedSystem.KeyForRole[gadget.SystemSave] == nil {
 			return fmt.Errorf("internal error: system encryption keys are unset")
 		}
-		dataKeySet := installedSystem.KeysForRoles[gadget.SystemData]
-		saveKeySet := installedSystem.KeysForRoles[gadget.SystemSave]
+		dataEncryptionKey := installedSystem.KeyForRole[gadget.SystemData]
+		saveEncryptionKey := installedSystem.KeyForRole[gadget.SystemSave]
 
 		// make note of the encryption keys
-		trustedInstallObserver.ChosenEncryptionKeys(dataKeySet.Key, saveKeySet.Key)
+		trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
 
 		// keep track of recovery assets
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: err")
 		}
-		if err := saveKeys(installedSystem.KeysForRoles); err != nil {
+		if err := saveKeys(installedSystem.KeyForRole); err != nil {
 			return err
 		}
 		// write markers containing a secret to pair data and save
@@ -465,34 +474,19 @@ func writeMarkers() error {
 	return nil
 }
 
-func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
-	dataKeySet := keysForRoles[gadget.SystemData]
-
+func saveKeys(keyForRole map[string]keys.EncryptionKey) error {
+	saveEncryptionKey := keyForRole[gadget.SystemSave]
+	if saveEncryptionKey == nil {
+		// no system-save support
+		return nil
+	}
 	// ensure directory for keys exists
 	if err := os.MkdirAll(boot.InstallHostFDEDataDir, 0755); err != nil {
 		return err
 	}
-
-	// Write the recovery key
-	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
-	if err := dataKeySet.RecoveryKey.Save(recoveryKeyFile); err != nil {
-		return fmt.Errorf("cannot store recovery key: %v", err)
-	}
-
-	saveKeySet := keysForRoles[gadget.SystemSave]
-	if saveKeySet == nil {
-		// no system-save support
-		return nil
-	}
-
 	saveKey := filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key")
-	reinstallSaveKey := filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key")
-
-	if err := saveKeySet.Key.Save(saveKey); err != nil {
+	if err := saveEncryptionKey.Save(saveKey); err != nil {
 		return fmt.Errorf("cannot store system save key: %v", err)
-	}
-	if err := saveKeySet.RecoveryKey.Save(reinstallSaveKey); err != nil {
-		return fmt.Errorf("cannot store reinstall key: %v", err)
 	}
 	return nil
 }
@@ -591,6 +585,17 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
+	preseeded, err := maybeApplyPreseededData(st, boot.InitramfsUbuntuSeedDir, modeEnv.RecoverySystem, boot.InstallHostWritableDir)
+	if err != nil {
+		logger.Noticef("failed to apply preseed data: %v", err)
+		return err
+	}
+	if preseeded {
+		logger.Noticef("successfully preseeded the system")
+	} else {
+		logger.Noticef("preseed data not present, will do normal seeding")
+	}
+
 	// ensure the next boot goes into run mode
 	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
 		return err
@@ -628,6 +633,221 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	restart.Request(st, rst, nil)
 
 	return nil
+}
+
+func readPreseedAssertion(st *state.State, model *asserts.Model, ubuntuSeedDir, sysLabel string) (*asserts.Preseed, error) {
+	f, err := os.Open(filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read preseed assertion: %v", err)
+	}
+
+	// main seed assertions are loaded in the assertion db of install mode; add preseed assertion from
+	// systems/<label>/preseed file on top of it via a temporary db.
+	tmpDb := assertstate.TemporaryDB(st)
+	batch := asserts.NewBatch(nil)
+	_, err = batch.AddStream(f)
+	if err != nil {
+		return nil, err
+	}
+
+	var preseedAs *asserts.Preseed
+	err = batch.CommitToAndObserve(tmpDb, func(as asserts.Assertion) {
+		if as.Type() == asserts.PreseedType {
+			preseedAs = as.(*asserts.Preseed)
+		}
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	switch {
+	case preseedAs == nil:
+		return nil, fmt.Errorf("internal error: preseed assertion file is present but preseed assertion not found")
+	case preseedAs.SystemLabel() != sysLabel:
+		return nil, fmt.Errorf("preseed assertion system label %q doesn't match system label %q", preseedAs.SystemLabel(), sysLabel)
+	case preseedAs.Model() != model.Model():
+		return nil, fmt.Errorf("preseed assertion model %q doesn't match the model %q", preseedAs.Model(), model.Model())
+	case preseedAs.BrandID() != model.BrandID():
+		return nil, fmt.Errorf("preseed assertion brand %q doesn't match model brand %q", preseedAs.BrandID(), model.BrandID())
+	case preseedAs.Series() != model.Series():
+		return nil, fmt.Errorf("preseed assertion series %q doesn't match model series %q", preseedAs.Series(), model.Series())
+	}
+
+	return preseedAs, nil
+}
+
+var seedOpen = seed.Open
+
+// TODO: consider reusing this kind of handler for UC20 seeding
+type preseedSnapHandler struct {
+	writableDir string
+}
+
+func (p *preseedSnapHandler) HandleUnassertedSnap(name, path string, _ timings.Measurer) (string, error) {
+	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: -1})
+	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
+	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
+
+	sq := squashfs.New(path)
+	opts := &snap.InstallOptions{MustNotCrossDevices: true}
+	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
+		return "", fmt.Errorf("cannot install snap %q: %v", name, err)
+	}
+
+	return targetPath, nil
+}
+
+func (p *preseedSnapHandler) HandleAndDigestAssertedSnap(name, path string, essType snap.Type, snapRev *asserts.SnapRevision, _ func(string, uint64) (snap.Revision, error), _ timings.Measurer) (string, string, uint64, error) {
+	pinfo := snap.MinimalPlaceInfo(name, snap.Revision{N: snapRev.SnapRevision()})
+	targetPath := filepath.Join(p.writableDir, pinfo.MountFile())
+	mountDir := filepath.Join(p.writableDir, pinfo.MountDir())
+
+	logger.Debugf("copying: %q to %q; mount dir=%q", path, targetPath, mountDir)
+
+	srcFile, err := os.Open(path)
+	if err != nil {
+		return "", "", 0, err
+	}
+	defer srcFile.Close()
+
+	destFile, err := osutil.NewAtomicFile(targetPath, 0644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return "", "", 0, fmt.Errorf("cannot create atomic file: %v", err)
+	}
+	defer destFile.Cancel()
+
+	finfo, err := srcFile.Stat()
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	destFile.SetModTime(finfo.ModTime())
+
+	h := crypto.SHA3_384.New()
+	w := io.MultiWriter(h, destFile)
+
+	size, err := io.CopyBuffer(w, srcFile, make([]byte, 2*1024*1024))
+	if err != nil {
+		return "", "", 0, err
+	}
+	if err := destFile.Commit(); err != nil {
+		return "", "", 0, fmt.Errorf("cannot copy snap %q: %v", name, err)
+	}
+
+	sq := squashfs.New(targetPath)
+	opts := &snap.InstallOptions{MustNotCrossDevices: true}
+	// since Install target path is the same as source path passed to squashfs.New,
+	// Install isn't going to copy the blob, but we call it to set up mount directory etc.
+	if _, err := sq.Install(targetPath, mountDir, opts); err != nil {
+		return "", "", 0, fmt.Errorf("cannot install snap %q: %v", name, err)
+	}
+
+	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, h.Sum(nil))
+	if err != nil {
+		return "", "", 0, fmt.Errorf("cannot encode snap %q digest: %v", path, err)
+	}
+	return targetPath, sha3_384, uint64(size), nil
+}
+
+var maybeApplyPreseededData = func(st *state.State, ubuntuSeedDir, sysLabel, writableDir string) (preseeded bool, err error) {
+	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
+	if !osutil.FileExists(preseedArtifact) {
+		return false, nil
+	}
+
+	model, err := findModel(st)
+	if err != nil {
+		return false, fmt.Errorf("preseed error: cannot find model: %v", err)
+	}
+
+	preseedAs, err := readPreseedAssertion(st, model, ubuntuSeedDir, sysLabel)
+	if err != nil {
+		return false, err
+	}
+
+	// TODO: consider a writer that feeds the file to stdin of tar and calculates the digest at the same time.
+	sha3_384, _, err := osutil.FileDigest(preseedArtifact, crypto.SHA3_384)
+	if err != nil {
+		return false, fmt.Errorf("cannot calculate preseed artifact digest: %v", err)
+	}
+
+	digest, err := base64.RawURLEncoding.DecodeString(preseedAs.ArtifactSHA3_384())
+	if err != nil {
+		return false, fmt.Errorf("cannot decode preseed artifact digest")
+	}
+	if !bytes.Equal(sha3_384, digest) {
+		return false, fmt.Errorf("invalid preseed artifact digest")
+	}
+
+	logger.Noticef("apply preseed data: %q, %q", writableDir, preseedArtifact)
+	cmd := exec.Command("tar", "--extract", "--preserve-permissions", "--preserve-order", "--gunzip", "--directory", writableDir, "-f", preseedArtifact)
+	if err := cmd.Run(); err != nil {
+		return false, err
+	}
+
+	logger.Noticef("copying snaps")
+
+	deviceSeed, err := seedOpen(ubuntuSeedDir, sysLabel)
+	if err != nil {
+		return false, err
+	}
+	tm := timings.New(nil)
+
+	if err := deviceSeed.LoadAssertions(nil, nil); err != nil {
+		return false, err
+	}
+
+	if err := os.MkdirAll(filepath.Join(writableDir, "var/lib/snapd/snaps"), 0755); err != nil {
+		return false, err
+	}
+
+	snapHandler := &preseedSnapHandler{writableDir: writableDir}
+	if err := deviceSeed.LoadMeta("run", snapHandler, tm); err != nil {
+		return false, err
+	}
+
+	preseedSnaps := make(map[string]*asserts.PreseedSnap)
+	for _, ps := range preseedAs.Snaps() {
+		preseedSnaps[ps.Name] = ps
+	}
+
+	checkSnap := func(ssnap *seed.Snap) error {
+		ps, ok := preseedSnaps[ssnap.SnapName()]
+		if !ok {
+			return fmt.Errorf("snap %q not present in the preseed assertion", ssnap.SnapName())
+		}
+		if ps.Revision != ssnap.SideInfo.Revision.N {
+			rev := snap.Revision{N: ps.Revision}
+			return fmt.Errorf("snap %q has wrong revision %s (expected: %s)", ssnap.SnapName(), ssnap.SideInfo.Revision, rev)
+		}
+		if ps.SnapID != ssnap.SideInfo.SnapID {
+			return fmt.Errorf("snap %q has wrong snap id %q (expected: %q)", ssnap.SnapName(), ssnap.SideInfo.SnapID, ps.SnapID)
+		}
+		return nil
+	}
+
+	esnaps := deviceSeed.EssentialSnaps()
+	msnaps, err := deviceSeed.ModeSnaps("run")
+	if err != nil {
+		return false, err
+	}
+	if len(msnaps)+len(esnaps) != len(preseedSnaps) {
+		return false, fmt.Errorf("seed has %d snaps but %d snaps are required by preseed assertion", len(msnaps)+len(esnaps), len(preseedSnaps))
+	}
+
+	for _, esnap := range esnaps {
+		if err := checkSnap(esnap); err != nil {
+			return false, err
+		}
+	}
+
+	for _, ssnap := range msnaps {
+		if err := checkSnap(ssnap); err != nil {
+			return false, err
+		}
+	}
+
+	return true, nil
 }
 
 func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) error {

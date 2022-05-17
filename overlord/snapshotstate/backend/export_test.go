@@ -40,7 +40,7 @@ var (
 
 	NewMultiError = newMultiError
 
-	AddDirToZip = addDirToZip
+	AddSnapDirToZip = addSnapDirToZip
 )
 
 func MockIsTesting(newIsTesting bool) func() {
