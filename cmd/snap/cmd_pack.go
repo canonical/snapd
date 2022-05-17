@@ -35,7 +35,7 @@ import (
 )
 
 type packCmd struct {
-	CheckSkeleton bool   `long:"check-skeleton"`
+	CheckSkeleton bool   `long:"check-skeleton" hidden:"yes"`
 	Filename      string `long:"filename"`
 	Compression   string `long:"compression"`
 	Positional    struct {
@@ -56,12 +56,11 @@ in some situations it's simpler for a script to feed the filename in. In those
 cases, --filename can be given to override the default. If this filename is
 not absolute it will be taken as relative to target-dir.
 
-When used with --check-skeleton, pack only checks whether snap-dir contains
-valid snap metadata and raises an error otherwise. Application commands listed
-in snap metadata file, but appearing with incorrect permission bits result in an
-error. Commands that are missing from snap-dir are listed in diagnostic
-messages.
-`)
+The command checks whether snap-dir contains valid snap metadata and
+raises an error otherwise. Application commands listed in snap
+metadata file, but appearing with incorrect permission bits result in
+an error. Commands that are missing from snap-dir are listed in
+diagnostic messages.`)
 
 func init() {
 	cmd := addCommand("pack",
@@ -99,12 +98,15 @@ func (x *packCmd) Execute([]string) error {
 		x.Positional.TargetDir = "."
 	}
 
-	if x.CheckSkeleton {
-		err := pack.CheckSkeleton(Stderr, x.Positional.SnapDir)
-		if err == snap.ErrMissingPaths {
-			return nil
-		}
+	err := pack.CheckSkeleton(Stderr, x.Positional.SnapDir)
+	if err != snap.ErrMissingPaths {
 		return err
+	}
+
+	// Preserve old behaviour of the now hidden --check-skeleton
+	// option, to execute the CheckSkeleton without packing
+	if x.CheckSkeleton {
+		return nil
 	}
 
 	snapPath, err := pack.Snap(x.Positional.SnapDir, &pack.Options{
