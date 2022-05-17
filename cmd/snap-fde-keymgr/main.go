@@ -29,6 +29,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot/keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
 )
@@ -36,8 +37,8 @@ import (
 var osStdin io.Reader = os.Stdin
 
 type commonMultiDeviceMixin struct {
-	Device        []string `long:"device" description:"encrypted device (can be more than one)" required:"yes"`
-	Authorization []string `long:"authorization" description:"authorization source (for each device, either 'keyring' or 'file:<key-file>')" required:"yes"`
+	Devices        []string `long:"devices" description:"encrypted devices (can be more than one)" required:"yes"`
+	Authorizations []string `long:"authorizations" description:"authorization sources (one for each device, either 'keyring' or 'file:<key-file>')" required:"yes"`
 }
 
 type cmdAddRecoveryKey struct {
@@ -47,7 +48,7 @@ type cmdAddRecoveryKey struct {
 
 type cmdRemoveRecoveryKey struct {
 	commonMultiDeviceMixin
-	KeyFile []string `long:"key-file" description:"path to recovery key file(s) to be removed" required:"yes"`
+	KeyFiles []string `long:"key-files" description:"path to recovery key files to be removed" required:"yes"`
 }
 
 type cmdChangeEncryptionKey struct {
@@ -68,6 +69,24 @@ var (
 	keymgrChangeLUKSDeviceEncryptionKey           = keymgr.ChangeLUKSDeviceEncryptionKey
 )
 
+func validateAuthorizations(authorizations []string) error {
+	for _, authz := range authorizations {
+		switch {
+		case authz == "keyring":
+			// happy
+		case strings.HasPrefix(authz, "file:"):
+			// file must exist
+			kf := authz[len("file:"):]
+			if !osutil.FileExists(kf) {
+				return fmt.Errorf("authorization file %v does not exist", kf)
+			}
+		default:
+			return fmt.Errorf("unknown authorization method %q", authz)
+		}
+	}
+	return nil
+}
+
 func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	recoveryKey, err := keys.NewRecoveryKey()
 	if err != nil {
@@ -79,16 +98,20 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 	// 3. add the key
 	// 4. if adding failed with keyslot already in used and the file was
 	// present assume it's correct
-	if len(c.Authorization) != len(c.Device) {
-		return fmt.Errorf("cannot add recovery key: mismatch in the number of devices and authorizations")
+	if len(c.Authorizations) != len(c.Devices) {
+		return fmt.Errorf("cannot add recovery keys: mismatch in the number of devices and authorizations")
 	}
-	for i, dev := range c.Device {
-		authz := c.Authorization[i]
-		if authz == "keyring" {
+	if err := validateAuthorizations(c.Authorizations); err != nil {
+		return fmt.Errorf("cannot add recovery keys with invalid authorizations: %v", err)
+	}
+	for i, dev := range c.Devices {
+		authz := c.Authorizations[i]
+		switch {
+		case authz == "keyring":
 			if err := keymgrAddRecoveryKeyToLUKSDevice(recoveryKey, dev); err != nil {
 				return fmt.Errorf("cannot add recovery key to LUKS device: %v", err)
 			}
-		} else if strings.HasPrefix(authz, "file:") {
+		case strings.HasPrefix(authz, "file:"):
 			authzKey, err := ioutil.ReadFile(authz[len("file:"):])
 			if err != nil {
 				return fmt.Errorf("cannot load authorization key: %v", err)
@@ -105,16 +128,20 @@ func (c *cmdAddRecoveryKey) Execute(args []string) error {
 }
 
 func (c *cmdRemoveRecoveryKey) Execute(args []string) error {
-	if len(c.Authorization) != len(c.Device) {
-		return fmt.Errorf("cannot remove recovery key: mismatch in the number of devices and authorizations")
+	if len(c.Authorizations) != len(c.Devices) {
+		return fmt.Errorf("cannot remove recovery keys: mismatch in the number of devices and authorizations")
 	}
-	for i, dev := range c.Device {
-		authz := c.Authorization[i]
-		if authz == "keyring" {
+	if err := validateAuthorizations(c.Authorizations); err != nil {
+		return fmt.Errorf("cannot remove recovery keys with invalid authorizations: %v", err)
+	}
+	for i, dev := range c.Devices {
+		authz := c.Authorizations[i]
+		switch {
+		case authz == "keyring":
 			if err := keymgrRemoveRecoveryKeyFromLUKSDevice(dev); err != nil {
 				return fmt.Errorf("cannot remove recovery key from LUKS device: %v", err)
 			}
-		} else if strings.HasPrefix(authz, "file:") {
+		case strings.HasPrefix(authz, "file:"):
 			authzKey, err := ioutil.ReadFile(authz[len("file:"):])
 			if err != nil {
 				return fmt.Errorf("cannot load authorization key: %v", err)
@@ -124,10 +151,14 @@ func (c *cmdRemoveRecoveryKey) Execute(args []string) error {
 			}
 		}
 	}
-	for _, kf := range c.KeyFile {
+	var rmErrors []string
+	for _, kf := range c.KeyFiles {
 		if err := os.Remove(kf); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot remove recovery key file: %v", err)
+			rmErrors = append(rmErrors, err.Error())
 		}
+	}
+	if len(rmErrors) != 0 {
+		return fmt.Errorf("cannot remove key files:\n%s", strings.Join(rmErrors, "\n"))
 	}
 	return nil
 }

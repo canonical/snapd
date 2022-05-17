@@ -65,10 +65,10 @@ func (s *mainSuite) TestAddKey(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	err := main.Run([]string{
 		"add-recovery-key",
-		"--device", "/dev/vda4",
-		"--authorization", "keyring",
-		"--device", "/dev/vda5",
-		"--authorization", "file:" + filepath.Join(d, "authz.key"),
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
 	c.Assert(err, IsNil)
@@ -83,10 +83,10 @@ func (s *mainSuite) TestAddKey(c *C) {
 	// add again, in which case a new key is generated
 	err = main.Run([]string{
 		"add-recovery-key",
-		"--device", "/dev/vda4",
-		"--authorization", "keyring",
-		"--device", "/dev/vda5",
-		"--authorization", "file:" + filepath.Join(d, "authz.key"),
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
 	c.Assert(err, IsNil)
@@ -114,12 +114,34 @@ func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
 	d := c.MkDir()
 	err := main.Run([]string{
 		"add-recovery-key",
-		"--device", "/dev/vda4",
-		"--authorization", "keyring",
-		"--device", "/dev/vda5",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
-	c.Assert(err, ErrorMatches, "cannot add recovery key: mismatch in the number of devices and authorizations")
+	c.Assert(err, ErrorMatches, "cannot add recovery keys: mismatch in the number of devices and authorizations")
+
+	// --authorization=invalid
+	err = main.Run([]string{
+		"add-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "invalid",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-file", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: unknown authorization method "invalid"`)
+
+	// authorization key file does not exist
+	err = main.Run([]string{
+		"add-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-file", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
 }
 
 func (s *mainSuite) TestRemoveKey(c *C) {
@@ -142,14 +164,17 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 	})
 	defer restore()
 	d := c.MkDir()
+	// key which will be removed
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "recovery.key"), []byte{0, 0, 0}, 0644), IsNil)
+
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	err := main.Run([]string{
 		"remove-recovery-key",
-		"--device", "/dev/vda4",
-		"--authorization", "keyring",
-		"--device", "/dev/vda5",
-		"--authorization", "file:" + filepath.Join(d, "authz.key"),
-		"--key-file", filepath.Join(d, "recovery.key"),
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
 	})
 	c.Assert(err, IsNil)
 	c.Check(removeCalls, Equals, 1)
@@ -161,11 +186,11 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 	// again when the recover key file is gone already
 	err = main.Run([]string{
 		"remove-recovery-key",
-		"--device", "/dev/vda4",
-		"--authorization", "keyring",
-		"--device", "/dev/vda5",
-		"--authorization", "file:" + filepath.Join(d, "authz.key"),
-		"--key-file", filepath.Join(d, "recovery.key"),
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
 	})
 	c.Check(removeCalls, Equals, 2)
 	c.Check(removeUsingKeyCalls, Equals, 2)
@@ -184,15 +209,37 @@ func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
 	})
 	defer restore()
 	d := c.MkDir()
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
+
 	err := main.Run([]string{
 		"remove-recovery-key",
-		"--device", "/dev/vda4",
-		"--authorization", "keyring",
-		"--device", "/dev/vda5",
-		"--key-file", filepath.Join(d, "recovery.key"),
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--key-files", filepath.Join(d, "recovery.key"),
 	})
-	c.Assert(err, ErrorMatches, "cannot remove recovery key: mismatch in the number of devices and authorizations")
+	c.Assert(err, ErrorMatches, "cannot remove recovery keys: mismatch in the number of devices and authorizations")
+
+	// --authorization=invalid
+	err = main.Run([]string{
+		"remove-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "invalid",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: unknown authorization method "invalid"`)
+
+	// authorization key file does not exist
+	err = main.Run([]string{
+		"remove-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
 }
 
 func (s *mainSuite) TestChangeEncryptionKey(c *C) {
