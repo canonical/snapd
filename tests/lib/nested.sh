@@ -22,6 +22,7 @@ NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakesto
 NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
 NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
 NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
+NESTED_UBUNTU_IMAGE_PRESEED_KEY="${NESTED_UBUNTU_IMAGE_PRESEED_KEY:-}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
@@ -798,7 +799,6 @@ EOF
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
 
-            local PRESEED_OPTS
             if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
                 # ubuntu-image creates sparse image files
                 # shellcheck disable=SC2086
@@ -810,7 +810,7 @@ EOF
             else
                 # ubuntu-image creates sparse image files
                 # shellcheck disable=SC2086
-                "$UBUNTU_IMAGE" snap --image-size 10G $PRESEED_OPTS "$NESTED_MODEL" \
+                "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                     $UBUNTU_IMAGE_CHANNEL_ARG \
                     --output-dir "$NESTED_IMAGES_DIR" \
                     $EXTRA_FUNDAMENTAL \
