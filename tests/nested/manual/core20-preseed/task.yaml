@@ -4,6 +4,8 @@ details: |
   This test checks that preseeding of UC20 image with ubuntu-image works
   and that the resulting image boots.
 
+systems: [ubuntu-20.04-64]
+
 environment:
   NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
   NESTED_IMAGE_ID: core20-preseeding
@@ -32,9 +34,6 @@ prepare: |
   mkdir -p ~/.snap/gnupg
   gendeveloper1 show-key | gpg --homedir=~/.snap/gnupg --import
 
-debug: |
-  echo "gpg key id:$NESTED_UBUNTU_IMAGE_PRESEED_KEY"
-
 restore: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
@@ -45,7 +44,8 @@ restore: |
 
 debug: |
   # show if anything went wrong during seeding
-  tests.nested exec "snap change 1"
+  tests.nested exec "snap change 1" || true
+  echo "gpg key id:$NESTED_UBUNTU_IMAGE_PRESEED_KEY"
 
 execute: |
   # have snap use the fakestore for assertions (but nothing else)
