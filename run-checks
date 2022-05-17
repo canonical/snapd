@@ -218,7 +218,7 @@ if [ "$STATIC" = 1 ]; then
         fi
         unset regexp
         # also run spread-shellcheck
-        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path"
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck spread.yaml tests --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed"
     fi
 
     if [ -z "${SKIP_MISSPELL-}" ]; then

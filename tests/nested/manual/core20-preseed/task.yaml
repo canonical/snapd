@@ -5,7 +5,6 @@ details: |
   and that the resulting image boots.
 
 environment:
-  #shellcheck disable=SC2034,SC1036
   NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
   NESTED_IMAGE_ID: core20-preseeding
   NESTED_ENABLE_TPM: false
