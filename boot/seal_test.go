@@ -34,11 +34,13 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -59,6 +61,11 @@ func (s *sealSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
+	snippets := []assets.ForEditions{
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	}
+	s.AddCleanup(assets.MockSnippetsForEdition("grub.cfg:static-cmdline", snippets))
+	s.AddCleanup(assets.MockSnippetsForEdition("grub-recovery.cfg:static-cmdline", snippets))
 }
 
 func mockKernelSeedSnap(rev snap.Revision) *seed.Snap {
@@ -142,8 +149,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 
 		// set encryption key
-		myKey := secboot.EncryptionKey{}
-		myKey2 := secboot.EncryptionKey{}
+		myKey := keys.EncryptionKey{}
+		myKey2 := keys.EncryptionKey{}
 		for i := range myKey {
 			myKey[i] = byte(i)
 			myKey2[i] = byte(128 + i)
@@ -1578,8 +1585,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
-	key := secboot.EncryptionKey{1, 2, 3, 4}
-	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
+	key := keys.EncryptionKey{1, 2, 3, 4}
+	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
 	c.Assert(err, IsNil)
@@ -1622,8 +1629,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
 	}
-	key := secboot.EncryptionKey{1, 2, 3, 4}
-	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
+	key := keys.EncryptionKey{1, 2, 3, 4}
+	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)

@@ -97,7 +97,7 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 			RealName: "foo",
 		},
 	})
-	s.state.NewChange("dummy", "...").AddTask(t)
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	s.state.Unlock()
 

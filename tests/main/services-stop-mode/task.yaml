@@ -13,7 +13,7 @@ restore: |
     snap remove --purge test-snapd-service || true
 
 debug: |
-    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
+    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all sigint sigint-all"
     for s in $stop_modes; do
         systemctl status "snap.test-snapd-service.test-snapd-${s}-service" || true
     done
@@ -31,13 +31,15 @@ execute: |
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > old-main.pid
 
-    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all"
+    stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all sigint sigint-all"
     for s in $stop_modes; do
         systemctl show -p ActiveState "snap.test-snapd-service.test-snapd-${s}-service" | MATCH "ActiveState=active"
     done
 
     echo "When it is re-installed"
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    # Due to refresh-app-awareness we need to --ignore-running to ignore the running test-snapd-sigterm-service (it
+    # keeps running after sigterm).
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service --ignore-running
     retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     # note that sigterm{,-all} is tested separately

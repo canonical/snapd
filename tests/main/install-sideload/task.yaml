@@ -68,7 +68,7 @@ execute: |
     # TODO:UC20: fix to work on uc20 too
     # The "seed/" dir is on a FAT partition on uc20 so the permissions are
     # different here.
-    if ! os.query is-core20; then
+    if ! os.query is-core20 && ! os.query is-core22; then
         echo "All snap blobs are 0600"
         test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
     fi
@@ -82,16 +82,16 @@ execute: |
 
     echo "Install multiple local snaps"
     expected="(basic 1.0 installed\stest-snapd-tools 1.0 installed)|(test-snapd-tools 1.0 installed\sbasic 1.0 installed)"
-    snap install --dangerous test-snapd-tools_1.0_all.snap basic_1.0_all.snap | MATCH -z "$expected"
-    snap install --devmode test-snapd-tools_1.0_all.snap basic_1.0_all.snap | MATCH -z "$expected"
+    snap install --dangerous --transaction=per-snap test-snapd-tools_1.0_all.snap basic_1.0_all.snap | MATCH -z "$expected"
+    snap install --devmode --transaction=per-snap test-snapd-tools_1.0_all.snap basic_1.0_all.snap | MATCH -z "$expected"
 
     echo "Install multiple local snaps transactionally"
     snap remove test-snapd-tools basic
-    snap install --dangerous --transactional test-snapd-tools_1.0_all.snap basic_1.0_all.snap |
+    snap install --dangerous --transaction=all-snaps test-snapd-tools_1.0_all.snap basic_1.0_all.snap |
         MATCH -z "$expected"
 
     echo "Install multiple local snaps transactionally, one fails and none is installed"
     snap remove test-snapd-tools basic
-    not snap install --dangerous --transactional basic_1.0_all.snap snap-hooks-bad-install_1.0_all.snap
+    not snap install --dangerous --transaction=all-snaps basic_1.0_all.snap snap-hooks-bad-install_1.0_all.snap
     not snap list basic
     not snap list snap-hooks-bad-install

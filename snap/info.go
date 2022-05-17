@@ -94,6 +94,9 @@ type PlaceInfo interface {
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
 	XdgRuntimeDirs() string
+
+	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
+	UserExposedHomeDir(home string) string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
@@ -911,7 +914,7 @@ func (st StopModeType) KillSignal() string {
 // Validate ensures that the StopModeType has an valid value.
 func (st StopModeType) Validate() error {
 	switch st {
-	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all":
+	case "", "sigterm", "sigterm-all", "sighup", "sighup-all", "sigusr1", "sigusr1-all", "sigusr2", "sigusr2-all", "sigint", "sigint-all":
 		// valid
 		return nil
 	}
@@ -1301,6 +1304,13 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	bindImplicitHooks(info, strk)
 
 	err = Validate(info)
+	if err != nil {
+		return nil, err
+	}
+
+	// As part of the validation, also read the snapshot manifest file: we
+	// don't care about its contents now, but we need to make sure it's valid.
+	_, err = ReadSnapshotYamlFromSnapFile(snapf)
 	if err != nil {
 		return nil, err
 	}

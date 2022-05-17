@@ -10,7 +10,7 @@ execute: |
     # does not outright fail
     snap debug boot-vars  > default.out
 
-    if os.query is-core20; then
+    if os.query is-core20 || os.query is-core22; then
         echo "Check the boot-vars default output looks sane"
         # boot-vars default output is for the run mode bootloader, make sure its
         # output looks sane (though we don't expect any of the variables to be
@@ -29,11 +29,8 @@ execute: |
         snap debug boot-vars --root-dir /run/mnt/ubuntu-seed > recovery.out
         MATCH 'snapd_recovery_mode=run' < recovery.out
     else
-        #shellcheck source=tests/lib/names.sh
-        . "$TESTSLIB"/names.sh
-
-        MATCH "snap_core=${core_name}_.*\.snap" < default.out
-        MATCH "snap_kernel=${kernel_name}_.*\.snap" < default.out
+        MATCH "snap_core=$(snaps.name core)_.*\.snap" < default.out
+        MATCH "snap_kernel=$(snaps.name kernel)_.*\.snap" < default.out
         # relevant snaps are not being updated, so snap_mode is unset
         MATCH 'snap_mode=$' < default.out
     fi

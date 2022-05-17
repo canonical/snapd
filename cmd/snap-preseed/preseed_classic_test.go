@@ -20,11 +20,6 @@
 package main_test
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/jessevdk/go-flags"
@@ -32,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -62,26 +56,6 @@ func testParser(c *C) *flags.Parser {
 	_, err := parser.ParseArgs([]string{})
 	c.Assert(err, IsNil)
 	return parser
-}
-
-func mockVersionFiles(c *C, rootDir1, version1, rootDir2, version2 string) {
-	versions := []string{version1, version2}
-	for i, root := range []string{rootDir1, rootDir2} {
-		c.Assert(os.MkdirAll(filepath.Join(root, dirs.CoreLibExecDir), 0755), IsNil)
-		infoFile := filepath.Join(root, dirs.CoreLibExecDir, "info")
-		c.Assert(ioutil.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", versions[i])), 0644), IsNil)
-	}
-}
-
-func mockChrootDirs(c *C, rootDir string, apparmorDir bool) func() {
-	if apparmorDir {
-		c.Assert(os.MkdirAll(filepath.Join(rootDir, "/sys/kernel/security/apparmor"), 0755), IsNil)
-	}
-	mockMountInfo := `912 920 0:57 / ${rootDir}/proc rw,nosuid,nodev,noexec,relatime - proc proc rw
-914 913 0:7 / ${rootDir}/sys/kernel/security rw,nosuid,nodev,noexec,relatime master:8 - securityfs securityfs rw
-915 920 0:58 / ${rootDir}/dev rw,relatime - tmpfs none rw,size=492k,mode=755,uid=100000,gid=100000
-`
-	return osutil.MockMountInfo(strings.Replace(mockMountInfo, "${rootDir}", rootDir, -1))
 }
 
 func (s *startPreseedSuite) TestRequiresRoot(c *C) {
@@ -159,7 +133,7 @@ func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 		},
 	}
 
-	// set a dummy sanitize method.
+	// set an empty sanitize method.
 	snap.SanitizePlugsSlots = func(*snap.Info) { called = true }
 
 	parser := testParser(c)

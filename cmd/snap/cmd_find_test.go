@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 
@@ -125,14 +126,13 @@ func (s *SnapSuite) TestFindSnapName(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			q := r.URL.Query()
-			if q.Get("q") == "" {
-				v, ok := q["section"]
-				c.Check(ok, check.Equals, true)
-				c.Check(v, check.DeepEquals, []string{""})
-			}
+			c.Check(q, check.DeepEquals, url.Values{
+				"q":     {"hello"},
+				"scope": {"wide"},
+			})
 			fmt.Fprint(w, findJSON)
 		default:
-			c.Fatalf("expected to get 2 requests, now on %d", n+1)
+			c.Fatalf("expected to get 1 request, now on %d", n+1)
 		}
 		n++
 	})
@@ -143,10 +143,116 @@ func (s *SnapSuite) TestFindSnapName(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
-hello +2.10 +canonical\* +- +GNU Hello, the "hello world" snap
-hello-world +6.1 +canonical\* +- +Hello world example
+hello +2.10 +canonical\*\* +- +GNU Hello, the "hello world" snap
+hello-world +6.1 +canonical\*\* +- +Hello world example
 hello-huge +1.0 +noise +- +a really big snap
 `)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	s.ResetStdStreams()
+}
+
+const findHelloWorldJSON = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": [
+    {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "GNU hello prints a friendly greeting. This is part of the snapcraft tour at https://snapcraft.io/",
+      "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
+      "download-size": 65536,
+      "icon": "",
+      "id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
+      "name": "hello",
+      "private": false,
+      "resource": "/v2/snaps/hello",
+      "revision": "1",
+      "status": "available",
+      "summary": "GNU Hello, the \"hello world\" snap",
+      "type": "app",
+      "version": "2.10"
+    },
+    {
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "This is a simple hello world example.",
+      "developer": "canonical",
+      "publisher": {
+         "id": "canonical",
+         "username": "canonical",
+         "display-name": "Canonical",
+         "validation": "verified"
+      },
+      "download-size": 20480,
+      "icon": "",
+      "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+      "name": "hello-world",
+      "private": false,
+      "resource": "/v2/snaps/hello-world",
+      "revision": "26",
+      "status": "available",
+      "summary": "Hello world example",
+      "type": "app",
+      "version": "6.1"
+    }
+  ],
+  "sources": [
+    "store"
+  ],
+  "suggested-currency": "GBP"
+}
+`
+
+func (s *SnapSuite) TestFindSnapNameAggregateTerms(c *check.C) {
+	n := 0
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0, 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			c.Check(q, check.DeepEquals, url.Values{
+				"q":     {"hello world"},
+				"scope": {"wide"},
+			})
+			fmt.Fprint(w, findHelloWorldJSON)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	// search terms will become one string
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "hello", "world"})
+
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	stdout := s.Stdout()
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
+hello +2.10 +canonical\*\* +- +GNU Hello, the "hello world" snap
+hello-world +6.1 +canonical\*\* +- +Hello world example
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	s.ResetStdStreams()
+
+	// search terms are already joined in the command line
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"find", "hello world"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	// with same output
+	c.Check(s.Stdout(), check.Equals, stdout)
 	c.Check(s.Stderr(), check.Equals, "")
 
 	s.ResetStdStreams()
@@ -234,7 +340,7 @@ func (s *SnapSuite) TestFindHello(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
-hello +2.10 +canonical\* +- +GNU Hello, the "hello world" snap
+hello +2.10 +canonical\*\* +- +GNU Hello, the "hello world" snap
 hello-huge +1.0 +noise +- +a really big snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -261,7 +367,7 @@ func (s *SnapSuite) TestFindHelloNarrow(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
-hello +2.10 +canonical\* +- +GNU Hello, the "hello world" snap
+hello +2.10 +canonical\*\* +- +GNU Hello, the "hello world" snap
 hello-huge +1.0 +noise +- +a really big snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -324,7 +430,7 @@ func (s *SnapSuite) TestFindPriced(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
-hello +2.10 +canonical\* +1.99GBP +GNU Hello, the "hello world" snap
+hello +2.10 +canonical\*\* +1.99GBP +GNU Hello, the "hello world" snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -385,7 +491,7 @@ func (s *SnapSuite) TestFindPricedAndBought(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Publisher +Notes +Summary
-hello +2.10 +canonical\* +bought +GNU Hello, the "hello world" snap
+hello +2.10 +canonical\*\* +bought +GNU Hello, the "hello world" snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }

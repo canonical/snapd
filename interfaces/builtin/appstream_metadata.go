@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -96,14 +97,22 @@ func (iface *appstreamMetadataInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 func (iface *appstreamMetadataInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, dir := range appstreamMetadataDirs {
 		dir = filepath.Join(dirs.GlobalRootDir, dir)
-		if !osutil.IsDirectory(dir) {
-			continue
+		if osutil.IsSymlink(dir) {
+			target, err := os.Readlink(dir)
+			if err == nil {
+				spec.AddMountEntry(osutil.MountEntry{
+					Name:    "/var/lib/snapd/hostfs" + dir,
+					Dir:     dirs.StripRootDir(dir),
+					Options: []string{osutil.XSnapdKindSymlink(), osutil.XSnapdSymlink(target)},
+				})
+			}
+		} else if osutil.IsDirectory(dir) {
+			spec.AddMountEntry(osutil.MountEntry{
+				Name:    "/var/lib/snapd/hostfs" + dir,
+				Dir:     dirs.StripRootDir(dir),
+				Options: []string{"bind", "ro"},
+			})
 		}
-		spec.AddMountEntry(osutil.MountEntry{
-			Name:    "/var/lib/snapd/hostfs" + dir,
-			Dir:     dirs.StripRootDir(dir),
-			Options: []string{"bind", "ro"},
-		})
 	}
 
 	return nil

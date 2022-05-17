@@ -358,6 +358,25 @@ type Systemd interface {
 	// threads if enabled, etc) part of the unit, which can be a service or a
 	// slice.
 	CurrentTasksCount(unit string) (uint64, error)
+	// Run a command
+	Run(command []string, opts *RunOptions) ([]byte, error)
+}
+
+// KeyringMode describes how the kernel keyring is setup, see systemd.exec(5)
+type KeyringMode string
+
+const (
+	KeyringModeInherit KeyringMode = "inherit"
+	KeyringModePrivate KeyringMode = "private"
+	KeyringModeShared  KeyringMode = "shared"
+)
+
+// RunOptions can be passed to systemd.Run()
+type RunOptions struct {
+	// XXX: alternative we could just have `Propertes []string` here
+	//      and let the caller do the keyring setup but feels a bit loose
+	KeyringMode KeyringMode
+	Stdin       io.Reader
 }
 
 // A Log is a single entry in the systemd journal.
@@ -1533,4 +1552,32 @@ func (s *systemd) Umount(whatOrWhere string) error {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
+}
+
+// Run runs the given command via "sytemd-run" and returns the output
+// or an error if the command fails.
+func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
+	if opts == nil {
+		opts = &RunOptions{}
+	}
+	runArgs := []string{
+		"--wait",
+		"--pipe",
+		"--collect",
+		"--service-type=exec",
+		"--quiet",
+	}
+	if opts.KeyringMode != "" {
+		runArgs = append(runArgs, fmt.Sprintf("--property=KeyringMode=%v", opts.KeyringMode))
+	}
+	runArgs = append(runArgs, "--")
+	runArgs = append(runArgs, command...)
+	cmd := exec.Command("systemd-run", runArgs...)
+	cmd.Stdin = opts.Stdin
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("cannot run %q: %v", command, osutil.OutputErr(output, err))
+	}
+	return output, nil
 }

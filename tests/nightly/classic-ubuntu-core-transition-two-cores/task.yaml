@@ -22,8 +22,6 @@ execute: |
     snap install test-snapd-python-webserver
     snap interfaces -i network | MATCH ":network.*test-snapd-python-webserver"
 
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB/names.sh"
     cp /var/lib/snapd/state.json /var/lib/snapd/state.json.old
     jq -r '.data.snaps["core"].type="xxx"' < /var/lib/snapd/state.json.old > /var/lib/snapd/state.json
 

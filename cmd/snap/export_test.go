@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/tooling"
 	usersessionclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -92,9 +93,6 @@ var (
 	PrintInstallHint = printInstallHint
 
 	IsStopping = isStopping
-
-	GetKeypairManager = getKeypairManager
-	GenerateKey       = generateKey
 
 	GetSnapDirOptions = getSnapDirOptions
 
@@ -380,7 +378,7 @@ func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) 
 	}
 }
 
-func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error) (restore func()) {
+func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts tooling.DownloadSnapOptions) error) (restore func()) {
 	old := downloadDirect
 	downloadDirect = f
 	return func() {
