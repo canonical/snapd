@@ -20,10 +20,12 @@ set -e
 #   files of the toplevel buildir. 
 PKG_BUILDDIR=$(dirname "$0")
 GO_GENERATE_BUILDDIR="${GO_GENERATE_BUILDDIR:-$(pwd)}"
+RELATIVE=.
 
 # run from "go generate" adjust path
 if [ "$GOPACKAGE" = "snapdtool" ]; then
     GO_GENERATE_BUILDDIR="$(pwd)/.."
+    RELATIVE=..
 fi
 
 OUTPUT_ONLY=false
@@ -131,7 +133,10 @@ cat <<EOF > "$PKG_BUILDDIR/cmd/VERSION"
 $v
 EOF
 
+fmts=$(go run -mod=vendor ${RELATIVE}/asserts/info)
+
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v
 SNAPD_APPARMOR_REEXEC=0
+${fmts}
 EOF

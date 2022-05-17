@@ -219,6 +219,8 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
@@ -240,6 +242,8 @@ override_dh_install-arch:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
