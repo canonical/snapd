@@ -55,6 +55,7 @@ execute: |
 
     echo "Trigger auto-refresh of test-snapd-refresh-control-provider but hold it via test-snapd-refresh-control's hook"
     "$TESTSTOOLS"/snapd-state force-autorefresh
+    systemctl reset-failed snapd.{service,socket}
     systemctl start snapd.{service,socket}
     LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -91,6 +92,7 @@ execute: |
   echo "--proceed" > "$CONTROL_FILE"
 
   "$TESTSTOOLS"/snapd-state force-autorefresh
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -116,6 +118,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state change-snap-channel "$SNAP_NAME" beta
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -138,6 +141,7 @@ execute: |
   echo "--proceed" > "$CONTROL_FILE"
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -153,6 +157,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state change-snap-channel "$CONTENT_SNAP_NAME" edge
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
@@ -171,6 +176,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state change-snap-channel "$CONTENT_SNAP_NAME" edge
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
+  systemctl reset-failed snapd.{service,socket}
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
