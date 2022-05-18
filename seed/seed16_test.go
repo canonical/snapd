@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
@@ -1577,9 +1576,10 @@ func (s *seed16Suite) TestLoadEssentialAndMetaCore18(c *C) {
 		},
 	})
 }
+
 func (s *seed16Suite) TestLoadAutoImportAssertion(c *C) {
 	// try to load auto import assertions, it should fail on seed16
 	err := s.seed16.LoadAutoImportAssertion(s.commitTo)
 	c.Assert(err, NotNil)
-	c.Check(err, check.ErrorMatches, "Auto-import from seed is not supported")
+	c.Check(err, ErrorMatches, "Auto-import from seed is not supported")
 }
