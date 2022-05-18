@@ -257,13 +257,11 @@ static void _sc_cleanup_v2_device_key(sc_cgroup_v2_device_key **keyptr) {
 
 static void _sc_cgroup_v2_set_memlock_limit(struct rlimit limit) {
     /* we may be setting the limit over the current max, which requires root
-     * privileges */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+     * privileges or CAP_SYS_RESOURCE */
     if (setrlimit(RLIMIT_MEMLOCK, &limit) < 0) {
         die("cannot set memlock limit to %llu:%llu", (long long unsigned int)limit.rlim_cur,
             (long long unsigned int)limit.rlim_max);
     }
-    (void)sc_set_effective_identity(old);
 }
 
 // _sc_cgroup_v2_adjust_memlock_limit updates the memlock limit which used to be
@@ -327,10 +325,6 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     char path[PATH_MAX] = {0};
     sc_must_snprintf(path, sizeof path, "/sys/fs/bpf/snap/%s", self->v2.tag);
 
-    /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
-    /* create /sys/fs/bpf/snap as root */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-
     /* we expect bpffs to be mounted at /sys/fs/bpf, which should have been done
      * by systemd, but some systems out there are a weird mix of older userland
      * and new kernels, in which case the assumptions about the state of the
@@ -342,16 +336,21 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         debug("bpffs mounted at /sys/fs/bpf");
     }
 
-    if (mkdir("/sys/fs/bpf/snap", 0700) < 0) {
-        if (errno != EEXIST) {
-            die("cannot create /sys/fs/bpf/snap directory");
+    /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
+    static const char bpf_snap_base[] = "/sys/fs/bpf/snap";
+    if (mkdir(bpf_snap_base, 0700) == 0) {
+        /* the new directory must be owned by root:root. */
+        if (chown(bpf_snap_base, 0, 0) < 0) {
+            die("cannot set root ownership on %s directory", bpf_snap_base);
         }
+    } else if (errno != EEXIST) {
+        die("cannot create %s directory", bpf_snap_base);
     }
+
     /* and obtain a file descriptor to the map, also as root */
     int devmap_fd = bpf_get_by_path(path);
     /* keep a copy of errno in case it gets clobbered */
     int get_by_path_errno = errno;
-    (void)sc_set_effective_identity(old);
     /* XXX: this should be more than enough keys */
     const size_t max_entries = 500;
     if (devmap_fd < 0) {
@@ -368,12 +367,10 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         debug("device map not present yet");
         /* map not created and pinned yet */
         const size_t value_size = 1;
-        /* create the map as root, also pinning the map creates a file entry
-         * under /sys/bpf/snap, make sure it's owned by root too */
-        (void)sc_set_effective_identity(sc_root_group_identity());
         /* kernels used to do account of BPF memory using rlimit memlock pool,
          * thus on older kernels (seen on 5.10), the map effectively locks 11
          * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2 (8k) */
+        /* NOTE: the new file map must be owned by root:root. */
         devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
@@ -391,7 +388,6 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
             /* we checked that the map did not exist, so fail on EEXIST too */
             die("cannot pin map to %s", path);
         }
-        (void)sc_set_effective_identity(old);
     } else if (!from_existing) {
         /* the devices access map exists, and we have been asked to setup a
          * cgroup, so clear the old map first so it was like it never existed */
@@ -455,10 +451,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
 
     if (!from_existing) {
-        /* load and attach the BPF program as root */
-        (void)sc_set_effective_identity(sc_root_group_identity());
+        /* load and attach the BPF program */
         int prog_fd = load_devcgroup_prog(devmap_fd);
-        (void)sc_set_effective_identity(old);
         /* keep track of the program */
         self->v2.prog_fd = prog_fd;
     }
@@ -538,9 +532,7 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     debug("cgroup %s opened at %d", own_group_full_path, cgroup_fd);
 
     /* attach the program to the cgroup */
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     int attach = bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, self->v2.prog_fd);
-    (void)sc_set_effective_identity(old);
     if (attach < 0) {
         die("cannot attach cgroup program");
     }
@@ -702,15 +694,15 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     const char *security_tag_relpath = security_tag;
     if (!from_existing) {
         /* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
-         * creating the directory if necessary. Note that we always chown the
-         * resulting directory to root:root. */
-        sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-        if (mkdirat(devices_fd, security_tag_relpath, 0755) < 0) {
-            if (errno != EEXIST) {
-                die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
+         * creating the directory if necessary. */
+        if (mkdirat(devices_fd, security_tag_relpath, 0755) == 0) {
+            /* the new directory must be owned by root:root. */
+            if (fchownat(devices_fd, security_tag_relpath, 0, 0, 0) < 0) {
+                die("cannot set root ownership on %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
             }
+        } else if (errno != EEXIST) {
+            die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
         }
-        (void)sc_set_effective_identity(old);
     }
 
     int SC_CLEANUP(sc_cleanup_close) security_tag_fd = -1;
