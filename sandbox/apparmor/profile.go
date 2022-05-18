@@ -53,16 +53,7 @@ const (
 
 var runtimeNumCPU = runtime.NumCPU
 
-func MockRuntimeNumCPU(new func() int) (restore func()) {
-	osutil.MustBeTestBinary("MockRuntimeNumCPU only to be used in tests")
-	old := runtimeNumCPU
-	runtimeNumCPU = new
-	return func() {
-		runtimeNumCPU = old
-	}
-}
-
-func maybeSetNumberOfJobs() string {
+func numberOfJobsParam() string {
 	cpus := runtimeNumCPU()
 	// Do not use all CPUs as this may have negative impact when booting.
 	if cpus > 2 {
@@ -94,9 +85,7 @@ func LoadProfiles(fnames []string, cacheDir string, flags AaParserFlags) error {
 	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
 	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 	if flags&ConserveCPU != 0 {
-		if jobArg := maybeSetNumberOfJobs(); jobArg != "" {
-			args = append(args, jobArg)
-		}
+		args = append(args, numberOfJobsParam())
 	}
 
 	if flags&SkipKernelLoad != 0 {

@@ -1334,62 +1334,6 @@ func triggeredMigration(oldBase, newBase string, opts *dirMigrationOptions) migr
 	}
 
 	return none
-
-	/* TODO:Snap-folder:
-	             after a discussion during the May 2022 sprint with Copenhagen
-		     it was decided to not do the migration to ~/Snap for all
-		     snaps with "base: core22" but instead add an opt-in mechanism
-
-				// we're refreshing to a core22 revision
-				if atLeastCore22(newBase) {
-					if opts.MigratedToHidden && !opts.MigratedToExposedHome {
-						// ~/.snap migration already happened so initialize ~/Snap only
-						return home
-					}
-
-					if !opts.MigratedToHidden {
-						//  nothing was migrated yet, so migrate to ~/.snap and ~/Snap
-						return full
-					}
-				} else {
-					// going back from core22
-					if atLeastCore22(oldBase) {
-						if opts.MigratedToExposedHome && opts.MigratedToHidden && !opts.UseHidden {
-							return revertFull
-						}
-
-						if opts.MigratedToExposedHome && opts.MigratedToHidden && opts.UseHidden {
-							return disableHome
-						}
-					} else {
-						if !opts.MigratedToHidden && opts.UseHidden {
-							// flag is set and not migrated yet
-							return hidden
-						}
-
-						if opts.MigratedToHidden && !opts.UseHidden {
-							// migration was done but flag was unset
-							return revertHidden
-						}
-					}
-				}
-
-				return none
-	*/
-}
-
-// atLeastCore22 returns true if 'base' is core22 or newer. Returns
-// false if it's older or it cannot be determined.
-func atLeastCore22(base string) bool {
-	if !strings.HasPrefix(base, "core") {
-		return false
-	}
-
-	if num, err := strconv.Atoi(base[4:]); err != nil || num < 22 {
-		return false
-	}
-
-	return true
 }
 
 func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
