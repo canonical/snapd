@@ -59,6 +59,17 @@ func getEncryptionKeyFromUserKeyring(dev string) ([]byte, error) {
 	return currKey, err
 }
 
+var keyslotFull = regexp.MustCompile(`^.* cryptsetup failed with: Key slot [0-9]+ is full, please select another one\.$`)
+
+// IsKeyslotAlreadyUsed returns true if the error indicates that the keyslot
+// attempted for a given key is already used
+func IsKeyslotAlreadyUsed(err error) bool {
+	if err == nil {
+		return false
+	}
+	return keyslotFull.MatchString(err.Error())
+}
+
 func isKeyslotNotActive(err error) bool {
 	match, _ := regexp.MatchString(`.*: Keyslot [0-9]+ is not active`, err.Error())
 	return match

@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -153,15 +154,13 @@ func (iface *posixMQInterface) validatePermissionsAttr(permsAttr interface{}) ([
 func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name string) ([]string, error) {
 	var perms []string
 
-	if permsAttr, isSet := attrs.Lookup("permissions"); isSet {
-		if permsList, err := iface.validatePermissionsAttr(permsAttr); err != nil {
-			return nil, err
-		} else {
-			perms = permsList
-		}
-	} else {
+	err := attrs.Attr("permissions", &perms)
+	switch {
+	case errors.Is(err, snap.AttributeNotFoundError{}):
 		// If the permissions have not been specified, use the defaults
 		perms = posixMQDefaultPlugPermissions
+	case err != nil:
+		return nil, err
 	}
 
 	if err := iface.validatePermissionList(perms, name); err != nil {
@@ -174,14 +173,11 @@ func (iface *posixMQInterface) getPermissions(attrs interfaces.Attrer, name stri
 func (iface *posixMQInterface) getPath(attrs interfaces.Attrer, name string) (string, error) {
 	var path string
 
-	if pathAttr, isSet := attrs.Lookup("path"); isSet {
-		if pathStr, ok := pathAttr.(string); ok {
-			path = pathStr
-		} else {
-			return "", fmt.Errorf(`posix-mq slot "path" attribute must be a string, not %v`, pathAttr)
+	if err := attrs.Attr("path", &path); err != nil {
+		if errors.Is(err, snap.AttributeNotFoundError{}) {
+			return "", fmt.Errorf(`posix-mq slot requires the "path" attribute`)
 		}
-	} else {
-		return "", fmt.Errorf(`posix-mq slot requires the "path" attribute`)
+		return "", err
 	}
 
 	// Path must begin with a /
@@ -207,7 +203,7 @@ func (iface *posixMQInterface) validatePath(name, path string) error {
 	}
 
 	if !cleanSubPath(path) {
-		return fmt.Errorf(`posix-mq "path" attribute is not a clean path: %v"`, path)
+		return fmt.Errorf(`posix-mq "path" attribute is not a clean path: %q`, path)
 	}
 
 	return nil

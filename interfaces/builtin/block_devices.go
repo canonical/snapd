@@ -59,13 +59,13 @@ const blockDevicesConnectedPlugAppArmor = `
 /sys/devices/**/nvme/**/dev r,
 
 # Access to raw devices, not individual partitions
-/dev/hd[a-t] rw,                                          # IDE, MFM, RLL
-/dev/sd{,[a-h]}[a-z] rw,                                  # SCSI
-/dev/sdi[a-v] rw,                                         # SCSI continued
-/dev/i2o/hd{,[a-c]}[a-z] rw,                              # I2O hard disk
-/dev/i2o/hdd[a-x] rw,                                     # I2O hard disk continued
-/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rw,                   # MMC (up to 1000 devices)
-/dev/vd[a-z] rw,                                          # virtio
+/dev/hd[a-t] rwk,                                          # IDE, MFM, RLL
+/dev/sd{,[a-h]}[a-z] rwk,                                  # SCSI
+/dev/sdi[a-v] rwk,                                         # SCSI continued
+/dev/i2o/hd{,[a-c]}[a-z] rwk,                              # I2O hard disk
+/dev/i2o/hdd[a-x] rwk,                                     # I2O hard disk continued
+/dev/mmcblk[0-9]{,[0-9],[0-9][0-9]} rwk,                   # MMC (up to 1000 devices)
+/dev/vd[a-z] rwk,                                          # virtio
 
 # Allow /dev/nvmeXnY namespace block devices. Please note this grants access to all
 # NVMe namespace block devices and that the numeric suffix on the character device
@@ -78,13 +78,13 @@ const blockDevicesConnectedPlugAppArmor = `
 #   controller's identifier. Do not assume any particular device relationship
 #   based on their names. If you do, you may irrevocably erase data on an
 #   unintended device.
-/dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]} rw, # NVMe (up to 100 devices, with 1-63 namespaces)
+/dev/nvme{[0-9],[1-9][0-9]}n{[1-9],[1-5][0-9],6[0-3]} rwk, # NVMe (up to 100 devices, with 1-63 namespaces)
 
 # Allow /dev/nvmeX controller character devices. These character devices allow
 # manipulation of the block devices that we also allow above, so grouping this
 # access here makes sense, whereas access to individual partitions is delegated
 # to the raw-volume interface.
-/dev/nvme{[0-9],[1-9][0-9]} rw,                           # NVMe (up to 100 devices)
+/dev/nvme{[0-9],[1-9][0-9]} rwk,                           # NVMe (up to 100 devices)
 
 # SCSI device commands, et al
 capability sys_rawio,

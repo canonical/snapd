@@ -235,6 +235,43 @@ func (spec *Specification) UpdateNSIndexOf(snippet string) (idx int, ok bool) {
 	return spec.updateNS.IndexOf(snippet)
 }
 
+func (spec *Specification) emitLayout(si *snap.Info, layout *snap.Layout) {
+	emit := spec.AddUpdateNSf
+
+	emit("  # Layout %s\n", layout.String())
+	path := si.ExpandSnapVariables(layout.Path)
+	switch {
+	case layout.Bind != "":
+		bind := si.ExpandSnapVariables(layout.Bind)
+		// Allow bind mounting the layout element.
+		emit("  mount options=(rbind, rw) \"%s/\" -> \"%s/\",\n", bind, path)
+		emit("  mount options=(rprivate) -> \"%s/\",\n", path)
+		emit("  umount \"%s/\",\n", path)
+		// Allow constructing writable mimic in both bind-mount source and mount point.
+		GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
+		GenWritableProfile(emit, bind, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
+	case layout.BindFile != "":
+		bindFile := si.ExpandSnapVariables(layout.BindFile)
+		// Allow bind mounting the layout element.
+		emit("  mount options=(bind, rw) \"%s\" -> \"%s\",\n", bindFile, path)
+		emit("  mount options=(rprivate) -> \"%s\",\n", path)
+		emit("  umount \"%s\",\n", path)
+		// Allow constructing writable mimic in both bind-mount source and mount point.
+		GenWritableFileProfile(emit, path, 2)     // At least / and /some-top-level-directory
+		GenWritableFileProfile(emit, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
+	case layout.Type == "tmpfs":
+		emit("  mount fstype=tmpfs tmpfs -> \"%s/\",\n", path)
+		emit("  mount options=(rprivate) -> \"%s/\",\n", path)
+		emit("  umount \"%s/\",\n", path)
+		// Allow constructing writable mimic to mount point.
+		GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
+	case layout.Symlink != "":
+		// Allow constructing writable mimic to symlink parent directory.
+		emit("  \"%s\" rw,\n", path)
+		GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
+	}
+}
+
 // AddLayout adds apparmor snippets based on the layout of the snap.
 //
 // The per-snap snap-update-ns profiles are composed via a template and
@@ -252,24 +289,24 @@ func (spec *Specification) UpdateNSIndexOf(snippet string) (idx int, ok bool) {
 //   the data)
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
-func (spec *Specification) AddLayout(si *snap.Info) {
-	if len(si.Layout) == 0 {
+func (spec *Specification) AddLayout(snapInfo *snap.Info) {
+	if len(snapInfo.Layout) == 0 {
 		return
 	}
 
 	// Walk the layout elements in deterministic order, by mount point name.
-	paths := make([]string, 0, len(si.Layout))
-	for path := range si.Layout {
+	paths := make([]string, 0, len(snapInfo.Layout))
+	for path := range snapInfo.Layout {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
 
 	// Get tags describing all apps and hooks.
-	tags := make([]string, 0, len(si.Apps)+len(si.Hooks))
-	for _, app := range si.Apps {
+	tags := make([]string, 0, len(snapInfo.Apps)+len(snapInfo.Hooks))
+	for _, app := range snapInfo.Apps {
 		tags = append(tags, app.SecurityTag())
 	}
-	for _, hook := range si.Hooks {
+	for _, hook := range snapInfo.Hooks {
 		tags = append(tags, hook.SecurityTag())
 	}
 
@@ -280,49 +317,27 @@ func (spec *Specification) AddLayout(si *snap.Info) {
 	}
 	for _, tag := range tags {
 		for _, path := range paths {
-			snippet := snippetFromLayout(si.Layout[path])
+			snippet := snippetFromLayout(snapInfo.Layout[path])
 			spec.snippets[tag] = append(spec.snippets[tag], snippet)
 		}
 		sort.Strings(spec.snippets[tag])
 	}
 
-	emit := spec.AddUpdateNSf
-
 	// Append update-ns snippets that allow constructing the layout.
 	for _, path := range paths {
-		l := si.Layout[path]
-		emit("  # Layout %s\n", l.String())
-		path := si.ExpandSnapVariables(l.Path)
-		switch {
-		case l.Bind != "":
-			bind := si.ExpandSnapVariables(l.Bind)
-			// Allow bind mounting the layout element.
-			emit("  mount options=(rbind, rw) \"%s/\" -> \"%s/\",\n", bind, path)
-			emit("  mount options=(rprivate) -> \"%s/\",\n", path)
-			emit("  umount \"%s/\",\n", path)
-			// Allow constructing writable mimic in both bind-mount source and mount point.
-			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
-			GenWritableProfile(emit, bind, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
-		case l.BindFile != "":
-			bindFile := si.ExpandSnapVariables(l.BindFile)
-			// Allow bind mounting the layout element.
-			emit("  mount options=(bind, rw) \"%s\" -> \"%s\",\n", bindFile, path)
-			emit("  mount options=(rprivate) -> \"%s\",\n", path)
-			emit("  umount \"%s\",\n", path)
-			// Allow constructing writable mimic in both bind-mount source and mount point.
-			GenWritableFileProfile(emit, path, 2)     // At least / and /some-top-level-directory
-			GenWritableFileProfile(emit, bindFile, 4) // At least /, /snap/, /snap/$SNAP_NAME and /snap/$SNAP_NAME/$SNAP_REVISION
-		case l.Type == "tmpfs":
-			emit("  mount fstype=tmpfs tmpfs -> \"%s/\",\n", path)
-			emit("  mount options=(rprivate) -> \"%s/\",\n", path)
-			emit("  umount \"%s/\",\n", path)
-			// Allow constructing writable mimic to mount point.
-			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
-		case l.Symlink != "":
-			// Allow constructing writable mimic to symlink parent directory.
-			emit("  \"%s\" rw,\n", path)
-			GenWritableProfile(emit, path, 2) // At least / and /some-top-level-directory
-		}
+		layout := snapInfo.Layout[path]
+		spec.emitLayout(snapInfo, layout)
+	}
+}
+
+// AddExtraLayouts adds additional apparmor snippets based on the provided layouts.
+// The function is in part identical to AddLayout, except that it considers only the
+// layouts passed as parameters instead of those declared in the snap.Info structure.
+// XXX: Should we just combine this into AddLayout instead of this separate
+// function?
+func (spec *Specification) AddExtraLayouts(si *snap.Info, layouts []snap.Layout) {
+	for _, layout := range layouts {
+		spec.emitLayout(si, &layout)
 	}
 }
 

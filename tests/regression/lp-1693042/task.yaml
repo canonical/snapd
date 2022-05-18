@@ -4,9 +4,8 @@ details: |
   When attempting to refresh to a bogus channel, detect it and fail.
 
 execute: |
-  # shellcheck source=tests/lib/names.sh
-  . "$TESTSLIB/names.sh"
   # precondition check
+  core_name="$(snaps.name core)"
   snap list "$core_name"
 
   out=$(! snap refresh "$core_name" --channel bogus 2>&1 1>- )

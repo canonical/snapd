@@ -557,21 +557,26 @@ func (s *snapshotSuite) TestList(c *check.C) {
 }
 
 func (s *snapshotSuite) TestAddDirToZipBails(c *check.C) {
-	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap"}
+	snapshot := &client.Snapshot{SetID: 42, Snap: "a-snap", Revision: snap.R(5)}
+
+	oldVal := os.Getenv("SNAPD_DEBUG")
+	c.Assert(os.Setenv("SNAPD_DEBUG", "1"), check.IsNil)
+	defer func() {
+		os.Setenv("SNAPD_DEBUG", oldVal)
+	}()
+
 	buf, restore := logger.MockLogger()
 	defer restore()
 	savingUserData := false
 	// note as the zip is nil this would panic if it didn't bail
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil), check.IsNil)
-	// no log for the non-existent case
-	c.Check(buf.String(), check.Equals, "")
-	buf.Reset()
-	c.Check(backend.AddDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, nil), check.IsNil)
-	c.Check(buf.String(), check.Matches, "(?m).* is not a directory.")
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", filepath.Join(s.root, "nonexistent"), savingUserData, nil), check.IsNil)
+	c.Check(backend.AddSnapDirToZip(nil, snapshot, nil, "", "an/entry", "/etc/passwd", savingUserData, nil), check.IsNil)
+	c.Check(buf.String(), check.Matches, "(?m).* is does not exist.*")
 }
 
 func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
-	d := filepath.Join(s.root, "foo")
+	rev := snap.R(5)
+	d := filepath.Join(s.root, rev.String())
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 
@@ -581,11 +586,12 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
 	savingUserData := false
-	c.Assert(backend.AddDirToZip(ctx, nil, z, "", "an/entry", d, savingUserData, nil), check.ErrorMatches, ".* context canceled")
+	c.Assert(backend.AddSnapDirToZip(ctx, &client.Snapshot{Revision: rev}, z, "", "an/entry", s.root, savingUserData, nil), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
-	d := filepath.Join(s.root, "foo")
+	rev := snap.R(5)
+	d := filepath.Join(s.root, rev.String())
 	c.Assert(os.MkdirAll(filepath.Join(d, "bar"), 0755), check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.root, "common"), 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "bar", "baz"), []byte("hello\n"), 0644), check.IsNil)
@@ -594,9 +600,10 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 	z := zip.NewWriter(&buf)
 	snapshot := &client.Snapshot{
 		SHA3_384: map[string]string{},
+		Revision: rev,
 	}
 	savingUserData := false
-	c.Assert(backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, savingUserData, nil), check.IsNil)
+	c.Assert(backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, savingUserData, nil), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(snapshot.SHA3_384, check.HasLen, 1)
@@ -617,6 +624,7 @@ func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 	z := zip.NewWriter(&buf)
 	snapshot := &client.Snapshot{
 		SHA3_384: map[string]string{},
+		Revision: snap.R("x1"),
 	}
 	defer z.Close()
 
@@ -673,7 +681,7 @@ func (s *snapshotSuite) TestAddDirToZipExclusions(c *check.C) {
 	} {
 		testLabel := check.Commentf("%s/%v", testData.excludes, testData.savingUserData)
 
-		err := backend.AddDirToZip(context.Background(), snapshot, z, "", "an/entry", d, testData.savingUserData, testData.excludes)
+		err := backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, testData.savingUserData, testData.excludes)
 		c.Check(err, check.ErrorMatches, "tar failed.*")
 		c.Check(tarArgs, check.DeepEquals, testData.expectedArgs, testLabel)
 	}

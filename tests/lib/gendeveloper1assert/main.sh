@@ -8,14 +8,14 @@ fi
 ASSERTION_FILE="$1"
 OUTPUT_FILE="${2:-auto-import.assert}"
 
-if ! command -v gendeveloper1model; then
-    echo "Command gendeveloper1model not found, please build the tool doing:"
-    echo "$ go install ./tests/lib/gendeveloper1model"
+if ! command -v gendeveloper1; then
+    echo "Command gendeveloper1 not found, please build the tool doing:"
+    echo "$ go install ./tests/lib/gendeveloper1"
     exit 1
 fi
 
 # sign the assertion
-sysUser="$(gendeveloper1model < "$ASSERTION_FILE")"
+sysUser="$(gendeveloper1 sign-model < "$ASSERTION_FILE")"
 
 cat >> "$OUTPUT_FILE" << EOF
 type: account
