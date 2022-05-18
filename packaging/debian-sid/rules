@@ -131,7 +131,7 @@ override_dh_clean:
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
-	GO_GENERATE_BUILDDIR=_build/src/$(DH_GOPKG) ./mkversion.sh
+	GO_GENERATE_BUILDDIR=_build/src/$(DH_GOPKG) GO111MODULE=off GOPATH=$$(pwd)/_build ./mkversion.sh
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
