@@ -24,8 +24,16 @@ import (
 )
 
 var (
-	MaybeSetNumberOfJobs = maybeSetNumberOfJobs
+	NumberOfJobsParam = numberOfJobsParam
 )
+
+func MockRuntimeNumCPU(new func() int) (restore func()) {
+	old := runtimeNumCPU
+	runtimeNumCPU = new
+	return func() {
+		runtimeNumCPU = old
+	}
+}
 
 // MockProfilesPath mocks the file read by LoadedProfiles()
 func MockProfilesPath(t *testutil.BaseTest, profiles string) {

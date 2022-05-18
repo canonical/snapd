@@ -20,6 +20,8 @@ package main_test
 
 import (
 	"bytes"
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -49,15 +51,31 @@ func (s *mainSuite) TestAddKey(c *C) {
 		return nil
 	})
 	defer restore()
+	devUsingKey := ""
+	addUsingKeyCalls := 0
+	var authzKey keys.EncryptionKey
+	restore = main.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
+		addUsingKeyCalls++
+		devUsingKey = luksDev
+		authzKey = key
+		return nil
+	})
+	defer restore()
 	d := c.MkDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	err := main.Run([]string{
 		"add-recovery-key",
-		"--device", "/dev/vda4",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
 	c.Assert(err, IsNil)
 	c.Check(addCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
+	c.Check(addUsingKeyCalls, Equals, 1)
+	c.Check(devUsingKey, Equals, "/dev/vda5")
 	c.Check(rkey, Not(DeepEquals), keys.RecoveryKey{})
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
 
@@ -65,15 +83,65 @@ func (s *mainSuite) TestAddKey(c *C) {
 	// add again, in which case a new key is generated
 	err = main.Run([]string{
 		"add-recovery-key",
-		"--device", "/dev/vda4",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
 	c.Assert(err, IsNil)
 	c.Check(addCalls, Equals, 2)
 	c.Check(dev, Equals, "/dev/vda4")
+	c.Check(addUsingKeyCalls, Equals, 2)
+	c.Check(devUsingKey, Equals, "/dev/vda5")
+	c.Assert(authzKey, DeepEquals, keys.EncryptionKey([]byte{1, 1, 1}))
 	c.Check(rkey, Not(DeepEquals), oldKey)
 	// file was overwritten
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
+}
+
+func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
+	restore := main.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
+		c.Fail()
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
+		c.Fail()
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	d := c.MkDir()
+	err := main.Run([]string{
+		"add-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--key-file", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, "cannot add recovery keys: mismatch in the number of devices and authorizations")
+
+	// --authorization=invalid
+	err = main.Run([]string{
+		"add-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "invalid",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-file", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: unknown authorization method "invalid"`)
+
+	// authorization key file does not exist
+	err = main.Run([]string{
+		"add-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-file", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
 }
 
 func (s *mainSuite) TestRemoveKey(c *C) {
@@ -85,24 +153,93 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 		return nil
 	})
 	defer restore()
+	removeUsingKeyCalls := 0
+	devUsingKey := ""
+	var authzKey keys.EncryptionKey
+	restore = main.MockRemoveRecoveryKeyFromLUKSUsingKey(func(key keys.EncryptionKey, luksDev string) error {
+		authzKey = key
+		removeUsingKeyCalls++
+		devUsingKey = luksDev
+		return nil
+	})
+	defer restore()
 	d := c.MkDir()
+	// key which will be removed
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "recovery.key"), []byte{0, 0, 0}, 0644), IsNil)
+
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	err := main.Run([]string{
 		"remove-recovery-key",
-		"--device", "/dev/vda4",
-		"--key-file", filepath.Join(d, "recovery.key"),
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
 	})
 	c.Assert(err, IsNil)
 	c.Check(removeCalls, Equals, 1)
 	c.Check(dev, Equals, "/dev/vda4")
+	c.Check(removeUsingKeyCalls, Equals, 1)
+	c.Check(devUsingKey, Equals, "/dev/vda5")
+	c.Assert(authzKey, DeepEquals, keys.EncryptionKey([]byte{1, 1, 1}))
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileAbsent)
 	// again when the recover key file is gone already
 	err = main.Run([]string{
 		"remove-recovery-key",
-		"--device", "/dev/vda4",
-		"--key-file", filepath.Join(d, "recovery.key"),
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
 	})
 	c.Check(removeCalls, Equals, 2)
+	c.Check(removeUsingKeyCalls, Equals, 2)
 	c.Assert(err, IsNil)
+}
+
+func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
+	restore := main.MockRemoveRecoveryKeyFromLUKS(func(luksDev string) error {
+		c.Fail()
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	restore = main.MockRemoveRecoveryKeyFromLUKSUsingKey(func(key keys.EncryptionKey, luksDev string) error {
+		c.Fail()
+		return fmt.Errorf("unexpected call")
+	})
+	defer restore()
+	d := c.MkDir()
+
+	err := main.Run([]string{
+		"remove-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--key-files", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, "cannot remove recovery keys: mismatch in the number of devices and authorizations")
+
+	// --authorization=invalid
+	err = main.Run([]string{
+		"remove-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "invalid",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: unknown authorization method "invalid"`)
+
+	// authorization key file does not exist
+	err = main.Run([]string{
+		"remove-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-files", filepath.Join(d, "recovery.key"),
+	})
+	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
 }
 
 func (s *mainSuite) TestChangeEncryptionKey(c *C) {
