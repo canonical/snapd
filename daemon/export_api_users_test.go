@@ -23,31 +23,25 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func MockHasUserAdmin(mockHasUserAdmin bool) (restore func()) {
-	oldHasUserAdmin := hasUserAdmin
+	restore = testutil.Backup(&hasUserAdmin)
 	hasUserAdmin = mockHasUserAdmin
-	return func() {
-		hasUserAdmin = oldHasUserAdmin
-	}
+	return restore
 }
 
 func MockDeviceStateCreateUser(createUser func(st *state.State, mgr *devicestate.DeviceManager, sudoer bool, createKnown bool, email string) (createdUsers []devicestate.UserResponse, internal_err bool, err error)) (restore func()) {
-	oldCreateUser := deviceStateCreateUser
+	restore = testutil.Backup(&deviceStateCreateUser)
 	deviceStateCreateUser = createUser
-	return func() {
-		deviceStateCreateUser = oldCreateUser
-
-	}
+	return restore
 }
 
 func MockDeviceStateRemoveUser(removeUser func(st *state.State, username string) (*auth.UserState, bool, error)) (restore func()) {
-	oldRemoveUser := deviceStateRemoveUser
+	restore = testutil.Backup(&deviceStateRemoveUser)
 	deviceStateRemoveUser = removeUser
-	return func() {
-		deviceStateRemoveUser = oldRemoveUser
-	}
+	return restore
 }
 
 type (
