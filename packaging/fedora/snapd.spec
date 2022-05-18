@@ -507,8 +507,6 @@ rm -rf vendor/*
 
 
 %build
-# Generate version files
-./mkversion.sh "%{version}-%{release}"
 
 # Build snapd
 mkdir -p src/github.com/snapcore
@@ -522,6 +520,9 @@ export GO111MODULE=off
 #%else
 #export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
+
+# Generate version files
+./mkversion.sh "%{version}-%{release}"
 
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
