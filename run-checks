@@ -244,7 +244,7 @@ if [ "$STATIC" = 1 ]; then
         fi
         # XXX: exclude core20-preseed test as its environment block confuses shellcheck, and it's not possible to disable shellcheck there.
         # shellcheck disable=SC2086
-        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed/task.yaml"
+        ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path" --exclude "tests/nested/manual/core20-preseed"
     fi
 
     if [ -z "${SKIP_MISSPELL-}" ]; then
