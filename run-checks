@@ -243,7 +243,6 @@ if [ "$STATIC" = 1 ]; then
         else
             FILTERED_FILES="$FILTERED_FILES tests"
         fi
-
         # shellcheck disable=SC2086
         ./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck $FILTERED_FILES --exclude "$exclude_tools_path"
     fi
