@@ -418,30 +418,24 @@ func MockSecbootRemoveRecoveryKeys(f func(mountPointToRecoverKeyFile map[string]
 
 func MockOsutilAddUser(addUser func(name string, opts *osutil.AddUserOptions) error) (restore func()) {
 	oldAddUser := osutilAddUser
-	// internal.SetOsutilAddUser(addUser)
 	osutilAddUser = addUser
 	return func() {
 		osutilAddUser = oldAddUser
-		// internal.SetOsutilAddUser((func(name string, opts *osutil.AddUserOptions) error)(oldAddUser))
 	}
 }
 
 func MockOsutilDelUser(delUser func(name string, opts *osutil.DelUserOptions) error) (restore func()) {
 	oldDelUser := osutilDelUser
-	// internal.SetOsutilDelUser(delUser)
 	osutilDelUser = delUser
 	return func() {
-		// internal.SetOsutilDelUser((func(name string, opts *osutil.DelUserOptions) error)(oldDelUser))
 		osutilDelUser = oldDelUser
 	}
 }
 
 func MockUserLookup(lookup func(username string) (*user.User, error)) (restore func()) {
 	oldLookup := userLookup
-	// internal.SetUserLookup(lookup)
 	userLookup = lookup
 	return func() {
-		// internal.SetUserLookup((func(username string) (*user.User, error))(oldLookup))
 		userLookup = oldLookup
 	}
 }
