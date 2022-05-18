@@ -232,7 +232,7 @@ if [ "$STATIC" = 1 ]; then
 
         # also run spread-shellcheck
         # XXX: exclude core20-preseed test as its environment block confuses shellcheck, and it's not possible to disable shellcheck there.
-        FILTERED_FILES="spread.yaml tests/nested/manual/core20-preseed"
+        FILTERED_FILES="spread.yaml tests/nested/manual/core20-preseed/task.yaml"
         if [ -n "$CHANGED_FILES" ]; then
             # shellcheck disable=SC2086
             for changed_file in $CHANGED_FILES; do
