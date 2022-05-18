@@ -111,7 +111,7 @@ func CreateUser(st *state.State, mgr *DeviceManager, sudoer bool, createKnown bo
 		assertDb: db,
 		modelAs:  model,
 		serialAs: serial,
-		sudoer:   sudoer,
+		isSudoer: sudoer,
 	}
 
 	// special case: the user requested the creation of all known
@@ -167,14 +167,14 @@ func getUserDetailsFromStore(theStore snapstate.StoreService, email string) (str
 	return v.Username, opts, nil
 }
 
-// userManager is helper to handle 	safe and unsafe modes of operations
+// userManager is helper to handle safe and unsafe modes of operations
 type userManager struct {
 	state    *state.State
 	safe     bool
 	assertDb asserts.RODatabase
 	modelAs  *asserts.Model
 	serialAs *asserts.Serial
-	sudoer   bool
+	isSudoer bool
 }
 
 func (u *userManager) createAllKnownSystemUsers() (createdUsers []UserResponse, internal_err bool, err error) {
@@ -209,7 +209,7 @@ func (u *userManager) createAllKnownSystemUsers() (createdUsers []UserResponse, 
 			continue
 		}
 
-		opts.Sudoer = u.sudoer
+		opts.Sudoer = u.isSudoer
 		opts.ExtraUsers = !release.OnClassic
 
 		createdUsers, err = u.addUser(username, email, opts, createdUsers)
