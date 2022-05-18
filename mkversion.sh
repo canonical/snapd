@@ -20,12 +20,10 @@ set -e
 #   files of the toplevel buildir. 
 PKG_BUILDDIR=$(dirname "$0")
 GO_GENERATE_BUILDDIR="${GO_GENERATE_BUILDDIR:-$(pwd)}"
-RELATIVE=.
 
 # run from "go generate" adjust path
 if [ "$GOPACKAGE" = "snapdtool" ]; then
     GO_GENERATE_BUILDDIR="$(pwd)/.."
-    RELATIVE=..
 fi
 
 OUTPUT_ONLY=false
@@ -133,7 +131,13 @@ cat <<EOF > "$PKG_BUILDDIR/cmd/VERSION"
 $v
 EOF
 
-fmts=$(go run -mod=vendor ${RELATIVE}/asserts/info)
+MOD=-mod=vendor
+if [ "$GO111MODULE" = "off" ] ; then
+    MOD=--
+elif [ ! -d "$GO_GENERATE_BUILDDIR/vendor/github.com"  ] ; then
+    MOD=--
+fi
+fmts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./asserts/info)
 
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v
