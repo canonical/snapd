@@ -722,37 +722,33 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
         die("cannot open %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
     }
 
-    /* Open devices.allow relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-    const char *devices_allow_relpath = "devices.allow";
     int SC_CLEANUP(sc_cleanup_close) devices_allow_fd = -1;
-    devices_allow_fd = openat(security_tag_fd, devices_allow_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (devices_allow_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_allow_relpath);
-    }
-
-    /* Open devices.deny relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-    const char *devices_deny_relpath = "devices.deny";
     int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
-    devices_deny_fd = openat(security_tag_fd, devices_deny_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (devices_deny_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_deny_relpath);
-    }
-
-    /* Open cgroup.procs relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-    const char *cgroup_procs_relpath = "cgroup.procs";
     int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
-    cgroup_procs_fd = openat(security_tag_fd, cgroup_procs_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (cgroup_procs_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
+
+    /* Open device files relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
+    struct device_file_t {
+        int *fd;
+        const char *relpath;
+    } device_files[] = {
+        { &devices_allow_fd, "devices.allow" },
+        { &devices_deny_fd, "devices.deny" },
+        { &cgroup_procs_fd, "cgroup.procs" },
+        { NULL, NULL }
+    };
+
+    for (struct device_file_t *device_file = device_files;
+         device_file->fd != NULL;
+         device_file++) {
+        int fd = openat(security_tag_fd, device_file->relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
+        if (fd < 0) {
+            if (from_existing && errno == ENOENT) {
+                return -1;
+            }
+            die("cannot open %s/%s/%s/%s", cgroup_path,
+                devices_relpath, security_tag_relpath, device_file->relpath);
         }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, cgroup_procs_relpath);
+        *device_file->fd = fd;
     }
 
     /* Everything worked so pack the result and "move" the descriptors over so
