@@ -165,8 +165,8 @@ execute: |
     systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
         /usr/lib/snapd/snap-fde-keymgr add-recovery-key \
             --key-file "$PWD/recovery-key" \
-            --device "${LOOP}p5" --authorization "file:$PWD/unsealed-key" \
-            --device "${LOOP}p4" --authorization "file:$PWD/save-key"
+            --devices "${LOOP}p5" --authorizations "file:$PWD/unsealed-key" \
+            --devices "${LOOP}p4" --authorizations "file:$PWD/save-key"
 
     # Test the recovery key
     echo "Ensure that we can open the encrypted ubuntu-data device using the recovery key"
@@ -192,8 +192,8 @@ execute: |
     systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
         /usr/lib/snapd/snap-fde-keymgr add-recovery-key \
             --key-file "$PWD/recovery-key" \
-            --device "${LOOP}p5" --authorization "file:$PWD/unsealed-key" \
-            --device "${LOOP}p4" --authorization "file:$PWD/save-key"
+            --devices "${LOOP}p5" --authorizations "file:$PWD/unsealed-key" \
+            --devices "${LOOP}p4" --authorizations "file:$PWD/save-key"
     # the recovery key file is still the same
     cmp recovery-key recovery-key-copy
     cryptsetup luksDump "${LOOP}p4" > loop-p4-dump-after
@@ -208,8 +208,8 @@ execute: |
     systemd-run --pipe --wait --collect -p KeyringMode=inherit -- \
         /usr/lib/snapd/snap-fde-keymgr remove-recovery-key \
             --key-file "$PWD/recovery-key-copy" \
-            --device "${LOOP}p5" --authorization "file:$PWD/unsealed-key" \
-            --device "${LOOP}p4" --authorization "file:$PWD/save-key"
+            --devices "${LOOP}p5" --authorizations "file:$PWD/unsealed-key" \
+            --devices "${LOOP}p4" --authorizations "file:$PWD/save-key"
     # the file was removed
     test ! -f recovery-key-copy
     echo "The recovery key can no longer open ubuntu-save or ubuntu-data"
