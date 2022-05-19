@@ -249,16 +249,13 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 `
 
 const modemManagerPermanentSlotDBus = `
-<policy user="root">
-    <allow own="org.freedesktop.ModemManager1"/>
-    <allow send_destination="org.freedesktop.ModemManager1"/>
-</policy>
-`
-
-const modemManagerConnectedPlugDBus = `
 <policy context="default">
     <deny own="org.freedesktop.ModemManager1"/>
     <deny send_destination="org.freedesktop.ModemManager1"/>
+</policy>
+<policy user="root">
+    <allow own="org.freedesktop.ModemManager1"/>
+    <allow send_destination="org.freedesktop.ModemManager1"/>
 </policy>
 `
 
@@ -1353,16 +1350,6 @@ func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	if release.OnClassic {
 		// Let confined apps access unconfined ofono on classic
 		spec.AddSnippet(modemManagerConnectedPlugAppArmorClassic)
-	}
-	return nil
-}
-
-func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Don't create default policy on classic otherwise it will likely
-	// conflict with any existing policy for ModemManager from the
-	// distro itself
-	if !release.OnClassic {
-		spec.AddSnippet(modemManagerConnectedPlugDBus)
 	}
 	return nil
 }
