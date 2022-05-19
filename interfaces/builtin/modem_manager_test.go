@@ -190,6 +190,7 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabel
 }
 
 func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
+	release.OnClassic = true
 	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
 	plug := interfaces.NewConnectedPlug(plugSnap.Plugs["modem-manager"], nil, nil)
 	apparmorSpec := &apparmor.Specification{}
@@ -200,7 +201,8 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	dbusSpec := &dbus.Specification{}
 	err = dbusSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
+	// only added on non-classic systems
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 
 	dbusSpec = &dbus.Specification{}
 	err = dbusSpec.AddPermanentSlot(s.iface, s.slotInfo)
@@ -235,6 +237,7 @@ func (s *ModemManagerInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 }
 
 func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {
+	release.OnClassic = false
 	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
 	plug := interfaces.NewConnectedPlug(plugSnap.Plugs["modem-manager"], nil, nil)
 
@@ -245,6 +248,17 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {
 	snippet := dbusSpec.SnippetForTag("snap.modem-manager.mmcli")
 	c.Assert(snippet, testutil.Contains, "deny own=\"org.freedesktop.ModemManager1\"")
 	c.Assert(snippet, testutil.Contains, "deny send_destination=\"org.freedesktop.ModemManager1\"")
+}
+
+func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBusClassic(c *C) {
+	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
+	plug := interfaces.NewConnectedPlug(plugSnap.Plugs["modem-manager"], nil, nil)
+
+	release.OnClassic = true
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string(nil))
 }
 
 func (s *ModemManagerInterfaceSuite) TestInterfaces(c *C) {

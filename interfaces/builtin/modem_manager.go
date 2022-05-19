@@ -1358,7 +1358,12 @@ func (iface *modemManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 }
 
 func (iface *modemManagerInterface) DBusConnectedPlug(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(modemManagerConnectedPlugDBus)
+	// Don't create default policy on classic otherwise it will likely
+	// conflict with any existing policy for ModemManager from the
+	// distro itself
+	if !release.OnClassic {
+		spec.AddSnippet(modemManagerConnectedPlugDBus)
+	}
 	return nil
 }
 
