@@ -35,3 +35,8 @@ execute: |
     cp "$PWD/tasks/task4" "$PWD/tasks/task.yaml"
     spread-shellcheck "$PROJECT_PATH/tests" -e "$PWD/tasks"
     rm "$PWD/tasks/task.yaml"
+
+    # Check that files can be excluded
+    cp "$PWD/tasks/task4" "$PWD/tasks/task.yaml"
+    spread-shellcheck "$PROJECT_PATH/tests" "$PWD/tasks/task.yaml" -e "$PWD/tasks"
+    rm "$PWD/tasks/task.yaml"
