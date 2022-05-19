@@ -22,12 +22,20 @@
 package secboot
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot/keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -66,6 +74,25 @@ func AddRecoveryKey(key keys.EncryptionKey, rkey keys.RecoveryKey, node string) 
 	return keymgr.AddRecoveryKeyToLUKSDeviceUsingKey(rkey, key, node)
 }
 
+func runSnapFDEKeymgr(args []string, stdin io.Reader) error {
+	toolPath, err := snapdtool.InternalToolPath("snap-fde-keymgr")
+	if err != nil {
+		return fmt.Errorf("cannot find keymgr tool: %v", err)
+	}
+
+	sysd := systemd.New(systemd.SystemMode, nil)
+
+	command := []string{
+		toolPath,
+	}
+	command = append(command, args...)
+	_, err = sysd.Run(command, &systemd.RunOptions{
+		KeyringMode: systemd.KeyringModeInherit,
+		Stdin:       stdin,
+	})
+	return err
+}
+
 // EnsureRecoveryKey makes sure the encrypted block devices have a recovery key.
 // It takes the path where to store the key and mount points for the
 // encrypted devices to operate on.
@@ -78,4 +105,36 @@ func EnsureRecoveryKey(recoveryKeyFile string, mountPoints []string) (keys.Recov
 // their recovery key is stored, mount points might share the latter.
 func RemoveRecoveryKeys(mountPointToRecoveryKeyFile map[string]string) error {
 	return fmt.Errorf("not implemented yet")
+}
+
+// ChangeEncryptionKey changes the main encryption key of a given device to the
+// new key.
+func ChangeEncryptionKey(node string, key keys.EncryptionKey) error {
+	partitionUUID, err := disks.PartitionUUID(node)
+	if err != nil {
+		return fmt.Errorf("cannot get UUID of partition %v: %v", node, err)
+	}
+
+	dev := filepath.Join("/dev/disk/by-partuuid", partitionUUID)
+	logger.Debugf("changing encryption key on device: %v", dev)
+
+	var buf bytes.Buffer
+	err = json.NewEncoder(&buf).Encode(struct {
+		Key []byte `json:"key"`
+	}{
+		Key: key,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot encode key for the FDE key manager tool: %v", err)
+	}
+
+	command := []string{
+		"change-encryption-key",
+		"--device", dev,
+	}
+
+	if err := runSnapFDEKeymgr(command, &buf); err != nil {
+		return fmt.Errorf("cannot run FDE key manager tool: %v", err)
+	}
+	return nil
 }
