@@ -72,6 +72,12 @@ const mockInfoJSONWithApps = `
         "snap": "hello",
         "name": "universe",
         "desktop-file": "/path/to/hello_universe.desktop"
+      },
+      {
+        "snap": "hello",
+        "name": "common-id",
+        "desktop-file": "/path/to/hello_common-id.desktop",
+        "common-id": "io.snapcraft.hello.common-id"
       }
     ],
     "contact": "mailto:snaps@canonical.com",
@@ -137,6 +143,53 @@ InstanceName=hello
 AppName=universe
 DesktopFile=hello_universe.desktop
 HasNetworkStatus=true
+`)
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestPortalInfoCommonID(c *C) {
+	restore := snap.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		c.Check(pid, Equals, 42)
+		return "hello", nil
+	})
+	defer restore()
+	restore = snap.MockApparmorSnapAppFromPid(func(pid int) (string, string, string, error) {
+		c.Check(pid, Equals, 42)
+		return "hello", "common-id", "", nil
+	})
+	defer restore()
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/snaps/hello")
+			fmt.Fprint(w, mockInfoJSONWithApps)
+		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/connections")
+			c.Check(r.URL.Query(), DeepEquals, url.Values{
+				"snap":      []string{"hello"},
+				"interface": []string{"network-status"},
+			})
+			result := client.Connections{}
+			EncodeResponseBody(c, w, map[string]interface{}{
+				"type":   "sync",
+				"result": result,
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d (%v)", n+1, r)
+		}
+		n++
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "portal-info", "42"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, `[Snap Info]
+InstanceName=hello
+AppName=common-id
+DesktopFile=hello_common-id.desktop
+CommonID=io.snapcraft.hello.common-id
+HasNetworkStatus=false
 `)
 	c.Check(s.Stderr(), Equals, "")
 }

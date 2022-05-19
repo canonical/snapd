@@ -20,6 +20,7 @@ package main_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -41,6 +42,7 @@ func TestT(t *testing.T) {
 }
 
 func (s *mainSuite) TestAddKey(c *C) {
+	d := c.MkDir()
 	dev := ""
 	rkey := keys.RecoveryKey{}
 	addCalls := 0
@@ -48,6 +50,8 @@ func (s *mainSuite) TestAddKey(c *C) {
 		addCalls++
 		dev = luksDev
 		rkey = recoveryKey
+		// recovery key is already written to a file
+		c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
 		return nil
 	})
 	defer restore()
@@ -58,10 +62,11 @@ func (s *mainSuite) TestAddKey(c *C) {
 		addUsingKeyCalls++
 		devUsingKey = luksDev
 		authzKey = key
+		// recovery key is already written to a file
+		c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
 		return nil
 	})
 	defer restore()
-	d := c.MkDir()
 	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	err := main.Run([]string{
 		"add-recovery-key",
@@ -80,7 +85,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
 
 	oldKey := rkey
-	// add again, in which case a new key is generated
+	// add again, in which case already existing key is read back
 	err = main.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
@@ -95,7 +100,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 	c.Check(addUsingKeyCalls, Equals, 2)
 	c.Check(devUsingKey, Equals, "/dev/vda5")
 	c.Assert(authzKey, DeepEquals, keys.EncryptionKey([]byte{1, 1, 1}))
-	c.Check(rkey, Not(DeepEquals), oldKey)
+	c.Check(rkey, DeepEquals, oldKey)
 	// file was overwritten
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
 }
@@ -142,6 +147,97 @@ func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
 		"--key-file", filepath.Join(d, "recovery.key"),
 	})
 	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: authorization file .*/authz.key does not exist`)
+}
+
+type addKeyTestCase struct {
+	errAddToLUKS         error
+	addCalls             int
+	errAddToLUKSUsingKey error
+	addUsingKeyCalls     int
+	expErr               string
+}
+
+func (s *mainSuite) testAddKeyIdempotent(c *C, tc addKeyTestCase) {
+	d := c.MkDir()
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
+	rkey := keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'}
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "recovery.key"), rkey[:], 0600), IsNil)
+
+	addCalls := 0
+	restore := main.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
+		addCalls++
+		c.Check(luksDev, Equals, "/dev/vda4")
+		c.Check(recoveryKey, DeepEquals, rkey)
+		return tc.errAddToLUKS
+	})
+	defer restore()
+	addUsingKeyCalls := 0
+	restore = main.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
+		addUsingKeyCalls++
+		c.Check(luksDev, Equals, "/dev/vda5")
+		c.Check(recoveryKey, DeepEquals, rkey)
+		return tc.errAddToLUKSUsingKey
+	})
+	defer restore()
+
+	err := main.Run([]string{
+		"add-recovery-key",
+		"--devices", "/dev/vda4",
+		"--authorizations", "keyring",
+		"--devices", "/dev/vda5",
+		"--authorizations", "file:" + filepath.Join(d, "authz.key"),
+		"--key-file", filepath.Join(d, "recovery.key"),
+	})
+	if tc.expErr != "" {
+		c.Assert(err, ErrorMatches, tc.expErr)
+	} else {
+		c.Assert(err, IsNil)
+	}
+	c.Check(addCalls, Equals, tc.addCalls)
+	c.Check(addUsingKeyCalls, Equals, tc.addUsingKeyCalls)
+	// file was not overwritten
+	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileEquals, rkey[:])
+}
+
+func (s *mainSuite) TestAddKeyIdempotentBothEmpty(c *C) {
+	s.testAddKeyIdempotent(c, addKeyTestCase{
+		addCalls:         1,
+		addUsingKeyCalls: 1,
+	})
+}
+
+func (s *mainSuite) TestAddKeyIdempotentOneErr(c *C) {
+	s.testAddKeyIdempotent(c, addKeyTestCase{
+		addCalls:     1,
+		errAddToLUKS: errors.New("mock error"),
+		expErr:       "cannot add recovery key to LUKS device: mock error",
+	})
+}
+
+func (s *mainSuite) TestAddKeyIdempotentOtherErr(c *C) {
+	s.testAddKeyIdempotent(c, addKeyTestCase{
+		addCalls:             1,
+		addUsingKeyCalls:     1,
+		errAddToLUKSUsingKey: errors.New("mock error"),
+		expErr:               "cannot add recovery key to LUKS device using authorization key: mock error",
+	})
+}
+
+func (s *mainSuite) TestAddKeyIdempotentBothPresent(c *C) {
+	s.testAddKeyIdempotent(c, addKeyTestCase{
+		addCalls:             1,
+		addUsingKeyCalls:     1,
+		errAddToLUKS:         errors.New("mock error: cryptsetup failed with: Key slot 1 is full, please select another one."),
+		errAddToLUKSUsingKey: errors.New("mock error: cryptsetup failed with: Key slot 1 is full, please select another one."),
+	})
+}
+
+func (s *mainSuite) TestAddKeyIdempotentOnePresent(c *C) {
+	s.testAddKeyIdempotent(c, addKeyTestCase{
+		addCalls:         1,
+		addUsingKeyCalls: 1,
+		errAddToLUKS:     errors.New("mock error: cryptsetup failed with: Key slot 1 is full, please select another one."),
+	})
 }
 
 func (s *mainSuite) TestRemoveKey(c *C) {
