@@ -382,9 +382,9 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	task = ts.Tasks()[i]
 	c.Assert(task.Kind(), Equals, "connect")
 	var flag bool
-	c.Assert(task.Get("auto", &flag), Equals, state.ErrNoState)
-	c.Assert(task.Get("delayed-setup-profiles", &flag), Equals, state.ErrNoState)
-	c.Assert(task.Get("by-gadget", &flag), Equals, state.ErrNoState)
+	c.Assert(task.Get("auto", &flag), testutil.ErrorIs, state.ErrNoState)
+	c.Assert(task.Get("delayed-setup-profiles", &flag), testutil.ErrorIs, state.ErrNoState)
+	c.Assert(task.Get("by-gadget", &flag), testutil.ErrorIs, state.ErrNoState)
 	var plug interfaces.PlugRef
 	c.Assert(task.Get("plug", &plug), IsNil)
 	c.Assert(plug.Snap, Equals, "consumer")
@@ -400,7 +400,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 
 	var autoconnect bool
 	err = task.Get("auto", &autoconnect)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Assert(autoconnect, Equals, false)
 
 	// verify initial attributes are present in connect task
@@ -513,7 +513,7 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 			c.Assert(err, IsNil)
 			c.Check(flag, Equals, true)
 		} else {
-			c.Assert(err, Equals, state.ErrNoState)
+			c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 		}
 
 	}
@@ -816,7 +816,7 @@ func (s *interfaceManagerSuite) TestParallelInstallConnectTask(c *C) {
 
 	var autoconnect bool
 	err = task.Get("auto", &autoconnect)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Assert(autoconnect, Equals, false)
 
 	// verify initial attributes are present in connect task
@@ -1592,7 +1592,7 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	task = ts.Tasks()[2]
 	c.Assert(task.Kind(), Equals, "disconnect")
 	var autoDisconnect bool
-	c.Assert(task.Get("auto-disconnect", &autoDisconnect), Equals, state.ErrNoState)
+	c.Assert(task.Get("auto-disconnect", &autoDisconnect), testutil.ErrorIs, state.ErrNoState)
 	c.Assert(autoDisconnect, Equals, false)
 
 	var plug interfaces.PlugRef
@@ -2674,7 +2674,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectSlotsIfAlter
 	// Ensure that no connections were made
 	var conns map[string]interface{}
 	err := s.state.Get("conns", &conns)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Check(conns, HasLen, 0)
 }
 
@@ -3931,7 +3931,7 @@ func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
 
 	var removed map[string]interface{}
 	err = change.Tasks()[0].Get("removed", &removed)
-	c.Check(err, Equals, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestDoRemove(c *C) {
@@ -5399,7 +5399,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotSnapOnAutoConnect(c *
 	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "producer" is no longer available for auto-connecting.*`)
 
 	var conns map[string]interface{}
-	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
+	c.Assert(s.state.Get("conns", &conns), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *C) {
@@ -5425,7 +5425,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugSnapOnAutoConnect(c *
 	c.Assert(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*snap "consumer" is no longer available for auto-connecting.*`)
 
 	var conns map[string]interface{}
-	c.Assert(s.state.Get("conns", &conns), Equals, state.ErrNoState)
+	c.Assert(s.state.Get("conns", &conns), testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
@@ -5460,7 +5460,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingPlugOnAutoConnect(c *C) {
 
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
@@ -5495,7 +5495,7 @@ func (s *interfaceManagerSuite) TestConnectErrorMissingSlotOnAutoConnect(c *C) {
 
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
-	c.Assert(err, Equals, state.ErrNoState)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *interfaceManagerSuite) TestConnectHandlesAutoconnect(c *C) {
