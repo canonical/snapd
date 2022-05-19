@@ -116,7 +116,7 @@ func ChangeEncryptionKey(node string, key keys.EncryptionKey) error {
 	}
 
 	dev := filepath.Join("/dev/disk/by-partuuid", partitionUUID)
-	logger.Debugf("device by partuuid: %v", dev)
+	logger.Debugf("changing encryption key on device: %v", dev)
 
 	var buf bytes.Buffer
 	err = json.NewEncoder(&buf).Encode(struct {
@@ -125,17 +125,16 @@ func ChangeEncryptionKey(node string, key keys.EncryptionKey) error {
 		Key: key,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot encode key to the keymgr tool: %v", err)
+		return fmt.Errorf("cannot encode key for the FDE key manager tool: %v", err)
 	}
 
-	// support multiple devices with
 	command := []string{
 		"change-encryption-key",
 		"--device", dev,
 	}
 
 	if err := runSnapFDEKeymgr(command, &buf); err != nil {
-		return fmt.Errorf("cannot run keymgr tool: %v", err)
+		return fmt.Errorf("cannot run FDE key manager tool: %v", err)
 	}
 	return nil
 }

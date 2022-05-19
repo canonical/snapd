@@ -180,7 +180,7 @@ func (s *keymgrSuite) TestChangeEncryptionKeyBadKeymgr(c *C) {
 	defer restore()
 
 	err := secboot.ChangeEncryptionKey("/dev/foo/bar", key)
-	c.Assert(err, ErrorMatches, "cannot run keymgr tool: cannot run .*: keymgr very unhappy")
+	c.Assert(err, ErrorMatches, "cannot run FDE key manager tool: cannot run .*: keymgr very unhappy")
 
 	c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "info", "--query", "property", "--name", "/dev/foo/bar"},
