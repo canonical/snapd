@@ -215,7 +215,6 @@ If you understand and want to proceed repeat the command including --classic.
 		msg = i18n.G("snap %q has no updates available")
 	case client.ErrorKindSnapNotInstalled:
 		isError = true
-
 		// if the snap isn't installed, then remove can ignore this error
 		if opName == "remove" {
 			isError = false
