@@ -22,7 +22,6 @@ package servicestate
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	tomb "gopkg.in/tomb.v2"
 
@@ -529,7 +528,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	if _, ok := allGrps[grp.Name]; !ok {
 		// stop the quota group, then remove it
 		if !ensureOpts.Preseeding {
-			if err := systemSysd.Stop([]string{grp.SliceFileName()}, 5*time.Second); err != nil {
+			if err := systemSysd.Stop([]string{grp.SliceFileName()}); err != nil {
 				logger.Noticef("unable to stop systemd slice while removing group %q: %v", grp.Name, err)
 			}
 		}

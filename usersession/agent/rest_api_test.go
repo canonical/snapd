@@ -64,9 +64,9 @@ func (s *restSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)
-	restore = systemd.MockStopDelays(time.Millisecond, 25*time.Second)
+	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.AddCleanup(restore)
-	restore = agent.MockStopTimeouts(20*time.Millisecond, time.Millisecond)
+	restore = agent.MockStopTimeouts(time.Millisecond)
 	s.AddCleanup(restore)
 
 	var err error
@@ -279,6 +279,7 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 		{"--user", "start", "snap.foo.service"},
 		{"--user", "start", "snap.bar.service"},
 		{"--user", "stop", "snap.foo.service"},
+		{"--user", "show", "--property=ActiveState", "snap.foo.service"},
 	})
 }
 
