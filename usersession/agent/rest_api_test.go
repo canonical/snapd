@@ -66,8 +66,6 @@ func (s *restSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 	restore = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.AddCleanup(restore)
-	restore = agent.MockStopTimeouts(time.Millisecond)
-	s.AddCleanup(restore)
 
 	var err error
 	s.notify, err = notificationtest.NewFdoServer()
