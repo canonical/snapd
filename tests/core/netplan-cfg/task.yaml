@@ -26,13 +26,15 @@ execute: |
     snap get -d system system.network.netplan | jq .
 
     echo "Check that setting adding a br54 interface via netplan works"
-    snap set system system.network.netplan.network.bridges.br54.dhcp4=true
+    # set to false avoids that networkd waits for a valid dhcp record
+    # here (which will never come), see LP:1967084 for details
+    snap set system system.network.netplan.network.bridges.br54.dhcp4=false
 
     echo "Check that the interface is really there"
     netplan get | MATCH br54
     ip link | MATCH br54
     res=$(yq e '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
-    [ "$res" = "true" ]
+    [ "$res" = "false" ]
 
     echo "Now add dhcp6"
     snap set system system.network.netplan.network.bridges.br54.dhcp6=true
@@ -40,7 +42,7 @@ execute: |
     [ "$res" = "true" ]
     echo "And the dhcp4 setting is preserved and it is still set"
     res=$(yq e '.network.bridges.br54.dhcp4' - < /etc/netplan/90-snapd-config.yaml)
-    [ "$res" = "true" ]
+    [ "$res" = "false" ]
 
     echo "Check that unset works"
     snap unset system system.network.netplan.network.bridges.br54.dhcp6
