@@ -159,7 +159,19 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := installedSnapNames(x.Positional.Snaps)
 	changeID, err := x.client.RemoveMany(names, opts)
 	if err != nil {
-		return err
+		var name string
+		if cerr, ok := err.(*client.Error); ok {
+			if snapName, ok := cerr.Value.(string); ok {
+				name = snapName
+			}
+		}
+
+		msg, err := errorToCmdMessage(name, "remove", err, opts)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stderr, msg)
+		return nil
 	}
 
 	chg, err := x.wait(changeID)
