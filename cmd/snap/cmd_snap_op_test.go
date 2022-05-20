@@ -1841,25 +1841,29 @@ func (s *SnapOpSuite) TestNotInstalledError(c *check.C) {
 		err bool
 	}{
 		{cmd: "refresh foo", err: true},
+		{cmd: "refresh foo bar", err: true},
+		{cmd: "install foo", err: true},
+		{cmd: "install foo bar", err: true},
+		{cmd: "revert foo", err: true},
 		{cmd: "switch --channel stable foo", err: true},
+		{cmd: "switch --channel stable foo bar", err: true},
 		{cmd: "enable foo", err: true},
+		{cmd: "enable foo bar", err: true},
 		{cmd: "disable foo", err: true},
+		{cmd: "disable foo bar", err: true},
 		{cmd: "list foo", err: true},
+		{cmd: "list foo bar", err: true},
 		{cmd: "save foo", err: true},
+		{cmd: "save foo bar", err: true},
 		{cmd: "remove foo", err: false},
+		{cmd: "remove foo bar", err: false},
 	} {
-		var assert check.Checker
-		var msg string
-
-		if t.err {
-			assert = check.Not(check.IsNil)
-		} else {
-			assert = check.IsNil
-			msg = "not "
-		}
 		_, err := snap.Parser(snap.Client()).ParseArgs(strings.Fields(t.cmd))
-		comment := check.Commentf("command %q should %sreturn an error due to a non-existent snap but got %v", t.cmd, msg, err)
-		c.Check(err, assert, comment)
+		if t.err {
+			c.Check(err, check.ErrorMatches, "Snap was not installed")
+		} else {
+			c.Check(err, check.IsNil)
+		}
 	}
 }
 
