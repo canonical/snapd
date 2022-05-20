@@ -45,15 +45,44 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
-	restorePreseed := main.MockPreseedCore20(func(dir, key string) error {
+	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir string) error {
 		c.Check(dir, Equals, tmpDir)
 		c.Check(key, Equals, "key")
+		c.Check(aaDir, Equals, "/custom/aa/features")
 		called = true
 		return nil
 	})
 	defer restorePreseed()
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", tmpDir}), IsNil)
+	c.Assert(main.Run(parser, []string{"--preseed-sign-key", "key", "--apparmor-features-dir", "/custom/aa/features", tmpDir}), IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+
+	restore := main.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	// for UC20 probing
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
+
+	var called bool
+	restorePreseed := main.MockPreseedCore20(func(dir, key, aaDir string) error {
+		c.Check(dir, Equals, tmpDir)
+		c.Check(key, Equals, "")
+		c.Check(aaDir, Equals, "")
+		called = true
+		return nil
+	})
+	defer restorePreseed()
+
+	parser := testParser(c)
+	c.Assert(main.Run(parser, []string{tmpDir}), IsNil)
 	c.Check(called, Equals, true)
 }

@@ -17,18 +17,17 @@
  *
  */
 
-// The ``gendevmodel'' tool can be used generate model assertions for use in
+// The ``gendeveloper1'' tool can be used generate model assertions for use in
 // tests. It reads the assetion headers in form of a JSON from stdin, and
 // outputs a model assertion, signed by the test key to stdout.
 //
 // Usage:
-//       gendeveloper1model < headers.json > assertion.model
+//       gendeveloper1 sign-model < headers.json > assertion.model
 //
 // Example input:
 //
 // {
 //     "type": "model",
-//     "series": "16",
 //     "brand-id": "developer1",
 //     "model": "my-model",
 //     "architecture": "amd64",
@@ -41,6 +40,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
@@ -49,6 +49,19 @@ import (
 )
 
 func main() {
+	if len(os.Args) != 2 {
+		fmt.Fprintf(os.Stderr, "command argument missing\n")
+		os.Exit(1)
+	}
+	if os.Args[1] == "show-key" {
+		fmt.Printf("%s", assertstest.DevKey)
+		return
+	}
+	if os.Args[1] != "sign-model" {
+		fmt.Fprintf(os.Stderr, "unknown command %q, use show-key or sign-model\n", os.Args[1])
+		os.Exit(1)
+	}
+
 	devKey, _ := assertstest.ReadPrivKey(assertstest.DevKey)
 	devSigning := assertstest.NewSigningDB("developer1", devKey)
 
@@ -58,7 +71,13 @@ func main() {
 		log.Fatalf("failed to decode model headers data: %v", err)
 	}
 
-	clModel, err := devSigning.Sign(asserts.ModelType, headers, nil, "")
+	assertName, _ := headers["type"]
+	assertType := asserts.ModelType
+	if assertName == "system-user" {
+		assertType = asserts.SystemUserType
+	}
+
+	clModel, err := devSigning.Sign(assertType, headers, nil, "")
 	if err != nil {
 		log.Fatalf("failed to sign the model: %v", err)
 	}

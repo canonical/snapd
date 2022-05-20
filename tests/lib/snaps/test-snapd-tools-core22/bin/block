@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -ex
+
+cd "$SNAP"
+echo "blocking dir $(pwd)"
+
+# add a marker so that applications that rely on this blocker
+# can detect when its ready
+touch "$SNAP_DATA/block-running"
+
+echo "waiting, press ctrl-c to stop"
+sleep 999999
+exit 0

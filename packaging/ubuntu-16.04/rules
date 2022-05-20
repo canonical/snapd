@@ -45,6 +45,14 @@ ifneq (${VERSION_ID},"16.04")
 	SUBSTVARS += -Vdbussession:Depends="default-dbus-session-bus | dbus-session-bus"
 endif
 
+# Restart snapd only after the upgrade, this does not work on 16.04 so
+# we keep the existing behavior there, see
+# https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1969162
+DH_SYSTEMD_START_OPTS=
+ifneq (${VERSION_ID},"16.04")
+	DH_SYSTEMD_START_OPTS += --restart-after-upgrade
+endif
+
 # this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 
@@ -228,7 +236,7 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),riscv64)
 	GO111MODULE=on \
 		dh_auto_test -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
 endif
-	
+
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
@@ -266,6 +274,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# asserts/info
+	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
@@ -315,8 +325,8 @@ override_dh_systemd_start:
 	# debhelper supporting --remaining like behaviour here would
 	# have been useful
 	# (Re-)start socket first
-	dh_systemd_start snapd.socket
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.socket
 	# Then service
-	dh_systemd_start snapd.service
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
 	# Then the rest
-	dh_systemd_start $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service, $(shell ls debian/snapd/lib/systemd/system/))

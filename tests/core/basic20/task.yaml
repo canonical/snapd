@@ -42,12 +42,10 @@ execute: |
     echo "Ensure passwd/group is available for snaps"
     "test-snapd-sh-${base_snap}.sh" -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
-    #shellcheck source=tests/lib/names.sh
-    . "$TESTSLIB"/names.sh
-
     case "$SPREAD_SYSTEM" in
       ubuntu-core-20-64|ubuntu-core-22-64)
         echo "Ensure extracted kernel.efi exists"
+        kernel_name="$(snaps.name kernel)"
         test -e /boot/grub/"$kernel_name"*/kernel.efi
 
         echo "Ensure kernel.efi is a symlink"
@@ -101,7 +99,7 @@ execute: |
     MODEL="$(snap model --verbose | grep '^model' | awk '{ print $2 }')"
     BRAND_ID="$(snap model --verbose | grep '^brand-id:' | awk '{print $2}')"
     if [ "$(snap known account "username=$BRAND_ID" | grep '^validation:' | awk '{print $2}')" != "unproven" ]; then
-        BRAND_ID="$BRAND_ID\*"
+        BRAND_ID="$BRAND_ID\*\*"
     fi
     snap recovery --unicode=never | MATCH "[0-9]+ +$BRAND_ID +$MODEL +current"
 

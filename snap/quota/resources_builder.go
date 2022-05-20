@@ -20,6 +20,8 @@
 package quota
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
@@ -45,7 +47,7 @@ type ResourcesBuilder struct {
 	JournalSizeLimitSet bool
 
 	JournalRateCountLimit  int
-	JournalRatePeriodLimit int
+	JournalRatePeriodLimit time.Duration
 	JournalRateSet         bool
 }
 
@@ -90,7 +92,7 @@ func (rb *ResourcesBuilder) WithJournalSize(limit quantity.Size) *ResourcesBuild
 	return rb
 }
 
-func (rb *ResourcesBuilder) WithJournalRate(count, period int) *ResourcesBuilder {
+func (rb *ResourcesBuilder) WithJournalRate(count int, period time.Duration) *ResourcesBuilder {
 	rb.JournalRateCountLimit = count
 	rb.JournalRatePeriodLimit = period
 	rb.JournalRateSet = true

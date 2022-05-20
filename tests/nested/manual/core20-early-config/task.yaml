@@ -15,11 +15,8 @@ prepare: |
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     # modify and repack gadget snap (add defaults section and install hook)
-    version=20
-    if tests.nested is-nested uc22; then
-        version=22
-    fi
-    snap download --basename=pc --channel="$version/edge" pc
+    VERSION="$(tests.nested show version)"
+    snap download --basename=pc --channel="$VERSION/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
     cat defaults.yaml >> pc-gadget/meta/gadget.yaml

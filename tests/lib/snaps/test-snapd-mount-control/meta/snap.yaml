@@ -11,7 +11,7 @@ plugs:
               where: $SNAP_COMMON/**
               options: [rw, bind]
             - what: /var/tmp/**
-              where: $SNAP_COMMON/**
+              where: $SNAP_COMMON/target
               options: [rw, bind]
               persistent: true
             - what: /dev/sd*
