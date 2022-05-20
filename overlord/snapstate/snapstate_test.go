@@ -156,7 +156,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -1489,6 +1489,11 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -1704,6 +1709,11 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 			name: "some-snap-with-base",
 		},
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap-with-base",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/7"),
 		},
@@ -1786,6 +1796,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap_instance",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap_instance",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -1877,7 +1892,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 7)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -1923,6 +1938,11 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -2007,6 +2027,11 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -2111,6 +2136,11 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "some-snap",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -2331,6 +2361,8 @@ func (s *snapmgrTestSuite) TestUndoRevertDoHiddenMigration(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertFromCore22WithSetFlagKeepMigration(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2395,6 +2427,8 @@ func (s *snapmgrTestSuite) TestRevertFromCore22WithSetFlagKeepMigration(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertToCore22WithoutFlagSet(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2461,6 +2495,8 @@ func (s *snapmgrTestSuite) TestRevertToCore22AfterRevertedFullMigration(c *C) {
 }
 
 func (s *snapmgrTestSuite) testRevertToCore22AfterRevertedMigration(c *C, migrationState *dirs.SnapDirOptions) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8120,6 +8156,8 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	testCases := []struct {
 		oldBase  string
 		newBase  string
@@ -8189,4 +8227,11 @@ func (s *snapmgrTestSuite) TestMigrationTriggers(c *C) {
 			c.Errorf("expected install from %q to %q w/ %+v to result in %q but got %q", t.oldBase, t.newBase, t.opts, t.expected, action)
 		}
 	}
+}
+
+func (s *snapmgrTestSuite) TestExcludeFromRefreshAppAwareness(c *C) {
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeApp), Equals, false)
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeGadget), Equals, false)
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeSnapd), Equals, true)
+	c.Check(snapstate.ExcludeFromRefreshAppAwareness(snap.TypeOS), Equals, true)
 }

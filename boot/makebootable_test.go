@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -453,7 +454,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	model := boottest.MakeMockModel()
 
 	err := boot.MakeRunnableSystem(model, nil, nil)
-	c.Assert(err, ErrorMatches, "internal error: cannot make non-uc20 system runnable")
+	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20(c *C) {
@@ -563,8 +564,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	myKey := keys.EncryptionKey{}
+	myKey2 := keys.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
 		myKey2[i] = byte(128 + i)
@@ -906,8 +907,8 @@ version: 5.0
 	c.Assert(err, IsNil)
 
 	// set encryption key
-	myKey := secboot.EncryptionKey{}
-	myKey2 := secboot.EncryptionKey{}
+	myKey := keys.EncryptionKey{}
+	myKey2 := keys.EncryptionKey{}
 	for i := range myKey {
 		myKey[i] = byte(i)
 		myKey2[i] = byte(128 + i)
@@ -1344,7 +1345,7 @@ version: 5.0
 
 	// TODO:UC20: enable this use case
 	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
-	c.Assert(err, ErrorMatches, "non-empty uboot.env not supported on UC20 yet")
+	c.Assert(err, ErrorMatches, `non-empty uboot.env not supported on UC20\+ yet`)
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20BootScr(c *C) {

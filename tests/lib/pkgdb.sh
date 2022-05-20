@@ -627,7 +627,8 @@ pkg_dependencies_ubuntu_classic(){
                 dbus-user-session
                 fwupd
                 golang
-                linux-tools-virtual
+                linux-tools-$(uname -r)
+                lz4
                 qemu-utils
                 "
             ;;

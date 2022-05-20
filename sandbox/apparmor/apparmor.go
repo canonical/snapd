@@ -346,6 +346,9 @@ func probeParserFeatures() ([]string, error) {
 	if tryAppArmorParserFeature(parser, "capability audit_read,") {
 		features = append(features, "cap-audit-read")
 	}
+	if tryAppArmorParserFeature(parser, "mqueue,") {
+		features = append(features, "mqueue")
+	}
 	sort.Strings(features)
 	return features, nil
 }

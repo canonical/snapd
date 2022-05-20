@@ -1,0 +1,94 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: snaps.cleanup [--skip <SNAP_NAME>]"
+    echo
+    echo "cleanup the snaps installed in the current system"
+}
+
+cleanup() {
+    snap_mount_dir="$(os.paths snap-mount-dir)"
+    remove_bases=""
+    skip_bases=""
+
+    gadget_name="$(snaps.name gadget)"
+    kernel_name="$(snaps.name kernel)"
+    core_name="$(snaps.name core)"
+
+    # remove all app snaps first
+    for snap in "$snap_mount_dir"/*; do
+        snap="${snap:6}"
+        case "$snap" in
+            "bin" | "$gadget_name" | "$kernel_name" | "$core_name" | "snapd" |README)
+                ;;
+            *)
+                # Check if a snap should be kept, there's a list of those in spread.yaml.
+                local keep=0
+                # shellcheck disable=SC2068
+                for skip_snap in $@; do
+                    if [ "$snap" = "$skip_snap" ]; then
+                        # Skip the snap base removal as well
+                        snap_base=$(grep "base:" "$snap_mount_dir/$snap/current/meta/snap.yaml" | awk '{ print $2 }')
+                        if [ -n "$snap_base" ]; then
+                            skip_bases="$skip_bases $snap_base"
+                        fi
+                        keep=1
+                        break
+                    fi
+                done
+                if [ "$keep" -eq 0 ]; then
+                    # remove regular snaps right away; collect base snaps for removal in the second step below?
+                    if snap info --verbose "$snap" | grep -E '^type: +(base|core)'; then
+                        if [ -z "$remove_bases" ]; then
+                            remove_bases="$snap"
+                        else
+                            remove_bases="$remove_bases $snap"
+                        fi
+                    else
+                        snap remove --purge "$snap"
+                    fi
+                fi
+                ;;
+        esac
+    done
+    # remove all base/os snaps at the end
+    # skip the base snaps for the 
+    if [ -n "$remove_bases" ]; then
+        for base in $remove_bases; do
+            if ! [[ $skip_bases =~ (^|[[:space:]])$base($|[[:space:]]) ]]; then
+                snap remove --purge "$base"
+                if [ -d "$snap_mount_dir/$base" ]; then
+                    echo "Error: removing base $base has unexpected leftover dir $snap_mount_dir/$base"
+                    ls -al "$snap_mount_dir"
+                    ls -al "$snap_mount_dir/$base"
+                    exit 1
+                fi
+            fi
+        done
+    fi
+}
+
+main() {
+    local skip
+    skip=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            --skip)
+                skip="$skip $2"
+                shift 2
+                ;;
+            *)
+                echo "snaps.cleanup: unknown subcommand $1" >&2
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+    cleanup "$skip"
+}
+
+main "$@"

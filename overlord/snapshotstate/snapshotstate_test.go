@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -69,7 +70,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
 	s.AddCleanup(restore)
@@ -499,6 +500,18 @@ func (snapshotSuite) TestSaveNoSnapsInState(c *check.C) {
 	c.Check(taskset.Tasks(), check.HasLen, 0)
 }
 
+func (snapshotSuite) TestSaveSnapNotInstalled(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	setID, saved, taskset, err := snapshotstate.Save(st, []string{"foo"}, nil)
+	c.Assert(err, check.ErrorMatches, `snap "foo" is not installed`)
+	c.Check(setID, check.Equals, uint64(0))
+	c.Check(saved, check.HasLen, 0)
+	c.Check(taskset, check.IsNil)
+}
+
 func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
 		return map[string]*snapstate.SnapState{
@@ -526,17 +539,23 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 	c.Check(tasks[1].Summary(), check.Equals, `Save data of snap "c-snap" in snapshot set #1`)
 }
 
-func (snapshotSuite) TestSaveOneSnap(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
+	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[string]*snapstate.SnapState, error) {
 		// snapstate.All isn't called when a snap name is passed in
 		return nil, errors.New("bzzt")
-	}
-
-	defer snapshotstate.MockSnapstateAll(fakeSnapstateAll)()
+	})()
 
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+
+	snapstate.Set(st, "a-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "a-snap", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
 
 	setID, saved, taskset, err := snapshotstate.Save(st, []string{"a-snap"}, []string{"a-user"})
 	c.Assert(err, check.IsNil)

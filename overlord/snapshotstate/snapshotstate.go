@@ -385,6 +385,17 @@ func Save(st *state.State, instanceNames []string, users []string) (setID uint64
 		if err != nil {
 			return 0, nil, nil, err
 		}
+	} else {
+		installedSnaps, err := snapstate.All(st)
+		if err != nil {
+			return 0, nil, nil, err
+		}
+
+		for _, name := range instanceNames {
+			if _, ok := installedSnaps[name]; !ok {
+				return 0, nil, nil, &snap.NotInstalledError{Snap: name}
+			}
+		}
 	}
 
 	// Make sure we do not snapshot if anything like install/remove/refresh is in progress

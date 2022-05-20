@@ -469,10 +469,19 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	})
 	defer restore()
 
+	var called bool
+	restore = snapstate.MockExcludeFromRefreshAppAwareness(func(t snap.Type) bool {
+		called = true
+		c.Check(t, Equals, snap.TypeApp)
+		return false
+	})
+	defer restore()
+
 	// Attempt to install revision 2 of the snap, with the IgnoreRunning flag set.
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "pkg", SnapID: "pkg-id", Revision: snap.R(2)},
 		Flags:    snapstate.Flags{IgnoreRunning: true},
+		Type:     "app",
 	}
 
 	// And observe that we do so despite the running app.
@@ -483,6 +492,7 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 	err = snapstate.Get(s.state, "pkg", snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.RefreshInhibitedTime, IsNil)
+	c.Check(called, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
@@ -1973,6 +1983,11 @@ epoch: 1*
 			name: "mock",
 		},
 		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "mock",
+			inhibitHint: "refresh",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
 		},
@@ -2091,6 +2106,11 @@ epoch: 1*
 		{
 			op:   "remove-snap-aliases",
 			name: "mock",
+		},
+		{
+			op:          "run-inhibit-snap-for-unlink",
+			name:        "mock",
+			inhibitHint: "refresh",
 		},
 		{
 			op:   "unlink-snap",
@@ -3927,7 +3947,7 @@ func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presenc
 		flags = &snapstate.Flags{}
 	}
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -4032,7 +4052,7 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 }
 
 func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, snapOnePresence, snapOneRequiredRev, snapTwoPresence, snapTwoRequiredRev string) error {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		snapOne := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -4131,7 +4151,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 }
 
 func (s *validationSetsSuite) testInstallSnapRequiredByValidationSetWithBase(c *C, presenceForBase string) error {
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVs *asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
 			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
@@ -5155,6 +5175,8 @@ type: base
 }
 
 func (s *snapmgrTestSuite) TestMigrateOnInstallWithCore24(c *C) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5198,6 +5220,8 @@ func (s *snapmgrTestSuite) TestUndoMigrateOnInstallWithCore22OnExposedMigration(
 }
 
 func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFile bool, prepFail prepFailFunc) {
+	c.Skip("TODO:Snap-folder: no automatic migration for core22 snaps to ~/Snap folder for now")
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
