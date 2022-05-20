@@ -94,8 +94,8 @@ type SerialPortInterfaceSuite struct {
 	badPathSlot12Info    *snap.SlotInfo
 	badPathSlot13        *interfaces.ConnectedSlot
 	badPathSlot13Info    *snap.SlotInfo
-	badPathSlot100        *interfaces.ConnectedSlot
-	badPathSlot100Info    *snap.SlotInfo
+	badPathSlot100       *interfaces.ConnectedSlot
+	badPathSlot100Info   *snap.SlotInfo
 	badInterfaceSlot     *interfaces.ConnectedSlot
 	badInterfaceSlotInfo *snap.SlotInfo
 
