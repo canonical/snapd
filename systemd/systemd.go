@@ -149,9 +149,8 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	systemctlCmd = func(args ...string) ([]byte, error) {
 		// Thread-safe wrapper to call the locked systemctl
 		mutex.Lock()
-		bs, err := f(args...)
-		mutex.Unlock()
-		return bs, err
+		defer mutex.Unlock()
+		return f(args...)
 	}
 	return func() {
 		systemctlCmd = oldSystemctlCmd
@@ -166,11 +165,14 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 func MockSystemctlWithDelay(f func(args ...string) ([]byte, time.Duration, error)) func() {
 	var mutex sync.Mutex
 	oldSystemctlCmd := systemctlCmd
-	systemctlCmd = func(args ...string) ([]byte, error) {
+	systemctlCmd = func(args ...string) (bs []byte, err error) {
 		// Thread-safe wrapper to call the locked systemctl
-		mutex.Lock()
-		bs, delay, err := f(args...)
-		mutex.Unlock()
+		var delay time.Duration
+		func() {
+			mutex.Lock()
+			defer mutex.Unlock()
+			bs, delay, err = f(args...)
+		}()
 		// Emulate the delay outside the lock
 		time.Sleep(delay)
 		return bs, err
