@@ -42,7 +42,6 @@ prepare: |
       path: /dev/ttyS1
   EOF
   snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
-  snap known --remote account-key public-key-sha3-384=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 
   tests.nested build-image core
   tests.nested create-vm core
