@@ -1,61 +1,182 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: get-failed <PARSED-LOG>"
-    echo "       get-successful <PARSED-LOG>"
-    echo "       get-aborted <PARSED-LOG>"
-    echo "       get-total <PARSED-LOG>"
-    echo "       list-failed <PARSED-LOG>"
-    echo "       check-rexecution <PARSED-LOG>"
+    echo "usage: get-failed-tasks <PARSED-LOG>"
+    echo "       get-successful-tasks <PARSED-LOG>"
+    echo "       get-aborted-tasks <PARSED-LOG>"
+    echo "       get-total-tasks <PARSED-LOG>"
+    echo "       get-failed <task|suite|project> <prepare|restore> <PARSED-LOG>"
+    echo "       list-failed-tasks <PARSED-LOG>"
+    echo "       list-failed <task|suite|project> <prepare|restore> <PARSED-LOG>"
+    echo "       list-reexecute-tasks <PARSED-LOG>"
+    echo "       allow-partial-reexecute <PARSED-LOG>"
     echo ""
     echo "Get general information about the current system"
 }
 
-get_successful() {
+_check_log() {
     local log="$1"
+
+    if [ -z "$log" ]; then
+        echo "The log file cannot be empty"
+        exit 1
+    elif [ ! -f "$log" ]; then
+        echo "The log file $log does not exist"
+        exit 1
+    fi
+}
+
+get_successful_tasks() {
+    local log="$1"
+    _check_log "$log"
+
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") | .number ) // 0 ' "$log" | awk '{s+=$1} END {print s}')
     # shellcheck disable=SC2086
     test $TESTS_SUCCESSFUL -gt 0
     echo "$TESTS_SUCCESSFUL"
 }
 
-get_failed() {
+get_failed_tasks() {
     local log="$1"
+    _check_log "$log"
+
     TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") | .number ) // 0 ' "$log" | awk '{s+=$1} END {print s}')
     # shellcheck disable=SC2086
     test $TESTS_FAILED -gt 0
     echo "$TESTS_FAILED"
 }
 
-get_aborted() {
+get_aborted_tasks() {
     local log="$1"
+    _check_log "$log"
+
     TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") | .number ) // 0 ' "$log" | awk '{s+=$1} END {print s}')
     # shellcheck disable=SC2086
     test $TESTS_ABORTED -gt 0
     echo "$TESTS_ABORTED"
 }
 
-get_total(){
+get_total_tasks(){
     local log="$1"
+    _check_log "$log"
 
-    TESTS_SUCCESSFUL=$(get_successful "$log")
-    TESTS_FAILED=$(get_failed "$log")
-    TESTS_ABORTED=$(get_aborted "$log")
+    TESTS_SUCCESSFUL=$(get_successful_tasks "$log")
+    TESTS_FAILED=$(get_failed_tasks "$log")
+    TESTS_ABORTED=$(get_aborted_tasks "$log")
     echo "$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))"
 }
 
-list_failed(){
+list_failed_tasks() {
     local log="$1"
-    jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' "$log" | cut -d '-' -f2- | xargs
+    _check_log "$log"
+
+    jq -r '.[] | select( .type == "result") | select( .result_type == "Failed")  | select(.level == "tasks") | .detail.lines[]' "$log" | cut -d '-' -f2- | xargs
 }
 
-check_rexecution() {
-    local log="$1"
-    TESTS_FAILED=$(get_failed "$log")
-    TESTS_ABORTED=$(get_aborted "$log")
+list_failed() {
+    local level="$1"
+    local stage="$2"
+    local log="$3"
 
-    # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
-    test "$TESTS_FAILED" != 0 && test "$TESTS_ABORTED" = 0
+    if [ -z "$level" ]; then
+        echo "The first parameter cannot be empty"
+    elif [ ! "$level" = 'task' ] && [ ! "$level" = 'suite' ] && [ ! "$level" = 'project' ]; then
+        echo "The first parameter has to be: task, suite or project"
+    fi
+
+    if [ -z "$stage" ]; then
+        echo "The second parameter cannot be empty"
+    elif [ ! "$stage" = 'prepare' ] && [ ! "$stage" = 'restore' ]; then
+        echo "The second parameter has to be: prepare or restore"
+    fi    
+    _check_log "$log"
+
+    jq -r ".[] | select( .type == \"result\") | select( .result_type == \"Failed\")  | select(.level == \"$level\") | select(.stage == \"$stage\")  | .detail.lines[]" "$log" | cut -d '-' -f2- | xargs
+}
+
+get_failed() {
+    local level="$1"
+    local stage="$2"
+    local log="$3"
+
+    if [ -z "$level" ]; then
+        echo "The first parameter cannot be empty"
+    elif [ ! "$level" = 'task' ] && [ ! "$level" = 'suite' ] && [ ! "$level" = 'project' ]; then
+        echo "The first parameter has to be: task, suite or project"
+    fi
+
+    if [ -z "$stage" ]; then
+        echo "The second parameter cannot be empty"
+    elif [ ! "$stage" = 'prepare' ] && [ ! "$stage" = 'restore' ]; then
+        echo "The second parameter has to be: prepare or restore"
+    fi    
+    _check_log "$log"
+
+    jq -r ".[] | select( .type == \"result\") | ( select( .result_type == \"Failed\")  | ( select(.level == \"$level\") | ( select(.stage == \"$stage\")  | .number ))) // 0 " "$log" | awk '{s+=$1} END {print s}'
+}
+
+_merge_tasks_lists() {
+    local list1="$1"
+    local list2="$2"
+    local merged_list="$1"
+
+    for elem2 in $list2; do
+        if [[ ! $list1 =~ (^|[[:space:]])$elem2($|[[:space:]]) ]]; then
+            merged_list="$merged_list $elem2"
+        fi
+    done 
+    echo "$merged_list"
+}
+
+list_reexecute_tasks() {
+     local log="$1"
+    _check_log "$log"
+
+    # Return an empty value when the partial reexecution is not allowed    
+    if ! allow_partial_reexecute "$log"; then
+        return
+    fi
+
+    local failed_tasks failed_task_prepare failed_task_restore failed_tasks_merged_1 failed_tasks_merged_2
+    failed_tasks="$(list_failed_tasks "$log")"
+    failed_task_prepare="$(list_failed task prepare "$log")"
+    failed_task_restore="$(list_failed task restore "$log")"
+
+    # Some tasks could be repeated in the papare and restore lists
+    failed_tasks_merged_1="$(_merge_tasks_lists "$failed_task_prepare" "$failed_task_restore")"
+    # Some tasks could be repeated in the execute and restore lists
+    failed_tasks_merged_2="$(_merge_tasks_lists "$failed_tasks" "$failed_tasks_merged_1")"
+    echo "$failed_tasks_merged_2"
+
+}
+
+allow_partial_reexecute() {
+     local log="$1"
+    _check_log "$log"
+
+    local n_aborted_tasks n_task_prepare n_task_restore n_failed_tasks n_failed_total n_suite_restore n_project_restore
+    n_aborted_tasks="$(get_aborted_tasks "$log")"
+    n_task_prepare="$(get_failed task prepare "$log")"
+    n_task_restore="$(get_failed task prepare "$log")"
+    n_failed_tasks="$(get_failed_tasks "$log")"
+
+    n_failed_total="$((n_task_prepare+n_task_restore+n_failed_tasks))"
+    n_suite_restore="$(get_failed suite restore "$log")"
+    n_project_restore="$(get_failed project restore "$log")"
+    
+    # The only aborted tasks that can be re-executed are the ones which failed during prepare
+    # Aborted tasks has to be the same number of tasks failed to prepare
+    if [ "$n_task_prepare" != "$n_aborted_tasks" ]; then
+        return 1
+    fi
+
+    # Failed tasks at any level have to be greater than 0
+    # In case all the tasks are successful but either a suite or project have failed to restore, we can't re-execute (no tasks for re-execution)    
+    if [ $n_failed_total = 0 ]; then
+        if [ "$n_suite_restore" != 0 ] || [ "$n_project_restore" != 0 ]; then
+            return 1
+        fi
+    fi
 }
 
 
