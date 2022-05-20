@@ -78,9 +78,9 @@ func (client *Client) ForgetValidationSet(accountID, name string, sequence int) 
 }
 
 // ApplyValidationSet applies the given validation set identified by account and name.
-func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateApplyOptions) error {
+func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateApplyOptions) (res *ValidationSetResult, err error) {
 	if accountID == "" || name == "" {
-		return xerrors.Errorf("cannot apply validation set without account ID and name")
+		return nil, xerrors.Errorf("cannot apply validation set without account ID and name")
 	}
 
 	data := &postValidationSetData{
@@ -91,14 +91,20 @@ func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateA
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
-		return err
+		return nil, err
 	}
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
-	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
-		fmt := "cannot apply validation set: %w"
-		return xerrors.Errorf(fmt, err)
+
+	if opts.Mode == "monitor" {
+		_, err = client.doSync("POST", path, nil, nil, &body, &res)
+	} else {
+		_, err = client.doSync("POST", path, nil, nil, &body, nil)
 	}
-	return nil
+	if err != nil {
+		fmt := "cannot apply validation set: %w"
+		return nil, xerrors.Errorf(fmt, err)
+	}
+	return res, nil
 }
 
 // ListValidationsSets queries all validation sets.

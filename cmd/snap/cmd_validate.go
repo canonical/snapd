@@ -33,9 +33,8 @@ import (
 
 type cmdValidate struct {
 	clientMixin
-	Monitor bool `long:"monitor"`
-	// XXX: enforce mode is not supported yet
-	Enforce    bool `long:"enforce" hidden:"yes"`
+	Monitor    bool `long:"monitor"`
+	Enforce    bool `long:"enforce"`
 	Forget     bool `long:"forget"`
 	Positional struct {
 		ValidationSet string `positional-arg-name:"<validation-set>"`
@@ -152,7 +151,15 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			Mode:     action,
 			Sequence: seq,
 		}
-		return cmd.client.ApplyValidationSet(accountID, name, opts)
+		res, err := cmd.client.ApplyValidationSet(accountID, name, opts)
+		if err != nil {
+			return err
+		}
+		if res != nil && action == "monitor" {
+			fmt.Fprintln(Stdout, fmtValid(res))
+			return nil
+		}
+		return nil
 	}
 
 	// no validation set argument, print list with extended info

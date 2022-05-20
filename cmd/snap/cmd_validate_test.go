@@ -117,23 +117,23 @@ func (s *validateSuite) TestValidateInvalidArgs(c *check.C) {
 }
 
 func (s *validateSuite) TestValidateMonitor(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 0))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":false}}`, "monitor", 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "invalid\n")
 }
 
 func (s *validateSuite) TestValidateMonitorPinned(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "monitor", 3))
+	s.RedirectClientToTestServer(makeFakeValidationSetPostHandler(c, `{"type": "sync", "status-code": 200, "result": {"account-id":"foo","name":"bar","mode":"monitor","sequence":3,"valid":true}}}`, "monitor", 3))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"validate", "--monitor", "foo/bar=3"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "valid\n")
 }
 
 func (s *validateSuite) TestValidateEnforce(c *check.C) {

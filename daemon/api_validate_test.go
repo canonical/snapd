@@ -599,12 +599,27 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) 
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedLocalOnly(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	s.mockValidationSetsTracking(st)
+	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key)
+	as := s.mockAssert(c, "bar", "99")
+	err := assertstate.Add(st, as)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
 	var called int
-	restore := daemon.MockAssertstateMonitorValidationSet(func(st *state.State, accountID, name string, sequence, userID int) error {
+	restore := daemon.MockAssertstateMonitorValidationSet(func(st *state.State, accountID, name string, sequence, userID int) (*assertstate.ValidationSetTracking, error) {
 		c.Assert(accountID, check.Equals, s.dev1acct.AccountID())
 		c.Assert(name, check.Equals, "bar")
 		c.Assert(sequence, check.Equals, 99)
 		called++
+		return &assertstate.ValidationSetTracking{AccountID: accountID, Name: name, PinnedAt: 99, Current: 99999}, nil
+	})
+	defer restore()
+
+	restore = daemon.MockCheckInstalledSnaps(func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) error {
+		// nil indicates successful validation
 		return nil
 	})
 	defer restore()
@@ -619,8 +634,8 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModePinnedLocalOnl
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModeError(c *check.C) {
-	restore := daemon.MockAssertstateMonitorValidationSet(func(st *state.State, accountID, name string, sequence, userID int) error {
-		return fmt.Errorf("boom")
+	restore := daemon.MockAssertstateMonitorValidationSet(func(st *state.State, accountID, name string, sequence, userID int) (*assertstate.ValidationSetTracking, error) {
+		return nil, fmt.Errorf("boom")
 	})
 	defer restore()
 

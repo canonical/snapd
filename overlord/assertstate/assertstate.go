@@ -772,15 +772,15 @@ func EnforceValidationSet(st *state.State, accountID, name string, sequence, use
 
 // MonitorValidationSet tries to fetch the given validation set and monitor it.
 // The current validation sets tracking state is saved in validation sets history.
-func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) error {
+func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) (*ValidationSetTracking, error) {
 	pinned := sequence > 0
 	opts := ResolveOptions{AllowLocalFallback: true}
 	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
 	if err != nil {
-		return fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
+		return nil, fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
 	}
 
-	tr := ValidationSetTracking{
+	tr := &ValidationSetTracking{
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Monitor,
@@ -790,8 +790,8 @@ func MonitorValidationSet(st *state.State, accountID, name string, sequence int,
 		LocalOnly: local,
 	}
 
-	UpdateValidationSet(st, &tr)
-	return addCurrentTrackingToValidationSetsHistory(st)
+	UpdateValidationSet(st, tr)
+	return tr, addCurrentTrackingToValidationSetsHistory(st)
 }
 
 // TemporaryDB returns a temporary database stacked on top of the assertions

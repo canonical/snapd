@@ -3662,8 +3662,15 @@ func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	sequence := 2
-	err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0)
+	tr1, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", sequence, 0)
 	c.Assert(err, IsNil)
+	c.Check(tr1, DeepEquals, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		PinnedAt:  2,
+		Current:   2,
+	})
 
 	// and it has been committed
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -3720,8 +3727,25 @@ func (s *assertMgrSuite) TestForgetValidationSet(c *C) {
 	vsetAs2 := s.validationSetAssert(c, "baz", "2", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
-	c.Assert(assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", 2, 0), IsNil)
-	c.Assert(assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "baz", 2, 0), IsNil)
+	tr1, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "bar", 2, 0)
+	c.Assert(err, IsNil)
+	c.Check(tr1, DeepEquals, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		PinnedAt:  2,
+		Current:   2,
+	})
+
+	tr2, err := assertstate.MonitorValidationSet(st, s.dev1Acct.AccountID(), "baz", 2, 0)
+	c.Assert(err, IsNil)
+	c.Check(tr2, DeepEquals, &assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "baz",
+		Mode:      assertstate.Monitor,
+		PinnedAt:  2,
+		Current:   2,
+	})
 
 	c.Assert(assertstate.ForgetValidationSet(st, s.dev1Acct.AccountID(), "bar"), IsNil)
 
