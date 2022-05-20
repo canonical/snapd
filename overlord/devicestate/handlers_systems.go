@@ -51,7 +51,7 @@ func taskRecoverySystemSetup(t *state.Task) (*recoverySystemSetup, error) {
 	if err == nil {
 		return &setup, nil
 	}
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	if !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	// find the task which holds the data
