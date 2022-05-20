@@ -799,23 +799,18 @@ EOF
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
 
+            declare -a UBUNTU_IMAGE_PRESEED_ARGS
             if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
-                # ubuntu-image creates sparse image files
-                # shellcheck disable=SC2086
-                "$UBUNTU_IMAGE" snap --image-size 10G --preseed --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\" "$NESTED_MODEL" \
-                    $UBUNTU_IMAGE_CHANNEL_ARG \
-                    --output-dir "$NESTED_IMAGES_DIR" \
-                    $EXTRA_FUNDAMENTAL \
-                    $EXTRA_SNAPS
-            else
-                # ubuntu-image creates sparse image files
-                # shellcheck disable=SC2086
-                "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
-                    $UBUNTU_IMAGE_CHANNEL_ARG \
-                    --output-dir "$NESTED_IMAGES_DIR" \
-                    $EXTRA_FUNDAMENTAL \
-                    $EXTRA_SNAPS
+                UBUNTU_IMAGE_PRESEED_ARGS+=(--preseed  --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\")
             fi
+            # ubuntu-image creates sparse image files
+            # shellcheck disable=SC2086
+            "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
+                $UBUNTU_IMAGE_CHANNEL_ARG \
+                "${UBUNTU_IMAGE_PRESEED_ARGS[@]}" \
+                --output-dir "$NESTED_IMAGES_DIR" \
+                $EXTRA_FUNDAMENTAL \
+                $EXTRA_SNAPS
 
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
