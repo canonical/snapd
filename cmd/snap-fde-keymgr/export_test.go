@@ -33,9 +33,21 @@ func MockAddRecoveryKeyToLUKS(f func(recoveryKey keys.RecoveryKey, dev string) e
 	return restore
 }
 
+func MockAddRecoveryKeyToLUKSUsingKey(f func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, dev string) error) (restore func()) {
+	restore = testutil.Backup(&keymgrAddRecoveryKeyToLUKSDeviceUsingKey)
+	keymgrAddRecoveryKeyToLUKSDeviceUsingKey = f
+	return restore
+}
+
 func MockRemoveRecoveryKeyFromLUKS(f func(dev string) error) (restore func()) {
 	restore = testutil.Backup(&keymgrRemoveRecoveryKeyFromLUKSDevice)
 	keymgrRemoveRecoveryKeyFromLUKSDevice = f
+	return restore
+}
+
+func MockRemoveRecoveryKeyFromLUKSUsingKey(f func(key keys.EncryptionKey, dev string) error) (restore func()) {
+	restore = testutil.Backup(&keymgrRemoveRecoveryKeyFromLUKSDeviceUsingKey)
+	keymgrRemoveRecoveryKeyFromLUKSDeviceUsingKey = f
 	return restore
 }
 

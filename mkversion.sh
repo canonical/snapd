@@ -131,7 +131,16 @@ cat <<EOF > "$PKG_BUILDDIR/cmd/VERSION"
 $v
 EOF
 
+MOD=-mod=vendor
+if [ "$GO111MODULE" = "off" ] ; then
+    MOD=--
+elif [ ! -d "$GO_GENERATE_BUILDDIR/vendor/github.com"  ] ; then
+    MOD=--
+fi
+fmts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./asserts/info)
+
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v
 SNAPD_APPARMOR_REEXEC=0
+${fmts}
 EOF

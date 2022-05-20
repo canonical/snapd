@@ -412,6 +412,9 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 	// Add snippets derived from the layout definition.
 	spec.(*Specification).AddLayout(snapInfo)
 
+	// Add additional mount layouts rules for the snap.
+	spec.(*Specification).AddExtraLayouts(snapInfo, opts.ExtraLayouts)
+
 	// core on classic is special
 	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
