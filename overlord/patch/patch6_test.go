@@ -20,6 +20,7 @@
 package patch_test
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -179,7 +180,7 @@ func (s *patch6Suite) TestPatch6(c *C) {
 
 	for _, task := range st.Tasks() {
 		snapsup, err := patch.Patch6SnapSetup(task)
-		if err == state.ErrNoState {
+		if errors.Is(err, state.ErrNoState) {
 			continue
 		}
 		c.Assert(err, IsNil)

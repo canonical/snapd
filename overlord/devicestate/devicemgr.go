@@ -487,7 +487,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -514,7 +514,7 @@ func (m *DeviceManager) ensureOperational() error {
 
 	var storeID, gadget string
 	model, err := m.Model()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if err == nil {
@@ -675,7 +675,7 @@ func init() {
 func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	var prev time.Time
 	err := m.state.Get(name, &prev)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !prev.IsZero() {
@@ -804,7 +804,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if seeded {
@@ -880,7 +880,7 @@ func (m *DeviceManager) ensureBootOk() error {
 
 	if !m.bootOkRan {
 		deviceCtx, err := DeviceCtx(m.state, nil, nil)
-		if err != nil && err != state.ErrNoState {
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if err == nil {
@@ -911,7 +911,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -1088,7 +1088,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -1098,7 +1098,7 @@ func (m *DeviceManager) ensureInstalled() error {
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
 	model, err := m.Model()
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if err != nil {
@@ -1176,7 +1176,7 @@ func (m *DeviceManager) ensureFactoryReset() error {
 
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !seeded {
@@ -1217,14 +1217,14 @@ func (m *DeviceManager) StartOfOperationTime() (time.Time, error) {
 	if err == nil {
 		return opTime, nil
 	}
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return opTime, err
 	}
 
 	// start-of-operation-time not set yet, use seed-time if available
 	var seedTime time.Time
 	err = m.state.Get("seed-time", &seedTime)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return opTime, err
 	}
 	if err == nil {
@@ -1258,7 +1258,7 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 	if !m.ensureSeedInConfigRan {
 		// get global seeded option
 		var seeded bool
-		if err := m.state.Get("seeded", &seeded); err != nil && err != state.ErrNoState {
+		if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !seeded {
@@ -1285,7 +1285,7 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	// state is locked by the caller
 
 	var triedSystems []string
-	if err := m.state.Get("tried-systems", &triedSystems); err != nil && err != state.ErrNoState {
+	if err := m.state.Get("tried-systems", &triedSystems); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if strutil.ListContains(triedSystems, label) {
@@ -1313,7 +1313,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	defer m.state.Unlock()
 
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
@@ -1430,7 +1430,7 @@ var errNoSaveSupport = errors.New("no save directory before UC20")
 func (m *DeviceManager) withSaveDir(f func() error) error {
 	// we use the model to check whether this is a UC20 device
 	model, err := m.Model()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access save dir before a model is set")
 	}
 	if err != nil {
@@ -1474,7 +1474,7 @@ func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) err
 	// to deal with that, this code typically will return the old location
 	// until a restart
 	model, err := m.Model()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
 	}
 	if err != nil {
@@ -1619,7 +1619,7 @@ type SystemModeInfo struct {
 // SystemModeInfo returns details about the current system mode the device is in.
 func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
 	}
 	if err != nil {
@@ -1628,7 +1628,7 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -1892,7 +1892,7 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 	}
 
 	privKey, err := scb.DeviceManager.keyPair()
-	if err == state.ErrNoState {
+	if errors.Is(err, state.ErrNoState) {
 		return nil, fmt.Errorf("internal error: inconsistent state with serial but no device key")
 	}
 	if err != nil {
