@@ -165,7 +165,7 @@ backends:
             - centos-8-64:
                   workers: 6
                   storage: preserve-size
-                  image: centos-9-64
+                  image: centos-8-64
             - centos-9-64:
                   workers: 6
                   storage: preserve-size
