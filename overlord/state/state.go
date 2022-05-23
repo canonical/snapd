@@ -46,7 +46,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value interface{}) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return ErrNoState
+		return &NoStateError{Key: key}
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
@@ -240,6 +240,26 @@ func (s *State) EnsureBefore(d time.Duration) {
 
 // ErrNoState represents the case of no state entry for a given key.
 var ErrNoState = errors.New("no state entry for key")
+
+// NoStateError represents the case where no state could be found for a given key.
+type NoStateError struct {
+	// Key is the key for which no state could be found.
+	Key string
+}
+
+func (e *NoStateError) Error() string {
+	var keyMsg string
+	if e.Key != "" {
+		keyMsg = fmt.Sprintf(" %q", e.Key)
+	}
+
+	return fmt.Sprintf("no state entry for key%s", keyMsg)
+}
+
+func (e *NoStateError) Is(err error) bool {
+	_, ok := err.(*NoStateError)
+	return ok || err == ErrNoState
+}
 
 // Get unmarshals the stored value associated with the provided key
 // into the value parameter.
