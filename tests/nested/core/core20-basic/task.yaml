@@ -65,3 +65,7 @@ execute: |
     MATCH "Mark system seeded"        < install-timings.txt
     MATCH "Setup system for run mode" < install-timings.txt
     MATCH "ensure=install-system"     < install-timings.txt
+
+    echo "Check seeding info"
+    tests.nested exec "snap debug seeding" | MATCH "^seeded: +true"
+    tests.nested exec "snap debug seeding" | MATCH "^preseeded: +false"

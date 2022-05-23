@@ -22,6 +22,7 @@ NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakesto
 NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
 NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
 NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
+NESTED_UBUNTU_IMAGE_PRESEED_KEY="${NESTED_UBUNTU_IMAGE_PRESEED_KEY:-}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
@@ -797,13 +798,21 @@ EOF
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+
+            declare -a UBUNTU_IMAGE_PRESEED_ARGS
+            if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
+                # shellcheck disable=SC2191
+                UBUNTU_IMAGE_PRESEED_ARGS+=(--preseed  --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\")
+            fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
+                "${UBUNTU_IMAGE_PRESEED_ARGS[@]}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 $EXTRA_FUNDAMENTAL \
                 $EXTRA_SNAPS
+
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
             # gadget.yaml
