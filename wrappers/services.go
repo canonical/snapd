@@ -573,8 +573,8 @@ func (es *ensureSnapServicesContext) restore() {
 			}
 		}
 		if es.journalCtlReloadNeeded {
-			if e := es.sysd.Restart([]string{"systemd-journald.service"}); e != nil {
-				es.inter.Notify(fmt.Sprintf("while trying to restart systemd-journald due to previous failure: %v", e))
+			if err := es.sysd.Restart([]string{"systemd-journald.service"}); err != nil {
+				es.inter.Notify(fmt.Sprintf("while trying to restart systemd-journald due to previous failure: %v", err))
 			}
 		}
 	}
@@ -597,10 +597,10 @@ func (es *ensureSnapServicesContext) reloadModified() error {
 		if err := userDaemonReload(); err != nil {
 			return err
 		}
-		if es.journalCtlReloadNeeded {
-			if err := es.sysd.Restart([]string{"systemd-journald.service"}); err != nil {
-				return err
-			}
+	}
+	if es.journalCtlReloadNeeded {
+		if err := es.sysd.Restart([]string{"systemd-journald.service"}); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -750,10 +750,10 @@ func (es *ensureSnapServicesContext) ensureSnapSlices(quotaGroups *quota.QuotaGr
 	// now make sure that all of the slice units exist
 	for _, grp := range quotaGroups.AllQuotaGroups() {
 		content := generateGroupSliceFile(grp)
-		sliceFileName := grp.SliceFileName()
 
-		slicePath := filepath.Join(dirs.SnapServicesDir, sliceFileName)
-		if err := handleSliceModification(grp, slicePath, content); err != nil {
+		sliceFileName := grp.SliceFileName()
+		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
+		if err := handleSliceModification(grp, path, content); err != nil {
 			return err
 		}
 	}
@@ -794,8 +794,8 @@ func (es *ensureSnapServicesContext) ensureSnapJournaldUnits(quotaGroups *quota.
 		contents := generateJournaldConfFile(grp)
 		fileName := grp.JournalFileName()
 
-		journalConfPath := filepath.Join(dirs.SnapSystemdDir, fileName)
-		if err := handleJournalModification(grp, journalConfPath, contents); err != nil {
+		path := filepath.Join(dirs.SnapSystemdDir, fileName)
+		if err := handleJournalModification(grp, path, contents); err != nil {
 			return err
 		}
 	}
