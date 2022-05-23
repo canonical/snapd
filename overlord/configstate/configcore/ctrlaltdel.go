@@ -75,7 +75,7 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 		sysd = systemd.New(systemd.SystemMode, &sysdCtrlAltDelLogger{})
 
 		// Make sure the ctrl-alt-del.target unit is in the expected state.
-		// (1) The required unit should be present (file exist under /lib/systemd/system).
+		// (1) The required unit should be present (file exist under /{run,etc,lib}/systemd/system).
 		// (2) The Enable state for a unit typically means automatic startup on boot. The
 		//     expected state for reboot.target (ctrl-alt-del.target) is 'disabled'.
 		//     The ctrl-alt-del.target unit is an alias for reboot.target. This means that
@@ -100,15 +100,12 @@ func switchCtrlAltDelAction(action string, opts *fsOnlyContext) error {
 	// "unset" state, which complicates the problem unnecessarily, for not much benefit.
 	switch action {
 	case ctrlAltDelNone:
-		// Create and make the /etc/systemd/system/ctrl-alt-del.target -> /dev/null
-		// The /etc/system/system/* unit directory is searched before the installed
-		// unit file directory /lib/system/system/* (which contains the valid symlink
-		// ctrl-alt-del.target -> reboot.target in the same directory).
+		// the unit is masked and cannot be started
 		if err := sysd.Mask(ctrlAltDelTarget); err != nil {
 			return err
 		}
 	case ctrlAltDelReboot:
-		// Remove the symlink /etc/systemd/system/ctrl-alt-del.target -> /dev/null
+		// the unit is no longer masked and thus can be started on demand causing a reboot
 		if err := sysd.Unmask(ctrlAltDelTarget); err != nil {
 			return err
 		}
