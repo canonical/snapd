@@ -95,7 +95,7 @@ func (s *ctrlaltdelSuite) SetUpTest(c *C) {
 	}
 	s.unit = unitStateNone
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 
 // Only "none" or "reboot" are valid action states
@@ -158,6 +158,17 @@ func (s *ctrlaltdelSuite) TestCtrlAltDelValidDisabledState(c *C) {
 				changes: map[string]interface{}{"system.ctrl-alt-del-action": opt},
 			})
 			c.Assert(err, IsNil)
+			c.Check(s.systemctlArgs, HasLen, 2)
+			c.Check(s.systemctlArgs[0], DeepEquals, []string{"show", "--property=Id,ActiveState,UnitFileState,Names", "ctrl-alt-del.target"})
+			switch opt {
+			case "reboot":
+				c.Check(s.systemctlArgs[1], DeepEquals, []string{"unmask", "ctrl-alt-del.target"})
+			case "none":
+				c.Check(s.systemctlArgs[1], DeepEquals, []string{"mask", "ctrl-alt-del.target"})
+			default:
+				c.Fatalf("unreachable")
+			}
+			s.systemctlArgs = nil
 		}
 	}
 }
